@@ -72,10 +72,15 @@ export class AdminProductsController {
   }
 
   /**
-   * `GET /admin/products/low-stock?threshold` — the low-stock report (T7.8): every
-   * active product carrying a variant at or below the threshold, most urgent first.
-   * Declared before `:id` so the literal path is matched ahead of the param route.
-   * A bad `threshold` is a `400`; the default applies when it is omitted.
+   * `GET /admin/products/low-stock?threshold&locationId` — the low-stock report
+   * (T7.8): every active product carrying a position at or below its reorder
+   * cushion, most urgent first. Declared before `:id` so the literal path is
+   * matched ahead of the param route.
+   *
+   * `threshold` is an optional uniform ceiling that overrides every position's own
+   * cushion; omitted, each is judged against the three-rung chain (branch →
+   * product → gym default). `locationId` picks one branch's shelves; omitted is the
+   * gym-wide roll-up. A bad value in either is a `400`, an unknown branch a `404`.
    */
   @Get('low-stock')
   @HttpCode(HttpStatus.OK)
@@ -85,9 +90,14 @@ export class AdminProductsController {
   }
 
   /**
-   * `GET /admin/products/inventory?page&limit&search&status&tracked` — every
-   * product flattened into its stock positions with on-hand counts and totals.
-   * Declared before `:id` so the literal path wins over the param route.
+   * `GET /admin/products/inventory?page&limit&search&status&tracked&locationId` —
+   * every product flattened into its stock positions with on-hand counts and
+   * totals. Declared before `:id` so the literal path wins over the param route.
+   *
+   * `locationId` counts one branch's shelves; omitted is the gym-wide roll-up. The
+   * table aggregates either way — one row per (product, variant), never one per
+   * branch — so the pager and the tiles keep their pre-Stage-4 meaning. See
+   * `InventoryPositionRow` for what that trade hides.
    */
   @Get('inventory')
   @HttpCode(HttpStatus.OK)
@@ -184,6 +194,10 @@ export class AdminProductsController {
    * A body that is neither a delta nor an absolute count — or is both — is a
    * `400`, as is a change that would drive the count negative. Requires
    * `ProductWrite`: adjusting stock is editing the catalogue's truth.
+   *
+   * `locationId` is required and names the branch whose shelf changed — the one
+   * place multi-branch refuses rather than defaulting, because an untargeted
+   * adjustment is what Stage 4 exists to eliminate. An unknown branch is a `404`.
    */
   @Post(':id/stock')
   @HttpCode(HttpStatus.OK)
@@ -193,9 +207,14 @@ export class AdminProductsController {
   }
 
   /**
-   * `GET /admin/products/:id/stock-movements?page&limit` — that product's ledger,
-   * newest first, so "why is this 3?" is answerable from the console. Read-only,
-   * and gated on `ProductRead` like every other view of the catalogue.
+   * `GET /admin/products/:id/stock-movements?page&limit&locationId` — that
+   * product's ledger, newest first, so "why is this 3?" is answerable from the
+   * console. Read-only, and gated on `ProductRead` like every other view of the
+   * catalogue.
+   *
+   * `locationId` narrows to one branch. Omitted keeps every branch **and** the
+   * movements that name none — the pre-Stage-4 rows, which no branch filter can
+   * honestly show.
    */
   @Get(':id/stock-movements')
   @HttpCode(HttpStatus.OK)

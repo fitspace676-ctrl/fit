@@ -12,6 +12,7 @@ import {
   type ReportMetric,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchReportDrilldown } from '@/lib/api';
 import { DrilldownView } from './drilldown-view';
 import { chrome } from '../report-chrome';
@@ -37,7 +38,7 @@ export default async function ReportDrilldownPage({
   searchParams,
 }: {
   params: Promise<{ metric: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; locationId?: string }>;
 }) {
   const { metric: rawMetric } = await params;
   const parsedMetric = reportMetricSchema.safeParse(rawMetric);
@@ -50,19 +51,25 @@ export default async function ReportDrilldownPage({
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
 
-  const { range: rawRange } = await searchParams;
-  const parsedRange = reportDrilldownRangeSchema.safeParse(rawRange);
+  const query = await searchParams;
+  const parsedRange = reportDrilldownRangeSchema.safeParse(query.range);
   const range: ReportDrilldownRange = parsedRange.success
     ? parsedRange.data
     : DEFAULT_REPORT_DRILLDOWN_RANGE;
+  // A drill-down link is the one thing staff paste to each other, so the branch
+  // rides in the URL when it is there and falls back to the top bar's cookie when
+  // it is not — the same resolution the export route beside this page performs.
+  const locationId = await getActiveLocationId(query);
 
   if (!canViewReports) {
     return <p {...stylex.props(chrome.notice)}>{t('noAccess')}</p>;
   }
 
   try {
-    const drilldown = await fetchReportDrilldown(metric, range);
-    return <DrilldownView drilldown={drilldown} />;
+    const drilldown = await fetchReportDrilldown(metric, range, locationId);
+    // The same value the fetch used, so the header caveat and the download links
+    // describe the branch actually on screen.
+    return <DrilldownView drilldown={drilldown} locationId={locationId} />;
   } catch (error) {
     const message =
       error instanceof ApiError

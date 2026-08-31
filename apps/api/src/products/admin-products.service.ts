@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ProductStatus, Prisma, StockMovementReason } from '@fit/db';
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   UNCATEGORISED_FILTER,
   productVariantsSchema,
+  resolveLowStockThreshold,
   resolveStockLevel,
   type AdminProductDetail,
   type AdminProductRow,
@@ -32,6 +33,7 @@ import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
+import { parseBranchCounts } from './order-stock';
 
 /**
  * The columns the roster/detail queries select off `Product`. Every field is the
@@ -69,6 +71,59 @@ interface StockWritingClient {
   };
 }
 
+/** Whichever client is at hand when the gym's default branch has to be resolved. */
+interface DefaultBranchClient {
+  location: {
+    findFirst(args: {
+      where: { isDefault: true };
+      select: { id: true };
+    }): Promise<{ id: string } | null>;
+  };
+}
+
+/**
+ * The slice of a transaction client the branch fan-out needs — narrow on purpose,
+ * for the reason {@link StockWritingClient} is: the tenant-extended client is not
+ * assignable to `Prisma.TransactionClient`, so a helper typed by either one cannot
+ * be handed the other's transaction.
+ */
+interface ProductStockWriteClient extends DefaultBranchClient {
+  product: {
+    update(args: {
+      where: { id: string };
+      data: { stock?: number | null | { increment: number } };
+    }): Promise<unknown>;
+  };
+  productStock: {
+    findMany(args: {
+      where: { productId: string };
+      select: { id: true; locationId: true; stock: true; variants: true };
+    }): Promise<
+      Array<{ id: string; locationId: string; stock: number | null; variants: Prisma.JsonValue }>
+    >;
+    create(args: {
+      data: {
+        gymId: string;
+        productId: string;
+        locationId: string;
+        stock: number | null;
+        variants: Prisma.InputJsonValue;
+      };
+    }): Promise<unknown>;
+    update(args: {
+      where: { id: string };
+      data: {
+        variants?: Prisma.InputJsonValue;
+        stock?: number | null | { increment: number };
+      };
+    }): Promise<unknown>;
+    updateMany(args: {
+      where: { id: string; stock: { gte: number } };
+      data: { stock: { decrement: number } };
+    }): Promise<{ count: number }>;
+  };
+}
+
 /** The ledger note behind a count a product was created (or a variant added) with. */
 const OPENING_COUNT_NOTE = 'Opening count';
 
@@ -102,6 +157,45 @@ export function tallyStock(
     return { totalStock: 0, lowestStock: null };
   }
   return { totalStock: baseStock, lowestStock: baseStock };
+}
+
+/**
+ * What one branch holds for one product — the `ProductStock` row, as the read
+ * paths need it. `undefined` (no row at all) is a different thing from a row whose
+ * figures happen to be empty; see {@link branchPositionStock}.
+ */
+interface BranchHolding {
+  stock: number | null;
+  variants: number[];
+  lowStockThreshold: number | null;
+}
+
+/**
+ * One position's on-hand count at one branch, or `null` for "not counted here".
+ *
+ * The distinction this draws is the whole reason the Stage 4 migration wrote rows
+ * only at each gym's default branch:
+ *
+ * - **No row at all** (`holding` undefined) → every position reads `null`. Nothing
+ *   has been recorded at this branch, which is not the same claim as "somebody
+ *   counted and found none". Reporting `0` instead would put every line at every
+ *   non-default branch on the low-stock page the morning Stage 4 deploys, drowning
+ *   the real signal on the day the operator most needs it.
+ * - **A row that exists**, but whose `variants` array is shorter than the product's
+ *   → that slot reads `0`. This branch IS counted; that variant simply has not
+ *   arrived here yet, which is a real, actionable zero.
+ *
+ * `null` therefore reaches `resolveStockLevel` as `untracked` and stays out of the
+ * low / out tallies, exactly as an untracked product does gym-wide.
+ */
+function branchPositionStock(
+  holding: BranchHolding | undefined,
+  variantIndex: number | null,
+): number | null {
+  if (!holding) {
+    return null;
+  }
+  return variantIndex === null ? holding.stock : (holding.variants[variantIndex] ?? 0);
 }
 
 /**
@@ -223,6 +317,8 @@ export class AdminProductsService {
    * because stock lives inside each product's `variants` JSON, not as a column.
    */
   async listLowStock(query: LowStockQuery): Promise<ListLowStockResponse> {
+    const branch = await this.resolveBranchScope(query.locationId);
+
     const rows = await this.prisma.client.product.findMany({
       where: { status: ProductStatus.ACTIVE },
       select: {
@@ -236,26 +332,51 @@ export class AdminProductsService {
       },
       orderBy: { name: 'asc' },
     });
+    const holdings = await this.branchHoldings(
+      branch?.id,
+      rows.map((row) => row.id),
+    );
 
     const data: LowStockProductRow[] = [];
     for (const row of rows) {
       const low: LowStockVariant[] = [];
       const variants = this.parseVariants(row.variants);
+      const holding = holdings.get(row.id);
+      // An explicit `threshold` is a uniform ceiling the caller asked for and it
+      // overrides every rung; otherwise each position is judged against its own.
+      // Resolved once per product: no rung of the chain is per variant, so every
+      // position of one product at one branch shares a cushion.
+      const cushion =
+        query.threshold ??
+        resolveLowStockThreshold({
+          // The branch rung applies only to a branch's shelf. A gym-wide roll-up is
+          // held at none of them, so in all-branches mode the chain starts at the
+          // product rung — which is what this report meant before Stage 4.
+          branchThreshold: branch ? holding?.lowStockThreshold : null,
+          productThreshold: row.lowStockThreshold,
+        });
+
       variants.forEach((variant, variantIndex) => {
-        if (variant.stock <= query.threshold) {
+        const stock = branch ? branchPositionStock(holding, variantIndex) : variant.stock;
+        if (stock !== null && stock <= cushion) {
           low.push({
             variantIndex,
             name: variant.name,
             sku: variant.sku,
-            stock: variant.stock,
+            stock,
+            threshold: cushion,
           });
         }
       });
       // A product sold as-is has one position, on the product itself. It only
-      // qualifies once the gym is actually counting it — an untracked product has
-      // no shortfall to report, however low the threshold is set.
-      if (variants.length === 0 && row.stock !== null && row.stock <= query.threshold) {
-        low.push({ variantIndex: null, name: row.name, sku: '', stock: row.stock });
+      // qualifies once the position is actually counted — an untracked product, or
+      // a branch that has recorded nothing for it, has no shortfall to report
+      // however low the threshold is set.
+      if (variants.length === 0) {
+        const stock = branch ? branchPositionStock(holding, null) : row.stock;
+        if (stock !== null && stock <= cushion) {
+          low.push({ variantIndex: null, name: row.name, sku: '', stock, threshold: cushion });
+        }
       }
       if (low.length === 0) {
         continue;
@@ -273,7 +394,12 @@ export class AdminProductsService {
     // Most urgent first; ties keep the alphabetical name order the query applied.
     data.sort((a, b) => a.lowestStock - b.lowestStock);
 
-    return { data, threshold: query.threshold };
+    return {
+      data,
+      threshold: query.threshold ?? null,
+      locationId: branch?.id ?? null,
+      locationName: branch?.name ?? null,
+    };
   }
 
   /**
@@ -285,11 +411,19 @@ export class AdminProductsService {
    * Defaults to `ACTIVE` products: a deactivated line is off the storefront, so
    * its stock is not what anyone is counting. Flattening and paging happen in
    * memory because a position is not a row in the database — variant counts live
-   * inside the product's JSON, so there is nothing for SQL to page over. The
-   * summary is computed across the whole filtered set before the page is sliced,
-   * so the tiles describe the gym's holdings rather than the visible page.
+   * inside JSON, so there is nothing for SQL to page over. The summary is computed
+   * across the whole filtered set before the page is sliced, so the tiles describe
+   * the actual holdings rather than the visible page.
+   *
+   * **Since Stage 4 the table is branch-aware, and it AGGREGATES rather than
+   * expands.** With `locationId`, every count is that branch's; without it, every
+   * count is the gym-wide roll-up. Either way there is exactly one row per
+   * `(productId, variantIndex)`, so the row count, the pager and every tile keep
+   * the values they had before the split. The full reasoning — and what the
+   * all-branches view therefore hides — is on {@link InventoryPositionRow}.
    */
   async listInventory(query: InventoryQuery): Promise<ListInventoryResponse> {
+    const branch = await this.resolveBranchScope(query.locationId);
     const where: Prisma.ProductWhereInput = {
       status: query.status ?? ProductStatus.ACTIVE,
       ...(query.search
@@ -311,37 +445,53 @@ export class AdminProductsService {
       },
       orderBy: { name: 'asc' },
     });
+    const holdings = await this.branchHoldings(
+      branch?.id,
+      rows.map((row) => row.id),
+    );
 
     const positions: InventoryPositionRow[] = [];
     for (const row of rows) {
       const variants = this.parseVariants(row.variants);
+      const holding = holdings.get(row.id);
       const base = {
         productId: row.id,
         productName: row.name,
         status: row.status,
         currency: row.currency,
         costAmount: row.costAmount,
-        lowStockThreshold: row.lowStockThreshold,
+        // Resolved once per product: the chain's branch rung is skipped entirely in
+        // all-branches mode, because no one branch's cushion governs a total held
+        // at none of them.
+        lowStockThreshold: resolveLowStockThreshold({
+          branchThreshold: branch ? holding?.lowStockThreshold : null,
+          productThreshold: row.lowStockThreshold,
+        }),
       };
+      const at = (variantIndex: number | null, gymWide: number | null): number | null =>
+        branch ? branchPositionStock(holding, variantIndex) : gymWide;
+
       if (variants.length > 0) {
         variants.forEach((variant, variantIndex) => {
+          const stock = at(variantIndex, variant.stock);
           positions.push({
             ...base,
             variantIndex,
             label: variant.name,
             sku: variant.sku,
-            stock: variant.stock,
-            value: row.costAmount === null ? null : row.costAmount * variant.stock,
+            stock,
+            value: stock === null || row.costAmount === null ? null : row.costAmount * stock,
           });
         });
       } else {
+        const stock = at(null, row.stock);
         positions.push({
           ...base,
           variantIndex: null,
           label: row.name,
           sku: '',
-          stock: row.stock,
-          value: row.stock === null || row.costAmount === null ? null : row.costAmount * row.stock,
+          stock,
+          value: stock === null || row.costAmount === null ? null : row.costAmount * stock,
         });
       }
     }
@@ -359,6 +509,8 @@ export class AdminProductsService {
       // An empty (or fully filtered-out) inventory still has to label its zeros:
       // fall back to the gym's configured currency, never a hardcoded one.
       currency: filtered[0]?.currency ?? (await this.locale.get()).currency,
+      locationId: branch?.id ?? null,
+      locationName: branch?.name ?? null,
     };
     for (const position of filtered) {
       if (position.stock !== null) {
@@ -385,6 +537,63 @@ export class AdminProductsService {
       limit: query.limit,
       summary,
     };
+  }
+
+  /**
+   * Resolve a requested branch to the row the response labels itself with, or
+   * `null` for "all branches".
+   *
+   * Runs on the scoped client, so another gym's branch never matches and is refused
+   * as unknown rather than leaking its existence. A branch that does not resolve is
+   * a `404` here rather than a silent degradation to all-branches: an inventory
+   * page that quietly answers a different question than the one asked is how a
+   * stock-take gets done against the wrong shelf.
+   */
+  private async resolveBranchScope(
+    locationId: string | undefined,
+  ): Promise<{ id: string; name: string } | null> {
+    if (!locationId) {
+      return null;
+    }
+    const location = await this.prisma.client.location.findFirst({
+      where: { id: locationId },
+      select: { id: true, name: true },
+    });
+    if (!location) {
+      throw new NotFoundException({ code: 'LOCATION_NOT_FOUND', message: 'Location not found' });
+    }
+    return location;
+  }
+
+  /**
+   * One branch's `ProductStock` rows for a page of products, keyed by product.
+   *
+   * A product with no entry in the map has no row at that branch, which
+   * {@link branchPositionStock} reads as "nothing recorded here" rather than as a
+   * counted zero. With no branch selected the map is empty and every caller reads
+   * the gym-wide roll-up off `Product` instead, so the query is skipped entirely.
+   */
+  private async branchHoldings(
+    locationId: string | undefined,
+    productIds: string[],
+  ): Promise<Map<string, BranchHolding>> {
+    if (!locationId || productIds.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.client.productStock.findMany({
+      where: { locationId, productId: { in: productIds } },
+      select: { productId: true, stock: true, variants: true, lowStockThreshold: true },
+    });
+    return new Map(
+      rows.map((row) => [
+        row.productId,
+        {
+          stock: row.stock,
+          variants: parseBranchCounts(row.variants),
+          lowStockThreshold: row.lowStockThreshold,
+        },
+      ]),
+    );
   }
 
   /**
@@ -415,6 +624,18 @@ export class AdminProductsService {
    * received*, and the history should say so from the first day rather than
    * starting with an unexplained number. Counts and the movements that explain
    * them are written in one transaction, so the two can never disagree.
+   *
+   * Since Stage 4 that opening count also has to land on a SHELF, because
+   * `Product.stock` is only the roll-up of the branch rows and a figure with no row
+   * behind it is drift by construction. The product form does not yet ask which
+   * branch (that is the console half of this stage), so the count opens at the
+   * gym's **default** branch — the same branch the Stage 4 migration put every
+   * pre-split unit on, and the same stated approximation `resolveArrivalBranch`
+   * makes for an arrival nobody attributed. A gym with no default branch and an
+   * opening count to record is refused rather than quietly created untracked: the
+   * operator typed a number, and silently discarding it is worse than saying the
+   * branch list needs fixing first. A product created with no count needs no branch
+   * and is unaffected.
    */
   async createProduct(input: CreateProductData): Promise<CreateProductResponse> {
     await this.requireCategory(input.categoryId);
@@ -423,6 +644,8 @@ export class AdminProductsService {
     // variants the counts live in their JSON and the base column stays null, so
     // there is a single answer to "how many do I have?".
     const baseStock = input.variants.length > 0 ? null : input.stock;
+    const counted = baseStock !== null || input.variants.length > 0;
+    const openingBranch = counted ? await this.requireOpeningBranch() : null;
 
     const row = await this.prisma.client.$transaction(async (tx) => {
       const created = await tx.product.create({
@@ -445,9 +668,24 @@ export class AdminProductsService {
         select: PRODUCT_SELECT,
       });
 
+      if (openingBranch) {
+        // The branch row IS the count; the column above is its roll-up. A `create`
+        // needs no atomic claim — the row does not exist yet, so nothing races it.
+        await tx.productStock.create({
+          data: {
+            gymId: this.tenant.gymId,
+            productId: created.id,
+            locationId: openingBranch,
+            stock: baseStock,
+            variants: input.variants.map((variant) => variant.stock),
+          },
+        });
+      }
+
       await this.recordOpeningCounts(
         tx,
         created.id,
+        openingBranch,
         input.variants.map((variant, index) => ({
           variantIndex: index,
           variantLabel: variant.name,
@@ -463,6 +701,231 @@ export class AdminProductsService {
   }
 
   /**
+   * The branch an opening or corrected count lands on — the gym's default.
+   *
+   * Refuses rather than degrading, unlike the check-in desk's equivalent: there,
+   * failing to record an arrival is worse than recording it at an approximate
+   * branch, so it falls back to `null`. Here the caller has typed a figure that has
+   * nowhere to go, and a product whose `stock` column names units no branch row
+   * accounts for is exactly the drift `Product.stock` is documented never to carry.
+   * Every gym is given a default branch by the Stage 0 migration and by the seed,
+   * so this is a broken configuration rather than a routine path.
+   */
+  private async requireOpeningBranch(
+    client: DefaultBranchClient = this.prisma.client,
+  ): Promise<string> {
+    const location = await client.location.findFirst({
+      where: { isDefault: true },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new BadRequestException({
+        code: 'DEFAULT_LOCATION_REQUIRED',
+        message: 'Set a default branch before recording stock — a count has to belong to a shelf.',
+      });
+    }
+    return location.id;
+  }
+
+  /**
+   * Fan a product-form edit out over the branch rows that actually hold the counts,
+   * so `Product.stock` and `Product.variants[].stock` stay exactly the sum of them.
+   *
+   * Two passes, because they answer different questions. The first is about SHAPE
+   * and reaches every branch: a variant dropped from the product is truncated off
+   * each branch's positional array, and a cleared base count is nulled everywhere,
+   * since "we stopped counting this" is a fact about the product rather than about
+   * one shelf. The second is about FIGURES and reaches one branch — the default —
+   * because a figure typed into a form with no branch field has to land somewhere
+   * and that is the branch the Stage 4 migration already used.
+   *
+   * The refusals are deliberate. A correction that would take more than the default
+   * branch holds, or one aimed at a branch that holds none of the product at all,
+   * is a `400` rather than a clamp or a silently redirected write: the units are at
+   * some other branch, and the endpoint that can say which is
+   * `POST /admin/products/:id/stock`.
+   */
+  private async applyFormStockChange(
+    tx: ProductStockWriteClient,
+    params: {
+      productId: string;
+      branchId: string | null;
+      variantCount: number;
+      opened: Array<{ variantIndex: number; stock: number }>;
+      previousBase: number | null;
+      baseStock: number | null;
+      baseDelta: number;
+    },
+  ): Promise<void> {
+    const { productId, branchId, variantCount, opened, previousBase, baseStock, baseDelta } =
+      params;
+
+    const rows = await tx.productStock.findMany({
+      where: { productId },
+      select: { id: true, locationId: true, stock: true, variants: true },
+    });
+    const target = branchId ? rows.find((row) => row.locationId === branchId) : undefined;
+
+    // Pass 1 — shape, on every branch except the one pass 2 rewrites wholesale.
+    for (const row of rows) {
+      if (target && row.id === target.id) {
+        continue;
+      }
+      const counts = parseBranchCounts(row.variants);
+      const next = counts.slice(0, variantCount);
+      const countsChanged = next.length !== counts.length;
+      const clearsBase = baseStock === null && row.stock !== null;
+      if (!countsChanged && !clearsBase) {
+        continue;
+      }
+      await tx.productStock.update({
+        where: { id: row.id },
+        data: {
+          ...(countsChanged ? { variants: next } : {}),
+          // A constant, so no claim is needed: every racing writer stores the same
+          // `null`, and it means "this branch no longer counts the base position".
+          ...(clearsBase ? { stock: null } : {}),
+        },
+      });
+    }
+
+    // Turning tracking off is a fact about the PRODUCT, so the roll-up goes with the
+    // branch rows rather than being left naming units no row accounts for. A
+    // constant, so it needs no claim: every racing writer stores the same `null`.
+    if (baseStock === null && previousBase !== null) {
+      await tx.product.update({ where: { id: productId }, data: { stock: null } });
+    }
+
+    if (!branchId) {
+      return;
+    }
+
+    // Pass 2 — this edit's own figures, at the default branch.
+    const counts = target ? parseBranchCounts(target.variants).slice(0, variantCount) : [];
+    for (const position of opened) {
+      while (counts.length <= position.variantIndex) {
+        counts.push(0);
+      }
+      counts[position.variantIndex] = position.stock;
+    }
+    const variants = counts as unknown as Prisma.InputJsonValue;
+
+    if (baseStock === null) {
+      if (!target) {
+        return;
+      }
+      await tx.productStock.update({
+        where: { id: target.id },
+        data: { variants, stock: null },
+      });
+      return;
+    }
+
+    if (baseDelta === 0) {
+      if (target) {
+        await tx.productStock.update({ where: { id: target.id }, data: { variants } });
+      } else if (counts.length > 0) {
+        await tx.productStock.create({
+          data: {
+            gymId: this.tenant.gymId,
+            productId,
+            locationId: branchId,
+            stock: null,
+            variants,
+          },
+        });
+      }
+      return;
+    }
+
+    if (previousBase === null) {
+      // Switching tracking ON: there is no prior figure anywhere to lose, and
+      // `increment` on a NULL column yields NULL. Both the branch row and the
+      // roll-up are written absolutely, from the same value, in the same
+      // transaction — so they are equal by construction rather than by arithmetic.
+      if (target) {
+        await tx.productStock.update({
+          where: { id: target.id },
+          data: {
+            variants,
+            // atomic-counter-exempt: NULL → tracked is a mode switch, not a claim — there is no prior count on this row to lose, and `increment` on NULL is NULL.
+            stock: baseStock,
+          },
+        });
+      } else {
+        await tx.productStock.create({
+          data: {
+            gymId: this.tenant.gymId,
+            productId,
+            locationId: branchId,
+            stock: baseStock,
+            variants,
+          },
+        });
+      }
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          // atomic-counter-exempt: the roll-up of the single absolute write above, from the same value in the same transaction, so the two are equal by construction.
+          stock: baseStock,
+        },
+      });
+      return;
+    }
+
+    if (!target || target.stock === null) {
+      throw new BadRequestException({
+        code: 'STOCK_BRANCH_UNKNOWN',
+        message:
+          'This count is held at another branch — adjust it there rather than on the product form.',
+      });
+    }
+
+    if (baseDelta < 0) {
+      const claimed = await tx.productStock.updateMany({
+        where: { id: target.id, stock: { gte: -baseDelta } },
+        data: { stock: { decrement: -baseDelta } },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException({
+          code: 'STOCK_NEGATIVE',
+          message: `Only ${target.stock} of these are at the default branch — correct the branch holding the rest.`,
+        });
+      }
+      await tx.productStock.update({ where: { id: target.id }, data: { variants } });
+    } else {
+      await tx.productStock.update({
+        where: { id: target.id },
+        data: { variants, stock: { increment: baseDelta } },
+      });
+    }
+    await tx.product.update({
+      where: { id: productId },
+      data: { stock: { increment: baseDelta } },
+    });
+  }
+
+  /**
+   * The base count now standing at one branch — what a form correction's ledger row
+   * records as its `resultingStock`, which since Stage 4 is a per-branch figure and
+   * not the gym-wide roll-up.
+   */
+  private async branchBaseStock(
+    tx: ProductStockWriteClient,
+    productId: string,
+    branchId: string | null,
+  ): Promise<number> {
+    if (!branchId) {
+      return 0;
+    }
+    const rows = await tx.productStock.findMany({
+      where: { productId },
+      select: { id: true, locationId: true, stock: true, variants: true },
+    });
+    return rows.find((row) => row.locationId === branchId)?.stock ?? 0;
+  }
+
+  /**
    * Write the `RECEIVE` movements behind a set of positions that start above
    * zero — a product's opening count, or a variant newly added to one.
    *
@@ -473,6 +936,7 @@ export class AdminProductsService {
   private async recordOpeningCounts(
     tx: StockWritingClient,
     productId: string,
+    locationId: string | null,
     positions: Array<{ variantIndex: number; variantLabel: string; stock: number }>,
     baseStock: number | null,
   ): Promise<void> {
@@ -492,6 +956,7 @@ export class AdminProductsService {
       data: received.map((position) => ({
         gymId: this.tenant.gymId,
         productId,
+        locationId,
         variantIndex: position.variantIndex,
         variantLabel: position.variantLabel,
         delta: position.stock,
@@ -551,6 +1016,26 @@ export class AdminProductsService {
    * stopped counting this" is a change of mode, not stock leaving the shelf, and
    * inventing a write-off for it would put a loss in the ledger that never
    * happened. The rows already there stay as the record of when it was counted.
+   *
+   * ## What Stage 4 adds
+   *
+   * The counts are per branch now, and this form has no branch field (that is the
+   * console half of the stage), so everything it can still change fans out on a
+   * stated rule:
+   *
+   *  • **A base correction lands at the gym's DEFAULT branch**, the same branch the
+   *    Stage 4 migration put every pre-split unit on. A negative correction bigger
+   *    than that branch holds is REFUSED, not clamped — the shortfall is somewhere
+   *    else, and quietly zeroing the flagship to satisfy a typo would be the exact
+   *    untargeted write the stage exists to remove.
+   *  • **A variant added by this edit** opens its count at that same branch.
+   *  • **A variant removed by this edit** is truncated off EVERY branch row in the
+   *    same transaction. That is the N-row alignment the schema warns about: the
+   *    positional array exists once per branch, and dropping a slot from the
+   *    product without dropping it from each branch would leave the roll-up short
+   *    by whatever those branches held.
+   *  • **Clearing the count** nulls the base on every branch row, not just the
+   *    default, because "we stopped counting this" is a fact about the product.
    */
   async updateProduct(id: string, input: UpdateProductData): Promise<UpdateProductResponse> {
     await this.requireCategory(input.categoryId);
@@ -578,6 +1063,20 @@ export class AdminProductsService {
       });
 
       const baseStock = variants.length > 0 ? null : input.stock;
+      const opened = variants
+        .map((variant, index) => ({
+          variantIndex: index,
+          variantLabel: variant.name,
+          stock: variant.stock,
+        }))
+        .filter((position) => position.variantIndex >= stored.length);
+      const baseDelta = baseStock === null ? 0 : baseStock - (current.stock ?? 0);
+      // Only resolved when this edit actually has a figure to place, so a rename or
+      // a price change never trips the "set a default branch first" refusal.
+      const branchId =
+        baseDelta !== 0 || opened.some((position) => position.stock > 0)
+          ? await this.requireOpeningBranch(tx)
+          : null;
 
       await tx.product.update({
         where: { id },
@@ -590,36 +1089,36 @@ export class AdminProductsService {
           // the currency it was sold in even if the gym later switches.
           images: input.images,
           variants: variants as unknown as Prisma.InputJsonValue,
-          stock: baseStock,
           lowStockThreshold: input.lowStockThreshold,
           categoryId: input.categoryId,
         },
       });
 
-      // A variant added by this edit starts counting now.
-      await this.recordOpeningCounts(
-        tx,
-        id,
-        variants
-          .map((variant, index) => ({
-            variantIndex: index,
-            variantLabel: variant.name,
-            stock: variant.stock,
-          }))
-          .filter((position) => position.variantIndex >= stored.length),
-        null,
-      );
+      await this.applyFormStockChange(tx, {
+        productId: id,
+        branchId,
+        variantCount: variants.length,
+        opened,
+        previousBase: current.stock,
+        baseStock,
+        baseDelta,
+      });
 
-      if (baseStock !== null && baseStock !== current.stock) {
-        const from = current.stock ?? 0;
+      // A variant added by this edit starts counting now.
+      await this.recordOpeningCounts(tx, id, branchId, opened, null);
+
+      if (baseDelta !== 0) {
         await tx.stockMovement.create({
           data: {
             gymId: this.tenant.gymId,
             productId: id,
+            locationId: branchId,
             variantIndex: null,
             variantLabel: '',
-            delta: baseStock - from,
-            resultingStock: baseStock,
+            delta: baseDelta,
+            // The count AT the branch this correction landed on, per
+            // `StockMovement.resultingStock` — not the gym-wide roll-up.
+            resultingStock: await this.branchBaseStock(tx, id, branchId),
             reason: StockMovementReason.ADJUSTMENT,
             note: FORM_CORRECTION_NOTE,
             actorId: this.tenant.userId ?? null,

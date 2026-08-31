@@ -116,6 +116,32 @@ describe('ReportsController', () => {
         BadRequestException,
       );
     });
+
+    it('passes the branch through to the service', async () => {
+      const { controller, runReport } = setup();
+      await controller.run('revenue-by-channel', { range: '30d', locationId: 'loc-1' });
+      expect(runReport).toHaveBeenCalledWith('revenue-by-channel', {
+        range: '30d',
+        locationId: 'loc-1',
+      });
+    });
+
+    it('omits the branch entirely when none is given', async () => {
+      const { controller, runReport } = setup();
+      await controller.run('revenue-by-channel', {});
+      // Absent, not `locationId: undefined` — "all branches" is the absence of the
+      // parameter, and the service must not have to tell the two apart.
+      expect(runReport).toHaveBeenCalledWith('revenue-by-channel', { range: '30d' });
+    });
+
+    // The console normalises its `'all'` sentinel to an absent param, so an empty
+    // string arriving here is a wiring bug — surfaced rather than read as "all".
+    it('rejects an empty locationId with 400', async () => {
+      const { controller } = setup();
+      await expect(controller.run('revenue-by-channel', { locationId: '' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
   });
 
   describe('export', () => {
@@ -162,6 +188,36 @@ describe('ReportsController', () => {
       await expect(controller.export('nope', {}, out.res)).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+
+    // A downloaded file that covers a different set of branches from the screen it
+    // was downloaded from is worse than no filter at all — the reader cannot tell
+    // which figure is the real one. Both formats are pinned, since they are two
+    // separate service calls.
+    it('carries the branch into both the CSV and the XLSX download', async () => {
+      const { controller, streamReportCsv, buildReportXlsx } = setup();
+
+      await controller.export(
+        'revenue-by-channel',
+        { range: '30d', locationId: 'loc-1' },
+        responseDouble().res,
+      );
+      await controller.export(
+        'revenue-by-channel',
+        { range: '30d', format: 'xlsx', locationId: 'loc-1' },
+        responseDouble().res,
+      );
+
+      expect(streamReportCsv).toHaveBeenCalledWith('revenue-by-channel', {
+        range: '30d',
+        format: 'csv',
+        locationId: 'loc-1',
+      });
+      expect(buildReportXlsx).toHaveBeenCalledWith('revenue-by-channel', {
+        range: '30d',
+        format: 'xlsx',
+        locationId: 'loc-1',
+      });
     });
   });
 });

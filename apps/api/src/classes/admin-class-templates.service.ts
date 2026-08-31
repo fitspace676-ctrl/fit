@@ -481,6 +481,15 @@ export class AdminClassTemplatesService {
     if (query.status) {
       where.status = query.status;
     }
+    // Narrow to the branch this recurring class runs at. A template's own
+    // `locationId` is the right path — the create/update body requires it ("Pick
+    // the location this class runs at"), so it is where the class *belongs*, not
+    // where it happens to have occurred. Plain equality: the Stage 0 backfill
+    // left no NULL `locationId` on `class_templates`, so nothing to rescue with
+    // an `OR locationId IS NULL`. Served by the `(gymId, locationId)` index.
+    if (query.locationId) {
+      where.locationId = query.locationId;
+    }
 
     const search = query.search?.trim();
     if (search) {

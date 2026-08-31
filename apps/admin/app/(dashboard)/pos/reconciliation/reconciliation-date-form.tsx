@@ -1,7 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 
 const styles = stylex.create({
@@ -57,17 +57,26 @@ const styles = stylex.create({
  * pushes `?date=` and lets the page re-fetch. Navigation runs in a transition so
  * the control stays responsive while the server re-renders. `max` pins the picker
  * to today — there are no future takings to reconcile.
+ *
+ * The date is rewritten *into* the existing query rather than replacing it: the
+ * branch this report is scoped to can also be pinned on the URL (`?locationId=`,
+ * written by the top-bar switcher and carried by shared links), and rebuilding the
+ * query from scratch would drop it — silently re-scoping the count to whatever the
+ * cookie says the moment someone changed the day.
  */
 export function ReconciliationDateForm({ date }: { date: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
   function commit(value: string): void {
     if (!value) {
       return;
     }
-    startTransition(() => router.replace(`${pathname}?date=${encodeURIComponent(value)}`));
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('date', value);
+    startTransition(() => router.replace(`${pathname}?${params.toString()}`));
   }
 
   const today = new Date().toISOString().slice(0, 10);

@@ -35,13 +35,13 @@ interface ClassTemplateRecord {
 }
 
 interface FindManyArgs {
-  where?: { status?: unknown; OR?: unknown };
+  where?: { status?: unknown; OR?: unknown; locationId?: unknown };
   orderBy?: unknown;
   skip?: number;
   take?: number;
 }
 interface WhereArgs {
-  where?: { id?: unknown };
+  where?: { id?: unknown; locationId?: unknown };
   data?: Record<string, unknown>;
 }
 
@@ -285,6 +285,28 @@ describe('AdminClassTemplatesService', () => {
         { title: { contains: 'hiit', mode: 'insensitive' } },
         { category: { contains: 'hiit', mode: 'insensitive' } },
       ]);
+    });
+
+    // Branches are separate operating units, so a manager standing at one site
+    // sees only the classes that run there. The template's own `locationId` is
+    // the filter — it is required on create, so it is where the class belongs.
+    it('narrows the roster to one branch by the template’s own locationId', async () => {
+      const { service, findMany, count } = setup();
+
+      await service.listClassTemplates(query({ locationId: 'loc-2' }));
+
+      expect(findMany.mock.calls[0]?.[0]?.where?.locationId).toBe('loc-2');
+      // The pager's total has to span the same branch, or the count disagrees
+      // with the rows it is counting.
+      expect(count.mock.calls[0]?.[0]?.where?.locationId).toBe('loc-2');
+    });
+
+    it('leaves the roster gym-wide when no branch is selected', async () => {
+      const { service, findMany } = setup();
+
+      await service.listClassTemplates(query());
+
+      expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('locationId');
     });
 
     it('maps the sort column + direction to a Prisma orderBy', async () => {

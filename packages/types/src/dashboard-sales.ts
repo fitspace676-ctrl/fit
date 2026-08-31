@@ -69,11 +69,14 @@ export const DEFAULT_SALES_PRODUCT_TYPE: SalesProductType = 'all';
 /**
  * `GET /dashboard/sales?granularity=&productType=` query. `.catch` (not
  * `.default`) so a hand-edited URL lands on the default rather than a 400 — the
- * same forgiving rule the overview query already applies.
+ * same forgiving rule the overview query already applies. `locationId` narrows the
+ * tab to one branch's sales; omitted, it totals every branch, and a stale id
+ * degrades to that rather than erroring.
  */
 export const dashboardSalesQuerySchema = z.object({
   granularity: salesGranularitySchema.catch(DEFAULT_SALES_GRANULARITY),
   productType: salesProductTypeSchema.catch(DEFAULT_SALES_PRODUCT_TYPE),
+  locationId: z.string().min(1).optional().catch(undefined),
 });
 export type DashboardSalesQuery = z.infer<typeof dashboardSalesQuerySchema>;
 

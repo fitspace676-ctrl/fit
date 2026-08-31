@@ -111,10 +111,11 @@ function payment(
     refundedAmount,
     currency,
     createdAt: new Date(createdAt),
-    order: {
-      package: plan === null ? null : { name: plan },
-      location: location === null ? null : { name: location },
-    },
+    // The plan still comes off the order; the BRANCH is the payment's own column
+    // since Stage 5 — the same one the `where` filters, so the breakdown cannot
+    // disagree with the filter that produced it.
+    order: { package: plan === null ? null : { name: plan } },
+    location: location === null ? null : { name: location },
   };
 }
 
@@ -619,6 +620,205 @@ describe('ReportDrilldownService', () => {
       // Both redemptions are listed (cancelled included), newest-first from the query.
       expect(recent.rows).toHaveLength(2);
       expect(recent.rows[0]).toMatchObject({ reward: 'Free PT', status: 'Fulfilled' });
+    });
+  });
+
+  /**
+   * The branch filter (roadmap Stage 1). As in the catalogue service, thehalf
+   * that matters most is the metrics that CANNOT narrow: they must ignore the
+   * parameter rather than filter on a column nothing writes.
+   */
+  describe('branch filter', () => {
+    /** The `where` the nth call to a stubbed delegate was issued with. */
+    const whereOf = (mock: { mock: { calls: unknown[][] } }, call = 0) =>
+      (mock.mock.calls[call]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
+
+    it('adds no location predicate at all when no branch is selected', async () => {
+      const { service, paymentFindMany } = setup();
+
+      await service.run('revenue', { range: '30d' });
+
+      expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
+    });
+
+    // Inverted by Stage 5: all three money tables now carry the branch on the row,
+    // so every read here is one equality. The property is unchanged — the three
+    // money metrics narrow by the branch that RANG THE SALE UP — and the relation
+    // shape is now what must never reappear.
+    it('scopes the money metrics on each row’s own branch column', async () => {
+      const { service, paymentFindMany, refundFindMany, orderFindMany } = setup();
+
+      await service.run('revenue', { range: '30d', locationId: 'loc-1' });
+      await service.run('pos', { range: '30d', locationId: 'loc-1' });
+      await service.run('sales', { range: '30d', locationId: 'loc-1' });
+
+      for (const call of [0, 1, 2]) {
+        expect(whereOf(paymentFindMany, call).locationId).toBe('loc-1');
+        expect(whereOf(paymentFindMany, call)).not.toHaveProperty('order');
+      }
+      expect(whereOf(refundFindMany).locationId).toBe('loc-1');
+      expect(whereOf(refundFindMany)).not.toHaveProperty('order');
+      // The sales metric's plan orders read `Order` directly — its own column, and
+      // the one place an `order` key is still legitimate here.
+      expect(whereOf(orderFindMany).locationId).toBe('loc-1');
+    });
+
+    it('scopes the class metrics through the instance, on both sides', async () => {
+      const { service, classInstanceFindMany, bookingFindMany } = setup();
+
+      await service.run('classes', { range: '30d', locationId: 'loc-1' });
+
+      // Instances and bookings must come from the SAME population, or the seat
+      // counts stop reconciling with the session counts in the same table.
+      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
+      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: 'loc-1' });
+    });
+
+    it('narrows a trainer’s delivery but not their rating', async () => {
+      const { service, classInstanceFindMany, bookingFindMany, reviewFindMany } = setup();
+
+      await service.run('staff', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
+      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: 'loc-1' });
+      // A review is written about a TRAINER and carries no branch — an average
+      // rating is a property of the person, not a quantity produced at a branch.
+      expect(whereOf(reviewFindMany)).not.toHaveProperty('locationId');
+    });
+
+    // Stage 2 gave `GymMember` a home branch. This assertion is the inverse of the
+    // one that stood here — `members` and `loyalty` moved out of the gym-wide list,
+    // `attendance` did not — and the property it pins is the same: every read
+    // inside one metric moves together, or a rate ends up with a numerator and a
+    // denominator drawn from different populations.
+    it('narrows members and loyalty by the home branch, on every read', async () => {
+      const {
+        service,
+        gymMemberFindMany,
+        gymMemberCount,
+        subscriptionFindMany,
+        loyaltyLedgerEntryFindMany,
+        loyaltyRedemptionFindMany,
+      } = setup();
+
+      await service.run('members', { range: '30d', locationId: 'loc-1' });
+      await service.run('loyalty', { range: '30d', locationId: 'loc-1' });
+
+      // `GymMember` owns the column; everything else hops through `member`.
+      expect(whereOf(gymMemberFindMany).locationId).toBe('loc-1');
+      expect(whereOf(gymMemberCount).locationId).toBe('loc-1');
+      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
+      // `memberId` is NOT NULL on both loyalty tables, so the hop drops no row and
+      // the branches still sum to the gym's own ledger.
+      expect(whereOf(loyaltyLedgerEntryFindMany).member).toEqual({ locationId: 'loc-1' });
+      expect(whereOf(loyaltyRedemptionFindMany).member).toEqual({ locationId: 'loc-1' });
+    });
+
+    // Stage 3 gave `CheckIn` a real branch and a write path, so this assertion is
+    // the inverse of the one that stood here. The property it protects is the one
+    // that made the old exemption right and now makes the filter right: a check-in
+    // is an event at a PLACE, so it narrows by the door the visitor came through
+    // and NEVER by the member hop — a home branch says whose member they are, not
+    // where they walked in, and a heatmap built the second way would be read as
+    // this branch's footfall and used to roster staff against it.
+    it('narrows attendance by the branch each arrival walked into', async () => {
+      const { service, checkInFindMany } = setup();
+
+      await service.run('attendance', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(checkInFindMany).locationId).toBe('loc-1');
+      expect(whereOf(checkInFindMany)).not.toHaveProperty('member');
+      // Redundant since `CheckIn` joined the tenant extension's model set, kept as
+      // belt and braces on the one read here that would leak another gym's visits.
+      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
+    });
+
+    // "All branches" must leave the read's original, index-served plan untouched —
+    // no `locationId: undefined` key, which would narrow to the un-homed visits.
+    it('sends no location clause on attendance when no branch is selected', async () => {
+      const { service, checkInFindMany } = setup();
+
+      await service.run('attendance', { range: '30d' });
+
+      expect(whereOf(checkInFindMany)).not.toHaveProperty('locationId');
+      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
+    });
+
+    // The export and the pinned-section routes both go through `compute`, so the
+    // file and the widget cannot show a different branch from the screen they came
+    // from. Asserted on `attendance` specifically because it is the metric that
+    // just gained the filter, and the one whose exports were previously immune.
+    it('carries the branch into a resolved attendance section', async () => {
+      const { service, checkInFindMany } = setup();
+
+      await service.resolveSection('attendance', 'peak-hours', {
+        range: '30d',
+        locationId: 'loc-1',
+      });
+
+      expect(whereOf(checkInFindMany).locationId).toBe('loc-1');
+    });
+
+    // Not `locationId: undefined`, and no empty `member` key: "all branches" must
+    // leave each read's original, index-served plan untouched.
+    it('sends no member clause at all when no branch is selected', async () => {
+      const { service, gymMemberFindMany, subscriptionFindMany, loyaltyLedgerEntryFindMany } =
+        setup();
+
+      await service.run('members', { range: '30d' });
+      await service.run('loyalty', { range: '30d' });
+
+      expect(whereOf(gymMemberFindMany)).not.toHaveProperty('locationId');
+      expect(whereOf(subscriptionFindMany)).not.toHaveProperty('member');
+      expect(whereOf(loyaltyLedgerEntryFindMany)).not.toHaveProperty('member');
+    });
+
+    it('collapses the revenue-by-location section to the selected branch', async () => {
+      const { service, paymentFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        {
+          amount: 10_000,
+          refundedAmount: 0,
+          currency: 'GEL',
+          createdAt: new Date(),
+          order: { package: null },
+          location: { name: 'Vake' },
+        },
+      ]);
+
+      const result = await service.run('revenue', { range: '30d', locationId: 'loc-1' });
+
+      const byLocation = result.sections.find(
+        (s) => s.id === 'revenue-by-location',
+      ) as ReportBreakdownSection;
+      // A breakdown of one thing is one item — the section's contract fixes its
+      // shape, not its length.
+      expect(byLocation.items).toEqual([{ label: 'Vake', value: 10_000 }]);
+    });
+
+    // A downloaded file that disagrees with the screen it came from is worse than
+    // no filter, and a pinned dashboard widget is the same hazard by another route.
+    it('applies the same filter to the exports and to a pinned section', async () => {
+      const { service, paymentFindMany } = setup();
+
+      for await (const _chunk of service.streamDrilldownCsv('revenue', {
+        range: '30d',
+        locationId: 'loc-1',
+      })) {
+        // drained so the generator actually issues its query
+      }
+      await service.buildDrilldownXlsx('revenue', {
+        range: '30d',
+        locationId: 'loc-1',
+      });
+      await service.resolveSection('revenue', 'revenue-over-time', {
+        range: '30d',
+        locationId: 'loc-1',
+      });
+
+      for (const call of [0, 1, 2]) {
+        expect(whereOf(paymentFindMany, call).locationId).toBe('loc-1');
+      }
     });
   });
 

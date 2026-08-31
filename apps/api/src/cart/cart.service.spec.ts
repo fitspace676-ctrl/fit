@@ -41,6 +41,74 @@ function product(over: Partial<ProductRow> = {}): ProductRow {
 }
 
 /**
+ * The per-branch stock an order's units move on and off. Since Stage 4 they leave
+ * a `ProductStock` row rather than the product column, so the mock transaction has
+ * to carry one row per product — seeded from the product fixtures, which is how a
+ * single-branch gym looks once the Stage 4 migration has put everything on the
+ * default branch.
+ *
+ * `updateMany` honours its own `stock: { gte: … }` bound, so an oversold position
+ * clamps here exactly as Postgres would rather than the mock waving the claim
+ * through and hiding the behaviour under test.
+ */
+function branchStockStore(products: unknown[]) {
+  const rows = new Map<string, { stock: number | null; variants: number[] }>(
+    (products as Array<{ id: string; stock?: number | null; variants?: unknown }>).map((p) => [
+      p.id,
+      {
+        stock: p.stock ?? null,
+        variants: Array.isArray(p.variants)
+          ? (p.variants as Array<{ stock?: number }>).map((v) => v.stock ?? 0)
+          : [],
+      },
+    ]),
+  );
+  return {
+    rows,
+    findFirst: vi.fn((args: { where: { productId: string; locationId: string } }) =>
+      Promise.resolve(rows.get(args.where.productId) ?? null),
+    ),
+    updateMany: vi.fn(
+      (args: {
+        where: { productId: string; locationId: string; stock: { gte: number } };
+        data: { stock: { decrement: number } };
+      }) => {
+        const row = rows.get(args.where.productId);
+        if (!row || row.stock === null || row.stock < args.where.stock.gte) {
+          return Promise.resolve({ count: 0 });
+        }
+        row.stock -= args.data.stock.decrement;
+        return Promise.resolve({ count: 1 });
+      },
+    ),
+    upsert: vi.fn(
+      (args: {
+        where: { productId_locationId: { productId: string } };
+        create: { stock?: number | null; variants?: unknown };
+        update: { stock?: { increment: number }; variants?: unknown };
+      }) => {
+        const id = args.where.productId_locationId.productId;
+        const row = rows.get(id);
+        if (!row) {
+          rows.set(id, {
+            stock: args.create.stock ?? null,
+            variants: (args.create.variants as number[]) ?? [],
+          });
+          return Promise.resolve({});
+        }
+        if (args.update.variants !== undefined) {
+          row.variants = args.update.variants as number[];
+        }
+        if (args.update.stock !== undefined) {
+          row.stock = (row.stock ?? 0) + args.update.stock.increment;
+        }
+        return Promise.resolve({});
+      },
+    ),
+  };
+}
+
+/**
  * Build a {@link CartService} over a hand-rolled Prisma mock. `cart.findUnique`
  * dispatches on the `where` shape (user key / session key / id) so the service's
  * resolve + reload paths each see the row the test arranged.
@@ -81,7 +149,22 @@ function setup(config: {
   const cartItemDeleteMany = vi.fn(() => Promise.resolve({ count: 1 }));
 
   const cartItemCreate = vi.fn(() => Promise.resolve({}));
-  const orderCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'order-1' }));
+  // The order the checkout just wrote, and the branch it named. Captured rather
+  // than hardcoded because `applyOrderStockMovements` reads the branch back off the
+  // order to decide whose shelf the units leave — a PICKUP names its collection
+  // branch, a DELIVERY names none and falls back to the gym's default.
+  let createdLocationId: string | null = null;
+  const orderCreate = vi.fn((args: { data: { locationId: string | null } }) => {
+    createdLocationId = args.data.locationId;
+    return Promise.resolve({ id: 'order-1' });
+  });
+  const orderFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve({ locationId: createdLocationId }),
+  );
+  const defaultLocationFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve({ id: 'loc-default' }),
+  );
+  const branchStock = branchStockStore(products);
   const movementCreateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
   const gymMemberFindFirst = vi.fn(() => Promise.resolve(null));
 
@@ -100,7 +183,9 @@ function setup(config: {
       deleteMany: cartItemDeleteMany,
       create: cartItemCreate,
     },
-    order: { create: orderCreate },
+    order: { create: orderCreate, findFirst: orderFindFirst },
+    location: { findFirst: defaultLocationFindFirst },
+    productStock: branchStock,
     stockMovement: { createMany: movementCreateMany },
     gymMember: { findFirst: gymMemberFindFirst },
     $transaction: vi.fn((arg: unknown) =>
@@ -132,6 +217,8 @@ function setup(config: {
       cartDelete,
       productUpdate,
       movementCreateMany,
+      branchStock,
+      defaultLocationFindFirst,
     },
   };
 }
@@ -325,8 +412,36 @@ describe('CartService.checkout', () => {
       data: { variants: Array<{ stock: number }> };
     };
     expect(updateArgs.where.id).toBe('p1');
-    // 10 on hand − 2 sold = 8 left.
+    // 10 on hand − 2 sold = 8 left, on the gym-wide roll-up…
     expect(updateArgs.data.variants[0]!.stock).toBe(8);
+    // …because that many left the shelf of the branch fulfilling the order. A
+    // DELIVERY names no branch, so that is the gym's default one.
+    expect(mocks.defaultLocationFindFirst).toHaveBeenCalled();
+    expect(mocks.branchStock.rows.get('p1')!.variants).toEqual([8]);
+  });
+
+  it('draws a PICKUP order down from the collection branch, not the default', async () => {
+    const { service, mocks } = setup({
+      userId: 'u1',
+      userCart: cart, // one line: variant index 0 of p1, qty 2
+      products: [
+        product({
+          priceAmount: 500,
+          variants: [{ name: 'M', sku: 'TEE-M', priceAmount: 500, stock: 10 }],
+        }),
+      ],
+    });
+
+    await service.checkout(undefined, { fulfillment: 'PICKUP', locationId: 'loc1' });
+
+    // The branch is real evidence off the order, not an attribution decision, so
+    // the default-branch fallback is never consulted.
+    expect(mocks.defaultLocationFindFirst).not.toHaveBeenCalled();
+    expect(mocks.branchStock.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { productId_locationId: { productId: 'p1', locationId: 'loc1' } },
+      }),
+    );
   });
 
   it('leaves a base (untracked) line alone — no stock write (T7.8)', async () => {

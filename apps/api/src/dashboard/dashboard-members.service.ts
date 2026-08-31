@@ -11,6 +11,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { bucketKey, DAY_MS, emptyBuckets, resolveWindow } from '../reports/report-window.util';
+import { atLocation, memberAtLocation } from '../common/location-filter.util';
 import { churnMoment, liveCountAt, liveMembersAt } from './subscription-timeline.util';
 
 /** Days each retention window looks back. */
@@ -47,6 +48,44 @@ const STATUS_KEYS: Record<SubscriptionStatus, MembershipStatus> = {
  * are active. It reads `LIVE_SUBSCRIPTION_STATUSES` from `@fit/db`, the state
  * machine that owns the definition — three hand-written copies of that list already
  * exist in this repo, and this is deliberately not a fourth.
+ *
+ * ## `locationId` narrows EVERY figure on this tab — all five reads, one rule
+ *
+ * Stage 2 gave `GymMember` a `locationId` (its home branch), and this tab is the
+ * surface that unlock was for: every figure here counts members, or counts
+ * subscriptions belonging to members, so once a member has a branch the whole tab
+ * has one. Nothing is left half-narrowed, and there is no gym-wide caption to
+ * write any more.
+ *
+ * All five reads take the PERSON half of the attribution rule in
+ * `common/location-filter.util.ts` — the member's home branch — and that
+ * consistency is the point rather than an implementation detail:
+ *
+ *   • `GymMember` reads (the signup series, `memberCount`) filter the column
+ *     directly, served by `@@index([gymId, locationId, status])`.
+ *   • `Subscription` reads (the active-member trend, retention, churn, the status
+ *     split) hop through `member` — `Subscription.memberId` is NOT NULL, so the
+ *     hop drops nothing and the branches still sum to the gym.
+ *   • **`avgLtv` takes the member hop on BOTH sides, and that is the whole
+ *     reason it was left gym-wide before.** Its numerator could equally be
+ *     narrowed through the order's own branch (`{ order: { locationId } }`), and
+ *     must not be: the denominator is a head-count of members homed here, so a
+ *     till-attributed numerator would divide one population's money by another
+ *     population's size. That is not a smaller average, it is a wrong one. Both
+ *     halves therefore ask the same question — "what have the members who call
+ *     this branch home ever paid us" — which is what a lifetime value is.
+ *
+ * The invoice half of that numerator keeps `orderId: null` as its double-count
+ * guard; that set has no order to reach a branch through, which is exactly why the
+ * member hop is the only honest path and why every invoice read in this codebase
+ * now uses it.
+ *
+ * The console's caption for this tab —
+ *
+ *     Not split by branch — members have no home branch yet
+ *
+ * — is RETIRED. Every figure here is a branch figure; leaving the note up would be
+ * its own kind of lie.
  */
 @Injectable()
 export class DashboardMembersService {
@@ -69,13 +108,22 @@ export class DashboardMembersService {
       // In the same round trip as everything else — the gym's own currency is not
       // worth a second sequential query.
       this.prisma.client.gymMember.findMany({
-        where: { role: Role.MEMBER, deletedAt: null, joinedAt: { lt: win.end } },
+        where: {
+          role: Role.MEMBER,
+          deletedAt: null,
+          joinedAt: { lt: win.end },
+          // The member's HOME branch, straight off the column Stage 2 added.
+          ...atLocation(query.locationId),
+        },
         select: { joinedAt: true },
       }),
       // Every subscription, not just the window's: the active-members trend and
       // retention both need state at instants BEFORE the window opens.
       this.prisma.client.subscription.findMany({
-        where: { member: { deletedAt: null } },
+        // Attributed to the member's home branch. `Subscription.memberId` is NOT
+        // NULL, so the hop is an equality on a real row and drops nothing — the
+        // branches still add up to the gym's own trend.
+        where: memberAtLocation(query.locationId, { deletedAt: null }),
         select: {
           memberId: true,
           status: true,
@@ -84,7 +132,9 @@ export class DashboardMembersService {
           updatedAt: true,
         },
       }),
-      this.prisma.client.gymMember.count({ where: { role: Role.MEMBER, deletedAt: null } }),
+      this.prisma.client.gymMember.count({
+        where: { role: Role.MEMBER, deletedAt: null, ...atLocation(query.locationId) },
+      }),
       // AGGREGATED in Postgres, not streamed into Node. This read is unbounded
       // by design — lifetime value means the member's whole life, so there is no
       // date floor to apply — and it was pulling every captured payment the gym
@@ -98,7 +148,14 @@ export class DashboardMembersService {
       this.prisma.client.payment.aggregate({
         where: {
           status: PaymentStatus.CAPTURED,
-          order: { memberId: { not: null }, member: { deletedAt: null } },
+          // Narrowed by the BUYER's home branch, not by the till the sale rang
+          // up on — see the class note. `memberCount` below is the denominator,
+          // and both have to be the same population or the average is wrong
+          // rather than merely partial.
+          order: {
+            memberId: { not: null },
+            ...memberAtLocation(query.locationId, { deletedAt: null }),
+          },
         },
         _sum: { amount: true, refundedAmount: true },
       }),
@@ -107,7 +164,11 @@ export class DashboardMembersService {
       // filter also drops invoices with null memberId (revenue attributable to no member),
       // symmetric with the payment-side exclusion of guest orders.
       this.prisma.client.invoice.aggregate({
-        where: { status: InvoiceStatus.PAID, orderId: null, member: { deletedAt: null } },
+        where: {
+          status: InvoiceStatus.PAID,
+          orderId: null,
+          ...memberAtLocation(query.locationId, { deletedAt: null }),
+        },
         _sum: { amount: true },
       }),
     ]);

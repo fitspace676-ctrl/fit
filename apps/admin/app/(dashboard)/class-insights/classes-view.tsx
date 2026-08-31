@@ -44,6 +44,7 @@ import {
   type ClassesGranularity,
   type DashboardClassesResponse,
 } from '@fit/types';
+import { useActiveLocation } from '@/components/active-location';
 import { loadClassesAction } from './actions';
 import { ClassesKpiStrip } from './classes-kpi-strip';
 import { BookingsTrendCard } from './bookings-trend-card';
@@ -161,6 +162,11 @@ const motion = stylex.create({
 export function ClassesView() {
   const t = useTranslations('admin.dashboard.classes');
 
+  // Passed in rather than read inside the action — see `sales/sales-view.tsx`
+  // for the two reasons (a `?locationId=` deep link an action cannot see, and
+  // the cache key below, which has to move when the branch does).
+  const { locationId } = useActiveLocation();
+
   const [granularity, setGranularity] = useState<ClassesGranularity>(DEFAULT_CLASSES_GRANULARITY);
 
   const cache = useRef(new Map<string, DashboardClassesResponse>());
@@ -169,7 +175,7 @@ export function ClassesView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = granularity;
+  const key = `${granularity}:${locationId ?? ''}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -183,7 +189,7 @@ export function ClassesView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadClassesAction({ granularity })
+    void loadClassesAction({ granularity, locationId })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -208,7 +214,7 @@ export function ClassesView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, attempt, t]);
+  }, [key, granularity, locationId, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new

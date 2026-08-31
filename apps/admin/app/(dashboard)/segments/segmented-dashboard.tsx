@@ -32,9 +32,35 @@ import { RevenueView } from '../revenue-insights/revenue-view';
 import { ClassesView } from '../class-insights/classes-view';
 import { StaffView } from '../staff-insights/staff-view';
 import { SegmentTabs } from './segment-tabs';
+import { BranchScopeNote, type BranchScope } from './branch-scope-note';
+
+/**
+ * Which tabs still show something gym-wide while a branch is selected, and the
+ * wording each one carries. Kept here rather than inside the six views because
+ * the note has to sit ABOVE the tab's content — a reader must meet the caveat
+ * before the figures it qualifies, not after scrolling past them — and because
+ * every view spends its first render on a skeleton or an error, neither of which
+ * would carry it.
+ *
+ * `sales` is absent deliberately: every figure on that tab narrows to the
+ * branch, and a caveat there would teach the reader to distrust a correct
+ * number. Anything mapped to `undefined` here is a claim that the tab filters
+ * completely.
+ */
+// This map has shrunk twice, each time because a caveat became a false statement
+// rather than merely a stale one. Stage 2 retired Members and Revenue by giving
+// `GymMember` a home branch, which every member figure — and, through the member
+// who holds it, every subscription and invoice figure — now narrows by. Stage 3
+// retired Overview by making `CheckIn.locationId` a real column something
+// actually writes, which left nothing on that tab gym-wide at all.
+const BRANCH_SCOPE: Partial<Record<DashboardSegment, BranchScope>> = {
+  classes: 'classes',
+  staff: 'staff',
+};
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+  panel: { display: 'flex', flexDirection: 'column', gap: '1rem' },
   bar: {
     display: 'flex',
     alignItems: 'flex-end',
@@ -61,6 +87,7 @@ export function SegmentedDashboard({
   // every client-side navigation after it.
   const parsed = dashboardSegmentSchema.safeParse(searchParams.get('segment'));
   const active: DashboardSegment = parsed.success ? parsed.data : initialSegment;
+  const branchScope = BRANCH_SCOPE[active];
 
   function select(next: DashboardSegment): void {
     const params = new URLSearchParams(searchParams.toString());
@@ -89,7 +116,18 @@ export function SegmentedDashboard({
         focusable descendants, and these are full of buttons, links and charts. A
         tab stop on the container would just be one more thing to tab past.
       */}
-      <div id="dashboard-tabpanel" role="tabpanel" aria-labelledby={`dashboard-tab-${active}`}>
+      <div
+        id="dashboard-tabpanel"
+        role="tabpanel"
+        aria-labelledby={`dashboard-tab-${active}`}
+        {...stylex.props(styles.panel)}
+      >
+        {/*
+          Renders itself away in "All locations" mode, which is why it can sit
+          here unconditionally — see `branch-scope-note.tsx`.
+        */}
+        {branchScope ? <BranchScopeNote scope={branchScope} /> : null}
+
         {active === 'overview' ? <OverviewView data={overview} /> : null}
         {active === 'sales' ? <SalesView /> : null}
         {active === 'members' ? <MembersView /> : null}

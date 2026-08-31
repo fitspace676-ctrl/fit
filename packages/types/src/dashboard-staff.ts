@@ -26,10 +26,13 @@ export const DEFAULT_STAFF_GRANULARITY: StaffGranularity = 'daily';
 
 /**
  * `GET /dashboard/staff?granularity=` query. `.catch` (not `.default`) so a
- * hand-edited URL lands on the default rather than a 400.
+ * hand-edited URL lands on the default rather than a 400. `locationId` reports on
+ * the work delivered at one branch; omitted, the tab covers every branch, which is
+ * also where an unrecognised id degrades to.
  */
 export const dashboardStaffQuerySchema = z.object({
   granularity: staffGranularitySchema.catch(DEFAULT_STAFF_GRANULARITY),
+  locationId: z.string().min(1).optional().catch(undefined),
 });
 export type DashboardStaffQuery = z.infer<typeof dashboardStaffQuerySchema>;
 

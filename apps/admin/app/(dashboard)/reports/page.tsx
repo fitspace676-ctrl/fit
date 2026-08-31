@@ -12,6 +12,7 @@ import {
   type ReportRange,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchReport, fetchReportCatalog } from '@/lib/api';
 import { ReportsView } from './reports-view';
 import { chrome } from './report-chrome';
@@ -56,13 +57,20 @@ export const dynamic = 'force-dynamic';
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ report?: string; range?: string }>;
+  searchParams: Promise<{ report?: string; range?: string; locationId?: string }>;
 }) {
   const t = await getTranslations('admin.reports');
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
 
-  const { report: rawReport, range: rawRange } = await searchParams;
+  const params = await searchParams;
+  const { report: rawReport, range: rawRange } = params;
+  // The branch every figure below is scoped to: `?locationId=` if this link
+  // carried one (a shared report link must arrive showing the branch the sender
+  // read it at), otherwise the top bar's cookie, otherwise every branch. Resolved
+  // ONCE here and handed down, so the preview, the caveat, and the two download
+  // links can only ever be describing the same branch.
+  const locationId = await getActiveLocationId(params);
   const parsedRange = reportRangeSchema.safeParse(rawRange);
   const range: ReportRange = parsedRange.success ? parsedRange.data : DEFAULT_REPORT_RANGE;
   // An unrecognised (or absent) `?report=` falls back to the catalogue's first
@@ -86,7 +94,7 @@ export default async function ReportsPage({
       <VisuallyHidden as="h1">{t('title')}</VisuallyHidden>
 
       {canViewReports ? (
-        <ReportsBody range={range} requested={requested} />
+        <ReportsBody range={range} requested={requested} locationId={locationId} />
       ) : (
         <p {...stylex.props(chrome.notice)}>{t('noAccess')}</p>
       )}
@@ -96,16 +104,25 @@ export default async function ReportsPage({
 
 /**
  * Fetches the gym's report catalogue (and, when one is selected, its preview for
- * `range`) and hands the real responses to the client view. A failed fetch becomes
- * the same inline "Could not reach the FormaCore API" alert the other screens use, rather
- * than crashing the page.
+ * `range` at `locationId`) and hands the real responses to the client view. A
+ * failed fetch becomes the same inline "Could not reach the FormaCore API" alert
+ * the other screens use, rather than crashing the page.
+ *
+ * The CATALOGUE call deliberately carries no branch. Which reports exist does not
+ * change with the branch, and an inert parameter there would invite a later edit
+ * into hiding the un-filterable ones — which would leave an operator unable to
+ * reach a report at all rather than merely unable to narrow it. The un-narrowed
+ * ones stay on the shelf and say so; see `branch-scope.ts`.
  */
 async function ReportsBody({
   range,
   requested,
+  locationId,
 }: {
   range: ReportRange;
   requested: ReportKey | null;
+  /** The branch to scope the preview to; `undefined` is every branch. */
+  locationId: string | undefined;
 }) {
   const t = await getTranslations('admin.reports');
   try {
@@ -122,12 +139,29 @@ async function ReportsBody({
       : (catalog.reports[0]?.key ?? null);
 
     if (offered === null) {
-      return <ReportsView reports={[]} selected={null} range={range} preview={null} />;
+      return (
+        <ReportsView
+          reports={[]}
+          selected={null}
+          range={range}
+          preview={null}
+          locationId={locationId}
+        />
+      );
     }
 
-    const preview = await fetchReport(offered, range);
+    const preview = await fetchReport(offered, range, locationId);
     return (
-      <ReportsView reports={catalog.reports} selected={offered} range={range} preview={preview} />
+      <ReportsView
+        reports={catalog.reports}
+        selected={offered}
+        range={range}
+        preview={preview}
+        // The SAME value the fetch above used — the view builds its download links
+        // from it, so the file and the table on screen cannot disagree about which
+        // branch they cover, even if the cookie changes in another tab meanwhile.
+        locationId={locationId}
+      />
     );
   } catch (error) {
     const message =

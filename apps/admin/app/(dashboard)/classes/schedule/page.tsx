@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchSchedule } from '@/lib/api';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Icon } from '@/components/ui';
@@ -25,7 +26,7 @@ import {
 export const metadata: Metadata = {
   title: 'Schedule - FormaCore Admin',
   description:
-    'The gym’s weekly class calendar: day columns of class occurrences with occupancy, trainer, and branch, filtered by trainer or location and paged a week at a time.',
+    'The gym’s weekly class calendar: day columns of class occurrences with occupancy, trainer, and branch, scoped to the console’s active branch, filtered by trainer, and paged a week at a time.',
 };
 
 // The calendar reflects live tenant state and the staff session token, so it must
@@ -100,10 +101,11 @@ function readParam(raw: SearchParams, key: string): string {
 
 /**
  * The schedule week calendar (T3.2). Resolves the visible week from `?week=` (its
- * Monday, defaulting to the current week) and the optional `?trainerId` / `?locationId`
- * filters, server-fetches `GET /admin/schedule` for that `[from, to)` window, and
- * hands the occurrences plus the trainer/location filter options to the client
- * board (week navigation, filtering, the day-column grid). The `/classes/schedule` route is
+ * Monday, defaulting to the current week), the optional `?trainerId` filter and the
+ * console's active branch (the top-bar switcher's cookie, or an explicit
+ * `?locationId=` on this URL), server-fetches `GET /admin/schedule` for that
+ * `[from, to)` window, and hands the occurrences plus the trainer filter options to
+ * the client board (week navigation, filtering, the day-column grid). The `/classes/schedule` route is
  * already staff-gated by the middleware and the API enforces `ClassRead`, so the
  * only failure handled here is the schedule fetch itself, which degrades to an
  * inline alert (mirroring the other console screens).
@@ -139,7 +141,17 @@ export default async function SchedulePage({
         ? dayWindow(dayAnchor, timeZone)
         : weekWindow(weekStart, timeZone);
   const trainerId = readParam(raw, 'trainerId');
-  const locationId = readParam(raw, 'locationId');
+  // THE `?locationId=` CONTRACT IS UNCHANGED, THE CONTROL THAT WROTE IT IS GONE.
+  //
+  // The board used to own a page-local branch select. The top-bar switcher now
+  // owns the branch console-wide, so the select is removed — but the param it
+  // wrote is still the one the switcher writes, and `getActiveLocationId` reads
+  // the param *before* the cookie. Every existing link and bookmark carrying
+  // `?locationId=<id>` therefore lands on exactly the branch it names, whatever
+  // the cookie says; a bare `/classes/schedule` now inherits the console's branch
+  // instead of silently showing every one. An id the gym no longer has degrades
+  // to all branches rather than 404-ing (see `lib/active-location.ts`).
+  const locationId = await getActiveLocationId(raw);
 
   // "Add Class" opens the class-type drawer — offered only to staff who hold the
   // write capability, and its form needs the gym's trainer/location/plan options.
@@ -153,7 +165,7 @@ export default async function SchedulePage({
         from,
         to,
         trainerId: trainerId || undefined,
-        locationId: locationId || undefined,
+        locationId,
       }),
       loadScheduleFilters(),
       canWrite ? loadRelationOptions() : Promise.resolve(null),
@@ -166,9 +178,7 @@ export default async function SchedulePage({
         dayAnchor={toIsoDate(dayAnchor)}
         instances={instances}
         trainers={filters.trainers}
-        locations={filters.locations}
         trainerId={trainerId}
-        locationId={locationId}
         canWrite={canWrite}
         addClass={addClass}
         timeZone={timeZone}

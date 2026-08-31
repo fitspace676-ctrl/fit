@@ -7,6 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { AdminProductCategory, AdminProductRow, ProductStatus } from '@fit/types';
 import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { setProductCategoryAction } from './actions';
 import { formatPrice, marginPercent } from './format-price';
 import { StockBadge, stockLevel } from './stock-badge';
@@ -266,6 +267,15 @@ export function ProductsGrid({
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
 
+  // The grid does not narrow by branch (the catalogue is gym-wide), so the active
+  // branch is used for one thing only: telling each stock badge to say out loud
+  // that its count spans every branch. See `StockBadge`.
+  const { locationId, locations } = useActiveLocation();
+  const branchName =
+    locationId === undefined
+      ? null
+      : (locations.find((location) => location.id === locationId)?.name ?? locationId);
+
   function hrefWith(overrides: Record<string, string>): string {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(overrides)) {
@@ -342,7 +352,7 @@ export function ProductsGrid({
                       <span {...stylex.props(styles.categoryChip)}>{product.category.name}</span>
                     ) : null}
                     <div>
-                      <StockBadge row={product} />
+                      <StockBadge row={product} branchName={branchName} />
                     </div>
                   </div>
                 </Link>

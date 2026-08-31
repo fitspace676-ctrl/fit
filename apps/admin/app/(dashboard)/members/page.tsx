@@ -11,6 +11,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { memberIntakeConfig } from '@/lib/member-intake';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchGymSettings, fetchMembers } from '@/lib/api';
 import { Breadcrumbs, BreadcrumbItem } from '@astryxdesign/core/Breadcrumbs';
 import { Heading } from '@astryxdesign/core/Heading';
@@ -125,6 +126,17 @@ export default async function MembersPage({
   const parsed = listMembersQuerySchema.safeParse(raw);
   const query: ListMembersQuery = parsed.success ? parsed.data : listMembersQuerySchema.parse({});
 
+  // The branch this roster is scoped to: the top-bar switcher's cookie, or an
+  // explicit `?locationId=` on this URL. `undefined` means every branch.
+  //
+  // It OVERRIDES `query.locationId` rather than merging with it. The schema above
+  // parses the same param, but only the resolver checks it against the gym's live
+  // branches — an id for a deactivated or cross-tenant branch degrades to "all
+  // locations" there and would otherwise survive in `query` and filter the roster
+  // down to nothing. `membersQueryString` drops `undefined`, so the override is a
+  // plain spread.
+  const locationId = await getActiveLocationId(raw);
+
   // "Add member" is a `MemberWrite` capability — shown only to staff who hold it.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
@@ -145,7 +157,7 @@ export default async function MembersPage({
   let subtitle = t('list.subtitle');
   let content;
   try {
-    const result = await fetchMembers(query);
+    const result = await fetchMembers({ ...query, locationId });
     const { all, active } = result.counts;
     subtitle = all === 0 ? t('list.subtitleEmpty') : t('list.subtitleCounts', { all, active });
     content = (

@@ -19,6 +19,7 @@ import {
   roleHasPermission,
 } from '@fit/types';
 import { fetchReportDrilldownExport } from '@/lib/api';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { getServerSession } from '@/lib/session';
 
 /** MIME type for a `.xlsx` workbook. */
@@ -27,7 +28,17 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 // Reads the live session cookie + proxies a live stream, so never cache.
 export const dynamic = 'force-dynamic';
 
-/** `GET /reports/:metric/export?range=&format=` — stream one drill-down as a file. */
+/**
+ * `GET /reports/:metric/export?range=&format=&locationId=` — stream one drill-down
+ * as a file, covering exactly the branch the screen was showing.
+ *
+ * Resolves the branch through `getActiveLocationId` over this request's own search
+ * params plus the cookie — the identical call the drill-down page makes, so the
+ * file and the page cannot answer the question differently. See the catalogue
+ * export route beside this one for why the link carries the branch explicitly
+ * rather than trusting the cookie to still say the same thing at click time.
+ * Both are pinned by `../../export-routes.spec.ts`.
+ */
 export async function GET(
   req: Request,
   context: { params: Promise<{ metric: string }> },
@@ -51,10 +62,12 @@ export async function GET(
   const params = new URL(req.url).searchParams;
   const range = reportDrilldownRangeSchema.safeParse(params.get('range'));
   const format = reportFormatSchema.safeParse(params.get('format'));
+  const locationId = await getActiveLocationId(Object.fromEntries(params));
 
   const upstream = await fetchReportDrilldownExport(metric.data, {
     range: range.success ? range.data : undefined,
     format: format.success ? format.data : undefined,
+    locationId,
   });
   if (!upstream.ok || !upstream.body) {
     return NextResponse.json(

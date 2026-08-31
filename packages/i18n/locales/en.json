@@ -94,7 +94,8 @@
         "label": "Language",
         "ka": "ქართული",
         "en": "English"
-      }
+      },
+      "notSplitByBranch": "Not split by branch"
     },
     "profile": {
       "title": "Profile",
@@ -601,6 +602,10 @@
         "thu": "Thu",
         "fri": "Fri",
         "sat": "Sat"
+      },
+      "branchScope": {
+        "staff": "Not split by branch — trainers, PT sessions and shifts have no branch yet.",
+        "classes": "PT sessions are gym-wide."
       }
     },
     "analytics": {
@@ -866,7 +871,8 @@
         "promoLabel": "Promo code",
         "promoPlaceholder": "Optional"
       },
-      "salesLog": "Sales log"
+      "salesLog": "Sales log",
+      "sellingAt": "Selling at"
     },
     "activity": {
       "title": "Activity",
@@ -964,8 +970,6 @@
         "aria": "Schedule filters",
         "trainer": "Filter by trainer",
         "allTrainers": "All trainers",
-        "location": "Filter by location",
-        "allLocations": "All locations",
         "clear": "Clear"
       },
       "week": {
@@ -1228,7 +1232,10 @@
         "medicalPlaceholder": "Allergies, conditions, injuries…",
         "optional": "Optional",
         "personalId": "National ID",
-        "requiredMissing": "Please fill in: {fields}"
+        "requiredMissing": "Please fill in: {fields}",
+        "locationDefault": "Gym default branch",
+        "locationKeep": "Keep {branch}",
+        "locationUnassigned": "No branch yet"
       },
       "actions": {
         "edit": "Edit",
@@ -3116,6 +3123,9 @@
       "deleteSession": "Delete session",
       "untitled": "Untitled chat",
       "dropHere": "Drop files to attach"
+    },
+    "classTypes": {
+      "branchScope": "Class types are a gym-wide catalogue — not split by branch."
     }
   },
   "auth": {

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
@@ -100,6 +101,15 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
+  note: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
+  link: {
+    color: 'var(--color-text-accent)',
+    textDecoration: 'none',
+  },
 });
 
 /** The badge each derived level wears beside a position's count. */
@@ -119,7 +129,7 @@ interface Position {
 }
 
 /**
- * The product's inventory: what is on hand at each position, and the ledger of how
+ * The product's inventory: what is on hand across the gym, and the ledger of how
  * it got there.
  *
  * A product tracks stock one of two ways, so the table shows whichever applies —
@@ -127,18 +137,36 @@ interface Position {
  * product still gets its row, with an Adjust button: recording a delivery is how a
  * gym starts counting something, and hiding the control would leave no way in.
  *
+ * ## Every count here is a roll-up, and the column says so
+ *
+ * The product record carries the gym-wide total, not any one branch's shelf (see
+ * the page's header comment for why). Under a branch filter that is exactly the
+ * kind of figure that gets misread, so the column is labelled "all branches"
+ * whatever the console is scoped to — a header that changed with the filter while
+ * the number underneath did not would be worse than one that never moves.
+ *
+ * The consequence for the adjuster is the interesting one. It cannot offer "set
+ * this branch's shelf to N" from a number that came from every branch added
+ * together, so on this page it records a signed movement instead — "+12 arrived at
+ * Riverside" — and the absolute recount lives on `/shop/inventory`, where the count
+ * on screen really is one branch's. See `StockAdjuster`'s `stockLocationId`.
+ *
  * The history below is the answer to "why is this 3?". Sales and refunds appear
  * alongside manual corrections because the checkout writes to the same ledger, so
- * a drop between two stocktakes is explained rather than mysterious.
+ * a drop between two stocktakes is explained rather than mysterious. It is the one
+ * per-branch surface on the page, so every row names its branch.
  */
 export function StockPanel({
   product,
   movements,
   canWrite,
+  branchName,
 }: {
   product: GetAdminProductResponse;
   movements: StockMovementRow[];
   canWrite: boolean;
+  /** The console's active branch, or `null` in "All locations" mode. */
+  branchName: string | null;
 }) {
   const positions: Position[] =
     product.variants.length > 0
@@ -168,7 +196,7 @@ export function StockPanel({
             <tr>
               <th {...stylex.props(styles.th)}>Position</th>
               <th {...stylex.props(styles.th)}>SKU</th>
-              <th {...stylex.props(styles.th, styles.num)}>On hand</th>
+              <th {...stylex.props(styles.th, styles.num)}>On hand (all branches)</th>
               <th {...stylex.props(styles.th)}>Status</th>
               {canWrite ? <th {...stylex.props(styles.th)} /> : null}
             </tr>
@@ -192,13 +220,16 @@ export function StockPanel({
                   </td>
                   {canWrite ? (
                     <td {...stylex.props(styles.td, styles.actionCell)}>
+                      {/* `null` — the count beside this button is a roll-up, so the
+                          adjuster records a movement rather than a recount. */}
                       <StockAdjuster
                         productId={product.id}
                         productName={product.name}
                         variantIndex={position.variantIndex}
                         variantName={position.label}
                         sku={position.sku}
-                        stock={position.stock ?? 0}
+                        stock={position.stock}
+                        stockLocationId={null}
                       />
                     </td>
                   ) : null}
@@ -209,9 +240,20 @@ export function StockPanel({
         </table>
       </Card>
 
+      <p {...stylex.props(styles.note)}>
+        These are gym-wide totals. For one branch’s shelf — and to record a stocktake against it —
+        open{' '}
+        <Link href="/shop/inventory" {...stylex.props(styles.link)}>
+          Inventory
+        </Link>
+        .
+      </p>
+
       <div {...stylex.props(styles.headRow)}>
         <h2 {...stylex.props(styles.heading)}>Stock history</h2>
-        <span {...stylex.props(styles.subtle)}>Most recent first</span>
+        <span {...stylex.props(styles.subtle)}>
+          {branchName === null ? 'Most recent first' : `${branchName} · most recent first`}
+        </span>
       </div>
 
       <Card padding="none" xstyle={styles.card}>
@@ -224,10 +266,16 @@ export function StockPanel({
             <thead>
               <tr>
                 <th {...stylex.props(styles.th)}>When</th>
+                {/* The branch is on the ROW here, unlike the aggregate views: the
+                    ledger really does mix branches, so the column changes down the
+                    page and earns its place. */}
+                <th {...stylex.props(styles.th)}>Branch</th>
                 <th {...stylex.props(styles.th)}>Position</th>
                 <th {...stylex.props(styles.th)}>Reason</th>
                 <th {...stylex.props(styles.th, styles.num)}>Change</th>
-                <th {...stylex.props(styles.th, styles.num)}>Left</th>
+                {/* Not the gym-wide figure the table above shows: this is what the
+                    row's own branch held afterwards. */}
+                <th {...stylex.props(styles.th, styles.num)}>Left at branch</th>
                 <th {...stylex.props(styles.th)}>By</th>
                 <th {...stylex.props(styles.th)}>Note</th>
               </tr>
@@ -243,6 +291,12 @@ export function StockPanel({
                       hour: '2-digit',
                       minute: '2-digit',
                     }).format(new Date(movement.createdAt))}
+                  </td>
+                  {/* A movement with no branch is a row written before per-branch
+                      stock existed, or one whose branch has since been retired.
+                      Both are facts worth stating; neither is a blank cell. */}
+                  <td {...stylex.props(styles.td, movement.locationName === null && styles.muted)}>
+                    {movement.locationName ?? 'No branch recorded'}
                   </td>
                   <td {...stylex.props(styles.td)}>
                     {movement.variantIndex === null ? product.name : movement.variantLabel}
@@ -269,6 +323,13 @@ export function StockPanel({
           </table>
         )}
       </Card>
+
+      {branchName === null ? null : (
+        <p {...stylex.props(styles.note)}>
+          Movements at {branchName} only. Rows recorded before stock was held per branch name no
+          branch, and are listed under All locations.
+        </p>
+      )}
     </section>
   );
 }

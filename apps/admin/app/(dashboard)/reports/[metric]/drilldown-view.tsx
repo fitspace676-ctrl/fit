@@ -16,10 +16,12 @@ import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import type { ReportDrilldown, ReportRange } from '@fit/types';
+import type { ReportDrilldown, ReportMetric, ReportRange, ReportSection } from '@fit/types';
 import { Icon } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import { ReportSectionCard, formatUnitValue } from '../report-sections';
+import { BranchScopeNote } from '../branch-scope-note';
+import { GYM_WIDE_DRILLDOWNS, gymWideSectionColumnKeys } from '../branch-scope';
 
 /** The range options offered by the segmented control, in ascending span order. */
 const RANGE_OPTIONS: ReadonlyArray<{ value: ReportRange; labelKey: string }> = [
@@ -133,7 +135,19 @@ const styles = stylex.create({
   },
 });
 
-export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
+export function DrilldownView({
+  drilldown,
+  locationId,
+}: {
+  drilldown: ReportDrilldown;
+  /**
+   * The branch the server ran this drill-down for; `undefined` is every branch.
+   * Same contract as the catalogue view's prop — it describes THIS render, not
+   * whatever the switcher currently holds, so the downloads cannot drift from the
+   * figures above them.
+   */
+  locationId: string | undefined;
+}) {
   const t = useTranslations('admin.reports');
   const locale = useLocale();
   const router = useRouter();
@@ -152,13 +166,26 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
 
   const busy = isNavigating;
 
-  /** The download URL for this drill-down at the range currently on screen. */
-  const exportHref = (format: 'csv' | 'xlsx'): string =>
-    adminPath(
-      `/reports/${encodeURIComponent(drilldown.metric)}/export?range=${encodeURIComponent(
-        drilldown.range,
-      )}&format=${format}`,
+  /**
+   * The download URL for this drill-down at the range AND branch currently on
+   * screen. The branch is written in explicitly — the export route would fall back
+   * to the cookie, but the cookie can move between this render and the click, and
+   * a file that quietly covers a different branch than the page it came from is
+   * the failure this whole wiring exists to avoid.
+   */
+  const exportHref = (format: 'csv' | 'xlsx'): string => {
+    const params = new URLSearchParams({ range: drilldown.range, format });
+    if (locationId) {
+      params.set('locationId', locationId);
+    }
+    return adminPath(
+      `/reports/${encodeURIComponent(drilldown.metric)}/export?${params.toString()}`,
     );
+  };
+
+  // Whether this whole drill-down is still gym-wide under the selected branch.
+  // Silent in "All locations" mode, where it would state the obvious.
+  const gymWide = locationId !== undefined && GYM_WIDE_DRILLDOWNS.has(drilldown.metric);
 
   return (
     <div {...stylex.props(styles.page, busy && styles.pending)}>
@@ -171,6 +198,8 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
         <div {...stylex.props(styles.headCopy)}>
           <h1 {...stylex.props(styles.title)}>{drilldown.name}</h1>
           <p {...stylex.props(styles.description)}>{drilldown.description}</p>
+          {/* Above the KPI tiles, because it is true of every one of them. */}
+          {gymWide ? <BranchScopeNote /> : null}
         </div>
         <div {...stylex.props(styles.controls)}>
           <SegmentedControl
@@ -236,9 +265,41 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
             currency={drilldown.currency}
             locale={locale}
             emptyLabel={t('drilldown.emptySection')}
+            // A section whose delivery figures narrow but one of whose columns
+            // cannot — `staff`'s average rating, which is a property of the trainer
+            // rather than of the branch. The caveat rides in the card's own header
+            // action slot, so the shared section renderer (which the dashboard's
+            // segment widgets also use) needs no branch vocabulary of its own.
+            action={
+              locationId === undefined || gymWide ? undefined : (
+                <SectionScopeNote metric={drilldown.metric} section={section} />
+              )
+            }
           />
         ))}
       </div>
     </div>
   );
+}
+
+/**
+ * The "not split by branch" note for ONE section of an otherwise branch-scoped
+ * drill-down, naming the columns it applies to — or nothing at all when the
+ * section narrows cleanly, which is the overwhelming majority of them.
+ *
+ * Only `table` sections can carry the caveat: a chart section is one series with
+ * one scope, so if it did not narrow the whole drill-down would be on the gym-wide
+ * list and the header note would already have said so. The column labels come from
+ * the API's own section definition, so the note points at headers the reader can
+ * see in the table beneath it.
+ */
+function SectionScopeNote({ metric, section }: { metric: ReportMetric; section: ReportSection }) {
+  const keys = gymWideSectionColumnKeys(metric, section.id);
+  if (keys.length === 0 || section.kind !== 'table') {
+    return null;
+  }
+  const labels = section.columns
+    .filter((column) => keys.includes(column.key))
+    .map((column) => column.label);
+  return labels.length > 0 ? <BranchScopeNote columns={labels} /> : null;
 }

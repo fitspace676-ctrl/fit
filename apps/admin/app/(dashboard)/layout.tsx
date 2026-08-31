@@ -2,13 +2,16 @@ import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { DEFAULT_CURRENCY, Permission, roleHasPermission } from '@fit/types';
 import { AdminShell, type ShellLocation, type ShellSystemState } from '@/components/admin-shell';
+import { ActiveLocationProvider } from '@/components/active-location';
 import { GymCurrencyProvider } from '@/components/gym-currency';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { IMPERSONATION_META_COOKIE, parseImpersonationMeta } from '@/lib/impersonation';
 import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar-collapse';
+import { ACTIVE_LOCATION_COOKIE, resolveActiveLocation } from '@/lib/active-location';
+import { fetchActiveLocations } from '@/lib/active-location-server';
 import { getActiveGymSlug } from '@/lib/active-gym';
 import { getServerSession } from '@/lib/session';
-import { fetchCheckInStats, fetchGymSettings, fetchLocations } from '@/lib/api';
+import { fetchCheckInStats, fetchGymSettings } from '@/lib/api';
 
 /**
  * Authenticated console layout. Every page under this route group renders inside
@@ -62,32 +65,41 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     () => DEFAULT_CURRENCY,
   );
 
-  // The top-bar location switcher is populated from the gym's active locations.
+  // The top-bar branch switcher is populated from the gym's active locations.
   // Gated by LocationRead; on any failure the switcher simply stays empty.
+  // `fetchActiveLocations` is request-memoised, so a page below that resolves the
+  // active branch for its own fetch reuses this roster rather than asking again.
   let locations: ShellLocation[] = [];
   if (session && roleHasPermission(session.role, Permission.LocationRead)) {
-    try {
-      const res = await fetchLocations({ status: 'ACTIVE', limit: 100 });
-      locations = res.data.map((location) => ({ id: location.id, name: location.name }));
-    } catch {
-      locations = [];
-    }
+    locations = await fetchActiveLocations();
   }
+
+  // Seed the branch filter from its cookie, validated against the live roster, so
+  // the switcher paints the real branch on the first frame. A URL `?locationId=`
+  // outranks the cookie, but layouts are never handed `searchParams` — the
+  // provider reconciles that itself via `useSearchParams()`.
+  const activeLocation = resolveActiveLocation(
+    undefined,
+    cookieStore.get(ACTIVE_LOCATION_COOKIE)?.value,
+    locations,
+  );
 
   return (
     <GymCurrencyProvider currency={currency}>
-      <AdminShell
-        gymSlug={gymSlug}
-        system={system}
-        locations={locations}
-        sidebarCollapsed={sidebarCollapsed}
-        // Into the shell's own banner slot, not above it: the shell is exactly
-        // one viewport tall, so a bar stacked on top of it is a bar's worth of
-        // document scroll. See the `banner` prop's note in `admin-shell.tsx`.
-        banner={impersonation ? <ImpersonationBanner meta={impersonation} /> : null}
-      >
-        {children}
-      </AdminShell>
+      <ActiveLocationProvider initial={activeLocation} locations={locations}>
+        <AdminShell
+          gymSlug={gymSlug}
+          system={system}
+          locations={locations}
+          sidebarCollapsed={sidebarCollapsed}
+          // Into the shell's own banner slot, not above it: the shell is exactly
+          // one viewport tall, so a bar stacked on top of it is a bar's worth of
+          // document scroll. See the `banner` prop's note in `admin-shell.tsx`.
+          banner={impersonation ? <ImpersonationBanner meta={impersonation} /> : null}
+        >
+          {children}
+        </AdminShell>
+      </ActiveLocationProvider>
     </GymCurrencyProvider>
   );
 }

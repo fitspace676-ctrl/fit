@@ -209,6 +209,17 @@ export class ClassTypesService {
     return new NotFoundException({ message: 'Class type not found', code: 'CLASS_TYPE_NOT_FOUND' });
   }
 
+  /**
+   * The tenant-scoped `where` for the roster (the extension adds `gymId`).
+   *
+   * No branch filter, on purpose: a `ClassType` is gym-wide catalogue with no
+   * `locationId` of its own, and reaching a branch through `instances: { some:
+   * { locationId } }` would answer "has *occurred* at this branch" — hiding a
+   * never-yet-scheduled type from everywhere and pinning a type to a branch on
+   * one old occurrence. The rationale is recorded on
+   * `listAdminClassTypesQuerySchema` in `@fit/types`; the branch-scoped roster is
+   * `GET /admin/classes` (templates), which carries a real `locationId`.
+   */
   private buildWhere(query: ListAdminClassTypesQuery): Prisma.ClassTypeWhereInput {
     const where: Prisma.ClassTypeWhereInput = {};
     if (query.status) {

@@ -203,6 +203,13 @@ describe('cashReconciliationQuerySchema (T7.5)', () => {
     expect(cashReconciliationQuerySchema.parse({ date: '2026-06-07' }).date).toBe('2026-06-07');
   });
 
+  it('takes an optional branch, absent when every till is reconciled together', () => {
+    expect(
+      cashReconciliationQuerySchema.parse({ date: '2026-06-07', locationId: 'loc_1' }).locationId,
+    ).toBe('loc_1');
+    expect(cashReconciliationQuerySchema.parse({ date: '2026-06-07' }).locationId).toBeUndefined();
+  });
+
   it('rejects a malformed or impossible date', () => {
     expect(() => cashReconciliationQuerySchema.parse({ date: '2026-6-7' })).toThrow();
     expect(() => cashReconciliationQuerySchema.parse({ date: '2026-02-30' })).toThrow();

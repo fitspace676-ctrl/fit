@@ -8,7 +8,7 @@ import { InvoiceService, type InvoiceTxClient } from './invoice.service';
  * whatever Settings → Invoicing block the case is about (`undefined` = a gym that
  * never opened the settings screen, which defaults to `INV` / 1000 / prefix-year).
  */
-function makeTx(seq = 1, invoice?: Record<string, unknown>) {
+function makeTx(seq = 1, invoice?: Record<string, unknown>, memberBranch: string | null = 'loc-1') {
   const create = vi
     .fn<(args: { data: Record<string, unknown> }) => Promise<unknown>>()
     .mockImplementation((args) =>
@@ -25,12 +25,20 @@ function makeTx(seq = 1, invoice?: Record<string, unknown>) {
   const gymFindFirst = vi
     .fn<(args: unknown) => Promise<unknown>>()
     .mockResolvedValue({ settings: invoice ? { invoice } : null });
+  // The billed member, read for their home branch alone. `null` models both a
+  // member with no branch and (via `mockResolvedValue(null)`) one that does not
+  // resolve in this gym — the two cases the service collapses to an unattributed
+  // invoice.
+  const memberFindFirst = vi
+    .fn<(args: unknown) => Promise<unknown>>()
+    .mockResolvedValue(memberBranch === null ? null : { locationId: memberBranch });
   const tx = {
     $queryRawUnsafe: queryRawUnsafe,
     invoice: { create },
     gym: { findFirst: gymFindFirst },
+    gymMember: { findFirst: memberFindFirst },
   } as unknown as InvoiceTxClient;
-  return { tx, create, queryRawUnsafe, gymFindFirst };
+  return { tx, create, queryRawUnsafe, gymFindFirst, memberFindFirst };
 }
 
 describe('InvoiceService', () => {
@@ -186,5 +194,102 @@ describe('InvoiceService', () => {
       memberId: null,
       number: formatInvoiceNumber(2025, 7, { prefix: 'INV', format: 'prefix-year-number' }),
     });
+  });
+});
+
+/**
+ * `Invoice.locationId` — the branch snapshot Stage 5 stamps here.
+ *
+ * These live at the SEAM rather than at the four issuers (enrolment, renewal, a
+ * booked service session, a hand-raised invoice) because that is where the rule
+ * lives: all four call `issue`, none of them passes a branch, and none of them can
+ * forget one. Testing here covers all four at once and pins the reason the lookup
+ * is not a parameter.
+ *
+ * They also carry the whole weight of this column's coverage: the dev seed mints
+ * no invoices at all, so nothing downstream — not the roster, not `outstanding`,
+ * not the recurring stream — has a seeded row with a branch on it to exercise.
+ */
+describe('InvoiceService.issue — the branch snapshot', () => {
+  const service = new InvoiceService();
+
+  it('stamps the billed member’s home branch onto the invoice', async () => {
+    const { tx, create, memberFindFirst } = makeTx(1, undefined, 'loc-flagship');
+
+    await service.issue(tx, {
+      gymId: 'gym-1',
+      memberId: 'gm-1',
+      amount: 5000,
+      currency: 'GEL',
+    });
+
+    // Pinned by `gymId` as well as `id`. The unscoped billing-job client injects no
+    // tenant, so a `memberId` that resolved across tenants would copy another gym's
+    // branch onto this invoice — a cross-tenant row the foreign key cannot catch,
+    // because that location really does exist. The migration guards its backfill
+    // the same way; this is the write-path half of that guard.
+    expect(memberFindFirst).toHaveBeenCalledWith({
+      where: { id: 'gm-1', gymId: 'gym-1' },
+      select: { locationId: true },
+    });
+    expect(create.mock.calls[0]?.[0].data).toMatchObject({ locationId: 'loc-flagship' });
+  });
+
+  // The PERSON half of the attribution rule, and the one place it would be easy to
+  // get wrong: an order is right there on the input. Taking the branch from it
+  // would attribute the one-off minority one way and the recurring majority
+  // another, and `outstanding` would mean something different row by row.
+  it('takes the branch from the member even when the invoice names an order', async () => {
+    const { tx, create } = makeTx(1, undefined, 'loc-satellite');
+
+    await service.issue(tx, {
+      gymId: 'gym-1',
+      memberId: 'gm-1',
+      orderId: 'ord-1',
+      amount: 5000,
+      currency: 'GEL',
+    });
+
+    expect(create.mock.calls[0]?.[0].data).toMatchObject({
+      orderId: 'ord-1',
+      locationId: 'loc-satellite',
+    });
+  });
+
+  // A member whose branch was retired (`GymMember.location` is `SetNull`). NOT
+  // defaulted to the gym's main branch: this column has an attribution already, and
+  // inventing one would credit a branch with a debt the console never showed there.
+  it('leaves the branch null when the member has no home branch', async () => {
+    const { tx, create } = makeTx(1, undefined, null);
+    // A member row that exists but carries no branch — distinct from the
+    // unresolvable case below, and it must land on the same answer.
+    (tx as unknown as { gymMember: { findFirst: ReturnType<typeof vi.fn> } }).gymMember.findFirst =
+      vi.fn().mockResolvedValue({ locationId: null });
+
+    await service.issue(tx, { gymId: 'gym-1', memberId: 'gm-1', amount: 100, currency: 'GEL' });
+
+    expect(create.mock.calls[0]?.[0].data).toMatchObject({ locationId: null });
+  });
+
+  // A cross-tenant or deleted id: the pinned `where` finds nothing. Still an
+  // invoice, still unattributed — never another gym's branch.
+  it('leaves the branch null when the member does not resolve in this gym', async () => {
+    const { tx, create } = makeTx(1, undefined, null);
+
+    await service.issue(tx, { gymId: 'gym-1', memberId: 'gm-other', amount: 100, currency: 'GEL' });
+
+    expect(create.mock.calls[0]?.[0].data).toMatchObject({ locationId: null });
+  });
+
+  // `memberId: null` is the recurring-billing edge — an invoice that survived a
+  // member purge by `SetNull`. There is nothing to read, so the lookup is skipped
+  // entirely rather than issued with a null id.
+  it('skips the lookup and leaves the branch null when there is no member', async () => {
+    const { tx, create, memberFindFirst } = makeTx(1);
+
+    await service.issue(tx, { gymId: 'gym-1', memberId: null, amount: 100, currency: 'GEL' });
+
+    expect(memberFindFirst).not.toHaveBeenCalled();
+    expect(create.mock.calls[0]?.[0].data).toMatchObject({ locationId: null });
   });
 });

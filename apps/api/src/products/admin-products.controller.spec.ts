@@ -16,6 +16,7 @@ import type { ProductStockService } from './product-stock.service';
 
 const movementRow = (over?: Partial<StockMovementRow>): StockMovementRow => ({
   id: 'm-1',
+  locationName: 'Riverside',
   variantIndex: null,
   variantLabel: '',
   delta: 3,
@@ -68,7 +69,7 @@ function setup() {
   );
   const getProduct = vi.fn<() => Promise<GetAdminProductResponse>>(() => Promise.resolve(detail()));
   const listLowStock = vi.fn<() => Promise<ListLowStockResponse>>(() =>
-    Promise.resolve({ data: [], threshold: 5 }),
+    Promise.resolve({ data: [], threshold: 5, locationId: null, locationName: null }),
   );
   const createProduct = vi.fn<(input: CreateProductData) => Promise<CreateProductResponse>>(() =>
     Promise.resolve(detail()),
@@ -89,8 +90,10 @@ function setup() {
   } as unknown as AdminProductsService;
   const adjust = vi.fn<() => Promise<AdjustStockResponse>>(() =>
     Promise.resolve({
+      locationId: 'loc-1',
       variantIndex: null,
       stock: 7,
+      totalStock: 11,
       movement: movementRow(),
     }),
   );
@@ -135,11 +138,21 @@ describe('AdminProductsController', () => {
   });
 
   describe('GET /admin/products/low-stock', () => {
-    it('defaults the threshold and delegates to the service', async () => {
+    it('leaves the threshold unset so each position uses its own cushion', async () => {
+      // Since Stage 4 an omitted `threshold` is not "5", it is "walk the three-rung
+      // chain per position". A default here would flatten every line's reorder
+      // point back to one number — the bug the chain exists to fix.
       ctx = setup();
       await ctx.controller.lowStock({});
 
-      expect(ctx.listLowStock).toHaveBeenCalledWith({ threshold: 5 });
+      expect(ctx.listLowStock).toHaveBeenCalledWith({});
+    });
+
+    it('carries a branch through to the service', async () => {
+      ctx = setup();
+      await ctx.controller.lowStock({ locationId: 'loc-2' });
+
+      expect(ctx.listLowStock).toHaveBeenCalledWith({ locationId: 'loc-2' });
     });
 
     it('coerces a string threshold from the query', async () => {

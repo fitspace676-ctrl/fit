@@ -345,3 +345,89 @@ describe('DashboardStaffService', () => {
     });
   });
 });
+
+describe('DashboardStaffService.get — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** Every `where` a mocked read was issued with. */
+  function wheres(fn: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
+    return fn.mock.calls.map(
+      (call) => (call[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {},
+    );
+  }
+
+  // Of the six reads this tab issues, exactly one — `ClassInstance` — can answer
+  // "which branch". Filtering it alone would not make the tab per-branch; it would
+  // make `sessionsDelivered` one branch's classes plus every branch's PT, and
+  // `utilizationRate` one branch's delivered minutes over every trainer's gym-wide
+  // availability. Both would LOOK filtered. So nothing is filtered until Stage 6,
+  // and this spec pins that decision rather than leaving it to be re-litigated.
+  //
+  // Stage 2 did NOT change this, and `memberCount` below is the read that proves
+  // it: `GymMember.locationId` now exists, so the staff head-count is technically
+  // filterable — and must not be. That column is the member's HOME branch, and for
+  // a staff row it is a backfill artefact pointing every employee at the gym's
+  // default branch. Filtering it would report the whole payroll at one branch and
+  // zero staff everywhere else. Where somebody WORKS is
+  // `GymMember.assignedLocationIds`, which Stage 6 replaces with a real join table.
+  it('is accepted and applied to nothing, including the one read that could carry it', async () => {
+    const {
+      service,
+      instanceFindMany,
+      ptFindMany,
+      trainerFindMany,
+      shiftFindMany,
+      timeOffFindMany,
+      memberCount,
+    } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    for (const fn of [
+      instanceFindMany,
+      ptFindMany,
+      trainerFindMany,
+      shiftFindMany,
+      timeOffFindMany,
+      memberCount,
+    ]) {
+      for (const where of wheres(fn)) {
+        expect(where).not.toHaveProperty('locationId');
+        expect(where).not.toHaveProperty('order');
+      }
+    }
+  });
+
+  // Explicitly: the home branch is not the work assignment. This is the assertion
+  // most at risk of being "fixed" now that the column exists.
+  it('does not mistake a staff member’s home branch for their work assignment', async () => {
+    const { service, memberCount } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    for (const where of wheres(memberCount)) {
+      expect(where).not.toHaveProperty('locationId');
+      expect(where).not.toHaveProperty('assignedLocationIds');
+    }
+  });
+
+  it('returns the same figures with and without a branch, until Stage 6', async () => {
+    const rows = { instances: [instance()], ptSessions: [session()], trainers: [trainer()] };
+    const gymWide = await setup(rows).service.get(QUERY);
+    const branch = await setup(rows).service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(branch.kpis).toEqual(gymWide.kpis);
+    expect(branch.trainers).toEqual(gymWide.trainers);
+  });
+
+  // Not nulled to signal "not split by branch": `utilizationRate`'s `null` already
+  // means "no availability to divide by", and overloading it would swap one wrong
+  // reading for another. The console captions the tab instead.
+  it('does not overload utilizationRate null to mean "not branch-filterable"', async () => {
+    const { service } = setup({ instances: [instance()], trainers: [trainer()] });
+
+    const result = await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(result.kpis.utilizationRate).not.toBeNull();
+  });
+});

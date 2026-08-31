@@ -359,3 +359,53 @@ describe('DashboardSalesService.get — top sellers', () => {
     expect(result.topSellers[0]?.label).toBe('Item 11');
   });
 });
+
+describe('DashboardSalesService.get — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** The `where` a mocked read was issued with. */
+  function whereOf(fn: ReturnType<typeof vi.fn>): Record<string, unknown> {
+    return (fn.mock.calls[0]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
+  }
+
+  // This tab is the one that filters COMPLETELY: it reads only `Payment` and
+  // `Refund`, and since Stage 5 both carry their own `locationId`, denormalised
+  // from the order at write time. No KPI blends a branch figure with a gym-wide one.
+  //
+  // Inverted from `{ order: { is: { locationId } } }` rather than deleted: the
+  // property is still "both halves narrow, and by the same rule", which is what
+  // makes `net` honest. Only the path changed — from a join that could not use an
+  // index to an equality that can.
+  it('narrows both the payments and the refunds on their own branch column', async () => {
+    const { service, paymentFindMany, refundFindMany } = setup();
+
+    await service.get({ ...ALL, locationId: 'loc_1' });
+
+    expect(whereOf(paymentFindMany).locationId).toBe('loc_1');
+    expect(whereOf(refundFindMany).locationId).toBe('loc_1');
+    // Both halves take the branch from the same order at write time, which is what
+    // keeps a refund netting against the takings it reverses instead of landing at
+    // whichever desk keyed it.
+    expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
+    expect(whereOf(refundFindMany)).not.toHaveProperty('order');
+  });
+
+  it('keeps the window and status clauses alongside the branch', async () => {
+    const { service, paymentFindMany } = setup();
+
+    await service.get({ ...ALL, locationId: 'loc_1' });
+
+    const where = whereOf(paymentFindMany);
+    expect(where.status).toBe('CAPTURED');
+    expect(where.createdAt).toBeDefined();
+  });
+
+  it('sends no branch clause when no branch is selected', async () => {
+    const { service, paymentFindMany, refundFindMany } = setup();
+
+    await service.get(ALL);
+
+    expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
+    expect(whereOf(refundFindMany)).not.toHaveProperty('order');
+  });
+});

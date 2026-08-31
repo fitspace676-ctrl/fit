@@ -55,6 +55,15 @@ const posMember = {
 };
 const className = `E2E Class ${RUN}`;
 
+/**
+ * The `downtown` seed's default branch (`packages/db/prisma/seed.ts`,
+ * `DOWNTOWN_BRANCHES`). The class form's location select is keyed by branch name,
+ * so naming the branch here is both a stable selector and an assertion that the
+ * seed still ships it — an index-based pick would silently follow a rename or a
+ * reorder and keep passing while selecting something else entirely.
+ */
+const SEED_DEFAULT_BRANCH = 'Rustaveli Flagship';
+
 /** Set once the member is created; reused by the read/update/check-in steps. */
 let memberId = '';
 
@@ -120,11 +129,16 @@ test.describe.serial('Admin core flows', () => {
     // a usable default. Class type and location do not: both are `required`
     // selects that open on a disabled placeholder — the type is where pricing is
     // decided, and a class has to run somewhere — so the browser blocks the
-    // submit until each holds a real value. Index 1 is the first option after
-    // that placeholder; the seed ships five class types and two locations.
+    // submit until each holds a real value.
+    //
+    // The type is picked by index (1 is the first option after the placeholder;
+    // the seed ships five class types and this flow does not care which). The
+    // branch is picked by name: the seed ships two branches for `downtown` and
+    // they are meaningfully different places, so an index would quietly select
+    // the other one the moment the roster is sorted or renamed.
     await page.locator('#class-title').fill(className);
     await page.locator('#class-type').selectOption({ index: 1 });
-    await page.locator('#class-location').selectOption({ index: 1 });
+    await page.locator('#class-location').selectOption({ label: SEED_DEFAULT_BRANCH });
     await page.getByRole('button', { name: 'Create class' }).click();
 
     // On success the form routes to the new class template's detail page.

@@ -345,9 +345,15 @@ export const businessDateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
   .refine(isCalendarDate, 'Not a valid calendar date');
 
-/** Query for `GET /orders/reconciliation` — the business day to report on. */
+/**
+ * Query for `GET /orders/reconciliation` — the business day to report on, and
+ * optionally the branch. Each branch counts its own drawer, so `locationId`
+ * scopes the report to the till that is actually being balanced; omitted, the
+ * report pools every branch's takings into one gym-wide figure.
+ */
 export const cashReconciliationQuerySchema = z.object({
   date: businessDateSchema,
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `GET /orders/reconciliation` query — {@link cashReconciliationQuerySchema}. */

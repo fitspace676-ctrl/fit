@@ -13,6 +13,7 @@ import {
 } from '@fit/types';
 import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
 import { AddClassDrawer } from '../add-class-drawer';
@@ -971,9 +972,16 @@ const STATUS_TONES: Partial<Record<ClassInstanceStatus, BadgeTone>> = {
  * half-hour ruled, events positioned by their clock time), a **month** overview
  * grid, and the original **list** of day columns — chosen by the `?view` param.
  * The toolbar pages the window (a week or a month at a time depending on the
- * view) and filters by trainer / location, all in the URL (`?week`, `?view`,
- * `?trainerId`, `?locationId`) so the server refetches the right window and the
- * view stays shareable and back-button friendly.
+ * view) and filters by trainer, both in the URL (`?week`, `?view`, `?trainerId`)
+ * so the server refetches the right window and the view stays shareable and
+ * back-button friendly.
+ *
+ * THE BRANCH IS NO LONGER A PAGE FILTER. It belongs to the top-bar switcher and
+ * applies console-wide; this board only *reads* it, to say whether an empty day is
+ * genuinely empty or merely narrowed. `?locationId=` still works — the server page
+ * resolves it ahead of the cookie — but nothing here writes it, and in particular
+ * "Clear filters" does not clear it: a page-level control must not silently change
+ * a console-wide setting the operator set somewhere else.
  *
  * Everything is computed in UTC (see `week.ts`): occurrences carry a real
  * time-of-day (their template's `validFrom` hour) but the console has no
@@ -987,9 +995,7 @@ export function ScheduleBoard({
   dayAnchor,
   instances,
   trainers,
-  locations,
   trainerId,
-  locationId,
   canWrite,
   addClass,
   timeZone,
@@ -1006,9 +1012,7 @@ export function ScheduleBoard({
   dayAnchor: string;
   instances: AdminScheduleInstance[];
   trainers: ScheduleOption[];
-  locations: ScheduleOption[];
   trainerId: string;
-  locationId: string;
   /** Whether the staff session holds `ClassWrite` (gates the drawer's cancel). */
   canWrite: boolean;
   /** Class-relation options for the "Add Class" drawer; null when the staffer can't write. */
@@ -1026,6 +1030,9 @@ export function ScheduleBoard({
 }) {
   const t = useTranslations('admin.schedule');
   const locale = useLocale();
+  // Read-only: the branch is the top bar's to set. This board only needs to know
+  // whether one is active, so it can tell an empty day apart from a narrowed one.
+  const { locationId: activeLocationId } = useActiveLocation();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1120,7 +1127,14 @@ export function ScheduleBoard({
       : view === 'day'
         ? formatDay(dayDate, locale)
         : formatRange(days[0]!, days[days.length - 1]!, locale);
-  const hasFilters = trainerId !== '' || locationId !== '';
+  // Two different questions, deliberately not one flag. `hasPageFilters` decides
+  // whether to offer "Clear filters", and so may only count filters this page owns
+  // and can actually clear. `narrowed` decides whether an empty day reads as "no
+  // classes" or "no classes match", and so must also count the console-wide branch
+  // — otherwise selecting a branch would make the other branch's days look like a
+  // gym with nothing on.
+  const hasPageFilters = trainerId !== '';
+  const narrowed = hasPageFilters || activeLocationId !== undefined;
   const isCalendar = view === 'week' || view === 'month';
   const dayKey = toIsoDate(dayDate);
 
@@ -1200,7 +1214,11 @@ export function ScheduleBoard({
         </div>
       </div>
 
-      {/* Filters (trainer / location) — kept from the original board. */}
+      {/* Filters (trainer). The branch select that used to sit beside this one is
+          gone — the top-bar switcher owns the branch for the whole console. Note
+          that Clear therefore clears `trainerId` and nothing else: it used to drop
+          `locationId` too, which would now reset a console-wide setting from a
+          page-level button. */}
       <div aria-label={t('filters.aria')} {...stylex.props(styles.filterGroup)} role="group">
         <FilterSelect
           label={t('filters.trainer')}
@@ -1209,18 +1227,11 @@ export function ScheduleBoard({
           options={trainers}
           onChange={(value) => setParams({ trainerId: value })}
         />
-        <FilterSelect
-          label={t('filters.location')}
-          value={locationId}
-          allLabel={t('filters.allLocations')}
-          options={locations}
-          onChange={(value) => setParams({ locationId: value })}
-        />
-        {hasFilters ? (
+        {hasPageFilters ? (
           <Button
             variant="ghost"
             size="inline"
-            onClick={() => setParams({ trainerId: null, locationId: null })}
+            onClick={() => setParams({ trainerId: null })}
             icon={<Icon name="x" {...stylex.props(styles.kitGlyph)} />}
             label={t('filters.clear')}
           />
@@ -1232,7 +1243,7 @@ export function ScheduleBoard({
           day={dayDate}
           isToday={dayKey === todayKey}
           instances={byDay.get(dayKey) ?? []}
-          filtered={hasFilters}
+          filtered={narrowed}
           locale={locale}
           timeZone={timeZone}
           openHour={openHour}
@@ -1265,7 +1276,7 @@ export function ScheduleBoard({
           onOpen={openInstance}
         />
       ) : instances.length === 0 ? (
-        <EmptyWeek t={t} filtered={hasFilters} />
+        <EmptyWeek t={t} filtered={narrowed} />
       ) : (
         <div {...stylex.props(styles.gridScroll)}>
           <div role="grid" aria-label={t('week.gridAria')} {...stylex.props(styles.grid)}>

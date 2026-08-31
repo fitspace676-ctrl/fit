@@ -124,6 +124,18 @@ export type ClassTypeSort = z.infer<typeof classTypeSortSchema>;
  * Query for `GET /admin/class-types`. Pagination is mandatory (1-based `page`,
  * `limit` capped at 100); `search` matches name, `status` narrows, and
  * `sort` + `dir` order. Numbers are coerced (they arrive as query strings).
+ *
+ * **Deliberately has no `locationId`** — a documented exemption from the
+ * branch-filter sweep, not an oversight. A `ClassType` is gym-wide catalogue: it
+ * carries reusable defaults (duration, capacity, pricing) and owns no schedule,
+ * so it has no branch of its own. The only path to a location would be its
+ * `ClassInstance[]`, and `instances: { some: { locationId } }` answers a
+ * different question — "which types have *occurred* at this branch" — which
+ * hides a freshly created type from every branch until it is first scheduled,
+ * and keeps a type visible at a branch forever on the strength of one occurrence
+ * years ago. That is a wrong-reading filter, so the roster stays gym-wide.
+ * Branch-*exclusive* catalogue is a real feature; it needs a stored
+ * `ClassType.locationId` (Stage 7 — catalogue exclusivity), not a relation hop.
  */
 export const listAdminClassTypesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

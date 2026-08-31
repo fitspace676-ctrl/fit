@@ -75,6 +75,8 @@ function setup(overrides?: {
   findMany?: MemberRecord[];
   count?: number;
   findFirst?: MemberRecord | null;
+  /** What `location.findFirst` resolves to — the branch lookup on create/update. */
+  location?: { id: string } | null;
   userFindUnique?: { id: string } | null;
   userCreate?: { id: string };
   gymMemberCreate?: { id: string };
@@ -192,9 +194,17 @@ function setup(overrides?: {
       ),
   );
 
+  // The home-branch lookup: either the branch the caller named, or the gym's
+  // default when they named none. Defaults to a hit, so every existing create
+  // test keeps exercising the happy path.
+  const locationFindFirst = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
+    Promise.resolve(overrides?.location === undefined ? { id: 'loc-default' } : overrides.location),
+  );
+
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
     gym: { findFirst: gymFindFirst },
+    location: { findFirst: locationFindFirst },
     gymMember: {
       findMany,
       count,
@@ -265,10 +275,12 @@ function setup(overrides?: {
     loyaltyAward,
     mailerSend,
     gymFindFirst,
+    locationFindFirst,
     loyaltyLedgerFindFirst,
     findMany,
     count,
     findFirst,
+    gymMemberGroupBy,
     gymMemberCreate,
     gymMemberUpdate,
     userFindUnique,
@@ -1365,5 +1377,106 @@ describe('MembersService — member / guest / inactive', () => {
       { kindOverride: 'GUEST' },
       expect.objectContaining({ kindOverride: null, subscriptions: { none: {} } }),
     ]);
+  });
+});
+
+describe('MembersService — home branch', () => {
+  it('stamps the gym default on a member created without a branch', async () => {
+    const { service, gymMemberCreate, locationFindFirst } = setup({
+      findFirst: row({ id: 'gm-new' }),
+    });
+
+    await service.createMember({
+      name: 'Ana',
+      email: 'ana@example.com',
+      status: 'ACTIVE',
+    } as never);
+
+    expect(locationFindFirst.mock.calls[0]?.[0]).toMatchObject({ where: { isDefault: true } });
+    expect(gymMemberCreate.mock.calls[0]?.[0]?.data).toMatchObject({ locationId: 'loc-default' });
+  });
+
+  it('stamps the branch the desk named, without consulting the default', async () => {
+    const { service, gymMemberCreate, locationFindFirst } = setup({
+      findFirst: row({ id: 'gm-new' }),
+      location: { id: 'loc-2' },
+    });
+
+    await service.createMember({
+      name: 'Ana',
+      email: 'ana@example.com',
+      status: 'ACTIVE',
+      locationId: 'loc-2',
+    } as never);
+
+    expect(locationFindFirst.mock.calls[0]?.[0]).toMatchObject({ where: { id: 'loc-2' } });
+    expect(gymMemberCreate.mock.calls[0]?.[0]?.data).toMatchObject({ locationId: 'loc-2' });
+  });
+
+  it('rejects a branch belonging to another gym', async () => {
+    // The scoped client simply never matches it, so the lookup misses.
+    const { service } = setup({ findFirst: row({ id: 'gm-new' }), location: null });
+
+    await expect(
+      service.createMember({
+        name: 'Ana',
+        email: 'ana@example.com',
+        status: 'ACTIVE',
+        locationId: 'loc-other-gym',
+      } as never),
+    ).rejects.toMatchObject({ response: { code: 'LOCATION_NOT_FOUND' } });
+  });
+
+  // A half-configured branch list must not be the reason a front desk cannot add
+  // a member; the member is created unattributed instead.
+  it('creates an unattributed member when the gym has no default branch', async () => {
+    const { service, gymMemberCreate } = setup({
+      findFirst: row({ id: 'gm-new' }),
+      location: null,
+    });
+
+    await service.createMember({
+      name: 'Ana',
+      email: 'ana@example.com',
+      status: 'ACTIVE',
+    } as never);
+
+    expect(gymMemberCreate.mock.calls[0]?.[0]?.data).toMatchObject({ locationId: null });
+  });
+
+  it('narrows the roster, its pager and its tab badges by the same branch', async () => {
+    const { service, findMany, count, gymMemberGroupBy } = setup({});
+
+    await service.listMembers({
+      page: 1,
+      limit: 20,
+      sort: 'name',
+      dir: 'asc',
+      frozen: false,
+      view: 'active',
+      locationId: 'loc-1',
+    } as never);
+
+    expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ locationId: 'loc-1' });
+    expect(count.mock.calls[0]?.[0]?.where).toMatchObject({ locationId: 'loc-1' });
+    // The tab badges count the same population the rows come from — a badge that
+    // counts the whole gym above one branch's rows is the screen contradicting itself.
+    const groupByArgs = gymMemberGroupBy.mock.calls[0]?.[0] as { where?: unknown } | undefined;
+    expect(groupByArgs?.where).toMatchObject({ locationId: 'loc-1' });
+  });
+
+  it('leaves the roster gym-wide when no branch is selected', async () => {
+    const { service, findMany } = setup({});
+
+    await service.listMembers({
+      page: 1,
+      limit: 20,
+      sort: 'name',
+      dir: 'asc',
+      frozen: false,
+      view: 'active',
+    } as never);
+
+    expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('locationId');
   });
 });

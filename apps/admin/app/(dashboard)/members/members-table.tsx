@@ -29,6 +29,7 @@ import {
   type FilterChip,
 } from '@fit/ui-kit';
 import { Icon, useToast } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { MEMBER_TRASH_RETENTION_DAYS } from '@fit/types';
 import { MembersFilters } from './members-filters';
 import { bulkExportMembersAction, setMemberTrashedAction } from './actions';
@@ -449,6 +450,21 @@ function NextBillingCell({
   }
 }
 
+/**
+ * The BRANCH cell — the member's home branch, or a dash for one with none.
+ *
+ * The dash is deliberate and matches the LAST VISIT / NEXT BILLING cells: an
+ * empty cell reads as a rendering bug, whereas "-" reads as "we have no answer".
+ * A member without a branch is a real state until the backfill has finished and
+ * the column is tightened to `NOT NULL` (see the roadmap's Stage 2).
+ */
+function BranchCell({ locationName }: { locationName: string | null }) {
+  if (!locationName) {
+    return <span {...stylex.props(styles.muted)}>-</span>;
+  }
+  return <span {...stylex.props(styles.planCellName)}>{locationName}</span>;
+}
+
 /** The PLAN cell — a colour dot + plan name + a small detail. */
 function PlanCell({ plan }: { plan: MemberPlan | null }) {
   const t = useTranslations('admin.members');
@@ -559,8 +575,14 @@ export function MembersTable({
   canWrite: boolean;
 }) {
   const t = useTranslations('admin.members');
+  const tCommon = useTranslations('admin.common');
   const { toast } = useToast();
   const locale = useLocale();
+
+  // The branch the console is scoped to, read from the same provider the top-bar
+  // switcher writes — so the roster's branch column and its branch filter can
+  // never disagree with the chrome about which branch is active.
+  const { locationId: activeLocationId } = useActiveLocation();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -576,6 +598,13 @@ export function MembersTable({
   const [exporting, startExport] = useTransition();
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // The branch column earns its width only in "All locations" mode. With a branch
+  // selected the switcher already names it in the chrome and every row repeats
+  // that one constant, so the column would take space from the plan / billing
+  // figures the roster exists to show. Same call `pos/orders` makes for its own
+  // branch column, and the roadmap makes for `revenue-by-location-card`.
+  const showBranch = activeLocationId === undefined;
 
   const pageIds = useMemo(() => members.map((m) => m.id), [members]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
@@ -710,6 +739,20 @@ export function MembersTable({
       sortKey: 'status',
       cell: (member) => <StatusPill kind={member.kind} />,
     },
+    // Home branch, beside the identity columns rather than out at the right: in
+    // "All locations" mode this is the axis staff scan the roster BY, and a column
+    // you group by belongs next to the name you group. Not sortable — `MemberSort`
+    // has no branch key, and a header that looks clickable but is not is worse than
+    // one that plainly is not.
+    ...(showBranch
+      ? [
+          {
+            key: 'location',
+            header: tCommon('locationLabel'),
+            cell: (member: MemberRow) => <BranchCell locationName={member.locationName} />,
+          } satisfies Column<MemberRow>,
+        ]
+      : []),
     {
       key: 'lastVisitAt',
       header: t('columns.lastVisitAt'),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   adminOrderDetailSchema,
+  adminOrderRowSchema,
   deriveOrderChannel,
   listOrdersQuerySchema,
   listOrdersResponseSchema,
@@ -31,6 +32,11 @@ describe('listOrdersQuerySchema', () => {
     expect(parsed.limit).toBe(20);
     expect(parsed.channel).toBeUndefined();
     expect(parsed.from).toBeUndefined();
+  });
+
+  it('carries an optional branch filter, absent on "all locations"', () => {
+    expect(listOrdersQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(listOrdersQuerySchema.parse({}).locationId).toBeUndefined();
   });
 
   it('widens a date-only `from` to the start of the UTC day and `to` to its end', () => {
@@ -75,6 +81,7 @@ describe('adminOrderDetailSchema (fulfilment, T7.10)', () => {
     customerName: 'Ann',
     paymentMethod: null,
     itemCount: 1,
+    locationName: 'Vake',
     createdAt: '2026-06-07T10:00:00.000Z',
     items: [],
     payments: [],
@@ -107,6 +114,36 @@ describe('adminOrderDetailSchema (fulfilment, T7.10)', () => {
       adminOrderDetailSchema.safeParse({ ...base, fulfillment: 'MAIL', deliveryAddress: null })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('adminOrderRowSchema (branch attribution)', () => {
+  const row = {
+    id: 'order-1',
+    channel: 'POS' as const,
+    status: 'PAID' as const,
+    total: 1000,
+    currency: 'USD',
+    refundedAmount: 0,
+    memberId: null,
+    customerName: 'Ann',
+    paymentMethod: 'cash' as const,
+    itemCount: 2,
+    locationName: 'Vake',
+    createdAt: '2026-06-07T10:00:00.000Z',
+  };
+
+  it('carries the branch a sale was rung up at', () => {
+    expect(adminOrderRowSchema.parse(row).locationName).toBe('Vake');
+  });
+
+  // Null rather than `''`: `Order.locationId` is nullable and its relation is
+  // `onDelete: SetNull`, so an order can genuinely have no branch. The distinction
+  // is what lets the table print a dash instead of an empty-looking cell.
+  it('accepts null for an unattributed sale, but never omission', () => {
+    expect(adminOrderRowSchema.parse({ ...row, locationName: null }).locationName).toBeNull();
+    const { locationName: _omitted, ...withoutBranch } = row;
+    expect(adminOrderRowSchema.safeParse(withoutBranch).success).toBe(false);
   });
 });
 
@@ -152,6 +189,7 @@ describe('orderExportCells', () => {
     customerName: 'Ann',
     paymentMethod: 'cash',
     itemCount: 2,
+    locationName: 'Vake',
     createdAt: '2026-06-07T10:00:00.000Z',
   };
 

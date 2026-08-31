@@ -25,6 +25,7 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { drilldownTables } from './drilldown-tabular.util';
 import { buildWorkbook } from './xlsx';
+import { atLocation, memberAtLocation } from '../common/location-filter.util';
 import {
   bucketKey,
   emptyBuckets,
@@ -114,11 +115,43 @@ interface TrainerAgg {
  * honesty contract as {@link AnalyticsService} / {@link ReportsService}); a section
  * with no source rows in the window is an empty section, never a fabricated zero.
  *
- * Revenue/member aggregates run on the **tenant-scoped** {@link TenantPrismaService}
- * (auto-constrained to the caller's gym). {@link CheckIn} is deliberately *not* in
- * the tenant extension's model set (see `check-in.service.ts`), so the attendance
- * queries pin `gymId` explicitly from {@link TenantContext}, exactly like the
- * reception feed.
+ * Every aggregate runs on the **tenant-scoped** {@link TenantPrismaService}
+ * (auto-constrained to the caller's gym), {@link CheckIn} now included — Stage 3
+ * added it to the extension's hand-maintained model set, which it had been missing
+ * from. The attendance query still pins `gymId` explicitly from
+ * {@link TenantContext}, exactly like the reception feed: redundant now rather than
+ * load-bearing, and kept as belt and braces on the one read here that would
+ * otherwise expose another gym's visits.
+ *
+ * `ReportDrilldownQuery.locationId` narrows a drill-down to one branch. Unlike
+ * `gymId` it is EXPLICIT, not ambient — location coverage across the schema is
+ * partial and will stay partial — so each metric decides for itself and records
+ * the decision on its own method:
+ *
+ *   • `sales`, `revenue`, `pos` — filtered by the branch that RANG THE SALE UP.
+ *     All three tables now carry that branch on the row — `Order.locationId`, and
+ *     since Stage 5 `Payment.locationId` / `Refund.locationId` denormalised from
+ *     the order at write time — so every one of them is {@link atLocation}. The
+ *     relation filter these used to issue is gone.
+ *   • `classes`, `staff` — filtered through `ClassInstance.locationId`.
+ *   • `members`, `loyalty` — filtered by the member's HOME BRANCH, through
+ *     `GymMember.locationId` directly or via the `member` relation
+ *     ({@link memberAtLocation}). Stage 2 added that column; before it both were
+ *     gym-wide.
+ *   • `attendance` — filtered by the branch the member WALKED INTO, through
+ *     `CheckIn.locationId` ({@link atLocation}). Stage 3 made that a real FK with a
+ *     write path behind it; before that it was the last gym-wide metric here. It
+ *     takes the PLACE rule and not the member hop, for the reason
+ *     {@link attendance} records.
+ *
+ * Every metric on this service now narrows. That is worth stating because the
+ * absence of a gym-wide entry above is otherwise indistinguishable from someone
+ * having forgotten to write one; the only branch-blind thing left is a single
+ * COLUMN, `staff`'s `rating`, and it says so at its own call site.
+ *
+ * The same scoping reaches the export routes and {@link resolveSection} because all
+ * three go through {@link compute} — a CSV or a pinned widget that disagreed with
+ * the screen it was opened from would be worse than no filter at all.
  */
 @Injectable()
 export class ReportDrilldownService {
@@ -132,7 +165,7 @@ export class ReportDrilldownService {
   async run(metric: ReportMetric, query: ReportDrilldownQuery): Promise<ReportDrilldown> {
     const definition = REPORT_METRIC_DEFINITIONS[metric];
     const win = resolveWindow(query.range);
-    const computed = await this.compute(metric, win);
+    const computed = await this.compute(metric, win, query.locationId);
     return {
       metric,
       name: definition.name,
@@ -197,29 +230,40 @@ export class ReportDrilldownService {
     sectionId: string,
     query: ReportDrilldownQuery,
   ): Promise<{ currency: string; section: ReportSection } | null> {
-    const computed = await this.compute(metric, resolveWindow(query.range));
+    const computed = await this.compute(metric, resolveWindow(query.range), query.locationId);
     const section = computed.sections.find((candidate) => candidate.id === sectionId);
     return section ? { currency: computed.currency, section } : null;
   }
 
-  private compute(metric: ReportMetric, win: ReportWindow): Promise<ComputedDrilldown> {
+  /**
+   * `locationId` narrows a drill-down to one branch; `undefined` is the gym-wide
+   * roll-up. Only the metrics whose rows have an honest path to a `Location` take
+   * it — which, since Stage 3 gave `CheckIn` a real branch, is every one of them.
+   * A metric that ever loses that path takes it away here rather than accepting the
+   * parameter and quietly ignoring it.
+   */
+  private compute(
+    metric: ReportMetric,
+    win: ReportWindow,
+    locationId?: string,
+  ): Promise<ComputedDrilldown> {
     switch (metric) {
       case 'sales':
-        return this.sales(win);
+        return this.sales(win, locationId);
       case 'revenue':
-        return this.revenue(win);
+        return this.revenue(win, locationId);
       case 'members':
-        return this.members(win);
+        return this.members(win, locationId);
       case 'attendance':
-        return this.attendance(win);
+        return this.attendance(win, locationId);
       case 'classes':
-        return this.classes(win);
+        return this.classes(win, locationId);
       case 'staff':
-        return this.staff(win);
+        return this.staff(win, locationId);
       case 'pos':
-        return this.pos(win);
+        return this.pos(win, locationId);
       case 'loyalty':
-        return this.loyalty(win);
+        return this.loyalty(win, locationId);
     }
   }
 
@@ -238,10 +282,14 @@ export class ReportDrilldownService {
    * was reported in. Both are legitimate; they answer different questions, which is
    * why the two metrics coexist rather than one deriving from the other.
    */
-  private async sales(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async sales(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const [payments, refunds, planOrders] = await Promise.all([
       this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        where: {
+          status: PaymentStatus.CAPTURED,
+          createdAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
+        },
         select: {
           amount: true,
           currency: true,
@@ -259,7 +307,7 @@ export class ReportDrilldownService {
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.client.refund.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end } },
+        where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: {
           amount: true,
           createdAt: true,
@@ -276,6 +324,7 @@ export class ReportDrilldownService {
           packageId: { not: null },
           createdAt: { gte: win.start, lt: win.end },
           payment: { is: { status: PaymentStatus.CAPTURED } },
+          ...atLocation(locationId),
         },
         select: { total: true, package: { select: { name: true } } },
       }),
@@ -402,21 +451,30 @@ export class ReportDrilldownService {
    * payments in the MVP, so this is order/POS revenue only — the plan breakdown
    * attributes each order to its `package` (or "Retail" for a product sale), never
    * fabricating subscription cash.
+   *
+   * BRANCH-AWARE. With a branch selected the `revenue-by-location` section becomes
+   * a breakdown of one thing and collapses to a single item — an honest degradation
+   * rather than a special case, since a breakdown section's contract fixes its
+   * shape, not its length. `NO_LOCATION_LABEL` is then unreachable: the filter is
+   * an equality on a real branch id, so every surviving payment has that branch.
    */
-  private async revenue(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async revenue(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const payments = await this.prisma.client.payment.findMany({
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       select: {
         amount: true,
         refundedAmount: true,
         currency: true,
         createdAt: true,
-        order: {
-          select: {
-            package: { select: { name: true } },
-            location: { select: { name: true } },
-          },
-        },
+        // The plan still comes off the order (a payment has no package), but the
+        // BRANCH is the payment's own column since Stage 5 — the same one the
+        // `where` above filters, so the breakdown cannot disagree with the filter.
+        order: { select: { package: { select: { name: true } } } },
+        location: { select: { name: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -443,7 +501,8 @@ export class ReportDrilldownService {
       const planLabel = payment.order.package?.name ?? RETAIL_LABEL;
       byPlan.set(planLabel, (byPlan.get(planLabel) ?? 0) + net);
 
-      const locationLabel = payment.order.location?.name ?? NO_LOCATION_LABEL;
+      // NULL is counted under its own label, never folded into a named branch.
+      const locationLabel = payment.location?.name ?? NO_LOCATION_LABEL;
       byLocation.set(locationLabel, (byLocation.get(locationLabel) ?? 0) + net);
 
       const monthKey = monthStart(payment.createdAt);
@@ -526,14 +585,23 @@ export class ReportDrilldownService {
    * subscription ({@link LIVE_SUB_STATUSES}), "expired" if all their subscriptions
    * are terminal (CANCELED / EXPIRED). Churn is terminal subscriptions in a bucket
    * as a percentage of the subscriptions active at that bucket's start.
+   *
+   * BRANCH-AWARE since Stage 2, by the member's HOME BRANCH throughout.
+   * {@link GymMember} carries `locationId` and {@link Subscription} reaches it
+   * through `member`, so every figure here — headcount, new members,
+   * active-vs-expired, churn — is one branch's, and all four come out of the same
+   * population. Filtering the head-count read alone would have made `churn` a rate
+   * of one branch's losses over the gym's base, which is why this metric was
+   * gym-wide rather than half-filtered before the column existed.
    */
-  private async members(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async members(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const [members, subscriptions, totalMembers] = await Promise.all([
       this.prisma.client.gymMember.findMany({
-        where: { role: Role.MEMBER, joinedAt: { lt: win.end } },
+        where: { role: Role.MEMBER, joinedAt: { lt: win.end }, ...atLocation(locationId) },
         select: { joinedAt: true },
       }),
       this.prisma.client.subscription.findMany({
+        where: memberAtLocation(locationId),
         select: {
           memberId: true,
           status: true,
@@ -542,7 +610,9 @@ export class ReportDrilldownService {
           updatedAt: true,
         },
       }),
-      this.prisma.client.gymMember.count({ where: { role: Role.MEMBER } }),
+      this.prisma.client.gymMember.count({
+        where: { role: Role.MEMBER, ...atLocation(locationId) },
+      }),
     ]);
 
     // New members over time + the pre-window baseline for the cumulative column.
@@ -695,14 +765,44 @@ export class ReportDrilldownService {
   /* ---------------------------------------------------------------------- */
 
   /**
-   * Gym arrivals over the window from {@link CheckIn}. `CheckIn` is not in the
-   * tenant extension's scoped set, so `gymId` is pinned explicitly from
-   * {@link TenantContext} (like the reception feed). Surfaces check-ins over time,
-   * a weekday × hour peak-hours heatmap, and a per-day table with unique visitors.
+   * Gym arrivals over the window from {@link CheckIn}. Surfaces check-ins over
+   * time, a weekday × hour peak-hours heatmap, and a per-day table with unique
+   * visitors.
+   *
+   * BRANCH-AWARE on `CheckIn.locationId` — the door each arrival came through.
+   * Stage 3 promoted that column to a real {@link Location} FK, indexed
+   * `(gymId, locationId, checkedInAt)` for exactly this range scan, backfilled the
+   * historic NULLs onto each gym's default branch and made the reception write path
+   * supply a branch, so the heatmap is now real door traffic rather than an empty
+   * grid. This was the last gym-wide metric on the service.
+   *
+   * It takes the PLACE rule, never the member hop that Stage 2 opened for
+   * {@link members} and {@link loyalty}, and the distinction is the entire point of
+   * this chart. A member's home branch says whose member they are, not where they
+   * walked in. A peak-hours heatmap built from "members homed here, wherever they
+   * actually trained" would be read as this branch's footfall and used to roster
+   * staff against it — a confident wrong number, which is worse than the honest
+   * gym-wide chart this used to be.
+   *
+   * `uniqueMembers` is therefore unique visitors TO THIS BRANCH: someone who trains
+   * at both sites counts once in each branch's figure and once gym-wide. The
+   * check-in counts still partition — every arrival has one door — so the daily
+   * `checkIns` column sums across branches to the gym total; the unique head-count
+   * deliberately does not, because a person is not divisible between the two doors
+   * they used.
+   *
+   * `gymId` is pinned below. Stage 3 put {@link CheckIn} in the tenant extension's
+   * model set, so the pin is redundant now rather than load-bearing, and is kept as
+   * belt and braces on the one read here whose leak would show another gym's
+   * visits — the failure the missing allowlist entry had actually left open.
    */
-  private async attendance(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async attendance(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const checkIns = await this.prisma.client.checkIn.findMany({
-      where: { gymId: this.tenant.gymId, checkedInAt: { gte: win.start, lt: win.end } },
+      where: {
+        gymId: this.tenant.gymId,
+        checkedInAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       select: { gymMemberId: true, checkedInAt: true },
       orderBy: { checkedInAt: 'asc' },
     });
@@ -795,11 +895,15 @@ export class ReportDrilldownService {
    * cancellation-rate trend, and a per-class performance table (sessions, fill rate,
    * attendance rate). Every figure is a real count over rows in the window; a class
    * with no occurrences in the window simply does not appear.
+   *
+   * BRANCH-AWARE: both sides scope through `ClassInstance.locationId` — the
+   * instances directly, the bookings through the instance they hold a seat on — so
+   * the seat counts and the session counts are drawn from the same population.
    */
-  private async classes(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async classes(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const [instances, bookings] = await Promise.all([
       this.prisma.client.classInstance.findMany({
-        where: { startsAt: { gte: win.start, lt: win.end } },
+        where: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: {
           capacityOverride: true,
           bookedCount: true,
@@ -808,7 +912,9 @@ export class ReportDrilldownService {
         },
       }),
       this.prisma.client.booking.findMany({
-        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        where: {
+          classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        },
         select: {
           status: true,
           classInstance: {
@@ -970,18 +1076,29 @@ export class ReportDrilldownService {
    * attendance rate, and seats booked per trainer, plus a performance table. A class
    * whose trainer was removed (or never set) is grouped under "Unassigned" rather
    * than dropped, so the totals still reconcile with the classes report.
+   *
+   * BRANCH-AWARE for the delivery figures — classes and bookings scope through
+   * `ClassInstance.locationId`, so they stay reconcilable with the `classes`
+   * metric. The `rating` column deliberately does NOT narrow: a {@link Review} is
+   * written about a TRAINER, carries no branch and no relation that reaches one,
+   * and a trainer's average rating is a property of the person rather than a
+   * quantity produced at a branch. So the row reads "what this trainer delivered
+   * here, and how they are rated" — not a rating recomputed from a subset the
+   * reviewers never chose.
    */
-  private async staff(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async staff(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const [instances, bookings, reviews] = await Promise.all([
       this.prisma.client.classInstance.findMany({
-        where: { startsAt: { gte: win.start, lt: win.end } },
+        where: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: {
           trainer: { select: { name: true } },
           template: { select: { trainer: { select: { name: true } } } },
         },
       }),
       this.prisma.client.booking.findMany({
-        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        where: {
+          classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        },
         select: {
           status: true,
           classInstance: {
@@ -1135,10 +1252,18 @@ export class ReportDrilldownService {
    * units throughout. Surfaces daily sales, takings by payment method, the product
    * sales breakdown (positive line items grouped by label), and the end-of-day
    * summary table.
+   *
+   * BRANCH-AWARE through `Order.locationId` — which for a till sale is the branch
+   * that rang it up, so an end-of-day summary reconciles against one till rather
+   * than against every branch's takings added together.
    */
-  private async pos(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async pos(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const payments = await this.prisma.client.payment.findMany({
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       select: {
         amount: true,
         refundedAmount: true,
@@ -1261,15 +1386,29 @@ export class ReportDrilldownService {
    * signed deltas; redemptions-by-type and the recent-redemptions table come from the
    * redemption rows (cancelled redemptions, whose points were refunded, are excluded
    * from the aggregates but still listed).
+   *
+   * BRANCH-AWARE since Stage 2, by the member's HOME BRANCH. Neither
+   * {@link LoyaltyLedgerEntry} nor {@link LoyaltyRedemption} carries a `locationId`,
+   * but `memberId` is NOT NULL on both, so the hop is a plain equality that drops
+   * no row and the branches still sum to the gym's own ledger.
+   *
+   * The RULES of the programme remain gym-level — a point is worth the same
+   * everywhere, and nothing here claims otherwise. What is being split is the
+   * BALANCE: whose points these are. A member holds one loyalty account attached to
+   * one home branch, so "points issued to the members we look after" is a real
+   * quantity, and it is the same population every other member-backed figure in
+   * this file counts. Attributing instead by where the points were EARNED would
+   * need an order on the ledger, which there isn't, and would scatter one member's
+   * balance across branches.
    */
-  private async loyalty(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async loyalty(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
     const [ledger, redemptions] = await Promise.all([
       this.prisma.client.loyaltyLedgerEntry.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end } },
+        where: { createdAt: { gte: win.start, lt: win.end }, ...memberAtLocation(locationId) },
         select: { delta: true, createdAt: true },
       }),
       this.prisma.client.loyaltyRedemption.findMany({
-        where: { redeemedAt: { gte: win.start, lt: win.end } },
+        where: { redeemedAt: { gte: win.start, lt: win.end }, ...memberAtLocation(locationId) },
         select: {
           rewardName: true,
           rewardType: true,

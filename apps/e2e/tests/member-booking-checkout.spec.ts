@@ -168,8 +168,11 @@ test.describe.serial('Member booking + checkout', () => {
     await page.goto('/en/member/cart');
     await expect(page.getByText(catalogue.productName).first()).toBeVisible({ timeout: 20_000 });
 
-    // Place the order — pickup defaults to the gym's first location, so no manual
-    // selection is needed. Checkout swaps the cart for an in-place confirmation.
+    // Place the order without touching the pickup picker. `downtown` now seeds two
+    // branches rather than two rooms, so the picker offers a real choice — but the
+    // cart preselects the first (`GET /locations` returns ACTIVE branches sorted by
+    // name), and this flow is asserting that checkout completes, not which branch
+    // it collects from. Checkout swaps the cart for an in-place confirmation.
     await page.getByRole('button', { name: /Place order/ }).click();
     await expect(page.getByText('Order confirmed')).toBeVisible({ timeout: 20_000 });
   });

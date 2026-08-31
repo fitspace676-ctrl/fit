@@ -119,16 +119,27 @@ export type ReportKey = z.infer<typeof reportKeySchema>;
 export const reportFormatSchema = z.enum(['csv', 'xlsx']);
 export type ReportFormat = z.infer<typeof reportFormatSchema>;
 
-/** `GET /admin/reports/:report?range=` query — the on-screen preview. */
+/**
+ * `GET /admin/reports/:report?range=` query — the on-screen preview. `locationId`
+ * restricts every figure to one branch; omitted, the report is the gym-wide roll-up
+ * across all of them. It rides in the URL rather than only the cookie so a report
+ * link stays shareable with the branch it was read at.
+ */
 export const reportQuerySchema = z.object({
   range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
+  locationId: z.string().min(1).optional(),
 });
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
 
-/** `GET /admin/reports/:report/export?range=&format=` query — the file download. */
+/**
+ * `GET /admin/reports/:report/export?range=&format=` query — the file download.
+ * Carries the same `locationId` as the preview so the downloaded file covers
+ * exactly the branch on screen, not silently every branch.
+ */
 export const reportExportQuerySchema = z.object({
   range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
   format: reportFormatSchema.default('csv'),
+  locationId: z.string().min(1).optional(),
 });
 export type ReportExportQuery = z.infer<typeof reportExportQuerySchema>;
 

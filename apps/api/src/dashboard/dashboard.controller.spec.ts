@@ -241,3 +241,55 @@ describe('DashboardController.staff', () => {
     expect(staffGet).toHaveBeenCalledWith({ granularity: 'daily' });
   });
 });
+
+describe('DashboardController — locationId reaches every tab', () => {
+  /** The six handlers, each with the query the schema should hand its service. */
+  const CASES = [
+    { tab: 'sales', pick: (s: ReturnType<typeof setup>) => s.get },
+    { tab: 'members', pick: (s: ReturnType<typeof setup>) => s.membersGet },
+    { tab: 'revenue', pick: (s: ReturnType<typeof setup>) => s.revenueGet },
+    { tab: 'classes', pick: (s: ReturnType<typeof setup>) => s.classesGet },
+    { tab: 'staff', pick: (s: ReturnType<typeof setup>) => s.staffGet },
+  ] as const;
+
+  it.each(CASES)('passes a branch through to $tab', async ({ tab, pick }) => {
+    const harness = setup();
+    const handler = harness.controller[tab].bind(harness.controller);
+
+    await handler({ locationId: 'loc_1' });
+
+    const call = pick(harness).mock.calls[0]?.[0] as { locationId?: string };
+    expect(call.locationId).toBe('loc_1');
+  });
+
+  // `.optional().catch(undefined)`, matching each schema's deliberate "a
+  // hand-edited URL degrades, never 400s" contract. A branch that no longer
+  // resolves must not brick a bookmark — it falls back to all branches.
+  it.each(CASES)('degrades a junk branch to all branches on $tab', async ({ tab, pick }) => {
+    const harness = setup();
+    const handler = harness.controller[tab].bind(harness.controller);
+
+    await handler({ locationId: '' });
+
+    const call = pick(harness).mock.calls[0]?.[0] as { locationId?: string };
+    expect(call.locationId).toBeUndefined();
+  });
+
+  it('passes a branch through to the overview', async () => {
+    const overview = vi.fn().mockResolvedValue({});
+    const controller = new DashboardController(
+      { getOverview: overview } as unknown as DashboardService,
+      {} as unknown as DashboardSalesService,
+      {} as unknown as DashboardMembersService,
+      {} as unknown as DashboardRevenueService,
+      {} as unknown as DashboardClassesService,
+      {} as unknown as DashboardStaffService,
+    );
+
+    await controller.overview({ period: 'week', locationId: 'loc_1' });
+
+    expect(overview).toHaveBeenCalledWith(
+      expect.objectContaining({ period: 'week', locationId: 'loc_1' }),
+    );
+  });
+});

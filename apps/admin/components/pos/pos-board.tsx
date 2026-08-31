@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import type { GymPaymentMethods, GymReceiptSettings } from '@fit/types';
 import { usePosCart } from '@/stores/pos-cart-store';
+import { useActiveLocation } from '@/components/active-location';
 import type { MemberIntakeConfig } from '@/lib/member-intake';
 import {
   fetchPosLocationsAction,
@@ -110,26 +112,49 @@ export function PosBoard({
 
   const setLocation = usePosCart((state) => state.setLocation);
   const locationId = usePosCart((state) => state.locationId);
+  const tPos = useTranslations('admin.pos');
   const [locations, setLocations] = useState<PosLocationRow[]>([]);
+  // The console's active branch — a *filter*, and this control is a write target,
+  // so it only ever seeds the default below. See the effect for why that matters.
+  const { locationId: activeLocationId } = useActiveLocation();
 
   const [selectedMember, setSelectedMember] = useState<PosMemberRow | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const productSearchRef = useRef<HTMLInputElement>(null);
   const memberSearchRef = useRef<HTMLInputElement>(null);
 
-  // Load the gym's branches once and default to the first, so a single-site gym
+  // Load the gym's branches once and pick a sensible default, so a single-site gym
   // never has to touch the selector and a multi-site one always attributes the sale.
+  //
+  // "Sensible" is the branch the console is scoped to when there is one: someone
+  // who has switched the whole console to Riverside is standing at Riverside, and
+  // defaulting the till to whichever branch happens to sort first is how a sale
+  // ends up booked against the wrong one. In "All locations" mode there is no such
+  // hint, so the first branch remains the default.
+  //
+  // SEED, NOT SYNC — this is the whole reason the POS control survived the
+  // switcher rewrite. The branch is a property of the till, not of the view: a
+  // cashier may legitimately be looking at every branch's numbers while ringing up
+  // at one. So the default is written exactly once, only while the cart still has
+  // no branch, and changing the top-bar switcher afterwards must never move a
+  // choice the cashier has already made. Reading the store imperatively (rather
+  // than depending on `locationId`) keeps this effect from re-running and
+  // re-seeding when the cashier picks a different branch by hand.
   useEffect(() => {
     let cancelled = false;
     void fetchPosLocationsAction().then((result) => {
       if (cancelled || !result.ok) return;
       setLocations(result.data);
-      if (result.data.length > 0) setLocation(result.data[0]!.id);
+      if (result.data.length === 0 || usePosCart.getState().locationId !== undefined) return;
+      const active = activeLocationId
+        ? result.data.find((location) => location.id === activeLocationId)
+        : undefined;
+      setLocation((active ?? result.data[0]!).id);
     });
     return () => {
       cancelled = true;
     };
-  }, [setLocation]);
+  }, [setLocation, activeLocationId]);
 
   const onAdd = useCallback(
     (product: PosProductRow) => {
@@ -225,7 +250,7 @@ export function PosBoard({
       <Card padding="none" xstyle={styles.cartPane}>
         {locations.length > 0 ? (
           <label {...stylex.props(styles.branchLabel)}>
-            <span>Selling at</span>
+            <span>{tPos('sellingAt')}</span>
             <select
               value={locationId ?? ''}
               onChange={(event) => setLocation(event.target.value || undefined)}

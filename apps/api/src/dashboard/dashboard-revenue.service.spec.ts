@@ -74,7 +74,8 @@ function payment(over: Record<string, unknown> = {}) {
     refundedAmount: 0,
     currency: 'GEL',
     createdAt: day(-1),
-    order: { location: { name: 'Vake' } },
+    // The payment's own branch since Stage 5 — the shape `byLocation` labels from.
+    location: { name: 'Vake' },
     ...over,
   };
 }
@@ -323,13 +324,18 @@ describe('DashboardRevenueService', () => {
     expect(locationCount).toHaveBeenCalledWith({ where: { status: LocationStatus.ACTIVE } });
   });
 
+  // The branch now comes off the payment's OWN column (Stage 5), not `order.location`.
+  // The third row is the one that matters: a payment whose branch is null gets its
+  // own "No location" bucket and is never folded into a named branch — the
+  // `areas[0]` mistake Stage 3 deleted. Dropping it instead would stop these rows
+  // adding up to the gym's total.
   it('ranks locations by net takings for a multi-location gym', async () => {
     const { service } = setup({
       locations: 2,
       payments: [
-        payment({ amount: 40_00, order: { location: { name: 'Vake' } } }),
-        payment({ amount: 90_00, order: { location: { name: 'Saburtalo' } } }),
-        payment({ amount: 10_00, order: { location: null } }),
+        payment({ amount: 40_00, location: { name: 'Vake' } }),
+        payment({ amount: 90_00, location: { name: 'Saburtalo' } }),
+        payment({ amount: 10_00, location: null }),
       ],
     });
     const result = await service.get(QUERY);
@@ -422,5 +428,158 @@ describe('DashboardRevenueService — the gym clock', () => {
     const labels = (await service.get(QUERY)).revenueOverTime.map((p) => p.label);
     expect(new Set(labels).size).toBe(labels.length);
     expect([...labels].sort()).toEqual(labels);
+  });
+});
+
+describe('DashboardRevenueService.get — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** Every `where` a mocked read was issued with. */
+  function wheres(fn: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
+    return fn.mock.calls.map(
+      (call) => (call[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {},
+    );
+  }
+
+  // The one-off stream reads the TILL's own branch. Stage 5 denormalised
+  // `Payment.locationId` from the order, so this is a plain equality served by
+  // `(gymId, locationId, createdAt)`.
+  //
+  // Inverted from the assertion that stood here — `{ order: { is: { locationId } } }`
+  // — rather than deleted, because the property it protected is unchanged and is
+  // still the one worth pinning: the one-off stream narrows, by the PLACE rule.
+  // What changed is that the answer is on the row instead of a join away, so the
+  // relation shape is now the failure and must never come back.
+  it('narrows the one-off stream on the payment’s own branch column', async () => {
+    const { service, paymentFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(wheres(paymentFindMany)[0]?.locationId).toBe('loc_1');
+    // Never through the order again: that plan cannot use the index, and it is
+    // LIVE where the column is frozen.
+    expect(wheres(paymentFindMany)[0]).not.toHaveProperty('order');
+  });
+
+  // The breakdown's label must come from the SAME column the filter used, or a row
+  // could be selected by one branch and printed under another.
+  it('labels the location breakdown from the payment’s own branch, not the order’s', async () => {
+    const { service, paymentFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    const select = paymentFindMany.mock.calls[0]?.[0] as { select?: Record<string, unknown> };
+    expect(select.select?.location).toEqual({ select: { name: true } });
+    expect(select.select?.order).toBeUndefined();
+  });
+
+  // The recurring stream takes the OTHER rule — the member's home branch — but
+  // since Stage 5 reads it off `Invoice.locationId`, stamped at issue time, rather
+  // than hopping through `member`.
+  //
+  // Inverted twice now, and each inversion kept the same property: the ORDER path
+  // must never appear on an invoice read. `Invoice{PAID, orderId: null}` is exactly
+  // the set an `{ order: { is: { locationId } } }` filter cannot see, so that path
+  // is not merely unindexed here — it matches nothing at all.
+  it('narrows both invoice reads on the invoice’s own branch, never through the order', async () => {
+    const { service, invoiceFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(invoiceFindMany).toHaveBeenCalledTimes(2);
+    for (const where of wheres(invoiceFindMany)) {
+      expect(where).not.toHaveProperty('order');
+      // No member hop either: the column is a SNAPSHOT of the member's branch at
+      // issue time, and re-reading the member live is what used to move a
+      // transferred member's whole billing history between branches.
+      expect(where).not.toHaveProperty('member');
+      expect(where.locationId).toBe('loc_1');
+    }
+  });
+
+  // The `outstanding` read MIXES order-backed and subscription invoices, so
+  // "order branch if it has one, member branch otherwise" is available and is the
+  // trap — a total whose attribution changes row by row means nothing. Pinned as
+  // ONE rule for both kinds.
+  it('uses the same rule for order-backed and subscription invoices', async () => {
+    const { service, invoiceFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    const [recurring, outstanding] = wheres(invoiceFindMany);
+    expect(recurring?.locationId).toEqual(outstanding?.locationId);
+  });
+
+  // MRR, the projection and the live-member denominator all read subscriptions,
+  // which reach a branch through the member Stage 2 gave one to. `memberId` is NOT
+  // NULL, so the hop is a plain equality that drops no row.
+  //
+  // **This one is NOT inverted, and that is the point of keeping it next to the
+  // invoice test above.** Stage 5 froze the invoice reads onto a column and
+  // deliberately left `Subscription` on the live hop: the gym owner decided a
+  // transferring member's recurring revenue follows them. If someone later
+  // "finishes" the denormalisation by giving `Subscription` a column, this test is
+  // the one that fails, and it should.
+  it('keeps subscriptions on the LIVE member hop, by product decision', async () => {
+    const { service, subscriptionFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    for (const where of wheres(subscriptionFindMany)) {
+      expect(where).not.toHaveProperty('order');
+      expect(where).not.toHaveProperty('locationId');
+      // The trash guard rides along on the same key — Prisma takes one `member`.
+      expect(where.member).toEqual({ deletedAt: null, locationId: 'loc_1' });
+    }
+  });
+
+  // `locationCount` answers "is this gym multi-branch", which selecting a branch
+  // does not change — so the card's applicability rule is unaffected.
+  it('still asks how many branches the GYM has, not the filter', async () => {
+    const { service, locationCount } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(locationCount.mock.calls[0]?.[0]).toEqual({
+      where: { status: LocationStatus.ACTIVE },
+    });
+  });
+
+  // The pinned spec for the composite the register flagged. It is no longer a
+  // branch figure plus a gym-wide one: with a branch selected `totalRevenue` is
+  // that branch's takings PLUS the recurring revenue of the members homed at it.
+  // Two attributions in one sum, deliberately — both partition the gym, so the
+  // branches still add back to the gym-wide total exactly once.
+  it('totalRevenue sums this branch’s takings with its members’ recurring', async () => {
+    const { service } = setup({
+      payments: [
+        {
+          amount: 100_00,
+          refundedAmount: 0,
+          currency: 'GEL',
+          createdAt: day(-1),
+          location: { name: 'Downtown' },
+        },
+      ],
+      paidInvoices: [{ amount: 40_00, currency: 'GEL', issuedAt: day(-1) }],
+    });
+
+    const result = await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(result.kpis.totalRevenue).toBe(140_00);
+  });
+
+  it('sends no branch clause when no branch is selected', async () => {
+    const { service, paymentFindMany, invoiceFindMany, subscriptionFindMany } = setup({});
+
+    await service.get(QUERY);
+
+    expect(wheres(paymentFindMany)[0]).not.toHaveProperty('order');
+    // Not an empty `member` key either — an absent branch must leave each read's
+    // original, index-served `where` untouched.
+    for (const where of wheres(invoiceFindMany)) {
+      expect(where).not.toHaveProperty('member');
+    }
+    expect(wheres(subscriptionFindMany)[0]).toEqual({ member: { deletedAt: null } });
   });
 });

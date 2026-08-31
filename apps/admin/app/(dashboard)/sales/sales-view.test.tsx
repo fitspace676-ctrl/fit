@@ -4,10 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import type { DashboardSalesResponse } from '@fit/types';
 
+import { navigationMock } from '@/test/next-navigation-mock';
+import { ActiveLocationProvider } from '@/components/active-location';
+
 const loadSalesAction = vi.fn();
 vi.mock('./actions', () => ({
   loadSalesAction: (...args: unknown[]): unknown => loadSalesAction(...args) as unknown,
 }));
+
+// `ActiveLocationProvider` reads the URL, so the App Router hooks have to exist.
+vi.mock('next/navigation', () => navigationMock.factory());
 
 const { SalesView } = await import('./sales-view');
 
@@ -87,10 +93,21 @@ function response(over: Partial<DashboardSalesResponse> = {}): DashboardSalesRes
   };
 }
 
-function renderView() {
+const LOCATIONS = [
+  { id: 'loc-downtown', name: 'Downtown' },
+  { id: 'loc-harbour', name: 'Harbour' },
+];
+
+/**
+ * @param activeLocation the branch the console is scoped to — `'all'` (the
+ *   default) or a live location id, as the provider spells it.
+ */
+function renderView(activeLocation = 'all') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <SalesView />
+      <ActiveLocationProvider initial={activeLocation} locations={LOCATIONS}>
+        <SalesView />
+      </ActiveLocationProvider>
     </NextIntlClientProvider>,
   );
 }
@@ -223,5 +240,58 @@ describe('SalesView', () => {
 
     await screen.findByText('New sales vs refunds');
     expect(screen.queryByText('No sales or refunds in this window.')).not.toBeInTheDocument();
+  });
+});
+
+// Sales is the one dashboard tab whose every figure narrows to the branch, so
+// it is where the threading itself is pinned.
+describe('SalesView under a branch filter', () => {
+  beforeEach(() => {
+    navigationMock.reset();
+    loadSalesAction.mockReset();
+    loadSalesAction.mockResolvedValue({ ok: true, data: response() });
+  });
+
+  // A Server Action never sees `searchParams`, so it could only ever read the
+  // cookie — and `?locationId=` outranks the cookie. The view resolves the
+  // branch and passes it in, which is what keeps a deep link scoping the tab as
+  // well as the page.
+  it('sends the branch named by the URL, not just the cookie', async () => {
+    navigationMock.setSearch('locationId=loc-harbour');
+    // The cookie the server resolved says Downtown; the link says Harbour.
+    renderView('loc-downtown');
+    await screen.findByText('Revenue over time');
+    expect(loadSalesAction).toHaveBeenCalledWith({
+      granularity: 'daily',
+      productType: 'all',
+      locationId: 'loc-harbour',
+    });
+  });
+
+  // The tab's response cache is client-side and survives a branch change — the
+  // shell keeps this component mounted. If the branch were resolved inside the
+  // action instead, the cache key would not move and the tab would keep showing
+  // the previous branch's takings.
+  it('refetches when the branch changes under a mounted tab', async () => {
+    navigationMock.setSearch('locationId=loc-harbour');
+    const { rerender } = renderView('loc-harbour');
+    await screen.findByText('Revenue over time');
+
+    navigationMock.setSearch('locationId=loc-downtown');
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ActiveLocationProvider initial="loc-harbour" locations={LOCATIONS}>
+          <SalesView />
+        </ActiveLocationProvider>
+      </NextIntlClientProvider>,
+    );
+
+    await vi.waitFor(() =>
+      expect(loadSalesAction).toHaveBeenCalledWith({
+        granularity: 'daily',
+        productType: 'all',
+        locationId: 'loc-downtown',
+      }),
+    );
   });
 });

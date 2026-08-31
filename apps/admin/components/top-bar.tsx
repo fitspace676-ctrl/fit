@@ -2,10 +2,14 @@
 
 // @fit/admin — console top bar.
 //
-// Sits above the page content: the mobile drawer toggle, a location switcher
-// (the gym's active locations), the language switcher, a theme toggle, and a
-// session menu (avatar → profile / settings / sign out). Sign-out clears the
-// shared session cookie via `DELETE /api/session`.
+// Sits above the page content: the mobile drawer toggle, a branch switcher (the
+// gym's active locations), the language switcher, a theme toggle, and a session
+// menu (avatar → profile / settings / sign out). Sign-out clears the shared
+// session cookie via `DELETE /api/session`.
+//
+// The branch switcher is the console's global data filter, not a local
+// preference — its value is owned by `ActiveLocationProvider` and read by the
+// server on every page. See `lib/active-location.ts` for why it is a cookie.
 //
 // The FRAME is still Astryx's `TopNav` + `MobileNavToggle`: those are part of
 // the `AppShell` system and the toggle talks to the shell's own drawer state, so
@@ -19,7 +23,7 @@
 // already exactly that. This is that pattern, so both apps dismiss, trap and
 // restore focus through one implementation (`useDismissable`).
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -29,14 +33,11 @@ import { Avatar, Button, Popover, SelectField, focus } from '@fit/ui-kit';
 import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
+import { ALL_LOCATIONS } from '@/lib/active-location';
+import { useActiveLocation } from './active-location';
 import type { ShellLocation } from './admin-shell';
 import { LocaleSwitcher } from './locale-switcher';
 import { NavIcon } from './nav-icon';
-
-/** localStorage key persisting the selected location across reloads. */
-const LOCATION_STORAGE_KEY = 'fit-admin-active-location';
-/** Sentinel value for the "all locations" option. */
-const ALL_LOCATIONS = 'all';
 
 /** Base path (`/admin` behind the tenant proxy); applied to non-router fetch/redirect. */
 const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
@@ -142,26 +143,15 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
   const router = useRouter();
   const t = useTranslations('admin.common');
   const isDark = theme === 'dark';
-  const [locationId, setLocationId] = useState(ALL_LOCATIONS);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Restore the persisted selection after mount (kept out of the initial render
-  // so server and client markup match), ignoring a stale id no longer present.
-  useEffect(() => {
-    const stored = window.localStorage.getItem(LOCATION_STORAGE_KEY);
-    if (stored && (stored === ALL_LOCATIONS || locations.some((l) => l.id === stored))) {
-      setLocationId(stored);
-    }
-  }, [locations]);
-
-  function onLocationChange(value: string): void {
-    setLocationId(value);
-    try {
-      window.localStorage.setItem(LOCATION_STORAGE_KEY, value);
-    } catch {
-      // Private mode / storage disabled — selection still lives in component state.
-    }
-  }
+  // The selection is not this component's state. It is the console's: a cookie
+  // the server resolves before anything paints, an optional `?locationId=`
+  // override, and a `router.refresh()` on change so every Server Component below
+  // refetches for the new branch. All of that lives in `ActiveLocationProvider`
+  // — the bar just draws the control. (It was `useState` + `localStorage` here,
+  // which no server fetch could ever see.)
+  const { active, setActive } = useActiveLocation();
 
   const locationOptions = [
     { value: ALL_LOCATIONS, label: t('allLocations') },
@@ -201,8 +191,8 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
               // the gradient in light mode, the flat phosphor lime in dark.
               startIcon={<NavIcon name="locations" size={16} />}
               options={locationOptions}
-              value={locationId}
-              onChange={(event) => onLocationChange(event.target.value)}
+              value={active}
+              onChange={(event) => setActive(event.target.value)}
               xstyle={styles.locationSelect}
             />
           )}

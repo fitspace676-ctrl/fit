@@ -15,6 +15,7 @@ import type {
 } from '@fit/types';
 import { gymSettingsStoredSchema } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { atLocation } from '../common/location-filter.util';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { MailerService } from '../mail/mailer.service';
 import { InvoiceDocumentService } from './invoice-document.service';
@@ -35,6 +36,11 @@ const ADMIN_INVOICE_SELECT = {
   issuedAt: true,
   dueDate: true,
   member: { select: { user: { select: { name: true, email: true } } } },
+  // The branch the invoice was raised at (Stage 5). One hop off the invoice's own
+  // `locationId`, not through `member` — the column is a snapshot of the member's
+  // home branch at issue time, so reading the member's CURRENT branch here would
+  // relabel every past document the moment somebody transfers.
+  location: { select: { name: true } },
 } satisfies Prisma.InvoiceSelect;
 
 type InvoiceRecord = Prisma.InvoiceGetPayload<{ select: typeof ADMIN_INVOICE_SELECT }>;
@@ -51,6 +57,7 @@ function toRow(row: InvoiceRecord): AdminInvoiceRow {
     description: row.description,
     amount: row.amount,
     currency: row.currency,
+    locationName: row.location?.name ?? null,
     issuedAt: row.issuedAt.toISOString(),
     dueDate: row.dueDate?.toISOString() ?? null,
   };
@@ -252,6 +259,17 @@ export class AdminInvoicesService {
     const where: Prisma.InvoiceWhereInput = {};
 
     if (query.type) where.type = query.type;
+
+    // The branch the invoice was raised at, as a plain equality on the invoice's
+    // own column — index-served by `(gymId, locationId, createdAt)`, where the
+    // member hop this replaces planned as a join through `gym_members`.
+    //
+    // No `OR locationId IS NULL` arm, deliberately. A null branch means the
+    // invoice is NOT ATTRIBUTABLE — its member was purged, or that member's branch
+    // was retired — and showing it under a named branch would put a debt on books
+    // that never raised it. Those rows stay visible in all-branches mode, which is
+    // where they belong and where they still count.
+    Object.assign(where, atLocation(query.locationId));
 
     if (query.issuedFrom || query.issuedTo) {
       where.issuedAt = {

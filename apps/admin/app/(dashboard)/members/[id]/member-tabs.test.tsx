@@ -29,6 +29,9 @@ function memberDetail(overrides: Partial<MemberDetail> = {}): MemberDetail {
     kindOverride: null,
     planName: null,
     plan: null,
+    // The member's home branch, denormalised onto every `MemberRow`. `null` is the
+    // state of anyone enrolled before Stage 2 gave members a branch.
+    locationName: null,
     lastVisitAt: null,
     nextBillingAt: null,
     billingState: 'none',

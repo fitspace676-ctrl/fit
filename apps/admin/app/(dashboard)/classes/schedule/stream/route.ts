@@ -9,6 +9,23 @@
 // stream straight back. Same token-forwarding shape as the file-export proxies
 // (reports / orders), but long-lived — the body is streamed through, never
 // buffered.
+//
+// WHY THIS STREAM IS NOT SCOPED TO THE ACTIVE BRANCH, AND DOES NOT NEED TO BE.
+// The obvious hazard when the schedule gained a branch filter is a board that
+// fetches one branch and then takes live updates from all of them. That hazard
+// does not exist here, because the stream carries no schedule data: the consumer
+// (`hooks/use-occupancy-stream.ts`) ignores every event payload and only calls
+// `router.refresh()`. The numbers on screen always come from the server page's
+// own `fetchSchedule`, which *is* branch-scoped — so a push can only ever cause a
+// correctly-filtered refetch, never inject a foreign branch's occurrence.
+//
+// What an unscoped stream does cost is a wasted refetch: a booking at branch B
+// still nudges an operator watching branch A. That is a same-shaped page re-render
+// on an already-`force-dynamic` route, throttled to one per second by the hook,
+// and the correct fix is a `locationId` on the API's own
+// `GET /admin/schedule/stream` (which takes no query at all today) rather than a
+// filter bolted on in this proxy — dropping events here would still leave the
+// upstream connection fanning every branch out to every console.
 
 import { NextResponse } from 'next/server';
 import { Permission, roleHasPermission } from '@fit/types';

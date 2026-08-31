@@ -43,6 +43,7 @@ import {
 import { resolveEmailLocale } from '../mail/email-locale';
 import { EmailService } from '../auth/email.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { atLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { applyOrderStockMovements } from '../products/order-stock';
@@ -312,6 +313,17 @@ export class OrdersService {
           amount: chargedTotal,
           currency: receipt.currency,
           status: PaymentStatus.CAPTURED,
+          // The till's branch, denormalised from the order this settles (Stage 5).
+          // Read from the same `locationId` the order above was stamped with rather
+          // than re-derived, so the two can never disagree — a payment attributed
+          // to a different branch than its own order would break the netting the
+          // sales reports do against it.
+          //
+          // `null` when the till sent no branch, and that is left as null rather
+          // than defaulted: the order is unattributed too, so the payment is
+          // faithfully just as unattributed. Defaulting here would credit the main
+          // branch with takings its own order does not claim.
+          locationId: locationId ?? null,
           method: TO_DB_METHOD[receipt.paymentMethod],
           // Cash / card-at-desk / member-account settlements never flow through a
           // payment provider; mark the channel so it is distinct from the online
@@ -343,6 +355,11 @@ export class OrdersService {
    * `CAPTURED` payments in that window grouped by settlement method, and folds the
    * tallies into the report (every method present, `expectedCash` = the cash
    * total). The report currency comes from the gym's locale settings.
+   *
+   * An optional `locationId` scopes the count to one branch's till. Branches are
+   * separate operating units and each counts its own drawer, so a pooled gym-wide
+   * `expectedCash` is a figure no one can reconcile against a physical drawer;
+   * omitted, the report keeps the previous gym-wide behaviour.
    */
   async reconcile(query: CashReconciliationQuery): Promise<CashReconciliationReport> {
     const gym = await this.prisma.client.gym.findUnique({
@@ -352,9 +369,23 @@ export class OrdersService {
     const { locale } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
     const { gte, lt } = utcDayRange(query.date, locale.timezone);
 
+    // Stage 5 turned this from a relation hop into a scalar equality:
+    // `Payment.locationId` is denormalised from the order at sale time, so it is
+    // the same attribution this read always applied — money taken at this branch —
+    // now served by `(gymId, locationId, createdAt)`, which is exactly this
+    // grouping's shape.
+    //
+    // A payment with a NULL branch is EXCLUDED when a branch is named, and that is
+    // right for this report specifically: an operator counting one drawer must not
+    // be handed money nothing can place at their till. Omit the filter and it
+    // returns to the gym-wide pool, where it still counts.
     const grouped = await this.prisma.client.payment.groupBy({
       by: ['method'],
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte, lt } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte, lt },
+        ...atLocation(query.locationId),
+      },
       _sum: { amount: true },
       _count: { _all: true },
     });
@@ -538,6 +569,9 @@ export class OrdersService {
         select: {
           id: true,
           status: true,
+          // The branch this order was rung up at — copied onto the refund below so
+          // a reversal nets against the takings it reverses (Stage 5).
+          locationId: true,
           payment: { select: { id: true, amount: true, refundedAmount: true } },
           items: { select: { productVariantId: true, qty: true } },
         },
@@ -582,6 +616,14 @@ export class OrdersService {
           gymId,
           orderId: order.id,
           paymentId: payment.id,
+          // The ORDER's branch, not the desk that keyed the reversal — which
+          // nothing records anyway (Stage 5). Netting takings against refunds is
+          // the whole point of the figure, so both halves must land in the same
+          // bucket: attributing a reversal to where it was processed would leave
+          // the selling branch showing revenue it no longer holds and the
+          // refunding branch a negative it never earned. Keeping the pair together
+          // is also what preserves the partition the attribution rule rests on.
+          locationId: order.locationId,
           amount: input.amount,
           reason: input.reason,
           restockItems: input.restockItems,
@@ -706,7 +748,15 @@ export class OrdersService {
  */
 const DEFAULT_ROSTER_CURRENCY = 'GEL';
 
-/** The columns the admin roster / export queries select off an order. */
+/**
+ * The columns the admin roster / export queries select off an order.
+ *
+ * `location` is a one-hop relation select on the same `findMany`, not a second
+ * round trip: Prisma resolves it in the one query, so the roster names the branch
+ * a sale was rung up at for the same cost as the row itself. Selecting only
+ * `name` keeps it that way — pulling the whole `Location` would drag the address,
+ * hours and settings JSON across for a single string.
+ */
 const ORDER_ROW_SELECT = {
   id: true,
   status: true,
@@ -715,6 +765,7 @@ const ORDER_ROW_SELECT = {
   memberId: true,
   customerName: true,
   createdAt: true,
+  location: { select: { name: true } },
   payment: { select: { provider: true, method: true, refundedAmount: true } },
   _count: { select: { items: true } },
 } satisfies Prisma.OrderSelect;
@@ -736,6 +787,15 @@ function buildOrderWhere(query: ListOrdersQuery): Prisma.OrderWhereInput {
   }
   if (query.memberId) {
     where.memberId = query.memberId;
+  }
+  // Narrow to the branch the sale was rung up at. `Order.locationId` is the
+  // order's own column — the sale is attributed at the till, so this is the
+  // authoritative branch, not something inferred through a relation. Plain
+  // equality: the Stage 0 backfill left no NULL `locationId` behind, so there is
+  // no unattributed bucket to rescue with an `OR locationId IS NULL`. Served by
+  // the `(gymId, locationId, createdAt)` / `(gymId, locationId, status)` indexes.
+  if (query.locationId) {
+    where.locationId = query.locationId;
   }
   if (query.channel === 'POS') {
     where.payment = { is: { provider: 'pos' } };
@@ -765,6 +825,9 @@ function toOrderRow(row: OrderRowRecord): AdminOrderRow {
     customerName: row.customerName,
     paymentMethod: row.payment ? TO_WIRE_METHOD[row.payment.method] : null,
     itemCount: row._count.items,
+    // Null when the order has no branch — the column is nullable and the relation
+    // is `onDelete: SetNull`, so a retired branch un-attributes its past sales.
+    locationName: row.location?.name ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }

@@ -63,6 +63,10 @@ export class ReportDrilldownController {
    *
    * Declared BEFORE the `:metric` preview route so the literal `export` segment is
    * never captured as a metric — the same ordering the catalogue controller needs.
+   *
+   * `reportDrilldownExportQuerySchema` EXTENDS the preview query, so `locationId`
+   * is inherited rather than restated and the file cannot drift to a different
+   * branch from the screen it was downloaded from.
    */
   @Get(':metric/export')
   @RequirePermissions(Permission.ReportView)
@@ -92,9 +96,15 @@ export class ReportDrilldownController {
   }
 
   /**
-   * `GET /admin/reports/drilldown/:metric?range=` — build one drill-down report for
-   * on-screen rendering. `range` defaults to `30d`; an unknown metric or invalid
-   * range is a `400`.
+   * `GET /admin/reports/drilldown/:metric?range=&locationId=` — build one drill-down
+   * report for on-screen rendering. `range` defaults to `30d`; an unknown metric or
+   * invalid range is a `400`.
+   *
+   * `locationId` narrows the drill-down to one branch; omitted, it spans every
+   * branch. Passed straight through: which metrics can honestly narrow is the
+   * service's decision, recorded per metric there. Since Stage 3 that is ALL of
+   * them — `members` and `loyalty` by the member's home branch, `attendance` by the
+   * branch each arrival walked into, now that a check-in records one.
    */
   @Get(':metric')
   @HttpCode(HttpStatus.OK)

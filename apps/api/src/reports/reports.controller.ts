@@ -46,6 +46,13 @@ export class ReportsController {
   /**
    * `GET /admin/reports` — the report catalogue (each report's key, copy, and
    * column shape) so the Reports hub can render its cards without hardcoding them.
+   *
+   * Takes NO `locationId`, deliberately. The catalogue is the list of reports this
+   * gym offers, not any report's data: which reports exist does not change with the
+   * branch on screen, and accepting a parameter that changed nothing would invite a
+   * later contributor to make it hide the reports that cannot be filtered. Whether
+   * a card is shown in single-branch mode is the console's call (Stage 1 hides
+   * `revenue-by-location` there); the catalogue itself stays the same list.
    */
   @Get()
   @HttpCode(HttpStatus.OK)
@@ -55,10 +62,16 @@ export class ReportsController {
   }
 
   /**
-   * `GET /admin/reports/:report/export?range=&format=` — download one report as a
-   * CSV (streamed page-free, small aggregate) or XLSX attachment. Declared before
-   * the `:report` preview route so the literal `export` segment is never captured
-   * as a report key. An unknown report or a bad `range`/`format` is a `400`.
+   * `GET /admin/reports/:report/export?range=&format=&locationId=` — download one
+   * report as a CSV (streamed page-free, small aggregate) or XLSX attachment.
+   * Declared before the `:report` preview route so the literal `export` segment is
+   * never captured as a report key. An unknown report or a bad `range`/`format` is
+   * a `400`.
+   *
+   * `locationId` is parsed from the SAME schema shape as the preview and handed to
+   * the service unchanged, so the file covers exactly the branch that was on screen.
+   * A download that quietly widened to every branch would be worse than no filter:
+   * the reader has no way to tell which of the two figures is the real one.
    *
    * The gym's `reports` setting (Settings → Reports) is a DISPLAY preference for
    * the catalogue only — it deliberately does NOT gate this route. A report the
@@ -95,9 +108,17 @@ export class ReportsController {
   }
 
   /**
-   * `GET /admin/reports/:report?range=` — run one report for on-screen preview,
-   * returning its columns and computed rows. `range` defaults to `30d`; an unknown
-   * report key or an invalid range is a `400`.
+   * `GET /admin/reports/:report?range=&locationId=` — run one report for on-screen
+   * preview, returning its columns and computed rows. `range` defaults to `30d`; an
+   * unknown report key or an invalid range is a `400`.
+   *
+   * `locationId` narrows the report to one branch; omitted, it is the gym-wide
+   * roll-up. It is passed straight through — which reports can honestly answer
+   * "which branch" is the service's decision, recorded per report there, and the
+   * ones that cannot ignore it rather than return an empty table. An EMPTY
+   * `locationId=` is a `400` rather than a silent "all branches": the console
+   * normalises its own "all" sentinel to an absent param, so an empty string
+   * reaching here is a bug worth surfacing.
    *
    * The gym's `reports` setting (Settings → Reports) is a DISPLAY preference for
    * the catalogue only — it deliberately does NOT gate this route. A report the

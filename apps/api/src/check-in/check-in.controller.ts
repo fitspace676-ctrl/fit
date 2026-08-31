@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  checkInStatsQuerySchema,
+  listTodayCheckInsQuerySchema,
   Permission,
   recordCheckInSchema,
   type CheckInStatsResponse,
@@ -45,9 +47,11 @@ export class CheckInController {
 
   /**
    * `POST /admin/check-ins` — record a member's arrival. The body is validated up
-   * front (`gymMemberId` required, `method` defaults to `MANUAL`); an unknown or
-   * cross-tenant member id is a `404 MEMBER_NOT_FOUND`. Returns `201` with the
-   * created row + the member's eligibility at check-in time.
+   * front (`gymMemberId` required, `method` defaults to `MANUAL`, `locationId` the
+   * branch they walked into); an unknown or cross-tenant member id is a
+   * `404 MEMBER_NOT_FOUND` and an unknown branch a `404 LOCATION_NOT_FOUND`. An
+   * omitted branch falls back to the gym's default rather than being stored `null`.
+   * Returns `201` with the created row + the member's eligibility at check-in time.
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -58,26 +62,29 @@ export class CheckInController {
   }
 
   /**
-   * `GET /admin/check-ins/today` — today's arrivals, most recent first (the live
-   * reception feed). Takes no query: it is always the caller's own gym. An empty
-   * day is a normal `200`.
+   * `GET /admin/check-ins/today?locationId=` — today's arrivals, most recent first
+   * (the live reception feed). Always the caller's own gym; `locationId` narrows to
+   * the people who walked into one branch, and omitting it shows every branch's
+   * arrivals ("All locations"). An empty day is a normal `200`.
    */
   @Get('today')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.MemberRead)
-  async today(): Promise<TodayCheckInsResponse> {
-    return this.checkIns.listToday();
+  async today(@Query() query: unknown): Promise<TodayCheckInsResponse> {
+    return this.checkIns.listToday(parse(listTodayCheckInsQuerySchema, query));
   }
 
   /**
-   * `GET /admin/check-ins/stats` — the reception KPI snapshot (checked-in today,
-   * in-gym now, peak today, no-shows). Takes no query: always the caller's gym.
+   * `GET /admin/check-ins/stats?locationId=` — the reception KPI snapshot
+   * (checked-in today, in-gym now, peak today, no-shows). Always the caller's gym;
+   * `locationId` narrows all four figures to one branch, which is what lets the
+   * console's sidebar check-in badge count a single branch's arrivals.
    */
   @Get('stats')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.MemberRead)
-  async stats(): Promise<CheckInStatsResponse> {
-    return this.checkIns.getStats();
+  async stats(@Query() query: unknown): Promise<CheckInStatsResponse> {
+    return this.checkIns.getStats(parse(checkInStatsQuerySchema, query));
   }
 
   /**

@@ -53,6 +53,45 @@ interface TrainerAgg {
  *
  * Scoped by {@link TenantPrismaService}'s extension, so no query passes or trusts
  * a `gymId`.
+ *
+ * ## `locationId` is accepted and still changes nothing — including after Stage 2
+ *
+ * The query schema carries `locationId` so the console can send it uniformly and
+ * the contract does not change under Stage 6. Of the six reads below, exactly one
+ * — `ClassInstance` — can answer "which branch". Every other input is branchless:
+ * `PtSession` and `Trainer` have no location column, and `ShiftSlot.location` is
+ * free text rather than an FK.
+ *
+ * **Stage 2 does NOT unlock this tab, and the tempting read is the wrong one.**
+ * `GymMember.locationId` now exists, so `TimeOffRequest` and the staff head-count
+ * below could technically be narrowed by it. They must not be: that column is the
+ * member's HOME BRANCH — where somebody trains — and for a staff row it is a
+ * backfill artefact, set to each gym's default branch for every employee at once.
+ * Filtering on it would report the whole payroll at the default branch and zero
+ * staff everywhere else, which is a fabricated zero wearing a filter's clothes.
+ * Where a staff member actually works is `GymMember.assignedLocationIds`, a loose
+ * `String[]` with no FK integrity that Stage 6 replaces with a real
+ * `LocationStaff` join table; that is the column this tab is waiting on.
+ *
+ * Filtering the one read that could be filtered would not produce a per-branch tab
+ * either; it would produce figures that are neither. `kpis.sessionsDelivered`
+ * would become one branch's classes plus every branch's PT.
+ * `kpis.utilizationRate` would divide one branch's delivered minutes by every
+ * trainer's gym-wide availability — a rate that is simply wrong, not merely
+ * partial. `trainers[]` would list gym-wide trainers with branch-truncated hours.
+ * None of those is a number an owner can act on, and each would LOOK filtered.
+ *
+ * So the tab stays whole-gym under any branch selection. Nothing here is nulled to
+ * signal it — `utilizationRate`'s `null` already means "no availability to divide
+ * by", and overloading it would trade one wrong reading for another. The response
+ * contract has no field to carry the signal, so the admin console captions the tab
+ * until Stage 6 gives trainers, PT sessions and shifts a real branch. The caption
+ * this docblock was written against, which the console mirrors verbatim:
+ *
+ *     Not split by branch — trainers, PT sessions and shifts have no branch yet
+ *
+ * Unchanged by Stage 2, which is the point: a member's home branch is not a
+ * trainer's work assignment.
  */
 @Injectable()
 export class DashboardStaffService {

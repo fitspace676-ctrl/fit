@@ -31,7 +31,6 @@ function setup() {
   const subscriptionFindMany = vi.fn().mockResolvedValue([]);
   const checkInFindMany = vi.fn().mockResolvedValue([]);
   const invoiceFindMany = vi.fn().mockResolvedValue([]);
-  const locationFindMany = vi.fn().mockResolvedValue([]);
   const classInstanceFindMany = vi.fn().mockResolvedValue([]);
   const ptSessionFindMany = vi.fn().mockResolvedValue([]);
   const gymFindFirst = vi.fn(() => Promise.resolve(gymRow));
@@ -46,14 +45,14 @@ function setup() {
     subscription: { findMany: subscriptionFindMany },
     checkIn: { findMany: checkInFindMany },
     invoice: { findMany: invoiceFindMany },
-    location: { findMany: locationFindMany },
     classInstance: { findMany: classInstanceFindMany },
     ptSession: { findMany: ptSessionFindMany },
     gym: { findFirst: gymFindFirst },
   };
   const prisma = { client } as unknown as TenantPrismaService;
-  // `CheckIn` is not in the tenant extension's model set, so the check-in log pins
-  // the gym itself — the stub has to carry one.
+  // The check-in log still pins the gym by hand — redundant since Stage 3 put
+  // `CheckIn` in the tenant extension's model set, kept as belt and braces — so the
+  // stub has to carry one.
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
 
   // The gym's configured currency (Settings → General) — every report is
@@ -75,7 +74,6 @@ function setup() {
     subscriptionFindMany,
     checkInFindMany,
     invoiceFindMany,
-    locationFindMany,
     classInstanceFindMany,
     ptSessionFindMany,
     gymFindFirst,
@@ -828,8 +826,8 @@ describe('ReportsService', () => {
     it('groups takings with no branch instead of dropping them', async () => {
       const { service, paymentFindMany } = setup();
       paymentFindMany.mockResolvedValue([
-        { amount: 10_000, refundedAmount: 0, order: { location: { name: 'Downtown' } } },
-        { amount: 4_000, refundedAmount: 1_000, order: { location: null } },
+        { amount: 10_000, refundedAmount: 0, location: { name: 'Downtown' } },
+        { amount: 4_000, refundedAmount: 1_000, location: null },
       ]);
 
       const result = await service.runReport('revenue-by-location', { range: '30d' });
@@ -884,6 +882,363 @@ describe('ReportsService', () => {
       const last = result.rows.at(-1)!;
       expect(last.churnRate30).toBe(25);
       expect(last.retentionRate30).toBe(75);
+    });
+  });
+
+  /**
+   * The branch filter (roadmap Stage 1). Two things are pinned here, and the second
+   * matters more than the first: WHICH reports narrow to a branch, and — for the
+   * ones that cannot — that they do not silently pretend to. A report that filtered
+   * on a column nothing writes would return an empty table reading as "this branch
+   * had no activity", which is worse than an honestly gym-wide figure.
+   */
+  describe('branch filter', () => {
+    /** The `where` the nth call to a stubbed delegate was issued with. */
+    const whereOf = (mock: { mock: { calls: unknown[][] } }, call = 0) =>
+      (mock.mock.calls[call]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
+
+    it('adds no location predicate at all when no branch is selected', async () => {
+      const { service, paymentFindMany, refundFindMany } = setup();
+
+      await service.runReport('sales-summary', { range: '30d' });
+
+      // Not `locationId: undefined` — the key is absent, so the gym-wide roll-up
+      // issues exactly the query it issued before this feature existed.
+      expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
+      expect(whereOf(paymentFindMany)).not.toHaveProperty('locationId');
+      expect(whereOf(refundFindMany)).not.toHaveProperty('order');
+    });
+
+    // Stage 5 gave `Payment` and `Refund` the `locationId` the previous version of
+    // this test said they lacked. Inverted, not deleted: the property is unchanged —
+    // both money tables narrow, by the branch that rang the sale up — and the
+    // relation shape is now the regression to guard against, because it cannot use
+    // `(gymId, locationId, createdAt)` and it re-reads the order live.
+    it('scopes payments and refunds on their own branch column', async () => {
+      const { service, paymentFindMany, refundFindMany } = setup();
+
+      await service.runReport('sales-summary', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(paymentFindMany).locationId).toBe('loc-1');
+      expect(whereOf(refundFindMany).locationId).toBe('loc-1');
+      expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
+      expect(whereOf(refundFindMany)).not.toHaveProperty('order');
+    });
+
+    it('scopes order-backed reports on the order’s own column', async () => {
+      const { service, orderFindMany } = setup();
+
+      await service.runReport('pos-transaction-log', { range: '30d', locationId: 'loc-1' });
+      await service.runReport('plan-performance', { range: '30d', locationId: 'loc-1' });
+      await service.runReport('sales-by-staff', { range: '30d', locationId: 'loc-1' });
+
+      // Plain equality, no `OR locationId IS NULL` arm: Stage 0 backfilled every
+      // null on `orders` to the gym's default branch.
+      for (const call of [0, 1, 2]) {
+        expect(whereOf(orderFindMany, call).locationId).toBe('loc-1');
+      }
+    });
+
+    it('scopes the payment groupBy reports too, not just the findMany ones', async () => {
+      const { service, paymentGroupBy } = setup();
+      paymentGroupBy.mockResolvedValue([]);
+
+      await service.runReport('revenue-by-channel', { range: '30d', locationId: 'loc-1' });
+      await service.runReport('sales-by-payment-method', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(paymentGroupBy, 0).locationId).toBe('loc-1');
+      expect(whereOf(paymentGroupBy, 1).locationId).toBe('loc-1');
+      // A groupBy is the shape that suffered most from the join — it aggregates the
+      // whole window before grouping.
+      expect(whereOf(paymentGroupBy, 0)).not.toHaveProperty('order');
+    });
+
+    it('scopes class reports through the instance that carries the branch', async () => {
+      const { service, classInstanceFindMany, bookingFindMany } = setup();
+
+      await service.runReport('class-utilization', { range: '30d', locationId: 'loc-1' });
+      await service.runReport('attendance-by-class', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
+      // A booking reaches a branch only through the session it holds a seat on.
+      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: 'loc-1' });
+    });
+
+    // Stage 2 gave `GymMember` a home branch, so this assertion is the inverse of
+    // the one that stood here. The honesty rule it enforces is unchanged: a report
+    // narrows by a branch the ROW can actually answer for, and every read inside
+    // one report narrows the same way or its columns stop reconciling.
+    it('narrows member-backed reports by the member’s home branch', async () => {
+      const { service, gymMemberFindMany, subscriptionFindMany } = setup();
+
+      await service.runReport('member-roster', { range: '30d', locationId: 'loc-1' });
+      await service.runReport('retention-and-churn', { range: '30d', locationId: 'loc-1' });
+
+      // `GymMember` owns the column; a `Subscription` reaches it through `member`.
+      expect(whereOf(gymMemberFindMany).locationId).toBe('loc-1');
+      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
+    });
+
+    // `membership-movement` subtracts cancellations from signups in one row. Half a
+    // filter would make `netChange` a subtraction across two populations, so both
+    // halves are pinned together.
+    it('narrows both halves of membership movement, never one', async () => {
+      const { service, gymMemberFindMany, subscriptionFindMany } = setup();
+
+      await service.runReport('membership-movement', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(gymMemberFindMany).locationId).toBe('loc-1');
+      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
+    });
+
+    // Not `locationId: undefined`, and no empty `member` key: "all branches" must
+    // leave each read's original, index-served plan untouched.
+    it('sends no member clause at all when no branch is selected', async () => {
+      const { service, gymMemberFindMany, subscriptionFindMany } = setup();
+
+      await service.runReport('member-roster', { range: '30d' });
+      await service.runReport('retention-and-churn', { range: '30d' });
+
+      expect(whereOf(gymMemberFindMany)).not.toHaveProperty('locationId');
+      expect(whereOf(subscriptionFindMany)).not.toHaveProperty('member');
+    });
+
+    // Stage 3 gave `CheckIn.locationId` an FK and a write path, so this assertion is
+    // the inverse of the one that stood here. The property it protects is unchanged
+    // and is the whole reason the inversion is safe to make: the log narrows by the
+    // branch the row itself names — the door the visitor came through — and NOT by
+    // the visitor's home branch, which would print a log whose own `location` column
+    // named a different branch from the one that was filtered on.
+    it('narrows the check-in log by the branch the visit happened at', async () => {
+      const { service, checkInFindMany } = setup();
+
+      await service.runReport('member-check-in-log', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(checkInFindMany).locationId).toBe('loc-1');
+      // Never the member hop: a visit is an event at a place, not a property of a
+      // person, so `GymMember.locationId` must not appear anywhere in this `where`.
+      expect(whereOf(checkInFindMany)).not.toHaveProperty('member');
+      // Still pinned to the gym by hand — redundant now that `CheckIn` is in the
+      // tenant extension's model set, kept because it is the belt to that braces.
+      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
+    });
+
+    // "All branches" must leave the query exactly as it was — not `locationId:
+    // undefined`, which Prisma reads as "the column IS NULL" on some shapes and
+    // would silently return only the un-homed visits.
+    it('sends no location clause on the check-in log when no branch is selected', async () => {
+      const { service, checkInFindMany } = setup();
+
+      await service.runReport('member-check-in-log', { range: '30d' });
+
+      expect(whereOf(checkInFindMany)).not.toHaveProperty('locationId');
+      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
+    });
+
+    // The branch name on screen and the branch filtered on now come from the SAME
+    // relation, so the log can no longer contradict itself in adjacent cells — the
+    // exact failure the old exemption existed to prevent.
+    it('reads the branch name off the location relation, not a second lookup', async () => {
+      const { service, checkInFindMany } = setup();
+      checkInFindMany.mockResolvedValue([
+        {
+          checkedInAt: new Date('2026-05-20T08:15:00.000Z'),
+          method: 'QR',
+          location: { name: 'Vake' },
+          member: { firstName: 'Nino', lastName: 'B', user: { name: null } },
+        },
+        // `location` is `SetNull`, so a visit whose branch was deleted keeps the
+        // row and loses only the name. It must not fall out of the log.
+        {
+          checkedInAt: new Date('2026-05-20T07:00:00.000Z'),
+          method: 'MANUAL',
+          location: null,
+          member: { firstName: 'Data', lastName: 'B', user: { name: null } },
+        },
+      ]);
+
+      const result = await service.runReport('member-check-in-log', {
+        range: '30d',
+        locationId: 'loc-1',
+      });
+
+      expect(result.rows.map((row) => row.location)).toEqual(['Vake', '']);
+    });
+
+    it('leaves trainer performance gym-wide rather than mixing two scopes in a row', async () => {
+      const { service, classInstanceFindMany, ptSessionFindMany } = setup();
+
+      await service.runReport('trainer-performance', { range: '30d', locationId: 'loc-1' });
+
+      // `ClassInstance` could be filtered and `PtSession` could not; filtering half
+      // would rank trainers on one branch's classes plus every branch's PT hours.
+      expect(whereOf(classInstanceFindMany)).not.toHaveProperty('locationId');
+      expect(whereOf(ptSessionFindMany)).not.toHaveProperty('locationId');
+    });
+
+    it('leaves discounts gym-wide — its ledger is half anonymous by design', async () => {
+      const { service, promoRedemptionFindMany } = setup();
+
+      await service.runReport('discounts-and-promotions', { range: '30d', locationId: 'loc-1' });
+
+      // `PromoRedemption.orderId` is a relation-less scalar and half the ledger has
+      // no order at all. The member hop is available here and still refused:
+      // `memberId` is routinely null — the schema's own comment says it is null for
+      // an anonymous walk-in sale — so attributing by member would drop exactly the
+      // walk-in promotions this report exists to price.
+      expect(whereOf(promoRedemptionFindMany)).not.toHaveProperty('order');
+      expect(whereOf(promoRedemptionFindMany)).not.toHaveProperty('member');
+    });
+
+    // The invoice set MIXES order-backed and subscription rows. "Order branch if it
+    // has one, member branch otherwise" is available and is the trap: a total whose
+    // attribution changes row by row means nothing. One rule covers every invoice.
+    // The debt belongs to the branch its member called home WHEN IT WAS RAISED.
+    // Inverted twice now — first from gym-wide to the member hop, now from the hop
+    // to the snapshot — and both inversions preserved the same property: one rule
+    // for every invoice, and never the order path. This set mixes order-backed and
+    // subscription invoices, so an order rule would attribute the minority one way
+    // and the majority another.
+    it('narrows outstanding invoices on the invoice’s own branch, never through the order', async () => {
+      const { service, invoiceFindMany } = setup();
+
+      await service.runReport('outstanding-invoices', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(invoiceFindMany)).not.toHaveProperty('order');
+      // Nor the live member hop: a transfer used to drag every past debt onto the
+      // new branch, restating months already closed at both.
+      expect(whereOf(invoiceFindMany)).not.toHaveProperty('member');
+      expect(whereOf(invoiceFindMany).locationId).toBe('loc-1');
+    });
+
+    describe('revenue-by-location', () => {
+      it('degrades to the selected branch’s single row', async () => {
+        const { service, paymentFindMany } = setup();
+        paymentFindMany.mockResolvedValue([
+          {
+            amount: 10_000,
+            refundedAmount: 1_000,
+            location: { name: 'Vake' },
+          },
+        ]);
+
+        const result = await service.runReport('revenue-by-location', {
+          range: '30d',
+          locationId: 'loc-1',
+        });
+
+        expect(whereOf(paymentFindMany).locationId).toBe('loc-1');
+        // One row, same columns. The contract fixes the shape, not the row count —
+        // ignoring the filter here would name every other branch on a screen the
+        // operator has scoped to one.
+        expect(result.rows).toEqual([
+          { location: 'Vake', orders: 1, gross: 10_000, refunded: 1_000, net: 9_000 },
+        ]);
+      });
+
+      it('still buckets an unattributed sale under "No location" when unfiltered', async () => {
+        const { service, paymentFindMany } = setup();
+        paymentFindMany.mockResolvedValue([{ amount: 5_000, refundedAmount: 0, location: null }]);
+
+        const result = await service.runReport('revenue-by-location', { range: '30d' });
+
+        // The Stage 0 backfill should make this unreachable in production, but the
+        // bucket stays: a branch deleted out from under an order (onDelete: SetNull)
+        // must still be counted, or these rows stop adding up to the gym's total.
+        expect(result.rows).toEqual([
+          { location: 'No location', orders: 1, gross: 5_000, refunded: 0, net: 5_000 },
+        ]);
+      });
+    });
+
+    describe('revenue-summary', () => {
+      // Until Stage 2 the three subscription columns returned `null` under a branch
+      // filter, because a recurring base could not be attributed to one. They now
+      // report real per-branch figures, so this spec asserts the reverse of what it
+      // used to — and pins the SPLIT ATTRIBUTION that makes the row coherent: the
+      // FLOW follows the order (the till that took the money), the STOCKS follow
+      // the member's home branch (whose membership it is).
+      it('freezes the revenue half and keeps MRR on the live member hop', async () => {
+        const { service, paymentFindMany, subscriptionFindMany } = setup();
+        paymentFindMany.mockResolvedValue([{ amount: 9_000, createdAt: new Date() }]);
+        subscriptionFindMany.mockResolvedValue([
+          {
+            memberId: 'member-1',
+            priceAmount: 6_000,
+            interval: 'MONTH',
+            status: 'ACTIVE',
+            createdAt: new Date('2020-01-01T00:00:00.000Z'),
+            canceledAt: null,
+            updatedAt: new Date('2020-01-01T00:00:00.000Z'),
+          },
+        ]);
+
+        const result = await service.runReport('revenue-summary', {
+          range: '7d',
+          locationId: 'loc-1',
+        });
+
+        // **The two rules on one row, and this is the test that pins them apart.**
+        //
+        // The flow reads the payment's OWN column — takings belong to the drawer
+        // they went into, frozen at write time by Stage 5.
+        expect(whereOf(paymentFindMany).locationId).toBe('loc-1');
+        expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
+        // The stock still hops through the member, LIVE, and must keep doing so: a
+        // membership is not sold at a till, and the gym owner decided a
+        // transferring member's recurring revenue follows them. Give `Subscription`
+        // a column to "finish" the denormalisation and this line fails — correctly.
+        expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
+        expect(whereOf(subscriptionFindMany)).not.toHaveProperty('locationId');
+
+        expect(result.rows.at(-1)!.mrr).toBe(6_000);
+        expect(result.rows.at(-1)!.activeMembers).toBe(1);
+        expect(result.rows.some((row) => row.revenue === 9_000)).toBe(true);
+        // `null` in these columns goes back to meaning only what it means gym-wide:
+        // no members to divide by. It is no longer a stand-in for "not per branch".
+        expect(result.rows.every((row) => row.mrr !== null)).toBe(true);
+      });
+
+      it('keeps reporting MRR gym-wide when no branch is selected', async () => {
+        const { service, subscriptionFindMany } = setup();
+        subscriptionFindMany.mockResolvedValue([
+          {
+            memberId: 'member-1',
+            priceAmount: 6_000,
+            interval: 'MONTH',
+            status: 'ACTIVE',
+            createdAt: new Date('2020-01-01T00:00:00.000Z'),
+            canceledAt: null,
+            updatedAt: new Date('2020-01-01T00:00:00.000Z'),
+          },
+        ]);
+
+        const result = await service.runReport('revenue-summary', { range: '7d' });
+
+        expect(result.rows.at(-1)!.mrr).toBe(6_000);
+        expect(result.rows.at(-1)!.activeMembers).toBe(1);
+      });
+    });
+
+    // A CSV that disagrees with the screen it was downloaded from is worse than no
+    // filter: the reader has no way to tell which of the two is the real figure.
+    // Both file formats reach `computeReport` by their own path, so both are pinned.
+    it('applies the same filter to the CSV and XLSX exports as to the preview', async () => {
+      const { service, orderFindMany } = setup();
+
+      for await (const _chunk of service.streamReportCsv('pos-transaction-log', {
+        range: '30d',
+        locationId: 'loc-1',
+      })) {
+        // drained so the generator actually issues its query
+      }
+      await service.buildReportXlsx('pos-transaction-log', {
+        range: '30d',
+        locationId: 'loc-1',
+      });
+
+      expect(whereOf(orderFindMany, 0).locationId).toBe('loc-1');
+      expect(whereOf(orderFindMany, 1).locationId).toBe('loc-1');
     });
   });
 

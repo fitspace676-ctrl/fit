@@ -35,6 +35,7 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { bucketKey, emptyBuckets, resolveWindow } from '../reports/report-window.util';
 import { addZonedDays, zonedDayStart, zonedIsoDate, zonedParts } from '../reports/zoned-time.util';
+import { atLocation, memberAtLocation } from '../common/location-filter.util';
 
 /** Milliseconds in a day, for window math. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -54,9 +55,12 @@ const LIVE_SUBSCRIPTION_STATUSES = [
  * Runs on the **tenant-scoped** {@link TenantPrismaService}: every aggregate below
  * is auto-constrained to the caller's gym by the Prisma tenant extension, so the
  * whole snapshot is this-gym-only by construction — there is no `gymId` to pass or
- * to forget. (`CheckIn` is deliberately *not* in the extension's auto-scope set —
- * like the other member-owned models — so its reads pin the tenant explicitly via
- * {@link TenantContext.gymId}, exactly as {@link CheckInService} does.)
+ * to forget. (`CheckIn` used to be outside that auto-scope set, so its reads below
+ * pin the tenant explicitly via {@link TenantContext.gymId}. The 2026-08-30 audit
+ * of `TENANT_SCOPED_MODELS` added it; those pins are now redundant rather than
+ * load-bearing — the extension overwrites them with the identical value — and are
+ * left in place, as that audit did everywhere else, because they also satisfy the
+ * static types and cost nothing.)
  *
  * Every figure the overview returns is a REAL aggregation over rows that already
  * exist. Where the gym has no rows for a section, the API returns an honest empty
@@ -110,6 +114,62 @@ export class DashboardService {
    * new-member KPIs, a range-windowed revenue series, the live plan mix, today's
    * class schedule, real-event alerts, and the recent-check-ins feed, all scoped
    * to the caller's gym. Independent aggregations are issued concurrently.
+   *
+   * **`query.locationId` narrows the sections that have a branch to narrow by, and
+   * ONLY those.** See `common/location-filter.util.ts` for the attribution rule and
+   * for why the rest cannot be. On this endpoint the split is clean — every KPI
+   * below is one read, so none of them ends up half branch-scoped and half gym-wide:
+   *
+   * | Branch-scoped when `locationId` is given | Always gym-wide |
+   * |---|---|
+   * | `kpis.todaysRevenue` (`Payment`, own column — Stage 5) | — nothing on this endpoint |
+   * | `kpis.checkInsToday` (`CheckIn`, own column — Stage 3) | |
+   * | `kpis.newMembers7d` (`GymMember`) | |
+   * | `secondaryKpis.revenueThisMonth` (`Payment`, own column — Stage 5) | |
+   * | `secondaryKpis.activeMembers` (`GymMember`) | |
+   * | `secondaryKpis.classesToday` (`ClassInstance`) | |
+   * | `secondaryKpis.overduePayments` / `expiringSoon` / `renewalsDue` (`Subscription` → member) | |
+   * | `revenue` series + total (`Payment`, own column — Stage 5) | |
+   * | `planMix` (`Subscription` → member) | |
+   * | `todaysSchedule` (`ClassInstance`) | |
+   * | `recentMembers` (`GymMember`) | |
+   * | `inGymNow` (`CheckIn`, own column — see {@link inGymNow}) | |
+   * | `recentCheckIns` (`CheckIn`, own column) | |
+   * | `alerts` — both the `payment` and the `class_full` kinds | |
+   *
+   * **The right-hand column is now empty, and Stage 3 emptied it.** Stage 2 had
+   * left only the three check-in surfaces there, because `CheckIn.locationId` was
+   * a scalar nothing wrote and filtering it would have returned an empty card
+   * reading "nobody came to this branch". It is a real FK with a write path now, so
+   * all three narrow — on the branch the member WALKED INTO, never on their home
+   * branch. A drop-in is footfall at the branch whose door they used; attributing
+   * their visit to the branch they signed up at would put a body in a room they
+   * were not in.
+   *
+   * Every figure above is a single read over one population, so nothing here is
+   * half branch-scoped and half gym-wide, and no card blends the two rules.
+   *
+   * **Stage 5 changed how the `Payment` rows in that table are reached, not where
+   * they land.** All four now filter `Payment.locationId`, denormalised from the
+   * order at write time, instead of joining through `order` — an index change that
+   * moved no money between branches. The three `Subscription` rows keep the LIVE
+   * member hop on purpose: a transferring member's recurring revenue follows them,
+   * which is a product decision recorded in `common/location-filter.util.ts`.
+   *
+   * The response contract carries no field to flag a gym-wide figure with, so the
+   * admin console annotates those cards from this table. Nothing here is zeroed or
+   * emptied to make a card *look* filtered — a fabricated zero would be a worse lie
+   * than an honest gym-wide number.
+   *
+   * **The console's Overview caption is now retired, not reworded.** It read:
+   *
+   *     Occupancy and check-ins are gym-wide.
+   *
+   * and before Stage 2, "Occupancy, check-ins, members and subscriptions are
+   * gym-wide." Stage 2 struck the last two clauses; Stage 3 strikes the first two,
+   * which is the whole sentence. There is nothing left on this endpoint that a
+   * branch filter does not reach, so the tab carries no branch annotation at all.
+   * Do not re-add one without first removing a filter above.
    */
   async getOverview(query: DashboardOverviewQuery): Promise<DashboardOverviewResponse> {
     // The header filter's period resolves to a concrete window (+ the immediately
@@ -137,15 +197,15 @@ export class DashboardService {
     ] = await Promise.all([
       this.resolveViewer(),
       this.resolveGymName(),
-      this.inGymNow(zone),
-      this.kpis(win),
-      this.secondaryKpis(win, zone),
-      this.recentMembers(),
-      this.revenue(query.range, zone),
-      this.planMix(),
-      this.todaysSchedule(zone),
-      this.alerts(zone, locale.currency),
-      this.recentCheckIns(zone),
+      this.inGymNow(zone, query.locationId),
+      this.kpis(win, query.locationId),
+      this.secondaryKpis(win, zone, query.locationId),
+      this.recentMembers(query.locationId),
+      this.revenue(query.range, zone, query.locationId),
+      this.planMix(query.locationId),
+      this.todaysSchedule(zone, query.locationId),
+      this.alerts(zone, locale.currency, query.locationId),
+      this.recentCheckIns(zone, query.locationId),
     ]);
     const currency = locale.currency;
 
@@ -210,19 +270,70 @@ export class DashboardService {
    * `capacity` is the SUM of active locations' capacities; `areas` maps each active
    * location to its capacity + today's check-ins carrying that `locationId`.
    * Locations ARE the gym's areas — the real mapping, not invented zones.
+   *
+   * **`locationId` narrows the WHOLE card, not just the bars.** Stage 3 made
+   * `CheckIn.locationId` a real FK with a write path, so an arrival now records the
+   * door it came through. With a branch selected, `current`, `capacity` and `areas`
+   * are all that one branch: the donut reads "12 of 20 here", and `areas` is the
+   * selected branch alone.
+   *
+   * That single-element `areas` is deliberate, and it is not the same thing as an
+   * unfiltered list with one non-zero row. Leaving `locations` gym-wide while
+   * filtering only the check-ins would give a denominator summed over branches
+   * nobody in the count can be standing in, and a column of 0/N bars for the
+   * branches the operator just filtered *out* — a card that looks broken because it
+   * is. Narrowing the location read too is what makes the donut mean what it says.
+   *
+   * Returning `[]` instead was rejected: `areas` is the only place the card names a
+   * branch, so an empty list would leave the operator with a bare 12-of-20 donut and
+   * nothing saying which site it counts. The one row keeps the label, and the
+   * console's "…across {n} areas" caption reads correctly at n = 1.
+   *
+   * The location read keeps its `ACTIVE` filter under a branch selection, so a
+   * DEACTIVATED branch resolves to no area and zero capacity while its arrivals
+   * still count — the console's `resolveActiveLocation` degrades an id that is not
+   * one of the gym's live locations to "all branches", which keeps that unreachable
+   * from the switcher. Dropping the filter instead would list a closed branch here
+   * and nowhere else.
+   *
+   * **A branchless arrival counts in `current` and lands in NO area.** `locationId`
+   * is nullable and the relation is `onDelete: SetNull`, so deleting a branch un-places
+   * its footfall — the migration backfilled the history and the write path stamps new
+   * rows, but neither makes NULL unreachable. Such a row is a real person who was
+   * really in the building, so it stays in the gym-wide `current`; it is attributed to
+   * no branch, so it appears in no bar. It is emphatically NOT folded into `areas[0]`
+   * (see the git history of this method): that fold-in existed only to paper over a
+   * column nothing wrote, and it reported the entire gym's footfall as the oldest
+   * branch's — a specific, named, innocent branch's occupancy inflated by everybody
+   * else's members. Under a branch filter these rows drop out of the card entirely,
+   * because equality excludes NULL, which is the correct answer twice over: they were
+   * not at the selected branch, and nothing knows where they were.
+   *
+   * The consequence to accept: gym-wide, the bars can sum to less than `current`
+   * (branchless arrivals) or to more (one member, two swipes — `current` is distinct
+   * members, a bar is arrivals). The old fold-in bought exact reconciliation in the
+   * first case by lying about where people were. An honest gap is the better trade.
    */
-  private async inGymNow(zone: string): Promise<DashboardInGymNow> {
+  private async inGymNow(zone: string, locationId?: string): Promise<DashboardInGymNow> {
     const db = this.prisma.client;
     const dayStart = startOfToday(zone);
 
     const [locations, todayCheckIns] = await Promise.all([
       db.location.findMany({
-        where: { status: LocationStatus.ACTIVE },
+        // Not `atLocation` — that fragment narrows a model that POINTS AT a branch,
+        // and this IS the branch. The selected id is this table's primary key.
+        where: { status: LocationStatus.ACTIVE, ...(locationId ? { id: locationId } : {}) },
         select: { id: true, name: true },
         orderBy: { createdAt: 'asc' },
       }),
       db.checkIn.findMany({
-        where: { gymId: this.tenant.gymId, checkedInAt: { gte: dayStart } },
+        where: {
+          gymId: this.tenant.gymId,
+          checkedInAt: { gte: dayStart },
+          // The branch WALKED INTO. Plain equality, served by
+          // `@@index([gymId, locationId, checkedInAt])`.
+          ...atLocation(locationId),
+        },
         select: { gymMemberId: true, locationId: true },
       }),
     ]);
@@ -233,12 +344,11 @@ export class DashboardService {
     // figure, not an invented one.
     const distinctMembers = new Set(todayCheckIns.map((c) => c.gymMemberId));
     const perLocation = new Map<string, number>();
-    let unassigned = 0;
     for (const c of todayCheckIns) {
+      // A NULL branch is skipped, not redistributed: the row still counts in
+      // `distinctMembers` above, and belongs to no bar below. See the docblock.
       if (c.locationId) {
         perLocation.set(c.locationId, (perLocation.get(c.locationId) ?? 0) + 1);
-      } else {
-        unassigned += 1;
       }
     }
 
@@ -250,11 +360,6 @@ export class DashboardService {
       capacity: capacities.get(loc.id) ?? 0,
       occupancy: perLocation.get(loc.id) ?? 0,
     }));
-    // Check-ins with no location (single-branch gyms leave `locationId` null) roll
-    // into the first area so the live count reconciles with the donut.
-    if (unassigned > 0 && areas[0]) {
-      areas[0] = { ...areas[0], occupancy: areas[0].occupancy + unassigned };
-    }
 
     return { current: distinctMembers.size, capacity: totalCapacity, areas };
   }
@@ -264,6 +369,12 @@ export class DashboardService {
    * each location's active class templates — the real bookable headroom the gym
    * set for that branch. A location with no templates contributes 0 (an honest
    * "no configured capacity" rather than a fabricated number).
+   *
+   * It takes the ids its caller resolved rather than a branch of its own, which is
+   * what makes the filtered card add up: with one branch selected {@link inGymNow}
+   * hands it that one id, so the donut's denominator is that branch's headroom and
+   * not the gym's. `ClassTemplate` owns a real `locationId`, so this is a plain
+   * `IN` over one column — no member hop, no relation filter.
    */
   private async locationCapacities(locationIds: string[]): Promise<Map<string, number>> {
     const caps = new Map<string, number>();
@@ -295,35 +406,75 @@ export class DashboardService {
    *   • newMembers7d  — COUNT `MEMBER` joined in the window.
    * (The field names keep their original spelling for wire-compatibility; the
    * client labels them by the resolved period.)
+   *
+   * `locationId` narrows all three pairs, each on its own rule. The revenue pair
+   * filters `Payment.locationId` — the till the money went into, which Stage 5
+   * denormalised from the order so this is an index-served equality rather than
+   * the relation filter it was. The new-member pair filters
+   * `GymMember.locationId` directly, the home branch Stage 2 added, so "new members
+   * this week" is genuinely this branch's joiners. The check-in pair filters
+   * `CheckIn.locationId`, the branch WALKED INTO, which Stage 3 turned from a
+   * dangling scalar into a real FK with a write path — a drop-in counts as footfall
+   * where they swiped, not where they signed up.
+   *
+   * That makes `checkInsToday` and `newMembers7d` deliberately different rules on
+   * one row of cards, and the pairing is the point rather than an inconsistency:
+   * one card counts visits to a place, the other counts people who belong to it.
+   * Both partition the gym, so each still sums across branches to its gym-wide
+   * figure. Note also that both terms of every pair take the SAME filter, so a delta
+   * is always this branch now against this branch then.
    */
-  private async kpis(win: PeriodWindow): Promise<DashboardKpis> {
+  private async kpis(win: PeriodWindow, locationId?: string): Promise<DashboardKpis> {
     const db = this.prisma.client;
     const gymId = this.tenant.gymId;
+    const atBranch = atLocation(locationId);
 
     const [revenueNow, revenuePrev, checkInsNow, checkInsPrev, newMembersNow, newMembersPrev] =
       await Promise.all([
         db.payment.aggregate({
-          where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+          where: {
+            status: PaymentStatus.CAPTURED,
+            createdAt: { gte: win.start, lt: win.end },
+            ...atBranch,
+          },
           _sum: { amount: true },
         }),
         db.payment.aggregate({
           where: {
             status: PaymentStatus.CAPTURED,
             createdAt: { gte: win.prevStart, lt: win.prevEnd },
+            ...atBranch,
           },
           _sum: { amount: true },
         }),
+        // Branch-filtered on the branch the member WALKED INTO — the column
+        // Stage 3 made real, served by `@@index([gymId, locationId, checkedInAt])`.
         db.checkIn.count({
-          where: { gymId, checkedInAt: { gte: win.start, lt: win.end } },
+          where: { gymId, checkedInAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         }),
         db.checkIn.count({
-          where: { gymId, checkedInAt: { gte: win.prevStart, lt: win.prevEnd } },
+          where: {
+            gymId,
+            checkedInAt: { gte: win.prevStart, lt: win.prevEnd },
+            ...atLocation(locationId),
+          },
+        }),
+        // Branch-filtered on the member's HOME branch — a joiner belongs to the
+        // branch they signed up to, which is the column Stage 2 added and which
+        // `@@index([gymId, locationId, status])` serves.
+        db.gymMember.count({
+          where: {
+            role: Role.MEMBER,
+            joinedAt: { gte: win.start, lt: win.end },
+            ...atLocation(locationId),
+          },
         }),
         db.gymMember.count({
-          where: { role: Role.MEMBER, joinedAt: { gte: win.start, lt: win.end } },
-        }),
-        db.gymMember.count({
-          where: { role: Role.MEMBER, joinedAt: { gte: win.prevStart, lt: win.prevEnd } },
+          where: {
+            role: Role.MEMBER,
+            joinedAt: { gte: win.prevStart, lt: win.prevEnd },
+            ...atLocation(locationId),
+          },
         }),
       ]);
 
@@ -360,8 +511,20 @@ export class DashboardService {
    * Only `classesToday` follows the header period; the others are current-state /
    * forward-looking figures that are meaningless to re-window into the past, so they
    * stay pinned to "now" / "this month" regardless of the selected window.
+   *
+   * `locationId` narrows ALL SIX. `revenueThisMonth` goes through the payment's
+   * order and `classesToday` filters `ClassInstance.locationId` directly, as
+   * before. Stage 2 added the other four: `activeMembers` reads
+   * `GymMember.locationId`, and `overduePayments` / `expiringSoon` / `renewalsDue`
+   * hop through `Subscription.member` to the same home branch. Each is a single
+   * count over one population, so the six reconcile with each other and, summed
+   * across branches, with the gym.
    */
-  private async secondaryKpis(win: PeriodWindow, zone: string): Promise<DashboardSecondaryKpis> {
+  private async secondaryKpis(
+    win: PeriodWindow,
+    zone: string,
+    locationId?: string,
+  ): Promise<DashboardSecondaryKpis> {
     const db = this.prisma.client;
     const now = new Date();
     const monthStart = startOfMonth(now, zone);
@@ -372,6 +535,7 @@ export class DashboardService {
     const nextMonthStart = startOfMonth(new Date(monthStart.getTime() + 32 * DAY_MS), zone);
     const in7Days = new Date(now.getTime() + 7 * DAY_MS);
     const live = [...LIVE_SUBSCRIPTION_STATUSES];
+    const atBranch = atLocation(locationId);
 
     const [
       activeMembers,
@@ -382,25 +546,51 @@ export class DashboardService {
       expiringSoon,
       renewalsDue,
     ] = await Promise.all([
-      db.gymMember.count({ where: { role: Role.MEMBER, status: GymMemberStatus.ACTIVE } }),
+      // The member's HOME branch — `@@index([gymId, locationId, status])` is
+      // exactly this count's shape.
+      db.gymMember.count({
+        where: {
+          role: Role.MEMBER,
+          status: GymMemberStatus.ACTIVE,
+          ...atLocation(locationId),
+        },
+      }),
       db.payment.aggregate({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: monthStart } },
+        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: monthStart }, ...atBranch },
         _sum: { amount: true },
       }),
       db.payment.aggregate({
         where: {
           status: PaymentStatus.CAPTURED,
           createdAt: { gte: lastMonthStart, lt: monthStart },
+          ...atBranch,
         },
         _sum: { amount: true },
       }),
-      db.subscription.count({ where: { status: SubscriptionStatus.PAST_DUE } }),
-      db.classInstance.count({ where: { startsAt: { gte: win.start, lt: win.end } } }),
+      // A `Subscription` reaches a branch through its member, and since Stage 2
+      // that member has one. Attributed to the member's home branch — the same
+      // rule the Revenue tab's MRR and the Members tab's cohorts use, so the
+      // dunning backlog on this card is about the same people. (Same for the two
+      // renewal counts below.)
       db.subscription.count({
-        where: { status: { in: live }, currentPeriodEnd: { gte: now, lte: in7Days } },
+        where: { status: SubscriptionStatus.PAST_DUE, ...memberAtLocation(locationId) },
+      }),
+      db.classInstance.count({
+        where: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
       }),
       db.subscription.count({
-        where: { status: { in: live }, currentPeriodEnd: { gte: monthStart, lt: nextMonthStart } },
+        where: {
+          status: { in: live },
+          currentPeriodEnd: { gte: now, lte: in7Days },
+          ...memberAtLocation(locationId),
+        },
+      }),
+      db.subscription.count({
+        where: {
+          status: { in: live },
+          currentPeriodEnd: { gte: monthStart, lt: nextMonthStart },
+          ...memberAtLocation(locationId),
+        },
       }),
     ]);
 
@@ -427,11 +617,25 @@ export class DashboardService {
    * timestamps + amounts once (index-served by `(gymId, createdAt)`) and buckets in
    * memory into a dense, gap-filled series so the chart's x-axis is continuous even
    * on days with no takings. `total` is the SUM over the window.
+   *
+   * `locationId` narrows it to one branch's takings, on `Payment.locationId`.
+   * Stage 5 removed the index caveat this comment used to carry: the order
+   * relation filter took the read off its `(gymId, createdAt)` plan, and the
+   * denormalised column restores an index-served range scan via
+   * `(gymId, locationId, createdAt)`.
    */
-  private async revenue(range: DashboardRange, zone: string): Promise<DashboardRevenue> {
+  private async revenue(
+    range: DashboardRange,
+    zone: string,
+    locationId?: string,
+  ): Promise<DashboardRevenue> {
     const win = resolveWindow(range, zone);
     const rows = await this.prisma.client.payment.findMany({
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       select: { amount: true, createdAt: true },
     });
 
@@ -462,8 +666,13 @@ export class DashboardService {
    * FROZEN) grouped by their catalogue plan, labelled with each plan's name. A
    * subscription whose plan was deleted rolls up under `"No plan"`. `total` is the
    * live-members count across all plans. Mirrors {@link AnalyticsService.planMix}.
+   *
+   * `locationId` narrows it to the plans held by the members homed at that branch.
+   * A `Subscription` reaches a branch only through its `GymMember`, and since
+   * Stage 2 that member has one — the same hop the roster's own plan-mix card uses
+   * (`members.service.ts`), so the two cannot disagree about what this branch sells.
    */
-  private async planMix(): Promise<DashboardPlanMix> {
+  private async planMix(locationId?: string): Promise<DashboardPlanMix> {
     const db = this.prisma.client;
     const grouped = await db.subscription.groupBy({
       by: ['planId'],
@@ -476,6 +685,7 @@ export class DashboardService {
             SubscriptionStatus.FROZEN,
           ],
         },
+        ...memberAtLocation(locationId),
       },
       _count: { _all: true },
     });
@@ -519,13 +729,16 @@ export class DashboardService {
    * booked-vs-capacity. `booked` counts confirmed + attended bookings on the
    * occurrence; `capacity` is `capacityOverride ?? template.capacity`. Scoped to
    * the caller's gym via the tenant extension.
+   *
+   * `locationId` narrows it to the branch's own timetable — plain equality on
+   * `ClassInstance.locationId`, served by `(gymId, locationId, startsAt)`.
    */
-  private async todaysSchedule(zone: string): Promise<DashboardScheduleRow[]> {
+  private async todaysSchedule(zone: string, locationId?: string): Promise<DashboardScheduleRow[]> {
     const dayStart = startOfToday(zone);
     const dayEnd = new Date(dayStart.getTime() + DAY_MS);
 
     const instances = await this.prisma.client.classInstance.findMany({
-      where: { startsAt: { gte: dayStart, lt: dayEnd } },
+      where: { startsAt: { gte: dayStart, lt: dayEnd }, ...atLocation(locationId) },
       orderBy: { startsAt: 'asc' },
       select: {
         startsAt: true,
@@ -562,26 +775,39 @@ export class DashboardService {
    *   • payment        — the most recent CAPTURED payment ("Payment received").
    *   • class_full     — any today class ≥ 90% full ("<title> is <pct>% full").
    *   • payment_failed — any FAILED payment today ("Card declined").
+   *
+   * All three kinds are branch-filterable, so with a `locationId` the feed is
+   * genuinely that branch's events: the two payment reads filter `Payment.locationId`
+   * and the class read filters `ClassInstance.locationId`, both directly.
    */
-  private async alerts(zone: string, currency: string): Promise<DashboardAlert[]> {
+  private async alerts(
+    zone: string,
+    currency: string,
+    locationId?: string,
+  ): Promise<DashboardAlert[]> {
     const db = this.prisma.client;
     const dayStart = startOfToday(zone);
     const dayEnd = new Date(dayStart.getTime() + DAY_MS);
+    const atBranch = atLocation(locationId);
 
     const [recentPayment, failedPayments, todayInstances] = await Promise.all([
       db.payment.findFirst({
-        where: { status: PaymentStatus.CAPTURED },
+        where: { status: PaymentStatus.CAPTURED, ...atBranch },
         orderBy: { createdAt: 'desc' },
         select: { amount: true, currency: true, createdAt: true },
       }),
       db.payment.findMany({
-        where: { status: PaymentStatus.FAILED, createdAt: { gte: dayStart, lt: dayEnd } },
+        where: {
+          status: PaymentStatus.FAILED,
+          createdAt: { gte: dayStart, lt: dayEnd },
+          ...atBranch,
+        },
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
         take: 3,
       }),
       db.classInstance.findMany({
-        where: { startsAt: { gte: dayStart, lt: dayEnd } },
+        where: { startsAt: { gte: dayStart, lt: dayEnd }, ...atLocation(locationId) },
         select: {
           startsAt: true,
           capacityOverride: true,
@@ -643,10 +869,25 @@ export class DashboardService {
    * Today's check-in feed, most recent first, top ~6. Reuses the same today-bound,
    * explicitly tenant-scoped `CheckIn` read the reception feed uses, joined to the
    * member's identity + current plan name.
+   *
+   * **`locationId` narrows it to arrivals AT that branch** — `CheckIn.locationId`,
+   * the door they came through, not `member.locationId`, the branch they call home.
+   * The feed sits under the occupancy card and is the named-people version of the
+   * same event, so it has to read the same column {@link inGymNow} counts or the
+   * card and the list underneath it would disagree about who is in the building.
+   *
+   * The take-6 is applied AFTER the filter, so a branch's feed is that branch's six
+   * most recent arrivals rather than whatever survives filtering the gym's six.
+   * A branchless arrival (`SetNull` after a branch is deleted) drops out under a
+   * filter and stays in the gym-wide feed — see {@link inGymNow}.
    */
-  private async recentCheckIns(zone: string): Promise<DashboardCheckIn[]> {
+  private async recentCheckIns(zone: string, locationId?: string): Promise<DashboardCheckIn[]> {
     const rows = await this.prisma.client.checkIn.findMany({
-      where: { gymId: this.tenant.gymId, checkedInAt: { gte: startOfToday(zone) } },
+      where: {
+        gymId: this.tenant.gymId,
+        checkedInAt: { gte: startOfToday(zone) },
+        ...atLocation(locationId),
+      },
       orderBy: { checkedInAt: 'desc' },
       take: 6,
       select: {
@@ -689,10 +930,15 @@ export class DashboardService {
    * The latest joiners for the "recent members" table — top 6 `MEMBER`-role members
    * by `joinedAt`, each with their current live subscription's plan name + period end
    * (the "expiry"). All real, tenant-scoped via the Prisma extension.
+   *
+   * `locationId` narrows it to the branch's own joiners — plain equality on
+   * `GymMember.locationId`, the home branch Stage 2 added. It reads the same
+   * population `kpis.newMembers7d` counts, so the card and the table above it
+   * cannot disagree about who is new here.
    */
-  private async recentMembers(): Promise<DashboardRecentMember[]> {
+  private async recentMembers(locationId?: string): Promise<DashboardRecentMember[]> {
     const rows = await this.prisma.client.gymMember.findMany({
-      where: { role: Role.MEMBER },
+      where: { role: Role.MEMBER, ...atLocation(locationId) },
       orderBy: { joinedAt: 'desc' },
       take: 6,
       select: {

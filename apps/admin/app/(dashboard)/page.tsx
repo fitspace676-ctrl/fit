@@ -14,6 +14,7 @@ import {
 } from '@fit/types';
 import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchDashboardOverview } from '@/lib/api';
 import { SegmentedDashboard } from './segments/segmented-dashboard';
 
@@ -91,10 +92,15 @@ export default async function DashboardPage({
   const from = parseDate(params.from);
   const to = parseDate(params.to);
   const segment = parseSegment(params.segment);
+  // The cookie unless `?locationId=` overrides it, validated against the gym's
+  // live branches; `undefined` means every branch. Occupancy, check-ins, members
+  // and subscriptions ignore it API-side — the Overview tab says so, above the
+  // cards (see `segments/branch-scope-note.tsx`).
+  const locationId = await getActiveLocationId(params);
 
   let overview;
   try {
-    overview = await fetchDashboardOverview({ range, period, from, to });
+    overview = await fetchDashboardOverview({ range, period, from, to, locationId });
   } catch (error) {
     const t = await getTranslations('admin.dashboard.error');
     const message =

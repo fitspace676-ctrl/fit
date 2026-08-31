@@ -342,3 +342,55 @@ describe('DashboardClassesService.get — the gym clock', () => {
     expect(result.demandByHour[3]?.[21]).toBe(0);
   });
 });
+
+describe('DashboardClassesService.get — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** The `where` a mocked read was issued with. */
+  function whereOf(fn: ReturnType<typeof vi.fn>): Record<string, unknown> {
+    return (fn.mock.calls[0]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
+  }
+
+  it('filters occurrences on their own column, plain equality', async () => {
+    const { service, instanceFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    // No `OR locationId IS NULL`: Stage 0 backfilled every `class_instances` row
+    // to its gym's default branch, so equality is complete.
+    expect(whereOf(instanceFindMany).locationId).toBe('loc_1');
+  });
+
+  // A `Booking` has no branch of its own; it inherits the occurrence's. The clause
+  // must go INSIDE the existing `classInstance` filter — a second `classInstance`
+  // key would overwrite the window and silently widen the tab to all time.
+  it('reaches a booking branch through its occurrence, without dropping the window', async () => {
+    const { service, bookingFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    const nested = whereOf(bookingFindMany).classInstance as Record<string, unknown>;
+    expect(nested.locationId).toBe('loc_1');
+    expect(nested.startsAt).toBeDefined();
+  });
+
+  // `PtSession` has no location column at all (Stage 6), so this one series stays
+  // gym-wide. It is standalone — nothing on this tab sums PT with a class figure —
+  // so no single number ends up half branch and half gym.
+  it('leaves the PT series gym-wide', async () => {
+    const { service, ptFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(whereOf(ptFindMany)).not.toHaveProperty('locationId');
+  });
+
+  it('sends no branch clause when no branch is selected', async () => {
+    const { service, instanceFindMany, bookingFindMany } = setup({});
+
+    await service.get(QUERY);
+
+    expect(whereOf(instanceFindMany)).not.toHaveProperty('locationId');
+    expect(whereOf(bookingFindMany).classInstance).not.toHaveProperty('locationId');
+  });
+});

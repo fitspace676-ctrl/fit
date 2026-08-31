@@ -8,7 +8,9 @@ import {
   type CashReconciliationReport,
   type PaymentMethod,
 } from '@fit/types';
+import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
+import { fetchActiveLocations, getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchCashReconciliation } from '@/lib/api';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
 import { Icon } from '@/components/ui';
@@ -75,6 +77,31 @@ const styles = stylex.create({
     maxWidth: '42rem',
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
+  },
+  scope: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginTop: '0.25rem',
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
+  scopeLabel: {
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+  },
+  scopeValue: {
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  scopeCaveat: {
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
   },
   errorCard: {
     display: 'flex',
@@ -224,10 +251,30 @@ export default async function ReconciliationPage({
   // falls back to today rather than erroring.
   const date = businessDateSchema.safeParse(rawDate).success ? (rawDate as string) : todayIso();
 
+  // WHICH TILL IS BEING COUNTED. A drawer belongs to a branch: two branches each
+  // count their own float, and a variance is only actionable against the one
+  // drawer it came out of. Pooling every branch's takings into a single expected
+  // cash figure produces a number no one can balance, so the branch is resolved
+  // here (top-bar cookie, or an explicit `?locationId=`), passed to the report,
+  // and — crucially — stated on the screen. In "All locations" mode the figure is
+  // still shown, but labelled as the un-split total it is rather than left to read
+  // as one till's.
+  const [locationId, locations, t] = await Promise.all([
+    getActiveLocationId(raw),
+    fetchActiveLocations(),
+    getTranslations('admin.common'),
+  ]);
+  // The id is already validated against this same (request-memoised) roster, so
+  // the lookup cannot realistically miss; falling back to the id rather than to
+  // "All locations" keeps a miss from reading as the opposite of what it is.
+  const branchName = locationId
+    ? (locations.find((location) => location.id === locationId)?.name ?? locationId)
+    : null;
+
   let report: CashReconciliationReport | null = null;
   let error: string | null = null;
   try {
-    report = await fetchCashReconciliation(date);
+    report = await fetchCashReconciliation(date, locationId);
   } catch (caught) {
     error =
       caught instanceof ApiError
@@ -242,6 +289,13 @@ export default async function ReconciliationPage({
         <p {...stylex.props(styles.subtitle)}>
           The day’s takings grouped by how they were settled. Count the cash drawer and balance it
           against the expected cash below.
+        </p>
+        <p {...stylex.props(styles.scope)}>
+          <span {...stylex.props(styles.scopeLabel)}>{t('locationLabel')}</span>
+          <span {...stylex.props(styles.scopeValue)}>{branchName ?? t('allLocations')}</span>
+          {locationId === undefined ? (
+            <span {...stylex.props(styles.scopeCaveat)}>{t('notSplitByBranch')}</span>
+          ) : null}
         </p>
       </header>
 

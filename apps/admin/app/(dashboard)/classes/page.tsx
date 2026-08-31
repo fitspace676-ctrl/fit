@@ -7,7 +7,9 @@ import {
   roleHasPermission,
   type ListAdminClassTypesQuery,
 } from '@fit/types';
+import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchClassTypes } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
@@ -80,6 +82,36 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-error)',
   },
+  // A quiet strip, not an alert: nothing has gone wrong, the table is simply
+  // about a wider population than the switcher suggests. Same surface + hairline
+  // treatment as the dashboard's and reports' branch-scope notes, so the console
+  // makes this point the same way wherever it has to make it.
+  scopeNote: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.5rem',
+    borderRadius: 'var(--radius-inner)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    backgroundColor: 'var(--color-background-surface)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.5rem',
+  },
+  scopeNoteIcon: {
+    width: '0.875rem',
+    height: '0.875rem',
+    flexShrink: 0,
+    // Optically centred on the first line of text rather than its box top.
+    marginTop: '0.1875rem',
+    color: 'var(--color-icon-secondary)',
+  },
+  scopeNoteText: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    lineHeight: 1.5,
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 /** Next 15 hands `searchParams` as a promise of raw (string | string[]) values. */
@@ -109,6 +141,25 @@ export default async function ClassTypesPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
   const relationOptions = canWrite ? await loadRelationOptions() : null;
+
+  // THE TYPE CATALOGUE IS DELIBERATELY NOT FILTERED BY BRANCH.
+  //
+  // `GET /admin/class-types` takes no `locationId`, and that is a decision rather
+  // than a gap (roadmap → exemption register): a `ClassType` carries no location
+  // column, so the only branch it could be narrowed by is "a branch it has been
+  // scheduled at" — `instances: { some: { locationId } }`. That reading is wrong
+  // in both directions. A type created this morning has no occurrences yet, so it
+  // would vanish from every branch until first scheduled; and a type run once at
+  // branch B would be pinned to B forever. Either way the operator would conclude
+  // the catalogue is smaller than it is. It becomes filterable when `ClassType`
+  // gains a real branch (Stage 7).
+  //
+  // So the table stays gym-wide and *says so* — but only while a branch is
+  // actually selected, because with "All locations" there is nothing to disclaim.
+  const [locationId, tClassTypes] = await Promise.all([
+    getActiveLocationId(raw),
+    getTranslations('admin.classTypes'),
+  ]);
 
   let content;
   try {
@@ -155,6 +206,13 @@ export default async function ClassTypesPage({
       </header>
 
       <ClassesTabs />
+
+      {locationId !== undefined ? (
+        <div role="note" {...stylex.props(styles.scopeNote)}>
+          <Icon name="info" aria-hidden {...stylex.props(styles.scopeNoteIcon)} />
+          <p {...stylex.props(styles.scopeNoteText)}>{tClassTypes('branchScope')}</p>
+        </div>
+      ) : null}
 
       <ClassTypesFilters search={query.search ?? ''} status={query.status ?? ''} />
 

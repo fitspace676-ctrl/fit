@@ -80,8 +80,9 @@ export class OrdersController {
    * `GET /orders/reconciliation?date=YYYY-MM-DD` — the end-of-day cash reconciliation
    * for one business day (T7.5): the gym's captured takings for that day (in the
    * gym's own timezone) grouped by settlement method, with the cash total the
-   * counted drawer is balanced against. An out-of-range / impossible date is a
-   * `400`. Gated on `BillingRead`.
+   * counted drawer is balanced against. An optional `locationId` scopes it to one
+   * branch's till — each branch counts its own drawer. An out-of-range /
+   * impossible date is a `400`. Gated on `BillingRead`.
    */
   @Get('reconciliation')
   @RequirePermissions(Permission.BillingRead)
@@ -92,8 +93,9 @@ export class OrdersController {
   /**
    * `GET /orders` — one filtered, server-paginated page of the gym's orders for the
    * admin roster (T7.9). The query filters by `channel` (POS / ONLINE), `status`,
-   * `memberId`, and a `from`/`to` `createdAt` range; a malformed filter is a `400`.
-   * Gated on `BillingRead`.
+   * `memberId`, `locationId` (the branch the sale was rung up at), and a
+   * `from`/`to` `createdAt` range; a malformed filter is a `400`. Gated on
+   * `BillingRead`.
    */
   @Get()
   @RequirePermissions(Permission.BillingRead)

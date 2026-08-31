@@ -13,6 +13,7 @@ import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { bucketKey, emptyBuckets, rate, resolveWindow } from '../reports/report-window.util';
 import { zonedParts } from '../reports/zoned-time.util';
+import { atLocation } from '../common/location-filter.util';
 
 /** How many class types the ranking shows. The card's caption states it. */
 
@@ -56,6 +57,20 @@ interface TypeAgg {
  *
  * Scoped by {@link TenantPrismaService}'s extension, so no query passes or trusts
  * a `gymId`.
+ *
+ * **`locationId` narrows the class half of the tab exactly, and leaves the PT
+ * series alone.** `ClassInstance` owns a `locationId` (backfilled in Stage 0,
+ * indexed as `(gymId, locationId, startsAt)`) and a `Booking` is reached through
+ * its occurrence, so every KPI, trend, ranking and heatmap cell that counts
+ * classes or seats is genuinely that branch's.
+ *
+ * `ptSessionsOverTime` is the exception: `PtSession` has no location column, so it
+ * stays gym-wide until Stage 6. It is a standalone series — nothing on this tab
+ * sums PT together with a class figure — so no single number here ends up half
+ * branch and half gym. The caption this docblock was written against, which the
+ * console mirrors verbatim:
+ *
+ *     PT sessions are gym-wide.
  */
 @Injectable()
 export class DashboardClassesService {
@@ -73,10 +88,11 @@ export class DashboardClassesService {
     const zone = locale.timezone;
     const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
     const now = new Date();
+    const atBranch = atLocation(query.locationId);
 
     const [instances, bookings, ptSessions] = await Promise.all([
       this.prisma.client.classInstance.findMany({
-        where: { startsAt: { gte: win.start, lt: win.end } },
+        where: { startsAt: { gte: win.start, lt: win.end }, ...atBranch },
         select: {
           startsAt: true,
           status: true,
@@ -85,8 +101,11 @@ export class DashboardClassesService {
           classType: { select: { name: true, capacity: true } },
         },
       }),
+      // A `Booking` carries no branch of its own; it inherits the occurrence's.
+      // The branch clause goes INSIDE the existing `classInstance` filter — a
+      // second `classInstance` key would silently overwrite the window.
       this.prisma.client.booking.findMany({
-        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        where: { classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atBranch } },
         select: {
           status: true,
           classInstance: {
@@ -99,6 +118,9 @@ export class DashboardClassesService {
           },
         },
       }),
+      // NOT branch-filtered: `PtSession` has no location column, so
+      // `ptSessionsOverTime` is every branch's PT even when a branch is selected.
+      // Stage 6 adds `PtSession.locationId`.
       this.prisma.client.ptSession.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },

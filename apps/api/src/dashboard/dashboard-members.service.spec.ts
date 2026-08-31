@@ -358,3 +358,73 @@ describe('DashboardMembersService.get — LTV at scale', () => {
     expect((await service.get(QUERY)).kpis.avgLtv).toBe(0);
   });
 });
+
+describe('DashboardMembersService.get — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** Every `where` a mocked read was issued with. */
+  function wheres(fn: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
+    return fn.mock.calls.map(
+      (call) => (call[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {},
+    );
+  }
+
+  // Stage 2 gave `GymMember` a home branch, which is the whole tab: every figure
+  // here counts members or the subscriptions belonging to them. This spec used to
+  // assert the opposite — that nothing was filtered — and is inverted rather than
+  // deleted, because the property worth pinning is unchanged: EVERY read moves
+  // together, or the tab's numbers stop reconciling.
+  it('narrows every member and subscription read to the branch', async () => {
+    const { service, memberFindMany, memberCount, subscriptionFindMany } = setup();
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    // `GymMember` owns the column; a `Subscription` reaches it through `member`.
+    for (const fn of [memberFindMany, memberCount]) {
+      for (const where of wheres(fn)) {
+        expect(where.locationId).toBe('loc_1');
+      }
+    }
+    for (const where of wheres(subscriptionFindMany)) {
+      expect(where.member).toMatchObject({ locationId: 'loc_1' });
+    }
+  });
+
+  // No `OR locationId IS NULL` arm anywhere, and no filter at all when the branch
+  // is absent: "all branches" must leave each read's original plan untouched.
+  it('leaves every read alone when no branch is selected', async () => {
+    const { service, memberFindMany, memberCount, subscriptionFindMany, paymentFindMany } = setup();
+
+    await service.get(QUERY);
+
+    for (const fn of [memberFindMany, memberCount, subscriptionFindMany, paymentFindMany]) {
+      for (const where of wheres(fn)) {
+        expect(where).not.toHaveProperty('locationId');
+      }
+    }
+    expect(wheres(subscriptionFindMany)[0]).toEqual({ member: { deletedAt: null } });
+  });
+
+  // `avgLtv`'s numerator could equally be narrowed through the ORDER's own branch.
+  // It must not be: the denominator (`memberCount`) is a head-count of members
+  // homed here, so a till-attributed numerator would divide one population's money
+  // by another population's size — a wrong average, not a smaller one. Both halves
+  // therefore take the member hop.
+  it('narrows the LTV numerator by the BUYER, so it matches its denominator', async () => {
+    const { service, paymentFindMany, invoiceFindMany } = setup();
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    // Through `order.member`, never `order.locationId`.
+    const paymentOrder = wheres(paymentFindMany)[0]?.order as Record<string, unknown> | undefined;
+    expect(paymentOrder).not.toHaveProperty('locationId');
+    expect(paymentOrder?.member).toMatchObject({ locationId: 'loc_1' });
+
+    // The invoice half keeps `orderId: null` as its double-count guard — which is
+    // exactly why it takes the member hop too: that set has no order to reach a
+    // branch through, and a relation filter on one would match nothing.
+    expect(wheres(invoiceFindMany)[0]).not.toHaveProperty('order');
+    expect(wheres(invoiceFindMany)[0]?.orderId).toBeNull();
+    expect(wheres(invoiceFindMany)[0]?.member).toMatchObject({ locationId: 'loc_1' });
+  });
+});

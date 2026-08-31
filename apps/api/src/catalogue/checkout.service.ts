@@ -203,6 +203,12 @@ export class CheckoutService {
           amount: total,
           currency: plan.currency,
           status: PaymentStatus.CAPTURED,
+          // The same branch the order above carries (Stage 5) — `branchId`, already
+          // validated as one of this gym's locations, not the raw `locationId` off
+          // the wire. Taking it from the same resolved value rather than re-reading
+          // is what guarantees the payment and its order agree; a foreign id was
+          // already collapsed to null before either write.
+          locationId: branchId,
           // The MVP charge is stubbed (treated as captured); T8.8 swaps `stub` for
           // a concrete gateway + `providerRef`. Distinct from the POS `pos` channel.
           provider: 'stub',

@@ -10,6 +10,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProductCategories, fetchProducts } from '@/lib/api';
+import { fetchActiveLocations, getActiveLocationId } from '@/lib/active-location-server';
 import { Icon } from '@/components/ui';
 import { ProductsFilters } from './products-filters';
 import { ProductsStatusTabs } from './products-status-tabs';
@@ -101,6 +102,35 @@ const styles = stylex.create({
     height: '1.25rem',
     flexShrink: 0,
   },
+  scope: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.5rem',
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
+  scopeLabel: {
+    fontSize: '0.6875rem',
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+  },
+  scopeValue: {
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  scopeCaveat: {
+    paddingInline: '0.5rem',
+    paddingBlock: '0.125rem',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  scopeLink: {
+    color: 'var(--color-text-accent)',
+    textDecoration: 'none',
+  },
 });
 
 /** Next 15 hands `searchParams` as a promise of raw (string | string[]) values. */
@@ -115,6 +145,21 @@ type SearchParams = Record<string, string | string[] | undefined>;
  * staff (middleware) and the API enforces `ProductRead`, so the only failure handled
  * here is the API call itself — the tiles / grid only render on success, while the
  * URL-derived tabs and filter bar stay visible either way.
+ *
+ * ## The catalogue does not narrow by branch. The stock on it does not either.
+ *
+ * `listAdminProductsQuerySchema` carries no `locationId`, deliberately: what the
+ * gym SELLS is one list, the same at every door. Branch-exclusive products are
+ * Stage 7 of multi-branch, and inventing the filter here — by, say, hiding products
+ * with no stock at the selected branch — would answer a question about stock with a
+ * change to the catalogue.
+ *
+ * The trap that leaves is the stock badge. `totalStock` / `lowestStock` are
+ * roll-ups across every branch, and a card reading "In stock · 12" beside a header
+ * that says "Riverside" invites exactly one reading, which is the wrong one. The
+ * numbers are not changed to suit the filter and they are not hidden either —
+ * either would be a different lie — so the page states the scope instead, and
+ * points at `/shop/inventory`, which is the surface that does narrow.
  */
 export default async function ProductsPage({
   searchParams,
@@ -126,6 +171,14 @@ export default async function ProductsPage({
   const query: ListAdminProductsQuery = parsed.success
     ? parsed.data
     : listAdminProductsQuerySchema.parse({});
+
+  const [locationId, locations] = await Promise.all([
+    getActiveLocationId(raw),
+    fetchActiveLocations(),
+  ]);
+  const branchName = locationId
+    ? (locations.find((location) => location.id === locationId)?.name ?? locationId)
+    : null;
 
   // "New product" and category management are `ProductWrite` capabilities — shown
   // only to staff who hold them.
@@ -177,6 +230,19 @@ export default async function ProductsPage({
             watch stock at a glance - open a product to edit its gallery and variants, or add a new
             one.
           </p>
+          {branchName === null ? null : (
+            <p {...stylex.props(styles.scope)}>
+              <span {...stylex.props(styles.scopeLabel)}>Location</span>
+              <span {...stylex.props(styles.scopeValue)}>{branchName}</span>
+              <span {...stylex.props(styles.scopeCaveat)}>
+                The catalogue is gym-wide, and so are the stock figures on it —{' '}
+                <Link href="/shop/inventory" {...stylex.props(styles.scopeLink)}>
+                  Inventory
+                </Link>{' '}
+                has {branchName}’s shelves
+              </span>
+            </p>
+          )}
         </div>
         <div {...stylex.props(styles.headActions)}>
           <Link href="/shop/inventory" {...stylex.props(styles.outlineLink)}>

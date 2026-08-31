@@ -31,6 +31,74 @@ function loyaltyStub(): LoyaltyPointsService {
   } as unknown as LoyaltyPointsService;
 }
 
+/**
+ * The per-branch stock an order's units move on and off. Since Stage 4 they leave
+ * a `ProductStock` row rather than the product column, so the mock transaction has
+ * to carry one row per product — seeded from the product fixtures, which is how a
+ * single-branch gym looks once the Stage 4 migration has put everything on the
+ * default branch.
+ *
+ * `updateMany` honours its own `stock: { gte: … }` bound, so an oversold position
+ * clamps here exactly as Postgres would rather than the mock waving the claim
+ * through and hiding the behaviour under test.
+ */
+function branchStockStore(products: unknown[]) {
+  const rows = new Map<string, { stock: number | null; variants: number[] }>(
+    (products as Array<{ id: string; stock?: number | null; variants?: unknown }>).map((p) => [
+      p.id,
+      {
+        stock: p.stock ?? null,
+        variants: Array.isArray(p.variants)
+          ? (p.variants as Array<{ stock?: number }>).map((v) => v.stock ?? 0)
+          : [],
+      },
+    ]),
+  );
+  return {
+    rows,
+    findFirst: vi.fn((args: { where: { productId: string; locationId: string } }) =>
+      Promise.resolve(rows.get(args.where.productId) ?? null),
+    ),
+    updateMany: vi.fn(
+      (args: {
+        where: { productId: string; locationId: string; stock: { gte: number } };
+        data: { stock: { decrement: number } };
+      }) => {
+        const row = rows.get(args.where.productId);
+        if (!row || row.stock === null || row.stock < args.where.stock.gte) {
+          return Promise.resolve({ count: 0 });
+        }
+        row.stock -= args.data.stock.decrement;
+        return Promise.resolve({ count: 1 });
+      },
+    ),
+    upsert: vi.fn(
+      (args: {
+        where: { productId_locationId: { productId: string } };
+        create: { stock?: number | null; variants?: unknown };
+        update: { stock?: { increment: number }; variants?: unknown };
+      }) => {
+        const id = args.where.productId_locationId.productId;
+        const row = rows.get(id);
+        if (!row) {
+          rows.set(id, {
+            stock: args.create.stock ?? null,
+            variants: (args.create.variants as number[]) ?? [],
+          });
+          return Promise.resolve({});
+        }
+        if (args.update.variants !== undefined) {
+          row.variants = args.update.variants as number[];
+        }
+        if (args.update.stock !== undefined) {
+          row.stock = (row.stock ?? 0) + args.update.stock.increment;
+        }
+        return Promise.resolve({});
+      },
+    ),
+  };
+}
+
 /** Enrolment stub — the membership-sale tests assert against its calls. */
 function enrollmentStub(
   enrollMember = vi.fn().mockResolvedValue({}),
@@ -64,6 +132,8 @@ function setup(over?: {
   staff?: { id: string } | null;
   /** The product rows the sale's stock draw-down reads back. */
   productFindMany?: unknown[];
+  /** The branch the order names; `null` exercises the default-branch fallback. */
+  orderLocationId?: string | null;
   /** The catalogue service rows a service line on the receipt resolves against. */
   services?: Array<{ id: string; status: string }>;
 }) {
@@ -91,10 +161,23 @@ function setup(over?: {
   const productFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.productFindMany ?? []));
   const productUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'p1' }));
   const movementCreateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
+  // The branch the till rang the sale on — `applyOrderStockMovements` reads it back
+  // off the order it was just handed, so the units come off THIS branch's shelf.
+  const saleOrderFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve({
+      locationId: over?.orderLocationId === undefined ? 'loc-1' : over.orderLocationId,
+    }),
+  );
+  const defaultLocationFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve({ id: 'loc-default' }),
+  );
+  const branchStock = branchStockStore(over?.productFindMany ?? []);
   const tx = {
-    order: { create: orderCreate },
+    order: { create: orderCreate, findFirst: saleOrderFindFirst },
+    location: { findFirst: defaultLocationFindFirst },
     payment: { create: paymentCreate },
     product: { findMany: productFindMany, update: productUpdate },
+    productStock: branchStock,
     stockMovement: { createMany: movementCreateMany },
   };
   const $transaction = vi.fn((cb: (client: typeof tx) => unknown) => cb(tx));
@@ -117,6 +200,8 @@ function setup(over?: {
   const enrollMember = over?.enrollMember ?? vi.fn().mockResolvedValue({});
   const enrollment = enrollmentStub(enrollMember);
   return {
+    branchStock,
+    defaultLocationFindFirst,
     service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment, promoStub()),
     enrollMember,
     sendReceiptEmail,
@@ -538,15 +623,55 @@ const stockSaleInput: RecordPosSaleInput = {
 describe('OrdersService.recordSale — stock', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('draws the sold units down from the base position', async () => {
-    const { service, productUpdate } = setup({
+  it('draws the sold units off the SELLING branch, and the roll-up by the same delta', async () => {
+    const { service, productUpdate, branchStock } = setup({
       productFindMany: [{ id: 'p1', variants: [], stock: 10 }],
     });
 
     await service.recordSale(stockSaleInput);
 
-    const updateArgs = productUpdate.mock.calls[0]![0] as { data: { stock: number } };
-    expect(updateArgs.data.stock).toBe(8);
+    // The branch's own shelf is where the units actually leave from…
+    expect(branchStock.rows.get('p1')!.stock).toBe(8);
+    const claim = branchStock.updateMany.mock.calls[0]![0];
+    expect(claim.where).toMatchObject({ locationId: 'loc-1', stock: { gte: 2 } });
+    expect(claim.data).toEqual({ stock: { decrement: 2 } });
+    // …and the gym-wide roll-up follows it by exactly the delta that landed.
+    const updateArgs = productUpdate.mock.calls[0]![0] as { data: { stock: unknown } };
+    expect(updateArgs.data.stock).toEqual({ increment: -2 });
+  });
+
+  it('falls back to the default branch when the order names none', async () => {
+    // An online DELIVERY records an address, not a branch — but something still
+    // physically left a shelf, so the units come off the gym's default branch and
+    // the ledger says so out loud rather than silently skipping the draw-down.
+    const { service, defaultLocationFindFirst, branchStock } = setup({
+      productFindMany: [{ id: 'p1', variants: [], stock: 10 }],
+      orderLocationId: null,
+    });
+
+    await service.recordSale(stockSaleInput);
+
+    expect(defaultLocationFindFirst).toHaveBeenCalled();
+    expect(branchStock.updateMany.mock.calls[0]![0].where.locationId).toBe('loc-default');
+  });
+
+  it('sells through a branch that has no stock row, moving and recording nothing', async () => {
+    // The Stage 4 migration leaves every non-default branch empty until an operator
+    // has walked it. Refusing the sale would break that till on deploy morning; a
+    // negative count is foreign to every reader downstream. So the sale completes,
+    // the shelf stays unrecorded, and the roll-up is untouched — which is what keeps
+    // it equal to the sum of the branch rows.
+    const { service, productUpdate, movementCreateMany, paymentCreate, branchStock } = setup({
+      productFindMany: [{ id: 'p1', variants: [], stock: 10 }],
+    });
+    branchStock.rows.delete('p1');
+
+    await service.recordSale(stockSaleInput);
+
+    expect(paymentCreate).toHaveBeenCalled();
+    expect(productUpdate).not.toHaveBeenCalled();
+    expect(movementCreateMany).not.toHaveBeenCalled();
+    expect(branchStock.rows.has('p1')).toBe(false);
   });
 
   it('draws down the named variant when the line sells one', async () => {
@@ -586,6 +711,7 @@ describe('OrdersService.recordSale — stock', () => {
       {
         gymId: 'gym-1',
         productId: 'p1',
+        locationId: 'loc-1',
         variantIndex: null,
         variantLabel: '',
         delta: -2,
@@ -638,8 +764,8 @@ describe('OrdersService.recordSale — stock', () => {
 
     await service.recordSale(stockSaleInput);
 
-    const updateArgs = productUpdate.mock.calls[0]![0] as { data: { stock: number } };
-    expect(updateArgs.data.stock).toBe(0);
+    const updateArgs = productUpdate.mock.calls[0]![0] as { data: { stock: unknown } };
+    expect(updateArgs.data.stock).toEqual({ increment: -1 });
     const movements = movementCreateMany.mock.calls[0]![0] as { data: Array<{ delta: number }> };
     expect(movements.data[0]!.delta).toBe(-1);
     expect(paymentCreate).toHaveBeenCalled();
@@ -675,6 +801,50 @@ describe('OrdersService.reconcile', () => {
     expect(args.where.createdAt.lt.getTime() - args.where.createdAt.gte.getTime()).toBe(
       24 * 60 * 60 * 1000,
     );
+  });
+
+  // A till belongs to a branch: each site counts its own drawer, so a pooled
+  // gym-wide `expectedCash` is a figure nobody can check against real notes. The
+  // branch reaches the payment through its order — `Payment` carries no
+  // `locationId` of its own yet.
+  // Stage 5 turned this from a relation hop into an equality on the payment's own
+  // column. Inverted rather than deleted — the property is still "one branch's
+  // drawer, and the day window and capture filter survive alongside it".
+  it('scopes the count to one branch on the payment’s own column', async () => {
+    const { service, groupBy } = setup({
+      settings: { locale: { currency: 'GEL', timezone: 'Asia/Tbilisi' } },
+      grouped: [{ method: 'CASH', _sum: { amount: 900 }, _count: { _all: 2 } }],
+    });
+
+    const report = await service.reconcile({ date: '2026-06-07', locationId: 'loc-2' });
+
+    expect(report.expectedCash).toBe(900);
+    const args = groupBy.mock.calls[0]![0] as {
+      where: {
+        status: string;
+        createdAt: { gte: Date; lt: Date };
+        order?: unknown;
+        locationId?: string;
+      };
+    };
+    expect(args.where.locationId).toBe('loc-2');
+    // No join: `(gymId, locationId, createdAt)` is exactly this grouping's shape.
+    expect(args.where).not.toHaveProperty('order');
+    // The day window and the capture filter still apply — the branch narrows, it
+    // does not replace.
+    expect(args.where.status).toBe('CAPTURED');
+    expect(args.where.createdAt.lt.getTime() - args.where.createdAt.gte.getTime()).toBe(
+      24 * 60 * 60 * 1000,
+    );
+  });
+
+  it('pools every branch when no location is given', async () => {
+    const { service, groupBy } = setup({ settings: null, grouped: [] });
+
+    await service.reconcile({ date: '2026-06-07' });
+
+    const args = groupBy.mock.calls[0]![0] as { where: Record<string, unknown> };
+    expect(args.where).not.toHaveProperty('order');
   });
 
   it('falls back to default locale when the gym has no settings', async () => {
@@ -769,7 +939,9 @@ function adminSetup(over?: {
       findFirst: paymentFindFirst,
     },
     orderStatusEvent: { create: statusEventCreate },
+    location: { findFirst: vi.fn((_args: unknown) => Promise.resolve({ id: 'loc-default' })) },
     product: { findMany: productFindMany, update: productUpdate },
+    productStock: branchStockStore(over?.productFindMany ?? []),
     stockMovement: { createMany: movementCreateMany },
   };
   const $transaction = vi.fn((cb: (client: typeof tx) => unknown) => cb(tx));
@@ -825,6 +997,7 @@ function orderRecord(over?: Partial<Record<string, unknown>>) {
     fulfillment: 'PICKUP',
     deliveryAddress: null,
     createdAt: new Date('2026-06-07T10:00:00.000Z'),
+    location: { name: 'Vake' },
     payment: { provider: 'pos', method: 'CARD', refundedAmount: 0 },
     _count: { items: 2 },
     ...over,
@@ -890,6 +1063,70 @@ describe('OrdersService.listOrders', () => {
 
     const args = orderFindMany.mock.calls[0]![0] as { where: { NOT?: unknown } };
     expect(args.where.NOT).toEqual({ payment: { is: { provider: 'pos' } } });
+  });
+
+  // The sale is attributed at the till, so the order's own `locationId` is the
+  // authoritative branch — plain equality, no relation hop and no NULL bucket.
+  it('narrows the roster to one branch by the order’s own locationId', async () => {
+    const { service, orderFindMany, orderCount, orderAggregate, paymentAggregate } = adminSetup();
+
+    await service.listOrders({ page: 1, limit: 20, locationId: 'loc-2' });
+
+    const args = orderFindMany.mock.calls[0]![0] as { where: { locationId?: string } };
+    expect(args.where.locationId).toBe('loc-2');
+    // The summary tiles span the filter, so the count and both aggregates have to
+    // carry the branch too — otherwise the totals contradict the rows shown.
+    expect(orderCount).toHaveBeenCalledWith({ where: { locationId: 'loc-2' } });
+    expect(orderAggregate).toHaveBeenCalledWith({
+      where: { locationId: 'loc-2' },
+      _sum: { total: true },
+    });
+    expect(paymentAggregate).toHaveBeenCalledWith({
+      where: { order: { locationId: 'loc-2' } },
+      _sum: { refundedAmount: true },
+    });
+  });
+
+  it('leaves the roster gym-wide when no branch is selected', async () => {
+    const { service, orderFindMany } = adminSetup();
+
+    await service.listOrders({ page: 1, limit: 20 });
+
+    const args = orderFindMany.mock.calls[0]![0] as { where: Record<string, unknown> };
+    expect(args.where).not.toHaveProperty('locationId');
+  });
+
+  // The roster names the branch each sale was rung up at. It is projected by a
+  // one-hop relation select on the *same* findMany — not a follow-up read per row
+  // — so pinning the select shape here is what keeps it from regressing into an
+  // N+1. Only `name` is pulled: the rest of a Location is dead weight in a table.
+  it('projects the branch name through a one-hop select on the roster query', async () => {
+    const { service, orderFindMany } = adminSetup({
+      orderFindMany: [orderRecord({ location: { name: 'Vake' } })],
+      orderCount: 1,
+    });
+
+    const result = await service.listOrders({ page: 1, limit: 20 });
+
+    const args = orderFindMany.mock.calls[0]![0] as {
+      select: { location?: unknown };
+      include?: unknown;
+    };
+    expect(args.select.location).toEqual({ select: { name: true } });
+    // One query, not one per row: the branch rides along on the list read.
+    expect(orderFindMany).toHaveBeenCalledTimes(1);
+    expect(result.data[0]!.locationName).toBe('Vake');
+  });
+
+  it('reports a sale with no branch as a null locationName, not an empty string', async () => {
+    const { service } = adminSetup({
+      orderFindMany: [orderRecord({ location: null })],
+      orderCount: 1,
+    });
+
+    const result = await service.listOrders({ page: 1, limit: 20 });
+
+    expect(result.data[0]!.locationName).toBeNull();
   });
 
   it('summarises the whole filtered set — gross, refunded, net and currency', async () => {
@@ -1219,6 +1456,7 @@ describe('OrdersService.refundOrder', () => {
     expect(args.data).toEqual([
       expect.objectContaining({
         productId: 'p1',
+        locationId: 'loc-default',
         variantIndex: 0,
         variantLabel: 'S',
         delta: 3,
@@ -1289,5 +1527,103 @@ describe('OrdersService.streamOrdersCsv', () => {
     // Money is exported as major-unit decimals (1000 minor → 10.00) and the
     // per-row net (total − refunded) reconciles against the gross figures.
     expect(lines[1]).toContain(',USD,10.00,0.00,10.00,');
+  });
+
+  // The export shares `buildOrderWhere` with the roster, so a branch-scoped
+  // download must contain exactly the rows the branch-scoped table showed.
+  it('carries the branch filter into the export scan', async () => {
+    const { service, orderFindMany } = adminSetup();
+    orderFindMany.mockResolvedValueOnce([orderRecord({ id: 'order-1' })]).mockResolvedValueOnce([]);
+
+    for await (const _chunk of service.streamOrdersCsv({
+      page: 1,
+      limit: 20,
+      locationId: 'loc-2',
+    })) {
+      // Drain the generator; the assertion is on the queries it issued.
+    }
+
+    // One `where`, built once and reused by every page of the scan, so the
+    // download can only ever hold the branch the roster was showing.
+    for (const [args] of orderFindMany.mock.calls as Array<[{ where: { locationId?: string } }]>) {
+      expect(args.where.locationId).toBe('loc-2');
+    }
+  });
+});
+
+/**
+ * Stage 5 — the branch stamped onto the money rows at write time.
+ *
+ * A payment or refund that does not stamp one starts producing NULLs the backfill
+ * can never revisit, and silently, because NULL is also the legitimate value for a
+ * genuinely unattributable row. These pin the two POS write paths.
+ */
+describe('OrdersService — the branch stamped on the money', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('stamps the till’s branch onto the payment, from the same value as the order', async () => {
+    const { service, orderCreate, paymentCreate } = setup();
+
+    await service.recordSale({ ...saleInput, locationId: 'loc-2' });
+
+    const orderArgs = orderCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    const paymentArgs = paymentCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    // Read from the same resolved value rather than re-derived, so the two can
+    // never disagree — a payment attributed to a different branch than its own
+    // order would break the netting the sales reports do against it.
+    expect(paymentArgs.data.locationId).toBe('loc-2');
+    expect(paymentArgs.data.locationId).toBe(orderArgs.data.locationId);
+  });
+
+  // Not defaulted to the gym's main branch: the ORDER is unattributed too, so the
+  // payment is faithfully just as unattributed. Defaulting would credit a branch
+  // with takings its own order does not claim.
+  it('leaves the payment unattributed when the till sends no branch', async () => {
+    const { service, orderCreate, paymentCreate } = setup();
+
+    await service.recordSale(saleInput);
+
+    const orderArgs = orderCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    const paymentArgs = paymentCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(paymentArgs.data.locationId).toBeNull();
+    expect(orderArgs.data.locationId).toBeNull();
+  });
+
+  // The ORDER's branch, not the desk that keyed the reversal — which nothing
+  // records anyway. Netting takings against refunds is the point of the figure, so
+  // both halves must land in the same bucket, or the selling branch shows revenue
+  // it no longer holds and the refunding branch a negative it never earned.
+  it('stamps the refund with the branch of the order it reverses', async () => {
+    const { service, refundCreate } = adminSetup({
+      orderFindFirst: {
+        id: 'order-1',
+        status: 'PAID',
+        locationId: 'loc-2',
+        payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+        items: [],
+      },
+    });
+
+    await service.refundOrder('order-1', { amount: 400, reason: 'x', restockItems: false });
+
+    const args = refundCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(args.data.locationId).toBe('loc-2');
+  });
+
+  it('carries a null branch through to the refund rather than inventing one', async () => {
+    const { service, refundCreate } = adminSetup({
+      orderFindFirst: {
+        id: 'order-1',
+        status: 'PAID',
+        locationId: null,
+        payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+        items: [],
+      },
+    });
+
+    await service.refundOrder('order-1', { amount: 400, reason: 'x', restockItems: false });
+
+    const args = refundCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(args.data.locationId).toBeNull();
   });
 });

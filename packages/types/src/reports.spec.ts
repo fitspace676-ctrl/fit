@@ -87,6 +87,13 @@ describe('report query schemas', () => {
     });
   });
 
+  it('carries an optional branch on both the preview and the export', () => {
+    expect(reportQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(reportQuerySchema.parse({}).locationId).toBeUndefined();
+    expect(reportExportQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(reportExportQuerySchema.parse({}).locationId).toBeUndefined();
+  });
+
   it('accepts a valid range + format and rejects unknown ones', () => {
     expect(reportExportQuerySchema.parse({ range: '12m', format: 'xlsx' })).toEqual({
       range: '12m',

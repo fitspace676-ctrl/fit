@@ -1,5 +1,10 @@
 'use server';
 
+// The branch arrives in `query`, resolved by the view from `useActiveLocation()`;
+// this action does not read the cookie itself. See `sales/actions.ts` for why —
+// briefly, an action cannot see `?locationId=`, and the view needs the value
+// anyway to key its own response cache.
+
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,

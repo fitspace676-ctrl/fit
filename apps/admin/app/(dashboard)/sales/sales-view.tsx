@@ -47,6 +47,7 @@ import {
   type SalesGranularity,
   type SalesProductType,
 } from '@fit/types';
+import { useActiveLocation } from '@/components/active-location';
 import { loadSalesAction } from './actions';
 import { SalesKpiStrip } from './sales-kpi-strip';
 import { SalesTrendCard } from './sales-trend-card';
@@ -163,6 +164,24 @@ export function SalesView() {
   const t = useTranslations('admin.dashboard.sales');
   const locale = useLocale();
 
+  // THE BRANCH IS PASSED IN, NOT READ INSIDE THE ACTION. `loadSalesAction` runs
+  // on the server with a cookie jar, so it could call `getActiveLocationId()`
+  // itself and save this line — but two things break if it does, and they are
+  // the reasons every one of the five tabs threads it through instead:
+  //
+  //  • A `?locationId=` deep link would be honoured by the page and ignored by
+  //    the tab. An action never sees `searchParams`, so it can only read the
+  //    cookie — and the URL is what outranks the cookie. Half the dashboard
+  //    would follow the link and half would not. `useActiveLocation()` applies
+  //    the same precedence the page does, on the client side of the boundary.
+  //  • It is part of the cache key below. Switching branch fires
+  //    `router.refresh()`, which re-renders the server tree but leaves this
+  //    Client Component MOUNTED with its response cache intact. If the branch
+  //    were invisible here, `granularity:productType` would keep hitting the old
+  //    branch's entry and the tab would show the previous branch's takings for
+  //    as long as the user stayed on it.
+  const { locationId } = useActiveLocation();
+
   const [granularity, setGranularity] = useState<SalesGranularity>(DEFAULT_SALES_GRANULARITY);
   const [productType, setProductType] = useState<SalesProductType>(DEFAULT_SALES_PRODUCT_TYPE);
 
@@ -173,7 +192,7 @@ export function SalesView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${productType}`;
+  const key = `${granularity}:${productType}:${locationId ?? ''}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -187,7 +206,7 @@ export function SalesView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadSalesAction({ granularity, productType })
+    void loadSalesAction({ granularity, productType, locationId })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -212,7 +231,7 @@ export function SalesView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache
     // bypass itself comes from `retry` deleting this key first.
-  }, [key, granularity, productType, attempt, t]);
+  }, [key, granularity, productType, locationId, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new

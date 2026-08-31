@@ -308,7 +308,10 @@ export type ClassTemplateSort = z.infer<typeof classTemplateSortSchema>;
  * 1-based, `limit` capped at 100); `search` matches the template title/category,
  * `status` narrows the list, and `sort` + `dir` drive ordering. Every field is
  * optional with a sensible default so a bare `GET /admin/classes` is valid.
- * Numbers are coerced because they arrive as query strings.
+ * Numbers are coerced because they arrive as query strings. `locationId` narrows
+ * the roster to the single branch the console's location switcher has selected,
+ * so a manager standing at one site sees only what runs there; omitted, the
+ * roster spans every branch.
  */
 export const listAdminClassTemplatesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -317,6 +320,7 @@ export const listAdminClassTemplatesQuerySchema = z.object({
   status: classTemplateStatusSchema.optional(),
   sort: classTemplateSortSchema.default('title'),
   dir: sortDirSchema.default('asc'),
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `GET /admin/classes` query — {@link listAdminClassTemplatesQuerySchema}. */

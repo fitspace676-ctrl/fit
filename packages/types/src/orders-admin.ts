@@ -94,12 +94,16 @@ function dateBoundSchema(bound: 'start' | 'end'): z.ZodType<Date, z.ZodTypeDef, 
  * `channel` and `status` narrow by the derived channel and lifecycle status;
  * `memberId` to one member's orders; `from`/`to` bound `createdAt` (inclusive,
  * see {@link dateBoundSchema}). `page`/`limit` paginate the roster (the export
- * ignores them and streams the full filtered set).
+ * ignores them and streams the full filtered set). `locationId` narrows the list
+ * to the branch a sale was rung up at — branches are separate operating units, so
+ * one manager's roster is usually one branch's; omitted, every branch's orders
+ * appear together.
  */
 export const listOrdersQuerySchema = z.object({
   channel: orderChannelSchema.optional(),
   status: adminOrderStatusSchema.optional(),
   memberId: z.string().min(1).optional(),
+  locationId: z.string().min(1).optional(),
   from: dateBoundSchema('start').optional(),
   to: dateBoundSchema('end').optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -129,6 +133,18 @@ export const adminOrderRowSchema = z.object({
   customerName: z.string().nullable(),
   paymentMethod: paymentMethodSchema.nullable(),
   itemCount: z.number().int().nonnegative(),
+  /**
+   * The branch the sale was rung up at, denormalised off `Order.location` so the
+   * roster names a branch without a second fetch — the same one-hop projection
+   * `AdminClassTemplateRow.locationName` makes. Null, not `''`, for an
+   * unattributed order: `Order.locationId` is still nullable and its relation is
+   * `onDelete: SetNull`, so retiring a branch genuinely un-attributes its past
+   * sales. The admin row schemas model absence as `null` throughout (`memberId`,
+   * `customerName`, `paymentMethod`), and the table renders it as an explicit
+   * dash rather than the blank cell an empty string would give — which reads as a
+   * failed load, not as "no branch".
+   */
+  locationName: z.string().nullable(),
   createdAt: z.string().datetime(),
 });
 

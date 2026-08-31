@@ -455,10 +455,18 @@ export type SetProductCategoryResponse = AdminProductDetail;
 // its alert threshold, so staff can reorder before a line sells out.
 
 /**
- * Query for `GET /admin/products/low-stock`. `threshold` is the inclusive on-hand
- * ceiling a variant must be at or below to count as low — a non-negative integer,
- * defaulting to {@link DEFAULT_LOW_STOCK_THRESHOLD} and capped at
- * {@link MAX_LOW_STOCK_THRESHOLD}. Coerced because it arrives as a query string.
+ * Query for `GET /admin/products/low-stock`.
+ *
+ * `threshold` is an explicit inclusive on-hand ceiling that OVERRIDES every
+ * position's own cushion — "show me everything at or below 20", whatever each line
+ * is normally set to. It is optional since Stage 4: omitted, each position is
+ * judged against its own three-rung cushion (`resolveLowStockThreshold`), which is
+ * what the alert list actually wants and what the old flat default only
+ * approximated by ignoring `Product.lowStockThreshold` altogether.
+ *
+ * `locationId` narrows to one branch's shelves. Omitted is the gym-wide roll-up,
+ * judged against the product rung — a branch's cushion is about a branch's shelf
+ * and does not apply to a total held at none of them.
  */
 export const lowStockQuerySchema = z.object({
   threshold: z.coerce
@@ -466,7 +474,8 @@ export const lowStockQuerySchema = z.object({
     .int('Threshold must be a whole number')
     .min(0, 'Threshold cannot be negative')
     .max(MAX_LOW_STOCK_THRESHOLD, `Threshold must be ${MAX_LOW_STOCK_THRESHOLD} or fewer`)
-    .default(DEFAULT_LOW_STOCK_THRESHOLD),
+    .optional(),
+  locationId: z.string().trim().min(1).optional(),
 });
 
 /** Validated `GET /admin/products/low-stock` query — {@link lowStockQuerySchema}. */
@@ -478,12 +487,20 @@ export type LowStockQuery = z.infer<typeof lowStockQuerySchema>;
  * array, see the `variants` field), or `null` for the base position of a product
  * sold with no variants. `name` / `sku` label it and `stock` is the live on-hand
  * count that tripped the threshold.
+ *
+ * `threshold` is the cushion this position was actually judged against, already
+ * resolved through the three rungs (branch → product → gym default) or replaced by
+ * the query's explicit override. It rides on the position rather than the response
+ * because the chain resolves per product — and, at a branch, per (product, branch)
+ * — so two rows in one report legitimately trip at different numbers, and a single
+ * figure at the top would be a lie about all but one of them.
  */
 export interface LowStockVariant {
   variantIndex: number | null;
   name: string;
   sku: string;
   stock: number;
+  threshold: number;
 }
 
 /**
@@ -504,13 +521,24 @@ export interface LowStockProductRow {
 
 /**
  * Successful `GET /admin/products/low-stock` response — every ACTIVE product with
- * at least one low variant, most urgent first, plus the `threshold` the report was
- * run at so the page can label it. An empty `data` is a normal result (nothing is
- * low) the page renders as an all-clear state.
+ * at least one low position, most urgent first. An empty `data` is a normal result
+ * (nothing is low) the page renders as an all-clear state.
+ *
+ * `threshold` echoes the explicit override the report was run at, or `null` when
+ * each position was judged against its own cushion — the page labels the two
+ * differently ("at or below 20" vs "below each line's reorder point"), and
+ * inventing a single number for the second would be a lie the moment two lines
+ * disagree.
+ *
+ * `locationId` / `locationName` name the branch these shelves belong to, or `null`
+ * in all-branches mode. They sit on the RESPONSE rather than on every row because
+ * every row in one reply is from the same branch — see {@link InventorySummary}.
  */
 export interface ListLowStockResponse {
   data: LowStockProductRow[];
-  threshold: number;
+  threshold: number | null;
+  locationId: string | null;
+  locationName: string | null;
 }
 
 // ── Inventory overview ───────────────────────────────────────────────────────
@@ -526,6 +554,10 @@ export interface ListLowStockResponse {
  * `status` narrows by lifecycle (omitted ⇒ active only, since a deactivated
  * product's stock is not being sold), and `tracked` limits to positions that
  * actually carry a count.
+ *
+ * `locationId` picks the branch whose shelves are being counted. Omitted is the
+ * gym-wide roll-up — see {@link InventoryPositionRow} for what that aggregation
+ * means and what it hides.
  */
 export const inventoryQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -536,6 +568,7 @@ export const inventoryQuerySchema = z.object({
     .union([z.boolean(), z.enum(['true', 'false'])])
     .transform((value) => value === true || value === 'true')
     .optional(),
+  locationId: z.string().trim().min(1).optional(),
 });
 
 /** Validated `GET /admin/products/inventory` query — {@link inventoryQuerySchema}. */
@@ -547,6 +580,39 @@ export type InventoryQuery = z.infer<typeof inventoryQuerySchema>;
  * means counted and empty. `value` is `stock × costAmount` in minor units, or
  * `null` when either is unknown, so the totals never quietly treat an unknown cost
  * as free.
+ *
+ * ## The Stage 4 row-shape decision: ONE ROW PER POSITION, AGGREGATED
+ *
+ * With stock held per branch, one product × variant is now N counts. This table
+ * keeps **one row per `(productId, variantIndex)` regardless**, and the branch is a
+ * property of the whole response:
+ *
+ * - with `locationId` — `stock` is that branch's count, straight off its
+ *   `ProductStock` row (a branch with no row reads as `null`, "nothing recorded
+ *   here", not `0`);
+ * - without — `stock` is the gym-wide roll-up, i.e. exactly what this field has
+ *   always meant, so the row count, the pager and every summary tile keep their
+ *   pre-Stage-4 values and still reconcile with the catalogue, the storefront's
+ *   "in stock?" and the roster badge.
+ *
+ * The alternative — expanding to one row per (product, variant, branch) — was
+ * rejected: it multiplies the default view by the branch count (a four-branch gym
+ * with 200 positions opens on 800 rows), it duplicates inside the table the axis
+ * the header's branch switcher already owns, and it makes `total` and every
+ * summary figure mean something different from the number the rest of the console
+ * shows for the same product.
+ *
+ * **What that costs, plainly:** in all-branches mode you cannot see WHERE the
+ * stock is. A line with 10 at the flagship and 0 at the satellite reads "10", and
+ * the satellite's empty shelf is invisible until someone switches to it. That is
+ * the precise blind spot the Stage 4 migration's mandatory stock-take has to close,
+ * so the console must not present all-branches as a substitute for walking each
+ * branch. Per-branch drill-down is the branch switcher, one selection at a time.
+ *
+ * `lowStockThreshold` is the cushion this position was judged against, already
+ * resolved through the three rungs (branch → product → gym default) — a number,
+ * never `null`, because "not set" is a fact about a row in the database and not
+ * something the table has any use for.
  */
 export interface InventoryPositionRow {
   productId: string;
@@ -556,7 +622,7 @@ export interface InventoryPositionRow {
   label: string;
   sku: string;
   stock: number | null;
-  lowStockThreshold: number | null;
+  lowStockThreshold: number;
   currency: string;
   costAmount: number | null;
   value: number | null;
@@ -564,11 +630,21 @@ export interface InventoryPositionRow {
 
 /**
  * Totals across the whole filtered set — not just the page — so the tiles above
- * the table describe the gym's actual holdings. `positionCount` counts every
- * matched position; `trackedCount` how many carry a count; `totalUnits` sums those
- * counts; `totalValue` sums the positions whose cost is known, with
- * `valuedPositions` saying how many that was, so a partial valuation is visibly
- * partial rather than passing as complete.
+ * the table describe the actual holdings. `positionCount` counts every matched
+ * position; `trackedCount` how many carry a count; `totalUnits` sums those counts;
+ * `totalValue` sums the positions whose cost is known, with `valuedPositions`
+ * saying how many that was, so a partial valuation is visibly partial rather than
+ * passing as complete. `lowCount` / `outCount` classify each position against its
+ * own resolved cushion (see {@link InventoryPositionRow.lowStockThreshold}).
+ *
+ * `locationId` / `locationName` name the branch every figure above is about, or
+ * `null` for the gym-wide roll-up. The branch sits HERE rather than on each row —
+ * the opposite of `AdminClassTemplateRow`, `adminOrderRowSchema`, `MemberRow` and
+ * `checkInRowSchema` — and for the reason behind that precedent rather than
+ * against it: those responses genuinely mix branches in all-branches mode, so the
+ * column varies row to row and earns its place. Here the aggregation decision means
+ * every row in a reply is from the same branch, so a per-row `locationName` would
+ * be the one column that never changes down the page.
  */
 export interface InventorySummary {
   positionCount: number;
@@ -579,6 +655,8 @@ export interface InventorySummary {
   totalValue: number;
   valuedPositions: number;
   currency: string;
+  locationId: string | null;
+  locationName: string | null;
 }
 
 /** Successful `GET /admin/products/inventory` response — one page plus the totals. */

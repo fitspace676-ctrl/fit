@@ -185,6 +185,11 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
           emergencyContactName: member.emergencyContactName ?? '',
           emergencyContactPhone: member.emergencyContactPhone ?? '',
           medicalNotes: member.medicalNotes ?? '',
+          // The NAME of their current branch — it labels the branch select's
+          // "leave this alone" option. `GET /members/:id` returns no branch id, so
+          // the select is never pre-selected and a save only transfers the member
+          // when a branch was explicitly picked.
+          locationName: member.locationName,
         }}
       />
     </div>

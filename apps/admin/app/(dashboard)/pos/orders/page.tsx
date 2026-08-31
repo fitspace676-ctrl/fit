@@ -11,6 +11,7 @@ import {
   type OrderChannel,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchOrders } from '@/lib/api';
 import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
@@ -243,11 +244,25 @@ export default async function OrdersLogPage({
     );
   }
 
+  // The branch the console is scoped to: the top-bar switcher's cookie, or an
+  // explicit `?locationId=` on this URL. `undefined` means every branch, which is
+  // what the log showed before the switcher was wired and still its default.
+  const locationId = await getActiveLocationId(raw);
+
+  // The branch column earns its width only in "All locations" mode. With a branch
+  // selected the switcher already names it in the chrome and every row repeats
+  // that one value, so the column is a constant taking space from the figures
+  // this table exists to show. Same call the roadmap makes for
+  // `revenue-by-location-card` — kept for "All locations", hidden once the view
+  // is already one branch's.
+  const showBranch = locationId === undefined;
+
   let result: ListOrdersResponse;
   try {
     result = await fetchOrders({
       page: query.page,
       limit: query.limit,
+      ...(locationId ? { locationId } : {}),
       ...(channel ? { channel } : {}),
       ...(str('status') ? { status: str('status') as never } : {}),
       ...(str('from') ? { from: str('from') } : {}),
@@ -336,6 +351,7 @@ export default async function OrdersLogPage({
               <tr>
                 <th {...stylex.props(styles.th)}>When</th>
                 <th {...stylex.props(styles.th)}>Channel</th>
+                {showBranch ? <th {...stylex.props(styles.th)}>Branch</th> : null}
                 <th {...stylex.props(styles.th)}>Customer</th>
                 <th {...stylex.props(styles.th, styles.num)}>Items</th>
                 <th {...stylex.props(styles.th)}>Paid by</th>
@@ -346,7 +362,7 @@ export default async function OrdersLogPage({
             </thead>
             <tbody>
               {data.map((order) => (
-                <OrderRow key={order.id} order={order} />
+                <OrderRow key={order.id} order={order} showBranch={showBranch} />
               ))}
             </tbody>
           </table>
@@ -386,7 +402,7 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function OrderRow({ order }: { order: AdminOrderRow }) {
+function OrderRow({ order, showBranch }: { order: AdminOrderRow; showBranch: boolean }) {
   const when = new Date(order.createdAt);
   return (
     <tr>
@@ -402,6 +418,11 @@ function OrderRow({ order }: { order: AdminOrderRow }) {
       <td {...stylex.props(styles.td)}>
         <Badge tone={order.channel === 'POS' ? 'accent' : 'neutral'} label={order.channel} />
       </td>
+      {/* An unattributed sale gets the same dash the other optional columns use,
+          so the cell reads as "no branch" rather than as a row that failed to load. */}
+      {showBranch ? (
+        <td {...stylex.props(styles.td, styles.muted)}>{order.locationName ?? '-'}</td>
+      ) : null}
       <td {...stylex.props(styles.td)}>
         <Link href={`/pos/orders/${order.id}`} {...stylex.props(styles.orderLink)}>
           {order.customerName ?? (order.memberId ? 'Member' : 'Walk-in')}

@@ -59,6 +59,7 @@ import {
 } from '@fit/types';
 import type { GymLanguage, MemberIntakeField } from '@fit/types';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
+import { atLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymMemberIntakeService } from '../gyms/gym-member-intake.service';
@@ -152,6 +153,12 @@ const MEMBER_SELECT = {
     where: { status: InvoiceStatus.PENDING },
     select: { amount: true, currency: true },
   },
+  // The member's home branch, for the roster's LOCATION cell. A one-hop relation
+  // select on the page query — Prisma resolves it inside the same `findMany`, so
+  // it costs no extra round trip and is not an N+1. Only the name: the roster
+  // prints it and nothing more, and selecting the whole `Location` would drag its
+  // address, hours and settings JSON across for one string.
+  location: { select: { name: true } },
 } satisfies Prisma.GymMemberSelect;
 
 type MemberRecord = Prisma.GymMemberGetPayload<{ select: typeof MEMBER_SELECT }>;
@@ -266,8 +273,8 @@ export class MembersService {
         take: query.limit,
       }),
       this.prisma.client.gymMember.count({ where }),
-      this.planMix(),
-      this.tabCounts(),
+      this.planMix(query.locationId),
+      this.tabCounts(query.locationId),
     ]);
 
     return {
@@ -313,9 +320,13 @@ export class MembersService {
    * cross-gym identity); edit it afterwards via {@link updateMember} if needed.
    */
   async createMember(input: CreateMemberInput): Promise<CreateMemberResponse> {
-    const { name, email, phone, status, planId, startDate } = input;
+    const { name, email, phone, status, planId, startDate, locationId } = input;
 
     await this.assertIntakeSatisfied(input);
+
+    // Resolved before the transaction so a bad branch fails fast, without having
+    // opened one — and so the fallback lookup is not repeated per retry.
+    const homeLocationId = await this.resolveHomeBranch(locationId);
 
     const created = await this.prisma.client.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { email }, select: { id: true } });
@@ -356,6 +367,7 @@ export class MembersService {
           gymId: this.tenant.gymId,
           role: Role.MEMBER,
           status,
+          locationId: homeLocationId,
           ...this.profileWriteData(input),
         },
         select: { id: true },
@@ -540,7 +552,17 @@ export class MembersService {
       data: { name: input.name, phone: input.phone },
     });
 
-    const profile = this.profileWriteData(input);
+    // A branch move rides with the profile write. `updateMemberSchema.locationId`
+    // is not nullable, so an omitted branch leaves the member where they are and
+    // there is no way to un-assign one through this route.
+    if (input.locationId) {
+      await this.resolveHomeBranch(input.locationId);
+    }
+
+    const profile = {
+      ...this.profileWriteData(input),
+      ...(input.locationId ? { locationId: input.locationId } : {}),
+    };
     if (Object.keys(profile).length > 0) {
       await this.prisma.client.gymMember.update({ where: { id }, data: profile });
     }
@@ -870,12 +892,18 @@ export class MembersService {
    * `total` is the paid-members count across all plans. Mirrors the dashboard's
    * plan mix. Independent of the page's filters (it describes the whole gym).
    */
-  private async planMix(): Promise<MemberPlanMix> {
+  private async planMix(locationId?: string): Promise<MemberPlanMix> {
     const db = this.prisma.client;
     const grouped = await db.subscription.groupBy({
       by: ['planId'],
-      // Exclude subscriptions owned by trashed members — the mix describes the live roster.
-      where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] }, member: { deletedAt: null } },
+      // Exclude subscriptions owned by trashed members — the mix describes the live
+      // roster. `Subscription` has no branch of its own; it inherits the one on the
+      // member who holds it, which is the same attribution rule the roster above
+      // uses, so the bar always describes exactly the members listed beneath it.
+      where: {
+        status: { in: [...LIVE_SUBSCRIPTION_STATUSES] },
+        member: { deletedAt: null, ...atLocation(locationId) },
+      },
       _count: { _all: true },
     });
     if (grouped.length === 0) {
@@ -915,29 +943,34 @@ export class MembersService {
    * memberships by `GymMemberStatus`; `frozen` counts members holding a live
    * `FROZEN` subscription. Independent of the page's filters.
    */
-  private async tabCounts(): Promise<MemberTabCounts> {
+  private async tabCounts(locationId?: string): Promise<MemberTabCounts> {
     const db = this.prisma.client;
+    // Every count carries the branch the roster is showing. A tab badge that
+    // counts the whole gym above rows that show one branch is not a cosmetic
+    // mismatch — it is the screen contradicting itself.
+    const branch = atLocation(locationId);
     // The status segments and the frozen/plan aggregates describe the live roster,
     // so they exclude trashed members; `trash` counts the soft-deleted ones.
     const kindCount = (kind: MemberKind): Promise<number> =>
       db.gymMember.count({
-        where: { role: Role.MEMBER, deletedAt: null, ...memberKindWhere(kind) },
+        where: { role: Role.MEMBER, deletedAt: null, ...branch, ...memberKindWhere(kind) },
       });
 
     const [byStatus, frozen, trash, member, guest, inactive] = await Promise.all([
       db.gymMember.groupBy({
         by: ['status'],
-        where: { role: Role.MEMBER, deletedAt: null },
+        where: { role: Role.MEMBER, deletedAt: null, ...branch },
         _count: { _all: true },
       }),
       db.gymMember.count({
         where: {
           role: Role.MEMBER,
           deletedAt: null,
+          ...branch,
           subscriptions: { some: { status: SubscriptionStatus.FROZEN } },
         },
       }),
-      db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: { not: null } } }),
+      db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: { not: null }, ...branch } }),
       kindCount('MEMBER'),
       kindCount('GUEST'),
       kindCount('INACTIVE'),
@@ -989,6 +1022,12 @@ export class MembersService {
     if (query.status && !isTrash) {
       where.status = query.status;
     }
+
+    // The member's HOME branch (`GymMember.locationId`) — not anywhere they have
+    // ever trained. Plain equality: the Stage 2 migration backfilled every member
+    // onto their gym's default branch, so there are no unattributed rows left to
+    // `OR … IS NULL` for, and `@@index([gymId, locationId, status])` serves it.
+    Object.assign(where, atLocation(query.locationId));
 
     const search = query.search?.trim();
     if (search) {
@@ -1043,6 +1082,40 @@ export class MembersService {
   /*  Row / detail projection                                                */
   /* ---------------------------------------------------------------------- */
 
+  /**
+   * The home branch to store for a member: the one the caller named, or the gym's
+   * default when they named none.
+   *
+   * A named branch is validated against the tenant first — `location.findFirst`
+   * goes through the scoped client, so a branch belonging to another gym simply
+   * never matches and is rejected as unknown rather than leaking its existence.
+   * Same shape as `AdminScheduleService.requireGymLocation`.
+   *
+   * **A gym with no default branch yields `null`, and that is deliberate.** Every
+   * gym is given one by the Stage 0 migration, so this only happens if an operator
+   * has since cleared the flag — and a half-configured branch list must not be the
+   * reason a front desk cannot add a member. The member is created unattributed
+   * and shows in every branch until someone edits them.
+   */
+  private async resolveHomeBranch(locationId: string | undefined): Promise<string | null> {
+    if (locationId) {
+      const location = await this.prisma.client.location.findFirst({
+        where: { id: locationId },
+        select: { id: true },
+      });
+      if (!location) {
+        throw new NotFoundException({ message: 'Location not found', code: 'LOCATION_NOT_FOUND' });
+      }
+      return location.id;
+    }
+
+    const fallback = await this.prisma.client.location.findFirst({
+      where: { isDefault: true },
+      select: { id: true },
+    });
+    return fallback?.id ?? null;
+  }
+
   /** Project a queried membership row to the denormalised wire {@link MemberRow}. */
   private toRow(row: MemberRecord): MemberRow {
     const sub = row.subscriptions[0] ?? null;
@@ -1067,6 +1140,10 @@ export class MembersService {
       kindOverride: row.kindOverride,
       planName: plan?.name ?? null,
       plan,
+      // `null` rather than `''`: `locationId` is `SetNull`, so closing a branch
+      // genuinely un-attributes the people who trained there, and the table must
+      // be able to say so instead of printing an empty name.
+      locationName: row.location?.name ?? null,
       lastVisitAt,
       nextBillingAt,
       billingState,

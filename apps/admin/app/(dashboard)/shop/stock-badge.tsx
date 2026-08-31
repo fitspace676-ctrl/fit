@@ -29,16 +29,28 @@ export function stockLevel(
  * dot of green / amber / red for in / low / out, a muted pill when stock is
  * untracked. The low + in states carry the on-hand count so staff can see how deep
  * the shortfall is without opening the product.
+ *
+ * The count is ALWAYS the gym-wide roll-up — `AdminProductRow` has no per-branch
+ * figure and the catalogue endpoint takes no branch. `branchName`, when the console
+ * is scoped to a branch, does not change the number: it appends the scope to the
+ * badge's accessible name, so a card read on its own — by a screen reader, or
+ * hovered away from the page's scope line — cannot be taken for that branch's shelf.
+ * Suppressing the badge under a filter was the alternative and is worse: it hides a
+ * true fact to avoid a misreading a label fixes.
  */
 export function StockBadge({
   row,
+  branchName = null,
 }: {
   row: Pick<AdminProductRow, 'lowestStock' | 'totalStock' | 'lowStockThreshold'>;
+  /** The console's active branch, or `null` in "All locations" mode. */
+  branchName?: string | null;
 }) {
   const level = stockLevel(row);
   const { label, tone } = STOCK_STYLES[level];
-  const suffix = level === 'low' || level === 'in' ? ` · ${row.totalStock}` : '';
-  return (
+  const counted = level === 'low' || level === 'in';
+  const suffix = counted ? ` · ${row.totalStock}` : '';
+  const badge = (
     <Badge
       tone={tone}
       label={
@@ -47,5 +59,17 @@ export function StockBadge({
         </>
       }
     />
+  );
+
+  if (branchName === null) {
+    return badge;
+  }
+  const scope = counted
+    ? `${label}${suffix} across all branches, not ${branchName} alone`
+    : `${label} across all branches, not ${branchName} alone`;
+  return (
+    <span title={scope} aria-label={scope}>
+      {badge}
+    </span>
   );
 }

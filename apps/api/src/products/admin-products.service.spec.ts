@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ProductStatus } from '@fit/db';
 import {
   productVariantsSchema,
@@ -69,12 +69,36 @@ const row = (over?: Partial<ProductRecord>): ProductRecord => ({
   ...over,
 });
 
+/** A `ProductStock` row — what one branch holds for one product, since Stage 4. */
+interface BranchRecord {
+  id: string;
+  productId: string;
+  locationId: string;
+  stock: number | null;
+  variants: number[];
+  lowStockThreshold: number | null;
+}
+
+const branchRow = (over?: Partial<BranchRecord>): BranchRecord => ({
+  id: 'ps-1',
+  productId: 'p-1',
+  locationId: 'loc-1',
+  stock: null,
+  variants: [],
+  lowStockThreshold: null,
+  ...over,
+});
+
 function setup(overrides?: {
   findMany?: ProductRecord[];
   count?: number;
   findFirst?: ProductRecord | null;
   /** What a `productCategory.findUnique` resolves to — `null` models another gym's id. */
   category?: { id: string } | null;
+  /** The `ProductStock` rows the branch reads and the form's fan-out see. */
+  branchRows?: BranchRecord[];
+  /** The gym's default branch; `null` models a gym that has not elected one. */
+  defaultLocation?: { id: string; name: string } | null;
 }) {
   const findMany = vi.fn<(args: FindManyArgs) => Promise<ProductRecord[]>>(() =>
     Promise.resolve(overrides?.findMany ?? []),
@@ -99,9 +123,72 @@ function setup(overrides?: {
     Promise.resolve({ count: 0 }),
   );
 
+  // Since Stage 4 the authoritative counts live on `ProductStock`, one row per
+  // (product, branch), and `Product.stock` is their roll-up. The rows are held as
+  // MUTABLE state so a test can assert where a figure actually landed, and
+  // `updateMany` honours its own `stock: { gte: … }` bound the way Postgres does.
+  const branchRows: BranchRecord[] = (overrides?.branchRows ?? []).map((r) => ({
+    ...r,
+    variants: [...r.variants],
+  }));
+  const branchFindMany = vi.fn((_args: unknown) => Promise.resolve(branchRows));
+  const branchCreate = vi.fn((args: { data: Record<string, unknown> }) => {
+    branchRows.push(
+      branchRow({
+        id: `ps-${branchRows.length + 1}`,
+        productId: args.data.productId as string,
+        locationId: args.data.locationId as string,
+        stock: (args.data.stock as number | null) ?? null,
+        variants: (args.data.variants as number[]) ?? [],
+      }),
+    );
+    return Promise.resolve({});
+  });
+  const branchUpdate = vi.fn((args: { where: { id: string }; data: Record<string, unknown> }) => {
+    const target = branchRows.find((r) => r.id === args.where.id);
+    if (target) {
+      if ('variants' in args.data) {
+        target.variants = args.data.variants as number[];
+      }
+      if ('stock' in args.data) {
+        const next = args.data.stock as number | null | { increment: number };
+        target.stock =
+          next !== null && typeof next === 'object' ? (target.stock ?? 0) + next.increment : next;
+      }
+    }
+    return Promise.resolve({});
+  });
+  const branchUpdateMany = vi.fn(
+    (args: {
+      where: { id: string; stock: { gte: number } };
+      data: { stock: { decrement: number } };
+    }) => {
+      const target = branchRows.find((r) => r.id === args.where.id);
+      if (!target || target.stock === null || target.stock < args.where.stock.gte) {
+        return Promise.resolve({ count: 0 });
+      }
+      target.stock -= args.data.stock.decrement;
+      return Promise.resolve({ count: 1 });
+    },
+  );
+  const locationFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve(
+      overrides?.defaultLocation === undefined
+        ? { id: 'loc-1', name: 'Riverside' }
+        : overrides.defaultLocation,
+    ),
+  );
+
   const client: Record<string, unknown> = {
     product: { findMany, count, findFirst, create, update },
     productCategory: { findUnique: categoryFindUnique },
+    productStock: {
+      findMany: branchFindMany,
+      create: branchCreate,
+      update: branchUpdate,
+      updateMany: branchUpdateMany,
+    },
+    location: { findFirst: locationFindFirst },
     stockMovement: { create: movementCreate, createMany: movementCreateMany },
   };
   // Counts and the movements explaining them are written together, so the mock
@@ -131,6 +218,10 @@ function setup(overrides?: {
     categoryFindUnique,
     movementCreate,
     movementCreateMany,
+    branchRows,
+    branchCreate,
+    branchUpdate,
+    locationFindFirst,
   };
 }
 
@@ -351,11 +442,11 @@ describe('AdminProductsService', () => {
         id: 'p-2',
         imageUrl: null,
         lowestStock: 2,
-        variants: [{ variantIndex: 0, name: 'Big', sku: 'AB-L', stock: 2 }],
+        variants: [{ variantIndex: 0, name: 'Big', sku: 'AB-L', stock: 2, threshold: 5 }],
       });
       // The healthy "Small" variant (stock 10) is dropped from p-1's row.
       expect(result.data[1]!.variants).toEqual([
-        { variantIndex: 1, name: 'Large', sku: '', stock: 4 },
+        { variantIndex: 1, name: 'Large', sku: '', stock: 4, threshold: 5 },
       ]);
     });
 
@@ -373,6 +464,140 @@ describe('AdminProductsService', () => {
       const result = await service.listLowStock({ threshold: 5 });
 
       expect(result.data).toEqual([]);
+    });
+
+    it('judges each position against its own cushion when no ceiling is given', async () => {
+      // Without an explicit `threshold` the report walks the three rungs. p-1 sets
+      // its own cushion of 3, so its Large (4) is fine; p-2 sets none and falls to
+      // the gym default of 5, so its Big (2) is low. A single flat number could not
+      // have produced both answers.
+      const { service } = setup({
+        findMany: [
+          row({ lowStockThreshold: 3 }),
+          row({
+            id: 'p-2',
+            name: 'Aqua Bottle',
+            images: [],
+            variants: productVariantsSchema.parse([{ name: 'Big', sku: 'AB-L', stock: 2 }]),
+          }),
+        ],
+      });
+
+      const result = await service.listLowStock({});
+
+      expect(result.threshold).toBeNull();
+      expect(result.data.map((product) => product.id)).toEqual(['p-2']);
+      expect(result.data[0]!.variants[0]!.threshold).toBe(5);
+    });
+
+    it('reads a branch shelf, and lets that branch override the cushion', async () => {
+      // The flagship turns over faster, so it carries its own reorder point of 8 —
+      // the FIRST rung, ahead of the product's and the gym's.
+      const ctx = setup({
+        findMany: [row({ lowStockThreshold: 3 })],
+        branchRows: [branchRow({ variants: [10, 6], lowStockThreshold: 8 })],
+      });
+
+      const result = await ctx.service.listLowStock({ locationId: 'loc-1' });
+
+      expect(result.locationId).toBe('loc-1');
+      expect(result.locationName).toBe('Riverside');
+      expect(result.data[0]!.variants).toEqual([
+        { variantIndex: 1, name: 'Large', sku: '', stock: 6, threshold: 8 },
+      ]);
+    });
+
+    it('says nothing about a branch that has recorded no count at all', async () => {
+      // The Stage 4 migration leaves every non-default branch with no row. Reading
+      // that as zero would scream about every line at that branch on deploy morning,
+      // drowning the real signal — so an unrecorded position has no shortfall.
+      const ctx = setup({ findMany: [row()], branchRows: [] });
+
+      const result = await ctx.service.listLowStock({ locationId: 'loc-2' });
+
+      expect(result.data).toEqual([]);
+    });
+
+    it('404s an unknown branch rather than quietly answering for the whole gym', async () => {
+      const ctx = setup({ findMany: [row()], defaultLocation: null });
+      ctx.locationFindFirst.mockResolvedValueOnce(null);
+
+      await expect(ctx.service.listLowStock({ locationId: 'nope' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('listInventory', () => {
+    const inventoryQuery = { page: 1, limit: 50 };
+
+    it('aggregates across branches when none is selected, one row per position', async () => {
+      // The all-branches view is the roll-up on `Product`, so the row count, the
+      // pager and every tile keep the values they had before stock went per branch.
+      const ctx = setup({ findMany: [row({ costAmount: 100 })] });
+
+      const result = await ctx.service.listInventory(inventoryQuery);
+
+      expect(result.total).toBe(2);
+      expect(result.data.map((position) => position.stock)).toEqual([10, 4]);
+      expect(result.summary).toMatchObject({
+        positionCount: 2,
+        trackedCount: 2,
+        totalUnits: 14,
+        totalValue: 1400,
+        lowCount: 1,
+        locationId: null,
+        locationName: null,
+      });
+      // No branch is selected, so the branch rung is never consulted.
+      expect(result.data[0]!.lowStockThreshold).toBe(5);
+    });
+
+    it('counts one branch’s shelves when it is selected, keeping the same rows', async () => {
+      const ctx = setup({
+        findMany: [row({ costAmount: 100 })],
+        branchRows: [branchRow({ variants: [6, 1], lowStockThreshold: 2 })],
+      });
+
+      const result = await ctx.service.listInventory({ ...inventoryQuery, locationId: 'loc-1' });
+
+      // Same two positions, different figures — the table does not expand by branch.
+      expect(result.total).toBe(2);
+      expect(result.data.map((position) => position.stock)).toEqual([6, 1]);
+      expect(result.data[0]!.lowStockThreshold).toBe(2);
+      expect(result.summary).toMatchObject({
+        totalUnits: 7,
+        totalValue: 700,
+        lowCount: 1,
+        locationId: 'loc-1',
+        locationName: 'Riverside',
+      });
+    });
+
+    it('reports a branch with no row as uncounted, not as empty', async () => {
+      // `null` is "nothing recorded here"; `0` would assert somebody counted and
+      // found none. Only the second belongs in the out-of-stock tile.
+      const ctx = setup({ findMany: [row({ costAmount: 100 })], branchRows: [] });
+
+      const result = await ctx.service.listInventory({ ...inventoryQuery, locationId: 'loc-2' });
+
+      expect(result.data.map((position) => position.stock)).toEqual([null, null]);
+      expect(result.summary).toMatchObject({
+        trackedCount: 0,
+        outCount: 0,
+        totalUnits: 0,
+        valuedPositions: 0,
+      });
+    });
+
+    it('reads a slot past the end of a counted branch as a real zero', async () => {
+      // The branch IS counted; that variant simply has not arrived here yet.
+      const ctx = setup({ findMany: [row()], branchRows: [branchRow({ variants: [6] })] });
+
+      const result = await ctx.service.listInventory({ ...inventoryQuery, locationId: 'loc-1' });
+
+      expect(result.data.map((position) => position.stock)).toEqual([6, 0]);
+      expect(result.summary).toMatchObject({ trackedCount: 2, outCount: 1 });
     });
   });
 
@@ -609,33 +834,74 @@ describe('AdminProductsService', () => {
       expect(movementCreate).not.toHaveBeenCalled();
     });
 
-    it('persists a corrected base count as a delta against the live figure', async () => {
-      const { service, update, movementCreate } = setup({
+    it('lands a corrected base count on the default branch, and the roll-up with it', async () => {
+      const ctx = setup({
         findFirst: row({ variants: [], stock: 4 }),
+        branchRows: [branchRow({ stock: 4 })],
       });
 
-      await service.updateProduct('p-1', updateInput({ variants: [], stock: 11 }));
+      await ctx.service.updateProduct('p-1', updateInput({ variants: [], stock: 11 }));
 
-      expect(update.mock.calls[0]?.[0]?.data).toMatchObject({ stock: 11 });
-      expect(movementCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      // The roll-up moves by the delta, claimed rather than written back…
+      expect(ctx.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { stock: { increment: 7 } } }),
+      );
+      // …and the units actually land on a shelf, because a figure with no branch
+      // row behind it is exactly the drift `Product.stock` must never carry.
+      expect(ctx.branchRows[0]!.stock).toBe(11);
+      expect(ctx.movementCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+        locationId: 'loc-1',
         variantIndex: null,
         // 11 counted against the 4 on the row — not against whatever the form drew.
         delta: 7,
+        // The count AT that branch, which is what the ledger means since Stage 4.
         resultingStock: 11,
         reason: 'ADJUSTMENT',
         actorId: 'u-1',
       });
     });
 
-    it('starts counting a previously untracked product from zero', async () => {
-      const { service, movementCreate } = setup({ findFirst: row({ variants: [], stock: null }) });
+    it('refuses a correction bigger than the default branch holds', async () => {
+      // The gym holds 9, but only 2 of them are here. Clamping, or quietly reaching
+      // into the other branch's shelf, would be the untargeted write Stage 4 removes.
+      const ctx = setup({
+        findFirst: row({ variants: [], stock: 9 }),
+        branchRows: [branchRow({ stock: 2 })],
+      });
 
-      await service.updateProduct('p-1', updateInput({ variants: [], stock: 6 }));
+      await expect(
+        ctx.service.updateProduct('p-1', updateInput({ variants: [], stock: 1 })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.branchRows[0]!.stock).toBe(2);
+    });
 
-      expect(movementCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+    it('starts counting a previously untracked product from zero, on the default branch', async () => {
+      const ctx = setup({ findFirst: row({ variants: [], stock: null }) });
+
+      await ctx.service.updateProduct('p-1', updateInput({ variants: [], stock: 6 }));
+
+      // NULL → tracked is a mode switch, not a claim: both sides are written
+      // absolutely from the same figure, so they are equal by construction.
+      expect(ctx.branchCreate.mock.calls[0]![0].data).toMatchObject({
+        locationId: 'loc-1',
+        stock: 6,
+      });
+      expect(ctx.update).toHaveBeenCalledWith(expect.objectContaining({ data: { stock: 6 } }));
+      expect(ctx.movementCreate.mock.calls[0]?.[0]?.data).toMatchObject({
         delta: 6,
         resultingStock: 6,
       });
+    });
+
+    it('refuses an opening count at a gym with no default branch', async () => {
+      // The operator typed a figure that has nowhere to go. Creating the product
+      // untracked would discard it silently; writing it to the column alone would
+      // leave units no branch row accounts for.
+      const ctx = setup({ findFirst: row({ variants: [], stock: null }), defaultLocation: null });
+
+      await expect(
+        ctx.service.updateProduct('p-1', updateInput({ variants: [], stock: 6 })),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('records nothing when the base count is unchanged', async () => {
@@ -649,14 +915,18 @@ describe('AdminProductsService', () => {
     it('turns tracking off on a cleared count without inventing a write-off', async () => {
       // "We stopped counting this" is a change of mode, not stock leaving the
       // shelf; a movement here would put a loss in the ledger that never happened.
-      const { service, update, movementCreate } = setup({
+      const ctx = setup({
         findFirst: row({ variants: [], stock: 4 }),
+        branchRows: [branchRow({ stock: 4 })],
       });
 
-      await service.updateProduct('p-1', updateInput({ variants: [], stock: null }));
+      await ctx.service.updateProduct('p-1', updateInput({ variants: [], stock: null }));
 
-      expect(update.mock.calls[0]?.[0]?.data).toMatchObject({ stock: null });
-      expect(movementCreate).not.toHaveBeenCalled();
+      expect(ctx.update).toHaveBeenCalledWith(expect.objectContaining({ data: { stock: null } }));
+      // "We stopped counting this" is a fact about the product, so every branch row
+      // stops counting too — otherwise the roll-up says nothing while rows say 4.
+      expect(ctx.branchRows[0]!.stock).toBeNull();
+      expect(ctx.movementCreate).not.toHaveBeenCalled();
     });
 
     it('opens a count for a variant this edit added', async () => {

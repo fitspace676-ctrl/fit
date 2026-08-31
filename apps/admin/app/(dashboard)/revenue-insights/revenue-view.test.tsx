@@ -4,10 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import type { DashboardRevenueResponse } from '@fit/types';
 
+import { navigationMock } from '@/test/next-navigation-mock';
+import { ActiveLocationProvider } from '@/components/active-location';
+
 const loadRevenueAction = vi.fn();
 vi.mock('./actions', () => ({
   loadRevenueAction: (...args: unknown[]): unknown => loadRevenueAction(...args) as unknown,
 }));
+
+// `ActiveLocationProvider` reads the URL, so the App Router hooks have to exist.
+vi.mock('next/navigation', () => navigationMock.factory());
 
 const { RevenueView } = await import('./revenue-view');
 
@@ -96,16 +102,28 @@ function response(over: Partial<DashboardRevenueResponse> = {}): DashboardRevenu
   };
 }
 
-function renderView() {
+const LOCATIONS = [
+  { id: 'loc-downtown', name: 'Downtown' },
+  { id: 'loc-harbour', name: 'Harbour' },
+];
+
+/**
+ * @param activeLocation the branch the console is scoped to — `'all'` (the
+ *   default) or a live location id, as the provider spells it.
+ */
+function renderView(activeLocation = 'all') {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <RevenueView />
+      <ActiveLocationProvider initial={activeLocation} locations={LOCATIONS}>
+        <RevenueView />
+      </ActiveLocationProvider>
     </NextIntlClientProvider>,
   );
 }
 
 describe('RevenueView', () => {
   beforeEach(() => {
+    navigationMock.reset();
     loadRevenueAction.mockReset();
     loadRevenueAction.mockResolvedValue({ ok: true, data: response() });
   });
@@ -197,5 +215,61 @@ describe('RevenueView', () => {
     loadRevenueAction.mockRejectedValue(new Error('network'));
     renderView();
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load revenue.");
+  });
+});
+
+describe('RevenueView under a branch filter', () => {
+  beforeEach(() => {
+    navigationMock.reset();
+    loadRevenueAction.mockReset();
+    loadRevenueAction.mockResolvedValue({ ok: true, data: response() });
+  });
+
+  // The tab is loaded through a Server Action, which never sees `searchParams`.
+  // The branch therefore travels in the query the view builds — otherwise a
+  // `?locationId=` link would scope the page and not the tab.
+  it('sends the active branch to the action', async () => {
+    navigationMock.setSearch('locationId=loc-harbour');
+    renderView('loc-harbour');
+    await screen.findByText('Revenue over time');
+    expect(loadRevenueAction).toHaveBeenCalledWith({
+      granularity: 'daily',
+      projectionWindow: '7',
+      locationId: 'loc-harbour',
+    });
+  });
+
+  // A cross-branch breakdown under a single-branch filter is one bar restating
+  // the KPI tile above it. The card is removed, not emptied.
+  it('drops the location card when a single branch is selected', async () => {
+    loadRevenueAction.mockResolvedValue({
+      ok: true,
+      data: response({
+        byLocation: [
+          { location: 'Downtown', value: 80_00 },
+          { location: 'Harbour', value: 40_00 },
+        ],
+      }),
+    });
+    navigationMock.setSearch('locationId=loc-harbour');
+    renderView('loc-harbour');
+    await screen.findByText('Revenue over time');
+    expect(screen.queryByText('Revenue by location')).not.toBeInTheDocument();
+  });
+
+  // The same payload keeps the card in all-locations mode — the assertion that
+  // stops the branch check above from being satisfied by simply deleting it.
+  it('keeps the location card in all-locations mode', async () => {
+    loadRevenueAction.mockResolvedValue({
+      ok: true,
+      data: response({
+        byLocation: [
+          { location: 'Downtown', value: 80_00 },
+          { location: 'Harbour', value: 40_00 },
+        ],
+      }),
+    });
+    renderView('all');
+    expect(await screen.findByText('Revenue by location')).toBeInTheDocument();
   });
 });

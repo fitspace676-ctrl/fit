@@ -13,6 +13,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { bucketKey, emptyBuckets, resolveWindow } from '../reports/report-window.util';
+import { atLocation } from '../common/location-filter.util';
 
 /** `Payment.provider` for a till sale; anything else settled through a gateway. */
 const POS_PROVIDER = 'pos';
@@ -61,6 +62,24 @@ interface SellerTally {
  * the trend, and vice versa). They answer different questions and the UI captions
  * each accordingly; collapsing them to one number would mean either wrong buckets
  * or a moving historical figure.
+ *
+ * **`locationId` filters this tab completely — every figure on it, with no gym-wide
+ * remainder.** That is unusual among the dashboard tabs and it is worth stating
+ * why: the tab reads exactly two tables, `Payment` and `Refund`, and since Stage 5
+ * both carry their own `locationId` — denormalised from the order at write time,
+ * so the attribution is the same one this tab always applied. No KPI here blends a
+ * branch figure with a gym-wide one.
+ *
+ * The filter is now a plain equality served by `(gymId, locationId, createdAt)`,
+ * where it used to be a relation filter through `order` that could not use an
+ * index at all. Nothing moved between branches in the swap: it was a performance
+ * change, and this tab — two unbounded window reads, both filtered — is the one it
+ * was most worth making for.
+ *
+ * Both halves take the branch from the SAME order, which is what makes netting
+ * honest: a refund is attributed to the till that took the money, not to the desk
+ * that keyed the reversal, so `net` cannot leave one branch showing revenue it no
+ * longer holds and another a negative it never earned.
  */
 @Injectable()
 export class DashboardSalesService {
@@ -77,10 +96,15 @@ export class DashboardSalesService {
     const locale = await this.locales.get();
     const zone = locale.timezone;
     const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
+    const atBranch = atLocation(query.locationId);
 
     const [payments, refunds] = await Promise.all([
       this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        where: {
+          status: PaymentStatus.CAPTURED,
+          createdAt: { gte: win.start, lt: win.end },
+          ...atBranch,
+        },
         select: {
           amount: true,
           refundedAmount: true,
@@ -99,7 +123,7 @@ export class DashboardSalesService {
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.client.refund.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end } },
+        where: { createdAt: { gte: win.start, lt: win.end }, ...atBranch },
         select: {
           amount: true,
           createdAt: true,
