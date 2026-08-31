@@ -97,6 +97,10 @@ export interface ReportStrings {
     invoiceTypes: Record<string, string>;
     /** Billing intervals, by `SubscriptionInterval`. */
     intervals: Record<string, string>;
+    /** Stock position states - see the stock & inventory report. */
+    stockStatuses: Record<string, string>;
+    /** What a stock movement was, in the desk's words - see the movement history. */
+    movementTypes: Record<string, string>;
     /** Monday first, three letters each: the peak-hours heatmap rows. */
     weekdays: readonly string[];
   };
@@ -214,6 +218,22 @@ const EN: ReportStrings = {
       OTHER: 'Other',
     },
     intervals: { MONTH: 'Monthly', YEAR: 'Yearly' },
+    stockStatuses: {
+      inStock: 'In stock',
+      lowStock: 'Low stock',
+      outOfStock: 'Out of stock',
+      notTracked: 'Not tracked',
+    },
+    movementTypes: {
+      initial: 'Initial stock',
+      received: 'Stock received',
+      posSale: 'POS sale',
+      onlineSale: 'Online sale',
+      customerReturn: 'Customer return',
+      adjustment: 'Manual adjustment',
+      recount: 'Stocktake correction',
+      writeOff: 'Write-off',
+    },
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
   tabular: { summary: 'Summary', metric: 'Metric', value: 'Value', unit: 'Unit' },
@@ -251,6 +271,7 @@ const KA: ReportStrings = {
     sales: 'გაყიდვები',
     members: 'წევრები',
     revenue: 'შემოსავალი',
+    products: 'პროდუქტები',
     classes: 'კლასები და ვარჯიშები',
     staff: 'მწვრთნელები და პერსონალი',
   },
@@ -541,6 +562,83 @@ const KA: ReportStrings = {
         refunded: KA_COMMON.refunded,
         gross: 'მიღებული',
         shareOfGross: 'წილი მთლიანში',
+      },
+    },
+    'product-sales': {
+      name: 'პროდუქტების გაყიდვები',
+      description:
+        'როგორ გაიყიდა ფიზიკური პროდუქტები სალაროსთან და ონლაინ: პროდუქტის, ვარიანტისა და ფილიალის მიხედვით - რაოდენობა, გაყიდვების ღირებულება, თვითღირებულება, მარჟა, საშუალო ფასი, სალარო / ონლაინ გაყოფა და რამდენმა გაყიდვამ მოიტანა.',
+      columns: {
+        product: 'პროდუქტი',
+        variant: 'ვარიანტი',
+        sku: 'SKU',
+        category: 'კატეგორია',
+        quantity: 'გაყიდული რაოდენობა',
+        revenue: 'გაყიდვების ღირებულება',
+        cogs: 'თვითღირებულება',
+        margin: 'მარჟა',
+        marginPct: 'მარჟა %',
+        avgPrice: 'საშ. გასაყიდი ფასი',
+        posSales: 'გაყიდვები სალაროსთან',
+        onlineSales: 'ონლაინ გაყიდვები',
+        transactions: 'ტრანზაქციები',
+        location: KA_COMMON.location,
+      },
+    },
+    'product-sales-detail': {
+      name: 'პროდუქტების გაყიდვების დეტალები',
+      description:
+        'ყველა გაყიდული პროდუქტის ხაზი ამ პერიოდში: როდის, რა, რამდენი, ვის, რომელი არხით, რა ფასად და თვითღირებულებით, როგორ გადაიხადეს, სად, ვინ გაყიდა და რომელ გაყიდვას ეკუთვნის.',
+      columns: {
+        date: KA_COMMON.date,
+        time: KA_COMMON.time,
+        product: 'პროდუქტი',
+        variant: 'ვარიანტი',
+        quantity: 'რაოდენობა',
+        customer: 'მყიდველი',
+        channel: 'არხი',
+        price: 'გასაყიდი ფასი',
+        cost: 'თვითღირებულება',
+        margin: 'მარჟა',
+        method: 'გადახდის მეთოდი',
+        location: KA_COMMON.location,
+        staff: 'თანამშრომელი',
+        reference: 'ნომერი',
+      },
+    },
+    'stock-inventory': {
+      name: 'მარაგი და ინვენტარი',
+      description:
+        'ყველა პროდუქტისა და ვარიანტის მიმდინარე მარაგი, ერთეულის თვითღირებულება და მარაგის ღირებულება, მცირე მარაგის ზღვარი და სტატუსი მის მიმართ (მარაგშია, მცირე მარაგი, ამოწურულია, არ ითვლება). მარაგი პროდუქტზე ინახება, არა ფილიალზე.',
+      columns: {
+        product: 'პროდუქტი',
+        variant: 'ვარიანტი',
+        sku: 'SKU',
+        stock: 'მიმდინარე მარაგი',
+        unitCost: 'ერთეულის თვითღირებულება',
+        stockValue: 'მარაგის ღირებულება',
+        threshold: 'მცირე მარაგის ზღვარი',
+        status: KA_COMMON.status,
+      },
+    },
+    'stock-movements': {
+      name: 'მარაგის მოძრაობის ისტორია',
+      description:
+        'პროდუქტების მარაგის ყველა ცვლილება ამ პერიოდში, ძველიდან ახლისკენ: ტიპი (საწყისი მარაგი, მიღებული, გაყიდვა სალაროსთან, ონლაინ გაყიდვა, მყიდველის დაბრუნება, ხელით შესწორება, ინვენტარიზაციის შესწორება, ჩამოწერა), ცვლილება, მარაგი მანამდე და მერე, ღირებულების გავლენა, საიდან მოვიდა, ვინ გააკეთა და შენიშვნა.',
+      columns: {
+        date: KA_COMMON.date,
+        time: KA_COMMON.time,
+        product: 'პროდუქტი',
+        variant: 'ვარიანტი',
+        sku: 'SKU',
+        type: 'მოძრაობის ტიპი',
+        delta: 'რაოდენობის ცვლილება',
+        before: 'მარაგი მანამდე',
+        after: 'მარაგი მერე',
+        valueImpact: 'ღირებულების გავლენა',
+        reference: 'ნომერი',
+        staff: 'თანამშრომელი',
+        note: 'შენიშვნა',
       },
     },
     'attendance-by-class': {
@@ -875,6 +973,22 @@ const KA: ReportStrings = {
       OTHER: 'სხვა',
     },
     intervals: { MONTH: 'თვიური', YEAR: 'წლიური' },
+    stockStatuses: {
+      inStock: 'მარაგშია',
+      lowStock: 'მცირე მარაგი',
+      outOfStock: 'ამოწურულია',
+      notTracked: 'არ ითვლება',
+    },
+    movementTypes: {
+      initial: 'საწყისი მარაგი',
+      received: 'მიღებული მარაგი',
+      posSale: 'გაყიდვა სალაროსთან',
+      onlineSale: 'ონლაინ გაყიდვა',
+      customerReturn: 'მყიდველის დაბრუნება',
+      adjustment: 'ხელით შესწორება',
+      recount: 'ინვენტარიზაციის შესწორება',
+      writeOff: 'ჩამოწერა',
+    },
     weekdays: ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
   },
   tabular: { summary: 'შეჯამება', metric: 'მაჩვენებელი', value: 'მნიშვნელობა', unit: 'ერთეული' },

@@ -168,6 +168,7 @@
         "sales": "Sales",
         "members": "Members",
         "revenue": "Revenue",
+        "products": "Product sales, margins, stock levels and movements.",
         "classes": "Classes",
         "staff": "Staff"
       },

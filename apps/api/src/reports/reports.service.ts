@@ -11,6 +11,7 @@ import {
   PackageBillingInterval,
   PaymentMethod,
   ServiceType,
+  StockMovementReason,
 } from '@fit/db';
 import {
   deriveOrderChannel,
@@ -32,6 +33,8 @@ import {
   type ReportWindowInput,
   type ReportWindowPreset,
   decodeVariantRef,
+  productVariantsSchema,
+  type ProductVariant,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -49,6 +52,7 @@ import {
 } from './report-window.util';
 import { addZonedDays, zonedDayStart } from './zoned-time.util';
 import { resolveEmailLocale } from '../mail/email-locale';
+import { OPENING_COUNT_NOTE } from '../products/admin-products.service';
 import {
   localizeColumns,
   localizeDefinition,
@@ -379,6 +383,34 @@ export class ReportsService {
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       /* ---- Classes ------------------------------------------------------- */
+      case 'product-sales': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.productSales(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'product-sales-detail': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.productSalesDetail(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'stock-inventory': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.stockInventory(s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'stock-movements': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.stockMovements(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
       case 'attendance-by-class':
         return {
           name: definition.name,
@@ -1091,6 +1123,346 @@ export class ReportsService {
           ? staffName(order.soldBy, s.values.unattributed)
           : s.values.unattributed,
         status: s.values.statuses[statusKey] ?? statusKey,
+      };
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Products                                                               */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * The products behind a set of ids, with their variants parsed - one lookup
+   * for a whole report's worth of lines. A variant's SKU and stock live in the
+   * product's `variants` JSON; its cost is the product's (there is no per-variant
+   * cost), and its category is the product's.
+   */
+  private async loadProducts(ids: Iterable<string>): Promise<Map<string, ProductRecord>> {
+    const wanted = [...new Set(ids)];
+    if (wanted.length === 0) return new Map();
+    const rows = await this.prisma.client.product.findMany({
+      where: { id: { in: wanted } },
+      select: {
+        id: true,
+        name: true,
+        costAmount: true,
+        priceAmount: true,
+        stock: true,
+        lowStockThreshold: true,
+        category: { select: { name: true } },
+        variants: true,
+      },
+    });
+    return new Map(rows.map((row) => [row.id, toProductRecord(row)]));
+  }
+
+  /** Every product line sold in the window, resolved to its product and variant. */
+  private async soldProductLines(win: ReportWindow, s: ReportStrings): Promise<SoldLine[]> {
+    const orders = await this.prisma.client.order.findMany({
+      where: {
+        createdAt: { gte: win.start, lt: win.end },
+        payment: { is: { status: PaymentStatus.CAPTURED } },
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        customerName: true,
+        member: {
+          select: { firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+        location: { select: { name: true } },
+        soldBy: {
+          select: { firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+        payment: { select: { method: true, provider: true } },
+        items: { select: { label: true, amount: true, qty: true, productVariantId: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: DETAIL_ROW_LIMIT,
+    });
+    const refs = orders.flatMap((order) =>
+      order.items.map((item) =>
+        item.productVariantId ? decodeVariantRef(item.productVariantId) : null,
+      ),
+    );
+    const products = await this.loadProducts(refs.flatMap((ref) => (ref ? [ref.productId] : [])));
+
+    const lines: SoldLine[] = [];
+    for (const order of orders) {
+      for (const item of order.items) {
+        const ref = item.productVariantId ? decodeVariantRef(item.productVariantId) : null;
+        if (!ref) continue;
+        const product = products.get(ref.productId);
+        const variant =
+          ref.variantIndex === null ? null : (product?.variants[ref.variantIndex] ?? null);
+        const cost = product?.costAmount ?? null;
+        lines.push({
+          order,
+          item,
+          productId: ref.productId,
+          variantIndex: ref.variantIndex,
+          product: product?.name ?? item.label,
+          variant: variant?.name ?? '',
+          sku: variant?.sku ?? '',
+          category: product?.category ?? s.values.categoryUncategorised,
+          cost: cost === null ? null : cost * item.qty,
+          channel: deriveOrderChannel(order.payment?.provider),
+        });
+      }
+    }
+    return lines;
+  }
+
+  /**
+   * Product performance per product, variant and branch: quantity, sales value,
+   * cost of goods, gross margin, average price, the POS / online split, and how
+   * many sales carried it. Cost of goods is the product's recorded cost times the
+   * quantity; a product with no cost on file reads null for cost and margin
+   * rather than a margin of 100%.
+   */
+  private async productSales(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const lines = await this.soldProductLines(win, s);
+    interface Entry {
+      product: string;
+      variant: string;
+      sku: string;
+      category: string;
+      quantity: number;
+      revenue: number;
+      cogs: number | null;
+      posSales: number;
+      onlineSales: number;
+      orders: Set<string>;
+      location: string;
+    }
+    const entries = new Map<string, Entry>();
+    for (const line of lines) {
+      const location = line.order.location?.name ?? '';
+      const key = `${line.productId}:${line.variantIndex ?? 'base'}|${location}`;
+      const entry = entries.get(key) ?? {
+        product: line.product,
+        variant: line.variant,
+        sku: line.sku,
+        category: line.category,
+        quantity: 0,
+        revenue: 0,
+        cogs: line.cost === null ? null : 0,
+        posSales: 0,
+        onlineSales: 0,
+        orders: new Set<string>(),
+        location,
+      };
+      entry.quantity += line.item.qty;
+      entry.revenue += line.item.amount;
+      if (entry.cogs !== null && line.cost !== null) entry.cogs += line.cost;
+      if (line.channel === 'POS') entry.posSales += line.item.amount;
+      else entry.onlineSales += line.item.amount;
+      entry.orders.add(line.order.id);
+      entries.set(key, entry);
+    }
+    return [...entries.values()]
+      .sort((a, b) => b.revenue - a.revenue || a.product.localeCompare(b.product))
+      .map((entry) => {
+        const margin = entry.cogs === null ? null : entry.revenue - entry.cogs;
+        return {
+          product: entry.product,
+          variant: entry.variant,
+          sku: entry.sku,
+          category: entry.category,
+          quantity: entry.quantity,
+          revenue: entry.revenue,
+          cogs: entry.cogs,
+          margin,
+          marginPct: margin === null || entry.revenue === 0 ? null : rate(margin, entry.revenue),
+          avgPrice: entry.quantity > 0 ? Math.round(entry.revenue / entry.quantity) : null,
+          posSales: entry.posSales,
+          onlineSales: entry.onlineSales,
+          transactions: entry.orders.size,
+          location: entry.location,
+        };
+      });
+  }
+
+  /** Every product line sold in the window, one row each, oldest first. */
+  private async productSalesDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const lines = await this.soldProductLines(win, s);
+    return lines.map((line) => ({
+      date: isoDate(line.order.createdAt, win.zone),
+      time: clockTime(line.order.createdAt, win.zone),
+      product: line.product,
+      variant: line.variant,
+      quantity: line.item.qty,
+      customer: line.order.member
+        ? memberName(line.order.member, s.values.unknownMember)
+        : (line.order.customerName ?? s.values.guest),
+      channel: line.channel === 'POS' ? s.values.channelPos : s.values.channelOnline,
+      price: line.item.amount,
+      cost: line.cost,
+      margin: line.cost === null ? null : line.item.amount - line.cost,
+      method: line.order.payment ? paymentMethodLabel(s, line.order.payment.method) : '',
+      location: line.order.location?.name ?? '',
+      staff: line.order.soldBy
+        ? staffName(line.order.soldBy, s.values.unattributed)
+        : s.values.unattributed,
+      reference: shortId(line.order.id),
+    }));
+  }
+
+  /**
+   * Every stock position - a product's base count, or each of its variants -
+   * with its value and a status against the product's own low-stock threshold.
+   * Stock is held per product, not per branch, so there is no location column.
+   * A snapshot: the reporting window does not apply.
+   */
+  private async stockInventory(s: ReportStrings): Promise<ReportRow[]> {
+    const rows = await this.prisma.client.product.findMany({
+      select: {
+        id: true,
+        name: true,
+        costAmount: true,
+        priceAmount: true,
+        stock: true,
+        lowStockThreshold: true,
+        category: { select: { name: true } },
+        variants: true,
+      },
+      orderBy: { name: 'asc' },
+      take: DETAIL_ROW_LIMIT,
+    });
+    const out: ReportRow[] = [];
+    for (const row of rows) {
+      const product = toProductRecord(row);
+      const positions: Array<{ variant: string; sku: string; stock: number | null }> =
+        product.variants.length > 0
+          ? product.variants.map((variant) => ({
+              variant: variant.name,
+              sku: variant.sku,
+              stock: variant.stock,
+            }))
+          : [{ variant: '', sku: '', stock: product.stock }];
+      for (const position of positions) {
+        const status =
+          position.stock === null
+            ? 'notTracked'
+            : position.stock === 0
+              ? 'outOfStock'
+              : product.lowStockThreshold !== null && position.stock <= product.lowStockThreshold
+                ? 'lowStock'
+                : 'inStock';
+        out.push({
+          product: product.name,
+          variant: position.variant,
+          sku: position.sku,
+          stock: position.stock,
+          unitCost: product.costAmount,
+          stockValue:
+            position.stock === null || product.costAmount === null
+              ? null
+              : position.stock * product.costAmount,
+          threshold: product.lowStockThreshold,
+          status: s.values.stockStatuses[status] ?? status,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Every stock movement in the window, oldest first - the ledger read forward.
+   *
+   * The type is the reason in the desk's words, with two refinements the ledger
+   * does not store directly: a `RECEIVE` carrying the product form's opening
+   * note is the initial stock, and a `SALE` reads as a POS or online sale by the
+   * channel of the order behind it. Write-offs are one reason in the ledger
+   * (damaged, lost, expired and internal use are told apart only by the note),
+   * so they read as one type here.
+   *
+   * Actors are looked up by their bare user id, as the console's own ledger view
+   * does: a movement outlives the staff member who made it.
+   */
+  private async stockMovements(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const movements = await this.prisma.client.stockMovement.findMany({
+      where: { createdAt: { gte: win.start, lt: win.end } },
+      select: {
+        createdAt: true,
+        variantIndex: true,
+        variantLabel: true,
+        delta: true,
+        resultingStock: true,
+        reason: true,
+        note: true,
+        actorId: true,
+        orderId: true,
+        product: { select: { id: true, name: true, costAmount: true, variants: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: DETAIL_ROW_LIMIT,
+    });
+    const orderIds = [...new Set(movements.flatMap((m) => (m.orderId ? [m.orderId] : [])))];
+    const actorIds = [...new Set(movements.flatMap((m) => (m.actorId ? [m.actorId] : [])))];
+    const [orders, users] = await Promise.all([
+      orderIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.client.order.findMany({
+            where: { id: { in: orderIds } },
+            select: { id: true, payment: { select: { provider: true } } },
+          }),
+      actorIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.client.user.findMany({
+            where: { id: { in: actorIds } },
+            select: { id: true, name: true, email: true },
+          }),
+    ]);
+    const channelByOrder = new Map(
+      orders.map((order) => [order.id, deriveOrderChannel(order.payment?.provider)]),
+    );
+    const nameByActor = new Map(users.map((user) => [user.id, user.name || user.email]));
+
+    return movements.map((movement) => {
+      const variants = parseVariants(movement.product.variants);
+      const variant =
+        movement.variantIndex === null ? null : (variants[movement.variantIndex] ?? null);
+      let type: string;
+      switch (movement.reason) {
+        case StockMovementReason.RECEIVE:
+          type = movement.note === OPENING_COUNT_NOTE ? 'initial' : 'received';
+          break;
+        case StockMovementReason.SALE:
+          type =
+            movement.orderId && channelByOrder.get(movement.orderId) === 'ONLINE'
+              ? 'onlineSale'
+              : 'posSale';
+          break;
+        case StockMovementReason.REFUND_RESTOCK:
+          type = 'customerReturn';
+          break;
+        case StockMovementReason.RECOUNT:
+          type = 'recount';
+          break;
+        case StockMovementReason.WRITE_OFF:
+          type = 'writeOff';
+          break;
+        default:
+          type = 'adjustment';
+      }
+      const cost = movement.product.costAmount;
+      return {
+        date: isoDate(movement.createdAt, win.zone),
+        time: clockTime(movement.createdAt, win.zone),
+        product: movement.product.name,
+        variant: variant?.name ?? movement.variantLabel,
+        sku: variant?.sku ?? '',
+        type: s.values.movementTypes[type] ?? type,
+        delta: movement.delta,
+        before: movement.resultingStock - movement.delta,
+        after: movement.resultingStock,
+        valueImpact: cost === null ? null : movement.delta * cost,
+        reference: movement.orderId ? shortId(movement.orderId) : '',
+        staff: movement.actorId
+          ? (nameByActor.get(movement.actorId) ?? s.values.unknownMember)
+          : '',
+        note: movement.note,
       };
     });
   }
@@ -2667,6 +3039,75 @@ const LIVE_SUB_STATUSES: readonly SubscriptionStatus[] = [
   SubscriptionStatus.PAST_DUE,
   SubscriptionStatus.FROZEN,
 ];
+
+/** A product as the product reports read it, variants parsed from their JSON. */
+interface ProductRecord {
+  id: string;
+  name: string;
+  costAmount: number | null;
+  priceAmount: number;
+  stock: number | null;
+  lowStockThreshold: number | null;
+  category: string | null;
+  variants: ProductVariant[];
+}
+
+function parseVariants(value: unknown): ProductVariant[] {
+  const parsed = productVariantsSchema.safeParse(value ?? []);
+  return parsed.success ? parsed.data : [];
+}
+
+function toProductRecord(row: {
+  id: string;
+  name: string;
+  costAmount: number | null;
+  priceAmount: number;
+  stock: number | null;
+  lowStockThreshold: number | null;
+  category: { name: string } | null;
+  variants: unknown;
+}): ProductRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    costAmount: row.costAmount,
+    priceAmount: row.priceAmount,
+    stock: row.stock,
+    lowStockThreshold: row.lowStockThreshold,
+    category: row.category?.name ?? null,
+    variants: parseVariants(row.variants),
+  };
+}
+
+/** A person as the sold-line rows name them. */
+interface NamedParty {
+  firstName: string | null;
+  lastName: string | null;
+  user: { name: string | null } | null;
+}
+
+/** One product line of a captured order, resolved - see `soldProductLines`. */
+interface SoldLine {
+  order: {
+    id: string;
+    createdAt: Date;
+    customerName: string | null;
+    member: NamedParty | null;
+    location: { name: string } | null;
+    soldBy: NamedParty | null;
+    payment: { method: PaymentMethod; provider: string } | null;
+  };
+  item: { label: string; amount: number; qty: number };
+  productId: string;
+  variantIndex: number | null;
+  product: string;
+  variant: string;
+  sku: string;
+  category: string;
+  /** The line's cost of goods (unit cost times quantity), or null with no cost on file. */
+  cost: number | null;
+  channel: 'POS' | 'ONLINE';
+}
 
 /** Months in a year, for normalising a yearly subscription price to MRR. */
 const MONTHS_PER_YEAR = 12;

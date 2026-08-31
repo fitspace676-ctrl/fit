@@ -27,6 +27,8 @@ function setup() {
   const refundFindMany = vi.fn().mockResolvedValue([]);
   const orderFindMany = vi.fn().mockResolvedValue([]);
   const productFindMany = vi.fn().mockResolvedValue([]);
+  const stockMovementFindMany = vi.fn().mockResolvedValue([]);
+  const userFindMany = vi.fn().mockResolvedValue([]);
   const promoRedemptionFindMany = vi.fn().mockResolvedValue([]);
 
   const subscriptionFindMany = vi.fn().mockResolvedValue([]);
@@ -44,6 +46,8 @@ function setup() {
     refund: { findMany: refundFindMany },
     order: { findMany: orderFindMany },
     product: { findMany: productFindMany },
+    stockMovement: { findMany: stockMovementFindMany },
+    user: { findMany: userFindMany },
     promoRedemption: { findMany: promoRedemptionFindMany },
     subscription: { findMany: subscriptionFindMany },
     checkIn: { findMany: checkInFindMany },
@@ -74,6 +78,8 @@ function setup() {
     refundFindMany,
     orderFindMany,
     productFindMany,
+    stockMovementFindMany,
+    userFindMany,
     promoRedemptionFindMany,
     subscriptionFindMany,
     checkInFindMany,
@@ -1346,6 +1352,377 @@ describe('ReportsService', () => {
         { method: 'Cash', payments: 1, revenue: 10_000, share: 10, location: 'Vake' },
         { method: 'Member account', payments: 1, revenue: 5_000, share: 5, location: 'Vake' },
       ]);
+    });
+  });
+
+  describe('product reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    /** A shaker in two sizes at 15 / 12 cost, and a towel with no cost recorded. */
+    const products = [
+      {
+        id: 'prod-1',
+        name: 'Shaker',
+        costAmount: 1_000,
+        priceAmount: 1_500,
+        stock: null,
+        lowStockThreshold: 5,
+        category: { name: 'Accessories' },
+        variants: [
+          { name: '500ml', sku: 'SHK-500', priceAmount: 1_500, stock: 3 },
+          { name: '750ml', sku: 'SHK-750', priceAmount: null, stock: 0 },
+        ],
+      },
+      {
+        id: 'prod-2',
+        name: 'Towel',
+        costAmount: null,
+        priceAmount: 2_000,
+        stock: 12,
+        lowStockThreshold: null,
+        category: null,
+        variants: [],
+      },
+    ];
+    const staff = { firstName: 'Mariam', lastName: 'Beridze', user: null };
+    const orders = [
+      // Till: two 500ml shakers and a towel, card, Vake.
+      {
+        id: 'cmxxxxxxxxabcd1234',
+        createdAt: new Date('2026-08-08T14:05:00.000Z'),
+        customerName: null,
+        member: { firstName: 'Nino', lastName: 'Gelashvili', user: null },
+        location: { name: 'Vake' },
+        soldBy: staff,
+        payment: { method: 'CARD', provider: 'pos' },
+        items: [
+          {
+            label: 'Shaker 500ml ×2',
+            amount: 3_000,
+            qty: 2,
+            productVariantId: 'prod-1:0',
+            serviceId: null,
+          },
+          {
+            label: 'Towel',
+            amount: 2_000,
+            qty: 1,
+            productVariantId: 'prod-2:base',
+            serviceId: null,
+          },
+          { label: 'Promo X', amount: -500, qty: 1, productVariantId: null, serviceId: null },
+        ],
+      },
+      // Online: one 500ml shaker, no branch, nobody sold it.
+      {
+        id: 'cmyyyyyyyywxyz9876',
+        createdAt: new Date('2026-08-09T08:00:00.000Z'),
+        customerName: 'Walk-in Dato',
+        member: null,
+        location: null,
+        soldBy: null,
+        payment: { method: 'CARD', provider: 'stub' },
+        items: [
+          {
+            label: 'Shaker 500ml',
+            amount: 1_500,
+            qty: 1,
+            productVariantId: 'prod-1:0',
+            serviceId: null,
+          },
+        ],
+      },
+    ];
+
+    it('product sales: per product, variant and branch, with cost, margin, average price and the channel split', async () => {
+      const { service, orderFindMany, productFindMany } = setup();
+      orderFindMany.mockResolvedValue(orders);
+      productFindMany.mockResolvedValue(products);
+
+      const result = await service.runReport('product-sales', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          product: 'Shaker',
+          variant: '500ml',
+          sku: 'SHK-500',
+          category: 'Accessories',
+          quantity: 2,
+          revenue: 3_000,
+          cogs: 2_000,
+          margin: 1_000,
+          marginPct: 33.3,
+          avgPrice: 1_500,
+          posSales: 3_000,
+          onlineSales: 0,
+          transactions: 1,
+          location: 'Vake',
+        },
+        {
+          product: 'Towel',
+          variant: '',
+          sku: '',
+          category: 'Uncategorised',
+          quantity: 1,
+          revenue: 2_000,
+          cogs: null,
+          margin: null,
+          marginPct: null,
+          avgPrice: 2_000,
+          posSales: 2_000,
+          onlineSales: 0,
+          transactions: 1,
+          location: 'Vake',
+        },
+        {
+          product: 'Shaker',
+          variant: '500ml',
+          sku: 'SHK-500',
+          category: 'Accessories',
+          quantity: 1,
+          revenue: 1_500,
+          cogs: 1_000,
+          margin: 500,
+          marginPct: 33.3,
+          avgPrice: 1_500,
+          posSales: 0,
+          onlineSales: 1_500,
+          transactions: 1,
+          location: '',
+        },
+      ]);
+    });
+
+    it('product sales detail: one row per sold line with who, where, how and the margin', async () => {
+      const { service, orderFindMany, productFindMany } = setup();
+      orderFindMany.mockResolvedValue(orders);
+      productFindMany.mockResolvedValue(products);
+
+      const result = await service.runReport('product-sales-detail', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-08',
+          time: '18:05',
+          product: 'Shaker',
+          variant: '500ml',
+          quantity: 2,
+          customer: 'Nino Gelashvili',
+          channel: 'Point of sale',
+          price: 3_000,
+          cost: 2_000,
+          margin: 1_000,
+          method: 'Card',
+          location: 'Vake',
+          staff: 'Mariam Beridze',
+          reference: 'ABCD1234',
+        },
+        {
+          date: '2026-08-08',
+          time: '18:05',
+          product: 'Towel',
+          variant: '',
+          quantity: 1,
+          customer: 'Nino Gelashvili',
+          channel: 'Point of sale',
+          price: 2_000,
+          cost: null,
+          margin: null,
+          method: 'Card',
+          location: 'Vake',
+          staff: 'Mariam Beridze',
+          reference: 'ABCD1234',
+        },
+        {
+          date: '2026-08-09',
+          time: '12:00',
+          product: 'Shaker',
+          variant: '500ml',
+          quantity: 1,
+          customer: 'Walk-in Dato',
+          channel: 'Online',
+          price: 1_500,
+          cost: 1_000,
+          margin: 500,
+          method: 'Card',
+          location: '',
+          staff: 'Unattributed',
+          reference: 'WXYZ9876',
+        },
+      ]);
+    });
+
+    it('stock & inventory: every position with its value and a status against its own threshold', async () => {
+      const { service, productFindMany } = setup();
+      productFindMany.mockResolvedValue([
+        ...products,
+        {
+          id: 'prod-3',
+          name: 'Gift card',
+          costAmount: null,
+          priceAmount: 5_000,
+          stock: null,
+          lowStockThreshold: null,
+          category: null,
+          variants: [],
+        },
+      ]);
+
+      const result = await service.runReport('stock-inventory', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          product: 'Shaker',
+          variant: '500ml',
+          sku: 'SHK-500',
+          stock: 3,
+          unitCost: 1_000,
+          stockValue: 3_000,
+          threshold: 5,
+          status: 'Low stock',
+        },
+        {
+          product: 'Shaker',
+          variant: '750ml',
+          sku: 'SHK-750',
+          stock: 0,
+          unitCost: 1_000,
+          stockValue: 0,
+          threshold: 5,
+          status: 'Out of stock',
+        },
+        {
+          product: 'Towel',
+          variant: '',
+          sku: '',
+          stock: 12,
+          unitCost: null,
+          stockValue: null,
+          threshold: null,
+          status: 'In stock',
+        },
+        {
+          product: 'Gift card',
+          variant: '',
+          sku: '',
+          stock: null,
+          unitCost: null,
+          stockValue: null,
+          threshold: null,
+          status: 'Not tracked',
+        },
+      ]);
+    });
+
+    it('stock movements: every change with its type in words, before and after, value impact, reference and who', async () => {
+      const { service, stockMovementFindMany, orderFindMany, userFindMany } = setup();
+      const product = {
+        id: 'prod-1',
+        name: 'Shaker',
+        costAmount: 1_000,
+        variants: products[0]!.variants,
+      };
+      stockMovementFindMany.mockResolvedValue([
+        {
+          createdAt: new Date('2026-08-01T06:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: 10,
+          resultingStock: 10,
+          reason: 'RECEIVE',
+          note: 'Opening count',
+          actorId: 'user-1',
+          orderId: null,
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-08T14:05:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: -2,
+          resultingStock: 8,
+          reason: 'SALE',
+          note: '',
+          actorId: null,
+          orderId: 'cmxxxxxxxxabcd1234',
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-09T08:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: -1,
+          resultingStock: 7,
+          reason: 'SALE',
+          note: '',
+          actorId: null,
+          orderId: 'cmyyyyyyyywxyz9876',
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-10T09:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: 1,
+          resultingStock: 8,
+          reason: 'REFUND_RESTOCK',
+          note: '',
+          actorId: 'user-1',
+          orderId: 'cmxxxxxxxxabcd1234',
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-11T09:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: -5,
+          resultingStock: 3,
+          reason: 'WRITE_OFF',
+          note: 'Cracked in transit',
+          actorId: 'user-2',
+          orderId: null,
+          product,
+        },
+      ]);
+      orderFindMany.mockResolvedValue([
+        { id: 'cmxxxxxxxxabcd1234', payment: { provider: 'pos' } },
+        { id: 'cmyyyyyyyywxyz9876', payment: { provider: 'stub' } },
+      ]);
+      userFindMany.mockResolvedValue([
+        { id: 'user-1', name: 'Mariam Beridze', email: 'm@example.com' },
+      ]);
+
+      const result = await service.runReport('stock-movements', { range: 'mtd' });
+
+      expect(
+        result.rows.map((r) => [
+          r.type,
+          r.delta,
+          r.before,
+          r.after,
+          r.valueImpact,
+          r.reference,
+          r.staff,
+          r.note,
+        ]),
+      ).toEqual([
+        ['Initial stock', 10, 0, 10, 10_000, '', 'Mariam Beridze', 'Opening count'],
+        ['POS sale', -2, 10, 8, -2_000, 'ABCD1234', '', ''],
+        ['Online sale', -1, 8, 7, -1_000, 'WXYZ9876', '', ''],
+        ['Customer return', 1, 7, 8, 1_000, 'ABCD1234', 'Mariam Beridze', ''],
+        ['Write-off', -5, 8, 3, -5_000, '', 'Unknown', 'Cracked in transit'],
+      ]);
+      expect(result.rows[0]).toMatchObject({
+        date: '2026-08-01',
+        time: '10:00',
+        product: 'Shaker',
+        variant: '500ml',
+        sku: 'SHK-500',
+      });
     });
   });
 

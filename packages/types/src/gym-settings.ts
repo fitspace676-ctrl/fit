@@ -650,6 +650,11 @@ export const gymReportsSettingsSchema = z.object({
   'outstanding-invoices': z.boolean().default(true),
   'projected-revenue': z.boolean().default(true),
   'refunds-accounting': z.boolean().default(true),
+  // Products
+  'product-sales': z.boolean().default(true),
+  'product-sales-detail': z.boolean().default(true),
+  'stock-inventory': z.boolean().default(true),
+  'stock-movements': z.boolean().default(true),
   // Classes
   'attendance-by-class': z.boolean().default(true),
   'class-utilization': z.boolean().default(true),

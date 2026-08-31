@@ -540,6 +540,11 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   'pos-transaction-log': 'bag',
   'sales-transactions': 'ticket',
   'daily-reconciliation': 'check',
+  // Products
+  'product-sales': 'bag',
+  'product-sales-detail': 'ticket',
+  'stock-inventory': 'grid',
+  'stock-movements': 'arrow',
   // Members
   'membership-movement': 'users',
   'retention-and-churn': 'target',

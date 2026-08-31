@@ -204,6 +204,96 @@ describe('revenue reports', () => {
   });
 });
 
+describe('products segment', () => {
+  it('sits between revenue and classes with four reports', () => {
+    expect(REPORT_SEGMENTS).toEqual([
+      'sales',
+      'members',
+      'revenue',
+      'products',
+      'classes',
+      'staff',
+    ]);
+    for (const key of [
+      'product-sales',
+      'product-sales-detail',
+      'stock-inventory',
+      'stock-movements',
+    ] as const) {
+      expect(REPORT_DEFINITIONS[key].segment, key).toBe('products');
+    }
+  });
+
+  it('product sales: per product, variant and branch, with cost, margin and channel split', () => {
+    expect(REPORT_DEFINITIONS['product-sales'].columns.map((c) => c.key)).toEqual([
+      'product',
+      'variant',
+      'sku',
+      'category',
+      'quantity',
+      'revenue',
+      'cogs',
+      'margin',
+      'marginPct',
+      'avgPrice',
+      'posSales',
+      'onlineSales',
+      'transactions',
+      'location',
+    ]);
+  });
+
+  it('product sales detail: one row per sold line', () => {
+    expect(REPORT_DEFINITIONS['product-sales-detail'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'product',
+      'variant',
+      'quantity',
+      'customer',
+      'channel',
+      'price',
+      'cost',
+      'margin',
+      'method',
+      'location',
+      'staff',
+      'reference',
+    ]);
+  });
+
+  it('stock & inventory: every stock position with its value and status', () => {
+    expect(REPORT_DEFINITIONS['stock-inventory'].columns.map((c) => c.key)).toEqual([
+      'product',
+      'variant',
+      'sku',
+      'stock',
+      'unitCost',
+      'stockValue',
+      'threshold',
+      'status',
+    ]);
+  });
+
+  it('stock movements: every change with before, after and value impact', () => {
+    expect(REPORT_DEFINITIONS['stock-movements'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'product',
+      'variant',
+      'sku',
+      'type',
+      'delta',
+      'before',
+      'after',
+      'valueImpact',
+      'reference',
+      'staff',
+      'note',
+    ]);
+  });
+});
+
 describe('groupReportsBySegment', () => {
   it('groups in segment order and keeps each segment’s catalogue order', () => {
     const grouped = groupReportsBySegment(REPORT_CATALOG);

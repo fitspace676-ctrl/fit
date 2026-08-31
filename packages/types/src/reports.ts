@@ -201,7 +201,14 @@ export function reportWindowInput(query: ReportWindowFields): ReportWindowInput 
  * A segment with no reports yet is simply absent from the hub — the grouping is
  * derived from the catalogue, never hardcoded alongside it.
  */
-export const REPORT_SEGMENTS = ['sales', 'members', 'revenue', 'classes', 'staff'] as const;
+export const REPORT_SEGMENTS = [
+  'sales',
+  'members',
+  'revenue',
+  'products',
+  'classes',
+  'staff',
+] as const;
 
 /** A report segment — {@link REPORT_SEGMENTS}. */
 export const reportSegmentSchema = z.enum(REPORT_SEGMENTS);
@@ -212,6 +219,7 @@ export const REPORT_SEGMENT_LABEL: Record<ReportSegment, string> = {
   sales: 'Sales',
   members: 'Members',
   revenue: 'Revenue',
+  products: 'Products',
   classes: 'Classes & training',
   staff: 'Trainers & staff',
 };
@@ -250,6 +258,11 @@ export const REPORT_KEYS = [
   'outstanding-invoices',
   'projected-revenue',
   'refunds-accounting',
+  // Products
+  'product-sales',
+  'product-sales-detail',
+  'stock-inventory',
+  'stock-movements',
   // Classes
   'attendance-by-class',
   'class-utilization',
@@ -685,6 +698,91 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
 
   /* ---- Classes ---------------------------------------------------------- */
 
+  'product-sales': {
+    key: 'product-sales',
+    segment: 'products',
+    name: 'Product sales',
+    description:
+      'How physical products sold, through the till and online: per product, variant and branch - quantity, sales value, cost of goods, gross margin, average selling price, the POS / online split and how many sales carried it.',
+    columns: [
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'sku', label: 'SKU', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'quantity', label: 'Quantity sold', type: 'number' },
+      { key: 'revenue', label: 'Sales value', type: 'money' },
+      { key: 'cogs', label: 'Cost of goods', type: 'money' },
+      { key: 'margin', label: 'Gross margin', type: 'money' },
+      { key: 'marginPct', label: 'Margin %', type: 'percent' },
+      { key: 'avgPrice', label: 'Avg selling price', type: 'money' },
+      { key: 'posSales', label: 'POS sales', type: 'money' },
+      { key: 'onlineSales', label: 'Online sales', type: 'money' },
+      { key: 'transactions', label: 'Transactions', type: 'number' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'product-sales-detail': {
+    key: 'product-sales-detail',
+    segment: 'products',
+    name: 'Product sales detail',
+    description:
+      'Every product line sold in the window: when, what, how many, to whom, through which channel, at what price and cost, how it was paid, where, by whom, and the sale it belongs to.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'quantity', label: 'Quantity', type: 'number' },
+      { key: 'customer', label: 'Customer', type: 'text' },
+      { key: 'channel', label: 'Channel', type: 'text' },
+      { key: 'price', label: 'Selling price', type: 'money' },
+      { key: 'cost', label: 'Cost price', type: 'money' },
+      { key: 'margin', label: 'Margin', type: 'money' },
+      { key: 'method', label: 'Payment method', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'staff', label: 'Staff', type: 'text' },
+      { key: 'reference', label: 'Reference', type: 'text' },
+    ],
+  },
+  'stock-inventory': {
+    key: 'stock-inventory',
+    segment: 'products',
+    name: 'Stock & inventory',
+    description:
+      'Current stock of every product and variant, its unit cost and stock value, the low-stock threshold, and a status against it (in stock, low stock, out of stock, not tracked). Stock is held per product, not per branch.',
+    columns: [
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'sku', label: 'SKU', type: 'text' },
+      { key: 'stock', label: 'Current stock', type: 'number' },
+      { key: 'unitCost', label: 'Unit cost', type: 'money' },
+      { key: 'stockValue', label: 'Stock value', type: 'money' },
+      { key: 'threshold', label: 'Low-stock threshold', type: 'number' },
+      { key: 'status', label: 'Status', type: 'text' },
+    ],
+  },
+  'stock-movements': {
+    key: 'stock-movements',
+    segment: 'products',
+    name: 'Stock movement history',
+    description:
+      'Every change to product stock in the window, oldest first: the type (initial stock, received, POS sale, online sale, customer return, manual adjustment, stocktake correction, write-off), the change, stock before and after, the cost impact, the sale it came from, who made it, and the note left with it.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'sku', label: 'SKU', type: 'text' },
+      { key: 'type', label: 'Movement type', type: 'text' },
+      { key: 'delta', label: 'Quantity change', type: 'number' },
+      { key: 'before', label: 'Stock before', type: 'number' },
+      { key: 'after', label: 'Stock after', type: 'number' },
+      { key: 'valueImpact', label: 'Cost impact', type: 'money' },
+      { key: 'reference', label: 'Reference', type: 'text' },
+      { key: 'staff', label: 'Staff member', type: 'text' },
+      { key: 'note', label: 'Note', type: 'text' },
+    ],
+  },
   'attendance-by-class': {
     key: 'attendance-by-class',
     segment: 'classes',
