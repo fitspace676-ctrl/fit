@@ -343,17 +343,24 @@ export class ReportsService {
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
+      case 'revenue-by-payment-method': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.revenueByPaymentMethod(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
       case 'outstanding-invoices': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.outstandingInvoices(win.zone, s),
+          this.outstandingInvoices(win, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'projected-revenue': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.projectedRevenue(win),
+          this.projectedRevenue(win, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -1225,74 +1232,228 @@ export class ReportsService {
    * Ignores the reporting window: a debt from four months ago is exactly the one
    * worth chasing, and windowing it away would hide the worst rows.
    */
-  private async outstandingInvoices(zone: string, s: ReportStrings): Promise<ReportRow[]> {
+  private async outstandingInvoices(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    // Issued in the window, OR still owed whenever it was issued: an obligation
+    // does not stop being one because the month rolled over.
     const invoices = await this.prisma.client.invoice.findMany({
-      where: { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
+      where: {
+        OR: [
+          { issuedAt: { gte: win.start, lt: win.end } },
+          { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
+        ],
+      },
       select: {
         number: true,
-        amount: true,
+        issuedAt: true,
         dueDate: true,
+        amount: true,
         status: true,
+        type: true,
+        description: true,
+        member: {
+          select: { firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+        subscription: { select: { plan: { select: { name: true } } } },
+        order: {
+          select: {
+            items: { select: { label: true } },
+            location: { select: { name: true } },
+            payment: { select: { method: true, provider: true, createdAt: true } },
+          },
+        },
+      },
+      orderBy: { issuedAt: 'asc' },
+      take: DETAIL_ROW_LIMIT,
+    });
+
+    const now = new Date();
+    return invoices.map((invoice) => {
+      const settled =
+        invoice.status === InvoiceStatus.PAID || invoice.status === InvoiceStatus.REFUNDED;
+      const paid = settled ? invoice.amount : 0;
+      // The desk's words for the raw states: a failed charge is overdue whatever
+      // its date; a pending one is overdue past its due date, upcoming before it,
+      // and simply unpaid when it never had one.
+      let status: string;
+      if (invoice.status === InvoiceStatus.PAID) status = s.values.invoiceStatuses.paid ?? 'Paid';
+      else if (invoice.status === InvoiceStatus.REFUNDED) {
+        status = s.values.invoiceStatuses.refunded ?? 'Refunded';
+      } else if (
+        invoice.status === InvoiceStatus.FAILED ||
+        (invoice.dueDate && invoice.dueDate < now)
+      ) {
+        status = s.values.invoiceStatuses.overdue ?? 'Overdue';
+      } else if (invoice.dueDate) status = s.values.invoiceStatuses.upcoming ?? 'Upcoming';
+      else status = s.values.invoiceStatuses.unpaid ?? 'Unpaid';
+
+      const orderItems = invoice.order?.items.map((item) => item.label).join(', ') ?? '';
+      const item =
+        invoice.subscription?.plan?.name ??
+        (orderItems ||
+          invoice.description ||
+          (s.values.invoiceTypes[invoice.type] ?? invoice.type));
+      // A till or shop sale carries its payment; a subscription charge is
+      // collected online and has no payment row of its own.
+      const method = invoice.order?.payment
+        ? paymentMethodLabel(s, invoice.order.payment.method)
+        : invoice.subscription
+          ? s.values.channelOnline
+          : '';
+      const paidAt = settled ? (invoice.order?.payment?.createdAt ?? invoice.issuedAt) : null;
+      return {
+        invoice: invoice.number,
+        member: invoice.member
+          ? memberName(invoice.member, s.values.unknownMember)
+          : s.values.unknownMember,
+        item,
+        issuedAt: isoDate(invoice.issuedAt, win.zone),
+        dueDate: invoice.dueDate ? isoDate(invoice.dueDate, win.zone) : null,
+        amount: invoice.amount,
+        paid,
+        outstanding: invoice.status === InvoiceStatus.REFUNDED ? 0 : invoice.amount - paid,
+        status,
+        method,
+        paidAt: paidAt ? isoDate(paidAt, win.zone) : null,
+        location: invoice.order?.location?.name ?? '',
+      };
+    });
+  }
+
+  /**
+   * Every live subscription with what it recurs at, its value per month, the
+   * next charge, and what it is scheduled to charge inside the window AHEAD.
+   *
+   * Two totals the reader wants are the sums of two columns, on purpose: the
+   * `monthly` column sums to current recurring revenue (a yearly plan counts a
+   * twelfth, a trial nothing), and `expected` sums to the revenue expected in the
+   * forward window - so a spreadsheet gets both without a summary row that would
+   * break sorting. Forward-looking like the expiry report: the range is read as
+   * the next 7 / 31 days, not the last.
+   *
+   * SCHEDULED, not guaranteed: a renewal can fail, a member can cancel before it,
+   * a frozen subscription's date moves when it resumes. A subscription that will
+   * not renew (cancelling at period end, or a trial) has no next charge and
+   * nothing expected, but still recurs today, so it still counts toward MRR.
+   */
+  private async projectedRevenue(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const now = new Date();
+    const forward = forwardWindow(win, now);
+    const subscriptions = await this.prisma.client.subscription.findMany({
+      where: { status: { in: [...LIVE_SUB_STATUSES] } },
+      select: {
+        status: true,
+        priceAmount: true,
+        interval: true,
+        currentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+        plan: { select: { name: true } },
         member: {
           select: { firstName: true, lastName: true, user: { select: { name: true } } },
         },
       },
-      orderBy: { dueDate: 'asc' },
       take: DETAIL_ROW_LIMIT,
     });
 
-    const now = Date.now();
-    return invoices.map((invoice) => ({
-      invoice: invoice.number,
-      member: invoice.member
-        ? memberName(invoice.member, s.values.unknownMember)
-        : s.values.unknownMember,
-      amount: invoice.amount,
-      dueDate: invoice.dueDate ? isoDate(invoice.dueDate, zone) : null,
-      daysOverdue: invoice.dueDate
-        ? Math.max(0, Math.floor((now - invoice.dueDate.getTime()) / DAY_MS))
-        : null,
-      status: invoice.status,
-    }));
+    const rows = subscriptions.map((sub) => {
+      const renews = !sub.cancelAtPeriodEnd && sub.status !== SubscriptionStatus.TRIAL;
+      // Every charge scheduled before the window closes, stepping the calendar
+      // by the billing interval - a monthly plan renewing on the 5th charges
+      // once in the next 31 days, a plan renewing tomorrow with a 12-month
+      // window charges twelve times.
+      let expected = 0;
+      if (renews) {
+        let charge = sub.currentPeriodEnd;
+        while (charge < forward.end) {
+          expected += sub.priceAmount;
+          charge = addInterval(charge, sub.interval);
+        }
+      }
+      const status: MembershipStatusKey =
+        sub.status === SubscriptionStatus.FROZEN
+          ? 'frozen'
+          : sub.status === SubscriptionStatus.PAST_DUE
+            ? 'renewalDue'
+            : sub.cancelAtPeriodEnd
+              ? 'expiring'
+              : 'active';
+      return {
+        nextChargeAt: renews ? sub.currentPeriodEnd : null,
+        row: {
+          member: sub.member
+            ? memberName(sub.member, s.values.unknownMember)
+            : s.values.unknownMember,
+          plan: sub.plan?.name ?? s.values.noPlan,
+          recurring: sub.priceAmount,
+          interval: s.values.intervals[sub.interval] ?? sub.interval,
+          monthly: monthlyValue(sub.interval, sub.priceAmount),
+          nextCharge: renews ? isoDate(sub.currentPeriodEnd, win.zone) : null,
+          expected,
+          status: s.values.membershipStatuses[status] ?? status,
+        },
+      };
+    });
+    // Soonest charge first; subscriptions with no charge coming go last.
+    return rows
+      .sort(
+        (a, b) =>
+          (a.nextChargeAt?.getTime() ?? Number.POSITIVE_INFINITY) -
+          (b.nextChargeAt?.getTime() ?? Number.POSITIVE_INFINITY),
+      )
+      .map((entry) => entry.row);
   }
 
   /**
-   * Subscription renewals falling due in the window AHEAD, and what they are
-   * scheduled to charge.
-   *
-   * Forward-looking, like the expiry and birthday reports: the range is read as the
-   * next 7/30 days (or twelve weeks/months) rather than the last.
-   *
-   * This is what is SCHEDULED, not what will arrive. A renewal can fail, a member
-   * can cancel before it, and a frozen subscription's date moves when it resumes —
-   * so the column is "expected", and only live subscriptions are counted.
+   * How revenue was collected, per branch, net of refunds: cash, card at the
+   * till, online, bank transfer, member account. The same classification the
+   * daily reconciliation uses, so the two agree on what "online" means.
    */
-  private async projectedRevenue(win: ReportWindow): Promise<ReportRow[]> {
-    const now = new Date();
-    const forward = forwardWindow(win, now);
-    const subscriptions = await this.prisma.client.subscription.findMany({
-      where: {
-        status: { in: [...LIVE_SUB_STATUSES] },
-        currentPeriodEnd: { gte: now, lt: forward.end },
+  private async revenueByPaymentMethod(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const payments = await this.prisma.client.payment.findMany({
+      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      select: {
+        amount: true,
+        refundedAmount: true,
+        method: true,
+        provider: true,
+        order: { select: { location: { select: { name: true } } } },
       },
-      select: { currentPeriodEnd: true, priceAmount: true },
     });
 
-    const renewals = emptyBuckets(forward);
-    const expected = emptyBuckets(forward);
-    for (const sub of subscriptions) {
-      const key = bucketKey(sub.currentPeriodEnd, forward.bucket);
-      if (renewals.has(key)) {
-        renewals.set(key, (renewals.get(key) ?? 0) + 1);
-        expected.set(key, (expected.get(key) ?? 0) + sub.priceAmount);
-      }
+    interface Entry {
+      method: string;
+      location: string;
+      payments: number;
+      revenue: number;
     }
-
-    return [...renewals.entries()].map(([period, count]) => ({
-      period,
-      renewals: count,
-      expected: expected.get(period) ?? 0,
-    }));
+    const entries = new Map<string, Entry>();
+    for (const payment of payments) {
+      const method =
+        deriveOrderChannel(payment.provider) !== 'POS'
+          ? s.values.channelOnline
+          : payment.method === PaymentMethod.CASH
+            ? s.values.cash
+            : payment.method === PaymentMethod.BANK_TRANSFER
+              ? s.values.bankTransfer
+              : payment.method === PaymentMethod.MEMBER_ACCOUNT
+                ? s.values.memberAccount
+                : s.values.cardPos;
+      const location = payment.order?.location?.name ?? '';
+      const key = `${method}|${location}`;
+      const entry = entries.get(key) ?? { method, location, payments: 0, revenue: 0 };
+      entry.payments += 1;
+      entry.revenue += payment.amount - payment.refundedAmount;
+      entries.set(key, entry);
+    }
+    const total = [...entries.values()].reduce((sum, entry) => sum + entry.revenue, 0);
+    return [...entries.values()]
+      .sort((a, b) => b.revenue - a.revenue || a.method.localeCompare(b.method))
+      .map((entry) => ({
+        method: entry.method,
+        payments: entry.payments,
+        revenue: entry.revenue,
+        share: total > 0 ? rate(entry.revenue, total) : null,
+        location: entry.location,
+      }));
   }
 
   /**
@@ -2517,6 +2678,14 @@ const MONTHS_PER_YEAR = 12;
  * much the row looks like a subscription, and counting it would inflate MRR by
  * exactly the members least likely to pay.
  */
+/** The instant one billing interval after `at`, stepping the calendar month or year. */
+function addInterval(at: Date, interval: SubscriptionInterval): Date {
+  const next = new Date(at.getTime());
+  if (interval === SubscriptionInterval.YEAR) next.setUTCFullYear(next.getUTCFullYear() + 1);
+  else next.setUTCMonth(next.getUTCMonth() + 1);
+  return next;
+}
+
 function monthlyValue(interval: SubscriptionInterval, priceAmount: number): number {
   if (interval === SubscriptionInterval.MONTH) {
     return priceAmount;

@@ -1062,6 +1062,293 @@ describe('ReportsService', () => {
     });
   });
 
+  describe('revenue reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const member = (first: string) => ({ firstName: first, lastName: 'B', user: null });
+
+    it("invoices & payments: every invoice with its status in the desk's words, what was paid and how", async () => {
+      const { service, invoiceFindMany } = setup();
+      invoiceFindMany.mockResolvedValue([
+        // A till sale, paid by card at Vake.
+        {
+          number: 'INV-2026-0001',
+          issuedAt: new Date('2026-08-10T09:00:00.000Z'),
+          dueDate: null,
+          amount: 5_000,
+          status: 'PAID',
+          type: 'PRODUCT',
+          description: '',
+          member: member('Nino'),
+          subscription: null,
+          order: {
+            items: [{ label: 'Shaker' }],
+            location: { name: 'Vake' },
+            payment: {
+              method: 'CARD',
+              provider: 'pos',
+              createdAt: new Date('2026-08-10T09:01:00.000Z'),
+            },
+          },
+        },
+        // A membership renewal that failed and is past its date.
+        {
+          number: 'INV-2026-0002',
+          issuedAt: new Date('2026-08-20T00:00:00.000Z'),
+          dueDate: new Date('2026-08-25T00:00:00.000Z'),
+          amount: 9_000,
+          status: 'FAILED',
+          type: 'MEMBERSHIP',
+          description: '',
+          member: member('Giorgi'),
+          subscription: { plan: { name: 'Monthly' } },
+          order: null,
+        },
+        // A renewal not yet due.
+        {
+          number: 'INV-2026-0003',
+          issuedAt: new Date('2026-08-28T00:00:00.000Z'),
+          dueDate: new Date('2026-09-05T00:00:00.000Z'),
+          amount: 9_000,
+          status: 'PENDING',
+          type: 'MEMBERSHIP',
+          description: '',
+          member: member('Lika'),
+          subscription: { plan: { name: 'Monthly' } },
+          order: null,
+        },
+        // Pending with no date at all.
+        {
+          number: 'INV-2026-0004',
+          issuedAt: new Date('2026-08-29T00:00:00.000Z'),
+          dueDate: null,
+          amount: 2_000,
+          status: 'PENDING',
+          type: 'OTHER',
+          description: 'Locker key',
+          member: null,
+          subscription: null,
+          order: null,
+        },
+      ]);
+
+      const result = await service.runReport('outstanding-invoices', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          invoice: 'INV-2026-0001',
+          member: 'Nino B',
+          item: 'Shaker',
+          issuedAt: '2026-08-10',
+          dueDate: null,
+          amount: 5_000,
+          paid: 5_000,
+          outstanding: 0,
+          status: 'Paid',
+          method: 'Card',
+          paidAt: '2026-08-10',
+          location: 'Vake',
+        },
+        {
+          invoice: 'INV-2026-0002',
+          member: 'Giorgi B',
+          item: 'Monthly',
+          issuedAt: '2026-08-20',
+          dueDate: '2026-08-25',
+          amount: 9_000,
+          paid: 0,
+          outstanding: 9_000,
+          status: 'Overdue',
+          method: 'Online',
+          paidAt: null,
+          location: '',
+        },
+        {
+          invoice: 'INV-2026-0003',
+          member: 'Lika B',
+          item: 'Monthly',
+          issuedAt: '2026-08-28',
+          dueDate: '2026-09-05',
+          amount: 9_000,
+          paid: 0,
+          outstanding: 9_000,
+          status: 'Upcoming',
+          method: 'Online',
+          paidAt: null,
+          location: '',
+        },
+        {
+          invoice: 'INV-2026-0004',
+          member: 'Unknown',
+          item: 'Locker key',
+          issuedAt: '2026-08-29',
+          dueDate: null,
+          amount: 2_000,
+          paid: 0,
+          outstanding: 2_000,
+          status: 'Unpaid',
+          method: '',
+          paidAt: null,
+          location: '',
+        },
+      ]);
+      // Issued in the window, OR still owed whenever it was issued - an obligation
+      // does not stop being one because the month rolled over.
+      expect(invoiceFindMany.mock.calls[0]?.[0]).toMatchObject({
+        where: { OR: [{ issuedAt: {} }, { status: { in: ['PENDING', 'FAILED'] } }] },
+      });
+    });
+
+    it('recurring & projected: each live subscription with its monthly value and what it will charge in the window ahead', async () => {
+      const { service, subscriptionFindMany } = setup();
+      const at = (d: string) => new Date(`${d}T00:00:00.000Z`);
+      subscriptionFindMany.mockResolvedValue([
+        // Monthly, renews on the 5th and again on 5 Oct - both inside the ~31 days ahead? Only the 5th.
+        {
+          status: 'ACTIVE',
+          priceAmount: 9_000,
+          interval: 'MONTH',
+          currentPeriodEnd: at('2026-09-05'),
+          cancelAtPeriodEnd: false,
+          plan: { name: 'Monthly' },
+          member: member('Nino'),
+        },
+        // Yearly: 1/12 a month, next charge far off, nothing expected in the window.
+        {
+          status: 'ACTIVE',
+          priceAmount: 96_000,
+          interval: 'YEAR',
+          currentPeriodEnd: at('2027-03-01'),
+          cancelAtPeriodEnd: false,
+          plan: { name: 'Yearly' },
+          member: member('Giorgi'),
+        },
+        // Cancelling at period end: still recurring today, nothing expected, no next charge.
+        {
+          status: 'ACTIVE',
+          priceAmount: 9_000,
+          interval: 'MONTH',
+          currentPeriodEnd: at('2026-09-10'),
+          cancelAtPeriodEnd: true,
+          plan: { name: 'Monthly' },
+          member: member('Lika'),
+        },
+        // Payment failed: renewal due, the charge still expected.
+        {
+          status: 'PAST_DUE',
+          priceAmount: 9_000,
+          interval: 'MONTH',
+          currentPeriodEnd: at('2026-09-02'),
+          cancelAtPeriodEnd: false,
+          plan: { name: 'Monthly' },
+          member: member('Dato'),
+        },
+      ]);
+
+      // The month so far is 31 days, so the window ahead runs to 1 October.
+      const result = await service.runReport('projected-revenue', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          member: 'Dato B',
+          plan: 'Monthly',
+          recurring: 9_000,
+          interval: 'Monthly',
+          monthly: 9_000,
+          nextCharge: '2026-09-02',
+          expected: 9_000,
+          status: 'Renewal due',
+        },
+        {
+          member: 'Nino B',
+          plan: 'Monthly',
+          recurring: 9_000,
+          interval: 'Monthly',
+          monthly: 9_000,
+          nextCharge: '2026-09-05',
+          expected: 9_000,
+          status: 'Active',
+        },
+        {
+          member: 'Giorgi B',
+          plan: 'Yearly',
+          recurring: 96_000,
+          interval: 'Yearly',
+          monthly: 8_000,
+          nextCharge: '2027-03-01',
+          expected: 0,
+          status: 'Active',
+        },
+        {
+          member: 'Lika B',
+          plan: 'Monthly',
+          recurring: 9_000,
+          interval: 'Monthly',
+          monthly: 9_000,
+          nextCharge: null,
+          expected: 0,
+          status: 'Expiring',
+        },
+      ]);
+    });
+
+    it('revenue by payment method: net of refunds, with a share per method and branch', async () => {
+      const { service, paymentFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        {
+          amount: 10_000,
+          refundedAmount: 0,
+          method: 'CASH',
+          provider: 'pos',
+          order: { location: { name: 'Vake' } },
+        },
+        {
+          amount: 20_000,
+          refundedAmount: 5_000,
+          method: 'CARD',
+          provider: 'pos',
+          order: { location: { name: 'Vake' } },
+        },
+        {
+          amount: 30_000,
+          refundedAmount: 0,
+          method: 'CARD',
+          provider: 'stub',
+          order: { location: null },
+        },
+        {
+          amount: 40_000,
+          refundedAmount: 0,
+          method: 'BANK_TRANSFER',
+          provider: 'pos',
+          order: { location: { name: 'Saburtalo' } },
+        },
+        {
+          amount: 5_000,
+          refundedAmount: 0,
+          method: 'MEMBER_ACCOUNT',
+          provider: 'pos',
+          order: { location: { name: 'Vake' } },
+        },
+      ]);
+
+      const result = await service.runReport('revenue-by-payment-method', { range: 'mtd' });
+
+      // 10 + 15 + 30 + 40 + 5 = 100_000 net.
+      expect(result.rows).toEqual([
+        { method: 'Bank transfer', payments: 1, revenue: 40_000, share: 40, location: 'Saburtalo' },
+        { method: 'Online', payments: 1, revenue: 30_000, share: 30, location: '' },
+        { method: 'Card / POS', payments: 1, revenue: 15_000, share: 15, location: 'Vake' },
+        { method: 'Cash', payments: 1, revenue: 10_000, share: 10, location: 'Vake' },
+        { method: 'Member account', payments: 1, revenue: 5_000, share: 5, location: 'Vake' },
+      ]);
+    });
+  });
+
   describe('discounts-and-promotions', () => {
     it('totals the redemption ledger per code, ranked by what it gave away', async () => {
       const { service, promoRedemptionFindMany } = setup();

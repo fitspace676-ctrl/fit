@@ -646,6 +646,7 @@ export const gymReportsSettingsSchema = z.object({
   'revenue-summary': z.boolean().default(true),
   'revenue-by-channel': z.boolean().default(true),
   'revenue-by-location': z.boolean().default(true),
+  'revenue-by-payment-method': z.boolean().default(true),
   'outstanding-invoices': z.boolean().default(true),
   'projected-revenue': z.boolean().default(true),
   'refunds-accounting': z.boolean().default(true),

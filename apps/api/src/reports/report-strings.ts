@@ -89,6 +89,14 @@ export interface ReportStrings {
     retentionGroups: Record<string, string>;
     /** How a member checked in, by `CheckInMethod`. */
     checkInMethods: Record<string, string>;
+    /** Card taken at the till, as the revenue-by-method report groups it. */
+    cardPos: string;
+    /** Invoice states in the desk's words. */
+    invoiceStatuses: Record<string, string>;
+    /** What an invoice was for, by `InvoiceType`, when nothing more specific is known. */
+    invoiceTypes: Record<string, string>;
+    /** Billing intervals, by `SubscriptionInterval`. */
+    intervals: Record<string, string>;
     /** Monday first, three letters each: the peak-hours heatmap rows. */
     weekdays: readonly string[];
   };
@@ -189,6 +197,23 @@ const EN: ReportStrings = {
       noVisit: 'No visit for {days} days',
     },
     checkInMethods: { QR: 'QR code', MANUAL: 'Manual' },
+    cardPos: 'Card / POS',
+    invoiceStatuses: {
+      paid: 'Paid',
+      unpaid: 'Unpaid',
+      overdue: 'Overdue',
+      upcoming: 'Upcoming',
+      refunded: 'Refunded',
+    },
+    invoiceTypes: {
+      MEMBERSHIP: 'Membership',
+      PERSONAL_TRAINING: 'Personal training',
+      CLASS: 'Class',
+      PRODUCT: 'Product',
+      SERVICE: 'Service',
+      OTHER: 'Other',
+    },
+    intervals: { MONTH: 'Monthly', YEAR: 'Yearly' },
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
   tabular: { summary: 'Summary', metric: 'Metric', value: 'Value', unit: 'Unit' },
@@ -460,24 +485,51 @@ const KA: ReportStrings = {
       description: 'მიღებული თანხები ფილიალის მიხედვით, დაბრუნებების გამოკლებით.',
       columns: { ...KA_COMMON },
     },
-    'outstanding-invoices': {
-      name: 'გადაუხდელი ინვოისები',
+    'revenue-by-payment-method': {
+      name: 'შემოსავალი გადახდის მეთოდით',
       description:
-        'გადაუხდელი და ჩავარდნილი ინვოისები, ყველაზე ვადაგადაცილებული პირველი, ვინ რამდენს არის ვალში.',
+        'როგორ შეგროვდა შემოსავალი - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, წევრის ანგარიში - ფილიალების მიხედვით, დაბრუნებების გამოკლებით, თითოეული მეთოდის წილით.',
+      columns: {
+        method: 'გადახდის მეთოდი',
+        payments: 'გადახდები',
+        revenue: 'შემოსავალი',
+        share: 'წილი შემოსავალში',
+        location: KA_COMMON.location,
+      },
+    },
+    'outstanding-invoices': {
+      name: 'ინვოისები და გადახდები',
+      description:
+        'ყველა ინვოისი, რომელიც ამ პერიოდში გამოიწერა, და ყველა, რაც ჯერ კიდევ გადასახდელია: რისთვის, როდის გამოიწერა და როდისაა ვადა, რა გადაიხადეს და რა დარჩა, სტატუსი (გადახდილი, გადაუხდელი, ვადაგადაცილებული, მოსალოდნელი, დაბრუნებული), როგორ და როდის გადაიხადეს, და სად.',
       columns: {
         invoice: 'ინვოისი',
         member: KA_COMMON.member,
-        amount: KA_COMMON.amount,
+        item: 'გეგმა / შენაძენი',
+        issuedAt: 'ინვოისის თარიღი',
         dueDate: 'ვადა',
-        daysOverdue: 'დღე გადაცილებული',
+        amount: KA_COMMON.amount,
+        paid: 'გადახდილი',
+        outstanding: 'დარჩენილი',
         status: KA_COMMON.status,
+        method: 'გადახდის მეთოდი',
+        paidAt: 'გადახდის თარიღი',
+        location: KA_COMMON.location,
       },
     },
     'projected-revenue': {
-      name: 'პროგნოზირებული შემოსავალი',
+      name: 'განმეორებადი და პროგნოზირებული შემოსავალი',
       description:
-        'მომავალ პერიოდში ვადამოსული გამოწერის განახლებები და რა თანხის ჩამოჭრაა დაგეგმილი.',
-      columns: { period: KA_COMMON.period, renewals: 'განახლებები', expected: 'მოსალოდნელი' },
+        'ყველა აქტიური გამოწერა: რა თანხით მეორდება, ღირებულება თვეში (თვის სვეტის ჯამი = მიმდინარე განმეორებადი შემოსავალი), შემდეგი ჩამოჭრის თარიღი და რა უნდა ჩამოიჭრას მომავალ პერიოდში (მოსალოდნელის სვეტის ჯამი = მოსალოდნელი შემოსავალი). დაგეგმილია, არა გარანტირებული: განახლება შეიძლება ჩავარდეს ან მანამდე გაუქმდეს.',
+      columns: {
+        member: KA_COMMON.member,
+        plan: KA_COMMON.plan,
+        recurring: 'განმეორებადი თანხა',
+        interval: 'ბილინგი',
+        monthly: 'თვეში',
+        nextCharge: 'შემდეგი ჩამოჭრა',
+        expected: 'მოსალოდნელი პერიოდში',
+        status: KA_COMMON.status,
+      },
     },
     'refunds-accounting': {
       name: 'დაბრუნებები (ბუღალტერია)',
@@ -806,6 +858,23 @@ const KA: ReportStrings = {
       noVisit: 'ვიზიტი არ ყოფილა {days} დღე',
     },
     checkInMethods: { QR: 'QR კოდი', MANUAL: 'ხელით' },
+    cardPos: 'ბარათი / სალარო',
+    invoiceStatuses: {
+      paid: 'გადახდილი',
+      unpaid: 'გადაუხდელი',
+      overdue: 'ვადაგადაცილებული',
+      upcoming: 'მოსალოდნელი',
+      refunded: 'დაბრუნებული',
+    },
+    invoiceTypes: {
+      MEMBERSHIP: 'წევრობა',
+      PERSONAL_TRAINING: 'პერსონალური ვარჯიში',
+      CLASS: 'კლასი',
+      PRODUCT: 'პროდუქტი',
+      SERVICE: 'სერვისი',
+      OTHER: 'სხვა',
+    },
+    intervals: { MONTH: 'თვიური', YEAR: 'წლიური' },
     weekdays: ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
   },
   tabular: { summary: 'შეჯამება', metric: 'მაჩვენებელი', value: 'მნიშვნელობა', unit: 'ერთეული' },

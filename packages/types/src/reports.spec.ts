@@ -160,6 +160,50 @@ describe('member reports', () => {
   });
 });
 
+describe('revenue reports', () => {
+  it('invoices & payments carry the obligation, what was paid, what is left, and how', () => {
+    expect(REPORT_DEFINITIONS['outstanding-invoices'].columns.map((c) => c.key)).toEqual([
+      'invoice',
+      'member',
+      'item',
+      'issuedAt',
+      'dueDate',
+      'amount',
+      'paid',
+      'outstanding',
+      'status',
+      'method',
+      'paidAt',
+      'location',
+    ]);
+  });
+
+  it('recurring & projected lists each live subscription with its recurring, monthly and expected amounts', () => {
+    expect(REPORT_DEFINITIONS['projected-revenue'].columns.map((c) => c.key)).toEqual([
+      'member',
+      'plan',
+      'recurring',
+      'interval',
+      'monthly',
+      'nextCharge',
+      'expected',
+      'status',
+    ]);
+  });
+
+  it('revenue by payment method sits in the revenue segment with a share per method and branch', () => {
+    const definition = REPORT_DEFINITIONS['revenue-by-payment-method'];
+    expect(definition.segment).toBe('revenue');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'method',
+      'payments',
+      'revenue',
+      'share',
+      'location',
+    ]);
+  });
+});
+
 describe('groupReportsBySegment', () => {
   it('groups in segment order and keeps each segment’s catalogue order', () => {
     const grouped = groupReportsBySegment(REPORT_CATALOG);

@@ -551,6 +551,7 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   // Revenue
   'revenue-summary': 'chart',
   'revenue-by-channel': 'grid',
+  'revenue-by-payment-method': 'card',
   'revenue-by-location': 'pin',
   'outstanding-invoices': 'info',
   'projected-revenue': 'arrow',
