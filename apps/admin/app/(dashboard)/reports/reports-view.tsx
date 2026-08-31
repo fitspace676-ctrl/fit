@@ -570,6 +570,10 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   'pt-sessions': 'dumbbell',
   'no-show-rate': 'clock',
   // Staff
+  'trainer-sales': 'briefcase',
+  'trainer-sales-detail': 'ticket',
+  'staff-schedule': 'clock',
+  'audit-log': 'shield',
   'trainer-performance': 'award',
 };
 

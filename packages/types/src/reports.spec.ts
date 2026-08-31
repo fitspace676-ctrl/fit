@@ -356,6 +356,52 @@ describe('classes & training reports', () => {
   });
 });
 
+describe('trainers & staff reports', () => {
+  it('trainer sales: per trainer and branch - packages, sessions, value', () => {
+    const definition = REPORT_DEFINITIONS['trainer-sales'];
+    expect(definition.segment).toBe('staff');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'trainer',
+      'packagesSold',
+      'sessionsSold',
+      'totalValue',
+      'location',
+    ]);
+    expect(REPORT_DEFINITIONS['trainer-sales-detail'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'trainer',
+      'member',
+      'package',
+      'sessions',
+      'amount',
+      'location',
+    ]);
+  });
+
+  it("staff schedule: the weekly shifts projected onto the window's days", () => {
+    expect(REPORT_DEFINITIONS['staff-schedule'].columns.map((c) => c.key)).toEqual([
+      'staff',
+      'role',
+      'date',
+      'start',
+      'end',
+      'location',
+    ]);
+  });
+
+  it('audit log: who did what to which record, with the values before and after', () => {
+    expect(REPORT_DEFINITIONS['audit-log'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'staff',
+      'action',
+      'target',
+      'previous',
+      'next',
+    ]);
+  });
+});
+
 describe('groupReportsBySegment', () => {
   it('groups in segment order and keeps each segment’s catalogue order', () => {
     const grouped = groupReportsBySegment(REPORT_CATALOG);

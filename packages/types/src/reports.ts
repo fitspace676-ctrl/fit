@@ -273,6 +273,10 @@ export const REPORT_KEYS = [
   'no-show-rate',
   // Staff
   'trainer-performance',
+  'trainer-sales',
+  'trainer-sales-detail',
+  'staff-schedule',
+  'audit-log',
 ] as const;
 
 /** A report catalogue key — {@link REPORT_KEYS}. */
@@ -914,6 +918,67 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
       { key: 'completed', label: 'Completed bookings', type: 'number' },
       { key: 'noShow', label: 'No-shows', type: 'number' },
       { key: 'noShowRate', label: 'No-show rate', type: 'percent' },
+    ],
+  },
+  'trainer-sales': {
+    key: 'trainer-sales',
+    segment: 'staff',
+    name: 'Trainer sales',
+    description:
+      'Personal-training sales per trainer and branch: session packs sold (attributed to the staff member who sold them - a pack is not tied to a trainer) and PT sessions delivered (attributed to the trainer who delivers them, with the invoice each raised), and their value.',
+    columns: [
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'packagesSold', label: 'PT packages sold', type: 'number' },
+      { key: 'sessionsSold', label: 'PT sessions sold', type: 'number' },
+      { key: 'totalValue', label: 'Total sales value', type: 'money' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'trainer-sales-detail': {
+    key: 'trainer-sales-detail',
+    segment: 'staff',
+    name: 'Trainer sales detail',
+    description:
+      'Every personal-training sale in the window, one row each: the trainer it is attributed to, the member, the pack or session, how many sessions it carries, the amount, when, and where.',
+    columns: [
+      { key: 'date', label: 'Purchase date', type: 'date' },
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'package', label: 'Package', type: 'text' },
+      { key: 'sessions', label: 'Sessions', type: 'number' },
+      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'staff-schedule': {
+    key: 'staff-schedule',
+    segment: 'staff',
+    name: 'Staff schedule',
+    description:
+      "Scheduled working time: the weekly shift pattern projected onto every day of the window it falls on. A shift's location is the text the rota holds, not a branch record.",
+    columns: [
+      { key: 'staff', label: 'Staff member', type: 'text' },
+      { key: 'role', label: 'Role', type: 'text' },
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'start', label: 'Scheduled start', type: 'text' },
+      { key: 'end', label: 'Scheduled end', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'audit-log': {
+    key: 'audit-log',
+    segment: 'staff',
+    name: 'Audit log',
+    description:
+      'Recorded actions in the window: who, what, the record it touched, and the values before and after where the entry holds them. The trail is written by platform-operator actions and review moderation today; staff edits to members, prices and roles do not reach it yet.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'staff', label: 'Staff member', type: 'text' },
+      { key: 'action', label: 'Action', type: 'text' },
+      { key: 'target', label: 'Affected record', type: 'text' },
+      { key: 'previous', label: 'Previous value', type: 'text' },
+      { key: 'next', label: 'New value', type: 'text' },
     ],
   },
 };

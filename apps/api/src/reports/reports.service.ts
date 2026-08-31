@@ -36,6 +36,7 @@ import {
   decodeVariantRef,
   productVariantsSchema,
   type ProductVariant,
+  AUDIT_ACTION_LABELS,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -51,7 +52,7 @@ import {
   windowDays,
   type ReportWindow,
 } from './report-window.util';
-import { addZonedDays, zonedDayStart } from './zoned-time.util';
+import { addZonedDays, zonedDayStart, zonedParts } from './zoned-time.util';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { OPENING_COUNT_NOTE } from '../products/admin-products.service';
 import {
@@ -454,6 +455,31 @@ export class ReportsService {
           this.resolveCurrency(),
           this.creditUsage(win, s),
         ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'trainer-sales': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.trainerSales(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'trainer-sales-detail': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.trainerSalesDetail(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'staff-schedule': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.staffSchedule(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'audit-log': {
+        const [currency, rows] = await Promise.all([this.resolveCurrency(), this.auditLog(win, s)]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'trainer-performance':
@@ -2367,6 +2393,244 @@ export class ReportsService {
   }
 
   /* ---------------------------------------------------------------------- */
+  /*  Trainers & staff                                                       */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Every personal-training sale in the window, attributed to a trainer: a
+   * session pack sold at the till goes to the staff member who SOLD it (a pack
+   * is not tied to a trainer), a booked PT slot to the trainer who DELIVERS it
+   * (the service session carries its staff and its invoice).
+   */
+  private async ptSales(win: ReportWindow, s: ReportStrings): Promise<PtSaleLine[]> {
+    const [orders, sessions] = await Promise.all([
+      this.prisma.client.order.findMany({
+        where: {
+          createdAt: { gte: win.start, lt: win.end },
+          soldById: { not: null },
+          payment: { is: { status: PaymentStatus.CAPTURED } },
+          package: {
+            is: { billingInterval: PackageBillingInterval.ONE_TIME, sessionCount: { not: null } },
+          },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          total: true,
+          customerName: true,
+          member: {
+            select: { firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+          location: { select: { name: true } },
+          soldBy: {
+            select: { id: true, firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+          package: { select: { name: true, billingInterval: true, sessionCount: true } },
+        },
+        take: DETAIL_ROW_LIMIT,
+      }),
+      this.prisma.client.serviceSession.findMany({
+        where: {
+          startsAt: { gte: win.start, lt: win.end },
+          service: { type: ServiceType.PERSONAL_TRAINING },
+          invoice: { isNot: null },
+        },
+        select: {
+          startsAt: true,
+          member: {
+            select: { firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+          staff: {
+            select: { id: true, firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+          service: { select: { name: true } },
+          invoice: { select: { amount: true } },
+        },
+        take: DETAIL_ROW_LIMIT,
+      }),
+    ]);
+    const lines: PtSaleLine[] = [];
+    for (const order of orders) {
+      if (!order.soldBy || !order.package) continue;
+      if (
+        order.package.billingInterval !== PackageBillingInterval.ONE_TIME ||
+        order.package.sessionCount === null
+      ) {
+        continue;
+      }
+      lines.push({
+        at: order.createdAt,
+        kind: 'package',
+        trainerId: order.soldBy.id,
+        trainer: staffName(order.soldBy, s.values.unattributed),
+        member: order.member
+          ? memberName(order.member, s.values.unknownMember)
+          : (order.customerName ?? s.values.guest),
+        package: order.package.name,
+        sessions: order.package.sessionCount,
+        amount: order.total,
+        location: order.location?.name ?? '',
+      });
+    }
+    for (const session of sessions) {
+      lines.push({
+        at: session.startsAt,
+        kind: 'session',
+        trainerId: session.staff.id,
+        trainer: staffName(session.staff, s.values.unattributed),
+        member: session.member ? memberName(session.member, s.values.unknownMember) : '',
+        package: session.service.name,
+        sessions: 1,
+        amount: session.invoice?.amount ?? 0,
+        location: '',
+      });
+    }
+    return lines.sort((a, b) => a.at.getTime() - b.at.getTime());
+  }
+
+  /** PT sales per trainer and branch - see {@link ptSales} for the attribution rule. */
+  private async trainerSales(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const lines = await this.ptSales(win, s);
+    interface Entry {
+      trainer: string;
+      packagesSold: number;
+      sessionsSold: number;
+      totalValue: number;
+      location: string;
+    }
+    const entries = new Map<string, Entry>();
+    for (const line of lines) {
+      const key = `${line.trainerId}|${line.location}`;
+      const entry = entries.get(key) ?? {
+        trainer: line.trainer,
+        packagesSold: 0,
+        sessionsSold: 0,
+        totalValue: 0,
+        location: line.location,
+      };
+      if (line.kind === 'package') entry.packagesSold += 1;
+      else entry.sessionsSold += 1;
+      entry.totalValue += line.amount;
+      entries.set(key, entry);
+    }
+    return [...entries.values()]
+      .sort((a, b) => b.totalValue - a.totalValue || a.trainer.localeCompare(b.trainer))
+      .map((entry) => ({ ...entry }));
+  }
+
+  /** Every PT sale, one row each, oldest first - see {@link ptSales}. */
+  private async trainerSalesDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const lines = await this.ptSales(win, s);
+    return lines.map((line) => ({
+      date: isoDate(line.at, win.zone),
+      trainer: line.trainer,
+      member: line.member,
+      package: line.package,
+      sessions: line.sessions,
+      amount: line.amount,
+      location: line.location,
+    }));
+  }
+
+  /**
+   * Scheduled working time: the weekly shift pattern, projected onto every day
+   * of the window it falls on - the only schedule the product keeps. A shift's
+   * location is the free text the rota editor holds, not a branch record.
+   */
+  private async staffSchedule(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const slots = await this.prisma.client.shiftSlot.findMany({
+      where: { staff: { deletedAt: null } },
+      select: {
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
+        location: true,
+        staff: {
+          select: {
+            firstName: true,
+            lastName: true,
+            role: true,
+            user: { select: { name: true } },
+          },
+        },
+      },
+      take: DETAIL_ROW_LIMIT,
+    });
+    const days = [...emptyBuckets({ ...win, bucket: 'day' }, win.zone).keys()];
+    const rows: ReportRow[] = [];
+    for (const day of days) {
+      // Noon, so the weekday cannot be nudged across midnight by the zone.
+      const weekday = zonedParts(
+        new Date(zonedDayStart(day, win.zone).getTime() + 12 * 60 * 60 * 1000),
+        win.zone,
+      ).weekday;
+      for (const slot of slots) {
+        if (slot.dayOfWeek !== weekday) continue;
+        rows.push({
+          staff: staffName(slot.staff, s.values.unattributed),
+          role: s.values.roles[slot.staff.role] ?? slot.staff.role,
+          date: day,
+          start: slot.startTime,
+          end: slot.endTime,
+          location: slot.location ?? '',
+        });
+      }
+    }
+    return rows.sort(
+      (a, b) =>
+        String(a.date).localeCompare(String(b.date)) ||
+        String(a.start).localeCompare(String(b.start)) ||
+        String(a.staff).localeCompare(String(b.staff)),
+    );
+  }
+
+  /**
+   * The audit trail for the window, oldest first: who, the action in words,
+   * the record it touched, and the values before and after where the entry
+   * recorded them. The trail is written by the platform operator's actions and
+   * review moderation today; staff edits to members, prices and roles do not
+   * reach it yet, and the report's description says so.
+   */
+  private async auditLog(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const entries = await this.prisma.client.auditLog.findMany({
+      where: { createdAt: { gte: win.start, lt: win.end } },
+      select: { createdAt: true, action: true, actorId: true, targetId: true, metadata: true },
+      orderBy: { createdAt: 'asc' },
+      take: DETAIL_ROW_LIMIT,
+    });
+    const actorIds = [...new Set(entries.map((entry) => entry.actorId))];
+    const users =
+      actorIds.length === 0
+        ? []
+        : await this.prisma.client.user.findMany({
+            where: { id: { in: actorIds } },
+            select: { id: true, name: true, email: true },
+          });
+    const nameByActor = new Map(users.map((user) => [user.id, user.name || user.email]));
+    const text = (value: unknown): string =>
+      value === null || value === undefined
+        ? ''
+        : typeof value === 'string'
+          ? value
+          : JSON.stringify(value);
+    return entries.map((entry) => {
+      const meta = (entry.metadata ?? {}) as Record<string, unknown>;
+      return {
+        date: isoDate(entry.createdAt, win.zone),
+        time: clockTime(entry.createdAt, win.zone),
+        staff: nameByActor.get(entry.actorId) ?? s.values.unknownMember,
+        action:
+          s.values.auditActions[entry.action] ??
+          (AUDIT_ACTION_LABELS as Record<string, string>)[entry.action] ??
+          entry.action,
+        target: entry.targetId ? shortId(entry.targetId) : '',
+        previous: text(meta.previousStatus ?? meta.previous ?? meta.from),
+        next: text(meta.status ?? meta.next ?? meta.to),
+      };
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
   /*  Members                                                                */
   /* ---------------------------------------------------------------------- */
 
@@ -3248,6 +3512,19 @@ interface SoldLine {
   /** The line's cost of goods (unit cost times quantity), or null with no cost on file. */
   cost: number | null;
   channel: 'POS' | 'ONLINE';
+}
+
+/** One personal-training sale attributed to a trainer - see `ptSales`. */
+interface PtSaleLine {
+  at: Date;
+  kind: 'package' | 'session';
+  trainerId: string;
+  trainer: string;
+  member: string;
+  package: string;
+  sessions: number;
+  amount: number;
+  location: string;
 }
 
 /** Months in a year, for normalising a yearly subscription price to MRR. */

@@ -109,6 +109,10 @@ export interface ReportStrings {
     creditPackStatuses: Record<string, string>;
     yes: string;
     no: string;
+    /** Staff roles, by `Role`. */
+    roles: Record<string, string>;
+    /** Audit actions in words, by action key; English falls back to `AUDIT_ACTION_LABELS`. */
+    auditActions: Record<string, string>;
     /** Monday first, three letters each: the peak-hours heatmap rows. */
     weekdays: readonly string[];
   };
@@ -260,6 +264,15 @@ const EN: ReportStrings = {
     creditPackStatuses: { active: 'Active', usedUp: 'Used up', expired: 'Expired' },
     yes: 'Yes',
     no: 'No',
+    roles: {
+      SUPER_ADMIN: 'Platform operator',
+      OWNER: 'Owner',
+      MANAGER: 'Manager',
+      RECEPTIONIST: 'Receptionist',
+      TRAINER: 'Trainer',
+      MEMBER: 'Member',
+    },
+    auditActions: {},
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
   tabular: { summary: 'Summary', metric: 'Metric', value: 'Value', unit: 'Unit' },
@@ -780,6 +793,59 @@ const KA: ReportStrings = {
         noShowRate: 'გაცდენის მაჩვენებელი',
       },
     },
+    'trainer-sales': {
+      name: 'მწვრთნელების გაყიდვები',
+      description:
+        'პერსონალური ვარჯიშების გაყიდვები მწვრთნელისა და ფილიალის მიხედვით: გაყიდული სესიების პაკეტები (მიეკუთვნება იმ თანამშრომელს, ვინც გაყიდა - პაკეტი მწვრთნელს არ უკავშირდება) და ჩატარებული PT სესიები (მიეკუთვნება მწვრთნელს, ვინც ატარებს, თითოეულის ინვოისით), და მათი ღირებულება.',
+      columns: {
+        trainer: KA_COMMON.trainer,
+        packagesSold: 'გაყიდული PT პაკეტი',
+        sessionsSold: 'გაყიდული PT სესია',
+        totalValue: 'სულ გაყიდვების ღირებულება',
+        location: KA_COMMON.location,
+      },
+    },
+    'trainer-sales-detail': {
+      name: 'მწვრთნელების გაყიდვების დეტალები',
+      description:
+        'ყველა პერსონალური ვარჯიშის გაყიდვა ამ პერიოდში, თითო მწკრივი: რომელ მწვრთნელს მიეკუთვნება, წევრი, პაკეტი ან სესია, რამდენ სესიას შეიცავს, თანხა, როდის და სად.',
+      columns: {
+        date: 'შეძენის თარიღი',
+        trainer: KA_COMMON.trainer,
+        member: KA_COMMON.member,
+        package: 'პაკეტი',
+        sessions: KA_COMMON.sessions,
+        amount: KA_COMMON.amount,
+        location: KA_COMMON.location,
+      },
+    },
+    'staff-schedule': {
+      name: 'პერსონალის განრიგი',
+      description:
+        'დაგეგმილი სამუშაო დრო: კვირეული ცვლების შაბლონი, დაპროექტებული პერიოდის ყველა დღეზე, რომელზეც მოდის. ცვლის ადგილი განრიგში ჩაწერილი ტექსტია, არა ფილიალის ჩანაწერი.',
+      columns: {
+        staff: 'თანამშრომელი',
+        role: 'როლი',
+        date: KA_COMMON.date,
+        start: 'დაგეგმილი დაწყება',
+        end: 'დაგეგმილი დასრულება',
+        location: 'ადგილი',
+      },
+    },
+    'audit-log': {
+      name: 'აუდიტის ჟურნალი',
+      description:
+        'ჩაწერილი მოქმედებები ამ პერიოდში: ვინ, რა, რომელ ჩანაწერს შეეხო, და მნიშვნელობები მანამდე და მერე, სადაც ჩანაწერს აქვს. ჟურნალს დღეს პლატფორმის ოპერატორის მოქმედებები და შეფასებების მოდერაცია წერს; წევრების, ფასებისა და როლების რედაქტირება ჯერ არ აღწევს.',
+      columns: {
+        date: KA_COMMON.date,
+        time: KA_COMMON.time,
+        staff: 'თანამშრომელი',
+        action: 'მოქმედება',
+        target: 'ჩანაწერი',
+        previous: 'წინა მნიშვნელობა',
+        next: 'ახალი მნიშვნელობა',
+      },
+    },
   },
   metrics: {
     sales: {
@@ -1061,6 +1127,20 @@ const KA: ReportStrings = {
     creditPackStatuses: { active: 'აქტიური', usedUp: 'ამოწურული', expired: 'ვადაგასული' },
     yes: 'დიახ',
     no: 'არა',
+    roles: {
+      SUPER_ADMIN: 'პლატფორმის ოპერატორი',
+      OWNER: 'მფლობელი',
+      MANAGER: 'მენეჯერი',
+      RECEPTIONIST: 'ადმინისტრატორი',
+      TRAINER: 'მწვრთნელი',
+      MEMBER: 'წევრი',
+    },
+    auditActions: {
+      'gym.create': 'დარბაზი შეიქმნა',
+      'gym.status.update': 'სტატუსი შეიცვალა',
+      'gym.impersonate': 'მოთხოვნილია სხვისი სახელით შესვლა',
+      'gym.impersonate.start': 'დაიწყო სხვისი სახელით შესვლა',
+    },
     weekdays: ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
   },
   tabular: { summary: 'შეჯამება', metric: 'მაჩვენებელი', value: 'მნიშვნელობა', unit: 'ერთეული' },

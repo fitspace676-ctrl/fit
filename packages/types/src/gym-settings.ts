@@ -665,6 +665,10 @@ export const gymReportsSettingsSchema = z.object({
   'no-show-rate': z.boolean().default(true),
   // Staff
   'trainer-performance': z.boolean().default(true),
+  'trainer-sales': z.boolean().default(true),
+  'trainer-sales-detail': z.boolean().default(true),
+  'staff-schedule': z.boolean().default(true),
+  'audit-log': z.boolean().default(true),
 });
 
 /** The report visibility config — {@link gymReportsSettingsSchema}. */

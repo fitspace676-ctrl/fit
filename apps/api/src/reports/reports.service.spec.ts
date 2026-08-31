@@ -39,6 +39,8 @@ function setup() {
   const ptSessionFindMany = vi.fn().mockResolvedValue([]);
   const serviceSessionFindMany = vi.fn().mockResolvedValue([]);
   const creditPackFindMany = vi.fn().mockResolvedValue([]);
+  const shiftSlotFindMany = vi.fn().mockResolvedValue([]);
+  const auditLogFindMany = vi.fn().mockResolvedValue([]);
   const gymFindFirst = vi.fn(() => Promise.resolve(gymRow));
 
   const client = {
@@ -59,6 +61,8 @@ function setup() {
     ptSession: { findMany: ptSessionFindMany },
     serviceSession: { findMany: serviceSessionFindMany },
     creditPack: { findMany: creditPackFindMany },
+    shiftSlot: { findMany: shiftSlotFindMany },
+    auditLog: { findMany: auditLogFindMany },
     gym: { findFirst: gymFindFirst },
   };
   const prisma = { client } as unknown as TenantPrismaService;
@@ -93,6 +97,8 @@ function setup() {
     ptSessionFindMany,
     serviceSessionFindMany,
     creditPackFindMany,
+    shiftSlotFindMany,
+    auditLogFindMany,
     gymFindFirst,
   };
 }
@@ -2013,6 +2019,178 @@ describe('ReportsService', () => {
           expiresOn: '2026-07-01',
           lastSession: null,
           status: 'Expired',
+        },
+      ]);
+    });
+  });
+
+  describe('trainers & staff reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const mariam = {
+      id: 's1',
+      firstName: 'Mariam',
+      lastName: 'Beridze',
+      user: null,
+      role: 'TRAINER',
+    };
+    const nino = { firstName: 'Nino', lastName: 'Gelashvili', user: null };
+
+    it('trainer sales: packages by who sold them, sessions by who delivers them, with the detail behind', async () => {
+      const { service, orderFindMany, serviceSessionFindMany } = setup();
+      orderFindMany.mockResolvedValue([
+        {
+          id: 'o1',
+          createdAt: new Date('2026-08-05T09:00:00.000Z'),
+          total: 50_000,
+          member: nino,
+          customerName: null,
+          location: { name: 'Vake' },
+          soldBy: mariam,
+          package: { name: 'PT 10', billingInterval: 'ONE_TIME', sessionCount: 10 },
+        },
+        // A monthly membership: not a PT package, not counted.
+        {
+          id: 'o2',
+          createdAt: new Date('2026-08-06T09:00:00.000Z'),
+          total: 90_000,
+          member: nino,
+          customerName: null,
+          location: { name: 'Vake' },
+          soldBy: mariam,
+          package: { name: 'Monthly', billingInterval: 'MONTH', sessionCount: null },
+        },
+      ]);
+      serviceSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-20T05:00:00.000Z'),
+          endsAt: new Date('2026-08-20T06:00:00.000Z'),
+          status: 'COMPLETED',
+          member: nino,
+          staff: mariam,
+          service: { name: 'PT session' },
+          invoice: { amount: 8_000 },
+        },
+      ]);
+
+      const summary = await service.runReport('trainer-sales', { range: 'mtd' });
+      expect(summary.rows).toEqual([
+        {
+          trainer: 'Mariam Beridze',
+          packagesSold: 1,
+          sessionsSold: 0,
+          totalValue: 50_000,
+          location: 'Vake',
+        },
+        {
+          trainer: 'Mariam Beridze',
+          packagesSold: 0,
+          sessionsSold: 1,
+          totalValue: 8_000,
+          location: '',
+        },
+      ]);
+
+      const detail = await service.runReport('trainer-sales-detail', { range: 'mtd' });
+      expect(detail.rows).toEqual([
+        {
+          date: '2026-08-05',
+          trainer: 'Mariam Beridze',
+          member: 'Nino Gelashvili',
+          package: 'PT 10',
+          sessions: 10,
+          amount: 50_000,
+          location: 'Vake',
+        },
+        {
+          date: '2026-08-20',
+          trainer: 'Mariam Beridze',
+          member: 'Nino Gelashvili',
+          package: 'PT session',
+          sessions: 1,
+          amount: 8_000,
+          location: '',
+        },
+      ]);
+    });
+
+    it('staff schedule: every weekly shift on every day of the window it falls on', async () => {
+      const { service, shiftSlotFindMany } = setup();
+      shiftSlotFindMany.mockResolvedValue([
+        // Mondays 09:00-17:00 at the front desk; Sundays off.
+        {
+          dayOfWeek: 0,
+          startTime: '09:00',
+          endTime: '17:00',
+          location: 'Front desk',
+          staff: mariam,
+        },
+      ]);
+
+      const result = await service.runReport('staff-schedule', { range: 'mtd' });
+
+      // August 2026 has five Mondays: 3, 10, 17, 24, 31.
+      expect(result.rows.map((r) => r.date)).toEqual([
+        '2026-08-03',
+        '2026-08-10',
+        '2026-08-17',
+        '2026-08-24',
+        '2026-08-31',
+      ]);
+      expect(result.rows[0]).toEqual({
+        staff: 'Mariam Beridze',
+        role: 'Trainer',
+        date: '2026-08-03',
+        start: '09:00',
+        end: '17:00',
+        location: 'Front desk',
+      });
+    });
+
+    it('audit log: each entry with who, the action in words, the record, and the values before and after', async () => {
+      const { service, auditLogFindMany, userFindMany } = setup();
+      auditLogFindMany.mockResolvedValue([
+        {
+          createdAt: new Date('2026-08-10T06:00:00.000Z'),
+          action: 'gym.status.update',
+          actorId: 'u1',
+          targetId: null,
+          metadata: { previousStatus: 'ACTIVE', status: 'SUSPENDED' },
+        },
+        {
+          createdAt: new Date('2026-08-12T06:00:00.000Z'),
+          action: 'review.hide',
+          actorId: 'u2',
+          targetId: 'cmrrrrrrrrrev12345',
+          metadata: { previousStatus: 'VISIBLE', status: 'HIDDEN', rating: 2 },
+        },
+      ]);
+      userFindMany.mockResolvedValue([{ id: 'u1', name: 'Operator', email: 'ops@example.com' }]);
+
+      const result = await service.runReport('audit-log', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-10',
+          time: '10:00',
+          staff: 'Operator',
+          action: 'Status changed',
+          target: '',
+          previous: 'ACTIVE',
+          next: 'SUSPENDED',
+        },
+        {
+          date: '2026-08-12',
+          time: '10:00',
+          staff: 'Unknown',
+          action: 'review.hide',
+          target: 'REV12345',
+          previous: 'VISIBLE',
+          next: 'HIDDEN',
         },
       ]);
     });
