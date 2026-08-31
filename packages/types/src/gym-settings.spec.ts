@@ -8,7 +8,9 @@ import {
   formatInvoiceNumber,
   gymInvoiceSettingsSchema,
   gymMemberIntakeSettingsSchema,
+  gymMemberPortalSettingsSchema,
   gymPaymentMethodsSchema,
+  gymPortalTheme,
   invoiceNumberCarriesYear,
   isPaymentMethodEnabled,
   gymSettingsStoredSchema,
@@ -28,6 +30,9 @@ describe('gymMemberIntakeSettingsSchema', () => {
       phone: true,
       gender: true,
       dateOfBirth: true,
+      // Asking WHEN someone starts only makes sense for a gym that pre-sells;
+      // one that enrols at the desk gets "today" without a question.
+      startDate: false,
       personalId: true,
       address: true,
       emergencyContact: true,
@@ -108,6 +113,7 @@ describe('requiredIntakeFields', () => {
       'medicalNotes',
       'personalId',
       'phone',
+      'startDate',
       'surname',
     ]);
   });
@@ -291,5 +297,80 @@ describe('gymSettingsStoredSchema and the removed sections', () => {
     expect(updateGymSettingsSchema.safeParse({ notifications: { fromName: 'X' } }).success).toBe(
       false,
     );
+  });
+});
+
+// The portal wordmark is the one member-portal asset with a THREE-link fallback
+// chain, and only the first two links exist server-side: the gym's portal logo,
+// then its brand logo, then `null` — which the member app answers with the
+// bundled FormaCore mark it ships. Each of these pins one link, because the
+// failure they guard against is silent: an inheriting gym whose brand logo stops
+// arriving simply renders FormaCore's wordmark on its own sign-in screen.
+describe('gymMemberPortalSettingsSchema — the portal wordmark', () => {
+  it('defaults to inheriting, so an untouched gym changes nothing', () => {
+    expect(gymMemberPortalSettingsSchema.parse({})).toEqual({
+      loginImageUrl: null,
+      logoUrl: null,
+      primaryColor: null,
+    });
+  });
+
+  it('keeps a stored URL, and refuses anything that is not one', () => {
+    expect(
+      gymMemberPortalSettingsSchema.parse({ logoUrl: 'https://cdn/x/logos/mark.webp' }).logoUrl,
+    ).toBe('https://cdn/x/logos/mark.webp');
+    expect(gymMemberPortalSettingsSchema.safeParse({ logoUrl: 'mark.webp' }).success).toBe(false);
+  });
+
+  // The whole point of the separate field: the brand logo is gated to JPEG/PNG
+  // because `pdfkit` embeds it in invoices. Nothing here is drawn into a PDF, so
+  // the contract must not carry that restriction forward.
+  it('accepts a WebP the brand logo could not take, and clears back to inherit', () => {
+    expect(
+      updateGymSettingsSchema.parse({ memberPortal: { logoUrl: 'https://cdn/g/logos/m.webp' } }),
+    ).toEqual({ memberPortal: { logoUrl: 'https://cdn/g/logos/m.webp' } });
+    expect(updateGymSettingsSchema.parse({ memberPortal: { logoUrl: null } })).toEqual({
+      memberPortal: { logoUrl: null },
+    });
+  });
+});
+
+describe('gymPortalTheme — resolving the wordmark against the brand', () => {
+  it('prefers the portal’s own mark over the brand’s', () => {
+    expect(
+      gymPortalTheme({
+        brand: { logoUrl: 'https://cdn/g/logos/invoice.png' },
+        memberPortal: { logoUrl: 'https://cdn/g/logos/portal.webp' },
+      }).logoUrl,
+    ).toBe('https://cdn/g/logos/portal.webp');
+  });
+
+  it('falls through to the brand’s when the portal inherits', () => {
+    expect(gymPortalTheme({ brand: { logoUrl: 'https://cdn/g/logos/invoice.png' } }).logoUrl).toBe(
+      'https://cdn/g/logos/invoice.png',
+    );
+  });
+
+  // The third link is the member app's bundled wordmark, which is a file in
+  // `apps/web/public` rather than a URL — so the contract's job ends at `null`.
+  it('stays null when the gym has uploaded no mark anywhere', () => {
+    expect(gymPortalTheme({}).logoUrl).toBeNull();
+    expect(gymPortalTheme(null).logoUrl).toBeNull();
+  });
+
+  // The colour resolves alongside it and must keep doing so — one theme object,
+  // one resolution pass, no half-resolved shape reaching a renderer. The brand's
+  // SECONDARY colour is deliberately absent from the result: the portal's accent
+  // type is the product's lime and was never a brand slot.
+  it('resolves the colour in the same pass, and carries no accent', () => {
+    const theme = gymPortalTheme({
+      brand: { primaryColor: '#84cc16', secondaryColor: '#1c1917' },
+      memberPortal: { primaryColor: '#e4f26a' },
+    });
+    expect(theme).toEqual({
+      loginImageUrl: null,
+      logoUrl: null,
+      primaryColor: '#e4f26a',
+    });
   });
 });

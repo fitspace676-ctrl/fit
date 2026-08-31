@@ -127,6 +127,7 @@
       "activity": "Activity",
       "auditLog": "Audit log",
       "settings": "Settings",
+      "memberPortal": "Member portal",
       "classes": "Classes"
     },
     "navGroups": {
@@ -1208,6 +1209,8 @@
         "cancel": "Cancel",
         "personalSection": "Personal information",
         "dateOfBirth": "Date of birth",
+        "startDate": "Start date",
+        "startDateHint": "When this membership begins.",
         "gender": "Gender",
         "genderUnset": "Select gender",
         "address": "Address",
@@ -1320,6 +1323,7 @@
         "email": "Email",
         "phone": "Phone",
         "dateOfBirth": "Date of birth",
+        "membershipStart": "Membership start",
         "gender": "Gender",
         "address": "Address",
         "emergencyContact": "Emergency contact",
@@ -2076,6 +2080,7 @@
           "phone": "Phone",
           "gender": "Gender",
           "dateOfBirth": "Date of birth",
+          "startDate": "Start date",
           "personalId": "National ID",
           "address": "Address",
           "emergencyContact": "Emergency contact",
@@ -2083,6 +2088,17 @@
           "paymentMethod": "Payment method",
           "medicalNotes": "Medical notes"
         }
+      },
+      "startDatePolicy": {
+        "title": "Start-date window",
+        "subtitle": "Which start dates a member may actually pick. Only in force while the start-date field above is switched on.",
+        "maxDaysAheadLabel": "How far ahead a membership may start",
+        "maxDaysAheadHint": "Whole days from today, counted in your gym’s time zone. A member may pick any day up to this far out.",
+        "maxDaysAheadToday": "0 means today only — a membership begins the day it is sold.",
+        "maxDaysAheadDays": "Today through {days} days out.",
+        "allowPastLabel": "Allow a start date in the past",
+        "allowPastDesc": "Backdating reaches as far back as the window above reaches forward. Off, the earliest a membership may begin is today.",
+        "disabledHint": "Switch “Start date” on above to use this window."
       },
       "freeAccount": {
         "title": "Free account",
@@ -2177,6 +2193,101 @@
           "classes": "Attendance, utilisation and no-shows.",
           "staff": "Trainer performance."
         }
+      }
+    },
+    "memberPortal": {
+      "breadcrumb": {
+        "label": "Breadcrumb",
+        "home": "Home",
+        "current": "Member portal"
+      },
+      "title": "Member portal",
+      "subtitle": "How the site your members sign in to looks — its logo, its colour and the photograph on the sign-in screen.",
+      "colors": {
+        "title": "Colours",
+        "subtitle": "This skins the member site only. Your brand colour still drives invoices, receipts and email, so a lime portal need not mean a lime invoice.",
+        "primaryLabel": "Primary colour",
+        "primaryDesc": "The one action on a screen — the sign-in button, the field in focus.",
+        "hexLabel": "{label}, hex value",
+        "pickerLabel": "Pick {label}",
+        "inheritedBadge": "From brand",
+        "inherited": "Following your brand colour, {color}.",
+        "customise": "Use a different colour",
+        "reset": "Follow the brand colour",
+        "invalid": "Enter a hex colour like #4f46e5."
+      },
+      "logo": {
+        "title": "Portal logo",
+        "subtitle": "The mark your members see in the portal’s header — on the join wizard, on the sign-in screen, and on every page behind it.",
+        "label": "Logo",
+        "choose": "Upload a logo",
+        "replace": "Replace logo",
+        "drop": "Drop to upload",
+        "alt": "The member portal’s logo",
+        "uploading": "Uploading…",
+        "fromBrandBadge": "From brand",
+        "builtInBadge": "Built-in",
+        "inheritedBrand": "Following your brand logo. Upload one here to use a different mark on the member site — what prints on your invoices stays as it is.",
+        "inheritedNone": "You have not uploaded a logo yet, so members see the built-in FormaCore mark.",
+        "resetToBrand": "Follow the brand logo",
+        "resetToBuiltIn": "Use the built-in logo",
+        "hint": "JPEG, PNG or WebP, up to 2 MB. Your logo is shown on a white plate everywhere in the portal — including over the sign-in photograph — so upload the version drawn for a light background.",
+        "errorType": "Choose a JPEG, PNG or WebP image.",
+        "errorSize": "That image is larger than 2 MB. Choose a smaller file.",
+        "errorUpload": "Upload failed ({status}). Please try again.",
+        "errorNetwork": "Could not upload the logo. Check your connection and try again."
+      },
+      "image": {
+        "title": "Sign-in photograph",
+        "subtitle": "The picture beside the sign-in form. Leave it unset and the member site shows its built-in photo.",
+        "label": "Photograph",
+        "choose": "Upload a photo",
+        "replace": "Replace photo",
+        "drop": "Drop to upload",
+        "none": "Built-in photo",
+        "alt": "The member portal’s sign-in photograph",
+        "uploading": "Uploading…",
+        "hint": "JPEG, PNG or WebP, up to 5 MB. A landscape shot works best: the panel is a tall column on a desktop and a wide band on a phone.",
+        "remove": "Use the built-in photo",
+        "errorType": "Choose a JPEG, PNG or WebP image.",
+        "errorSize": "That image is larger than 5 MB. Choose a smaller file.",
+        "errorUpload": "Upload failed ({status}). Please try again.",
+        "errorNetwork": "Could not upload the photograph. Check your connection and try again."
+      },
+      "preview": {
+        "title": "Preview",
+        "subtitle": "Roughly what a member meets at the door. The wording is a sample; the logo, the colour and the photograph are yours.",
+        "signInTitle": "Sign in",
+        "emailLabel": "Email",
+        "emailSample": "member@example.com",
+        "passwordLabel": "Password",
+        "forgot": "Forgot?",
+        "submit": "Sign in",
+        "joinTitle": "Not a member at {gym} yet?",
+        "joinBenefit": "Pick a branch and a plan, and start today",
+        "joinCta": "Join",
+        "note": "Not shown: the language and light/dark switches, the real sign-in copy, and every screen behind the door."
+      },
+      "saveBar": {
+        "unsaved": "Unsaved changes",
+        "discard": "Discard",
+        "save": "Save changes",
+        "saving": "Saving…"
+      },
+      "toast": {
+        "saved": "Member portal updated",
+        "saveFailed": "Could not save the member portal"
+      },
+      "errors": {
+        "loadSettings": "Could not load the member portal ({status}): {message}",
+        "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "notAuthorized": "Not authorized.",
+        "forbidden": "You do not have permission to change the member portal.",
+        "gymNotFound": "This gym no longer exists.",
+        "storageUnavailable": "Image storage is not configured. Save your colours, or try the photograph again later.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "invalid": "Invalid member-portal settings.",
+        "unexpected": "Unexpected error."
       }
     },
     "automation": {
@@ -3216,6 +3327,10 @@
         "passwordHint": "At least 8 characters.",
         "phone": "Phone",
         "dateOfBirth": "Date of birth",
+        "startDate": "Start date",
+        "startDateHintToday": "The membership can only start today.",
+        "startDateHintAhead": "Choose today or any day within the next {days, plural, =1 {day} other {# days}}.",
+        "startDateHintWindow": "Choose any day within {days, plural, =1 {day} other {# days}} either side of today.",
         "personalId": "National ID number",
         "personalIdHint": "Required by the gym for membership records.",
         "gender": "Gender",

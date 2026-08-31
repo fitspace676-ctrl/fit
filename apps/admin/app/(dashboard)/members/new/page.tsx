@@ -3,8 +3,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, gymMemberIntakeSettingsSchema, roleHasPermission } from '@fit/types';
+import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { memberIntakeConfig } from '@/lib/member-intake';
 import { fetchGymSettings } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { MemberForm } from '../member-form';
@@ -90,11 +91,12 @@ export default async function NewMemberPage() {
 
   const t = await getTranslations('admin.members');
 
-  // The form's field visibility is config-driven (Settings → Membership); fall back to
-  // schema defaults if the settings fetch fails so the form still renders.
-  const memberIntake = await fetchGymSettings()
-    .then((s) => s.memberIntake)
-    .catch(() => gymMemberIntakeSettingsSchema.parse({}));
+  // The form's field visibility and its start-date window are both config-driven
+  // (Settings → Membership); fall back to schema defaults if the settings fetch fails
+  // so the form still renders.
+  const intakeConfig = await fetchGymSettings()
+    .then(memberIntakeConfig)
+    .catch(() => memberIntakeConfig(null));
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -118,7 +120,11 @@ export default async function NewMemberPage() {
         <p {...stylex.props(styles.subtitle)}>{t('newPage.subtitle')}</p>
       </header>
 
-      <MemberForm mode="create" intake={memberIntake} />
+      <MemberForm
+        mode="create"
+        intake={intakeConfig.intake}
+        startDateWindow={intakeConfig.startDateWindow}
+      />
     </div>
   );
 }

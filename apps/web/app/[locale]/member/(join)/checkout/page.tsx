@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getLocale, setRequestLocale } from 'next-intl/server';
-import { getActiveGymId } from '@/lib/active-gym';
+import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
 import { CheckoutScreen } from '@/src/components/checkout/CheckoutScreen';
 
 export const metadata: Metadata = {
@@ -32,7 +32,14 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [activeLocale, gymId] = await Promise.all([getLocale(), getActiveGymId()]);
+  // The zone travels with the tenant because a membership start date is a day on
+  // the GYM's calendar — the wizard has to bound its picker on the same clock
+  // the API validates against, not on the buyer's.
+  const [activeLocale, gymId, timezone] = await Promise.all([
+    getLocale(),
+    getActiveGymId(),
+    getActiveGymTimezone(),
+  ]);
 
-  return <CheckoutScreen gymId={gymId} locale={activeLocale} />;
+  return <CheckoutScreen gymId={gymId} locale={activeLocale} timezone={timezone} />;
 }

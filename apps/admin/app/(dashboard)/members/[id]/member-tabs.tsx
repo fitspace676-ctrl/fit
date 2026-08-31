@@ -963,6 +963,22 @@ function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; local
             label={t('detail.dateOfBirth')}
             value={member.dateOfBirth ? formatDate(member.dateOfBirth, locale) : '-'}
           />
+          {/*
+            The day the membership was recorded as beginning — a fact on the
+            profile, corrected through the edit form like any other.
+
+            `detail.membershipStart`, NOT `detail.startDate`: that key belongs to
+            the plan card's current-period start, which is a billing anchor and a
+            different number. Two rows a tab apart both reading "Start date" would
+            be read as the same thing, and they are not.
+
+            A dash is the honest answer for the many memberships that predate the
+            field, and needs no apology beside it.
+          */}
+          <FieldRow
+            label={t('detail.membershipStart')}
+            value={member.startDate ? formatDate(member.startDate, locale) : '-'}
+          />
           <FieldRow label={t('detail.personalId')} value={dash(member.personalId)} />
           <FieldRow label={t('detail.gender')} value={genderLabel} />
           <FieldRow label={t('detail.address')} value={dash(member.address)} />

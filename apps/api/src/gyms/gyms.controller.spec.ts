@@ -26,6 +26,11 @@ function setup() {
       brand: null,
       contact: null,
       timezone: 'Asia/Tbilisi',
+      portal: {
+        loginImageUrl: null,
+        logoUrl: null,
+        primaryColor: '#84cc16',
+      },
     }),
   );
   const gyms = { list, resolveBySubdomain } as unknown as GymsService;
@@ -63,6 +68,11 @@ describe('GymsController', () => {
         brand: null,
         contact: null,
         timezone: 'Asia/Tbilisi',
+        portal: {
+          loginImageUrl: null,
+          logoUrl: null,
+          primaryColor: '#84cc16',
+        },
       });
     });
 

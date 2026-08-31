@@ -41,14 +41,14 @@ function setup(overrides?: { gym?: GymRow | null; publicUrl?: string | null }) {
 
   // Media cleanup is a best-effort side effect; stub it so these tests stay about
   // the service's own writes.
-  const media = {
-    discardUnreferenced: vi.fn(() => Promise.resolve()),
-  } as unknown as MediaCleanupService;
+  const discardUnreferenced = vi.fn(() => Promise.resolve());
+  const media = { discardUnreferenced } as unknown as MediaCleanupService;
   return {
     service: new GymSettingsService(prisma, tenant, storage, media),
     findFirst,
     update,
     publicUrl,
+    discardUnreferenced,
   };
 }
 
@@ -131,6 +131,65 @@ describe('GymSettingsService', () => {
       };
       expect(stored.booking.cancellationCutoffHours).toBe(12);
       expect(result.booking.cancellationCutoffHours).toBe(12);
+    });
+
+    it('merges a partial start-date-policy patch and returns it', async () => {
+      const { service, update } = setup({
+        gym: { name: 'Iron Gym', settings: { startDatePolicy: { allowPast: true } } },
+      });
+
+      const result = await service.updateSettings({ startDatePolicy: { maxDaysAhead: 30 } });
+
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as {
+        startDatePolicy: { maxDaysAhead: number; allowPast: boolean };
+      };
+      // Field-by-field, like every other section: the stored `allowPast` survives
+      // a patch that only names the window's length.
+      expect(stored.startDatePolicy).toEqual({ maxDaysAhead: 30, allowPast: true });
+      expect(result.startDatePolicy).toEqual({ maxDaysAhead: 30, allowPast: true });
+    });
+
+    it('merges a partial member-portal patch, leaving the untouched colours alone', async () => {
+      const { service, update } = setup({
+        gym: {
+          name: 'Iron Gym',
+          settings: {
+            memberPortal: {
+              loginImageUrl: 'https://cdn.example.com/gym-1/logos/hero.jpg',
+              primaryColor: '#84cc16',
+            },
+          },
+        },
+      });
+
+      const result = await service.updateSettings({ memberPortal: { primaryColor: '#84cc16' } });
+
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as {
+        memberPortal: Record<string, string | null>;
+      };
+      expect(stored.memberPortal).toEqual({
+        loginImageUrl: 'https://cdn.example.com/gym-1/logos/hero.jpg',
+        // Never set, so it stays at its "inherit the brand's mark" default.
+        logoUrl: null,
+        primaryColor: '#84cc16',
+      });
+      expect(result.memberPortal.primaryColor).toBe('#84cc16');
+    });
+
+    it('clears a portal colour back to the brand when the patch sends null', async () => {
+      const { service, update } = setup({
+        gym: { name: 'Iron Gym', settings: { memberPortal: { primaryColor: '#84cc16' } } },
+      });
+
+      // `null` is a real value here, not "omitted": it is how a gym says "fall
+      // through to the brand" rather than "leave the override where it was".
+      const result = await service.updateSettings({ memberPortal: { primaryColor: null } });
+
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as {
+        memberPortal: { primaryColor: string | null };
+      };
+      expect(stored.memberPortal.primaryColor).toBeNull();
+      expect(result.memberPortal.primaryColor).toBeNull();
     });
 
     it('replaces the whole week when hours are supplied', async () => {
@@ -236,6 +295,132 @@ describe('GymSettingsService', () => {
       await expect(service.setLogo({ photoKey: 'gym-1/logos/abc.png' })).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setPortalImage', () => {
+    it('stores the public URL under memberPortal.loginImageUrl and echoes it back', async () => {
+      const { service, update, publicUrl } = setup({
+        gym: { name: 'Iron Gym', settings: { memberPortal: { primaryColor: '#84cc16' } } },
+        publicUrl: 'https://cdn.example.com/gym-1/logos/hero.jpg',
+      });
+
+      const result = await service.setPortalImage({ photoKey: 'gym-1/logos/hero.jpg' });
+
+      expect(publicUrl).toHaveBeenCalledWith('gym-1/logos/hero.jpg');
+      expect(result).toEqual({ loginImageUrl: 'https://cdn.example.com/gym-1/logos/hero.jpg' });
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as {
+        memberPortal: { loginImageUrl: string; primaryColor: string };
+        brand: { logoUrl: string | null };
+      };
+      expect(stored.memberPortal.loginImageUrl).toBe(
+        'https://cdn.example.com/gym-1/logos/hero.jpg',
+      );
+      // The portal's own colours survive, and the brand logo is untouched — the
+      // two images are separate settings that happen to share an upload prefix.
+      expect(stored.memberPortal.primaryColor).toBe('#84cc16');
+      expect(stored.brand.logoUrl).toBeNull();
+    });
+
+    it('frees the photograph it replaced, keeping the new one', async () => {
+      const { service, discardUnreferenced } = setup({
+        gym: {
+          name: 'Iron Gym',
+          settings: { memberPortal: { loginImageUrl: 'https://cdn.example.com/old.jpg' } },
+        },
+        publicUrl: 'https://cdn.example.com/gym-1/logos/hero.jpg',
+      });
+
+      await service.setPortalImage({ photoKey: 'gym-1/logos/hero.jpg' });
+
+      expect(discardUnreferenced).toHaveBeenCalledWith(
+        ['https://cdn.example.com/old.jpg'],
+        ['https://cdn.example.com/gym-1/logos/hero.jpg'],
+      );
+    });
+
+    it('rejects a key that belongs to another tenant with a 400, without touching storage or the gym', async () => {
+      const { service, update, publicUrl } = setup({ publicUrl: 'https://cdn/x' });
+
+      await expect(
+        service.setPortalImage({ photoKey: 'other-gym/logos/hero.jpg' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(publicUrl).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('throws 503 when no public URL is configured (R2 disabled)', async () => {
+      const { service, update } = setup({ publicUrl: null });
+
+      await expect(
+        service.setPortalImage({ photoKey: 'gym-1/logos/hero.jpg' }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('setPortalLogo', () => {
+    it('stores the public URL under memberPortal.logoUrl, leaving the brand logo alone', async () => {
+      const { service, update, publicUrl } = setup({
+        gym: {
+          name: 'Iron Gym',
+          settings: { brand: { logoUrl: 'https://cdn.example.com/gym-1/logos/invoice.png' } },
+        },
+        publicUrl: 'https://cdn.example.com/gym-1/logos/mark.webp',
+      });
+
+      const result = await service.setPortalLogo({ photoKey: 'gym-1/logos/mark.webp' });
+
+      expect(publicUrl).toHaveBeenCalledWith('gym-1/logos/mark.webp');
+      expect(result).toEqual({ logoUrl: 'https://cdn.example.com/gym-1/logos/mark.webp' });
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as {
+        memberPortal: { logoUrl: string; loginImageUrl: string | null };
+        brand: { logoUrl: string };
+      };
+      expect(stored.memberPortal.logoUrl).toBe('https://cdn.example.com/gym-1/logos/mark.webp');
+      // The whole point of the separate field: the mark invoices print is
+      // untouched, because `pdfkit` has format constraints this one does not.
+      expect(stored.brand.logoUrl).toBe('https://cdn.example.com/gym-1/logos/invoice.png');
+      expect(stored.memberPortal.loginImageUrl).toBeNull();
+    });
+
+    // The discard is a REQUEST — `MediaCleanupService` re-checks every reference
+    // before deleting, which is what protects a gym whose portal was inheriting
+    // `brand.logoUrl` and is now replacing it with a mark of its own.
+    it('asks for the wordmark it replaced to be freed, keeping the new one', async () => {
+      const { service, discardUnreferenced } = setup({
+        gym: {
+          name: 'Iron Gym',
+          settings: { memberPortal: { logoUrl: 'https://cdn.example.com/old-mark.png' } },
+        },
+        publicUrl: 'https://cdn.example.com/gym-1/logos/mark.webp',
+      });
+
+      await service.setPortalLogo({ photoKey: 'gym-1/logos/mark.webp' });
+
+      expect(discardUnreferenced).toHaveBeenCalledWith(
+        ['https://cdn.example.com/old-mark.png'],
+        ['https://cdn.example.com/gym-1/logos/mark.webp'],
+      );
+    });
+
+    it('rejects a key that belongs to another tenant with a 400, without touching storage or the gym', async () => {
+      const { service, update, publicUrl } = setup({ publicUrl: 'https://cdn/x' });
+
+      await expect(
+        service.setPortalLogo({ photoKey: 'other-gym/logos/mark.webp' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(publicUrl).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('throws 503 when no public URL is configured (R2 disabled)', async () => {
+      const { service, update } = setup({ publicUrl: null });
+
+      await expect(
+        service.setPortalLogo({ photoKey: 'gym-1/logos/mark.webp' }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
       expect(update).not.toHaveBeenCalled();
     });
   });

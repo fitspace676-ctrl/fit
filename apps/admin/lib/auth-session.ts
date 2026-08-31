@@ -125,6 +125,9 @@ export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; minRole: Role }>
   { prefix: '/billing', minRole: 'OWNER' },
   { prefix: '/staff', minRole: 'OWNER' },
   { prefix: '/settings', minRole: 'MANAGER' },
+  // The member portal's look. OWNER+, matching the `GymManage` capability its
+  // nav entry is gated on — a link the sidebar renders must never land on /403.
+  { prefix: '/member-portal', minRole: 'OWNER' },
   // Growth area (T12.1). Automation and Marketing are MANAGER+, mirroring the
   // @fit/types matrix so visible links never bounce to /403.
   { prefix: '/automation', minRole: 'MANAGER' },

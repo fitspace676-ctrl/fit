@@ -12,6 +12,8 @@ import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
 import {
   EMAIL_TAKEN_CODE,
   gymPublicMemberIntake,
+  gymPublicStartDatePolicy,
+  gymPublicTimezone,
   gymSettingsStoredSchema,
   missingSignupIntakeFields,
 } from '@fit/types';
@@ -33,6 +35,7 @@ import type {
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
+import { assertStartDateWithinPolicy } from '../gyms/start-date-policy.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { AppleOAuthService } from './apple-oauth.service';
@@ -157,9 +160,10 @@ export class AuthService {
    * Differs from {@link register} in three ways, all of which follow from this
    * being a *gym onboarding a paying member* rather than a bare account
    * creation: the `GymMember` is created alongside the `User` (with the profile
-   * the front desk needs — phone, date of birth, gender, national id), and a
-   * session is issued immediately so the buyer walks straight into the portal
-   * after paying instead of bouncing off the login screen.
+   * the front desk needs — phone, date of birth, gender, national id, and the
+   * day the buyer says their membership begins), and a session is issued
+   * immediately so the buyer walks straight into the portal after paying instead
+   * of bouncing off the login screen.
    *
    * The address is still **unverified**: the verification email goes out here
    * exactly as it does for {@link register}, and `login` keeps rejecting an
@@ -202,6 +206,15 @@ export class AuthService {
         fields: missing,
       });
     }
+
+    // A volunteered start date answers to the gym's window whether or not the
+    // form asked for one — the check above only rejects *missing* fields, so a
+    // body that skips the form entirely reaches this line with any date it likes.
+    assertStartDateWithinPolicy(
+      input.startDate,
+      gymPublicStartDatePolicy(gym.settings),
+      gymPublicTimezone(gym.settings),
+    );
 
     const existing = await this.prisma.client.user.findUnique({
       where: { email: input.email },
@@ -247,6 +260,10 @@ export class AuthService {
           dateOfBirth: input.dateOfBirth ? new Date(`${input.dateOfBirth}T00:00:00.000Z`) : null,
           gender: input.gender ?? null,
           personalId: input.personalId ?? null,
+          // Same calendar-date treatment, and the same reason. Recorded only:
+          // `joinedAt` is still stamped now and still what "starts today" means,
+          // and no billing anchor is derived from this — see `GymMember.startDate`.
+          startDate: input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : null,
         },
       });
 

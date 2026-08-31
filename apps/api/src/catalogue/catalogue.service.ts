@@ -5,7 +5,7 @@ import {
   SubscriptionPlanStatus,
   type Prisma,
 } from '@fit/db';
-import { gymPublicFreeAccount, gymPublicMemberIntake } from '@fit/types';
+import { gymPublicFreeAccount, gymPublicMemberIntake, gymPublicStartDatePolicy } from '@fit/types';
 import type {
   PackageInterval,
   PackageSummary,
@@ -145,6 +145,11 @@ export class CatalogueService {
       // Same read, same reason: the join form has no session to ask which fields
       // this gym collects, so the answer travels with the catalogue.
       memberIntake: gymPublicMemberIntake(gym?.settings ?? null),
+      // And the window the `startDate` toggle's answers have to fall in: the
+      // wizard bounds its date input with this, and the API re-checks the body
+      // against the same policy, so the form cannot offer a day the server
+      // refuses.
+      startDatePolicy: gymPublicStartDatePolicy(gym?.settings ?? null),
     };
   }
 }

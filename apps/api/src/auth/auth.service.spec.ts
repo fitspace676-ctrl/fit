@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { TokenPair } from '@fit/types';
+import type { MemberSignupInput, TokenPair } from '@fit/types';
 
 // Mock the frozen env singleton so the verification TTL is deterministic, and
 // stub argon2 so tests neither load the native addon nor pay hashing cost.
@@ -34,6 +34,13 @@ import type { TokenService } from './token.service';
 import type { EmailService } from './email.service';
 import type { GoogleOAuthService } from './google-oauth.service';
 import type { AppleOAuthService } from './apple-oauth.service';
+
+/** A gym row as `signupMember`'s tenant lookup projects it. */
+interface GymRow {
+  id: string;
+  slug: string;
+  settings: unknown;
+}
 
 /** A user row as `login`'s `findUnique` projection returns it. */
 interface StoredUser {
@@ -110,10 +117,27 @@ function setup() {
     >
   >(() => Promise.resolve([]));
 
+  // The tenant a public self-signup joins. Default to a live gym with no stored
+  // settings, so `signupMember` sees the shipped defaults for every policy.
+  const gymFindFirst = vi.fn<(args: unknown) => Promise<GymRow | null>>(() =>
+    Promise.resolve({ id: 'gym-1', slug: 'iron', settings: null }),
+  );
+  // Signup's account + membership transaction. The callback is handed a client
+  // whose two creates are recorded, so a test can assert what was written.
+  const gymMemberCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'gm-1' }),
+  );
+  const transaction = vi.fn(
+    <T>(fn: (tx: { user: unknown; gymMember: unknown }) => Promise<T>): Promise<T> =>
+      fn({ user: { create }, gymMember: { create: gymMemberCreate } }),
+  );
+
   const prisma = {
     client: {
       user: { findUnique, create, update, updateMany },
       gymMember: { findFirst: gymMemberFindFirst, findMany: gymMemberFindMany },
+      gym: { findFirst: gymFindFirst },
+      $transaction: transaction,
     },
   } as unknown as PrismaService;
   const redis = { client: { set, get, del } } as unknown as RedisService;
@@ -149,6 +173,8 @@ function setup() {
     verifyAppleIdToken,
     gymMemberFindFirst,
     gymMemberFindMany,
+    gymFindFirst,
+    gymMemberCreate,
   };
 }
 
@@ -255,6 +281,122 @@ describe('AuthService', () => {
       // The account + token were still persisted.
       expect(ctx.create).toHaveBeenCalled();
       expect(ctx.set).toHaveBeenCalled();
+    });
+  });
+
+  describe('signupMember — start date', () => {
+    // Carries every field the shipped intake defaults ask for, so these tests
+    // fail on the start-date policy rather than on the intake check that runs
+    // just before it.
+    const VALID_SIGNUP = {
+      gymId: 'gym-1',
+      name: 'Nino',
+      email: 'nino@example.com',
+      password: 'supersecret',
+      phone: '+995555000111',
+      gender: 'FEMALE',
+      dateOfBirth: '1994-03-02',
+      personalId: '01001000000',
+    } satisfies MemberSignupInput;
+
+    // The window is counted in whole days in the GYM's zone, so "today" has to be
+    // a fixed day or these would age out of it. Midday in `Asia/Tbilisi` (the
+    // default zone) puts the server's instant and the gym's calendar day on the
+    // same date, which is the case worth stating plainly.
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-01T08:00:00.000Z'));
+      ctx.findUnique.mockResolvedValue(null);
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('records a start date inside the window at UTC midnight, leaving joinedAt to say "today"', async () => {
+      await ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2026-07-10' });
+
+      const data = (ctx.gymMemberCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+        .data;
+      expect(data.startDate).toEqual(new Date('2026-07-10T00:00:00.000Z'));
+      // A recorded fact, nothing more: nothing here anchors billing or joining.
+      expect(data).not.toHaveProperty('joinedAt');
+    });
+
+    it('leaves the column null when the body carries no start date', async () => {
+      await ctx.service.signupMember(VALID_SIGNUP);
+
+      const data = (ctx.gymMemberCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+        .data;
+      expect(data.startDate).toBeNull();
+    });
+
+    it('rejects a date past the window with 400 START_DATE_OUT_OF_RANGE and creates nothing', async () => {
+      // The default policy is 14 days ahead; this is a year out.
+      const error = await ctx.service
+        .signupMember({ ...VALID_SIGNUP, startDate: '2027-07-01' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'START_DATE_OUT_OF_RANGE',
+        min: '2026-07-01',
+        max: '2026-07-15',
+      });
+      expect(ctx.gymMemberCreate).not.toHaveBeenCalled();
+      expect(ctx.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a backdated start date while the gym forbids one', async () => {
+      await expect(
+        ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2026-06-30' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('refuses an out-of-window date even though the gym never asks for one', async () => {
+      // `memberIntake.startDate` is off by default, so nothing on the join form
+      // would have collected this — which is exactly why the body reaching the
+      // API cannot be trusted to have come from that form.
+      ctx.gymFindFirst.mockResolvedValue({
+        id: 'gym-1',
+        slug: 'iron',
+        settings: { memberIntake: { startDate: false } },
+      });
+
+      await expect(
+        ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2027-01-01' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.gymMemberCreate).not.toHaveBeenCalled();
+    });
+
+    it('honours a gym that widened the window and allowed backdating', async () => {
+      ctx.gymFindFirst.mockResolvedValue({
+        id: 'gym-1',
+        slug: 'iron',
+        settings: { startDatePolicy: { maxDaysAhead: 90, allowPast: true } },
+      });
+
+      await ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2026-09-01' });
+
+      const data = (ctx.gymMemberCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+        .data;
+      expect(data.startDate).toEqual(new Date('2026-09-01T00:00:00.000Z'));
+    });
+
+    it('reads "today" in the gym\'s zone, not the server\'s', async () => {
+      // 22:00 UTC on the 1st is already 02:00 on the 2nd in Tbilisi (UTC+4), so
+      // the 1st is yesterday there — and backdating is off by default.
+      vi.setSystemTime(new Date('2026-07-01T22:00:00.000Z'));
+      ctx.gymFindFirst.mockResolvedValue({
+        id: 'gym-1',
+        slug: 'iron',
+        settings: { locale: { timezone: 'Asia/Tbilisi' } },
+      });
+
+      await expect(
+        ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2026-07-01' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      // The gym's own "today" is accepted at the same instant.
+      await expect(
+        ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2026-07-02' }),
+      ).resolves.toBeDefined();
     });
   });
 

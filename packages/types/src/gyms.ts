@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from './auth';
-import type { GymPublicBrand, GymPublicContact } from './gym-settings';
+import type { GymPortalTheme, GymPublicBrand, GymPublicContact } from './gym-settings';
 
 /** Minimum length of a gym slug (the tenant's subdomain label). */
 export const GYM_SLUG_MIN_LENGTH = 3;
@@ -151,4 +151,16 @@ export interface GymBySubdomainResponse {
    * has filled in nothing yields four `null`s and the portal renders no footer.
    */
   contact: GymPublicContact | null;
+  /**
+   * The member portal's skin — the sign-in photograph and the two colours the
+   * public site paints itself in, already resolved against the brand by
+   * `gymPortalTheme` so both colours are always renderable.
+   *
+   * Travels with this lookup rather than being fetched separately because the
+   * portal's very first paint — the sign-in screen, before anyone has a session —
+   * is the one that needs it, and this call is the only thing that has already
+   * run by then. Kept apart from `brand` because a gym may want a lime portal
+   * without a lime invoice.
+   */
+  portal: GymPortalTheme;
 }

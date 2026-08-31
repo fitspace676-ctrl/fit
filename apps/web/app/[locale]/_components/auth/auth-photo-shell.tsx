@@ -2,18 +2,20 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations } from 'next-intl/server';
-import { getActiveGymName } from '@/lib/active-gym';
+import { getActiveGymName, getActiveGymPortalSkin } from '@/lib/active-gym';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
+import { PortalLogo } from '@/src/components/member/portal-logo';
 import { ThemeToggle } from '@/src/components/member/theme-toggle';
 
 /**
  * The signed-out door: one two-column frame shared by every member auth screen —
  * sign in, forgot password, set a new password.
  *
- * TWO SIDES, DIFFERENT JOBS. The left is a full-bleed photograph of the gym
- * carrying the brand mark, the light/dark switch, and the "not a member yet"
+ * TWO SIDES, DIFFERENT JOBS. The left is a full-bleed photograph of the gym —
+ * the tenant's own, uploaded under Settings → Member portal — carrying the brand
+ * mark, the light/dark switch, and the "not a member yet"
  * doorway. The right is whatever the visitor came to do, with the language
  * switch above it. Only the right column changes between screens, which is the
  * whole reason this is a component rather than a pattern copied per page: the
@@ -52,12 +54,15 @@ import { ThemeToggle } from '@/src/components/member/theme-toggle';
  */
 
 /**
- * The gym photograph behind the left panel. A static asset rather than tenant
- * data: the gym record carries a logo and brand colours but no cover image, so
- * every tenant shows this one until there is a field to read. Replace the file
- * to change the picture — the path is stable on purpose.
+ * The photograph shown when the tenant has none of its own.
+ *
+ * The gym's actual picture is `loginImageUrl` on its resolved portal theme —
+ * the file it uploaded under Settings → Member portal, served from R2. This
+ * bundled asset is what a gym that has never uploaded one gets, and what the
+ * apex domain and preview URLs (which belong to no gym) always get. Replace the
+ * file to change that fallback — the path is stable on purpose.
  */
-const GYM_PHOTO = '/gym-hero.webp';
+const FALLBACK_GYM_PHOTO = '/gym-hero.webp';
 
 /** The three selling points the join strip lists, in order. */
 const BENEFIT_KEYS = ['branch', 'plan', 'instant'] as const;
@@ -138,15 +143,6 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     textDecoration: 'none',
-  },
-  // Over the photo the wordmark is always light — this panel no longer follows
-  // the light/dark canvas, because the scrim is dark in both. So this is always
-  // logodark.png (the white-inked logo), with no theme swap.
-  brandLogo: {
-    width: '9.25rem',
-    height: 'auto',
-    maxWidth: '100%',
-    objectFit: 'contain',
   },
   /* ------------------------------- join strip -------------------------------
      On the photo, so it carries its own dark surface rather than the theme's —
@@ -352,26 +348,32 @@ const styles = stylex.create({
 });
 
 /**
- * The brand mark - the FormaCore logo image, linking back to the marketing home.
+ * The brand mark — the gym's own logo, or the bundled FormaCore wordmark when it
+ * has uploaded none — linking back to the marketing home.
  *
  * A component rather than inline markup because it appears in both halves of the
  * header: over the photo panel from `lg`, and in the phone header above the form.
- * `onPhoto` is the whole difference - over the picture the logo is always the
- * white-inked file, because the scrim is dark in both themes; on the form
- * surface it theme-swaps via the `.member-logo` classes (see globals.css), and
- * the link hides itself at the width where the panel's copy takes over.
+ * `onPhoto` is the whole difference, and it now matters ONLY for the bundled
+ * mark: over the picture that one is always the white-inked file (the scrim is
+ * dark in both themes), while on the form surface it theme-swaps via the
+ * `.member-logo` classes. A tenant logo is one file and cannot swap, so it brings
+ * its own ground and renders identically on both — see `PortalLogo`, which is
+ * where that decision and its alternatives are written down.
+ *
+ * The link, not the image, carries the accessible name in both cases.
  */
-function Brand({ label, onPhoto }: { label: string; onPhoto: boolean }) {
+function Brand({
+  label,
+  onPhoto,
+  logoUrl,
+}: {
+  label: string;
+  onPhoto: boolean;
+  logoUrl: string | null;
+}) {
   return (
     <Link href="/" aria-label={label} {...stylex.props(styles.brand, !onPhoto && styles.phoneOnly)}>
-      {onPhoto ? (
-        <img src="/logodark.png" alt="" {...stylex.props(styles.brandLogo)} />
-      ) : (
-        <>
-          <img src="/logodark.png" alt="" className="member-logo member-logo-dark" />
-          <img src="/logolight.png" alt="" className="member-logo member-logo-light" />
-        </>
-      )}
+      <PortalLogo logoUrl={logoUrl} onPhoto={onPhoto} />
     </Link>
   );
 }
@@ -388,11 +390,17 @@ export interface AuthPhotoShellProps {
 }
 
 export async function AuthPhotoShell({ title, subtitle, children, footer }: AuthPhotoShellProps) {
-  const [t, tShell, gymName] = await Promise.all([
+  const [t, tShell, gymName, portal] = await Promise.all([
     getTranslations('auth'),
     getTranslations('member.shell'),
     getActiveGymName(),
+    getActiveGymPortalSkin(),
   ]);
+  const photo = portal?.loginImageUrl ?? FALLBACK_GYM_PHOTO;
+  // `null` here is "this gym has uploaded no mark at all" — the API has already
+  // tried its portal logo and then its brand logo — so `PortalLogo` answers with
+  // the bundled wordmark.
+  const logoUrl = portal?.logoUrl ?? null;
 
   return (
     <main {...stylex.props(styles.page)}>
@@ -400,7 +408,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
         {/* ---------------------------- the form side --------------------------- */}
         <section {...stylex.props(styles.form)}>
           <div {...stylex.props(styles.formTop)}>
-            <Brand label={tShell('brand')} onPhoto={false} />
+            <Brand label={tShell('brand')} onPhoto={false} logoUrl={logoUrl} />
             <div {...stylex.props(styles.formTopActions)}>
               <div {...stylex.props(styles.phoneOnly)}>
                 <ThemeToggle />
@@ -428,7 +436,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
         {/* ---------------------------- the gym side ---------------------------- */}
         <aside {...stylex.props(styles.aside)}>
           <Image
-            src={GYM_PHOTO}
+            src={photo}
             alt=""
             fill
             // The panel is the full column from `lg` and a band under the form
@@ -444,7 +452,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
           <span aria-hidden {...stylex.props(styles.scrim)} />
 
           <div {...stylex.props(styles.topRow)}>
-            <Brand label={tShell('brand')} onPhoto />
+            <Brand label={tShell('brand')} onPhoto logoUrl={logoUrl} />
             <ThemeToggle />
           </div>
 

@@ -671,6 +671,31 @@ model GymMember {
   /// rule belongs to the signup contract, not to the table.
   personalId String?
 
+  /// The day the membership is meant to BEGIN, as the member or the front desk
+  /// chose it — a recorded fact about the enrolment, shown on the member profile.
+  ///
+  /// Deliberately inert. NOTHING reads this column to make a decision: billing,
+  /// renewal, dunning and check-in eligibility all continue to go to
+  /// `Subscription.currentPeriodStart` and the member's `status`, exactly as they
+  /// did before it existed. So editing it corrects the record and moves no money —
+  /// which is the whole point, since a column that quietly shifted a billing
+  /// anchor would turn every backfilled or mistyped date into a financial event.
+  ///
+  /// It is not that the two values are always set apart, though. A staff create
+  /// that enrols someone on a plan states one date and it lands in both places:
+  /// here as the recorded fact, and on the new `Subscription` as its first period
+  /// start — because the desk said "starting then" about the enrolment and the
+  /// plan in the same breath. That is one input written twice at the moment of
+  /// creation, not this column driving the other afterwards; they are free to
+  /// diverge from then on, and only the subscription's own field is consulted.
+  ///
+  /// Nullable, and null for almost every existing row: the gym has to switch the
+  /// `startDate` intake toggle on before anyone is asked for one. "Starts today"
+  /// is not spelled here either — that is `joinedAt`, which every membership has.
+  /// Stored at UTC midnight like `dateOfBirth`, because it is a calendar day in
+  /// the gym's own zone rather than an instant.
+  startDate DateTime?
+
   // Directory-staff identity (T-staff-directory). A staff member added straight
   // to the directory is backed by a login-less `User` (no password, never
   // invited); their split name lives here so the roster's First/Last columns are

@@ -476,6 +476,14 @@ export interface MemberDetail extends MemberRow {
   /** ISO date of birth, or `null` when not recorded. */
   dateOfBirth: string | null;
   /**
+   * ISO day the membership was recorded as beginning, or `null` — which is every
+   * membership created before the gym switched the `startDate` intake toggle on.
+   * A recorded fact shown on the profile: it drives no billing, renewal or
+   * check-in decision (see `GymMember.startDate`), so a member with none is in no
+   * way lesser than one with it.
+   */
+  startDate: string | null;
+  /**
    * National identity number, or `null`. Required by the public self-signup
    * wizard, so every self-joined member has one; memberships created before it
    * existed — and staff added through the directory or an invite — do not.
@@ -539,13 +547,22 @@ const editableText = (max: number) =>
 
 /**
  * The profile-extra fields shared by create + update (T4.x): date of birth,
- * gender, national id, address, emergency contact and medical notes. Every field
- * is optional so a minimal create still validates; `null`/empty clears on edit.
- * Note the asymmetry with signup: the join wizard *requires* a national id, but
- * a staff-created member may legitimately not have one on file yet.
+ * membership start date, gender, national id, address, emergency contact and
+ * medical notes. Every field is optional so a minimal create still validates;
+ * `null`/empty clears on edit. Note the asymmetry with signup: the join wizard
+ * *requires* a national id, but a staff-created member may legitimately not have
+ * one on file yet.
  */
 const memberProfileShape = {
   dateOfBirth: editableText(40),
+  /**
+   * The day the membership is meant to BEGIN, as the desk recorded it — a fact on
+   * the profile, edited like any other. It is deliberately NOT a billing anchor:
+   * see `GymMember.startDate`. On a create it doubles as the period start of the
+   * optional `planId` enrolment, which is the one place it reaches billing at all,
+   * and only because the desk stated it in the same breath as the plan.
+   */
+  startDate: editableText(40),
   personalId: editableText(64),
   gender: genderSchema.nullish(),
   address: editableText(200),
@@ -568,10 +585,12 @@ export const createMemberSchema = z.object({
   phone: memberPhoneSchema,
   status: memberStatusSchema.default('ACTIVE'),
   ...memberProfileShape,
-  /** Optional catalogue plan to enrol the new member on (creates a live subscription). */
+  /**
+   * Optional catalogue plan to enrol the new member on (creates a live
+   * subscription). Its first period starts on the profile's `startDate` when the
+   * desk gave one, and today otherwise.
+   */
   planId: z.string().min(1).optional(),
-  /** ISO start date for the enrolment above (required alongside `planId`). */
-  startDate: editableText(40),
   /** Preferred payment method recorded on the profile (`"CASH"` / `"CARD"` / …). */
   paymentMethod: editableText(40),
 });

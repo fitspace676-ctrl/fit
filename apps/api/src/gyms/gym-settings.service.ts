@@ -15,6 +15,10 @@ import {
   type UpdateGymSettingsResponse,
   type UploadGymLogoInput,
   type UploadGymLogoResponse,
+  type UploadGymPortalImageInput,
+  type UploadGymPortalImageResponse,
+  type UploadGymPortalLogoInput,
+  type UploadGymPortalLogoResponse,
 } from '@fit/types';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -78,6 +82,8 @@ export class GymSettingsService {
       trial: { ...current.trial, ...input.trial },
       freeAccount: { ...current.freeAccount, ...input.freeAccount },
       memberIntake: { ...current.memberIntake, ...input.memberIntake },
+      startDatePolicy: { ...current.startDatePolicy, ...input.startDatePolicy },
+      memberPortal: { ...current.memberPortal, ...input.memberPortal },
       staffDirectory: { ...current.staffDirectory, ...input.staffDirectory },
       reports: { ...current.reports, ...input.reports },
       payments: { ...current.payments, ...input.payments },
@@ -150,6 +156,107 @@ export class GymSettingsService {
     return { logoUrl };
   }
 
+  /**
+   * `POST /gyms/settings/portal-image` — finalise the member portal's sign-in
+   * photograph. The same finalise-by-`photoKey` flow as {@link setLogo}, on the
+   * same `{gymId}/logos/…` upload prefix: the client has already `PUT` the image
+   * to R2 via a presigned `POST /uploads`, and here its key becomes a public URL
+   * stored as `memberPortal.loginImageUrl`.
+   *
+   * Sharing the logo's prefix is deliberate — it is already an entity the orphan
+   * sweep owns, so a replaced portal image is collected by the machinery that
+   * already exists rather than by a second copy of it. (`MediaCleanupService` and
+   * `MediaSweepService` both read this setting, so the two references under one
+   * prefix cannot delete each other's object.)
+   *
+   * A key outside this gym's own prefix is a `400`, so the portal can never be
+   * pointed at another tenant's upload; a `503` surfaces when no public base URL
+   * is configured (R2 disabled), mirroring the uploader.
+   */
+  async setPortalImage(input: UploadGymPortalImageInput): Promise<UploadGymPortalImageResponse> {
+    const gymId = this.tenant.gymId;
+    if (!input.photoKey.startsWith(`${gymId}/`)) {
+      throw new BadRequestException('photoKey does not belong to this gym');
+    }
+
+    const loginImageUrl = this.storage.publicUrl(input.photoKey);
+    if (!loginImageUrl) {
+      throw new ServiceUnavailableException('Object storage (R2) public URL is not configured');
+    }
+
+    const gym = await this.loadGym();
+    const current = gymSettingsStoredSchema.parse(gym.settings ?? {});
+    const next: GymSettingsStored = {
+      ...current,
+      memberPortal: { ...current.memberPortal, loginImageUrl },
+    };
+
+    await this.prisma.client.gym.update({
+      where: { id: gymId },
+      data: { settings: next as unknown as Prisma.InputJsonValue },
+    });
+
+    // The photograph this one replaces is now referenced by nobody; free it.
+    // Best-effort by design — the nightly sweep is the backstop.
+    await this.media.discardUnreferenced([current.memberPortal?.loginImageUrl], [loginImageUrl]);
+
+    return { loginImageUrl };
+  }
+
+  /**
+   * `POST /gyms/settings/portal-logo` — finalise the member portal's wordmark. The
+   * third finalise route on the same flow as {@link setLogo} and
+   * {@link setPortalImage}, and on the same `{gymId}/logos/…` upload prefix.
+   *
+   * WHY A SEPARATE FIELD FROM `brand.logoUrl`, which is a perfectly good gym logo:
+   * that one is drawn into invoice PDFs by `pdfkit`, so it is gated to JPEG/PNG.
+   * The portal's chrome is only ever rendered by a browser and can take WebP,
+   * which is what this field buys. It defaults to `null` — "inherit" — and
+   * `gymPortalTheme` resolves `memberPortal.logoUrl ?? brand.logoUrl`, so a gym
+   * that only ever uploaded one logo still wears it on its portal.
+   *
+   * The replaced object is freed only when it is REPLACED here. Nothing is freed
+   * when the field is cleared back to `null` through `PATCH /gyms/settings`,
+   * because the URL left behind may be `brand.logoUrl` — the very file the portal
+   * then inherits — and `MediaCleanupService` is the wrong place to reason about
+   * that. The nightly sweep collects it if nothing references it, which is the
+   * correct answer either way.
+   *
+   * A key outside this gym's own prefix is a `400`; a `503` surfaces when no
+   * public base URL is configured (R2 disabled), mirroring the uploader.
+   */
+  async setPortalLogo(input: UploadGymPortalLogoInput): Promise<UploadGymPortalLogoResponse> {
+    const gymId = this.tenant.gymId;
+    if (!input.photoKey.startsWith(`${gymId}/`)) {
+      throw new BadRequestException('photoKey does not belong to this gym');
+    }
+
+    const logoUrl = this.storage.publicUrl(input.photoKey);
+    if (!logoUrl) {
+      throw new ServiceUnavailableException('Object storage (R2) public URL is not configured');
+    }
+
+    const gym = await this.loadGym();
+    const current = gymSettingsStoredSchema.parse(gym.settings ?? {});
+    const next: GymSettingsStored = {
+      ...current,
+      memberPortal: { ...current.memberPortal, logoUrl },
+    };
+
+    await this.prisma.client.gym.update({
+      where: { id: gymId },
+      data: { settings: next as unknown as Prisma.InputJsonValue },
+    });
+
+    // The wordmark this one replaces may still be the BRAND's logo, which the
+    // portal was inheriting a moment ago and invoices still print — so the
+    // discard is a request, not a deletion: `MediaCleanupService` re-checks every
+    // reference before it removes anything, and finds that one.
+    await this.media.discardUnreferenced([current.memberPortal?.logoUrl], [logoUrl]);
+
+    return { logoUrl };
+  }
+
   /** Load the caller's gym row, or `404 GYM_NOT_FOUND` (a deleted/odd session). */
   private async loadGym(): Promise<{ name: string; settings: Prisma.JsonValue | null }> {
     const gym = await this.prisma.client.gym.findFirst({
@@ -182,6 +289,8 @@ export class GymSettingsService {
       trial: stored.trial,
       freeAccount: stored.freeAccount,
       memberIntake: stored.memberIntake,
+      startDatePolicy: stored.startDatePolicy,
+      memberPortal: stored.memberPortal,
       staffDirectory: stored.staffDirectory,
       reports: stored.reports,
       payments: stored.payments,

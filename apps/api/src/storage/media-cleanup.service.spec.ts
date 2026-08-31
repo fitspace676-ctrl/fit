@@ -12,7 +12,17 @@ interface Counts {
   products?: number;
   trainers?: number;
   locations?: number;
+  /** Gyms whose brand logo is this reference. */
   gyms?: number;
+  /** Gyms whose member-portal sign-in photograph is this reference. */
+  portalImages?: number;
+  /** Gyms whose member-portal wordmark is this reference. */
+  portalLogos?: number;
+}
+
+/** The `settings` JSON path a gym reference query filters on. */
+interface GymCountArgs {
+  where: { settings: { path: string[] } };
 }
 
 function setup(counts: Counts = {}) {
@@ -26,7 +36,18 @@ function setup(counts: Counts = {}) {
       product: { count: vi.fn(() => Promise.resolve(counts.products ?? 0)) },
       trainer: { count: vi.fn(() => Promise.resolve(counts.trainers ?? 0)) },
       location: { count: vi.fn(() => Promise.resolve(counts.locations ?? 0)) },
-      gym: { count: vi.fn(() => Promise.resolve(counts.gyms ?? 0)) },
+      // Three settings paths share this one model, so the stub answers by the
+      // full path asked for rather than by call order — and by the WHOLE path,
+      // not its first segment, since two of the three sit under `memberPortal`.
+      gym: {
+        count: vi.fn((args: GymCountArgs) => {
+          const path = args.where.settings.path.join('.');
+          if (path === 'memberPortal.loginImageUrl')
+            return Promise.resolve(counts.portalImages ?? 0);
+          if (path === 'memberPortal.logoUrl') return Promise.resolve(counts.portalLogos ?? 0);
+          return Promise.resolve(counts.gyms ?? 0);
+        }),
+      },
     },
   } as unknown as PrismaService;
 
@@ -46,6 +67,28 @@ describe('MediaCleanupService.discardUnreferenced', () => {
     const { service, deleteObjects } = setup({ products: 1 });
 
     await service.discardUnreferenced([IMAGE], []);
+
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
+  // The portal photograph and the brand logo share the `logos` upload prefix, so
+  // a gym that used one image as both would lose it the moment either side moved
+  // on if only the logo were re-checked.
+  it('keeps an image the member portal still points at', async () => {
+    const { service, deleteObjects } = setup({ portalImages: 1 });
+
+    await service.discardUnreferenced([`${BASE}/gym-1/logos/hero.jpg`], []);
+
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
+  // The sharpest form of the shared-prefix case: a portal that inherits
+  // `brand.logoUrl` holds ONE file under two settings paths, so replacing the
+  // portal's wordmark must not delete the image invoices still print.
+  it('keeps an image the portal wordmark still points at', async () => {
+    const { service, deleteObjects } = setup({ portalLogos: 1 });
+
+    await service.discardUnreferenced([`${BASE}/gym-1/logos/mark.webp`], []);
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
   });

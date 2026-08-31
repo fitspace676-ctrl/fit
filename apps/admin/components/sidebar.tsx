@@ -84,8 +84,18 @@ const styles = stylex.create({
   },
   scrollButton: {
     position: 'absolute',
-    left: '50%',
-    transform: 'translateX(-50%)',
+    // In the gutter, not over the labels.
+    //
+    // Centred, the chevron sat squarely on whichever destination happened to be
+    // at the viewport's edge — and a nav that overflows by less than one row
+    // (adding "Member portal" put this one 24px over on a short window) leaves it
+    // parked on the same word for as long as the page is open. The frosted fill
+    // was meant to soften a passing overlap during real scrolling, not to make a
+    // permanently covered label readable.
+    //
+    // The longest label in either language ends ~64px short of the rail's right
+    // edge, so a 2rem button pinned there clears every one of them.
+    insetInlineEnd: '0.5rem',
     display: 'grid',
     placeItems: 'center',
     width: '2rem',
@@ -381,6 +391,19 @@ export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
     // Viewport resizes and content changes (accordions opening) both move the edges.
     const resizeObserver = new ResizeObserver(update);
     resizeObserver.observe(scrollEl);
+    /**
+     * The CONTENT too, not only the viewport.
+     *
+     * `scrollEl`'s own box does not change when what is inside it gets taller or
+     * shorter, and a height change with no DOM write — the Georgian webfont
+     * arriving and every row being re-measured is the ordinary case — reaches
+     * neither the observer above nor the mutation observer below. The affordance
+     * then keeps whatever it decided on the first paint: a chevron parked over
+     * two destinations with nothing left to scroll to.
+     */
+    for (const child of Array.from(scrollEl.children)) resizeObserver.observe(child);
+    // Belt and braces for the font case on browsers that report the swap late.
+    void document.fonts?.ready.then(update).catch(() => {});
     const mutationObserver = new MutationObserver(update);
     mutationObserver.observe(scrollEl, {
       childList: true,

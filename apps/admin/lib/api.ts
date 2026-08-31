@@ -44,6 +44,10 @@ import type {
   UpdateGymSettingsResponse,
   UploadGymLogoInput,
   UploadGymLogoResponse,
+  UploadGymPortalImageInput,
+  UploadGymPortalImageResponse,
+  UploadGymPortalLogoInput,
+  UploadGymPortalLogoResponse,
   GetAdminLocationResponse,
   GetAdminTrainerResponse,
   GetMemberResponse,
@@ -1751,6 +1755,50 @@ export async function uploadGymLogo(input: UploadGymLogoInput): Promise<UploadGy
     cache: 'no-store',
   });
   return unwrap<UploadGymLogoResponse>(res);
+}
+
+/**
+ * `POST /gyms/settings/portal-image` — finalise the member portal's sign-in
+ * photograph by its R2 key; returns its public URL.
+ *
+ * The same finalise-by-`photoKey` shape as {@link uploadGymLogo}, deliberately:
+ * the browser has already `PUT` the bytes to a presigned URL from `POST /uploads`,
+ * so both endpoints do the one thing the client cannot — check the key belongs to
+ * this gym, turn it into a public URL, and store it.
+ */
+export async function uploadGymPortalImage(
+  input: UploadGymPortalImageInput,
+): Promise<UploadGymPortalImageResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings/portal-image`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UploadGymPortalImageResponse>(res);
+}
+
+/**
+ * `POST /gyms/settings/portal-logo` — finalise the member portal's wordmark by its
+ * R2 key; returns its public URL.
+ *
+ * The third route on the shape {@link uploadGymLogo} established. It is separate
+ * from that one because the two marks answer to different constraints: the brand
+ * logo is embedded in invoice PDFs and gated to JPEG/PNG, while this one is only
+ * ever painted by a browser and may be a WebP. A gym that uploads only the brand
+ * logo still gets it on the portal — the API resolves `memberPortal.logoUrl ??
+ * brand.logoUrl` before the value reaches the member site.
+ */
+export async function uploadGymPortalLogo(
+  input: UploadGymPortalLogoInput,
+): Promise<UploadGymPortalLogoResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings/portal-logo`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UploadGymPortalLogoResponse>(res);
 }
 
 // ── Audit log (T4.9) ──────────────────────────────────────────────────────────

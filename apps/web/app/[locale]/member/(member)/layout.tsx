@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { getActiveGymPortalSkin } from '@/lib/active-gym';
 import { SkipLink, ToastProvider } from '@/src/components/ui';
 import { MemberHeader } from '@/src/components/member/member-header';
 import { MemberFooter } from '@/src/components/member/member-footer';
@@ -49,13 +50,18 @@ export default async function MemberLayout({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const t = await getTranslations('member.shell');
+  // The header is a client component and the tenant lookup is server-only (it
+  // reads the request Host), so the gym's mark is resolved here and handed down.
+  const [t, portal] = await Promise.all([
+    getTranslations('member.shell'),
+    getActiveGymPortalSkin(),
+  ]);
 
   return (
     <ToastProvider>
       <SkipLink>{t('skipToContent')}</SkipLink>
       <div {...stylex.props(styles.frame)}>
-        <MemberHeader />
+        <MemberHeader logoUrl={portal?.logoUrl ?? null} />
         <main id="main-content" {...stylex.props(styles.main)}>
           {children}
         </main>
