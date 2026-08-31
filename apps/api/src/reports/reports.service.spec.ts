@@ -763,6 +763,305 @@ describe('ReportsService', () => {
     });
   });
 
+  describe('member reports', () => {
+    // The clock is 10:00Z on 31 August; the window is the gym's month so far.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const user = (name: string, email: string) => ({ name, email, phone: '+995 555 000' });
+    const sub = (overrides: Record<string, unknown>) => ({
+      status: 'ACTIVE',
+      priceAmount: 9_000,
+      currentPeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      createdAt: new Date('2026-05-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-01T00:00:00.000Z'),
+      plan: { name: 'Monthly' },
+      ...overrides,
+    });
+
+    it('membership report: one row per member with the status the front desk uses, visits in the window and value', async () => {
+      const { service, gymMemberFindMany } = setup();
+      gymMemberFindMany.mockResolvedValue([
+        {
+          firstName: 'Nino',
+          lastName: 'Gelashvili',
+          user: user('Nino', 'nino@example.com'),
+          joinedAt: new Date('2026-08-20T09:00:00.000Z'),
+          startDate: null,
+          subscriptions: [
+            sub({
+              createdAt: new Date('2026-08-20T09:00:00.000Z'),
+              currentPeriodEnd: new Date('2026-09-20T00:00:00.000Z'),
+            }),
+          ],
+          checkIns: [{ checkedInAt: new Date('2026-08-30T18:00:00.000Z') }],
+          _count: { checkIns: 4 },
+        },
+        {
+          firstName: 'Giorgi',
+          lastName: 'Kapanadze',
+          user: user('Giorgi', 'giorgi@example.com'),
+          joinedAt: new Date('2025-01-10T09:00:00.000Z'),
+          startDate: new Date('2025-01-15T00:00:00.000Z'),
+          subscriptions: [
+            sub({ status: 'FROZEN', frozenUntil: new Date('2026-09-10T00:00:00.000Z') }),
+          ],
+          checkIns: [],
+          _count: { checkIns: 0 },
+        },
+        {
+          firstName: 'Lika',
+          lastName: 'Beridze',
+          user: user('Lika', 'lika@example.com'),
+          joinedAt: new Date('2025-06-01T09:00:00.000Z'),
+          startDate: null,
+          subscriptions: [
+            sub({
+              status: 'CANCELED',
+              canceledAt: new Date('2026-08-25T00:00:00.000Z'),
+              currentPeriodEnd: new Date('2026-08-25T00:00:00.000Z'),
+            }),
+          ],
+          checkIns: [{ checkedInAt: new Date('2026-08-01T18:00:00.000Z') }],
+          _count: { checkIns: 1 },
+        },
+      ]);
+
+      const result = await service.runReport('member-roster', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          member: 'Nino Gelashvili',
+          phone: '+995 555 000',
+          email: 'nino@example.com',
+          status: 'New',
+          plan: 'Monthly',
+          joined: '2026-08-20',
+          startDate: '2026-08-20',
+          expiresOn: '2026-09-20',
+          lastVisit: '2026-08-30',
+          visits: 4,
+          value: 9_000,
+          nextRenewal: '2026-09-20',
+        },
+        {
+          member: 'Giorgi Kapanadze',
+          phone: '+995 555 000',
+          email: 'giorgi@example.com',
+          status: 'Frozen',
+          plan: 'Monthly',
+          joined: '2025-01-10',
+          startDate: '2025-01-15',
+          expiresOn: '2026-09-01',
+          lastVisit: null,
+          visits: 0,
+          value: 9_000,
+          nextRenewal: null,
+        },
+        {
+          member: 'Lika Beridze',
+          phone: '+995 555 000',
+          email: 'lika@example.com',
+          status: 'Cancelled',
+          plan: 'Monthly',
+          joined: '2025-06-01',
+          startDate: '2026-05-01',
+          expiresOn: '2026-08-25',
+          lastVisit: '2026-08-01',
+          visits: 1,
+          value: 9_000,
+          nextRenewal: null,
+        },
+      ]);
+      // The visit count is a filtered relation count over the window, not a second query.
+      const args = gymMemberFindMany.mock.calls[0]?.[0] as {
+        select: {
+          _count: { select: { checkIns: { where: { checkedInAt: { gte: Date; lt: Date } } } } };
+        };
+      };
+      expect(args.select._count.select.checkIns.where.checkedInAt.gte).toBeInstanceOf(Date);
+    });
+
+    it('membership report: renewal due and expiring read off the period end and whether it renews', async () => {
+      const { service, gymMemberFindMany } = setup();
+      const base = {
+        firstName: 'A',
+        lastName: 'B',
+        user: user('A', 'a@example.com'),
+        joinedAt: new Date('2025-01-01T00:00:00.000Z'),
+        startDate: null,
+        checkIns: [],
+        _count: { checkIns: 0 },
+      };
+      gymMemberFindMany.mockResolvedValue([
+        // Renews in 10 days: renewal due.
+        {
+          ...base,
+          subscriptions: [sub({ currentPeriodEnd: new Date('2026-09-10T00:00:00.000Z') })],
+        },
+        // Ends in 10 days and will not renew: expiring.
+        {
+          ...base,
+          subscriptions: [
+            sub({
+              currentPeriodEnd: new Date('2026-09-10T00:00:00.000Z'),
+              cancelAtPeriodEnd: true,
+            }),
+          ],
+        },
+        // Payment failed: renewal due, whatever the date.
+        { ...base, subscriptions: [sub({ status: 'PAST_DUE' })] },
+        // Ran out: expired.
+        {
+          ...base,
+          subscriptions: [
+            sub({ status: 'EXPIRED', currentPeriodEnd: new Date('2026-08-10T00:00:00.000Z') }),
+          ],
+        },
+        // Nothing at all.
+        { ...base, subscriptions: [] },
+      ]);
+
+      const result = await service.runReport('member-roster', { range: 'mtd' });
+
+      expect(result.rows.map((row) => [row.status, row.nextRenewal])).toEqual([
+        ['Renewal due', '2026-09-10'],
+        ['Expiring', null],
+        ['Renewal due', '2026-09-01'],
+        ['Expired', null],
+        ['No membership', null],
+      ]);
+      expect(result.rows[4]).toMatchObject({ plan: 'No plan', value: null, expiresOn: null });
+    });
+
+    it('check-in report: names the method in words', async () => {
+      const { service, checkInFindMany, locationFindMany } = setup();
+      checkInFindMany.mockResolvedValue([
+        {
+          checkedInAt: new Date('2026-08-30T05:00:00.000Z'),
+          method: 'QR',
+          locationId: 'loc-1',
+          member: { firstName: 'Nino', lastName: 'Gelashvili', user: null },
+        },
+      ]);
+      locationFindMany.mockResolvedValue([{ id: 'loc-1', name: 'Vake' }]);
+
+      const result = await service.runReport('member-check-in-log', { range: 'mtd' });
+      expect(result.rows[0]).toEqual({
+        date: '2026-08-30',
+        time: '09:00',
+        member: 'Nino Gelashvili',
+        method: 'QR code',
+        location: 'Vake',
+      });
+      const ka = await service.runReport('member-check-in-log', { range: 'mtd' }, 'ka');
+      expect(ka.rows[0]?.method).toBe('QR კოდი');
+    });
+
+    it('retention & engagement: files each member under the one group that needs attention first', async () => {
+      const { service, gymMemberFindMany } = setup();
+      const base = {
+        firstName: 'A',
+        lastName: 'B',
+        user: user('A', 'a@example.com'),
+        joinedAt: new Date('2025-01-01T00:00:00.000Z'),
+        startDate: null,
+        checkIns: [{ checkedInAt: new Date('2026-08-30T18:00:00.000Z') }],
+        _count: { checkIns: 3 },
+      };
+      const at = (d: string) => new Date(`${d}T00:00:00.000Z`);
+      gymMemberFindMany.mockResolvedValue([
+        {
+          ...base,
+          firstName: 'Renew',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-09-05') })],
+        },
+        {
+          ...base,
+          firstName: 'Expiring',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-09-20'), cancelAtPeriodEnd: true })],
+        },
+        {
+          ...base,
+          firstName: 'Lapsed',
+          subscriptions: [
+            sub({
+              status: 'EXPIRED',
+              currentPeriodEnd: at('2026-08-15'),
+              updatedAt: at('2026-08-15'),
+            }),
+          ],
+        },
+        {
+          ...base,
+          firstName: 'Cancelled',
+          subscriptions: [
+            sub({
+              status: 'CANCELED',
+              canceledAt: at('2026-08-20'),
+              currentPeriodEnd: at('2026-08-20'),
+            }),
+          ],
+        },
+        {
+          ...base,
+          firstName: 'Back',
+          subscriptions: [
+            sub({ createdAt: at('2026-08-25'), currentPeriodEnd: at('2026-09-25') }),
+            sub({ status: 'CANCELED', canceledAt: at('2026-03-01'), createdAt: at('2025-01-01') }),
+          ],
+        },
+        {
+          ...base,
+          firstName: 'Absent',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-10-30') })],
+          checkIns: [{ checkedInAt: at('2026-07-20') }],
+          _count: { checkIns: 0 },
+        },
+        // Fine: renews in two months, came in yesterday, no group.
+        {
+          ...base,
+          firstName: 'Fine',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-10-30') })],
+        },
+        // Cancelled long ago: not "recent", no group.
+        {
+          ...base,
+          firstName: 'Old',
+          subscriptions: [
+            sub({
+              status: 'CANCELED',
+              canceledAt: at('2026-01-20'),
+              currentPeriodEnd: at('2026-01-20'),
+            }),
+          ],
+        },
+      ]);
+
+      const result = await service.runReport('members-at-risk', { range: 'mtd' });
+
+      expect(result.rows.map((row) => [row.member, row.group, row.renewal])).toEqual([
+        ['Renew B', 'Renewal due', '2026-09-05'],
+        ['Expiring B', 'Expiring soon', 'Expiring'],
+        ['Lapsed B', 'Recently expired, not renewed', 'Expired'],
+        ['Cancelled B', 'Recently cancelled', 'Cancelled'],
+        ['Back B', 'Reactivated', '2026-09-25'],
+        ['Absent B', 'No visit for 21 days', '2026-10-30'],
+      ]);
+      expect(result.rows[5]).toMatchObject({
+        lastVisit: '2026-07-20',
+        daysSince: 42,
+        value: 9_000,
+      });
+    });
+  });
+
   describe('discounts-and-promotions', () => {
     it('totals the redemption ledger per code, ranked by what it gave away', async () => {
       const { service, promoRedemptionFindMany } = setup();

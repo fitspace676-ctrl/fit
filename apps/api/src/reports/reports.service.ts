@@ -436,7 +436,7 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.membersAtRisk(win.zone, s),
+          rows: await this.membersAtRisk(win, s),
         };
       case 'expiring-memberships':
         return {
@@ -450,7 +450,7 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.memberRoster(win.zone, s),
+          rows: await this.memberRoster(win, s),
         };
       case 'member-check-in-log':
         return {
@@ -1824,57 +1824,53 @@ export class ReportsService {
   }
 
   /**
-   * Members who are still paying but have stopped coming — the call list.
+   * Members who need retention or renewal attention, each filed under the ONE
+   * group that needs acting on first: a renewal falling due, a membership about
+   * to expire, one that recently expired or was cancelled, a member who came
+   * back, and - last, because the others are dated - members who have stopped
+   * turning up. A member in none of them is not on the list; "fine" is not a
+   * row anybody works through.
    *
-   * "At risk" is a threshold, not a fact in the data, so it is named once
-   * ({@link AT_RISK_DAYS}) rather than buried in a query. A member counts when they
-   * hold a live subscription AND their last check-in is older than that, or they
-   * have never checked in at all. Longest absence first, because that is the order
-   * somebody working down the list wants.
+   * The thresholds are named once, beside the roster's status rules they share
+   * ({@link assessMembership}), rather than buried in six queries.
    */
-  private async membersAtRisk(zone: string, s: ReportStrings): Promise<ReportRow[]> {
-    const cutoff = new Date(Date.now() - AT_RISK_DAYS * DAY_MS);
+  private async membersAtRisk(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const members = await this.prisma.client.gymMember.findMany({
-      where: {
-        role: Role.MEMBER,
-        deletedAt: null,
-        subscriptions: { some: { status: { in: [...LIVE_SUB_STATUSES] } } },
-      },
-      select: {
-        firstName: true,
-        lastName: true,
-        user: { select: { name: true, email: true, phone: true } },
-        subscriptions: {
-          where: { status: { in: [...LIVE_SUB_STATUSES] } },
-          select: { plan: { select: { name: true } } },
-          take: 1,
-        },
-        checkIns: { orderBy: { checkedInAt: 'desc' }, take: 1, select: { checkedInAt: true } },
-      },
+      where: { role: Role.MEMBER, deletedAt: null },
+      select: memberSelect(win),
       take: DETAIL_ROW_LIMIT,
     });
-
-    const now = Date.now();
-    return (
-      members
-        .map((member) => {
-          const last = member.checkIns[0]?.checkedInAt ?? null;
-          return {
-            member: memberName(member, s.values.unknownMember),
-            plan: member.subscriptions[0]?.plan?.name ?? s.values.noPlan,
-            lastVisit: last ? isoDate(last, zone) : null,
-            daysAway: last === null ? null : Math.floor((now - last.getTime()) / DAY_MS),
-            phone: member.user.phone ?? '',
-            email: member.user.email,
-            last,
-          };
-        })
-        // Never-visited members have no "days away" to sort by, and they are the most
-        // at risk of all — they go first, then the longest absences.
-        .filter((row) => row.last === null || row.last < cutoff)
-        .sort((a, b) => (a.last?.getTime() ?? 0) - (b.last?.getTime() ?? 0))
-        .map(({ last: _last, ...row }) => row)
-    );
+    const now = new Date();
+    const rows: Array<{ order: number; name: string; row: ReportRow }> = [];
+    for (const member of members) {
+      const view = assessMembership(member, now);
+      const group = retentionGroup(member, view, now);
+      if (group === null) continue;
+      const last = member.checkIns[0]?.checkedInAt ?? null;
+      const name = memberName(member, s.values.unknownMember);
+      rows.push({
+        order: RETENTION_GROUP_ORDER.indexOf(group),
+        name,
+        row: {
+          group: (s.values.retentionGroups[group] ?? group).replace('{days}', String(AT_RISK_DAYS)),
+          member: name,
+          phone: member.user.phone ?? '',
+          email: member.user.email,
+          plan: view.current?.plan?.name ?? s.values.noPlan,
+          status: s.values.membershipStatuses[view.status] ?? view.status,
+          lastVisit: last ? isoDate(last, win.zone) : null,
+          daysSince: last ? Math.floor((now.getTime() - last.getTime()) / DAY_MS) : null,
+          expiresOn: view.current ? isoDate(view.current.currentPeriodEnd, win.zone) : null,
+          renewal: view.nextRenewal
+            ? isoDate(view.nextRenewal, win.zone)
+            : (s.values.membershipStatuses[view.status] ?? view.status),
+          value: view.current?.priceAmount ?? null,
+        },
+      });
+    }
+    return rows
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+      .map((entry) => entry.row);
   }
 
   /**
@@ -1919,40 +1915,50 @@ export class ReportsService {
   }
 
   /**
-   * Every member with status, plan, join date and last visit — the "give me
-   * everything" list. Ignores the reporting window: a roster is a snapshot of who
-   * is on the books now, and a member who joined years ago is still on them.
-   * Trashed (soft-deleted) memberships are excluded, exactly as the console's own
-   * roster excludes them.
+   * The full member base with current membership information - the "give me
+   * everything" list. The base itself ignores the reporting window (a member who
+   * joined years ago is still on the books); the window decides one column,
+   * visits, which is a filtered relation count rather than a second query per
+   * member. Trashed (soft-deleted) memberships are excluded, exactly as the
+   * console's own roster excludes them.
+   *
+   * The status column is the one the front desk uses - active, new, expiring,
+   * renewal due, expired, cancelled, frozen - derived in {@link assessMembership}
+   * from the current subscription rather than read off the raw enum, so the
+   * report and the retention list agree on what every word means.
    */
-  private async memberRoster(zone: string, s: ReportStrings): Promise<ReportRow[]> {
+  private async memberRoster(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const members = await this.prisma.client.gymMember.findMany({
       where: { role: Role.MEMBER, deletedAt: null },
-      select: {
-        status: true,
-        joinedAt: true,
-        firstName: true,
-        lastName: true,
-        user: { select: { name: true, email: true } },
-        subscriptions: {
-          where: { status: { in: [...LIVE_SUB_STATUSES] } },
-          select: { plan: { select: { name: true } } },
-          take: 1,
-        },
-        checkIns: { orderBy: { checkedInAt: 'desc' }, take: 1, select: { checkedInAt: true } },
-      },
+      select: memberSelect(win),
       orderBy: { joinedAt: 'desc' },
       take: DETAIL_ROW_LIMIT,
     });
-
-    return members.map((member) => ({
-      member: memberName(member, s.values.unknownMember),
-      status: member.status,
-      plan: member.subscriptions[0]?.plan?.name ?? s.values.noPlan,
-      joined: isoDate(member.joinedAt, zone),
-      lastVisit: member.checkIns[0] ? isoDate(member.checkIns[0].checkedInAt, zone) : null,
-      email: member.user.email,
-    }));
+    const now = new Date();
+    return members.map((member) => {
+      const view = assessMembership(member, now);
+      const last = member.checkIns[0]?.checkedInAt ?? null;
+      return {
+        member: memberName(member, s.values.unknownMember),
+        phone: member.user.phone ?? '',
+        email: member.user.email,
+        status: s.values.membershipStatuses[view.status] ?? view.status,
+        plan: view.current?.plan?.name ?? s.values.noPlan,
+        joined: isoDate(member.joinedAt, win.zone),
+        // The day the member said their membership begins, when the gym asked;
+        // otherwise the day the current subscription was created.
+        startDate: member.startDate
+          ? isoDate(member.startDate, win.zone)
+          : view.current
+            ? isoDate(view.current.createdAt, win.zone)
+            : null,
+        expiresOn: view.current ? isoDate(view.current.currentPeriodEnd, win.zone) : null,
+        lastVisit: last ? isoDate(last, win.zone) : null,
+        visits: member._count.checkIns,
+        value: view.current?.priceAmount ?? null,
+        nextRenewal: view.nextRenewal ? isoDate(view.nextRenewal, win.zone) : null,
+      };
+    });
   }
 
   /**
@@ -1994,7 +2000,7 @@ export class ReportsService {
       member: checkIn.member
         ? memberName(checkIn.member, s.values.unknownMember)
         : s.values.unknownMember,
-      method: checkIn.method,
+      method: s.values.checkInMethods[checkIn.method] ?? checkIn.method,
       location: checkIn.locationId ? (locationName.get(checkIn.locationId) ?? '') : '',
     }));
   }
@@ -2316,6 +2322,182 @@ function clockTime(at: Date, timeZone = 'UTC'): string {
  * rather than a number buried in a query.
  */
 const AT_RISK_DAYS = 21;
+
+/** A member counts as "new" for this long after joining. */
+const NEW_MEMBER_DAYS = 30;
+/** A membership that will not renew is "expiring" once its end is this close. */
+const EXPIRING_DAYS = 30;
+/** A membership that will renew is "renewal due" once its end is this close. */
+const RENEWAL_DUE_DAYS = 14;
+/** An expiry, a cancellation or a return counts as "recent" for this long. */
+const RECENT_DAYS = 30;
+
+/** The membership status the front desk uses - see {@link assessMembership}. */
+type MembershipStatusKey =
+  | 'active'
+  | 'new'
+  | 'expiring'
+  | 'renewalDue'
+  | 'expired'
+  | 'cancelled'
+  | 'frozen'
+  | 'none';
+
+type RetentionGroup =
+  | 'renewalDue'
+  | 'expiringSoon'
+  | 'recentlyExpired'
+  | 'recentlyCancelled'
+  | 'reactivated'
+  | 'noVisit';
+
+/** The order the retention list files its groups in - the dated ones first. */
+const RETENTION_GROUP_ORDER: readonly RetentionGroup[] = [
+  'renewalDue',
+  'expiringSoon',
+  'recentlyExpired',
+  'recentlyCancelled',
+  'reactivated',
+  'noVisit',
+];
+
+/** One subscription as the member reports read it. */
+interface MemberSubscription {
+  status: SubscriptionStatus;
+  priceAmount: number;
+  currentPeriodEnd: Date;
+  cancelAtPeriodEnd: boolean;
+  canceledAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  plan: { name: string } | null;
+}
+
+/** One member as the member reports read them - see {@link memberSelect}. */
+interface MemberView {
+  firstName: string | null;
+  lastName: string | null;
+  joinedAt: Date;
+  startDate: Date | null;
+  user: { name: string | null; email: string; phone: string | null };
+  /** Newest first. */
+  subscriptions: MemberSubscription[];
+  /** The latest visit only. */
+  checkIns: { checkedInAt: Date }[];
+  _count: { checkIns: number };
+}
+
+/** The one `select` both member reports read, so they cannot disagree on a field. */
+function memberSelect(win: ReportWindow) {
+  return {
+    firstName: true,
+    lastName: true,
+    joinedAt: true,
+    startDate: true,
+    user: { select: { name: true, email: true, phone: true } },
+    subscriptions: {
+      orderBy: { createdAt: 'desc' as const },
+      select: {
+        status: true,
+        priceAmount: true,
+        currentPeriodEnd: true,
+        cancelAtPeriodEnd: true,
+        canceledAt: true,
+        createdAt: true,
+        updatedAt: true,
+        plan: { select: { name: true } },
+      },
+    },
+    checkIns: {
+      orderBy: { checkedInAt: 'desc' as const },
+      take: 1,
+      select: { checkedInAt: true },
+    },
+    _count: { select: { checkIns: { where: { checkedInAt: { gte: win.start, lt: win.end } } } } },
+  };
+}
+
+/**
+ * What a member's membership IS right now, in the front desk's words.
+ *
+ * The current subscription is the live one if there is one, else the newest.
+ * The raw enum says "active" about a membership that lapses tomorrow and one
+ * with a year to run; the desk does not, so: frozen, cancelled and expired read
+ * off the enum; a failed payment is a renewal due whatever the date; a live
+ * membership that will NOT renew (cancelling at period end, or a trial) is
+ * expiring inside {@link EXPIRING_DAYS}; one that will renew is renewal due
+ * inside {@link RENEWAL_DUE_DAYS}; a member inside {@link NEW_MEMBER_DAYS} of
+ * joining is new; anything else is simply active.
+ */
+function assessMembership(
+  member: Pick<MemberView, 'joinedAt' | 'subscriptions'>,
+  now: Date,
+): { status: MembershipStatusKey; current: MemberSubscription | null; nextRenewal: Date | null } {
+  const live = member.subscriptions.find((sub) => LIVE_SUB_STATUSES.includes(sub.status));
+  const current = live ?? member.subscriptions[0] ?? null;
+  if (!current) return { status: 'none', current: null, nextRenewal: null };
+
+  const renews = !current.cancelAtPeriodEnd && current.status !== SubscriptionStatus.TRIAL;
+  const daysLeft = (current.currentPeriodEnd.getTime() - now.getTime()) / DAY_MS;
+  const nextRenewal =
+    renews &&
+    (current.status === SubscriptionStatus.ACTIVE || current.status === SubscriptionStatus.PAST_DUE)
+      ? current.currentPeriodEnd
+      : null;
+
+  let status: MembershipStatusKey;
+  switch (current.status) {
+    case SubscriptionStatus.FROZEN:
+      status = 'frozen';
+      break;
+    case SubscriptionStatus.CANCELED:
+      status = 'cancelled';
+      break;
+    case SubscriptionStatus.EXPIRED:
+      status = 'expired';
+      break;
+    case SubscriptionStatus.PAST_DUE:
+      status = 'renewalDue';
+      break;
+    default:
+      if (!renews && daysLeft <= EXPIRING_DAYS) status = 'expiring';
+      else if (renews && daysLeft <= RENEWAL_DUE_DAYS) status = 'renewalDue';
+      else if (now.getTime() - member.joinedAt.getTime() <= NEW_MEMBER_DAYS * DAY_MS)
+        status = 'new';
+      else status = 'active';
+  }
+  return { status, current, nextRenewal };
+}
+
+/** The retention group a member belongs to, if any - see {@link membersAtRisk}. */
+function retentionGroup(
+  member: Pick<MemberView, 'subscriptions' | 'checkIns'>,
+  view: ReturnType<typeof assessMembership>,
+  now: Date,
+): RetentionGroup | null {
+  const { status, current } = view;
+  const recent = new Date(now.getTime() - RECENT_DAYS * DAY_MS);
+  if (status === 'renewalDue') return 'renewalDue';
+  if (status === 'expiring') return 'expiringSoon';
+  if (status === 'expired' && current && current.currentPeriodEnd >= recent)
+    return 'recentlyExpired';
+  if (status === 'cancelled' && current && (current.canceledAt ?? current.updatedAt) >= recent) {
+    return 'recentlyCancelled';
+  }
+  const isLive = current !== null && LIVE_SUB_STATUSES.includes(current.status);
+  if (!isLive || !current) return null;
+  const cameBack =
+    current.createdAt >= recent &&
+    member.subscriptions.some(
+      (sub) =>
+        sub !== current &&
+        (sub.status === SubscriptionStatus.CANCELED || sub.status === SubscriptionStatus.EXPIRED),
+    );
+  if (cameBack) return 'reactivated';
+  const last = member.checkIns[0]?.checkedInAt ?? null;
+  if (last === null || last < new Date(now.getTime() - AT_RISK_DAYS * DAY_MS)) return 'noVisit';
+  return null;
+}
 
 /** Subscription states that count a member as currently subscribed (not churned). */
 const LIVE_SUB_STATUSES: readonly SubscriptionStatus[] = [

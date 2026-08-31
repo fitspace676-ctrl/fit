@@ -490,16 +490,21 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'members-at-risk': {
     key: 'members-at-risk',
     segment: 'members',
-    name: 'Members at risk',
+    name: 'Retention & engagement',
     description:
-      'Members who are still paying but have stopped turning up — call list, longest absence first.',
+      'Members who need retention or renewal attention, filed by why: a renewal falling due, a membership about to expire, one that recently expired or was cancelled, a member who came back, and members who have stopped turning up.',
     columns: [
+      { key: 'group', label: 'Attention', type: 'text' },
       { key: 'member', label: 'Member', type: 'text' },
-      { key: 'plan', label: 'Plan', type: 'text' },
-      { key: 'lastVisit', label: 'Last visit', type: 'date' },
-      { key: 'daysAway', label: 'Days away', type: 'number' },
       { key: 'phone', label: 'Phone', type: 'text' },
       { key: 'email', label: 'Email', type: 'text' },
+      { key: 'plan', label: 'Plan', type: 'text' },
+      { key: 'status', label: 'Membership status', type: 'text' },
+      { key: 'lastVisit', label: 'Last visit', type: 'date' },
+      { key: 'daysSince', label: 'Days since last visit', type: 'number' },
+      { key: 'expiresOn', label: 'Expires', type: 'date' },
+      { key: 'renewal', label: 'Renewal', type: 'text' },
+      { key: 'value', label: 'Membership value', type: 'money' },
     ],
   },
   'expiring-memberships': {
@@ -520,22 +525,30 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'member-roster': {
     key: 'member-roster',
     segment: 'members',
-    name: 'Member roster',
-    description: 'Every member with their status, plan, join date and last visit.',
+    name: 'Membership report',
+    description:
+      'The full member base with current membership information: status (active, new, expiring, renewal due, expired, cancelled, frozen), plan, dates, visits in the window, value and the next renewal.',
     columns: [
       { key: 'member', label: 'Member', type: 'text' },
-      { key: 'status', label: 'Status', type: 'text' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'status', label: 'Membership status', type: 'text' },
       { key: 'plan', label: 'Plan', type: 'text' },
       { key: 'joined', label: 'Joined', type: 'date' },
+      { key: 'startDate', label: 'Membership start', type: 'date' },
+      { key: 'expiresOn', label: 'Expires', type: 'date' },
       { key: 'lastVisit', label: 'Last visit', type: 'date' },
-      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'visits', label: 'Visits in window', type: 'number' },
+      { key: 'value', label: 'Membership value', type: 'money' },
+      { key: 'nextRenewal', label: 'Next renewal', type: 'date' },
     ],
   },
   'member-check-in-log': {
     key: 'member-check-in-log',
     segment: 'members',
-    name: 'Check-in log',
-    description: 'Every visit in the window — who came in, when, how, and to which branch.',
+    name: 'Check-in report',
+    description:
+      'Every visit in the window - who came in, when, by which method, and to which branch.',
     columns: [
       { key: 'date', label: 'Date', type: 'date' },
       { key: 'time', label: 'Time', type: 'text' },

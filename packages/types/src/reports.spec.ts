@@ -115,6 +115,51 @@ describe('plan-performance, refunds-detail, daily-reconciliation', () => {
   });
 });
 
+describe('member reports', () => {
+  it('the membership report carries the member base with status, dates, visits and value', () => {
+    expect(REPORT_DEFINITIONS['member-roster'].columns.map((c) => c.key)).toEqual([
+      'member',
+      'phone',
+      'email',
+      'status',
+      'plan',
+      'joined',
+      'startDate',
+      'expiresOn',
+      'lastVisit',
+      'visits',
+      'value',
+      'nextRenewal',
+    ]);
+  });
+
+  it('the check-in report names when, who, how and where', () => {
+    expect(REPORT_DEFINITIONS['member-check-in-log'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'member',
+      'method',
+      'location',
+    ]);
+  });
+
+  it('retention & engagement files each member under the attention they need', () => {
+    expect(REPORT_DEFINITIONS['members-at-risk'].columns.map((c) => c.key)).toEqual([
+      'group',
+      'member',
+      'phone',
+      'email',
+      'plan',
+      'status',
+      'lastVisit',
+      'daysSince',
+      'expiresOn',
+      'renewal',
+      'value',
+    ]);
+  });
+});
+
 describe('groupReportsBySegment', () => {
   it('groups in segment order and keeps each segment’s catalogue order', () => {
     const grouped = groupReportsBySegment(REPORT_CATALOG);

@@ -83,6 +83,12 @@ export interface ReportStrings {
     categoryPersonalTraining: string;
     categoryService: string;
     categoryUncategorised: string;
+    /** The membership status the front desk uses, by {@link MembershipStatusKey}. */
+    membershipStatuses: Record<string, string>;
+    /** Retention & engagement groups; `noVisit` carries a `{days}` placeholder. */
+    retentionGroups: Record<string, string>;
+    /** How a member checked in, by `CheckInMethod`. */
+    checkInMethods: Record<string, string>;
     /** Monday first, three letters each: the peak-hours heatmap rows. */
     weekdays: readonly string[];
   };
@@ -164,6 +170,25 @@ const EN: ReportStrings = {
     categoryPersonalTraining: 'Personal training',
     categoryService: 'Service',
     categoryUncategorised: 'Uncategorised',
+    membershipStatuses: {
+      active: 'Active',
+      new: 'New',
+      expiring: 'Expiring',
+      renewalDue: 'Renewal due',
+      expired: 'Expired',
+      cancelled: 'Cancelled',
+      frozen: 'Frozen',
+      none: 'No membership',
+    },
+    retentionGroups: {
+      renewalDue: 'Renewal due',
+      expiringSoon: 'Expiring soon',
+      recentlyExpired: 'Recently expired, not renewed',
+      recentlyCancelled: 'Recently cancelled',
+      reactivated: 'Reactivated',
+      noVisit: 'No visit for {days} days',
+    },
+    checkInMethods: { QR: 'QR code', MANUAL: 'Manual' },
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
   tabular: { summary: 'Summary', metric: 'Metric', value: 'Value', unit: 'Unit' },
@@ -340,16 +365,21 @@ const KA: ReportStrings = {
       },
     },
     'members-at-risk': {
-      name: 'რისკის ქვეშ მყოფი წევრები',
+      name: 'შენარჩუნება და ჩართულობა',
       description:
-        'აქტიური წევრები, რომლებიც დიდი ხანია არ მოსულან - ვისთანაც დაკავშირება ღირს, სანამ წავლენ.',
+        'წევრები, რომლებსაც შენარჩუნება ან განახლება სჭირდება, მიზეზის მიხედვით: მოსალოდნელი განახლება, ვადის ამოწურვის წინ მყოფი წევრობა, ახლახან ამოწურული ან გაუქმებული, დაბრუნებული წევრი და ისინი, ვინც სიარული შეწყვიტა.',
       columns: {
+        group: 'ყურადღება',
         member: KA_COMMON.member,
-        plan: KA_COMMON.plan,
-        lastVisit: KA_COMMON.lastVisit,
-        daysAway: 'დღე გასული',
         phone: KA_COMMON.phone,
         email: KA_COMMON.email,
+        plan: KA_COMMON.plan,
+        status: 'წევრობის სტატუსი',
+        lastVisit: KA_COMMON.lastVisit,
+        daysSince: 'დღე ბოლო ვიზიტიდან',
+        expiresOn: 'იწურება',
+        renewal: 'განახლება',
+        value: 'წევრობის ღირებულება',
       },
     },
     'expiring-memberships': {
@@ -366,20 +396,27 @@ const KA: ReportStrings = {
       },
     },
     'member-roster': {
-      name: 'წევრების სია',
-      description: 'ყველა წევრი სტატუსით, გეგმით, გაწევრიანების თარიღითა და ბოლო ვიზიტით.',
+      name: 'წევრობის ანგარიში',
+      description:
+        'სრული წევრთა ბაზა მიმდინარე წევრობის ინფორმაციით: სტატუსი (აქტიური, ახალი, იწურება, განახლება მოსალოდნელია, ვადაგასული, გაუქმებული, გაყინული), გეგმა, თარიღები, ვიზიტები პერიოდში, ღირებულება და შემდეგი განახლება.',
       columns: {
         member: KA_COMMON.member,
-        status: KA_COMMON.status,
+        phone: KA_COMMON.phone,
+        email: KA_COMMON.email,
+        status: 'წევრობის სტატუსი',
         plan: KA_COMMON.plan,
         joined: 'გაწევრიანდა',
+        startDate: 'წევრობის დაწყება',
+        expiresOn: 'იწურება',
         lastVisit: KA_COMMON.lastVisit,
-        email: KA_COMMON.email,
+        visits: 'ვიზიტი პერიოდში',
+        value: 'წევრობის ღირებულება',
+        nextRenewal: 'შემდეგი განახლება',
       },
     },
     'member-check-in-log': {
-      name: 'შემოსვლების ჟურნალი',
-      description: 'ყველა ვიზიტი ამ პერიოდში - ვინ, როდის, როგორ და რომელ ფილიალში.',
+      name: 'შემოსვლების ანგარიში',
+      description: 'ყველა ვიზიტი ამ პერიოდში - ვინ, როდის, რომელი მეთოდით და რომელ ფილიალში.',
       columns: {
         date: KA_COMMON.date,
         time: KA_COMMON.time,
@@ -750,6 +787,25 @@ const KA: ReportStrings = {
     categoryPersonalTraining: 'პერსონალური ვარჯიში',
     categoryService: 'სერვისი',
     categoryUncategorised: 'კატეგორიის გარეშე',
+    membershipStatuses: {
+      active: 'აქტიური',
+      new: 'ახალი',
+      expiring: 'იწურება',
+      renewalDue: 'განახლება მოსალოდნელია',
+      expired: 'ვადაგასული',
+      cancelled: 'გაუქმებული',
+      frozen: 'გაყინული',
+      none: 'წევრობის გარეშე',
+    },
+    retentionGroups: {
+      renewalDue: 'განახლება მოსალოდნელია',
+      expiringSoon: 'მალე იწურება',
+      recentlyExpired: 'ახლახან ამოიწურა, არ განუახლებია',
+      recentlyCancelled: 'ახლახან გაუქმდა',
+      reactivated: 'დაბრუნდა',
+      noVisit: 'ვიზიტი არ ყოფილა {days} დღე',
+    },
+    checkInMethods: { QR: 'QR კოდი', MANUAL: 'ხელით' },
     weekdays: ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
   },
   tabular: { summary: 'შეჯამება', metric: 'მაჩვენებელი', value: 'მნიშვნელობა', unit: 'ერთეული' },
