@@ -233,14 +233,15 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
     const summary = await service.runBillingCycle({ now: NOW });
 
     expect(summary).toMatchObject({ pastDue: 1, renewed: 0 });
-    // Failed retry: no status change, but the ladder rung advances (pinned to the
-    // observed count so a re-run can't double-count).
+    // Failed retry: no status change, but the ladder rung advances. The database
+    // does the arithmetic and the `WHERE` pins the observed count, so a re-run
+    // matches nothing rather than double-counting the rung.
     const args = updateMany.mock.calls[0]![0];
     expect(args.where).toMatchObject({
       status: SubscriptionStatus.PAST_DUE,
       paymentRetries: 1,
     });
-    expect(args.data).toEqual({ paymentRetries: 2 });
+    expect(args.data).toEqual({ paymentRetries: { increment: 1 } });
   });
 
   it('does not advance a past-due subscription still waiting between retry rungs', async () => {

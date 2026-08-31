@@ -383,10 +383,12 @@ export class SubscriptionBillingService {
    *     (retry ladder starting at 0) via the state machine's `PAYMENT_FAILED`.
    *   • A failed *retry* on an already-`PAST_DUE` subscription is a status self-loop,
    *     but it must still advance `paymentRetries` so the next retry moves to the
-   *     next rung and the ladder eventually expires. Both the condition and the new
-   *     value are pinned to the observed `paymentRetries`, so a re-run or overlapping
-   *     replica can never double-count a rung (the idempotency backstop, matching how
-   *     {@link advancePeriod} guards the period).
+   *     next rung and the ladder eventually expires. The rung is **claimed**
+   *     (`docs/adr/atomic-counters.md`): the `WHERE` pins the observed
+   *     `paymentRetries` and the database does the `+1`, so a re-run or overlapping
+   *     replica can never double-count a rung — the second writer's predicate no
+   *     longer matches and it reports `count === 0` (the idempotency backstop,
+   *     matching how {@link advancePeriod} guards the period).
    *
    * Returns whether this subscription is (still) past-due after the write — true for
    * the fresh flag and for a retry that advanced the ladder, false when the
@@ -401,7 +403,7 @@ export class SubscriptionBillingService {
           status: SubscriptionStatus.PAST_DUE,
           paymentRetries: sub.paymentRetries,
         },
-        data: { paymentRetries: sub.paymentRetries + 1 },
+        data: { paymentRetries: { increment: 1 } },
       });
       return count > 0;
     }

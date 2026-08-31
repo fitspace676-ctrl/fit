@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  type HttpException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -25,6 +26,15 @@ import { Prisma } from '@fit/db';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
+/** The interactive-transaction client the extended tenant client hands to a
+ * `$transaction` callback — the full model surface minus the session-management
+ * methods Prisma forbids inside a transaction, so a helper can run on the same tx.
+ * Mirrors the alias in `reviews.service.ts`. */
+type ScopedTransactionClient = Omit<
+  TenantPrismaService['client'],
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
 /**
  * Member-facing subscription freeze / pause flow (T8.4).
  *
@@ -47,8 +57,12 @@ import { TenantContext } from '../common/tenant/tenant.context';
  *   out by the days *actually* spent frozen (the full booked duration on an
  *   auto-resume, fewer when the member unfreezes early).
  *
- * Each mutation is a single interactive transaction so the read of the current
- * status / usage and the write that advances it stay consistent under concurrency.
+ * Each mutation is a single interactive transaction, which keeps the status change
+ * and everything written alongside it all-or-nothing. It does **not** by itself make
+ * the read of `freezeDaysUsed` safe against a concurrent freeze — READ COMMITTED
+ * takes no lock on a row merely read — so the allowance is claimed inside the
+ * `UPDATE` that spends it (see {@link freezeWhere} and
+ * `docs/adr/atomic-counters.md`).
  */
 @Injectable()
 export class SubscriptionFreezeService {
@@ -64,7 +78,9 @@ export class SubscriptionFreezeService {
    * `404 SUBSCRIPTION_NOT_FOUND` (unknown / not the caller's), `409 ALREADY_FROZEN`
    * (already paused), `409 SUBSCRIPTION_NOT_FREEZABLE` (a non-active state the state
    * machine refuses to freeze), and `422 EXCEEDS_FREEZE_ALLOWANCE` carrying
-   * `remainingDays` when the request would overrun the plan's allowance.
+   * `remainingDays` when the request would overrun the plan's allowance. Losing a
+   * race to a concurrent freeze produces one of those same four, never a new one —
+   * see {@link freezeClaimLost}.
    */
   async freeze(id: string, input: FreezeSubscriptionData): Promise<FreezeSubscriptionResponse> {
     const memberId = await this.requireCallerMembership();
@@ -175,17 +191,94 @@ export class SubscriptionFreezeService {
       const startDate = new Date(input.startDate);
       const frozenUntilDate = freezeUntil(startDate, input.durationDays);
 
-      await tx.subscription.update({
-        where: { id: subscription.id },
+      // Claim the days rather than write back `used + durationDays`
+      // (docs/adr/atomic-counters.md). The allowance check above cannot be the
+      // guard: under READ COMMITTED two freeze requests both read the same
+      // `freezeDaysUsed`, both find room, and the second write overwrites the
+      // first — a member freezes past the plan's cap and both requests are told
+      // they succeeded. So the cap is restated *inside* the statement, as "there
+      // is still room for `durationDays`", and the database evaluates it against
+      // the live row. `status` is pinned to the one the state machine just judged
+      // freezable, so a request that lost the race to a concurrent freeze cannot
+      // freeze an already-frozen subscription a second time.
+      //
+      // The pre-check is kept: it produces the friendly `remainingDays` for the
+      // ordinary (uncontended) rejection, and it is what refuses a non-positive
+      // duration — a bound the `lte` predicate alone would happily admit.
+      const claimed = await tx.subscription.updateMany({
+        where: {
+          id: subscription.id,
+          status: subscription.status,
+          freezeDaysUsed: { lte: freezeDaysPerPeriod - input.durationDays },
+        },
         data: {
           status: nextStatus,
           frozenAt: startDate,
           frozenUntil: frozenUntilDate,
-          freezeDaysUsed: subscription.freezeDaysUsed + input.durationDays,
+          freezeDaysUsed: { increment: input.durationDays },
         },
       });
+      if (claimed.count === 0) {
+        throw await this.freezeClaimLost(tx, subscription.id, freezeDaysPerPeriod);
+      }
 
       return { frozenUntil: frozenUntilDate.toISOString() };
+    });
+  }
+
+  /**
+   * Explain a freeze claim that did not land. `count === 0` is a normal outcome,
+   * not an error to swallow: the freeze is **refused**, and the caller is told why
+   * in the same vocabulary the uncontended path uses, so no client learns a new
+   * failure mode from losing a race.
+   *
+   * The row is re-read to say which of the claim's predicates failed. That read is
+   * accurate by construction: the claim can only have matched nothing because the
+   * competing writer already committed (had it still been open, our `updateMany`
+   * would have blocked on its row lock rather than returning), so this statement's
+   * fresh snapshot sees the state that beat us.
+   *
+   * - gone → `404 SUBSCRIPTION_NOT_FOUND` (the row was deleted mid-flight);
+   * - now `FROZEN` → `409 ALREADY_FROZEN`, same as arriving second;
+   * - some other state → `409 SUBSCRIPTION_NOT_FREEZABLE`, as if the state machine
+   *   had seen that status;
+   * - otherwise the allowance was spent → `422 EXCEEDS_FREEZE_ALLOWANCE` carrying
+   *   the *recomputed* `remainingDays`, which is the honest figure now.
+   */
+  private async freezeClaimLost(
+    tx: ScopedTransactionClient,
+    id: string,
+    freezeDaysPerPeriod: number,
+  ): Promise<HttpException> {
+    const current = await tx.subscription.findFirst({
+      where: { id },
+      select: { status: true, freezeDaysUsed: true },
+    });
+    if (!current) {
+      return this.subscriptionNotFound();
+    }
+    if (current.status === SubscriptionStatus.FROZEN) {
+      return new ConflictException({
+        message: 'This subscription is already frozen',
+        code: 'ALREADY_FROZEN',
+      });
+    }
+    try {
+      applyEvent(current.status, 'FREEZE');
+    } catch (error) {
+      if (error instanceof InvalidSubscriptionTransitionError) {
+        return new ConflictException({
+          message: `A subscription in "${current.status}" cannot be frozen`,
+          code: 'SUBSCRIPTION_NOT_FREEZABLE',
+        });
+      }
+      throw error;
+    }
+    const remainingDays = Math.max(0, freezeDaysPerPeriod - current.freezeDaysUsed);
+    return new UnprocessableEntityException({
+      message: `This freeze exceeds the plan's allowance; ${remainingDays} day(s) remain this period`,
+      code: 'EXCEEDS_FREEZE_ALLOWANCE',
+      remainingDays,
     });
   }
 

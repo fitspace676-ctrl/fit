@@ -49,8 +49,21 @@ function setup(opts?: { userId?: string | null }) {
   };
   const gymMember = { findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>() };
   const auditLog = { create: vi.fn<(args: QueryArgs) => Promise<unknown>>() };
+  /** The `SELECT … FOR NO KEY UPDATE` the recompute serialises on. */
+  const $queryRaw = vi.fn<
+    (strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>
+  >(() => Promise.resolve([]));
   const $transaction = vi.fn<(cb: (tx: unknown) => unknown) => unknown>();
-  const client = { review, booking, classInstance, trainer, gymMember, auditLog, $transaction };
+  const client = {
+    review,
+    booking,
+    classInstance,
+    trainer,
+    gymMember,
+    auditLog,
+    $queryRaw,
+    $transaction,
+  };
   $transaction.mockImplementation((cb) => cb(client));
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -71,6 +84,7 @@ function setup(opts?: { userId?: string | null }) {
     trainer,
     gymMember,
     auditLog,
+    queryRaw: $queryRaw,
     transaction: $transaction,
   };
 }
@@ -127,6 +141,29 @@ describe('ReviewsService', () => {
         where: { id: TRAINER_ID },
         data: { rating: 4.5, reviewCount: 2 },
       });
+    });
+
+    /**
+     * `rating` / `reviewCount` are written whole from the aggregate, which is only
+     * correct while this transaction is the sole writer of the pair. The row lock is
+     * what makes that true, and it only works *before* the aggregate is taken:
+     * locking after the read would let a concurrent reviewer's aggregate miss ours
+     * and store `N + 1` over our `N + 1`. The ordering is therefore the invariant,
+     * and it is what this asserts. `FOR NO KEY UPDATE` rather than `FOR UPDATE`
+     * because the review just inserted holds a key-share on the same row —
+     * `trainer-rating-concurrency.int-spec.ts` deadlocks on the stronger mode.
+     */
+    it('locks the trainer row before reading the aggregate it projects', async () => {
+      happyPath();
+
+      await ctx.service.create(body);
+
+      const [strings, ...values] = ctx.queryRaw.mock.calls[0] ?? [];
+      expect(strings?.join('?')).toMatch(/FOR NO KEY UPDATE/);
+      expect(values).toEqual([TRAINER_ID]);
+      expect(ctx.queryRaw.mock.invocationCallOrder[0]!).toBeLessThan(
+        ctx.review.aggregate.mock.invocationCallOrder[0]!,
+      );
     });
 
     it('persists a bare star rating as a null comment', async () => {

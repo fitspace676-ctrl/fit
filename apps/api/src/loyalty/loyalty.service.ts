@@ -174,6 +174,11 @@ export class LoyaltyService {
     return this.toRewardRow(created);
   }
 
+  /**
+   * Patch a reward from the catalogue editor. `stock` is the one field here that
+   * is also written by the redemption paths; see the waiver on it for why the
+   * operator's figure is allowed to overwrite them.
+   */
   async updateReward(id: string, input: UpdateLoyaltyRewardInput): Promise<LoyaltyRewardRow> {
     await this.requireReward(id);
     const updated = await this.prisma.client.loyaltyReward.update({
@@ -184,7 +189,30 @@ export class LoyaltyService {
         ...(input.pointsCost !== undefined ? { pointsCost: input.pointsCost } : {}),
         ...(input.type !== undefined ? { type: input.type } : {}),
         ...(input.active !== undefined ? { active: input.active } : {}),
-        ...(input.stock !== undefined ? { stock: input.stock } : {}),
+        ...(input.stock !== undefined
+          ? {
+              // atomic-counter-exempt: an operator restating the catalogue's on-hand
+              // figure ("there are 12 of these"), not a claim derived from a read —
+              // this write is *meant* to override whatever the column currently holds,
+              // which is what stating an absolute figure means. It also cannot be
+              // spelled as a delta at all: `stock` is nullable and `null` means
+              // "unlimited", so the finite ↔ unlimited edits this form must express
+              // have no increment to give.
+              //
+              // The column does have concurrent writers — `redeem` decrements it and
+              // `cancelRedemption` increments it back — so a redemption committing
+              // between the editor's read and this write is overwritten and its unit
+              // given back. That is accepted here, and it is bounded: at most one unit
+              // per collision, only while an operator is actually editing that reward,
+              // and self-correcting at the next recount. Crucially nothing is *derived*
+              // from this column, so the loss cannot make two figures disagree —
+              // redemption history lives in its own `LoyaltyRedemption` rows and is
+              // never recomputed from `stock`. Contrast `ProductStockService.adjust`,
+              // which turns its `setTo` into a delta precisely because a stock ledger
+              // there would disagree.
+              stock: input.stock,
+            }
+          : {}),
       },
       select: REWARD_SELECT,
     });
