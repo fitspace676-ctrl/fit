@@ -69,6 +69,28 @@ const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const MIDNIGHT_CLOSE = '00:00';
 
 /**
+ * How {@link MIDNIGHT_CLOSE} is *rendered*: the end of the day, not the start of
+ * it. `00:00` is the storage encoding, and letting it leak into display gives a
+ * card `06:00–00:00` — a window that reads as ending before it starts.
+ */
+export const MIDNIGHT_CLOSE_LABEL = '24:00';
+
+/**
+ * The label a shut day renders as.
+ *
+ * Deliberately an English literal: the {@link import('./locations').locationSummarySchema}
+ * contract documents it, and nothing the API returns in an HTTP body is localised
+ * today — the public clients translate with `next-intl` at render time. Localising
+ * it here would mean either threading `Accept-Language` into a route that takes no
+ * headers, or changing the public contract to carry structured hours the client
+ * formats itself; the latter is the right fix and a separate decision.
+ */
+export const CLOSED_LABEL = 'Closed';
+
+/** The en dash a `06:00–23:00` range is written with. */
+const HOURS_SEPARATOR = '–';
+
+/**
  * Whether a day's `open`/`close` pair describes a real window. Times are
  * zero-padded 24-hour strings, so a lexical compare is a correct time compare —
  * except for {@link MIDNIGHT_CLOSE}, which is end-of-day and therefore later than
@@ -99,6 +121,34 @@ export const dayHoursSchema = z
 
 /** One day's parsed opening hours — {@link dayHoursSchema}. */
 export type DayHours = z.infer<typeof dayHoursSchema>;
+
+/**
+ * One day's hours as a display string, e.g. `06:00–23:00`, `06:00–24:00`, or
+ * `Closed`.
+ *
+ * The single rendering both surfaces read from: the staff console's roster /
+ * detail page and the public `GET /locations` projection. They used to format
+ * independently and disagreed on the midnight case — staff saw `06:00–00:00`
+ * where a visitor saw `06:00–24:00` for the same branch — so it lives here,
+ * beside the {@link MIDNIGHT_CLOSE} encoding it has to know about.
+ *
+ * A `closed` day is {@link CLOSED_LABEL} and its times are ignored, matching
+ * {@link dayHoursSchema}, which does not validate them either. Otherwise the
+ * zero-padded `HH:MM` times are joined with an en dash, with {@link MIDNIGHT_CLOSE}
+ * rendered as {@link MIDNIGHT_CLOSE_LABEL}.
+ *
+ * Takes an already-parsed {@link DayHours}: what to do with a day that is absent
+ * or does not parse is the caller's policy, not this function's. The admin form
+ * always has seven days (every one defaults), while the public projection omits
+ * a day the gym never entered rather than publishing invented hours.
+ */
+export function formatDayHours(day: DayHours): string {
+  if (day.closed) {
+    return CLOSED_LABEL;
+  }
+  const close = day.close === MIDNIGHT_CLOSE ? MIDNIGHT_CLOSE_LABEL : day.close;
+  return `${day.open}${HOURS_SEPARATOR}${close}`;
+}
 
 /**
  * A location's full weekly opening hours — one {@link dayHoursSchema} per weekday.

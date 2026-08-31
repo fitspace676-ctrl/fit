@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLOSED_LABEL,
   MIDNIGHT_CLOSE,
+  MIDNIGHT_CLOSE_LABEL,
   createLocationSchema,
   dayHoursSchema,
+  formatDayHours,
   isValidDayWindow,
   locationHoursSchema,
 } from './locations-admin';
@@ -71,5 +74,33 @@ describe('createLocationSchema', () => {
 
     expect(parsed.success).toBe(true);
     expect(parsed.success && parsed.data.hours.mon.close).toBe(MIDNIGHT_CLOSE);
+  });
+});
+
+describe('formatDayHours', () => {
+  it('renders an open day as an en-dashed range', () => {
+    expect(formatDayHours(dayHoursSchema.parse({ open: '06:00', close: '23:00' }))).toBe(
+      '06:00\u201323:00',
+    );
+  });
+
+  it('renders a midnight close as the end of the day, not the start of it', () => {
+    // The whole reason this helper is shared: the console rendered `06:00-00:00`
+    // while the public projection rendered `06:00-24:00` for the same branch.
+    // `00:00` is the storage encoding; on a card it reads as ending before it starts.
+    expect(formatDayHours(dayHoursSchema.parse({ open: '06:00', close: MIDNIGHT_CLOSE }))).toBe(
+      `06:00\u2013${MIDNIGHT_CLOSE_LABEL}`,
+    );
+  });
+
+  it('renders a shut day as the Closed label and ignores its times', () => {
+    // `dayHoursSchema` does not validate a closed day's times, so nor does this.
+    expect(
+      formatDayHours(dayHoursSchema.parse({ closed: true, open: '18:00', close: '09:00' })),
+    ).toBe(CLOSED_LABEL);
+  });
+
+  it('renders a defaulted day, so a bare {} still has a label', () => {
+    expect(formatDayHours(dayHoursSchema.parse({}))).toBe('09:00\u201317:00');
   });
 });
