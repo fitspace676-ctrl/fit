@@ -12,6 +12,7 @@ import {
   PaymentMethod,
   ServiceType,
   StockMovementReason,
+  CreditPackStatus,
 } from '@fit/db';
 import {
   deriveOrderChannel,
@@ -448,6 +449,13 @@ export class ReportsService {
         };
 
       /* ---- Trainers & staff ---------------------------------------------- */
+      case 'credit-usage': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.creditUsage(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
       case 'trainer-performance':
         return {
           name: definition.name,
@@ -1938,68 +1946,6 @@ export class ReportsService {
    * reach a relation's scalar, the same reason {@link AnalyticsService.topClasses}
    * uses `findMany` — then tallies in memory.
    */
-  private async attendanceByClass(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
-    const bookings = await this.prisma.client.booking.findMany({
-      where: {
-        status: { in: [...CONFIRMED_BOOKING_STATUSES] },
-        classInstance: { startsAt: { gte: win.start, lt: win.end } },
-      },
-      select: {
-        status: true,
-        classInstance: {
-          select: {
-            trainer: { select: { name: true } },
-            template: {
-              select: { id: true, title: true, trainer: { select: { name: true } } },
-            },
-            classType: { select: { id: true, name: true } },
-          },
-        },
-      },
-    });
-
-    const byClass = new Map<
-      string,
-      { title: string; trainer: string; booked: number; attended: number; noShow: number }
-    >();
-    for (const booking of bookings) {
-      const inst = booking.classInstance;
-      // Group by the template (a generated occurrence) or the type (one scheduled
-      // straight from a type); resolve the title / trainer from whichever backs it.
-      const key = inst.template?.id ?? inst.classType?.id ?? 'unknown';
-      const entry = byClass.get(key) ?? {
-        title: inst.template?.title ?? inst.classType?.name ?? s.values.classFallback,
-        trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? s.values.unassigned,
-        booked: 0,
-        attended: 0,
-        noShow: 0,
-      };
-      entry.booked += 1;
-      if (booking.status === BookingStatus.ATTENDED) {
-        entry.attended += 1;
-      } else if (booking.status === BookingStatus.NO_SHOW) {
-        entry.noShow += 1;
-      }
-      byClass.set(key, entry);
-    }
-
-    return [...byClass.values()]
-      .map((entry) => {
-        // Only seats with an outcome divide the rates — a seat still marked BOOKED
-        // has not happened yet and cannot count for or against attendance.
-        const settled = entry.attended + entry.noShow;
-        return {
-          class: entry.title,
-          trainer: entry.trainer,
-          booked: entry.booked,
-          attended: entry.attended,
-          noShow: entry.noShow,
-          attendanceRate: settled === 0 ? null : rate(entry.attended, settled),
-          noShowRate: settled === 0 ? null : rate(entry.noShow, settled),
-        };
-      })
-      .sort((a, b) => b.booked - a.booked || a.class.localeCompare(b.class));
-  }
 
   /**
    * Seats booked against seats offered per class.
@@ -2066,44 +2012,6 @@ export class ReportsService {
    * Every cancelled or missed seat in the window, line by line — the list a no-show
    * fee or a repeat-offender conversation is built from. Newest first.
    */
-  private async classCancellations(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
-    const bookings = await this.prisma.client.booking.findMany({
-      where: {
-        status: { in: [BookingStatus.CANCELED, BookingStatus.NO_SHOW] },
-        classInstance: { startsAt: { gte: win.start, lt: win.end } },
-      },
-      select: {
-        status: true,
-        member: {
-          select: { firstName: true, lastName: true, user: { select: { name: true } } },
-        },
-        classInstance: {
-          select: {
-            startsAt: true,
-            trainer: { select: { name: true } },
-            template: { select: { title: true, trainer: { select: { name: true } } } },
-            classType: { select: { name: true } },
-          },
-        },
-      },
-      orderBy: { classInstance: { startsAt: 'desc' } },
-      take: DETAIL_ROW_LIMIT,
-    });
-
-    return bookings.map((booking) => {
-      const inst = booking.classInstance;
-      return {
-        date: isoDate(inst.startsAt, win.zone),
-        time: clockTime(inst.startsAt, win.zone),
-        class: inst.template?.title ?? inst.classType?.name ?? s.values.classFallback,
-        member: booking.member
-          ? memberName(booking.member, s.values.unknownMember)
-          : s.values.unknownMember,
-        outcome: booking.status === BookingStatus.NO_SHOW ? s.values.noShow : s.values.cancelled,
-        trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? s.values.unassigned,
-      };
-    });
-  }
 
   /**
    * How often a class filled up and how many were turned away.
@@ -2183,46 +2091,279 @@ export class ReportsService {
    * catalogue refuses — the report says so in its own description rather than
    * shipping a column of guesses.
    */
-  private async ptSessions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
-    const sessions = await this.prisma.client.ptSession.findMany({
-      where: { startsAt: { gte: win.start, lt: win.end } },
-      select: { status: true, trainer: { select: { id: true, name: true } } },
+
+  /**
+   * One row per class session in the window: every seat count the desk asks
+   * about - held, attended, cancelled, no-shows, waitlisted - and utilisation
+   * against the session's capacity. Cancelled sessions are left out: their
+   * bookings were cancelled by the gym, not the member, and a utilisation
+   * figure for a class that did not run would say the wrong thing.
+   */
+  private async attendanceByClass(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const instances = await this.prisma.client.classInstance.findMany({
+      where: {
+        startsAt: { gte: win.start, lt: win.end },
+        status: { not: InstanceStatus.CANCELED },
+      },
+      select: {
+        startsAt: true,
+        capacityOverride: true,
+        status: true,
+        trainer: { select: { name: true } },
+        location: { select: { name: true } },
+        template: {
+          select: {
+            title: true,
+            capacity: true,
+            trainer: { select: { name: true } },
+            location: { select: { name: true } },
+          },
+        },
+        classType: { select: { name: true, capacity: true } },
+        bookings: { select: { status: true } },
+      },
+      orderBy: { startsAt: 'asc' },
+      take: DETAIL_ROW_LIMIT,
     });
 
-    const byTrainer = new Map<
-      string,
-      { name: string; sessions: number; completed: number; cancelled: number }
-    >();
-    for (const session of sessions) {
-      const key = session.trainer?.id ?? UNASSIGNED_KEY;
-      const entry = byTrainer.get(key) ?? {
-        name: session.trainer?.name ?? s.values.unassigned,
-        sessions: 0,
-        completed: 0,
-        cancelled: 0,
-      };
-      entry.sessions += 1;
-      if (session.status === InstanceStatus.COMPLETED) {
-        entry.completed += 1;
-      } else if (session.status === InstanceStatus.CANCELED) {
-        entry.cancelled += 1;
+    return instances.map((inst) => {
+      const tally = { booked: 0, attended: 0, cancelled: 0, noShows: 0, waitlist: 0 };
+      for (const booking of inst.bookings) {
+        switch (booking.status) {
+          case BookingStatus.ATTENDED:
+            tally.attended += 1;
+            tally.booked += 1;
+            break;
+          case BookingStatus.NO_SHOW:
+            tally.noShows += 1;
+            tally.booked += 1;
+            break;
+          case BookingStatus.BOOKED:
+            tally.booked += 1;
+            break;
+          case BookingStatus.CANCELED:
+            tally.cancelled += 1;
+            break;
+          case BookingStatus.WAITLIST:
+            tally.waitlist += 1;
+            break;
+        }
       }
-      byTrainer.set(key, entry);
+      const capacity =
+        inst.capacityOverride ?? inst.template?.capacity ?? inst.classType?.capacity ?? null;
+      return {
+        date: isoDate(inst.startsAt, win.zone),
+        time: clockTime(inst.startsAt, win.zone),
+        class: inst.template?.title ?? inst.classType?.name ?? s.values.classFallback,
+        trainer: inst.trainer?.name ?? inst.template?.trainer?.name ?? s.values.unassigned,
+        location: inst.location?.name ?? inst.template?.location?.name ?? '',
+        capacity,
+        ...tally,
+        utilization: capacity ? rate(tally.booked, capacity) : null,
+      };
+    });
+  }
+
+  /**
+   * Every booking on a session in the window, one row each: when it was made,
+   * its outcome, whether the member's badge was seen around the class, and the
+   * waitlist place.
+   *
+   * A booking is not linked to a check-in, so "checked in" is derived: a
+   * check-in by that member from two hours before the class to its end. The
+   * time a booking was cancelled is not recorded - only that it was.
+   */
+  private async classCancellations(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const lead = 2 * 60 * 60 * 1000;
+    const [bookings, checkIns] = await Promise.all([
+      this.prisma.client.booking.findMany({
+        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        select: {
+          status: true,
+          createdAt: true,
+          waitlistPosition: true,
+          memberId: true,
+          member: {
+            select: { firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+          classInstance: {
+            select: {
+              startsAt: true,
+              endsAt: true,
+              trainer: { select: { name: true } },
+              location: { select: { name: true } },
+              template: {
+                select: {
+                  title: true,
+                  trainer: { select: { name: true } },
+                  location: { select: { name: true } },
+                },
+              },
+              classType: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: [{ classInstance: { startsAt: 'asc' } }, { createdAt: 'asc' }],
+        take: DETAIL_ROW_LIMIT,
+      }),
+      // `CheckIn` sits outside the tenant extension, so the gym is pinned by hand.
+      this.prisma.client.checkIn.findMany({
+        where: {
+          gymId: this.tenant.gymId,
+          checkedInAt: { gte: new Date(win.start.getTime() - lead), lt: win.end },
+        },
+        select: { gymMemberId: true, checkedInAt: true },
+      }),
+    ]);
+    const visits = new Map<string, Date[]>();
+    for (const checkIn of checkIns) {
+      const list = visits.get(checkIn.gymMemberId) ?? [];
+      list.push(checkIn.checkedInAt);
+      visits.set(checkIn.gymMemberId, list);
     }
 
-    return [...byTrainer.values()]
-      .map((entry) => {
-        // Sessions still SCHEDULED have not happened yet, so they divide nothing.
-        const settled = entry.completed + entry.cancelled;
-        return {
-          trainer: entry.name,
-          sessions: entry.sessions,
-          completed: entry.completed,
-          cancelled: entry.cancelled,
-          completionRate: settled === 0 ? null : rate(entry.completed, settled),
-        };
-      })
-      .sort((a, b) => b.sessions - a.sessions || a.trainer.localeCompare(b.trainer));
+    return bookings.map((booking) => {
+      const inst = booking.classInstance;
+      const from = inst.startsAt.getTime() - lead;
+      const checkedIn = (visits.get(booking.memberId) ?? []).some(
+        (at) => at.getTime() >= from && at <= inst.endsAt,
+      );
+      return {
+        date: isoDate(inst.startsAt, win.zone),
+        time: clockTime(inst.startsAt, win.zone),
+        class: inst.template?.title ?? inst.classType?.name ?? s.values.classFallback,
+        trainer: inst.trainer?.name ?? inst.template?.trainer?.name ?? s.values.unassigned,
+        location: inst.location?.name ?? inst.template?.location?.name ?? '',
+        member: booking.member
+          ? memberName(booking.member, s.values.unknownMember)
+          : s.values.unknownMember,
+        bookedAt: `${isoDate(booking.createdAt, win.zone)} ${clockTime(booking.createdAt, win.zone)}`,
+        status: s.values.bookingStatuses[booking.status] ?? booking.status,
+        checkedIn: checkedIn ? s.values.yes : s.values.no,
+        waitlistPosition: booking.waitlistPosition,
+      };
+    });
+  }
+
+  /**
+   * Every personal-training session in the window, one row each, from BOTH
+   * places the product records one: a slot a member booked (a service session
+   * of a personal-training service - it carries the member and the invoice it
+   * raised) and the trainer calendar's own sessions (which carry the trainer
+   * and the time, and nothing about who or how much). Neither is tied to a
+   * credit pack, so there is no package column yet.
+   */
+  private async ptSessions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const [booked, scheduled] = await Promise.all([
+      this.prisma.client.serviceSession.findMany({
+        where: {
+          startsAt: { gte: win.start, lt: win.end },
+          service: { type: ServiceType.PERSONAL_TRAINING },
+        },
+        select: {
+          startsAt: true,
+          endsAt: true,
+          status: true,
+          member: {
+            select: { firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+          staff: {
+            select: { firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+          service: { select: { name: true } },
+          invoice: { select: { amount: true } },
+        },
+        take: DETAIL_ROW_LIMIT,
+      }),
+      this.prisma.client.ptSession.findMany({
+        where: { startsAt: { gte: win.start, lt: win.end } },
+        select: { startsAt: true, endsAt: true, status: true, trainer: { select: { name: true } } },
+        take: DETAIL_ROW_LIMIT,
+      }),
+    ]);
+    const minutes = (from: Date, to: Date) => Math.round((to.getTime() - from.getTime()) / 60_000);
+    const rows = [
+      ...booked.map((session) => ({
+        at: session.startsAt,
+        row: {
+          member: session.member ? memberName(session.member, s.values.unknownMember) : '',
+          trainer: staffName(session.staff, s.values.unassigned),
+          status: s.values.sessionStatuses[session.status] ?? session.status,
+          duration: minutes(session.startsAt, session.endsAt),
+          value: session.invoice?.amount ?? null,
+        },
+      })),
+      ...scheduled.map((session) => ({
+        at: session.startsAt,
+        row: {
+          member: '',
+          trainer: session.trainer?.name ?? s.values.unassigned,
+          status: s.values.sessionStatuses[session.status] ?? session.status,
+          duration: minutes(session.startsAt, session.endsAt),
+          value: null,
+        },
+      })),
+    ];
+    return rows
+      .sort((a, b) => a.at.getTime() - b.at.getTime())
+      .map(({ at, row }) => ({
+        date: isoDate(at, win.zone),
+        time: clockTime(at, win.zone),
+        member: row.member,
+        trainer: row.trainer,
+        location: '',
+        status: row.status,
+        duration: row.duration,
+        value: row.value,
+      }));
+  }
+
+  /**
+   * Every credit pack a member holds: what was bought, what has been used, what
+   * is left, when it expires, and the last session it paid for. A snapshot -
+   * the window does not apply. A pack with nothing left reads "used up" ahead
+   * of its own status, because that is the fact the desk acts on.
+   */
+  private async creditUsage(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const packs = await this.prisma.client.creditPack.findMany({
+      select: {
+        name: true,
+        totalCredits: true,
+        remainingCredits: true,
+        expiresAt: true,
+        status: true,
+        member: {
+          select: { firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+        plan: { select: { name: true } },
+        bookings: {
+          orderBy: { classInstance: { startsAt: 'desc' } },
+          take: 1,
+          select: { classInstance: { select: { startsAt: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: DETAIL_ROW_LIMIT,
+    });
+    return packs.map((pack) => {
+      const status =
+        pack.status === CreditPackStatus.EXPIRED
+          ? 'expired'
+          : pack.remainingCredits <= 0
+            ? 'usedUp'
+            : 'active';
+      const last = pack.bookings[0]?.classInstance.startsAt ?? null;
+      return {
+        member: memberName(pack.member, s.values.unknownMember),
+        package: pack.plan?.name ?? pack.name,
+        purchased: pack.totalCredits,
+        used: pack.totalCredits - pack.remainingCredits,
+        remaining: pack.remainingCredits,
+        expiresOn: pack.expiresAt ? isoDate(pack.expiresAt, win.zone) : null,
+        lastSession: last ? isoDate(last, win.zone) : null,
+        status: s.values.creditPackStatuses[status] ?? status,
+      };
+    });
   }
 
   /* ---------------------------------------------------------------------- */

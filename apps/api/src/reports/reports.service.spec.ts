@@ -37,6 +37,8 @@ function setup() {
   const locationFindMany = vi.fn().mockResolvedValue([]);
   const classInstanceFindMany = vi.fn().mockResolvedValue([]);
   const ptSessionFindMany = vi.fn().mockResolvedValue([]);
+  const serviceSessionFindMany = vi.fn().mockResolvedValue([]);
+  const creditPackFindMany = vi.fn().mockResolvedValue([]);
   const gymFindFirst = vi.fn(() => Promise.resolve(gymRow));
 
   const client = {
@@ -55,6 +57,8 @@ function setup() {
     location: { findMany: locationFindMany },
     classInstance: { findMany: classInstanceFindMany },
     ptSession: { findMany: ptSessionFindMany },
+    serviceSession: { findMany: serviceSessionFindMany },
+    creditPack: { findMany: creditPackFindMany },
     gym: { findFirst: gymFindFirst },
   };
   const prisma = { client } as unknown as TenantPrismaService;
@@ -87,6 +91,8 @@ function setup() {
     locationFindMany,
     classInstanceFindMany,
     ptSessionFindMany,
+    serviceSessionFindMany,
+    creditPackFindMany,
     gymFindFirst,
   };
 }
@@ -1726,6 +1732,292 @@ describe('ReportsService', () => {
     });
   });
 
+  describe('classes & training reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const nino = { id: 'm1', firstName: 'Nino', lastName: 'Gelashvili', user: null };
+    const dato = { id: 'm2', firstName: 'Dato', lastName: 'Kapanadze', user: null };
+    const lika = { id: 'm3', firstName: 'Lika', lastName: 'Beridze', user: null };
+
+    it('classes & attendance: one row per session with every seat count and utilisation against capacity', async () => {
+      const { service, classInstanceFindMany } = setup();
+      classInstanceFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-20T05:00:00.000Z'),
+          capacityOverride: null,
+          status: 'COMPLETED',
+          trainer: { name: 'Mia' },
+          location: { name: 'Vake' },
+          template: { title: 'Yoga', capacity: 10, trainer: null, location: null },
+          classType: null,
+          bookings: [
+            { status: 'ATTENDED' },
+            { status: 'ATTENDED' },
+            { status: 'NO_SHOW' },
+            { status: 'CANCELED' },
+            { status: 'WAITLIST' },
+            { status: 'BOOKED' },
+          ],
+        },
+        {
+          startsAt: new Date('2026-08-21T15:00:00.000Z'),
+          capacityOverride: 5,
+          status: 'SCHEDULED',
+          trainer: null,
+          location: null,
+          template: {
+            title: 'Spin',
+            capacity: 12,
+            trainer: { name: 'Leo' },
+            location: { name: 'Saburtalo' },
+          },
+          classType: null,
+          bookings: [],
+        },
+      ]);
+
+      const result = await service.runReport('attendance-by-class', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          capacity: 10,
+          booked: 4,
+          attended: 2,
+          cancelled: 1,
+          noShows: 1,
+          waitlist: 1,
+          utilization: 40,
+        },
+        {
+          date: '2026-08-21',
+          time: '19:00',
+          class: 'Spin',
+          trainer: 'Leo',
+          location: 'Saburtalo',
+          capacity: 5,
+          booked: 0,
+          attended: 0,
+          cancelled: 0,
+          noShows: 0,
+          waitlist: 0,
+          utilization: 0,
+        },
+      ]);
+    });
+
+    it('class bookings: every booking with its outcome, whether the member checked in around the class, and the waitlist place', async () => {
+      const { service, bookingFindMany, checkInFindMany } = setup();
+      const yoga = {
+        startsAt: new Date('2026-08-20T05:00:00.000Z'),
+        endsAt: new Date('2026-08-20T06:00:00.000Z'),
+        trainer: { name: 'Mia' },
+        location: { name: 'Vake' },
+        template: { title: 'Yoga', trainer: null, location: null },
+        classType: null,
+      };
+      bookingFindMany.mockResolvedValue([
+        {
+          status: 'ATTENDED',
+          createdAt: new Date('2026-08-18T10:00:00.000Z'),
+          waitlistPosition: null,
+          memberId: 'm1',
+          member: nino,
+          classInstance: yoga,
+        },
+        {
+          status: 'NO_SHOW',
+          createdAt: new Date('2026-08-19T10:00:00.000Z'),
+          waitlistPosition: null,
+          memberId: 'm2',
+          member: dato,
+          classInstance: yoga,
+        },
+        {
+          status: 'WAITLIST',
+          createdAt: new Date('2026-08-19T11:00:00.000Z'),
+          waitlistPosition: 2,
+          memberId: 'm3',
+          member: lika,
+          classInstance: yoga,
+        },
+      ]);
+      checkInFindMany.mockResolvedValue([
+        // Nino came in 40 minutes before the class; Dato came in the day before.
+        { gymMemberId: 'm1', checkedInAt: new Date('2026-08-20T04:20:00.000Z') },
+        { gymMemberId: 'm2', checkedInAt: new Date('2026-08-19T04:20:00.000Z') },
+      ]);
+
+      const result = await service.runReport('class-cancellations', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          member: 'Nino Gelashvili',
+          bookedAt: '2026-08-18 14:00',
+          status: 'Attended',
+          checkedIn: 'Yes',
+          waitlistPosition: null,
+        },
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          member: 'Dato Kapanadze',
+          bookedAt: '2026-08-19 14:00',
+          status: 'No-show',
+          checkedIn: 'No',
+          waitlistPosition: null,
+        },
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          member: 'Lika Beridze',
+          bookedAt: '2026-08-19 15:00',
+          status: 'Waitlisted',
+          checkedIn: 'No',
+          waitlistPosition: 2,
+        },
+      ]);
+    });
+
+    it("pt sessions: booked personal-training slots with their member and invoice, and the trainer calendar's own sessions", async () => {
+      const { service, serviceSessionFindMany, ptSessionFindMany } = setup();
+      serviceSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-20T05:00:00.000Z'),
+          endsAt: new Date('2026-08-20T06:00:00.000Z'),
+          status: 'COMPLETED',
+          member: nino,
+          staff: { firstName: 'Mariam', lastName: 'Beridze', user: null },
+          service: { name: 'PT session' },
+          invoice: { amount: 8_000 },
+        },
+      ]);
+      ptSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-22T07:00:00.000Z'),
+          endsAt: new Date('2026-08-22T07:45:00.000Z'),
+          status: 'SCHEDULED',
+          trainer: { name: 'Mia' },
+        },
+      ]);
+
+      const result = await service.runReport('pt-sessions', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          member: 'Nino Gelashvili',
+          trainer: 'Mariam Beridze',
+          location: '',
+          status: 'Completed',
+          duration: 60,
+          value: 8_000,
+        },
+        {
+          date: '2026-08-22',
+          time: '11:00',
+          member: '',
+          trainer: 'Mia',
+          location: '',
+          status: 'Scheduled',
+          duration: 45,
+          value: null,
+        },
+      ]);
+    });
+
+    it('credit usage: purchased, used and remaining per pack, with the last session it paid for', async () => {
+      const { service, creditPackFindMany } = setup();
+      creditPackFindMany.mockResolvedValue([
+        {
+          name: 'PT 10',
+          totalCredits: 10,
+          remainingCredits: 4,
+          expiresAt: new Date('2026-12-31T20:00:00.000Z'),
+          status: 'ACTIVE',
+          member: nino,
+          plan: { name: 'PT 10-pack' },
+          bookings: [{ classInstance: { startsAt: new Date('2026-08-28T05:00:00.000Z') } }],
+        },
+        {
+          name: 'Class 5',
+          totalCredits: 5,
+          remainingCredits: 0,
+          expiresAt: null,
+          status: 'ACTIVE',
+          member: dato,
+          plan: null,
+          bookings: [],
+        },
+        {
+          name: 'Old pack',
+          totalCredits: 5,
+          remainingCredits: 2,
+          expiresAt: new Date('2026-06-30T20:00:00.000Z'),
+          status: 'EXPIRED',
+          member: lika,
+          plan: null,
+          bookings: [],
+        },
+      ]);
+
+      const result = await service.runReport('credit-usage', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          member: 'Nino Gelashvili',
+          package: 'PT 10-pack',
+          purchased: 10,
+          used: 6,
+          remaining: 4,
+          expiresOn: '2027-01-01',
+          lastSession: '2026-08-28',
+          status: 'Active',
+        },
+        {
+          member: 'Dato Kapanadze',
+          package: 'Class 5',
+          purchased: 5,
+          used: 5,
+          remaining: 0,
+          expiresOn: null,
+          lastSession: null,
+          status: 'Used up',
+        },
+        {
+          member: 'Lika Beridze',
+          package: 'Old pack',
+          purchased: 5,
+          used: 3,
+          remaining: 2,
+          expiresOn: '2026-07-01',
+          lastSession: null,
+          status: 'Expired',
+        },
+      ]);
+    });
+  });
+
   describe('discounts-and-promotions', () => {
     it('totals the redemption ledger per code, ranked by what it gave away', async () => {
       const { service, promoRedemptionFindMany } = setup();
@@ -1800,68 +2092,6 @@ describe('ReportsService', () => {
       paymentGroupBy.mockResolvedValue([]);
       const result = await service.runReport('revenue-by-channel', { range: 'mtd' });
       expect(result.rows).toEqual([]);
-    });
-  });
-
-  describe('attendance-by-class', () => {
-    it('tallies attended/no-show per class with the attendance rate, ranked by volume', async () => {
-      const { service, bookingFindMany } = setup();
-      const yoga = { id: 't1', title: 'Yoga', trainerId: 'tr1', name: 'Mia' };
-      const spin = { id: 't2', title: 'Spin', trainerId: null, name: null };
-      bookingFindMany.mockResolvedValue([
-        booking(BookingStatus.ATTENDED, yoga),
-        booking(BookingStatus.ATTENDED, yoga),
-        booking(BookingStatus.ATTENDED, yoga),
-        booking(BookingStatus.NO_SHOW, yoga),
-        booking(BookingStatus.ATTENDED, spin),
-        booking(BookingStatus.NO_SHOW, spin),
-      ]);
-
-      const result = await service.runReport('attendance-by-class', { range: 'mtd' });
-
-      expect(result.rows).toEqual([
-        {
-          class: 'Yoga',
-          trainer: 'Mia',
-          booked: 4,
-          attended: 3,
-          noShow: 1,
-          attendanceRate: 75,
-          noShowRate: 25,
-        },
-        {
-          class: 'Spin',
-          trainer: 'Unassigned',
-          booked: 2,
-          attended: 1,
-          noShow: 1,
-          attendanceRate: 50,
-          noShowRate: 50,
-        },
-      ]);
-    });
-
-    it('reports a class whose register was never taken as booked with NO rate', async () => {
-      const { service, bookingFindMany } = setup();
-      const yoga = { id: 't1', title: 'Yoga', trainerId: 'tr1', name: 'Mia' };
-      // Seats held, but nobody marked anyone off.
-      bookingFindMany.mockResolvedValue([
-        booking(BookingStatus.BOOKED, yoga),
-        booking(BookingStatus.BOOKED, yoga),
-      ]);
-
-      const result = await service.runReport('attendance-by-class', { range: 'mtd' });
-
-      // 0% attendance would read as everyone skipping; the truth is nobody knows yet.
-      expect(result.rows[0]).toEqual({
-        class: 'Yoga',
-        trainer: 'Mia',
-        booked: 2,
-        attended: 0,
-        noShow: 0,
-        attendanceRate: null,
-        noShowRate: null,
-      });
     });
   });
 
@@ -2006,30 +2236,6 @@ describe('ReportsService', () => {
 
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]).toMatchObject({ trainer: 'Mia', classes: 2, seatsOffered: 18 });
-    });
-  });
-
-  describe('pt-sessions', () => {
-    it('divides the completion rate by SETTLED sessions, not by those still to come', async () => {
-      const { service, ptSessionFindMany } = setup();
-      const mia = { id: 'tr1', name: 'Mia' };
-      ptSessionFindMany.mockResolvedValue([
-        { status: 'COMPLETED', trainer: mia },
-        { status: 'COMPLETED', trainer: mia },
-        { status: 'CANCELED', trainer: mia },
-        // Still scheduled — it has not happened, so it divides nothing.
-        { status: 'SCHEDULED', trainer: mia },
-      ]);
-
-      const result = await service.runReport('pt-sessions', { range: 'mtd' });
-
-      expect(result.rows[0]).toEqual({
-        trainer: 'Mia',
-        sessions: 4,
-        completed: 2,
-        cancelled: 1,
-        completionRate: 66.7,
-      });
     });
   });
 

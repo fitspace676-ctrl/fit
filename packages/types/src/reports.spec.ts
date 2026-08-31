@@ -294,6 +294,68 @@ describe('products segment', () => {
   });
 });
 
+describe('classes & training reports', () => {
+  it('classes & attendance: one row per session with the seat counts and utilisation', () => {
+    expect(REPORT_DEFINITIONS['attendance-by-class'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'class',
+      'trainer',
+      'location',
+      'capacity',
+      'booked',
+      'attended',
+      'cancelled',
+      'noShows',
+      'waitlist',
+      'utilization',
+    ]);
+  });
+
+  it('class bookings: every booking with when it was made, its outcome, the check-in and the waitlist place', () => {
+    expect(REPORT_DEFINITIONS['class-cancellations'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'class',
+      'trainer',
+      'location',
+      'member',
+      'bookedAt',
+      'status',
+      'checkedIn',
+      'waitlistPosition',
+    ]);
+  });
+
+  it('pt sessions: one row per session with member, trainer, duration and value', () => {
+    expect(REPORT_DEFINITIONS['pt-sessions'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'member',
+      'trainer',
+      'location',
+      'status',
+      'duration',
+      'value',
+    ]);
+  });
+
+  it('credit usage: purchased, used and remaining per pack', () => {
+    const definition = REPORT_DEFINITIONS['credit-usage'];
+    expect(definition.segment).toBe('classes');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'member',
+      'package',
+      'purchased',
+      'used',
+      'remaining',
+      'expiresOn',
+      'lastSession',
+      'status',
+    ]);
+  });
+});
+
 describe('groupReportsBySegment', () => {
   it('groups in segment order and keeps each segment’s catalogue order', () => {
     const grouped = groupReportsBySegment(REPORT_CATALOG);

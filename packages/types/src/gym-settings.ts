@@ -661,6 +661,7 @@ export const gymReportsSettingsSchema = z.object({
   'class-cancellations': z.boolean().default(true),
   'waitlist-demand': z.boolean().default(true),
   'pt-sessions': z.boolean().default(true),
+  'credit-usage': z.boolean().default(true),
   'no-show-rate': z.boolean().default(true),
   // Staff
   'trainer-performance': z.boolean().default(true),

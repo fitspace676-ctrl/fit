@@ -566,6 +566,7 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   'class-utilization': 'grid',
   'class-cancellations': 'x',
   'waitlist-demand': 'flame',
+  'credit-usage': 'star',
   'pt-sessions': 'dumbbell',
   'no-show-rate': 'clock',
   // Staff

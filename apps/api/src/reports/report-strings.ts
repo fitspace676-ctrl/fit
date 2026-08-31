@@ -101,6 +101,14 @@ export interface ReportStrings {
     stockStatuses: Record<string, string>;
     /** What a stock movement was, in the desk's words - see the movement history. */
     movementTypes: Record<string, string>;
+    /** A class booking's outcome, by `BookingStatus`. */
+    bookingStatuses: Record<string, string>;
+    /** A PT session's state, across both the service-session and calendar enums. */
+    sessionStatuses: Record<string, string>;
+    /** A credit pack: active, used up, expired. */
+    creditPackStatuses: Record<string, string>;
+    yes: string;
+    no: string;
     /** Monday first, three letters each: the peak-hours heatmap rows. */
     weekdays: readonly string[];
   };
@@ -234,6 +242,24 @@ const EN: ReportStrings = {
       recount: 'Stocktake correction',
       writeOff: 'Write-off',
     },
+    bookingStatuses: {
+      BOOKED: 'Booked',
+      WAITLIST: 'Waitlisted',
+      ATTENDED: 'Attended',
+      NO_SHOW: 'No-show',
+      CANCELED: 'Cancelled',
+    },
+    sessionStatuses: {
+      SCHEDULED: 'Scheduled',
+      OPEN: 'Open',
+      BOOKED: 'Booked',
+      COMPLETED: 'Completed',
+      CANCELED: 'Cancelled',
+      CANCELLED: 'Cancelled',
+    },
+    creditPackStatuses: { active: 'Active', usedUp: 'Used up', expired: 'Expired' },
+    yes: 'Yes',
+    no: 'No',
     weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   },
   tabular: { summary: 'Summary', metric: 'Metric', value: 'Value', unit: 'Unit' },
@@ -642,17 +668,22 @@ const KA: ReportStrings = {
       },
     },
     'attendance-by-class': {
-      name: 'კლასებზე დასწრება',
+      name: 'კლასები და დასწრება',
       description:
-        'დაჯავშნილი, დასწრებული და გაცდენილი ადგილები კლასების მიხედვით, ორივე მაჩვენებლით.',
+        'ყველა კლასის სესია ამ პერიოდში: ვინ ჩაატარა და სად, ტევადობა, რამდენმა დაჯავშნა, დაესწრო, გააუქმა, არ მოვიდა ან ადგილს ელოდა, და დატვირთვა ტევადობის მიმართ.',
       columns: {
+        date: KA_COMMON.date,
+        time: KA_COMMON.time,
         class: KA_COMMON.class,
         trainer: KA_COMMON.trainer,
+        location: KA_COMMON.location,
+        capacity: 'ტევადობა',
         booked: 'დაჯავშნილი',
         attended: 'დაესწრო',
-        noShow: 'არ მოვიდა',
-        attendanceRate: 'დასწრების მაჩვენებელი',
-        noShowRate: 'გაცდენის მაჩვენებელი',
+        cancelled: 'გაუქმებული',
+        noShows: 'არ მოვიდა',
+        waitlist: 'მოლოდინში',
+        utilization: 'დატვირთვა',
       },
     },
     'class-utilization': {
@@ -668,15 +699,20 @@ const KA: ReportStrings = {
       },
     },
     'class-cancellations': {
-      name: 'გაუქმებები და გაცდენები',
-      description: 'ვინ გააუქმა ან არ მოვიდა, სათითაოდ - წესებისა და გაცდენის საფასურისთვის.',
+      name: 'კლასის ჯავშნები',
+      description:
+        'ყველა ჯავშანი ამ პერიოდის სესიებზე, თითო მწკრივი: ვინ, როდის დაჯავშნა, შედეგი (დაჯავშნილი, დაესწრო, არ მოვიდა, გაუქმებული, მოლოდინში), შემოვიდა თუ არა კლასის ირგვლივ, და ადგილი მოლოდინის სიაში. ჯავშნის გაუქმების დრო არ ინახება.',
       columns: {
         date: KA_COMMON.date,
         time: KA_COMMON.time,
         class: KA_COMMON.class,
-        member: KA_COMMON.member,
-        outcome: 'შედეგი',
         trainer: KA_COMMON.trainer,
+        location: KA_COMMON.location,
+        member: KA_COMMON.member,
+        bookedAt: 'დაჯავშნის დრო',
+        status: 'დასწრების სტატუსი',
+        checkedIn: 'შემოვიდა',
+        waitlistPosition: 'ადგილი მოლოდინში',
       },
     },
     'waitlist-demand': {
@@ -694,13 +730,31 @@ const KA: ReportStrings = {
     'pt-sessions': {
       name: 'პერსონალური ვარჯიშები',
       description:
-        'პერსონალური ვარჯიშები მწვრთნელების მიხედვით. შემოსავალი არ შედის: PT სესიას ფასი არ აქვს, თანხა იმ კრედიტების პაკეტშია, რომლითაც გადაიხადეს.',
+        'ყველა პერსონალური ვარჯიში ამ პერიოდში, თითო მწკრივი: წევრის მიერ დაჯავშნილი სლოტი (მისი ინვოისით) და მწვრთნელის კალენდრის საკუთარი სესიები. არცერთი კრედიტების პაკეტს არ უკავშირდება, ამიტომ პაკეტის სვეტი ჯერ არ არის.',
       columns: {
+        date: KA_COMMON.date,
+        time: KA_COMMON.time,
+        member: KA_COMMON.member,
         trainer: KA_COMMON.trainer,
-        sessions: KA_COMMON.sessions,
-        completed: 'ჩატარებული',
-        cancelled: 'გაუქმებული',
-        completionRate: 'ჩატარების მაჩვენებელი',
+        location: KA_COMMON.location,
+        status: KA_COMMON.status,
+        duration: 'ხანგრძლივობა (წთ)',
+        value: 'სესიის ღირებულება',
+      },
+    },
+    'credit-usage': {
+      name: 'PT პაკეტები და კრედიტების გამოყენება',
+      description:
+        'ყველა კრედიტების პაკეტი, რომელიც წევრს აქვს: ნაყიდი, გამოყენებული და დარჩენილი სესიები ან კრედიტები, როდის იწურება, ბოლო სესია, რომელიც მან დაფარა, და აქტიურია, ამოწურულია თუ ვადაგასული.',
+      columns: {
+        member: KA_COMMON.member,
+        package: 'პაკეტი',
+        purchased: 'ნაყიდი',
+        used: 'გამოყენებული',
+        remaining: 'დარჩენილი',
+        expiresOn: 'იწურება',
+        lastSession: 'ბოლო სესია',
+        status: KA_COMMON.status,
       },
     },
     'trainer-performance': {
@@ -989,6 +1043,24 @@ const KA: ReportStrings = {
       recount: 'ინვენტარიზაციის შესწორება',
       writeOff: 'ჩამოწერა',
     },
+    bookingStatuses: {
+      BOOKED: 'დაჯავშნილი',
+      WAITLIST: 'მოლოდინში',
+      ATTENDED: 'დაესწრო',
+      NO_SHOW: 'არ მოვიდა',
+      CANCELED: 'გაუქმებული',
+    },
+    sessionStatuses: {
+      SCHEDULED: 'დაგეგმილი',
+      OPEN: 'ღია',
+      BOOKED: 'დაჯავშნილი',
+      COMPLETED: 'ჩატარებული',
+      CANCELED: 'გაუქმებული',
+      CANCELLED: 'გაუქმებული',
+    },
+    creditPackStatuses: { active: 'აქტიური', usedUp: 'ამოწურული', expired: 'ვადაგასული' },
+    yes: 'დიახ',
+    no: 'არა',
     weekdays: ['ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ', 'კვი'],
   },
   tabular: { summary: 'შეჯამება', metric: 'მაჩვენებელი', value: 'მნიშვნელობა', unit: 'ერთეული' },
