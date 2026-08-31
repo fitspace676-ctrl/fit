@@ -14,22 +14,126 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
  * explicit `gymId`), which this set does not touch — but the moment a gym-scoped
  * handler reaches for `auditLog`, isolation is already enforced rather than
  * silently absent.
+ *
+ * ## 2026-08-30 — the allowlist was audited against the schema, and had drifted
+ *
+ * The instruction above ("add a model the moment it gains a `gymId`") had been
+ * missed thirteen times. A diff of every `model` block carrying a `gymId` scalar
+ * against this set found `CheckIn`, `CreditPack`, `PtSession`, `ClassType`,
+ * `Cart`, `Notification`, `NotificationPreference`, `MemberGoal`, `MemberNote`,
+ * `MemberTask`, `StockMovement`, `DashboardWidget` and `AgentChatSession` absent
+ * — every one of them readable across tenants through the scoped client. Twelve
+ * were added below; `AgentChatSession` was not, for the reason recorded at the
+ * end of this block.
+ *
+ * Several of those thirteen were absent *on purpose*, and their services say so
+ * in their own docblocks ("deliberately not in the tenant extension's auto-scope
+ * set … so every query pins the tenant explicitly" — `CheckInService`,
+ * `ActivityService`, `MeGoalsService`). Pinning `gymId` by hand is not wrong, but
+ * it is not a substitute for this set: it holds only for as long as every future
+ * query remembers, and three of them had already forgotten —
+ * `reports.service.ts`'s two `ptSession.findMany` aggregates (trainer utilisation
+ * and the PT-hours roll-up) filtered on the time window alone,
+ * `me-goals.service.ts`'s `listMyGoals` filtered on `memberId` alone, and
+ * `credit-packs.service.ts`'s `chargeSeatCredit` picked the pack to draw from by
+ * `memberId` + status alone. That is the same shape of bug as the refund one
+ * above, and the reason the belt is worn under the braces rather than instead.
+ *
+ * Adding a model here changes two things for its existing callers: a hand-pinned
+ * `gymId` is now **overwritten** (harmless — it is overwritten with the value the
+ * caller was already passing, so those pins are merely redundant now; they were
+ * left in place rather than mass-deleted, since they also satisfy the create
+ * inputs' static types), and a query with no tenant in scope now **throws**. The
+ * second is the dangerous one, so every out-of-request path was checked:
+ *
+ * - Every `@Cron` job — booking reminders, the media sweep, subscription
+ *   renewal, member purge, the ops digests, the automation scan — takes the
+ *   unscoped {@link PrismaService} and passes `gymId` explicitly, exactly because
+ *   there is no ALS store on a timer tick. `ops-notifications.service.ts`'s
+ *   `checkIn.count` is the only cron query on a newly-scoped model, and it is on
+ *   the unscoped client. Unaffected.
+ * - `report-delivery.service.ts` is the one job that drives a *scoped* service
+ *   (`ReportsService`) off a timer, and it already opens its own store with
+ *   `tenantStorage.run({ gymId, … })` per gym before doing so. Its digests reach
+ *   `checkIn` and `ptSession`; they keep working because that store exists.
+ * - The cart runs on the unscoped {@link PrismaService} by design (it is served
+ *   both signed-in and anonymously), so listing `Cart` here changes nothing
+ *   today and guards the first handler that reaches for it off the scoped
+ *   client — which, on a `/cart` route, has no `TenantMiddleware` and may have no
+ *   store at all.
+ * - The notification models are written by the cron digests and the dispatcher,
+ *   all on the unscoped client with an explicit `gymId`/`userId`. Note that
+ *   `NotificationService.alreadySent` keys on the `(userId, dedupeKey)` unique
+ *   with no gym: it is correct only on the unscoped client, so do not "tidy" it
+ *   onto the scoped one.
+ * - `/webhooks/*` is excluded from `TenantMiddleware` and so has **no** tenant
+ *   store. Today's bound provider is the stub, which touches no table, so nothing
+ *   breaks — but a real gateway provider must use the unscoped client with the
+ *   `gymId` from its verified payload. That hazard predates this change (`Order`,
+ *   `Payment` and `Subscription` were already scoped) and is unchanged by it.
+ * - Nothing in `main.ts`, the seed, or the SuperAdmin/`@AllowCrossTenant` paths
+ *   reads any of the twelve; `DashboardWidget` has no reader anywhere at all and
+ *   is listed purely so the first one inherits isolation.
+ *
+ * `AgentChatSession` is the one of the thirteen deliberately left out, and it is
+ * the exception that has to stay documented or it will be "fixed" again. Its
+ * `id` is minted by the admin *client* (a short string like `s-abc-123`, not a
+ * uuid) and is the bare primary key, so ids can collide across gyms.
+ * `AgentSessionsService.upsert` defends against that by probing
+ * `findUnique({ where: { id } })` **across** gyms and answering `404` rather than
+ * overwriting another tenant's row. Scoping the model turns that probe into a
+ * within-gym lookup, which finds nothing, so the following `upsert` falls through
+ * to a create and dies on the primary key — a `500` where the guard used to
+ * return a clean `404`. There is no leak to trade for that: every other query in
+ * the service already filters `gymId` **and** `userId` (its scoping is per-user,
+ * which this set cannot express), and the probe returns no row data, only a
+ * yes/no. Listing it needs `AgentSessionsService` changed in the same commit —
+ * the probe re-expressed against the unscoped {@link PrismaService}, or the
+ * upsert split into an explicit find-then-create/update — which is a change to a
+ * service, not to this file.
  */
 export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'GymMember',
+  // The member's own record and the staff-authored detail hanging off it. The
+  // goals are the member's to edit from the portal; the notes and tasks are the
+  // gym's about them. All three are keyed on `memberId` by their callers, which
+  // is only *incidentally* tenant-safe — a member id is unguessable, not scoped.
+  'MemberGoal',
+  'MemberNote',
+  'MemberTask',
+  'CheckIn',
   'Trainer',
   'Location',
   'Product',
   'ProductCategory',
+  // What a product has on hand at one branch — the source of truth for inventory
+  // since Stage 4 of multi-branch, with `Product.stock` demoted to its roll-up.
+  // `gymId` is denormalised from the product precisely so it can be listed here:
+  // an unlisted model carrying `gymId` is the cross-tenant leak shape this list
+  // already had to be repaired for once, across 13 models.
+  'ProductStock',
+  // The stock ledger. Written from the POS sale, the refund restock, the manual
+  // adjustment and the opening count — several of them inside a transaction the
+  // scoped client opened, so the rows are stamped by the same `$transaction`.
+  'StockMovement',
   'PackagePlan',
   'StaffInvite',
   'AuditLog',
   'ClassTemplate',
+  'ClassType',
   'ClassInstance',
+  'PtSession',
   'Booking',
   'Review',
   'Order',
   'Payment',
+  // The shopper's basket. Reached signed-in or anonymously and served today off
+  // the unscoped client with an explicit `gymId`; listed so it stays isolated if
+  // it is ever read through the scoped one.
+  'Cart',
+  // Class credits: bought as a pack, drawn down one seat at a time inside the
+  // booking transaction.
+  'CreditPack',
   // The financial children of an order. Both duplicate `gymId` from their parent
   // so they can be aggregated without a join, and the reports do exactly that —
   // reading them directly rather than through the parent. Until they were listed
@@ -56,6 +160,11 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'PromoCode',
   'AudienceSegment',
   'MessageTemplate',
+  // The member-facing inbox and its per-category mute settings. Produced by the
+  // cron digests on the unscoped client (see the block above); listed for the
+  // handlers that read them back.
+  'Notification',
+  'NotificationPreference',
   'LoyaltyProgram',
   'LoyaltyLedgerEntry',
   'LoyaltyReward',
@@ -66,6 +175,9 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'ShiftSlot',
   'Service',
   'ServiceSession',
+  // No reader anywhere yet — listed so the first one is born isolated rather
+  // than joining the queue of models this audit had to catch up on.
+  'DashboardWidget',
 ]);
 
 /** Read operations whose `where` is constrained to the current tenant. */

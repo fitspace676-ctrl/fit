@@ -207,3 +207,164 @@ describe('tenantExtension (load-bearing isolation)', () => {
     expect(TENANT_SCOPED_MODELS.has('MessageTemplate')).toBe(true);
   });
 });
+
+/**
+ * The 2026-08-30 audit: every model carrying a `gymId` scalar in
+ * `packages/db/prisma/schema.prisma` measured against the allowlist. Thirteen
+ * were missing; twelve were added. These cases pin each one so a future rename
+ * or a revert is a failing test rather than a silent cross-tenant read.
+ */
+describe('the models the 2026-08-30 schema audit found missing', () => {
+  /**
+   * The twelve, with the query each was actually leaking through — so a failure
+   * here names the surface that regressed rather than just a model string.
+   */
+  const ADDED: ReadonlyArray<readonly [model: string, leakedThrough: string]> = [
+    ['CheckIn', 'reports memberCheckInLog / attendance drilldown / activity feed'],
+    ['CreditPack', 'credit-packs chargeSeatCredit — picked a pack by memberId alone'],
+    ['PtSession', 'reports trainer-utilisation + PT-hours — filtered on the window alone'],
+    ['ClassType', 'the class-type CRUD and the scheduler lookups'],
+    ['Cart', 'served off the unscoped client today; scoped for the first handler that is not'],
+    ['Notification', 'the member inbox'],
+    ['NotificationPreference', 'the per-category mute settings'],
+    ['MemberGoal', 'me-goals listMyGoals — filtered on memberId alone'],
+    ['MemberNote', 'the member detail timeline'],
+    ['MemberTask', 'the member detail follow-ups'],
+    ['StockMovement', 'the stock ledger'],
+    ['DashboardWidget', 'no reader yet — listed so the first one is born isolated'],
+  ] as const;
+
+  it.each(ADDED)('scopes %s (was leaking via: %s)', (model) => {
+    expect(TENANT_SCOPED_MODELS.has(model)).toBe(true);
+  });
+
+  it.each(ADDED)('constrains a bare %s read to the tenant', (model) => {
+    // The shape the leaking queries had: a filter that names everything except
+    // the gym. Each must come back with `gymId` welded on.
+    expect(
+      scopeArgs(model, 'findMany', { where: { createdAt: { gte: new Date(0) } } }, state()),
+    ).toEqual({ where: { createdAt: { gte: new Date(0) }, gymId: 'gym-a' } });
+  });
+
+  it.each(ADDED)('OVERWRITES a foreign gymId on a %s read', (model) => {
+    expect(scopeArgs(model, 'findMany', { where: { gymId: 'gym-b' } }, state())).toEqual({
+      where: { gymId: 'gym-a' },
+    });
+  });
+
+  it.each(ADDED)('fails closed on %s when there is no tenant in scope', (model) => {
+    // The behaviour change these additions bought, and the one that could bite an
+    // out-of-request caller: a timer tick or a webhook has no ALS store, so a
+    // newly scoped model now throws instead of quietly reading every gym.
+    expect(() => scopeArgs(model, 'findMany', {}, undefined)).toThrow(ForbiddenException);
+  });
+
+  it('leaves the hand-pinned gymId of the existing callers with the same value', () => {
+    // `reports.service.ts`'s check-in log, the attendance drilldown, the activity
+    // feed and the ops digest all pass `gymId` themselves. Those pins are now
+    // redundant, not wrong — the extension overwrites them with the value they
+    // already held — so they were left in place rather than mass-refactored.
+    expect(
+      scopeArgs('CheckIn', 'findMany', { where: { gymId: 'gym-a', method: 'QR' } }, state()),
+    ).toEqual({ where: { gymId: 'gym-a', method: 'QR' } });
+  });
+
+  it('stamps gymId onto a CheckIn create and every row of a MemberGoal createMany', () => {
+    // The two write shapes among the additions: a single create (reception
+    // records an arrival) and a bulk one (the portal replaces a goal set).
+    expect(scopeArgs('CheckIn', 'create', { data: { gymMemberId: 'gm-1' } }, state())).toEqual({
+      data: { gymMemberId: 'gm-1', gymId: 'gym-a' },
+    });
+    expect(
+      scopeArgs('MemberGoal', 'createMany', { data: [{ label: 'a' }, { label: 'b' }] }, state()),
+    ).toEqual({
+      data: [
+        { label: 'a', gymId: 'gym-a' },
+        { label: 'b', gymId: 'gym-a' },
+      ],
+    });
+  });
+
+  it('constrains an update keyed on the primary key — the class-type / member-task shape', () => {
+    // `update({ where: { id } })` gains a non-unique filter. Valid input under
+    // Prisma 6's extended `whereUnique`, and the same shape the already-scoped
+    // models have used since the set existed.
+    // Only the `where` is touched — `update` short-circuits on the where-writes
+    // branch, so the caller's `data` is passed through exactly as written.
+    expect(
+      scopeArgs('ClassType', 'update', { where: { id: 'ct-1' }, data: { name: 'HIIT' } }, state()),
+    ).toEqual({ where: { id: 'ct-1', gymId: 'gym-a' }, data: { name: 'HIIT' } });
+  });
+
+  it('does NOT scope AgentChatSession — its upsert guard needs the cross-gym probe', () => {
+    // The thirteenth. Its `id` is minted by the admin client (a short string, not
+    // a uuid) and is the bare primary key, so ids can collide across gyms.
+    // `AgentSessionsService.upsert` probes `findUnique({ where: { id } })` ACROSS
+    // gyms to answer 404 rather than overwrite another tenant's row; scoping the
+    // model turns that probe into a within-gym miss, and the upsert behind it
+    // then falls through to a create that dies on the primary key — a 500 where a
+    // 404 used to be. Nothing leaks in exchange: every other query in that
+    // service already pins `gymId` AND `userId`, and the probe returns no row
+    // data. Listing it requires that service to change in the same commit.
+    expect(TENANT_SCOPED_MODELS.has('AgentChatSession')).toBe(false);
+    const probe = { where: { id: 's-abc-123' } };
+    expect(scopeArgs('AgentChatSession', 'findUnique', probe, state())).toBe(probe);
+  });
+
+  it('scopes findUnique through the catch-all branch, not the read list', () => {
+    // Worth pinning because it is easy to misread: `findUnique` is in neither
+    // SCOPED_READS nor SCOPED_WHERE_WRITES, and picks up `gymId` from the
+    // fall-through at the end of scopeArgs. That is what would have rewritten
+    // AgentChatSession's ownership probe above.
+    expect(scopeArgs('CheckIn', 'findUnique', { where: { id: 'c-1' } }, state())).toEqual({
+      where: { id: 'c-1', gymId: 'gym-a' },
+    });
+  });
+});
+
+/**
+ * The change's real risk was not the models — it was the callers that run with no
+ * request, and therefore no `tenantStorage` store, where a newly scoped model
+ * throws instead of reading. This pins the accommodation each one relies on.
+ */
+describe('out-of-request callers of the newly scoped models', () => {
+  it('a cron tick has no store, so the scoped client would throw — which is why the jobs use the unscoped one', () => {
+    // `ops-notifications.service.ts`'s daily summary counts check-ins on a timer.
+    // It takes the base PrismaService and passes `gymId` explicitly. This asserts
+    // what WOULD have happened had it been on the scoped client, so the reason
+    // those jobs are written that way stays visible.
+    expect(() =>
+      scopeArgs('CheckIn', 'count', { where: { gymId: 'gym-a' } }, tenantStorage.getStore()),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('the weekly/monthly report digest works because it opens its own store per gym', () => {
+    // `report-delivery.service.ts` is the one job that drives a tenant-scoped
+    // service (ReportsService, which reads `checkIn` and `ptSession`) off a
+    // timer. It wraps each gym's digest in `tenantStorage.run(...)` exactly so
+    // the extension has a tenant to find — which is now load-bearing for two
+    // models it was not load-bearing for before.
+    const digestStore: TenantState = {
+      userId: null,
+      gymId: 'gym-a',
+      role: Role.OWNER,
+      allowCrossTenant: false,
+    };
+    const scoped = tenantStorage.run(digestStore, () =>
+      scopeArgs('PtSession', 'findMany', { where: {} }, tenantStorage.getStore()),
+    );
+    expect(scoped).toEqual({ where: { gymId: 'gym-a' } });
+  });
+
+  it('a SUPER_ADMIN on an @AllowCrossTenant route still bypasses the new models', () => {
+    const args = { where: {} };
+    expect(
+      scopeArgs(
+        'CheckIn',
+        'findMany',
+        args,
+        state({ role: Role.SUPER_ADMIN, allowCrossTenant: true, gymId: null }),
+      ),
+    ).toBe(args);
+  });
+});
