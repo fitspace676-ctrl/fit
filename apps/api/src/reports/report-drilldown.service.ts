@@ -1495,6 +1495,7 @@ function methodLabel(s: ReportStrings, method: string): string {
   const labels: Record<string, string> = {
     CASH: s.values.cash,
     CARD: s.values.card,
+    BANK_TRANSFER: s.values.bankTransfer,
     MEMBER_ACCOUNT: s.values.memberAccount,
   };
   return labels[method] ?? method;

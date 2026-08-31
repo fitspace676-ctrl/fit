@@ -222,6 +222,7 @@
           "name": {
             "cash": "ნაღდი",
             "card": "ბარათი",
+            "bank-transfer": "საბანკო გადარიცხვა",
             "member-account": "წევრის ანგარიში"
           },
           "row": "{channel} · {name}",
@@ -643,7 +644,14 @@
       "range7d": "7 დღე",
       "rangeMtd": "თვის დასაწყისიდან",
       "rangeCustom": "სხვა პერიოდი",
-      "customRange": "თარიღების დიაპაზონი",
+      "rangeFrom": "დან",
+      "rangeTo": "მდე",
+      "calendar": {
+        "open": "აირჩიე თარიღი",
+        "previousMonth": "წინა თვე",
+        "nextMonth": "შემდეგი თვე",
+        "chooseYear": "აირჩიე წელი"
+      },
       "catalogueLabel": "რეპორტების კატალოგი",
       "columnCount": "{count, plural, one {# სვეტი} other {# სვეტი}}",
       "selectPrompt": "აირჩიე რეპორტი სიიდან, რომ ნახო მისი მწკრივები და გადმოწერო CSV ან XLSX ფორმატში.",
@@ -834,7 +842,9 @@
           "card": "ბარათი",
           "cardHint": "ბარათის ტერმინალი",
           "memberAccount": "წევრის ანგარიში",
-          "memberAccountHint": "ჩარიცხვა შიდა ანგარიშზე"
+          "memberAccountHint": "ჩარიცხვა შიდა ანგარიშზე",
+          "bankTransfer": "საბანკო გადარიცხვა",
+          "bankTransferHint": "გადარიცხვა დარბაზის ანგარიშზე"
         },
         "chargedTo": "ჩაირიცხა {name}-ის ანგარიშზე.",
         "cashReceived": "მიღებული ნაღდი",
@@ -2142,6 +2152,8 @@
         "acceptCardDesc": "მიიღე ბარათით გადახდა.",
         "acceptPrepaidLabel": "წინასწარ გადახდილი კრედიტები",
         "acceptPrepaidDesc": "მიეცი წევრებს კრედიტის ბალანსიდან გადახდის საშუალება.",
+        "acceptBankTransferLabel": "საბანკო გადარიცხვა",
+        "acceptBankTransferDesc": "ჩაწერე გაყიდვები, რომლებიც დარბაზის ანგარიშზე გადარიცხვით გადაიხადეს. სანამ დაასრულებ, გადაამოწმე, რომ თანხა შემოვიდა.",
         "noneEnabled": "მინიმუმ ერთი გადახდის მეთოდი ჩართული უნდა დარჩეს - სალარო სხვაგვარად ვერ დაასრულებს გაყიდვას."
       },
       "invoice": {

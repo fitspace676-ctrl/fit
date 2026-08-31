@@ -106,6 +106,7 @@ describe('plan-performance, refunds-detail, daily-reconciliation', () => {
       'cash',
       'card',
       'online',
+      'bankTransfer',
       'memberAccount',
       'refunds',
       'transactions',

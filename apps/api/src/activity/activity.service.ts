@@ -341,12 +341,14 @@ export class ActivityService {
   }
 
   /** Human label for a sale's settlement channel, mirroring the reconciliation view. */
-  private settlementLabel(method: 'CASH' | 'CARD' | 'MEMBER_ACCOUNT'): string {
+  private settlementLabel(method: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'MEMBER_ACCOUNT'): string {
     switch (method) {
       case 'CASH':
         return 'Cash';
       case 'CARD':
         return 'Card';
+      case 'BANK_TRANSFER':
+        return 'Bank transfer';
       case 'MEMBER_ACCOUNT':
         return 'Member account';
     }

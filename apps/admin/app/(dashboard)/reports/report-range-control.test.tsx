@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import { navigationMock } from '@/test/next-navigation-mock';
@@ -16,7 +16,14 @@ const messages = {
       range7d: '7 days',
       rangeMtd: 'Month to date',
       rangeCustom: 'Custom',
-      customRange: 'Custom date range',
+      rangeFrom: 'From',
+      rangeTo: 'To',
+      calendar: {
+        open: 'Choose a date',
+        previousMonth: 'Previous month',
+        nextMonth: 'Next month',
+        chooseYear: 'Choose a year',
+      },
     },
   },
 };
@@ -53,28 +60,39 @@ describe('ReportRangeControl', () => {
     });
   });
 
-  it('shows the days the current window resolved to', () => {
+  it('shows the days the current window resolved to, day first, in two fields', () => {
     renderControl({ range: '7d', from: '2026-08-01', to: '2026-08-07' });
-    // The date control reads the resolved window even on a preset, so the
-    // reader sees which days "7 days" actually were.
-    expect(screen.getByRole('button', { name: /Custom date range/ })).toHaveTextContent(
-      'Aug 1 – Aug 7',
-    );
+    // The fields read the resolved window even on a preset, so the reader sees
+    // which days "7 days" actually were.
+    expect(screen.getByRole('button', { name: /From/ })).toHaveTextContent('01.08.2026');
+    expect(screen.getByRole('button', { name: /To/ })).toHaveTextContent('07.08.2026');
   });
 
-  // Astryx's `DateRangeInput` hands back a range only once two calendar cells
-  // are clicked; drive it for real rather than reaching around it.
-  it('picking two days writes a custom range', async () => {
-    navigationMock.setSearch('report=sales-summary&range=mtd');
-    renderControl({ range: 'mtd', from: '2026-08-01', to: '2026-08-07' });
+  // The kit's DateField, not Astryx's DateRangeInput: the kit field takes the
+  // interface locale for its month and weekday names, where Astryx reads the
+  // browser's, so a Georgian console showed an English calendar.
+  it('picking a day in either field writes a custom range', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    try {
+      navigationMock.setSearch('report=sales-summary&range=mtd');
+      renderControl({ range: 'mtd', from: '2026-08-01', to: '2026-08-07' });
 
-    await userEvent.click(screen.getByRole('button', { name: /Custom date range/ }));
-    await userEvent.click(screen.getByRole('button', { name: /August 3, 2026/ }));
-    await userEvent.click(screen.getByRole('button', { name: /August 10, 2026/ }));
+      await userEvent.click(screen.getByRole('button', { name: /To/ }));
+      const dialog = screen.getByRole('dialog');
+      // Two "10"s can share a grid (August's and the trailing September's); the
+      // September one is past today and disabled.
+      const day = within(dialog)
+        .getAllByRole('button', { name: '10' })
+        .find((button) => !(button as HTMLButtonElement).disabled);
+      await userEvent.click(day!);
 
-    expect(navigationMock.replace).toHaveBeenCalledWith(
-      '/?report=sales-summary&range=custom&from=2026-08-03&to=2026-08-10',
-      { scroll: false },
-    );
+      expect(navigationMock.replace).toHaveBeenCalledWith(
+        '/?report=sales-summary&range=custom&from=2026-08-01&to=2026-08-10',
+        { scroll: false },
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -56,6 +56,7 @@ export interface ReportStrings {
   values: {
     cash: string;
     card: string;
+    bankTransfer: string;
     memberAccount: string;
     unattributed: string;
     unassigned: string;
@@ -125,6 +126,7 @@ const EN: ReportStrings = {
   values: {
     cash: 'Cash',
     card: 'Card',
+    bankTransfer: 'Bank transfer',
     memberAccount: 'Member account',
     unattributed: 'Unattributed',
     unassigned: 'Unassigned',
@@ -298,13 +300,14 @@ const KA: ReportStrings = {
     'daily-reconciliation': {
       name: 'დღიური შედარება',
       description:
-        'ყოველი დღის შემოსავალი და როგორ შეგროვდა - ნაღდი, ბარათი სალაროსთან, ონლაინ, წევრის ანგარიში - გაცემული დაბრუნებების, გაყიდვების რაოდენობისა და ჯამის უკან მდგომი ჩეკების გვერდით. საბანკო გადარიცხვა სალაროს გადახდის მეთოდი არ არის, ამიტომ სვეტი არ აქვს.',
+        'ყოველი დღის შემოსავალი და როგორ შეგროვდა - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, წევრის ანგარიში - გაცემული დაბრუნებების, გაყიდვების რაოდენობისა და ჯამის უკან მდგომი ჩეკების გვერდით.',
       columns: {
         date: KA_COMMON.date,
         total: 'სულ გაყიდვები',
         cash: 'ნაღდი',
         card: 'ბარათი / სალარო',
         online: 'ონლაინ',
+        bankTransfer: 'საბანკო გადარიცხვა',
         memberAccount: 'წევრის ანგარიში',
         refunds: 'დაბრუნებები',
         transactions: 'ტრანზაქციები',
@@ -709,6 +712,7 @@ const KA: ReportStrings = {
   values: {
     cash: 'ნაღდი',
     card: 'ბარათი',
+    bankTransfer: 'საბანკო გადარიცხვა',
     memberAccount: 'წევრის ანგარიში',
     unattributed: 'მიუკუთვნებელი',
     unassigned: 'მიუნიჭებელი',

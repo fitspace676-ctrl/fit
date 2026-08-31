@@ -90,7 +90,7 @@ export const salesChannelSchema = z.enum(['pos', 'online']);
 export type SalesChannel = z.infer<typeof salesChannelSchema>;
 
 /** How a sale was settled — the wire form of the `PaymentMethod` enum. */
-export const salesPaymentMethodSchema = z.enum(['cash', 'card', 'member-account']);
+export const salesPaymentMethodSchema = z.enum(['cash', 'card', 'bank-transfer', 'member-account']);
 export type SalesPaymentMethod = z.infer<typeof salesPaymentMethodSchema>;
 
 /**

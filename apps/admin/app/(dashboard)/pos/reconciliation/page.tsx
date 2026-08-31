@@ -33,6 +33,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash',
   card: 'Card',
+  bank_transfer: 'Bank transfer',
   member_account: 'Member account',
 };
 

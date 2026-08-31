@@ -295,10 +295,15 @@ enum PaymentStatus {
 /// `MEMBER_ACCOUNT` never touch one. It is the dimension the end-of-day cash
 /// reconciliation (T7.5) groups the day's takings by. Mirrors the `paymentMethod`
 /// wire enum in `@fit/types` (lower-snake there, UPPER here as Prisma enums are).
+///
+/// `BANK_TRANSFER` is a sale the desk settles against a transfer the member made
+/// to the gym's account - recorded by the operator, like cash, never routed
+/// through a gateway. Off by default in the gym's payment settings.
 enum PaymentMethod {
   CASH
   CARD
   MEMBER_ACCOUNT
+  BANK_TRANSFER
 }
 
 /// Lifecycle of a recurring membership {@link SubscriptionPlan} within a gym

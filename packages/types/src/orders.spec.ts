@@ -43,10 +43,11 @@ describe('paymentMethodSchema', () => {
     expect(paymentMethodSchema.parse('cash')).toBe('cash');
     expect(paymentMethodSchema.parse('card')).toBe('card');
     expect(paymentMethodSchema.parse('member_account')).toBe('member_account');
+    expect(paymentMethodSchema.parse('bank_transfer')).toBe('bank_transfer');
   });
 
   it('rejects an unknown method', () => {
-    expect(() => paymentMethodSchema.parse('bank_transfer')).toThrow();
+    expect(() => paymentMethodSchema.parse('crypto')).toThrow();
   });
 
   it('is case-sensitive (wire values are lower-snake-case)', () => {
@@ -221,7 +222,12 @@ describe('buildReconciliationReport (T7.5)', () => {
 
     const report = buildReconciliationReport(tallies, meta);
 
-    expect(report.methods.map((m) => m.method)).toEqual(['cash', 'card', 'member_account']);
+    expect(report.methods.map((m) => m.method)).toEqual([
+      'cash',
+      'card',
+      'bank_transfer',
+      'member_account',
+    ]);
     expect(report.methods).toContainEqual({ method: 'cash', count: 3, total: 1500 });
     expect(report.methods).toContainEqual({ method: 'member_account', count: 0, total: 0 });
     expect(report.salesCount).toBe(5);
@@ -236,7 +242,7 @@ describe('buildReconciliationReport (T7.5)', () => {
     expect(report.salesCount).toBe(0);
     expect(report.grossTotal).toBe(0);
     expect(report.expectedCash).toBe(0);
-    expect(report.methods).toHaveLength(3);
+    expect(report.methods).toHaveLength(4);
   });
 
   it('sums repeated tallies for the same method', () => {

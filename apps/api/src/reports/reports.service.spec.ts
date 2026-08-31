@@ -146,6 +146,15 @@ describe('ReportsService', () => {
       expect(en.segments.classes).toBe('Classes & training');
     });
 
+    it('can list the whole catalogue, hidden reports included, for the settings screen', async () => {
+      const { service } = setup();
+      gymRow!.settings = { reports: { 'refunds-detail': false } };
+      const full = await service.catalog('ka', { includeHidden: true });
+      expect(full.reports.some((r) => r.key === 'refunds-detail')).toBe(true);
+      expect(full.reports).toHaveLength(REPORT_KEYS.length);
+      expect(full.reports.find((r) => r.key === 'refunds-detail')?.name).toBe('დაბრუნებები');
+    });
+
     it('returns an empty catalogue when every report is off, rather than throwing', async () => {
       const { service } = setup();
       gymRow!.settings = {
@@ -699,6 +708,13 @@ describe('ReportsService', () => {
           provider: 'stub',
           orderId: 'cmaaaaaaaa00000004',
         },
+        {
+          amount: 40_000,
+          createdAt: new Date('2026-08-02T06:00:00.000Z'),
+          method: 'BANK_TRANSFER',
+          provider: 'pos',
+          orderId: 'cmaaaaaaaa00000005',
+        },
       ]);
       refundFindMany.mockResolvedValue([
         { amount: 2_000, createdAt: new Date('2026-08-02T10:00:00.000Z') },
@@ -713,6 +729,7 @@ describe('ReportsService', () => {
           cash: 10_000,
           card: 20_000,
           online: 0,
+          bankTransfer: 0,
           memberAccount: 5_000,
           refunds: 0,
           transactions: 3,
@@ -720,14 +737,15 @@ describe('ReportsService', () => {
         },
         {
           date: '2026-08-02',
-          total: 90_000,
+          total: 130_000,
           cash: 0,
           card: 0,
           online: 90_000,
+          bankTransfer: 40_000,
           memberAccount: 0,
           refunds: 2_000,
-          transactions: 1,
-          references: '00000004',
+          transactions: 2,
+          references: '00000004, 00000005',
         },
         {
           date: '2026-08-03',
@@ -735,6 +753,7 @@ describe('ReportsService', () => {
           cash: 0,
           card: 0,
           online: 0,
+          bankTransfer: 0,
           memberAccount: 0,
           refunds: 0,
           transactions: 0,

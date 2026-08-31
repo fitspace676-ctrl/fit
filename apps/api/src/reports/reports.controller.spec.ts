@@ -89,7 +89,13 @@ describe('ReportsController', () => {
     it('hands the Accept-Language locale to the service', async () => {
       const { controller, catalog } = setup();
       await controller.catalog('ka');
-      expect(catalog).toHaveBeenCalledWith('ka');
+      expect(catalog).toHaveBeenCalledWith('ka', { includeHidden: false });
+    });
+
+    it('lists hidden reports too when asked with ?all=true, for the settings screen', async () => {
+      const { controller, catalog } = setup();
+      await controller.catalog(undefined, 'true');
+      expect(catalog).toHaveBeenCalledWith(null, { includeHidden: true });
     });
 
     // Filtering by the gym's report-visibility settings is the service's job

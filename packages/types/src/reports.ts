@@ -442,13 +442,14 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'sales',
     name: 'Daily reconciliation',
     description:
-      "Each day's takings and how they were collected - cash, card at the till, online, member account - beside the refunds issued, the number of sales, and the receipts behind the total. Bank transfer is not a payment method the till records, so it has no column.",
+      "Each day's takings and how they were collected - cash, card at the till, online, bank transfer, member account - beside the refunds issued, the number of sales, and the receipts behind the total.",
     columns: [
       { key: 'date', label: 'Date', type: 'date' },
       { key: 'total', label: 'Total sales', type: 'money' },
       { key: 'cash', label: 'Cash', type: 'money' },
       { key: 'card', label: 'Card / POS', type: 'money' },
       { key: 'online', label: 'Online', type: 'money' },
+      { key: 'bankTransfer', label: 'Bank transfer', type: 'money' },
       { key: 'memberAccount', label: 'Member account', type: 'money' },
       { key: 'refunds', label: 'Refunds', type: 'money' },
       { key: 'transactions', label: 'Transactions', type: 'number' },

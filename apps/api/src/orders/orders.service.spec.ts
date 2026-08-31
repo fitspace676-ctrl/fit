@@ -665,7 +665,12 @@ describe('OrdersService.reconcile', () => {
     expect(report.expectedCash).toBe(1500);
     expect(report.grossTotal).toBe(5500);
     expect(report.salesCount).toBe(5);
-    expect(report.methods.map((m) => m.method)).toEqual(['cash', 'card', 'member_account']);
+    expect(report.methods.map((m) => m.method)).toEqual([
+      'cash',
+      'card',
+      'bank_transfer',
+      'member_account',
+    ]);
 
     // The groupBy is constrained to captured payments inside the day window.
     const args = groupBy.mock.calls[0]![0] as {
@@ -683,7 +688,7 @@ describe('OrdersService.reconcile', () => {
     const report = await service.reconcile({ date: '2026-06-07' });
 
     expect(report.grossTotal).toBe(0);
-    expect(report.methods).toHaveLength(3);
+    expect(report.methods).toHaveLength(4);
     expect(report.currency).toHaveLength(3);
   });
 });

@@ -62,6 +62,7 @@ function soldPosition(line: ReceiptLine): string | null {
 const TO_DB_METHOD: Record<PaymentMethod, DbPaymentMethod> = {
   cash: DbPaymentMethod.CASH,
   card: DbPaymentMethod.CARD,
+  bank_transfer: DbPaymentMethod.BANK_TRANSFER,
   member_account: DbPaymentMethod.MEMBER_ACCOUNT,
 };
 
@@ -69,6 +70,7 @@ const TO_DB_METHOD: Record<PaymentMethod, DbPaymentMethod> = {
 const TO_WIRE_METHOD: Record<DbPaymentMethod, PaymentMethod> = {
   [DbPaymentMethod.CASH]: 'cash',
   [DbPaymentMethod.CARD]: 'card',
+  [DbPaymentMethod.BANK_TRANSFER]: 'bank_transfer',
   [DbPaymentMethod.MEMBER_ACCOUNT]: 'member_account',
 };
 

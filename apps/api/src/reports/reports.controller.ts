@@ -53,8 +53,14 @@ export class ReportsController {
   @Get()
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ReportView)
-  catalog(@Headers('accept-language') acceptLanguage?: string): Promise<ReportCatalogResponse> {
-    return this.reports.catalog(parseAcceptLanguage(acceptLanguage));
+  catalog(
+    @Headers('accept-language') acceptLanguage?: string,
+    @Query('all') all?: string,
+  ): Promise<ReportCatalogResponse> {
+    // `?all=true` is the settings screen asking for the reports it has hidden too.
+    return this.reports.catalog(parseAcceptLanguage(acceptLanguage), {
+      includeHidden: all === 'true',
+    });
   }
 
   /**

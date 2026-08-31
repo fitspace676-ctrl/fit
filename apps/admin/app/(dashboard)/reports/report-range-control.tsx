@@ -8,17 +8,22 @@
 // period filter: the server component re-fetches from `?range=&from=&to=`, so the
 // URL is the source of truth and a link carries the window with it.
 //
-// The date field is not gated behind the Custom segment. It reads the window the
-// API echoed back — `7d` shows the seven days it was — so the reader sees which
-// days a preset actually covered, and picking two days in it IS how a custom
-// range is chosen; the segment follows.
+// The two date fields are not gated behind the Custom segment. They read the
+// window the API echoed back — `7d` shows the seven days it was — so the reader
+// sees which days a preset actually covered, and picking a day in either IS how
+// a custom range is chosen; the segment follows.
+//
+// They are the kit's `DateField`, not Astryx's `DateRangeInput`: the kit field
+// takes the interface locale for its month and weekday names, where Astryx reads
+// the browser's (`Intl.DateTimeFormat(undefined, …)`), so a Georgian console
+// showed an English calendar with no prop to correct it.
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { DateRangeInput, type DateRange } from '@astryxdesign/core/DateRangeInput';
+import { DateField } from '@fit/ui-kit';
 import { reportRangeSchema, type ReportRange } from '@fit/types';
 
 /** The presets, in the order the control shows them — the shared schema's own order. */
@@ -43,6 +48,14 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.75rem',
   },
+  days: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  day: {
+    width: '9.5rem',
+  },
 });
 
 /** Today as `YYYY-MM-DD` in the browser's zone — the date field's upper bound. */
@@ -65,6 +78,7 @@ export function ReportRangeControl({
   isDisabled?: boolean;
 }) {
   const t = useTranslations('admin.reports');
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -96,17 +110,26 @@ export function ReportRangeControl({
     apply(params);
   }
 
-  function selectCustomRange(next: DateRange | null): void {
-    if (!next) return;
+  /** One end of the window moved: the other stays, and the pair becomes a custom range. */
+  function selectDays(nextFrom: string, nextTo: string): void {
+    if (!nextFrom || !nextTo) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set('range', 'custom');
-    params.set('from', next.start);
-    params.set('to', next.end);
+    // A start dragged past the end (or the reverse) collapses to one day
+    // rather than reaching the API as a window it would refuse.
+    params.set('from', nextFrom > nextTo ? nextTo : nextFrom);
+    params.set('to', nextTo < nextFrom ? nextFrom : nextTo);
     apply(params);
   }
 
   const busy = isDisabled || isPending;
-  const window: DateRange = { start: from as DateRange['start'], end: to as DateRange['end'] };
+  const today = browserToday();
+  const calendar = {
+    open: t('calendar.open'),
+    previousMonth: t('calendar.previousMonth'),
+    nextMonth: t('calendar.nextMonth'),
+    chooseYear: t('calendar.chooseYear'),
+  };
 
   return (
     <div {...stylex.props(styles.controls)}>
@@ -125,19 +148,30 @@ export function ReportRangeControl({
           />
         ))}
       </SegmentedControl>
-      <DateRangeInput
-        label={t('customRange')}
-        isLabelHidden
-        value={window}
-        onChange={selectCustomRange}
-        hasClear={false}
-        size="sm"
-        numberOfMonths={1}
-        // The API refuses a window ending after today; say so in the calendar
-        // rather than after the round trip.
-        max={browserToday() as DateRange['end']}
-        isDisabled={busy}
-      />
+      {/* The API refuses a window ending after today; the calendars say so
+          rather than the round trip. */}
+      <div {...stylex.props(styles.days)}>
+        <DateField
+          label={t('rangeFrom')}
+          value={from}
+          onChange={(next) => selectDays(next, to)}
+          locale={locale}
+          labels={calendar}
+          max={today}
+          disabled={busy}
+          xstyle={styles.day}
+        />
+        <DateField
+          label={t('rangeTo')}
+          value={to}
+          onChange={(next) => selectDays(from, next)}
+          locale={locale}
+          labels={calendar}
+          max={today}
+          disabled={busy}
+          xstyle={styles.day}
+        />
+      </div>
     </div>
   );
 }

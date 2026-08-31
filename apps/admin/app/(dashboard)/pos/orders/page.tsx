@@ -42,6 +42,7 @@ const STATUS_TONES: Record<string, BadgeTone> = {
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
   card: 'Card',
+  bank_transfer: 'Transfer',
   member_account: 'Account',
 };
 

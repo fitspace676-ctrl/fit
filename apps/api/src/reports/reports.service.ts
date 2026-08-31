@@ -116,7 +116,10 @@ export class ReportsService {
    * bookmarked preview link and a scheduled export are both expected to keep
    * working after a gym tidies its hub.
    */
-  async catalog(lang: ReportLocale | null = null): Promise<ReportCatalogResponse> {
+  async catalog(
+    lang: ReportLocale | null = null,
+    { includeHidden = false }: { includeHidden?: boolean } = {},
+  ): Promise<ReportCatalogResponse> {
     const gym = await this.prisma.client.gym.findFirst({
       where: { id: this.tenant.gymId },
       select: { settings: true },
@@ -134,9 +137,11 @@ export class ReportsService {
     // preference, so the friendlier failure is to keep showing it until someone
     // deliberately hides it.
     return {
-      reports: REPORT_CATALOG.filter((report) => reports[report.key as ReportToggle] !== false).map(
-        (report) => localizeDefinition(report, language),
-      ),
+      // `includeHidden` is the settings screen: it lists every report so a gym
+      // can switch one back on, and it needs the same language as the hub.
+      reports: REPORT_CATALOG.filter(
+        (report) => includeHidden || reports[report.key as ReportToggle] !== false,
+      ).map((report) => localizeDefinition(report, language)),
       segments: reportStrings(language).segments,
     };
   }
@@ -901,10 +906,9 @@ export class ReportsService {
    * row would have nothing to be checked against. Days with no sales are real
    * zero rows, so a closed Sunday reads as closed rather than missing.
    *
-   * The columns follow the till's own vocabulary: cash, card at the till, and
-   * a member's account are the `pos`-provider methods; everything captured by
-   * a gateway is "online". Bank transfer is not a method the till records, so
-   * there is no column to fill.
+   * The columns follow the till's own vocabulary: cash, card at the till, a
+   * bank transfer the desk recorded, and a member's account are the
+   * `pos`-provider methods; everything captured by a gateway is "online".
    */
   private async dailyReconciliation(win: ReportWindow): Promise<ReportRow[]> {
     const days: ReportWindow = { ...win, bucket: 'day' };
@@ -925,6 +929,7 @@ export class ReportsService {
       cash: number;
       card: number;
       online: number;
+      bankTransfer: number;
       memberAccount: number;
       refunds: number;
       transactions: number;
@@ -937,6 +942,7 @@ export class ReportsService {
         cash: 0,
         card: 0,
         online: 0,
+        bankTransfer: 0,
         memberAccount: 0,
         refunds: 0,
         transactions: 0,
@@ -953,6 +959,8 @@ export class ReportsService {
         day.online += payment.amount;
       } else if (payment.method === PaymentMethod.CASH) {
         day.cash += payment.amount;
+      } else if (payment.method === PaymentMethod.BANK_TRANSFER) {
+        day.bankTransfer += payment.amount;
       } else if (payment.method === PaymentMethod.MEMBER_ACCOUNT) {
         day.memberAccount += payment.amount;
       } else {
@@ -970,6 +978,7 @@ export class ReportsService {
       cash: day.cash,
       card: day.card,
       online: day.online,
+      bankTransfer: day.bankTransfer,
       memberAccount: day.memberAccount,
       refunds: day.refunds,
       transactions: day.transactions,
@@ -2256,6 +2265,7 @@ function paymentMethodLabel(s: ReportStrings, method: string): string {
   const labels: Record<string, string> = {
     CASH: s.values.cash,
     CARD: s.values.card,
+    BANK_TRANSFER: s.values.bankTransfer,
     MEMBER_ACCOUNT: s.values.memberAccount,
   };
   return labels[method] ?? method;

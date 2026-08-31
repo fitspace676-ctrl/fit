@@ -185,6 +185,14 @@ describe('enabledPaymentMethods', () => {
     expect(enabledPaymentMethods(payments)).toEqual(['card', 'member_account']);
   });
 
+  it('bank transfer is off until a gym switches it on, then joins the till in its place', () => {
+    const off = gymPaymentMethodsSchema.parse({});
+    expect(off.acceptBankTransfer).toBe(false);
+    expect(enabledPaymentMethods(off)).toEqual(['cash', 'card', 'member_account']);
+    const on = gymPaymentMethodsSchema.parse({ acceptBankTransfer: true });
+    expect(enabledPaymentMethods(on)).toEqual(['cash', 'card', 'bank_transfer', 'member_account']);
+  });
+
   // The setting is named for the member's prepaid balance and the till's button for
   // the account it hangs off — one policy, two names. A rename on either side that
   // forgets the other would silently re-open a method the gym had closed.

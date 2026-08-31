@@ -671,6 +671,10 @@ export const gymPaymentMethodsSchema = z.object({
   acceptCash: z.boolean().default(true),
   acceptCard: z.boolean().default(true),
   acceptPrepaidCredits: z.boolean().default(true),
+  // Off by default: a transfer has to be checked against the bank before the
+  // sale is real, and a gym that does not do that at the desk should not see
+  // the button.
+  acceptBankTransfer: z.boolean().default(false),
 });
 
 /** The gym's accepted payment methods — {@link gymPaymentMethodsSchema}. */
@@ -688,6 +692,7 @@ export type GymPaymentMethods = z.infer<typeof gymPaymentMethodsSchema>;
 const PAYMENT_METHOD_TOGGLES = {
   cash: 'acceptCash',
   card: 'acceptCard',
+  bank_transfer: 'acceptBankTransfer',
   member_account: 'acceptPrepaidCredits',
 } as const satisfies Record<PaymentMethod, keyof GymPaymentMethods>;
 

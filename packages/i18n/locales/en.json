@@ -222,6 +222,7 @@
           "name": {
             "cash": "Cash",
             "card": "Card",
+            "bank-transfer": "Bank transfer",
             "member-account": "Member account"
           },
           "row": "{channel} · {name}",
@@ -643,7 +644,14 @@
       "range7d": "7 days",
       "rangeMtd": "Month to date",
       "rangeCustom": "Custom",
-      "customRange": "Custom date range",
+      "rangeFrom": "From",
+      "rangeTo": "To",
+      "calendar": {
+        "open": "Choose a date",
+        "previousMonth": "Previous month",
+        "nextMonth": "Next month",
+        "chooseYear": "Choose a year"
+      },
       "catalogueLabel": "Report catalogue",
       "columnCount": "{count, plural, one {# column} other {# columns}}",
       "selectPrompt": "Pick a report from the list to preview its rows and download it as CSV or XLSX.",
@@ -834,7 +842,9 @@
           "card": "Card",
           "cardHint": "Card terminal",
           "memberAccount": "Member account",
-          "memberAccountHint": "Charge to house account"
+          "memberAccountHint": "Charge to house account",
+          "bankTransfer": "Bank transfer",
+          "bankTransferHint": "Transfer to the gym account"
         },
         "chargedTo": "Charged to {name}’s account.",
         "cashReceived": "Cash received",
@@ -2142,6 +2152,8 @@
         "acceptCardDesc": "Accept card payments.",
         "acceptPrepaidLabel": "Prepaid credits",
         "acceptPrepaidDesc": "Let members pay from their prepaid credit balance.",
+        "acceptBankTransferLabel": "Bank transfer",
+        "acceptBankTransferDesc": "Record sales paid by transfer to the gym account. Check the transfer arrived before settling.",
         "noneEnabled": "Keep at least one payment method on - the POS cannot settle a sale without one."
       },
       "invoice": {

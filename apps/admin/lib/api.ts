@@ -2312,8 +2312,10 @@ export async function fetchAnalytics(range?: AnalyticsRange): Promise<AdminAnaly
  * set of cards for two gyms, and a different set for the same gym before and
  * after someone edits that toggle.
  */
-export async function fetchReportCatalog(): Promise<ReportCatalogResponse> {
-  const res = await fetch(`${apiBaseUrl()}/admin/reports`, {
+export async function fetchReportCatalog(
+  query: { all?: boolean } = {},
+): Promise<ReportCatalogResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/reports${query.all ? '?all=true' : ''}`, {
     headers: await authHeaders(),
     // Per-gym AND session/tenant-scoped — caching or hoisting this call out of
     // the request path would leak one gym's (or one moment's) catalogue into another.
