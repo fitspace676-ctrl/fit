@@ -6,11 +6,17 @@ import {
   REPORT_CATALOG,
   REPORT_DEFINITIONS,
   REPORT_DIGEST_KEYS,
+  REPORT_DIGEST_RANGE,
   REPORT_KEYS,
   REPORT_SEGMENTS,
   reportCsvRow,
   reportExportQuerySchema,
   reportQuerySchema,
+  reportRangeSchema,
+  reportQueryParams,
+  reportWindowInput,
+  reportWindowSlug,
+  reportWindowPresetSchema,
   reportXlsxCell,
   reportXlsxRow,
   type ReportColumn,
@@ -40,6 +46,362 @@ describe('report definitions', () => {
   });
 });
 
+describe('sales-transactions', () => {
+  it('lists every transaction column the front desk asked for, in reading order', () => {
+    const definition = REPORT_DEFINITIONS['sales-transactions'];
+    expect(definition.segment).toBe('sales');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'reference',
+      'customer',
+      'items',
+      'category',
+      'amount',
+      'method',
+      'channel',
+      'location',
+      'staff',
+      'status',
+    ]);
+    expect(definition.columns.find((c) => c.key === 'amount')?.type).toBe('money');
+  });
+});
+
+describe('plan-performance, refunds-detail, daily-reconciliation', () => {
+  it('plan & service performance names the item, its kind, how many, how much, its share and where', () => {
+    expect(REPORT_DEFINITIONS['plan-performance'].columns.map((c) => c.key)).toEqual([
+      'item',
+      'category',
+      'sold',
+      'revenue',
+      'share',
+      'location',
+    ]);
+    expect(
+      REPORT_DEFINITIONS['plan-performance'].columns.find((c) => c.key === 'share')?.type,
+    ).toBe('percent');
+  });
+
+  it('refunds carry when, who, what was refunded, how much, why, by whom and where', () => {
+    expect(REPORT_DEFINITIONS['refunds-detail'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'customer',
+      'order',
+      'items',
+      'amount',
+      'reason',
+      'processedBy',
+      'location',
+    ]);
+  });
+
+  it('daily reconciliation splits each day by how the money was collected', () => {
+    const definition = REPORT_DEFINITIONS['daily-reconciliation'];
+    expect(definition.segment).toBe('sales');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'date',
+      'total',
+      'cash',
+      'card',
+      'online',
+      'bankTransfer',
+      'memberAccount',
+      'refunds',
+      'transactions',
+      'references',
+    ]);
+  });
+});
+
+describe('member reports', () => {
+  it('the membership report carries the member base with status, dates, visits and value', () => {
+    expect(REPORT_DEFINITIONS['member-roster'].columns.map((c) => c.key)).toEqual([
+      'member',
+      'phone',
+      'email',
+      'status',
+      'plan',
+      'joined',
+      'startDate',
+      'expiresOn',
+      'lastVisit',
+      'visits',
+      'value',
+      'nextRenewal',
+    ]);
+  });
+
+  it('the check-in report names when, who, how and where', () => {
+    expect(REPORT_DEFINITIONS['member-check-in-log'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'member',
+      'method',
+      'location',
+    ]);
+  });
+
+  it('retention & engagement files each member under the attention they need', () => {
+    expect(REPORT_DEFINITIONS['members-at-risk'].columns.map((c) => c.key)).toEqual([
+      'group',
+      'member',
+      'phone',
+      'email',
+      'plan',
+      'status',
+      'lastVisit',
+      'daysSince',
+      'expiresOn',
+      'renewal',
+      'value',
+    ]);
+  });
+});
+
+describe('revenue reports', () => {
+  it('invoices & payments carry the obligation, what was paid, what is left, and how', () => {
+    expect(REPORT_DEFINITIONS['outstanding-invoices'].columns.map((c) => c.key)).toEqual([
+      'invoice',
+      'member',
+      'item',
+      'issuedAt',
+      'dueDate',
+      'amount',
+      'paid',
+      'outstanding',
+      'status',
+      'method',
+      'paidAt',
+      'location',
+    ]);
+  });
+
+  it('recurring & projected lists each live subscription with its recurring, monthly and expected amounts', () => {
+    expect(REPORT_DEFINITIONS['projected-revenue'].columns.map((c) => c.key)).toEqual([
+      'member',
+      'plan',
+      'recurring',
+      'interval',
+      'monthly',
+      'nextCharge',
+      'expected',
+      'status',
+    ]);
+  });
+
+  it('revenue by payment method sits in the revenue segment with a share per method and branch', () => {
+    const definition = REPORT_DEFINITIONS['revenue-by-payment-method'];
+    expect(definition.segment).toBe('revenue');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'method',
+      'payments',
+      'revenue',
+      'share',
+      'location',
+    ]);
+  });
+});
+
+describe('products segment', () => {
+  it('sits between revenue and classes with four reports', () => {
+    expect(REPORT_SEGMENTS).toEqual([
+      'sales',
+      'members',
+      'revenue',
+      'products',
+      'classes',
+      'staff',
+    ]);
+    for (const key of [
+      'product-sales',
+      'product-sales-detail',
+      'stock-inventory',
+      'stock-movements',
+    ] as const) {
+      expect(REPORT_DEFINITIONS[key].segment, key).toBe('products');
+    }
+  });
+
+  it('product sales: per product, variant and branch, with cost, margin and channel split', () => {
+    expect(REPORT_DEFINITIONS['product-sales'].columns.map((c) => c.key)).toEqual([
+      'product',
+      'variant',
+      'sku',
+      'category',
+      'quantity',
+      'revenue',
+      'cogs',
+      'margin',
+      'marginPct',
+      'avgPrice',
+      'posSales',
+      'onlineSales',
+      'transactions',
+      'location',
+    ]);
+  });
+
+  it('product sales detail: one row per sold line', () => {
+    expect(REPORT_DEFINITIONS['product-sales-detail'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'product',
+      'variant',
+      'quantity',
+      'customer',
+      'channel',
+      'price',
+      'cost',
+      'margin',
+      'method',
+      'location',
+      'staff',
+      'reference',
+    ]);
+  });
+
+  it('stock & inventory: every stock position with its value and status', () => {
+    expect(REPORT_DEFINITIONS['stock-inventory'].columns.map((c) => c.key)).toEqual([
+      'product',
+      'variant',
+      'sku',
+      'stock',
+      'unitCost',
+      'stockValue',
+      'threshold',
+      'status',
+    ]);
+  });
+
+  it('stock movements: every change with before, after and value impact', () => {
+    expect(REPORT_DEFINITIONS['stock-movements'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'product',
+      'variant',
+      'sku',
+      'type',
+      'delta',
+      'before',
+      'after',
+      'valueImpact',
+      'reference',
+      'staff',
+      'note',
+    ]);
+  });
+});
+
+describe('classes & training reports', () => {
+  it('classes & attendance: one row per session with the seat counts and utilisation', () => {
+    expect(REPORT_DEFINITIONS['attendance-by-class'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'class',
+      'trainer',
+      'location',
+      'capacity',
+      'booked',
+      'attended',
+      'cancelled',
+      'noShows',
+      'waitlist',
+      'utilization',
+    ]);
+  });
+
+  it('class bookings: every booking with when it was made, its outcome, the check-in and the waitlist place', () => {
+    expect(REPORT_DEFINITIONS['class-cancellations'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'class',
+      'trainer',
+      'location',
+      'member',
+      'bookedAt',
+      'status',
+      'checkedIn',
+      'waitlistPosition',
+    ]);
+  });
+
+  it('pt sessions: one row per session with member, trainer, duration and value', () => {
+    expect(REPORT_DEFINITIONS['pt-sessions'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'member',
+      'trainer',
+      'location',
+      'status',
+      'duration',
+      'value',
+    ]);
+  });
+
+  it('credit usage: purchased, used and remaining per pack', () => {
+    const definition = REPORT_DEFINITIONS['credit-usage'];
+    expect(definition.segment).toBe('classes');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'member',
+      'package',
+      'purchased',
+      'used',
+      'remaining',
+      'expiresOn',
+      'lastSession',
+      'status',
+    ]);
+  });
+});
+
+describe('trainers & staff reports', () => {
+  it('trainer sales: per trainer and branch - packages, sessions, value', () => {
+    const definition = REPORT_DEFINITIONS['trainer-sales'];
+    expect(definition.segment).toBe('staff');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'trainer',
+      'packagesSold',
+      'sessionsSold',
+      'totalValue',
+      'location',
+    ]);
+    expect(REPORT_DEFINITIONS['trainer-sales-detail'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'trainer',
+      'member',
+      'package',
+      'sessions',
+      'amount',
+      'location',
+    ]);
+  });
+
+  it("staff schedule: the weekly shifts projected onto the window's days", () => {
+    expect(REPORT_DEFINITIONS['staff-schedule'].columns.map((c) => c.key)).toEqual([
+      'staff',
+      'role',
+      'date',
+      'start',
+      'end',
+      'location',
+    ]);
+  });
+
+  it('audit log: who did what to which record, with the values before and after', () => {
+    expect(REPORT_DEFINITIONS['audit-log'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'staff',
+      'action',
+      'target',
+      'previous',
+      'next',
+    ]);
+  });
+});
+
 describe('groupReportsBySegment', () => {
   it('groups in segment order and keeps each segment’s catalogue order', () => {
     const grouped = groupReportsBySegment(REPORT_CATALOG);
@@ -53,6 +415,18 @@ describe('groupReportsBySegment', () => {
     expect(grouped.flatMap((g) => g.reports.map((r) => r.key)).sort()).toEqual(
       [...REPORT_KEYS].sort(),
     );
+  });
+
+  it('takes the segment labels from the caller, so a localised catalogue groups under its own words', () => {
+    const groups = groupReportsBySegment([REPORT_DEFINITIONS['sales-summary']], {
+      sales: 'გაყიდვები',
+      members: 'წევრები',
+      revenue: 'შემოსავალი',
+      products: 'პროდუქტები',
+      classes: 'კლასები',
+      staff: 'პერსონალი',
+    });
+    expect(groups.map((g) => g.label)).toEqual(['გაყიდვები']);
   });
 
   it('omits a segment that has no reports rather than rendering an empty heading', () => {
@@ -75,6 +449,23 @@ describe('report digest', () => {
   });
 });
 
+describe('report range vocabulary', () => {
+  it('offers the console exactly today / 7d / month-to-date / custom', () => {
+    expect(reportRangeSchema.options).toEqual(['today', '7d', 'mtd', 'custom']);
+  });
+
+  it('opens on month to date', () => {
+    expect(DEFAULT_REPORT_RANGE).toBe('mtd');
+  });
+
+  it('keeps the dashboard and digest window presets the console no longer offers', () => {
+    // `30d` / `12w` / `12m` left the Reports control but the dashboard charts and
+    // the emailed digest still window over them.
+    expect(reportWindowPresetSchema.options).toEqual(['today', '7d', '30d', 'mtd', '12w', '12m']);
+    expect(REPORT_DIGEST_RANGE).toEqual({ weekly: '7d', monthly: '30d' });
+  });
+});
+
 describe('report query schemas', () => {
   it('defaults the preview range to the shared default', () => {
     expect(reportQuerySchema.parse({})).toEqual({ range: DEFAULT_REPORT_RANGE });
@@ -88,12 +479,87 @@ describe('report query schemas', () => {
   });
 
   it('accepts a valid range + format and rejects unknown ones', () => {
-    expect(reportExportQuerySchema.parse({ range: '12m', format: 'xlsx' })).toEqual({
-      range: '12m',
+    expect(reportExportQuerySchema.parse({ range: 'today', format: 'xlsx' })).toEqual({
+      range: 'today',
       format: 'xlsx',
     });
     expect(reportExportQuerySchema.safeParse({ format: 'pdf' }).success).toBe(false);
     expect(reportQuerySchema.safeParse({ range: '1y' }).success).toBe(false);
+    // The retired presets are a 400 now, not a silent alias.
+    expect(reportQuerySchema.safeParse({ range: '30d' }).success).toBe(false);
+  });
+
+  it('a custom range carries both of its days', () => {
+    expect(
+      reportQuerySchema.parse({ range: 'custom', from: '2026-08-01', to: '2026-08-15' }),
+    ).toEqual({
+      range: 'custom',
+      from: '2026-08-01',
+      to: '2026-08-15',
+    });
+    expect(
+      reportExportQuerySchema.parse({ range: 'custom', from: '2026-08-01', to: '2026-08-01' }),
+    ).toEqual({
+      range: 'custom',
+      from: '2026-08-01',
+      to: '2026-08-01',
+      format: 'csv',
+    });
+  });
+
+  it('rejects a custom range missing a day, out of order, malformed, or over a year', () => {
+    const bad = [
+      { range: 'custom' },
+      { range: 'custom', from: '2026-08-01' },
+      { range: 'custom', to: '2026-08-01' },
+      { range: 'custom', from: '2026-08-15', to: '2026-08-01' },
+      { range: 'custom', from: '2026-8-1', to: '2026-08-15' },
+      { range: 'custom', from: '2026-02-30', to: '2026-03-01' },
+      { range: 'custom', from: '2025-08-01', to: '2026-08-02' },
+    ];
+    for (const query of bad) {
+      expect(reportQuerySchema.safeParse(query).success, JSON.stringify(query)).toBe(false);
+      expect(reportExportQuerySchema.safeParse(query).success, JSON.stringify(query)).toBe(false);
+    }
+    // 366 days inclusive is the cap, so a leap year is still one range.
+    expect(
+      reportQuerySchema.safeParse({ range: 'custom', from: '2025-08-02', to: '2026-08-02' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('drops stray days from a preset so they cannot leak into the window', () => {
+    expect(reportQuerySchema.parse({ range: '7d', from: '2026-08-01', to: '2026-08-15' })).toEqual({
+      range: '7d',
+    });
+  });
+});
+
+describe('reportQueryParams', () => {
+  it('serialises a preset as just its range and a custom range with its days', () => {
+    expect(reportQueryParams({ range: '7d' }).toString()).toBe('range=7d');
+    expect(
+      reportQueryParams({ range: 'custom', from: '2026-08-01', to: '2026-08-15' }).toString(),
+    ).toBe('range=custom&from=2026-08-01&to=2026-08-15');
+  });
+});
+
+describe('reportWindowSlug', () => {
+  it('names a preset by its token and a custom range by its two days', () => {
+    expect(reportWindowSlug({ range: 'today' })).toBe('today');
+    expect(reportWindowSlug({ range: 'custom', from: '2026-08-01', to: '2026-08-15' })).toBe(
+      '2026-08-01_2026-08-15',
+    );
+  });
+});
+
+describe('reportWindowInput', () => {
+  it('hands a preset through and turns custom into its two days', () => {
+    expect(reportWindowInput({ range: 'mtd' })).toBe('mtd');
+    expect(reportWindowInput({ range: 'custom', from: '2026-08-01', to: '2026-08-15' })).toEqual({
+      from: '2026-08-01',
+      to: '2026-08-15',
+    });
   });
 });
 

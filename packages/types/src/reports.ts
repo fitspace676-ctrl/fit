@@ -20,23 +20,170 @@
 // decimals for spreadsheet reconciliation, exactly like the orders CSV export (T4.11).
 
 import { z } from 'zod';
-import { analyticsRangeSchema, DEFAULT_ANALYTICS_RANGE, type AnalyticsRange } from './analytics';
 
 /* -------------------------------------------------------------------------- */
 /*  Request                                                                     */
 /* -------------------------------------------------------------------------- */
 
 /**
- * The reporting window a report is computed over. Reuses the analytics range
- * vocabulary (`7d` / `30d` / `12w` / `12m`) so the Reports and Analytics screens
- * offer one consistent set of presets, and each value fixes the bucket granularity
- * of any time-series report (membership growth) the same way analytics does.
+ * The reporting window the Reports console offers: today, the last 7 days, the
+ * month so far, or two days of the reader's own choosing. The last one needs
+ * `from` / `to` beside it — see {@link reportQuerySchema}.
+ *
+ * This used to alias the analytics vocabulary (`7d` / `30d` / `12w` / `12m`).
+ * The two screens ask different questions — the dashboard trends over a fixed
+ * span, a report answers "how did today / this week / this month go" — so the
+ * Reports control now has its own words. The old spans did not vanish: they live
+ * on as {@link reportWindowPresetSchema}, which the dashboard charts and the
+ * emailed digest still window over.
  */
-export const reportRangeSchema = analyticsRangeSchema;
-export type ReportRange = AnalyticsRange;
+export const reportRangeSchema = z.enum(['today', '7d', 'mtd', 'custom']);
+export type ReportRange = z.infer<typeof reportRangeSchema>;
 
-/** The default window when a report query omits `range`. */
-export const DEFAULT_REPORT_RANGE: ReportRange = DEFAULT_ANALYTICS_RANGE;
+/**
+ * The default window when a report query omits `range` — the month so far. Typed
+ * as the literal, not {@link ReportRange}, so it can also stand in as a resolver
+ * preset: `custom` is the one range with no default window of its own.
+ */
+export const DEFAULT_REPORT_RANGE = 'mtd' satisfies ReportRange;
+
+/**
+ * Every preset the window resolver understands. A superset of the console's
+ * {@link reportRangeSchema} (minus `custom`): `30d` / `12w` / `12m` are no longer
+ * on the Reports control but the dashboard's granularity tabs and the report
+ * digest still resolve through them, and one resolver serving all three is the
+ * point — a bucket starts in the same place on every screen.
+ */
+export const reportWindowPresetSchema = z.enum(['today', '7d', '30d', 'mtd', '12w', '12m']);
+export type ReportWindowPreset = z.infer<typeof reportWindowPresetSchema>;
+
+/** Two calendar days, inclusive, in the gym's own zone. */
+export interface ReportCustomWindow {
+  from: string;
+  to: string;
+}
+
+/** What the window resolver takes: a preset token, or a custom pair of days. */
+export type ReportWindowInput = ReportWindowPreset | ReportCustomWindow;
+
+/** Inclusive length, in days, of the longest custom window a report will run over. */
+export const MAX_CUSTOM_RANGE_DAYS = 366;
+
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** `YYYY-MM-DD` → UTC-midnight epoch millis, or `null` when it is not a real day. */
+function isoDayToUtc(value: string): number | null {
+  const match = ISO_DAY.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const at = Date.UTC(year, month - 1, day);
+  const back = new Date(at);
+  // Date.UTC rolls `2026-02-30` over to March; a real day round-trips.
+  if (
+    back.getUTCFullYear() !== year ||
+    back.getUTCMonth() !== month - 1 ||
+    back.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return at;
+}
+
+/** A `YYYY-MM-DD` calendar day that exists. */
+const isoDaySchema = z.string().refine((value) => isoDayToUtc(value) !== null, {
+  message: 'Expected a YYYY-MM-DD calendar day',
+});
+
+/**
+ * The `range` / `from` / `to` trio every report query carries. Kept as a shape
+ * plus a refinement (rather than one schema) so the export query can add
+ * `format` and still be refined the same way — `z.object(...).superRefine()`
+ * cannot be extended afterwards.
+ */
+const reportWindowShape = {
+  range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
+  from: isoDaySchema.optional(),
+  to: isoDaySchema.optional(),
+};
+
+type ReportWindowFields = { range: ReportRange; from?: string; to?: string };
+
+/**
+ * A `custom` range needs both days, in order, and no longer than
+ * {@link MAX_CUSTOM_RANGE_DAYS}. A preset ignores the days — and DROPS them, so a
+ * stale `&from=` left in a URL cannot reach the resolver beside `7d`.
+ */
+function refineReportWindow<T extends ReportWindowFields>(value: T, ctx: z.RefinementCtx): void {
+  if (value.range !== 'custom') {
+    delete value.from;
+    delete value.to;
+    return;
+  }
+  if (value.from === undefined || value.to === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [value.from === undefined ? 'from' : 'to'],
+      message: 'A custom range needs both from and to',
+    });
+    return;
+  }
+  const from = isoDayToUtc(value.from);
+  const to = isoDayToUtc(value.to);
+  if (from === null || to === null) return; // already reported by isoDaySchema
+  if (to < from) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['to'],
+      message: 'to must not be before from',
+    });
+    return;
+  }
+  const days = Math.round((to - from) / 86_400_000) + 1;
+  if (days > MAX_CUSTOM_RANGE_DAYS) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['to'],
+      message: `A custom range covers at most ${MAX_CUSTOM_RANGE_DAYS} days`,
+    });
+  }
+}
+
+/**
+ * The window's name in a download's filename: the preset token, or a custom
+ * range's two days joined by an underscore (`2026-08-01_2026-08-15`) — both
+ * shell-safe and both readable back into the query they came from.
+ */
+export function reportWindowSlug(query: ReportWindowFields): string {
+  const input = reportWindowInput(query);
+  return typeof input === 'string' ? input : `${input.from}_${input.to}`;
+}
+
+/**
+ * The query string a window travels as — `range`, plus `from` / `to` only on a
+ * custom range — shared by the console's links, its fetchers and its download
+ * URLs so none of them can spell the window differently.
+ */
+export function reportQueryParams(query: ReportWindowFields): URLSearchParams {
+  const params = new URLSearchParams({ range: query.range });
+  if (query.range === 'custom' && query.from !== undefined && query.to !== undefined) {
+    params.set('from', query.from);
+    params.set('to', query.to);
+  }
+  return params;
+}
+
+/** What the resolver should window over, from a parsed query. */
+export function reportWindowInput(query: ReportWindowFields): ReportWindowInput {
+  if (query.range === 'custom') {
+    // The schemas guarantee both days on a custom range; a hand-built query
+    // that skips them gets the default rather than a half-open window.
+    if (query.from === undefined || query.to === undefined) return DEFAULT_REPORT_RANGE;
+    return { from: query.from, to: query.to };
+  }
+  return query.range;
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Segments                                                                    */
@@ -54,7 +201,14 @@ export const DEFAULT_REPORT_RANGE: ReportRange = DEFAULT_ANALYTICS_RANGE;
  * A segment with no reports yet is simply absent from the hub — the grouping is
  * derived from the catalogue, never hardcoded alongside it.
  */
-export const REPORT_SEGMENTS = ['sales', 'members', 'revenue', 'classes', 'staff'] as const;
+export const REPORT_SEGMENTS = [
+  'sales',
+  'members',
+  'revenue',
+  'products',
+  'classes',
+  'staff',
+] as const;
 
 /** A report segment — {@link REPORT_SEGMENTS}. */
 export const reportSegmentSchema = z.enum(REPORT_SEGMENTS);
@@ -65,6 +219,7 @@ export const REPORT_SEGMENT_LABEL: Record<ReportSegment, string> = {
   sales: 'Sales',
   members: 'Members',
   revenue: 'Revenue',
+  products: 'Products',
   classes: 'Classes & training',
   staff: 'Trainers & staff',
 };
@@ -85,6 +240,8 @@ export const REPORT_KEYS = [
   'discounts-and-promotions',
   'refunds-detail',
   'pos-transaction-log',
+  'sales-transactions',
+  'daily-reconciliation',
   // Members
   'membership-movement',
   'retention-and-churn',
@@ -97,18 +254,29 @@ export const REPORT_KEYS = [
   'revenue-summary',
   'revenue-by-channel',
   'revenue-by-location',
+  'revenue-by-payment-method',
   'outstanding-invoices',
   'projected-revenue',
   'refunds-accounting',
+  // Products
+  'product-sales',
+  'product-sales-detail',
+  'stock-inventory',
+  'stock-movements',
   // Classes
   'attendance-by-class',
   'class-utilization',
   'class-cancellations',
   'waitlist-demand',
   'pt-sessions',
+  'credit-usage',
   'no-show-rate',
   // Staff
   'trainer-performance',
+  'trainer-sales',
+  'trainer-sales-detail',
+  'staff-schedule',
+  'audit-log',
 ] as const;
 
 /** A report catalogue key — {@link REPORT_KEYS}. */
@@ -119,17 +287,14 @@ export type ReportKey = z.infer<typeof reportKeySchema>;
 export const reportFormatSchema = z.enum(['csv', 'xlsx']);
 export type ReportFormat = z.infer<typeof reportFormatSchema>;
 
-/** `GET /admin/reports/:report?range=` query — the on-screen preview. */
-export const reportQuerySchema = z.object({
-  range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
-});
+/** `GET /admin/reports/:report?range=&from=&to=` query — the on-screen preview. */
+export const reportQuerySchema = z.object(reportWindowShape).superRefine(refineReportWindow);
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
 
-/** `GET /admin/reports/:report/export?range=&format=` query — the file download. */
-export const reportExportQuerySchema = z.object({
-  range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
-  format: reportFormatSchema.default('csv'),
-});
+/** `GET /admin/reports/:report/export?range=&from=&to=&format=` query — the file download. */
+export const reportExportQuerySchema = z
+  .object({ ...reportWindowShape, format: reportFormatSchema.default('csv') })
+  .superRefine(refineReportWindow);
 export type ReportExportQuery = z.infer<typeof reportExportQuerySchema>;
 
 /* -------------------------------------------------------------------------- */
@@ -200,12 +365,16 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'plan-performance': {
     key: 'plan-performance',
     segment: 'sales',
-    name: 'Plan performance',
-    description: 'Sales count and revenue per plan or package, ranked by revenue.',
+    name: 'Plan & service performance',
+    description:
+      "What sold - memberships, session packs, personal training, other services and products - how many, for how much, each one's share of the window's sales, and at which branch.",
     columns: [
-      { key: 'plan', label: 'Plan', type: 'text' },
-      { key: 'orders', label: 'Sales', type: 'number' },
-      { key: 'revenue', label: 'Revenue', type: 'money' },
+      { key: 'item', label: 'Plan / service', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'sold', label: 'Sold', type: 'number' },
+      { key: 'revenue', label: 'Sales value', type: 'money' },
+      { key: 'share', label: 'Share of sales', type: 'percent' },
+      { key: 'location', label: 'Location', type: 'text' },
     ],
   },
   'sales-by-staff': {
@@ -236,14 +405,19 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'refunds-detail': {
     key: 'refunds-detail',
     segment: 'sales',
-    name: 'Refunds detail',
-    description: 'Every refund line by line — amount, reason, and who processed it.',
+    name: 'Refunds',
+    description:
+      'Every refund in the window - when, whose, against which sale and which items, how much, why, who processed it, and where.',
     columns: [
       { key: 'date', label: 'Date', type: 'date' },
-      { key: 'order', label: 'Order', type: 'text' },
-      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'customer', label: 'Customer', type: 'text' },
+      { key: 'order', label: 'Original sale', type: 'text' },
+      { key: 'items', label: 'Original items', type: 'text' },
+      { key: 'amount', label: 'Refund amount', type: 'money' },
       { key: 'reason', label: 'Reason', type: 'text' },
-      { key: 'processedBy', label: 'Processed by', type: 'text' },
+      { key: 'processedBy', label: 'Staff member', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
     ],
   },
   'pos-transaction-log': {
@@ -259,6 +433,46 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
       { key: 'method', label: 'Method', type: 'text' },
       { key: 'total', label: 'Total', type: 'money' },
       { key: 'staff', label: 'Sold by', type: 'text' },
+    ],
+  },
+  'sales-transactions': {
+    key: 'sales-transactions',
+    segment: 'sales',
+    name: 'Sales transactions',
+    description:
+      'Every sale in the window, one row per transaction - who bought what, how much, how it was paid, through which channel, where, and by whom.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'reference', label: 'Reference', type: 'text' },
+      { key: 'customer', label: 'Customer', type: 'text' },
+      { key: 'items', label: 'Items', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'method', label: 'Payment method', type: 'text' },
+      { key: 'channel', label: 'Channel', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'staff', label: 'Staff', type: 'text' },
+      { key: 'status', label: 'Status', type: 'text' },
+    ],
+  },
+  'daily-reconciliation': {
+    key: 'daily-reconciliation',
+    segment: 'sales',
+    name: 'Daily reconciliation',
+    description:
+      "Each day's takings and how they were collected - cash, card at the till, online, bank transfer, member account - beside the refunds issued, the number of sales, and the receipts behind the total.",
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'total', label: 'Total sales', type: 'money' },
+      { key: 'cash', label: 'Cash', type: 'money' },
+      { key: 'card', label: 'Card / POS', type: 'money' },
+      { key: 'online', label: 'Online', type: 'money' },
+      { key: 'bankTransfer', label: 'Bank transfer', type: 'money' },
+      { key: 'memberAccount', label: 'Member account', type: 'money' },
+      { key: 'refunds', label: 'Refunds', type: 'money' },
+      { key: 'transactions', label: 'Transactions', type: 'number' },
+      { key: 'references', label: 'Underlying transactions', type: 'text' },
     ],
   },
 
@@ -295,16 +509,21 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'members-at-risk': {
     key: 'members-at-risk',
     segment: 'members',
-    name: 'Members at risk',
+    name: 'Retention & engagement',
     description:
-      'Members who are still paying but have stopped turning up — call list, longest absence first.',
+      'Members who need retention or renewal attention, filed by why: a renewal falling due, a membership about to expire, one that recently expired or was cancelled, a member who came back, and members who have stopped turning up.',
     columns: [
+      { key: 'group', label: 'Attention', type: 'text' },
       { key: 'member', label: 'Member', type: 'text' },
-      { key: 'plan', label: 'Plan', type: 'text' },
-      { key: 'lastVisit', label: 'Last visit', type: 'date' },
-      { key: 'daysAway', label: 'Days away', type: 'number' },
       { key: 'phone', label: 'Phone', type: 'text' },
       { key: 'email', label: 'Email', type: 'text' },
+      { key: 'plan', label: 'Plan', type: 'text' },
+      { key: 'status', label: 'Membership status', type: 'text' },
+      { key: 'lastVisit', label: 'Last visit', type: 'date' },
+      { key: 'daysSince', label: 'Days since last visit', type: 'number' },
+      { key: 'expiresOn', label: 'Expires', type: 'date' },
+      { key: 'renewal', label: 'Renewal', type: 'text' },
+      { key: 'value', label: 'Membership value', type: 'money' },
     ],
   },
   'expiring-memberships': {
@@ -325,22 +544,30 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'member-roster': {
     key: 'member-roster',
     segment: 'members',
-    name: 'Member roster',
-    description: 'Every member with their status, plan, join date and last visit.',
+    name: 'Membership report',
+    description:
+      'The full member base with current membership information: status (active, new, expiring, renewal due, expired, cancelled, frozen), plan, dates, visits in the window, value and the next renewal.',
     columns: [
       { key: 'member', label: 'Member', type: 'text' },
-      { key: 'status', label: 'Status', type: 'text' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'status', label: 'Membership status', type: 'text' },
       { key: 'plan', label: 'Plan', type: 'text' },
       { key: 'joined', label: 'Joined', type: 'date' },
+      { key: 'startDate', label: 'Membership start', type: 'date' },
+      { key: 'expiresOn', label: 'Expires', type: 'date' },
       { key: 'lastVisit', label: 'Last visit', type: 'date' },
-      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'visits', label: 'Visits in window', type: 'number' },
+      { key: 'value', label: 'Membership value', type: 'money' },
+      { key: 'nextRenewal', label: 'Next renewal', type: 'date' },
     ],
   },
   'member-check-in-log': {
     key: 'member-check-in-log',
     segment: 'members',
-    name: 'Check-in log',
-    description: 'Every visit in the window — who came in, when, how, and to which branch.',
+    name: 'Check-in report',
+    description:
+      'Every visit in the window - who came in, when, by which method, and to which branch.',
     columns: [
       { key: 'date', label: 'Date', type: 'date' },
       { key: 'time', label: 'Time', type: 'text' },
@@ -407,30 +634,56 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
       { key: 'net', label: 'Net', type: 'money' },
     ],
   },
+  'revenue-by-payment-method': {
+    key: 'revenue-by-payment-method',
+    segment: 'revenue',
+    name: 'Revenue by payment method',
+    description:
+      "How revenue was collected - cash, card at the till, online, bank transfer, member account - per branch, net of refunds, with each method's share of the total.",
+    columns: [
+      { key: 'method', label: 'Payment method', type: 'text' },
+      { key: 'payments', label: 'Payments', type: 'number' },
+      { key: 'revenue', label: 'Revenue', type: 'money' },
+      { key: 'share', label: 'Share of revenue', type: 'percent' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
   'outstanding-invoices': {
     key: 'outstanding-invoices',
     segment: 'revenue',
-    name: 'Outstanding invoices',
-    description: 'Unpaid and failed invoices, longest overdue first, with who owes what.',
+    name: 'Invoices & payments',
+    description:
+      'Every invoice issued in the window plus every one still owed: what it was for, when it was issued and due, what was paid and what is outstanding, its status (paid, unpaid, overdue, upcoming, refunded), how and when it was paid, and where.',
     columns: [
       { key: 'invoice', label: 'Invoice', type: 'text' },
       { key: 'member', label: 'Member', type: 'text' },
-      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'item', label: 'Plan / purchase', type: 'text' },
+      { key: 'issuedAt', label: 'Invoice date', type: 'date' },
       { key: 'dueDate', label: 'Due', type: 'date' },
-      { key: 'daysOverdue', label: 'Days overdue', type: 'number' },
+      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'paid', label: 'Paid', type: 'money' },
+      { key: 'outstanding', label: 'Outstanding', type: 'money' },
       { key: 'status', label: 'Status', type: 'text' },
+      { key: 'method', label: 'Payment method', type: 'text' },
+      { key: 'paidAt', label: 'Paid on', type: 'date' },
+      { key: 'location', label: 'Location', type: 'text' },
     ],
   },
   'projected-revenue': {
     key: 'projected-revenue',
     segment: 'revenue',
-    name: 'Projected revenue',
+    name: 'Recurring & projected revenue',
     description:
-      'Subscription renewals falling due in the window ahead, and what they are scheduled to charge.',
+      'Every live subscription with what it recurs at, its value per month (the monthly column sums to current recurring revenue), the next charge date, and what it is scheduled to charge inside the window AHEAD (the expected column sums to expected revenue for that period). Scheduled, not guaranteed: a renewal can fail or be cancelled first.',
     columns: [
-      { key: 'period', label: 'Period', type: 'date' },
-      { key: 'renewals', label: 'Renewals due', type: 'number' },
-      { key: 'expected', label: 'Expected', type: 'money' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'plan', label: 'Plan', type: 'text' },
+      { key: 'recurring', label: 'Recurring amount', type: 'money' },
+      { key: 'interval', label: 'Billed', type: 'text' },
+      { key: 'monthly', label: 'Per month', type: 'money' },
+      { key: 'nextCharge', label: 'Next charge', type: 'date' },
+      { key: 'expected', label: 'Expected in window', type: 'money' },
+      { key: 'status', label: 'Status', type: 'text' },
     ],
   },
   'refunds-accounting': {
@@ -450,19 +703,110 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
 
   /* ---- Classes ---------------------------------------------------------- */
 
+  'product-sales': {
+    key: 'product-sales',
+    segment: 'products',
+    name: 'Product sales',
+    description:
+      'How physical products sold, through the till and online: per product, variant and branch - quantity, sales value, cost of goods, gross margin, average selling price, the POS / online split and how many sales carried it.',
+    columns: [
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'sku', label: 'SKU', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'quantity', label: 'Quantity sold', type: 'number' },
+      { key: 'revenue', label: 'Sales value', type: 'money' },
+      { key: 'cogs', label: 'Cost of goods', type: 'money' },
+      { key: 'margin', label: 'Gross margin', type: 'money' },
+      { key: 'marginPct', label: 'Margin %', type: 'percent' },
+      { key: 'avgPrice', label: 'Avg selling price', type: 'money' },
+      { key: 'posSales', label: 'POS sales', type: 'money' },
+      { key: 'onlineSales', label: 'Online sales', type: 'money' },
+      { key: 'transactions', label: 'Transactions', type: 'number' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'product-sales-detail': {
+    key: 'product-sales-detail',
+    segment: 'products',
+    name: 'Product sales detail',
+    description:
+      'Every product line sold in the window: when, what, how many, to whom, through which channel, at what price and cost, how it was paid, where, by whom, and the sale it belongs to.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'quantity', label: 'Quantity', type: 'number' },
+      { key: 'customer', label: 'Customer', type: 'text' },
+      { key: 'channel', label: 'Channel', type: 'text' },
+      { key: 'price', label: 'Selling price', type: 'money' },
+      { key: 'cost', label: 'Cost price', type: 'money' },
+      { key: 'margin', label: 'Margin', type: 'money' },
+      { key: 'method', label: 'Payment method', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'staff', label: 'Staff', type: 'text' },
+      { key: 'reference', label: 'Reference', type: 'text' },
+    ],
+  },
+  'stock-inventory': {
+    key: 'stock-inventory',
+    segment: 'products',
+    name: 'Stock & inventory',
+    description:
+      'Current stock of every product and variant, its unit cost and stock value, the low-stock threshold, and a status against it (in stock, low stock, out of stock, not tracked). Stock is held per product, not per branch.',
+    columns: [
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'sku', label: 'SKU', type: 'text' },
+      { key: 'stock', label: 'Current stock', type: 'number' },
+      { key: 'unitCost', label: 'Unit cost', type: 'money' },
+      { key: 'stockValue', label: 'Stock value', type: 'money' },
+      { key: 'threshold', label: 'Low-stock threshold', type: 'number' },
+      { key: 'status', label: 'Status', type: 'text' },
+    ],
+  },
+  'stock-movements': {
+    key: 'stock-movements',
+    segment: 'products',
+    name: 'Stock movement history',
+    description:
+      'Every change to product stock in the window, oldest first: the type (initial stock, received, POS sale, online sale, customer return, manual adjustment, stocktake correction, write-off), the change, stock before and after, the cost impact, the sale it came from, who made it, and the note left with it.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'product', label: 'Product', type: 'text' },
+      { key: 'variant', label: 'Variant', type: 'text' },
+      { key: 'sku', label: 'SKU', type: 'text' },
+      { key: 'type', label: 'Movement type', type: 'text' },
+      { key: 'delta', label: 'Quantity change', type: 'number' },
+      { key: 'before', label: 'Stock before', type: 'number' },
+      { key: 'after', label: 'Stock after', type: 'number' },
+      { key: 'valueImpact', label: 'Cost impact', type: 'money' },
+      { key: 'reference', label: 'Reference', type: 'text' },
+      { key: 'staff', label: 'Staff member', type: 'text' },
+      { key: 'note', label: 'Note', type: 'text' },
+    ],
+  },
   'attendance-by-class': {
     key: 'attendance-by-class',
     segment: 'classes',
-    name: 'Class attendance',
-    description: 'Seats booked, attended and missed per class, with both rates.',
+    name: 'Classes & attendance',
+    description:
+      'Every class session in the window: who taught it and where, its capacity, how many booked, attended, cancelled, failed to turn up or waited for a seat, and utilisation against capacity.',
     columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
       { key: 'class', label: 'Class', type: 'text' },
       { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'capacity', label: 'Capacity', type: 'number' },
       { key: 'booked', label: 'Booked', type: 'number' },
       { key: 'attended', label: 'Attended', type: 'number' },
-      { key: 'noShow', label: 'No-shows', type: 'number' },
-      { key: 'attendanceRate', label: 'Attendance rate', type: 'percent' },
-      { key: 'noShowRate', label: 'No-show rate', type: 'percent' },
+      { key: 'cancelled', label: 'Cancelled', type: 'number' },
+      { key: 'noShows', label: 'No-shows', type: 'number' },
+      { key: 'waitlist', label: 'Waitlisted', type: 'number' },
+      { key: 'utilization', label: 'Utilization', type: 'percent' },
     ],
   },
   'class-utilization': {
@@ -482,16 +826,20 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'class-cancellations': {
     key: 'class-cancellations',
     segment: 'classes',
-    name: 'Cancellations & no-shows',
+    name: 'Class bookings',
     description:
-      'Line-item list of who cancelled or failed to turn up, for policy and no-show fees.',
+      'Every booking on a session in the window, one row each: who, when they booked, the outcome (booked, attended, no-show, cancelled, waitlisted), whether they checked in around the class, and their waitlist place. The time a booking was cancelled is not recorded.',
     columns: [
       { key: 'date', label: 'Date', type: 'date' },
       { key: 'time', label: 'Time', type: 'text' },
       { key: 'class', label: 'Class', type: 'text' },
-      { key: 'member', label: 'Member', type: 'text' },
-      { key: 'outcome', label: 'Outcome', type: 'text' },
       { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'bookedAt', label: 'Booked at', type: 'text' },
+      { key: 'status', label: 'Attendance status', type: 'text' },
+      { key: 'checkedIn', label: 'Checked in', type: 'text' },
+      { key: 'waitlistPosition', label: 'Waitlist place', type: 'number' },
     ],
   },
   'waitlist-demand': {
@@ -513,13 +861,33 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'classes',
     name: 'PT sessions',
     description:
-      'Personal-training sessions per trainer. Revenue is not included: a PT session carries no price, and the money sits in the credit pack that paid for it.',
+      "Every personal-training session in the window, one row each: a slot a member booked (with the invoice it raised) and the trainer calendar's own sessions. Neither is tied to a credit pack, so there is no package column yet.",
     columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
       { key: 'trainer', label: 'Trainer', type: 'text' },
-      { key: 'sessions', label: 'Sessions', type: 'number' },
-      { key: 'completed', label: 'Completed', type: 'number' },
-      { key: 'cancelled', label: 'Cancelled', type: 'number' },
-      { key: 'completionRate', label: 'Completion rate', type: 'percent' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'status', label: 'Status', type: 'text' },
+      { key: 'duration', label: 'Duration (min)', type: 'number' },
+      { key: 'value', label: 'Session value', type: 'money' },
+    ],
+  },
+  'credit-usage': {
+    key: 'credit-usage',
+    segment: 'classes',
+    name: 'PT package & credit usage',
+    description:
+      'Every credit pack a member holds: sessions or credits purchased, used and remaining, when it expires, the last session it paid for, and whether it is active, used up or expired.',
+    columns: [
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'package', label: 'Package', type: 'text' },
+      { key: 'purchased', label: 'Purchased', type: 'number' },
+      { key: 'used', label: 'Used', type: 'number' },
+      { key: 'remaining', label: 'Remaining', type: 'number' },
+      { key: 'expiresOn', label: 'Expires', type: 'date' },
+      { key: 'lastSession', label: 'Last session', type: 'date' },
+      { key: 'status', label: 'Status', type: 'text' },
     ],
   },
   /* ---- Trainers & staff ------------------------------------------------- */
@@ -552,6 +920,67 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
       { key: 'noShowRate', label: 'No-show rate', type: 'percent' },
     ],
   },
+  'trainer-sales': {
+    key: 'trainer-sales',
+    segment: 'staff',
+    name: 'Trainer sales',
+    description:
+      'Personal-training sales per trainer and branch: session packs sold (attributed to the staff member who sold them - a pack is not tied to a trainer) and PT sessions delivered (attributed to the trainer who delivers them, with the invoice each raised), and their value.',
+    columns: [
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'packagesSold', label: 'PT packages sold', type: 'number' },
+      { key: 'sessionsSold', label: 'PT sessions sold', type: 'number' },
+      { key: 'totalValue', label: 'Total sales value', type: 'money' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'trainer-sales-detail': {
+    key: 'trainer-sales-detail',
+    segment: 'staff',
+    name: 'Trainer sales detail',
+    description:
+      'Every personal-training sale in the window, one row each: the trainer it is attributed to, the member, the pack or session, how many sessions it carries, the amount, when, and where.',
+    columns: [
+      { key: 'date', label: 'Purchase date', type: 'date' },
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'package', label: 'Package', type: 'text' },
+      { key: 'sessions', label: 'Sessions', type: 'number' },
+      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'staff-schedule': {
+    key: 'staff-schedule',
+    segment: 'staff',
+    name: 'Staff schedule',
+    description:
+      "Scheduled working time: the weekly shift pattern projected onto every day of the window it falls on. A shift's location is the text the rota holds, not a branch record.",
+    columns: [
+      { key: 'staff', label: 'Staff member', type: 'text' },
+      { key: 'role', label: 'Role', type: 'text' },
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'start', label: 'Scheduled start', type: 'text' },
+      { key: 'end', label: 'Scheduled end', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+    ],
+  },
+  'audit-log': {
+    key: 'audit-log',
+    segment: 'staff',
+    name: 'Audit log',
+    description:
+      'Recorded actions in the window: who, what, the record it touched, and the values before and after where the entry holds them. The trail is written by platform-operator actions and review moderation today; staff edits to members, prices and roles do not reach it yet.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'staff', label: 'Staff member', type: 'text' },
+      { key: 'action', label: 'Action', type: 'text' },
+      { key: 'target', label: 'Affected record', type: 'text' },
+      { key: 'previous', label: 'Previous value', type: 'text' },
+      { key: 'next', label: 'New value', type: 'text' },
+    ],
+  },
 };
 
 /** The catalogue as an ordered list, for the Reports hub's `GET /admin/reports`. */
@@ -578,17 +1007,23 @@ export const DEFAULT_REPORT_KEY: ReportKey = REPORT_KEYS[0];
  */
 export function groupReportsBySegment(
   reports: readonly ReportDefinition[],
+  /** Segment headings — the catalogue response's own, localised, when there is one. */
+  labels: Record<ReportSegment, string> = REPORT_SEGMENT_LABEL,
 ): Array<{ segment: ReportSegment; label: string; reports: ReportDefinition[] }> {
   return REPORT_SEGMENTS.map((segment) => ({
     segment,
-    label: REPORT_SEGMENT_LABEL[segment],
+    label: labels[segment],
     reports: reports.filter((report) => report.segment === segment),
   })).filter((group) => group.reports.length > 0);
 }
 
-/** Successful `GET /admin/reports` response — the report catalogue. */
+/**
+ * Successful `GET /admin/reports` response — the report catalogue, in the
+ * language the request asked for, with the segment headings to file it under.
+ */
 export interface ReportCatalogResponse {
   reports: ReportDefinition[];
+  segments: Record<ReportSegment, string>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -611,6 +1046,13 @@ export interface ReportResult {
   key: ReportKey;
   name: string;
   range: ReportRange;
+  /**
+   * The first and last calendar day (gym's zone) the window resolved to — the
+   * two days asked for on a `custom` range, and the days a preset landed on
+   * otherwise, so the screen's date control can show the window it got.
+   */
+  from: string;
+  to: string;
   currency: string;
   columns: ReportColumn[];
   rows: ReportRow[];
@@ -639,11 +1081,12 @@ export const REPORT_DIGEST_CADENCE_LABEL: Record<ReportDigestCadence, string> = 
 
 /**
  * The reporting window each cadence's sections cover — a `weekly` digest reports
- * the trailing 7 days, a `monthly` one the trailing 30. Reuses the report range
- * vocabulary so a digest section is exactly the report the console would show for
- * that same range, with no separate windowing logic to drift.
+ * the trailing 7 days, a `monthly` one the trailing 30. Window PRESETS, not the
+ * console's range: `30d` left the Reports control but the resolver still knows
+ * it, so a digest section is windowed by the same math as the screen with no
+ * separate logic to drift.
  */
-export const REPORT_DIGEST_RANGE: Record<ReportDigestCadence, ReportRange> = {
+export const REPORT_DIGEST_RANGE: Record<ReportDigestCadence, ReportWindowPreset> = {
   weekly: '7d',
   monthly: '30d',
 };
@@ -670,7 +1113,12 @@ export const REPORT_DIGEST_KEYS: readonly ReportKey[] = [
  * preview returns ({@link ReportResult}), so the email renderer reuses the report's
  * own columns + rows and no digest-specific report shape can drift from the source.
  */
-export type ReportDigestSection = ReportResult;
+/**
+ * One digest section: a computed report WITHOUT the console's `range` — the
+ * digest windows over a {@link ReportWindowPreset} the console no longer offers
+ * (`30d`), and the {@link ReportDigest} carries that once for every section.
+ */
+export type ReportDigestSection = Omit<ReportResult, 'range' | 'from' | 'to'>;
 
 /**
  * A gym's computed report digest (T4.10): the gym it is for, the `cadence` and the
@@ -682,7 +1130,7 @@ export type ReportDigestSection = ReportResult;
 export interface ReportDigest {
   gymName: string;
   cadence: ReportDigestCadence;
-  range: ReportRange;
+  range: ReportWindowPreset;
   sections: ReportDigestSection[];
 }
 

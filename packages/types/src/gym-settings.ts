@@ -632,6 +632,8 @@ export const gymReportsSettingsSchema = z.object({
   'discounts-and-promotions': z.boolean().default(true),
   'refunds-detail': z.boolean().default(true),
   'pos-transaction-log': z.boolean().default(true),
+  'sales-transactions': z.boolean().default(true),
+  'daily-reconciliation': z.boolean().default(true),
   // Members
   'membership-movement': z.boolean().default(true),
   'retention-and-churn': z.boolean().default(true),
@@ -644,18 +646,29 @@ export const gymReportsSettingsSchema = z.object({
   'revenue-summary': z.boolean().default(true),
   'revenue-by-channel': z.boolean().default(true),
   'revenue-by-location': z.boolean().default(true),
+  'revenue-by-payment-method': z.boolean().default(true),
   'outstanding-invoices': z.boolean().default(true),
   'projected-revenue': z.boolean().default(true),
   'refunds-accounting': z.boolean().default(true),
+  // Products
+  'product-sales': z.boolean().default(true),
+  'product-sales-detail': z.boolean().default(true),
+  'stock-inventory': z.boolean().default(true),
+  'stock-movements': z.boolean().default(true),
   // Classes
   'attendance-by-class': z.boolean().default(true),
   'class-utilization': z.boolean().default(true),
   'class-cancellations': z.boolean().default(true),
   'waitlist-demand': z.boolean().default(true),
   'pt-sessions': z.boolean().default(true),
+  'credit-usage': z.boolean().default(true),
   'no-show-rate': z.boolean().default(true),
   // Staff
   'trainer-performance': z.boolean().default(true),
+  'trainer-sales': z.boolean().default(true),
+  'trainer-sales-detail': z.boolean().default(true),
+  'staff-schedule': z.boolean().default(true),
+  'audit-log': z.boolean().default(true),
 });
 
 /** The report visibility config — {@link gymReportsSettingsSchema}. */
@@ -669,6 +682,10 @@ export const gymPaymentMethodsSchema = z.object({
   acceptCash: z.boolean().default(true),
   acceptCard: z.boolean().default(true),
   acceptPrepaidCredits: z.boolean().default(true),
+  // Off by default: a transfer has to be checked against the bank before the
+  // sale is real, and a gym that does not do that at the desk should not see
+  // the button.
+  acceptBankTransfer: z.boolean().default(false),
 });
 
 /** The gym's accepted payment methods — {@link gymPaymentMethodsSchema}. */
@@ -686,6 +703,7 @@ export type GymPaymentMethods = z.infer<typeof gymPaymentMethodsSchema>;
 const PAYMENT_METHOD_TOGGLES = {
   cash: 'acceptCash',
   card: 'acceptCard',
+  bank_transfer: 'acceptBankTransfer',
   member_account: 'acceptPrepaidCredits',
 } as const satisfies Record<PaymentMethod, keyof GymPaymentMethods>;
 

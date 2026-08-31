@@ -168,6 +168,7 @@
         "sales": "გაყიდვები",
         "members": "წევრები",
         "revenue": "შემოსავალი",
+        "products": "პროდუქტების გაყიდვები, მარჟა, მარაგი და მისი მოძრაობა.",
         "classes": "ჯგუფურები",
         "staff": "პერსონალი"
       },
@@ -222,6 +223,7 @@
           "name": {
             "cash": "ნაღდი",
             "card": "ბარათი",
+            "bank-transfer": "საბანკო გადარიცხვა",
             "member-account": "წევრის ანგარიში"
           },
           "row": "{channel} · {name}",
@@ -639,10 +641,18 @@
       "loadError": "რეპორტების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
       "apiUnreachable": "FormaCore API-სთან დაკავშირება ვერ მოხერხდა. შეამოწმე NEXT_PUBLIC_API_URL და დარწმუნდი, რომ API გაშვებულია.",
       "reportingRange": "ანგარიშგების პერიოდი",
+      "rangeToday": "დღეს",
       "range7d": "7 დღე",
-      "range30d": "30 დღე",
-      "range12w": "12 კვირა",
-      "range12m": "12 თვე",
+      "rangeMtd": "თვის დასაწყისიდან",
+      "rangeCustom": "სხვა პერიოდი",
+      "rangeFrom": "დან",
+      "rangeTo": "მდე",
+      "calendar": {
+        "open": "აირჩიე თარიღი",
+        "previousMonth": "წინა თვე",
+        "nextMonth": "შემდეგი თვე",
+        "chooseYear": "აირჩიე წელი"
+      },
       "catalogueLabel": "რეპორტების კატალოგი",
       "columnCount": "{count, plural, one {# სვეტი} other {# სვეტი}}",
       "selectPrompt": "აირჩიე რეპორტი სიიდან, რომ ნახო მისი მწკრივები და გადმოწერო CSV ან XLSX ფორმატში.",
@@ -833,7 +843,9 @@
           "card": "ბარათი",
           "cardHint": "ბარათის ტერმინალი",
           "memberAccount": "წევრის ანგარიში",
-          "memberAccountHint": "ჩარიცხვა შიდა ანგარიშზე"
+          "memberAccountHint": "ჩარიცხვა შიდა ანგარიშზე",
+          "bankTransfer": "საბანკო გადარიცხვა",
+          "bankTransferHint": "გადარიცხვა დარბაზის ანგარიშზე"
         },
         "chargedTo": "ჩაირიცხა {name}-ის ანგარიშზე.",
         "cashReceived": "მიღებული ნაღდი",
@@ -2141,6 +2153,8 @@
         "acceptCardDesc": "მიიღე ბარათით გადახდა.",
         "acceptPrepaidLabel": "წინასწარ გადახდილი კრედიტები",
         "acceptPrepaidDesc": "მიეცი წევრებს კრედიტის ბალანსიდან გადახდის საშუალება.",
+        "acceptBankTransferLabel": "საბანკო გადარიცხვა",
+        "acceptBankTransferDesc": "ჩაწერე გაყიდვები, რომლებიც დარბაზის ანგარიშზე გადარიცხვით გადაიხადეს. სანამ დაასრულებ, გადაამოწმე, რომ თანხა შემოვიდა.",
         "noneEnabled": "მინიმუმ ერთი გადახდის მეთოდი ჩართული უნდა დარჩეს - სალარო სხვაგვარად ვერ დაასრულებს გაყიდვას."
       },
       "invoice": {

@@ -21,6 +21,7 @@ const POS_PROVIDER = 'pos';
 const METHOD_KEYS: Record<PaymentMethod, SalesPaymentMethod> = {
   [PaymentMethod.CASH]: 'cash',
   [PaymentMethod.CARD]: 'card',
+  [PaymentMethod.BANK_TRANSFER]: 'bank-transfer',
   [PaymentMethod.MEMBER_ACCOUNT]: 'member-account',
 };
 

@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   BookingStatus,
   LoyaltyRedemptionStatus,
-  LoyaltyRewardType,
-  PaymentMethod,
   PaymentStatus,
   ReviewStatus,
   Role,
@@ -19,6 +17,7 @@ import {
   type ReportKpi,
   type ReportMetric,
   type ReportSection,
+  reportWindowInput,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -32,7 +31,16 @@ import {
   rate,
   resolveWindow,
   type ReportWindow,
+  windowDays,
 } from './report-window.util';
+import { zonedParts } from './zoned-time.util';
+import { resolveEmailLocale } from '../mail/email-locale';
+import {
+  localizeDrilldown,
+  reportStrings,
+  type ReportLocale,
+  type ReportStrings,
+} from './report-strings';
 
 /** Subscription states that count a member as currently subscribed (not churned). */
 const LIVE_SUB_STATUSES: readonly SubscriptionStatus[] = [
@@ -47,8 +55,6 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 /** Label for revenue on orders with no linked plan (product / POS sales). */
 const RETAIL_LABEL = 'Retail';
-/** Label for revenue on orders with no linked location. */
-const NO_LOCATION_LABEL = 'No location';
 /** Bucket for class occurrences / bookings whose trainer was removed or never set. */
 const UNASSIGNED_TRAINER_LABEL = 'Unassigned';
 
@@ -58,24 +64,6 @@ const CONFIRMED_BOOKING_STATUSES: readonly BookingStatus[] = [
   BookingStatus.ATTENDED,
   BookingStatus.NO_SHOW,
 ];
-
-/** Human labels for the POS payment methods, in the end-of-day reconciliation order. */
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  [PaymentMethod.CASH]: 'Cash',
-  [PaymentMethod.CARD]: 'Card',
-  [PaymentMethod.MEMBER_ACCOUNT]: 'Member account',
-};
-
-/** Human labels for loyalty reward types, driving the by-reward-type breakdown. */
-const REWARD_TYPE_LABELS: Record<LoyaltyRewardType, string> = {
-  [LoyaltyRewardType.pt_session]: 'PT session',
-  [LoyaltyRewardType.day_pass]: 'Day pass',
-  [LoyaltyRewardType.guest_pass]: 'Guest pass',
-  [LoyaltyRewardType.merchandise]: 'Merchandise',
-  [LoyaltyRewardType.drink]: 'Drink',
-  [LoyaltyRewardType.discount]: 'Discount',
-  [LoyaltyRewardType.other]: 'Other',
-};
 
 /** What a metric resolves to before it is wrapped as a {@link ReportDrilldown}. */
 interface ComputedDrilldown {
@@ -129,19 +117,29 @@ export class ReportDrilldownService {
   ) {}
 
   /** Build one drill-down report for on-screen rendering. */
-  async run(metric: ReportMetric, query: ReportDrilldownQuery): Promise<ReportDrilldown> {
+  async run(
+    metric: ReportMetric,
+    query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
+  ): Promise<ReportDrilldown> {
     const definition = REPORT_METRIC_DEFINITIONS[metric];
-    const win = resolveWindow(query.range);
-    const computed = await this.compute(metric, win);
-    return {
-      metric,
-      name: definition.name,
-      description: definition.description,
-      range: query.range,
-      currency: computed.currency,
-      kpis: computed.kpis,
-      sections: computed.sections,
-    };
+    const { win, language, s } = await this.context(query, lang);
+    const computed = await this.compute(metric, win, s);
+    // Built in English and translated on the way out, by id — see `report-strings.ts`.
+    return localizeDrilldown(
+      {
+        metric,
+        name: definition.name,
+        description: definition.description,
+        range: query.range,
+        // The days the window resolved to, for every range — see `ReportsService.runReport`.
+        ...windowDays(win),
+        currency: computed.currency,
+        kpis: computed.kpis,
+        sections: computed.sections,
+      },
+      language,
+    );
   }
 
   /**
@@ -158,8 +156,10 @@ export class ReportDrilldownService {
   async *streamDrilldownCsv(
     metric: ReportMetric,
     query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
   ): AsyncGenerator<string> {
-    const tables = drilldownTables(await this.run(metric, query));
+    const built = await this.run(metric, query, lang);
+    const tables = drilldownTables(built, reportStrings(await this.language(lang)).tabular);
     let first = true;
     for (const table of tables) {
       if (!first) {
@@ -175,8 +175,13 @@ export class ReportDrilldownService {
   }
 
   /** Build one drill-down as an XLSX workbook — the KPI summary plus a tab per section. */
-  async buildDrilldownXlsx(metric: ReportMetric, query: ReportDrilldownQuery): Promise<Buffer> {
-    const tables = drilldownTables(await this.run(metric, query));
+  async buildDrilldownXlsx(
+    metric: ReportMetric,
+    query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
+  ): Promise<Buffer> {
+    const built = await this.run(metric, query, lang);
+    const tables = drilldownTables(built, reportStrings(await this.language(lang)).tabular);
     return buildWorkbook(
       tables.map((table) => ({
         name: table.title,
@@ -196,30 +201,57 @@ export class ReportDrilldownService {
     metric: ReportMetric,
     sectionId: string,
     query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
   ): Promise<{ currency: string; section: ReportSection } | null> {
-    const computed = await this.compute(metric, resolveWindow(query.range));
-    const section = computed.sections.find((candidate) => candidate.id === sectionId);
-    return section ? { currency: computed.currency, section } : null;
+    const built = await this.run(metric, query, lang);
+    const section = built.sections.find((candidate) => candidate.id === sectionId);
+    return section ? { currency: built.currency, section } : null;
   }
 
-  private compute(metric: ReportMetric, win: ReportWindow): Promise<ComputedDrilldown> {
+  /**
+   * The query's window, answered in the gym's own zone (see `report-window.util`),
+   * and the language to write in: the caller's when it said, the gym's otherwise.
+   */
+  /** The language a file export is written in — the caller's, else the gym's. */
+  private async language(lang: ReportLocale | null): Promise<ReportLocale> {
+    return lang ?? resolveEmailLocale((await this.locale.get()).language);
+  }
+
+  private async context(
+    query: ReportDrilldownQuery,
+    lang: ReportLocale | null,
+  ): Promise<{ win: ReportWindow; language: ReportLocale; s: ReportStrings }> {
+    const locale = await this.locale.get();
+    const language = lang ?? resolveEmailLocale(locale.language);
+    return {
+      win: resolveWindow(reportWindowInput(query), locale.timezone),
+      language,
+      s: reportStrings(language),
+    };
+  }
+
+  private compute(
+    metric: ReportMetric,
+    win: ReportWindow,
+    s: ReportStrings,
+  ): Promise<ComputedDrilldown> {
     switch (metric) {
       case 'sales':
-        return this.sales(win);
+        return this.sales(win, s);
       case 'revenue':
-        return this.revenue(win);
+        return this.revenue(win, s);
       case 'members':
         return this.members(win);
       case 'attendance':
         return this.attendance(win);
       case 'classes':
-        return this.classes(win);
+        return this.classes(win, s);
       case 'staff':
         return this.staff(win);
       case 'pos':
-        return this.pos(win);
+        return this.pos(win, s);
       case 'loyalty':
-        return this.loyalty(win);
+        return this.loyalty(win, s);
     }
   }
 
@@ -238,7 +270,7 @@ export class ReportDrilldownService {
    * was reported in. Both are legitimate; they answer different questions, which is
    * why the two metrics coexist rather than one deriving from the other.
    */
-  private async sales(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async sales(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const [payments, refunds, planOrders] = await Promise.all([
       this.prisma.client.payment.findMany({
         where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
@@ -283,24 +315,24 @@ export class ReportDrilldownService {
 
     const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
-    const grossBuckets = emptyBuckets(win);
-    const refundBuckets = emptyBuckets(win);
+    const grossBuckets = emptyBuckets(win, win.zone);
+    const refundBuckets = emptyBuckets(win, win.zone);
     const byMethod = new Map<string, number>();
     const bySeller = new Map<string, { label: string; value: number }>();
     let gross = 0;
 
     for (const payment of payments) {
       gross += payment.amount;
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (grossBuckets.has(key)) {
         grossBuckets.set(key, (grossBuckets.get(key) ?? 0) + payment.amount);
       }
-      const method = SALES_METHOD_LABEL[payment.method] ?? payment.method;
+      const method = methodLabel(s, payment.method);
       byMethod.set(method, (byMethod.get(method) ?? 0) + payment.amount);
 
       const sellerKey = payment.order?.soldById ?? UNATTRIBUTED_SELLER_KEY;
       const seller = bySeller.get(sellerKey) ?? {
-        label: payment.order?.soldBy ? sellerName(payment.order.soldBy) : UNATTRIBUTED_SELLER_LABEL,
+        label: payment.order?.soldBy ? sellerName(payment.order.soldBy, s) : s.values.unattributed,
         value: 0,
       };
       seller.value += payment.amount;
@@ -310,7 +342,7 @@ export class ReportDrilldownService {
     let refunded = 0;
     for (const refund of refunds) {
       refunded += refund.amount;
-      const key = bucketKey(refund.createdAt, win.bucket);
+      const key = bucketKey(refund.createdAt, win.bucket, win.zone);
       if (refundBuckets.has(key)) {
         refundBuckets.set(key, (refundBuckets.get(key) ?? 0) + refund.amount);
       }
@@ -377,13 +409,13 @@ export class ReportDrilldownService {
           { key: 'processedBy', label: 'Processed by', type: 'text' },
         ],
         rows: refunds.slice(0, DRILLDOWN_TABLE_ROWS).map((refund) => ({
-          date: isoDate(refund.createdAt),
+          date: isoDate(refund.createdAt, win.zone),
           order: refund.orderId.slice(-8).toUpperCase(),
           amount: refund.amount,
           reason: refund.reason,
           processedBy: refund.processedBy
-            ? sellerName(refund.processedBy)
-            : UNATTRIBUTED_SELLER_LABEL,
+            ? sellerName(refund.processedBy, s)
+            : s.values.unattributed,
         })),
       },
     ];
@@ -403,7 +435,7 @@ export class ReportDrilldownService {
    * attributes each order to its `package` (or "Retail" for a product sale), never
    * fabricating subscription cash.
    */
-  private async revenue(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async revenue(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const payments = await this.prisma.client.payment.findMany({
       where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
       select: {
@@ -423,7 +455,7 @@ export class ReportDrilldownService {
 
     const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
-    const overTime = emptyBuckets(win);
+    const overTime = emptyBuckets(win, win.zone);
     const byPlan = new Map<string, number>();
     const byLocation = new Map<string, number>();
     const monthly = new Map<string, { orders: number; gross: number; refunded: number }>();
@@ -435,7 +467,7 @@ export class ReportDrilldownService {
       totalNet += net;
       totalRefunded += payment.refundedAmount;
 
-      const timeKey = bucketKey(payment.createdAt, win.bucket);
+      const timeKey = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (overTime.has(timeKey)) {
         overTime.set(timeKey, (overTime.get(timeKey) ?? 0) + net);
       }
@@ -443,10 +475,10 @@ export class ReportDrilldownService {
       const planLabel = payment.order.package?.name ?? RETAIL_LABEL;
       byPlan.set(planLabel, (byPlan.get(planLabel) ?? 0) + net);
 
-      const locationLabel = payment.order.location?.name ?? NO_LOCATION_LABEL;
+      const locationLabel = payment.order.location?.name ?? s.values.noLocation;
       byLocation.set(locationLabel, (byLocation.get(locationLabel) ?? 0) + net);
 
-      const monthKey = monthStart(payment.createdAt);
+      const monthKey = monthStart(payment.createdAt, win.zone);
       const month = monthly.get(monthKey) ?? { orders: 0, gross: 0, refunded: 0 };
       month.orders += 1;
       month.gross += payment.amount;
@@ -546,14 +578,14 @@ export class ReportDrilldownService {
     ]);
 
     // New members over time + the pre-window baseline for the cumulative column.
-    const newOverTime = emptyBuckets(win);
+    const newOverTime = emptyBuckets(win, win.zone);
     let joinedBefore = 0;
     for (const member of members) {
       if (member.joinedAt < win.start) {
         joinedBefore += 1;
         continue;
       }
-      const key = bucketKey(member.joinedAt, win.bucket);
+      const key = bucketKey(member.joinedAt, win.bucket, win.zone);
       if (newOverTime.has(key)) {
         newOverTime.set(key, (newOverTime.get(key) ?? 0) + 1);
       }
@@ -576,8 +608,8 @@ export class ReportDrilldownService {
     }
 
     // Churn trend — terminal subs per bucket over the subs active at bucket start.
-    const churnBuckets = emptyBuckets(win);
-    const activeAtStart = emptyBuckets(win);
+    const churnBuckets = emptyBuckets(win, win.zone);
+    const activeAtStart = emptyBuckets(win, win.zone);
     for (const [key] of churnBuckets) {
       const bucketStart = new Date(`${key}T00:00:00.000Z`);
       let base = 0;
@@ -593,7 +625,7 @@ export class ReportDrilldownService {
       if (!churnedAt || churnedAt < win.start || churnedAt >= win.end) {
         continue;
       }
-      const key = bucketKey(churnedAt, win.bucket);
+      const key = bucketKey(churnedAt, win.bucket, win.zone);
       if (churnBuckets.has(key)) {
         churnBuckets.set(key, (churnBuckets.get(key) ?? 0) + 1);
       }
@@ -605,7 +637,7 @@ export class ReportDrilldownService {
       if (member.joinedAt < win.start) {
         continue;
       }
-      const key = monthStart(member.joinedAt);
+      const key = monthStart(member.joinedAt, win.zone);
       monthlyNew.set(key, (monthlyNew.get(key) ?? 0) + 1);
     }
     const monthlyChurn = new Map<string, number>();
@@ -614,7 +646,7 @@ export class ReportDrilldownService {
       if (!churnedAt || churnedAt < win.start || churnedAt >= win.end) {
         continue;
       }
-      const key = monthStart(churnedAt);
+      const key = monthStart(churnedAt, win.zone);
       monthlyChurn.set(key, (monthlyChurn.get(key) ?? 0) + 1);
     }
     const monthKeys = [...new Set([...monthlyNew.keys(), ...monthlyChurn.keys()])].sort();
@@ -707,7 +739,7 @@ export class ReportDrilldownService {
       orderBy: { checkedInAt: 'asc' },
     });
 
-    const overTime = emptyBuckets(win);
+    const overTime = emptyBuckets(win, win.zone);
     const heatmap: number[][] = WEEKDAYS.map(() => new Array<number>(24).fill(0));
     const daily = new Map<string, { count: number; members: Set<string> }>();
     const uniqueMembers = new Set<string>();
@@ -716,19 +748,18 @@ export class ReportDrilldownService {
       const at = checkIn.checkedInAt;
       uniqueMembers.add(checkIn.gymMemberId);
 
-      const timeKey = bucketKey(at, win.bucket);
+      const timeKey = bucketKey(at, win.bucket, win.zone);
       if (overTime.has(timeKey)) {
         overTime.set(timeKey, (overTime.get(timeKey) ?? 0) + 1);
       }
 
-      const weekday = (at.getUTCDay() + 6) % 7; // Monday = 0
+      const { weekday, hour } = zonedParts(at, win.zone); // Monday = 0, gym's clock
       const row = heatmap[weekday];
       if (row) {
-        const hour = at.getUTCHours();
         row[hour] = (row[hour] ?? 0) + 1;
       }
 
-      const dayKey = isoDate(at);
+      const dayKey = isoDate(at, win.zone);
       const day = daily.get(dayKey) ?? { count: 0, members: new Set<string>() };
       day.count += 1;
       day.members.add(checkIn.gymMemberId);
@@ -796,7 +827,7 @@ export class ReportDrilldownService {
    * attendance rate). Every figure is a real count over rows in the window; a class
    * with no occurrences in the window simply does not appear.
    */
-  private async classes(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async classes(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const [instances, bookings] = await Promise.all([
       this.prisma.client.classInstance.findMany({
         where: { startsAt: { gte: win.start, lt: win.end } },
@@ -833,7 +864,9 @@ export class ReportDrilldownService {
     };
 
     for (const instance of instances) {
-      const agg = classAgg(instance.template?.title ?? instance.classType?.name ?? 'Class');
+      const agg = classAgg(
+        instance.template?.title ?? instance.classType?.name ?? s.values.classFallback,
+      );
       agg.sessions += 1;
       agg.capacity +=
         instance.capacityOverride ??
@@ -843,14 +876,16 @@ export class ReportDrilldownService {
       agg.booked += instance.bookedCount;
     }
 
-    const cancelTrend = emptyBuckets(win);
-    const totalTrend = emptyBuckets(win);
+    const cancelTrend = emptyBuckets(win, win.zone);
+    const totalTrend = emptyBuckets(win, win.zone);
     let attended = 0;
     let noShow = 0;
     let canceled = 0;
     for (const booking of bookings) {
       const agg = classAgg(
-        booking.classInstance.template?.title ?? booking.classInstance.classType?.name ?? 'Class',
+        booking.classInstance.template?.title ??
+          booking.classInstance.classType?.name ??
+          s.values.classFallback,
       );
       if (booking.status === BookingStatus.ATTENDED) {
         agg.attended += 1;
@@ -863,7 +898,7 @@ export class ReportDrilldownService {
         canceled += 1;
       }
 
-      const key = bucketKey(booking.classInstance.startsAt, win.bucket);
+      const key = bucketKey(booking.classInstance.startsAt, win.bucket, win.zone);
       if (totalTrend.has(key)) {
         totalTrend.set(key, (totalTrend.get(key) ?? 0) + 1);
         if (booking.status === BookingStatus.CANCELED) {
@@ -1136,7 +1171,7 @@ export class ReportDrilldownService {
    * sales breakdown (positive line items grouped by label), and the end-of-day
    * summary table.
    */
-  private async pos(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async pos(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const payments = await this.prisma.client.payment.findMany({
       where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
       select: {
@@ -1152,7 +1187,7 @@ export class ReportDrilldownService {
 
     const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
-    const overTime = emptyBuckets(win);
+    const overTime = emptyBuckets(win, win.zone);
     const byMethod = new Map<string, number>();
     const byProduct = new Map<string, number>();
     const daily = new Map<string, { transactions: number; gross: number; refunded: number }>();
@@ -1164,13 +1199,13 @@ export class ReportDrilldownService {
       gross += payment.amount;
       refunded += payment.refundedAmount;
 
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (overTime.has(key)) {
         overTime.set(key, (overTime.get(key) ?? 0) + net);
       }
 
-      const methodLabel = PAYMENT_METHOD_LABELS[payment.method];
-      byMethod.set(methodLabel, (byMethod.get(methodLabel) ?? 0) + net);
+      const label = methodLabel(s, payment.method);
+      byMethod.set(label, (byMethod.get(label) ?? 0) + net);
 
       for (const item of payment.order.items) {
         if (item.amount > 0) {
@@ -1178,7 +1213,7 @@ export class ReportDrilldownService {
         }
       }
 
-      const dayKey = isoDate(payment.createdAt);
+      const dayKey = isoDate(payment.createdAt, win.zone);
       const day = daily.get(dayKey) ?? { transactions: 0, gross: 0, refunded: 0 };
       day.transactions += 1;
       day.gross += payment.amount;
@@ -1262,7 +1297,7 @@ export class ReportDrilldownService {
    * redemption rows (cancelled redemptions, whose points were refunded, are excluded
    * from the aggregates but still listed).
    */
-  private async loyalty(win: ReportWindow): Promise<ComputedDrilldown> {
+  private async loyalty(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const [ledger, redemptions] = await Promise.all([
       this.prisma.client.loyaltyLedgerEntry.findMany({
         where: { createdAt: { gte: win.start, lt: win.end } },
@@ -1281,13 +1316,13 @@ export class ReportDrilldownService {
       }),
     ]);
 
-    const issuedOverTime = emptyBuckets(win);
+    const issuedOverTime = emptyBuckets(win, win.zone);
     let issued = 0;
     let redeemed = 0;
     for (const entry of ledger) {
       if (entry.delta > 0) {
         issued += entry.delta;
-        const key = bucketKey(entry.createdAt, win.bucket);
+        const key = bucketKey(entry.createdAt, win.bucket, win.zone);
         if (issuedOverTime.has(key)) {
           issuedOverTime.set(key, (issuedOverTime.get(key) ?? 0) + entry.delta);
         }
@@ -1303,7 +1338,7 @@ export class ReportDrilldownService {
         continue;
       }
       redemptionCount += 1;
-      const label = REWARD_TYPE_LABELS[redemption.rewardType];
+      const label = s.values.rewardTypes[redemption.rewardType] ?? redemption.rewardType;
       byRewardType.set(label, (byRewardType.get(label) ?? 0) + 1);
     }
 
@@ -1352,9 +1387,9 @@ export class ReportDrilldownService {
         ],
         rows: redemptions.slice(0, 20).map(
           (redemption): ReportDrilldownRow => ({
-            date: isoDate(redemption.redeemedAt),
+            date: isoDate(redemption.redeemedAt, win.zone),
             reward: redemption.rewardName,
-            type: REWARD_TYPE_LABELS[redemption.rewardType],
+            type: s.values.rewardTypes[redemption.rewardType] ?? redemption.rewardType,
             points: redemption.pointsSpent,
             status: capitalize(redemption.status),
           }),
@@ -1404,9 +1439,10 @@ function isTerminalBefore(
   return churnedAt !== null && churnedAt < at;
 }
 
-/** The `YYYY-MM-01` month key an instant falls into (UTC). */
-function monthStart(at: Date): string {
-  return isoDate(new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)));
+/** The `YYYY-MM-01` month key an instant falls into, in `zone`. */
+function monthStart(at: Date, zone: string): string {
+  const { year, month } = zonedParts(at, zone);
+  return `${year}-${String(month).padStart(2, '0')}-01`;
 }
 
 /** Escape one CSV field (RFC 4180) — quote + double embedded quotes when needed. */
@@ -1414,15 +1450,6 @@ function csvCell(value: string): string {
   return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-/** Display labels for the settlement methods the till records. */
-const SALES_METHOD_LABEL: Record<string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  MEMBER_ACCOUNT: 'Member account',
-};
-
-/** Label + grouping key for a sale or refund with no staff member behind it. */
-const UNATTRIBUTED_SELLER_LABEL = 'Unattributed';
 const UNATTRIBUTED_SELLER_KEY = '__unattributed__';
 
 /**
@@ -1438,13 +1465,16 @@ const DRILLDOWN_TABLE_ROWS = 20;
  * an invited or plain membership has neither, and the cross-gym `User` name is the
  * fallback.
  */
-function sellerName(staff: {
-  firstName?: string | null;
-  lastName?: string | null;
-  user?: { name: string | null } | null;
-}): string {
+function sellerName(
+  staff: {
+    firstName?: string | null;
+    lastName?: string | null;
+    user?: { name: string | null } | null;
+  },
+  s: ReportStrings,
+): string {
   const split = [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim();
-  return split || staff.user?.name?.trim() || UNATTRIBUTED_SELLER_LABEL;
+  return split || staff.user?.name?.trim() || s.values.unattributed;
 }
 
 /** A label→value map as breakdown items, richest first, dropping empty slices. */
@@ -1458,4 +1488,15 @@ function sortedBreakdown(totals: Map<string, number>): { label: string; value: n
 /** Capitalise a lowercase enum value for display (e.g. `fulfilled` → `Fulfilled`). */
 function capitalize(value: string): string {
   return value.length === 0 ? value : value[0]!.toUpperCase() + value.slice(1);
+}
+
+/** Human label for a settlement method, in the report's language. */
+function methodLabel(s: ReportStrings, method: string): string {
+  const labels: Record<string, string> = {
+    CASH: s.values.cash,
+    CARD: s.values.card,
+    BANK_TRANSFER: s.values.bankTransfer,
+    MEMBER_ACCOUNT: s.values.memberAccount,
+  };
+  return labels[method] ?? method;
 }

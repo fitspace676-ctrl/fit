@@ -70,7 +70,7 @@ interface StockWritingClient {
 }
 
 /** The ledger note behind a count a product was created (or a variant added) with. */
-const OPENING_COUNT_NOTE = 'Opening count';
+export const OPENING_COUNT_NOTE = 'Opening count';
 
 /** The ledger note behind a count corrected on the product form. */
 const FORM_CORRECTION_NOTE = 'Corrected on the product form';

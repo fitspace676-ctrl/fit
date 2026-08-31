@@ -48,31 +48,28 @@ import type { NumberFormatter } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { groupReportsBySegment } from '@fit/types';
+import { groupReportsBySegment, reportQueryParams } from '@fit/types';
 import type {
   ReportCellValue,
   ReportColumn,
   ReportColumnType,
   ReportDefinition,
   ReportKey,
-  ReportRange,
+  ReportQuery,
   ReportResult,
   ReportSegment,
 } from '@fit/types';
 import { Icon, type IconName } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import { chrome } from './report-chrome';
+import { ReportRangeControl } from './report-range-control';
 
 type T = ReturnType<typeof useTranslations>;
 
-/** The range options offered by the toolbar's segmented control, ascending by span. */
-const RANGE_OPTIONS: ReadonlyArray<{ value: ReportRange; labelKey: string }> = [
-  { value: '7d', labelKey: 'range7d' },
-  { value: '30d', labelKey: 'range30d' },
-  { value: '12w', labelKey: 'range12w' },
-  { value: '12m', labelKey: 'range12m' },
-];
+/** Today as `YYYY-MM-DD`, for a range control with no resolved window to show. */
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const styles = stylex.create({
   page: {
@@ -541,6 +538,13 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   'discounts-and-promotions': 'tag',
   'refunds-detail': 'minus',
   'pos-transaction-log': 'bag',
+  'sales-transactions': 'ticket',
+  'daily-reconciliation': 'check',
+  // Products
+  'product-sales': 'bag',
+  'product-sales-detail': 'ticket',
+  'stock-inventory': 'grid',
+  'stock-movements': 'arrow',
   // Members
   'membership-movement': 'users',
   'retention-and-churn': 'target',
@@ -552,6 +556,7 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   // Revenue
   'revenue-summary': 'chart',
   'revenue-by-channel': 'grid',
+  'revenue-by-payment-method': 'card',
   'revenue-by-location': 'pin',
   'outstanding-invoices': 'info',
   'projected-revenue': 'arrow',
@@ -561,9 +566,14 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   'class-utilization': 'grid',
   'class-cancellations': 'x',
   'waitlist-demand': 'flame',
+  'credit-usage': 'star',
   'pt-sessions': 'dumbbell',
   'no-show-rate': 'clock',
   // Staff
+  'trainer-sales': 'briefcase',
+  'trainer-sales-detail': 'ticket',
+  'staff-schedule': 'clock',
+  'audit-log': 'shield',
   'trainer-performance': 'award',
 };
 
@@ -606,13 +616,17 @@ function matchesQuery(report: ReportDefinition, segmentLabel: string, query: str
  */
 export function ReportsView({
   reports,
+  segments,
   selected,
-  range,
+  reportQuery,
   preview,
 }: {
   reports: ReportDefinition[];
+  /** Segment headings in the reader's language, from the catalogue response. */
+  segments: Record<ReportSegment, string>;
   selected: ReportKey | null;
-  range: ReportRange;
+  /** The window the URL asked for, already validated by the page. */
+  reportQuery: ReportQuery;
   preview: ReportResult | null;
 }) {
   const t = useTranslations('admin.reports');
@@ -649,13 +663,13 @@ export function ReportsView({
   const needle = deferredQuery.trim().toLowerCase();
   const groups = useMemo(
     () =>
-      groupReportsBySegment(reports)
+      groupReportsBySegment(reports, segments)
         .map((group) => ({
           ...group,
           reports: group.reports.filter((report) => matchesQuery(report, group.label, needle)),
         }))
         .filter((group) => group.reports.length > 0),
-    [reports, needle],
+    [reports, segments, needle],
   );
 
   // The tab strip is drawn from the filtered groups, so a search rewrites BOTH
@@ -694,21 +708,16 @@ export function ReportsView({
             startIcon={<Icon name="search" {...stylex.props(styles.searchIcon)} />}
           />
         </div>
-        <SegmentedControl
-          value={range}
-          onChange={(next) => setParam('range', next)}
-          label={t('reportingRange')}
-          size="sm"
+        {/* The window's days come from the PREVIEW, which echoes what the API
+            resolved a preset to; with nothing previewed (a gym that offers no
+            reports) the control still needs two days to stand on, and the URL's
+            own — or today — will do. */}
+        <ReportRangeControl
+          range={reportQuery.range}
+          from={preview?.from ?? reportQuery.from ?? isoToday()}
+          to={preview?.to ?? reportQuery.to ?? isoToday()}
           isDisabled={isPending}
-        >
-          {RANGE_OPTIONS.map((option) => (
-            <SegmentedControlItem
-              key={option.value}
-              value={option.value}
-              label={t(option.labelKey)}
-            />
-          ))}
-        </SegmentedControl>
+        />
       </div>
 
       {shown === null ? (
@@ -786,7 +795,7 @@ export function ReportsView({
               preview={preview}
               // `ReportResult` carries no purpose line, so the catalogue supplies it.
               description={reports.find((report) => report.key === selected)?.description ?? null}
-              range={range}
+              reportQuery={reportQuery}
               t={t}
             />
           ) : (
@@ -854,12 +863,12 @@ function ReportChip({
 function ReportPreview({
   preview,
   description,
-  range,
+  reportQuery,
   t,
 }: {
   preview: ReportResult;
   description: string | null;
-  range: ReportRange;
+  reportQuery: ReportQuery;
   t: T;
 }) {
   const locale = useLocale();
@@ -878,9 +887,9 @@ function ReportPreview({
   // not applied for us.
   const exportHref = (format: 'csv' | 'xlsx'): string =>
     adminPath(
-      `/reports/export?report=${encodeURIComponent(preview.key)}&range=${encodeURIComponent(
-        range,
-      )}&format=${format}`,
+      `/reports/export?report=${encodeURIComponent(preview.key)}&${reportQueryParams(
+        reportQuery,
+      ).toString()}&format=${format}`,
     );
 
   return (

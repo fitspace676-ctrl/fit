@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { ApiError, fetchGymSettings, fetchLocations } from '@/lib/api';
+import { ApiError, fetchGymSettings, fetchLocations, fetchReportCatalog } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
@@ -98,7 +98,13 @@ export default async function SettingsPage() {
       (page) => page.data,
       () => [],
     );
-    return <SettingsForm initial={settings} locations={locations} />;
+    // Every report, hidden ones too, in the reader's language - the toggles have
+    // to name what the hub names. A failed call leaves the form its English fallback.
+    const reportCatalog = await fetchReportCatalog({ all: true }).then(
+      (catalog) => catalog,
+      () => undefined,
+    );
+    return <SettingsForm initial={settings} locations={locations} reportCatalog={reportCatalog} />;
   } catch (error) {
     const message =
       error instanceof ApiError

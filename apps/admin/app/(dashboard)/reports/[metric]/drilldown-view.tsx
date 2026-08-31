@@ -2,43 +2,29 @@
 
 // @fit/admin — the client view for one drill-down report (T12.12).
 //
-// Renders a live {@link ReportDrilldown}: a back link + heading, a date-range
-// segmented control (writes `?range=` so the server component re-fetches), the
+// Renders a live {@link ReportDrilldown}: a back link + heading, the shared
+// reporting-window control (writes `?range=&from=&to=` so the server component
+// re-fetches), the
 // headline KPI tiles, and every section via the shared {@link ReportSectionCard}.
 // Astryx `Card`/`SegmentedControl` over compiled StyleX + the brand `charts.tsx` —
 // no Tailwind, no recharts.
 
-import { useTransition } from 'react';
 import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import type { ReportDrilldown, ReportRange } from '@fit/types';
+import { reportQueryParams, type ReportDrilldown } from '@fit/types';
 import { Icon } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import { ReportSectionCard, formatUnitValue } from '../report-sections';
-
-/** The range options offered by the segmented control, in ascending span order. */
-const RANGE_OPTIONS: ReadonlyArray<{ value: ReportRange; labelKey: string }> = [
-  { value: '7d', labelKey: 'range7d' },
-  { value: '30d', labelKey: 'range30d' },
-  { value: '12w', labelKey: 'range12w' },
-  { value: '12m', labelKey: 'range12m' },
-];
+import { ReportRangeControl } from '../report-range-control';
 
 const styles = stylex.create({
   page: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
-  },
-  pending: {
-    opacity: 0.6,
-    transitionProperty: 'opacity',
-    transitionDuration: '150ms',
   },
   back: {
     display: 'inline-flex',
@@ -85,9 +71,6 @@ const styles = stylex.create({
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: '0.75rem',
-  },
-  rangeControl: {
-    alignSelf: 'flex-start',
   },
   downloads: {
     display: 'flex',
@@ -136,32 +119,17 @@ const styles = stylex.create({
 export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
   const t = useTranslations('admin.reports');
   const locale = useLocale();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [isNavigating, startNavigate] = useTransition();
 
-  function selectRange(next: ReportRange): void {
-    if (next === drilldown.range) {
-      return;
-    }
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('range', next);
-    startNavigate(() => router.replace(`${pathname}?${params.toString()}`, { scroll: false }));
-  }
-
-  const busy = isNavigating;
-
-  /** The download URL for this drill-down at the range currently on screen. */
+  /** The download URL for this drill-down at the window currently on screen. */
   const exportHref = (format: 'csv' | 'xlsx'): string =>
     adminPath(
-      `/reports/${encodeURIComponent(drilldown.metric)}/export?range=${encodeURIComponent(
-        drilldown.range,
-      )}&format=${format}`,
+      `/reports/${encodeURIComponent(drilldown.metric)}/export?${reportQueryParams(
+        drilldown,
+      ).toString()}&format=${format}`,
     );
 
   return (
-    <div {...stylex.props(styles.page, busy && styles.pending)}>
+    <div {...stylex.props(styles.page)}>
       <Link href="/reports" {...stylex.props(styles.back)}>
         <Icon name="arrowLeft" {...stylex.props(styles.backIcon)} sw={2} />
         {t('drilldown.back')}
@@ -173,22 +141,7 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
           <p {...stylex.props(styles.description)}>{drilldown.description}</p>
         </div>
         <div {...stylex.props(styles.controls)}>
-          <SegmentedControl
-            value={drilldown.range}
-            onChange={(next) => selectRange(next as ReportRange)}
-            label={t('reportingRange')}
-            size="sm"
-            isDisabled={busy}
-            xstyle={styles.rangeControl}
-          >
-            {RANGE_OPTIONS.map((option) => (
-              <SegmentedControlItem
-                key={option.value}
-                value={option.value}
-                label={t(option.labelKey)}
-              />
-            ))}
-          </SegmentedControl>
+          <ReportRangeControl range={drilldown.range} from={drilldown.from} to={drilldown.to} />
 
           {/*
             Plain anchors, not buttons: the browser has to perform the download,

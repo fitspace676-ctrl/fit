@@ -225,6 +225,7 @@ describe('GymSettingsService', () => {
 
       expect(update).toHaveBeenCalled();
       expect(result.payments).toEqual({
+        acceptBankTransfer: false,
         acceptCash: true,
         acceptCard: false,
         acceptPrepaidCredits: true,

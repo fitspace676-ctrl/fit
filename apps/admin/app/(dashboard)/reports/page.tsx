@@ -6,10 +6,10 @@ import {
   DEFAULT_REPORT_RANGE,
   Permission,
   reportKeySchema,
-  reportRangeSchema,
+  reportQuerySchema,
   roleHasPermission,
   type ReportKey,
-  type ReportRange,
+  type ReportQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchReport, fetchReportCatalog } from '@/lib/api';
@@ -56,15 +56,20 @@ export const dynamic = 'force-dynamic';
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ report?: string; range?: string }>;
+  searchParams: Promise<{ report?: string; range?: string; from?: string; to?: string }>;
 }) {
   const t = await getTranslations('admin.reports');
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
 
-  const { report: rawReport, range: rawRange } = await searchParams;
-  const parsedRange = reportRangeSchema.safeParse(rawRange);
-  const range: ReportRange = parsedRange.success ? parsedRange.data : DEFAULT_REPORT_RANGE;
+  const { report: rawReport, range, from, to } = await searchParams;
+  // The window is validated as a whole: a `custom` range missing a day, or with
+  // its days out of order, falls back to the default rather than reaching the
+  // API as a 400 the screen would have to explain.
+  const parsedQuery = reportQuerySchema.safeParse({ range, from, to });
+  const query: ReportQuery = parsedQuery.success
+    ? parsedQuery.data
+    : { range: DEFAULT_REPORT_RANGE };
   // An unrecognised (or absent) `?report=` falls back to the catalogue's first
   // *offered* report rather than to nothing, so the screen always opens on a real
   // preview and the index always has a marked row when the gym offers any reports
@@ -86,7 +91,7 @@ export default async function ReportsPage({
       <VisuallyHidden as="h1">{t('title')}</VisuallyHidden>
 
       {canViewReports ? (
-        <ReportsBody range={range} requested={requested} />
+        <ReportsBody query={query} requested={requested} />
       ) : (
         <p {...stylex.props(chrome.notice)}>{t('noAccess')}</p>
       )}
@@ -95,16 +100,16 @@ export default async function ReportsPage({
 }
 
 /**
- * Fetches the gym's report catalogue (and, when one is selected, its preview for
- * `range`) and hands the real responses to the client view. A failed fetch becomes
+ * Fetches the gym's report catalogue (and, when one is selected, its preview over
+ * `query`'s window) and hands the real responses to the client view. A failed fetch becomes
  * the same inline "Could not reach the FormaCore API" alert the other screens use, rather
  * than crashing the page.
  */
 async function ReportsBody({
-  range,
+  query,
   requested,
 }: {
-  range: ReportRange;
+  query: ReportQuery;
   requested: ReportKey | null;
 }) {
   const t = await getTranslations('admin.reports');
@@ -122,12 +127,26 @@ async function ReportsBody({
       : (catalog.reports[0]?.key ?? null);
 
     if (offered === null) {
-      return <ReportsView reports={[]} selected={null} range={range} preview={null} />;
+      return (
+        <ReportsView
+          reports={[]}
+          segments={catalog.segments}
+          selected={null}
+          reportQuery={query}
+          preview={null}
+        />
+      );
     }
 
-    const preview = await fetchReport(offered, range);
+    const preview = await fetchReport(offered, query);
     return (
-      <ReportsView reports={catalog.reports} selected={offered} range={range} preview={preview} />
+      <ReportsView
+        reports={catalog.reports}
+        segments={catalog.segments}
+        selected={offered}
+        reportQuery={query}
+        preview={preview}
+      />
     );
   } catch (error) {
     const message =
