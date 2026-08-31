@@ -6,11 +6,17 @@ import {
   REPORT_CATALOG,
   REPORT_DEFINITIONS,
   REPORT_DIGEST_KEYS,
+  REPORT_DIGEST_RANGE,
   REPORT_KEYS,
   REPORT_SEGMENTS,
   reportCsvRow,
   reportExportQuerySchema,
   reportQuerySchema,
+  reportRangeSchema,
+  reportQueryParams,
+  reportWindowInput,
+  reportWindowSlug,
+  reportWindowPresetSchema,
   reportXlsxCell,
   reportXlsxRow,
   type ReportColumn,
@@ -40,6 +46,74 @@ describe('report definitions', () => {
   });
 });
 
+describe('sales-transactions', () => {
+  it('lists every transaction column the front desk asked for, in reading order', () => {
+    const definition = REPORT_DEFINITIONS['sales-transactions'];
+    expect(definition.segment).toBe('sales');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'reference',
+      'customer',
+      'items',
+      'category',
+      'amount',
+      'method',
+      'channel',
+      'location',
+      'staff',
+      'status',
+    ]);
+    expect(definition.columns.find((c) => c.key === 'amount')?.type).toBe('money');
+  });
+});
+
+describe('plan-performance, refunds-detail, daily-reconciliation', () => {
+  it('plan & service performance names the item, its kind, how many, how much, its share and where', () => {
+    expect(REPORT_DEFINITIONS['plan-performance'].columns.map((c) => c.key)).toEqual([
+      'item',
+      'category',
+      'sold',
+      'revenue',
+      'share',
+      'location',
+    ]);
+    expect(
+      REPORT_DEFINITIONS['plan-performance'].columns.find((c) => c.key === 'share')?.type,
+    ).toBe('percent');
+  });
+
+  it('refunds carry when, who, what was refunded, how much, why, by whom and where', () => {
+    expect(REPORT_DEFINITIONS['refunds-detail'].columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'customer',
+      'order',
+      'items',
+      'amount',
+      'reason',
+      'processedBy',
+      'location',
+    ]);
+  });
+
+  it('daily reconciliation splits each day by how the money was collected', () => {
+    const definition = REPORT_DEFINITIONS['daily-reconciliation'];
+    expect(definition.segment).toBe('sales');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'date',
+      'total',
+      'cash',
+      'card',
+      'online',
+      'memberAccount',
+      'refunds',
+      'transactions',
+      'references',
+    ]);
+  });
+});
+
 describe('groupReportsBySegment', () => {
   it('groups in segment order and keeps each segment’s catalogue order', () => {
     const grouped = groupReportsBySegment(REPORT_CATALOG);
@@ -53,6 +127,17 @@ describe('groupReportsBySegment', () => {
     expect(grouped.flatMap((g) => g.reports.map((r) => r.key)).sort()).toEqual(
       [...REPORT_KEYS].sort(),
     );
+  });
+
+  it('takes the segment labels from the caller, so a localised catalogue groups under its own words', () => {
+    const groups = groupReportsBySegment([REPORT_DEFINITIONS['sales-summary']], {
+      sales: 'გაყიდვები',
+      members: 'წევრები',
+      revenue: 'შემოსავალი',
+      classes: 'კლასები',
+      staff: 'პერსონალი',
+    });
+    expect(groups.map((g) => g.label)).toEqual(['გაყიდვები']);
   });
 
   it('omits a segment that has no reports rather than rendering an empty heading', () => {
@@ -75,6 +160,23 @@ describe('report digest', () => {
   });
 });
 
+describe('report range vocabulary', () => {
+  it('offers the console exactly today / 7d / month-to-date / custom', () => {
+    expect(reportRangeSchema.options).toEqual(['today', '7d', 'mtd', 'custom']);
+  });
+
+  it('opens on month to date', () => {
+    expect(DEFAULT_REPORT_RANGE).toBe('mtd');
+  });
+
+  it('keeps the dashboard and digest window presets the console no longer offers', () => {
+    // `30d` / `12w` / `12m` left the Reports control but the dashboard charts and
+    // the emailed digest still window over them.
+    expect(reportWindowPresetSchema.options).toEqual(['today', '7d', '30d', 'mtd', '12w', '12m']);
+    expect(REPORT_DIGEST_RANGE).toEqual({ weekly: '7d', monthly: '30d' });
+  });
+});
+
 describe('report query schemas', () => {
   it('defaults the preview range to the shared default', () => {
     expect(reportQuerySchema.parse({})).toEqual({ range: DEFAULT_REPORT_RANGE });
@@ -88,12 +190,87 @@ describe('report query schemas', () => {
   });
 
   it('accepts a valid range + format and rejects unknown ones', () => {
-    expect(reportExportQuerySchema.parse({ range: '12m', format: 'xlsx' })).toEqual({
-      range: '12m',
+    expect(reportExportQuerySchema.parse({ range: 'today', format: 'xlsx' })).toEqual({
+      range: 'today',
       format: 'xlsx',
     });
     expect(reportExportQuerySchema.safeParse({ format: 'pdf' }).success).toBe(false);
     expect(reportQuerySchema.safeParse({ range: '1y' }).success).toBe(false);
+    // The retired presets are a 400 now, not a silent alias.
+    expect(reportQuerySchema.safeParse({ range: '30d' }).success).toBe(false);
+  });
+
+  it('a custom range carries both of its days', () => {
+    expect(
+      reportQuerySchema.parse({ range: 'custom', from: '2026-08-01', to: '2026-08-15' }),
+    ).toEqual({
+      range: 'custom',
+      from: '2026-08-01',
+      to: '2026-08-15',
+    });
+    expect(
+      reportExportQuerySchema.parse({ range: 'custom', from: '2026-08-01', to: '2026-08-01' }),
+    ).toEqual({
+      range: 'custom',
+      from: '2026-08-01',
+      to: '2026-08-01',
+      format: 'csv',
+    });
+  });
+
+  it('rejects a custom range missing a day, out of order, malformed, or over a year', () => {
+    const bad = [
+      { range: 'custom' },
+      { range: 'custom', from: '2026-08-01' },
+      { range: 'custom', to: '2026-08-01' },
+      { range: 'custom', from: '2026-08-15', to: '2026-08-01' },
+      { range: 'custom', from: '2026-8-1', to: '2026-08-15' },
+      { range: 'custom', from: '2026-02-30', to: '2026-03-01' },
+      { range: 'custom', from: '2025-08-01', to: '2026-08-02' },
+    ];
+    for (const query of bad) {
+      expect(reportQuerySchema.safeParse(query).success, JSON.stringify(query)).toBe(false);
+      expect(reportExportQuerySchema.safeParse(query).success, JSON.stringify(query)).toBe(false);
+    }
+    // 366 days inclusive is the cap, so a leap year is still one range.
+    expect(
+      reportQuerySchema.safeParse({ range: 'custom', from: '2025-08-02', to: '2026-08-02' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('drops stray days from a preset so they cannot leak into the window', () => {
+    expect(reportQuerySchema.parse({ range: '7d', from: '2026-08-01', to: '2026-08-15' })).toEqual({
+      range: '7d',
+    });
+  });
+});
+
+describe('reportQueryParams', () => {
+  it('serialises a preset as just its range and a custom range with its days', () => {
+    expect(reportQueryParams({ range: '7d' }).toString()).toBe('range=7d');
+    expect(
+      reportQueryParams({ range: 'custom', from: '2026-08-01', to: '2026-08-15' }).toString(),
+    ).toBe('range=custom&from=2026-08-01&to=2026-08-15');
+  });
+});
+
+describe('reportWindowSlug', () => {
+  it('names a preset by its token and a custom range by its two days', () => {
+    expect(reportWindowSlug({ range: 'today' })).toBe('today');
+    expect(reportWindowSlug({ range: 'custom', from: '2026-08-01', to: '2026-08-15' })).toBe(
+      '2026-08-01_2026-08-15',
+    );
+  });
+});
+
+describe('reportWindowInput', () => {
+  it('hands a preset through and turns custom into its two days', () => {
+    expect(reportWindowInput({ range: 'mtd' })).toBe('mtd');
+    expect(reportWindowInput({ range: 'custom', from: '2026-08-01', to: '2026-08-15' })).toEqual({
+      from: '2026-08-01',
+      to: '2026-08-15',
+    });
   });
 });
 

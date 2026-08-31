@@ -12,11 +12,14 @@
 
 import { NextResponse } from 'next/server';
 import {
+  DEFAULT_REPORT_DRILLDOWN_RANGE,
   Permission,
-  reportDrilldownRangeSchema,
+  reportDrilldownQuerySchema,
   reportFormatSchema,
   reportMetricSchema,
+  reportWindowSlug,
   roleHasPermission,
+  type ReportDrilldownQuery,
 } from '@fit/types';
 import { fetchReportDrilldownExport } from '@/lib/api';
 import { getServerSession } from '@/lib/session';
@@ -27,7 +30,7 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 // Reads the live session cookie + proxies a live stream, so never cache.
 export const dynamic = 'force-dynamic';
 
-/** `GET /reports/:metric/export?range=&format=` — stream one drill-down as a file. */
+/** `GET /reports/:metric/export?range=&from=&to=&format=` — stream one drill-down as a file. */
 export async function GET(
   req: Request,
   context: { params: Promise<{ metric: string }> },
@@ -46,14 +49,18 @@ export async function GET(
     return NextResponse.json({ error: 'Unknown report' }, { status: 400 });
   }
 
-  // Range/format fall back to the API defaults when absent or invalid, so a bare
-  // link still yields a valid download rather than a 400.
+  // Window/format fall back to the API defaults when absent or invalid, so a
+  // bare link still yields a valid download rather than a 400.
   const params = new URL(req.url).searchParams;
-  const range = reportDrilldownRangeSchema.safeParse(params.get('range'));
+  const window = reportDrilldownQuerySchema.safeParse({
+    range: params.get('range') ?? undefined,
+    from: params.get('from') ?? undefined,
+    to: params.get('to') ?? undefined,
+  });
   const format = reportFormatSchema.safeParse(params.get('format'));
 
   const upstream = await fetchReportDrilldownExport(metric.data, {
-    range: range.success ? range.data : undefined,
+    window: window.success ? window.data : undefined,
     format: format.success ? format.data : undefined,
   });
   if (!upstream.ok || !upstream.body) {
@@ -64,8 +71,10 @@ export async function GET(
   }
 
   const chosenFormat = format.success ? format.data : 'csv';
-  const chosenRange = range.success ? range.data : '30d';
-  const filename = `report-${metric.data}-${chosenRange}.${chosenFormat}`;
+  const chosenWindow: ReportDrilldownQuery = window.success
+    ? window.data
+    : { range: DEFAULT_REPORT_DRILLDOWN_RANGE };
+  const filename = `report-${metric.data}-${reportWindowSlug(chosenWindow)}.${chosenFormat}`;
 
   return new Response(upstream.body, {
     status: 200,

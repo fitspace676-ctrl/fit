@@ -632,6 +632,8 @@ export const gymReportsSettingsSchema = z.object({
   'discounts-and-promotions': z.boolean().default(true),
   'refunds-detail': z.boolean().default(true),
   'pos-transaction-log': z.boolean().default(true),
+  'sales-transactions': z.boolean().default(true),
+  'daily-reconciliation': z.boolean().default(true),
   // Members
   'membership-movement': z.boolean().default(true),
   'retention-and-churn': z.boolean().default(true),

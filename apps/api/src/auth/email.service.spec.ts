@@ -52,7 +52,6 @@ const weeklyDigest: ReportDigest = {
     {
       key: 'revenue-by-channel',
       name: 'Revenue by channel',
-      range: '7d',
       currency: 'USD',
       columns: [
         { key: 'channel', label: 'Channel', type: 'text' },
@@ -67,7 +66,6 @@ const weeklyDigest: ReportDigest = {
     {
       key: 'no-show-rate',
       name: 'No-show rate',
-      range: '7d',
       currency: 'USD',
       columns: [
         { key: 'trainer', label: 'Trainer', type: 'text' },
@@ -79,7 +77,6 @@ const weeklyDigest: ReportDigest = {
     {
       key: 'attendance-by-class',
       name: 'Attendance by class',
-      range: '7d',
       currency: 'USD',
       columns: [
         { key: 'class', label: 'Class', type: 'text' },

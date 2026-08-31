@@ -10,11 +10,14 @@
 
 import { NextResponse } from 'next/server';
 import {
+  DEFAULT_REPORT_RANGE,
   Permission,
   reportFormatSchema,
   reportKeySchema,
-  reportRangeSchema,
+  reportQuerySchema,
+  reportWindowSlug,
   roleHasPermission,
+  type ReportQuery,
 } from '@fit/types';
 import { fetchReportExport } from '@/lib/api';
 import { getServerSession } from '@/lib/session';
@@ -25,7 +28,7 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 // Reads the live session cookie + proxies a live stream, so never cache.
 export const dynamic = 'force-dynamic';
 
-/** `GET /reports/export?report=&range=&format=` — stream one report as a file download. */
+/** `GET /reports/export?report=&range=&from=&to=&format=` — stream one report as a file download. */
 export async function GET(req: Request): Promise<Response> {
   // Defence in depth: the middleware gates the route to staff, but re-assert the
   // report-view capability here since this is its own endpoint. The API re-checks
@@ -40,13 +43,17 @@ export async function GET(req: Request): Promise<Response> {
   if (!key.success) {
     return NextResponse.json({ error: 'Unknown report' }, { status: 400 });
   }
-  // Range/format fall back to the API defaults when absent or invalid, so a bare
-  // link still yields a valid download rather than a 400.
-  const range = reportRangeSchema.safeParse(params.get('range'));
+  // Window/format fall back to the API defaults when absent or invalid, so a
+  // bare link still yields a valid download rather than a 400.
+  const window = reportQuerySchema.safeParse({
+    range: params.get('range') ?? undefined,
+    from: params.get('from') ?? undefined,
+    to: params.get('to') ?? undefined,
+  });
   const format = reportFormatSchema.safeParse(params.get('format'));
 
   const upstream = await fetchReportExport(key.data, {
-    range: range.success ? range.data : undefined,
+    window: window.success ? window.data : undefined,
     format: format.success ? format.data : undefined,
   });
   if (!upstream.ok || !upstream.body) {
@@ -57,8 +64,8 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const chosenFormat = format.success ? format.data : 'csv';
-  const chosenRange = range.success ? range.data : '30d';
-  const filename = `report-${key.data}-${chosenRange}.${chosenFormat}`;
+  const chosenWindow: ReportQuery = window.success ? window.data : { range: DEFAULT_REPORT_RANGE };
+  const filename = `report-${key.data}-${reportWindowSlug(chosenWindow)}.${chosenFormat}`;
 
   return new Response(upstream.body, {
     status: 200,

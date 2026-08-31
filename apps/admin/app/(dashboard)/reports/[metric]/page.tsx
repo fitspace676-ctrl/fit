@@ -5,10 +5,10 @@ import { getTranslations } from 'next-intl/server';
 import {
   DEFAULT_REPORT_DRILLDOWN_RANGE,
   Permission,
-  reportDrilldownRangeSchema,
+  reportDrilldownQuerySchema,
   reportMetricSchema,
   roleHasPermission,
-  type ReportDrilldownRange,
+  type ReportDrilldownQuery,
   type ReportMetric,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -37,7 +37,7 @@ export default async function ReportDrilldownPage({
   searchParams,
 }: {
   params: Promise<{ metric: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
 }) {
   const { metric: rawMetric } = await params;
   const parsedMetric = reportMetricSchema.safeParse(rawMetric);
@@ -50,18 +50,20 @@ export default async function ReportDrilldownPage({
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
 
-  const { range: rawRange } = await searchParams;
-  const parsedRange = reportDrilldownRangeSchema.safeParse(rawRange);
-  const range: ReportDrilldownRange = parsedRange.success
-    ? parsedRange.data
-    : DEFAULT_REPORT_DRILLDOWN_RANGE;
+  const { range, from, to } = await searchParams;
+  // Validated as a whole, so a half-written custom range falls back rather
+  // than reaching the API as a 400 — same rule as the Reports hub.
+  const parsedQuery = reportDrilldownQuerySchema.safeParse({ range, from, to });
+  const query: ReportDrilldownQuery = parsedQuery.success
+    ? parsedQuery.data
+    : { range: DEFAULT_REPORT_DRILLDOWN_RANGE };
 
   if (!canViewReports) {
     return <p {...stylex.props(chrome.notice)}>{t('noAccess')}</p>;
   }
 
   try {
-    const drilldown = await fetchReportDrilldown(metric, range);
+    const drilldown = await fetchReportDrilldown(metric, query);
     return <DrilldownView drilldown={drilldown} />;
   } catch (error) {
     const message =

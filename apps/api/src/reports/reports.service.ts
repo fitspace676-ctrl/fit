@@ -7,6 +7,10 @@ import {
   Role,
   SubscriptionInterval,
   SubscriptionStatus,
+  OrderStatus,
+  PackageBillingInterval,
+  PaymentMethod,
+  ServiceType,
 } from '@fit/db';
 import {
   deriveOrderChannel,
@@ -23,6 +27,11 @@ import {
   type ReportResult,
   type ReportRow,
   type ReportToggle,
+  reportWindowInput,
+  type ReportDigestSection,
+  type ReportWindowInput,
+  type ReportWindowPreset,
+  decodeVariantRef,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -35,8 +44,18 @@ import {
   isoDate,
   rate,
   resolveWindow,
+  windowDays,
   type ReportWindow,
 } from './report-window.util';
+import { addZonedDays, zonedDayStart } from './zoned-time.util';
+import { resolveEmailLocale } from '../mail/email-locale';
+import {
+  localizeColumns,
+  localizeDefinition,
+  reportStrings,
+  type ReportLocale,
+  type ReportStrings,
+} from './report-strings';
 
 /** The precomputed shape a report resolves to before it is shaped for a surface. */
 interface ComputedReport {
@@ -44,6 +63,8 @@ interface ComputedReport {
   currency: string;
   columns: ReportColumn[];
   rows: ReportRow[];
+  /** The window the rows were computed over, for the response to echo. */
+  window: ReportWindow;
 }
 
 /**
@@ -95,12 +116,16 @@ export class ReportsService {
    * bookmarked preview link and a scheduled export are both expected to keep
    * working after a gym tidies its hub.
    */
-  async catalog(): Promise<ReportCatalogResponse> {
+  async catalog(lang: ReportLocale | null = null): Promise<ReportCatalogResponse> {
     const gym = await this.prisma.client.gym.findFirst({
       where: { id: this.tenant.gymId },
       select: { settings: true },
     });
-    const { reports } = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    const stored = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    const { reports } = stored;
+    // The caller's language when it said, the gym's own otherwise — the same
+    // rule every report body follows, so the hub and its previews agree.
+    const language = lang ?? resolveEmailLocale(stored.locale.language);
 
     // Fail OPEN: a report only disappears when its toggle is explicitly `false`.
     // If a report ever reached REPORT_CATALOG without a matching toggle, reading
@@ -109,17 +134,48 @@ export class ReportsService {
     // preference, so the friendlier failure is to keep showing it until someone
     // deliberately hides it.
     return {
-      reports: REPORT_CATALOG.filter((report) => reports[report.key as ReportToggle] !== false),
+      reports: REPORT_CATALOG.filter((report) => reports[report.key as ReportToggle] !== false).map(
+        (report) => localizeDefinition(report, language),
+      ),
+      segments: reportStrings(language).segments,
     };
   }
 
   /** Run one report for on-screen preview — its columns plus the computed rows. */
-  async runReport(key: ReportKey, query: ReportQuery): Promise<ReportResult> {
-    const computed = await this.computeReport(key, query);
+  async runReport(
+    key: ReportKey,
+    query: ReportQuery,
+    lang: ReportLocale | null = null,
+  ): Promise<ReportResult> {
+    const computed = await this.computeReport(key, reportWindowInput(query), lang);
     return {
       key,
       name: computed.name,
       range: query.range,
+      // The days the window RESOLVED to, for every range — a preset's are implied
+      // by its token, but the screen's date control shows them, and the reader
+      // should see the same window the figures were computed over.
+      ...windowDays(computed.window),
+      currency: computed.currency,
+      columns: computed.columns,
+      rows: computed.rows,
+    };
+  }
+
+  /**
+   * One section of the emailed digest: the same computation as {@link runReport}
+   * over a window PRESET rather than a console range. The digest's monthly
+   * cadence windows over `30d`, which the console no longer offers, so it cannot
+   * go through {@link ReportQuery} — and a section carries no `range` of its own
+   * because the digest states it once for all of them.
+   */
+  async runDigestSection(key: ReportKey, preset: ReportWindowPreset): Promise<ReportDigestSection> {
+    // No caller language: the digest is written in the GYM's language, like
+    // every other mail it sends.
+    const computed = await this.computeReport(key, preset, null);
+    return {
+      key,
+      name: computed.name,
       currency: computed.currency,
       columns: computed.columns,
       rows: computed.rows,
@@ -132,8 +188,12 @@ export class ReportsService {
    * {@link reportCsvRow}); each cell is RFC-4180 escaped before joining. The
    * controller pipes each yielded chunk straight to the response.
    */
-  async *streamReportCsv(key: ReportKey, query: ReportQuery): AsyncGenerator<string> {
-    const { columns, rows } = await this.computeReport(key, query);
+  async *streamReportCsv(
+    key: ReportKey,
+    query: ReportQuery,
+    lang: ReportLocale | null = null,
+  ): AsyncGenerator<string> {
+    const { columns, rows } = await this.computeReport(key, reportWindowInput(query), lang);
     yield `${columns.map((column) => csvCell(column.label)).join(',')}\r\n`;
     for (const row of rows) {
       yield `${reportCsvRow(columns, row).map(csvCell).join(',')}\r\n`;
@@ -146,8 +206,12 @@ export class ReportsService {
    * cells are numeric major units and percentages numeric, so the spreadsheet can
    * sum and sort them.
    */
-  async buildReportXlsx(key: ReportKey, query: ReportQuery): Promise<Buffer> {
-    const { name, columns, rows } = await this.computeReport(key, query);
+  async buildReportXlsx(
+    key: ReportKey,
+    query: ReportQuery,
+    lang: ReportLocale | null = null,
+  ): Promise<Buffer> {
+    const { name, columns, rows } = await this.computeReport(key, reportWindowInput(query), lang);
     const headers = columns.map((column) => column.label);
     const cells = rows.map((row) => reportXlsxRow(columns, row));
     return buildReportWorkbook(name, headers, cells);
@@ -158,9 +222,40 @@ export class ReportsService {
   /* ---------------------------------------------------------------------- */
 
   /** Resolve a report to its columns, rows, and (for money reports) currency. */
-  private async computeReport(key: ReportKey, query: ReportQuery): Promise<ComputedReport> {
+  private async computeReport(
+    key: ReportKey,
+    input: ReportWindowInput,
+    lang: ReportLocale | null,
+  ): Promise<ComputedReport> {
+    // The gym's own zone, for the same reason the dashboard passes it: "today"
+    // and "this month" are calendar questions, and UTC answers them wrong for
+    // the first hours of every day in Tbilisi.
+    const locale = await this.locale.get();
+    const win = resolveWindow(input, locale.timezone);
+    // The language the CALLER reads, when it said (the console forwards its own
+    // interface language); the gym's own otherwise (a scheduled export, the digest).
+    const language = lang ?? resolveEmailLocale(locale.language);
+    const s = reportStrings(language);
+    const computed = await this.computeRows(key, win, s);
+    return {
+      ...computed,
+      name: s.catalogue[key].name,
+      columns: localizeColumns(key, computed.columns, language),
+      window: win,
+    };
+  }
+
+  /**
+   * Dispatch one report key to its aggregate over an already-resolved window.
+   * `s` is the language for the values a report WRITES ITSELF ("No plan", a
+   * payment method); the labels around them are localised by the caller.
+   */
+  private async computeRows(
+    key: ReportKey,
+    win: ReportWindow,
+    s: ReportStrings,
+  ): Promise<Omit<ComputedReport, 'window'>> {
     const definition = REPORT_DEFINITIONS[key];
-    const win = resolveWindow(query.range);
 
     switch (key) {
       /* ---- Sales -------------------------------------------------------- */
@@ -174,21 +269,21 @@ export class ReportsService {
       case 'sales-by-payment-method': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.salesByPaymentMethod(win),
+          this.salesByPaymentMethod(win, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'plan-performance': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.planPerformance(win),
+          this.planPerformance(win, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'sales-by-staff': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.salesByStaff(win),
+          this.salesByStaff(win, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -202,14 +297,28 @@ export class ReportsService {
       case 'refunds-detail': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.refundsDetail(win),
+          this.refundsDetail(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'sales-transactions': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.salesTransactions(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'daily-reconciliation': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.dailyReconciliation(win),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'pos-transaction-log': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.posTransactionLog(win),
+          this.posTransactionLog(win, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -225,14 +334,14 @@ export class ReportsService {
       case 'revenue-by-location': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.revenueByLocation(win),
+          this.revenueByLocation(win, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'outstanding-invoices': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.outstandingInvoices(),
+          this.outstandingInvoices(win.zone, s),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -263,35 +372,35 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.attendanceByClass(win),
+          rows: await this.attendanceByClass(win, s),
         };
       case 'class-utilization':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.classUtilization(win),
+          rows: await this.classUtilization(win, s),
         };
       case 'class-cancellations':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.classCancellations(win),
+          rows: await this.classCancellations(win, s),
         };
       case 'waitlist-demand':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.waitlistDemand(win),
+          rows: await this.waitlistDemand(win, s),
         };
       case 'pt-sessions':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.ptSessions(win),
+          rows: await this.ptSessions(win, s),
         };
 
       /* ---- Trainers & staff ---------------------------------------------- */
@@ -300,7 +409,7 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.trainerPerformance(win),
+          rows: await this.trainerPerformance(win, s),
         };
       /* ---- Members ------------------------------------------------------- */
       case 'membership-movement':
@@ -322,42 +431,42 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.membersAtRisk(),
+          rows: await this.membersAtRisk(win.zone, s),
         };
       case 'expiring-memberships':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.expiringMemberships(win),
+          rows: await this.expiringMemberships(win, s),
         };
       case 'member-roster':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.memberRoster(),
+          rows: await this.memberRoster(win.zone, s),
         };
       case 'member-check-in-log':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.memberCheckInLog(win),
+          rows: await this.memberCheckInLog(win, s),
         };
       case 'upcoming-occasions':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.upcomingOccasions(win),
+          rows: await this.upcomingOccasions(win, s),
         };
       case 'no-show-rate':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.noShowRate(win),
+          rows: await this.noShowRate(win, s),
         };
     }
   }
@@ -408,18 +517,18 @@ export class ReportsService {
       }),
     ]);
 
-    const gross = emptyBuckets(win);
-    const refunded = emptyBuckets(win);
-    const orders = emptyBuckets(win);
+    const gross = emptyBuckets(win, win.zone);
+    const refunded = emptyBuckets(win, win.zone);
+    const orders = emptyBuckets(win, win.zone);
     for (const payment of payments) {
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (gross.has(key)) {
         gross.set(key, (gross.get(key) ?? 0) + payment.amount);
         orders.set(key, (orders.get(key) ?? 0) + 1);
       }
     }
     for (const refund of refunds) {
-      const key = bucketKey(refund.createdAt, win.bucket);
+      const key = bucketKey(refund.createdAt, win.bucket, win.zone);
       if (refunded.has(key)) {
         refunded.set(key, (refunded.get(key) ?? 0) + refund.amount);
       }
@@ -443,7 +552,7 @@ export class ReportsService {
    * the till writes, so this groups in the database. A method nobody used in the
    * window is absent rather than shown as a zero row.
    */
-  private async salesByPaymentMethod(win: ReportWindow): Promise<ReportRow[]> {
+  private async salesByPaymentMethod(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const grouped = await this.prisma.client.payment.groupBy({
       by: ['method'],
       where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
@@ -456,7 +565,7 @@ export class ReportsService {
         const gross = group._sum.amount ?? 0;
         const refunded = group._sum.refundedAmount ?? 0;
         return {
-          method: PAYMENT_METHOD_LABEL[group.method] ?? group.method,
+          method: paymentMethodLabel(s, group.method),
           orders: group._count._all,
           gross,
           refunded,
@@ -474,34 +583,134 @@ export class ReportsService {
    * label would answer a different question than the one asked; the POS
    * transaction log is where line-item retail lives.
    */
-  private async planPerformance(win: ReportWindow): Promise<ReportRow[]> {
+  private async planPerformance(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const orders = await this.prisma.client.order.findMany({
       where: {
-        packageId: { not: null },
         createdAt: { gte: win.start, lt: win.end },
         payment: { is: { status: PaymentStatus.CAPTURED } },
       },
-      select: { total: true, package: { select: { id: true, name: true } } },
+      select: {
+        total: true,
+        packageId: true,
+        package: { select: { id: true, name: true, billingInterval: true, sessionCount: true } },
+        location: { select: { name: true } },
+        items: {
+          select: {
+            label: true,
+            amount: true,
+            qty: true,
+            productVariantId: true,
+            serviceId: true,
+            service: { select: { id: true, name: true, type: true } },
+          },
+        },
+      },
     });
 
-    const byPlan = new Map<string, { plan: string; orders: number; revenue: number }>();
+    // One lookup for every product sold in the window, by the product half of its ref.
+    const productIds = new Set<string>();
     for (const order of orders) {
-      if (!order.package) {
-        continue;
+      for (const item of order.items) {
+        const ref = item.productVariantId ? decodeVariantRef(item.productVariantId) : null;
+        if (ref) productIds.add(ref.productId);
       }
-      const entry = byPlan.get(order.package.id) ?? {
-        plan: order.package.name,
-        orders: 0,
-        revenue: 0,
-      };
-      entry.orders += 1;
-      entry.revenue += order.total;
-      byPlan.set(order.package.id, entry);
+    }
+    const products = new Map<string, { name: string; category: string | null }>();
+    if (productIds.size > 0) {
+      const rows = await this.prisma.client.product.findMany({
+        where: { id: { in: [...productIds] } },
+        select: { id: true, name: true, category: { select: { name: true } } },
+      });
+      for (const row of rows) {
+        products.set(row.id, { name: row.name, category: row.category?.name ?? null });
+      }
     }
 
-    return [...byPlan.values()].sort(
-      (a, b) => b.revenue - a.revenue || a.plan.localeCompare(b.plan),
-    );
+    interface Entry {
+      item: string;
+      category: string;
+      sold: number;
+      revenue: number;
+      location: string;
+    }
+    const entries = new Map<string, Entry>();
+    const add = (
+      key: string,
+      seed: Omit<Entry, 'sold' | 'revenue'>,
+      sold: number,
+      revenue: number,
+    ) => {
+      const entry = entries.get(key) ?? { ...seed, sold: 0, revenue: 0 };
+      entry.sold += sold;
+      entry.revenue += revenue;
+      entries.set(key, entry);
+    };
+
+    for (const order of orders) {
+      const location = order.location?.name ?? '';
+      // The plan's own money is its line (the one with no product and no
+      // service behind it); an order with no lines at all - an online plan
+      // purchase - IS the plan. Promo lines are negative and never a plan.
+      let planRevenue = 0;
+      for (const item of order.items) {
+        if (item.serviceId) {
+          const category =
+            item.service?.type === ServiceType.PERSONAL_TRAINING
+              ? s.values.categoryPersonalTraining
+              : s.values.categoryService;
+          add(
+            `service:${item.serviceId}|${location}`,
+            { item: item.service?.name ?? item.label, category, location },
+            item.qty,
+            item.amount,
+          );
+          continue;
+        }
+        const ref = item.productVariantId ? decodeVariantRef(item.productVariantId) : null;
+        if (ref) {
+          const product = products.get(ref.productId);
+          add(
+            `product:${ref.productId}|${location}`,
+            {
+              item: product?.name ?? item.label,
+              category: product?.category ?? s.values.categoryUncategorised,
+              location,
+            },
+            item.qty,
+            item.amount,
+          );
+          continue;
+        }
+        if (item.amount > 0) planRevenue += item.amount;
+      }
+      if (order.package) {
+        const plan = order.package;
+        const category =
+          plan.billingInterval === PackageBillingInterval.ONE_TIME
+            ? plan.sessionCount
+              ? s.values.categorySessionPack
+              : s.values.categoryOneTimePlan
+            : s.values.categoryMembership;
+        add(
+          `plan:${plan.id}|${location}`,
+          { item: plan.name, category, location },
+          1,
+          order.items.length === 0 ? order.total : planRevenue,
+        );
+      }
+    }
+
+    const total = [...entries.values()].reduce((sum, entry) => sum + entry.revenue, 0);
+    return [...entries.values()]
+      .sort((a, b) => b.revenue - a.revenue || a.item.localeCompare(b.item))
+      .map((entry) => ({
+        item: entry.item,
+        category: entry.category,
+        sold: entry.sold,
+        revenue: entry.revenue,
+        share: total > 0 ? rate(entry.revenue, total) : null,
+        location: entry.location,
+      }));
   }
 
   /**
@@ -513,7 +722,7 @@ export class ReportsService {
    * purchase lands there, as does every till sale rung before the attribution
    * existed, and hiding them would make the rows fail to add up to the gym's total.
    */
-  private async salesByStaff(win: ReportWindow): Promise<ReportRow[]> {
+  private async salesByStaff(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const orders = await this.prisma.client.order.findMany({
       where: {
         createdAt: { gte: win.start, lt: win.end },
@@ -540,7 +749,9 @@ export class ReportsService {
     for (const order of orders) {
       const key = order.soldById ?? UNATTRIBUTED_KEY;
       const entry = byStaff.get(key) ?? {
-        staff: order.soldBy ? staffName(order.soldBy) : UNATTRIBUTED_SELLER,
+        staff: order.soldBy
+          ? staffName(order.soldBy, s.values.unattributed)
+          : s.values.unattributed,
         role: order.soldBy?.role ?? '',
         orders: 0,
         gross: 0,
@@ -600,7 +811,7 @@ export class ReportsService {
    * `REFUNDED` status event, which is written only once a capture is fully
    * reversed and so names nobody for a partial refund.
    */
-  private async refundsDetail(win: ReportWindow): Promise<ReportRow[]> {
+  private async refundsDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const refunds = await this.prisma.client.refund.findMany({
       where: { createdAt: { gte: win.start, lt: win.end } },
       select: {
@@ -611,17 +822,35 @@ export class ReportsService {
         processedBy: {
           select: { firstName: true, lastName: true, user: { select: { name: true } } },
         },
+        order: {
+          select: {
+            customerName: true,
+            member: {
+              select: { firstName: true, lastName: true, user: { select: { name: true } } },
+            },
+            location: { select: { name: true } },
+            items: { select: { label: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: DETAIL_ROW_LIMIT,
     });
 
     return refunds.map((refund) => ({
-      date: isoDate(refund.createdAt),
+      date: isoDate(refund.createdAt, win.zone),
+      time: clockTime(refund.createdAt, win.zone),
+      customer: refund.order.member
+        ? memberName(refund.order.member, s.values.unknownMember)
+        : (refund.order.customerName ?? s.values.guest),
       order: shortId(refund.orderId),
+      items: refund.order.items.map((item) => item.label).join(', '),
       amount: refund.amount,
       reason: refund.reason,
-      processedBy: refund.processedBy ? staffName(refund.processedBy) : UNATTRIBUTED_SELLER,
+      processedBy: refund.processedBy
+        ? staffName(refund.processedBy, s.values.unattributed)
+        : s.values.unattributed,
+      location: refund.order.location?.name ?? '',
     }));
   }
 
@@ -632,7 +861,7 @@ export class ReportsService {
    * Scoped to `pos`-provider payments, the same test the order roster's POS filter
    * uses, so "what the till sold" means one thing across the console.
    */
-  private async posTransactionLog(win: ReportWindow): Promise<ReportRow[]> {
+  private async posTransactionLog(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const orders = await this.prisma.client.order.findMany({
       where: {
         createdAt: { gte: win.start, lt: win.end },
@@ -653,14 +882,201 @@ export class ReportsService {
     });
 
     return orders.map((order) => ({
-      date: isoDate(order.createdAt),
-      time: clockTime(order.createdAt),
+      date: isoDate(order.createdAt, win.zone),
+      time: clockTime(order.createdAt, win.zone),
       order: shortId(order.id),
       items: order.items.map((item) => item.label).join(', '),
-      method: order.payment ? (PAYMENT_METHOD_LABEL[order.payment.method] ?? '') : '',
+      method: order.payment ? paymentMethodLabel(s, order.payment.method) : '',
       total: order.total,
-      staff: order.soldBy ? staffName(order.soldBy) : UNATTRIBUTED_SELLER,
+      staff: order.soldBy ? staffName(order.soldBy, s.values.unattributed) : s.values.unattributed,
     }));
+  }
+
+  /**
+   * Each day's takings split by how the money was collected, beside the refunds
+   * issued that day and the receipts behind the total - the end-of-day sheet.
+   *
+   * Always by calendar DAY in the gym's zone, whatever bucket the window would
+   * otherwise use: a reconciliation is done against a day's till, and a weekly
+   * row would have nothing to be checked against. Days with no sales are real
+   * zero rows, so a closed Sunday reads as closed rather than missing.
+   *
+   * The columns follow the till's own vocabulary: cash, card at the till, and
+   * a member's account are the `pos`-provider methods; everything captured by
+   * a gateway is "online". Bank transfer is not a method the till records, so
+   * there is no column to fill.
+   */
+  private async dailyReconciliation(win: ReportWindow): Promise<ReportRow[]> {
+    const days: ReportWindow = { ...win, bucket: 'day' };
+    const [payments, refunds] = await Promise.all([
+      this.prisma.client.payment.findMany({
+        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        select: { amount: true, createdAt: true, method: true, provider: true, orderId: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.client.refund.findMany({
+        where: { createdAt: { gte: win.start, lt: win.end } },
+        select: { amount: true, createdAt: true },
+      }),
+    ]);
+
+    interface Day {
+      total: number;
+      cash: number;
+      card: number;
+      online: number;
+      memberAccount: number;
+      refunds: number;
+      transactions: number;
+      references: string[];
+    }
+    const byDay = new Map<string, Day>();
+    for (const key of emptyBuckets(days, win.zone).keys()) {
+      byDay.set(key, {
+        total: 0,
+        cash: 0,
+        card: 0,
+        online: 0,
+        memberAccount: 0,
+        refunds: 0,
+        transactions: 0,
+        references: [],
+      });
+    }
+    for (const payment of payments) {
+      const day = byDay.get(bucketKey(payment.createdAt, 'day', win.zone));
+      if (!day) continue;
+      day.total += payment.amount;
+      day.transactions += 1;
+      day.references.push(shortId(payment.orderId));
+      if (deriveOrderChannel(payment.provider) !== 'POS') {
+        day.online += payment.amount;
+      } else if (payment.method === PaymentMethod.CASH) {
+        day.cash += payment.amount;
+      } else if (payment.method === PaymentMethod.MEMBER_ACCOUNT) {
+        day.memberAccount += payment.amount;
+      } else {
+        day.card += payment.amount;
+      }
+    }
+    for (const refund of refunds) {
+      const day = byDay.get(bucketKey(refund.createdAt, 'day', win.zone));
+      if (day) day.refunds += refund.amount;
+    }
+
+    return [...byDay.entries()].map(([date, day]) => ({
+      date,
+      total: day.total,
+      cash: day.cash,
+      card: day.card,
+      online: day.online,
+      memberAccount: day.memberAccount,
+      refunds: day.refunds,
+      transactions: day.transactions,
+      references: day.references.join(', '),
+    }));
+  }
+
+  /**
+   * Every sale in the window, one row per transaction, across BOTH channels -
+   * the till and the online shop - where {@link posTransactionLog} is the till
+   * alone. A transaction is an `Order`: its lines are folded into one cell the
+   * way the POS log folds them, and the category cell names what those lines
+   * were - a shelved product's own category, a service, a membership plan -
+   * as a distinct list, because one basket can hold a towel and a plan.
+   *
+   * Product categories are not reachable through the order line: an
+   * `OrderItem.productVariantId` is the cart's `"<productId>:<segment>"` wire
+   * ref, not a foreign key, so the product half is decoded and looked up in one
+   * query for the whole page of rows.
+   *
+   * Status is the order's own, except that a paid order with money handed back
+   * but not all of it reads "partially refunded" - `OrderStatus` has no such
+   * state, and "paid" would hide the refund.
+   */
+  private async salesTransactions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const orders = await this.prisma.client.order.findMany({
+      where: { createdAt: { gte: win.start, lt: win.end } },
+      select: {
+        id: true,
+        createdAt: true,
+        total: true,
+        status: true,
+        customerName: true,
+        packageId: true,
+        member: {
+          select: { firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+        location: { select: { name: true } },
+        items: { select: { label: true, productVariantId: true, serviceId: true } },
+        payment: { select: { method: true, provider: true, refundedAmount: true } },
+        soldBy: {
+          select: { firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: DETAIL_ROW_LIMIT,
+    });
+
+    // One lookup for every product sold on the page, by the product half of its ref.
+    const productIds = new Set<string>();
+    for (const order of orders) {
+      for (const item of order.items) {
+        const ref = item.productVariantId ? decodeVariantRef(item.productVariantId) : null;
+        if (ref) productIds.add(ref.productId);
+      }
+    }
+    const categoryByProduct = new Map<string, string | null>();
+    if (productIds.size > 0) {
+      const products = await this.prisma.client.product.findMany({
+        where: { id: { in: [...productIds] } },
+        select: { id: true, category: { select: { name: true } } },
+      });
+      for (const product of products) {
+        categoryByProduct.set(product.id, product.category?.name ?? null);
+      }
+    }
+
+    return orders.map((order) => {
+      const categories = new Set<string>();
+      if (order.packageId) categories.add(s.values.categoryPlan);
+      for (const item of order.items) {
+        if (item.serviceId) {
+          categories.add(s.values.categoryService);
+          continue;
+        }
+        const ref = item.productVariantId ? decodeVariantRef(item.productVariantId) : null;
+        if (ref) {
+          categories.add(categoryByProduct.get(ref.productId) ?? s.values.categoryUncategorised);
+        }
+      }
+      const refunded = order.payment?.refundedAmount ?? 0;
+      const statusKey =
+        order.status === OrderStatus.PAID && refunded > 0 && refunded < order.total
+          ? 'PARTIALLY_REFUNDED'
+          : order.status;
+      return {
+        date: isoDate(order.createdAt, win.zone),
+        time: clockTime(order.createdAt, win.zone),
+        reference: shortId(order.id),
+        customer: order.member
+          ? memberName(order.member, s.values.unknownMember)
+          : (order.customerName ?? s.values.guest),
+        items: order.items.map((item) => item.label).join(', '),
+        category: [...categories].join(', '),
+        amount: order.total,
+        method: order.payment ? paymentMethodLabel(s, order.payment.method) : '',
+        channel:
+          deriveOrderChannel(order.payment?.provider) === 'POS'
+            ? s.values.channelPos
+            : s.values.channelOnline,
+        location: order.location?.name ?? '',
+        staff: order.soldBy
+          ? staffName(order.soldBy, s.values.unattributed)
+          : s.values.unattributed,
+        status: s.values.statuses[statusKey] ?? statusKey,
+      };
+    });
   }
 
   /* ---------------------------------------------------------------------- */
@@ -712,22 +1128,22 @@ export class ReportsService {
       }),
     ]);
 
-    const revenue = emptyBuckets(win);
+    const revenue = emptyBuckets(win, win.zone);
     for (const payment of payments) {
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (revenue.has(key)) {
         revenue.set(key, (revenue.get(key) ?? 0) + payment.amount);
       }
     }
     for (const refund of refunds) {
-      const key = bucketKey(refund.createdAt, win.bucket);
+      const key = bucketKey(refund.createdAt, win.bucket, win.zone);
       if (revenue.has(key)) {
         revenue.set(key, (revenue.get(key) ?? 0) - refund.amount);
       }
     }
 
     return [...revenue.entries()].map(([period, netRevenue]) => {
-      const at = bucketEnd(period, win.bucket);
+      const at = bucketEnd(period, win.bucket, win.zone);
       let mrr = 0;
       const members = new Set<string>();
       for (const sub of subscriptions) {
@@ -757,7 +1173,7 @@ export class ReportsService {
    * when the branch really belongs to the gym, so a silent omission would make the
    * rows fail to add up to the gym's own total.
    */
-  private async revenueByLocation(win: ReportWindow): Promise<ReportRow[]> {
+  private async revenueByLocation(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const payments = await this.prisma.client.payment.findMany({
       where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
       select: {
@@ -769,7 +1185,7 @@ export class ReportsService {
 
     const byLocation = new Map<string, { orders: number; gross: number; refunded: number }>();
     for (const payment of payments) {
-      const name = payment.order?.location?.name ?? NO_LOCATION_LABEL;
+      const name = payment.order?.location?.name ?? s.values.noLocation;
       const entry = byLocation.get(name) ?? { orders: 0, gross: 0, refunded: 0 };
       entry.orders += 1;
       entry.gross += payment.amount;
@@ -800,7 +1216,7 @@ export class ReportsService {
    * Ignores the reporting window: a debt from four months ago is exactly the one
    * worth chasing, and windowing it away would hide the worst rows.
    */
-  private async outstandingInvoices(): Promise<ReportRow[]> {
+  private async outstandingInvoices(zone: string, s: ReportStrings): Promise<ReportRow[]> {
     const invoices = await this.prisma.client.invoice.findMany({
       where: { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
       select: {
@@ -819,9 +1235,11 @@ export class ReportsService {
     const now = Date.now();
     return invoices.map((invoice) => ({
       invoice: invoice.number,
-      member: invoice.member ? memberName(invoice.member) : UNKNOWN_MEMBER_LABEL,
+      member: invoice.member
+        ? memberName(invoice.member, s.values.unknownMember)
+        : s.values.unknownMember,
       amount: invoice.amount,
-      dueDate: invoice.dueDate ? isoDate(invoice.dueDate) : null,
+      dueDate: invoice.dueDate ? isoDate(invoice.dueDate, zone) : null,
       daysOverdue: invoice.dueDate
         ? Math.max(0, Math.floor((now - invoice.dueDate.getTime()) / DAY_MS))
         : null,
@@ -893,17 +1311,17 @@ export class ReportsService {
       }),
     ]);
 
-    const gross = emptyBuckets(win);
+    const gross = emptyBuckets(win, win.zone);
     for (const payment of payments) {
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (gross.has(key)) {
         gross.set(key, (gross.get(key) ?? 0) + payment.amount);
       }
     }
-    const refunded = emptyBuckets(win);
-    const counts = emptyBuckets(win);
+    const refunded = emptyBuckets(win, win.zone);
+    const counts = emptyBuckets(win, win.zone);
     for (const refund of refunds) {
-      const key = bucketKey(refund.createdAt, win.bucket);
+      const key = bucketKey(refund.createdAt, win.bucket, win.zone);
       if (refunded.has(key)) {
         refunded.set(key, (refunded.get(key) ?? 0) + refund.amount);
         counts.set(key, (counts.get(key) ?? 0) + 1);
@@ -978,7 +1396,7 @@ export class ReportsService {
    * reach a relation's scalar, the same reason {@link AnalyticsService.topClasses}
    * uses `findMany` — then tallies in memory.
    */
-  private async attendanceByClass(win: ReportWindow): Promise<ReportRow[]> {
+  private async attendanceByClass(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const bookings = await this.prisma.client.booking.findMany({
       where: {
         status: { in: [...CONFIRMED_BOOKING_STATUSES] },
@@ -1008,8 +1426,8 @@ export class ReportsService {
       // straight from a type); resolve the title / trainer from whichever backs it.
       const key = inst.template?.id ?? inst.classType?.id ?? 'unknown';
       const entry = byClass.get(key) ?? {
-        title: inst.template?.title ?? inst.classType?.name ?? 'Class',
-        trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? UNASSIGNED_TRAINER,
+        title: inst.template?.title ?? inst.classType?.name ?? s.values.classFallback,
+        trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? s.values.unassigned,
         booked: 0,
         attended: 0,
         noShow: 0,
@@ -1052,7 +1470,7 @@ export class ReportsService {
    * Cancelled sessions are excluded from both sides: a class that never ran offered
    * no seats, and counting its capacity would report the gym as emptier than it was.
    */
-  private async classUtilization(win: ReportWindow): Promise<ReportRow[]> {
+  private async classUtilization(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const instances = await this.prisma.client.classInstance.findMany({
       where: {
         startsAt: { gte: win.start, lt: win.end },
@@ -1076,7 +1494,7 @@ export class ReportsService {
     for (const instance of instances) {
       const key = instance.template?.id ?? instance.classType?.id ?? 'unknown';
       const entry = byClass.get(key) ?? {
-        title: instance.template?.title ?? instance.classType?.name ?? 'Class',
+        title: instance.template?.title ?? instance.classType?.name ?? s.values.classFallback,
         sessions: 0,
         capacity: 0,
         booked: 0,
@@ -1106,7 +1524,7 @@ export class ReportsService {
    * Every cancelled or missed seat in the window, line by line — the list a no-show
    * fee or a repeat-offender conversation is built from. Newest first.
    */
-  private async classCancellations(win: ReportWindow): Promise<ReportRow[]> {
+  private async classCancellations(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const bookings = await this.prisma.client.booking.findMany({
       where: {
         status: { in: [BookingStatus.CANCELED, BookingStatus.NO_SHOW] },
@@ -1133,12 +1551,14 @@ export class ReportsService {
     return bookings.map((booking) => {
       const inst = booking.classInstance;
       return {
-        date: isoDate(inst.startsAt),
-        time: clockTime(inst.startsAt),
-        class: inst.template?.title ?? inst.classType?.name ?? 'Class',
-        member: booking.member ? memberName(booking.member) : UNKNOWN_MEMBER_LABEL,
-        outcome: booking.status === BookingStatus.NO_SHOW ? 'No-show' : 'Cancelled',
-        trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? UNASSIGNED_TRAINER,
+        date: isoDate(inst.startsAt, win.zone),
+        time: clockTime(inst.startsAt, win.zone),
+        class: inst.template?.title ?? inst.classType?.name ?? s.values.classFallback,
+        member: booking.member
+          ? memberName(booking.member, s.values.unknownMember)
+          : s.values.unknownMember,
+        outcome: booking.status === BookingStatus.NO_SHOW ? s.values.noShow : s.values.cancelled,
+        trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? s.values.unassigned,
       };
     });
   }
@@ -1154,7 +1574,7 @@ export class ReportsService {
    * `WAITLIST` is a real booking status the booking flow writes, so these are people
    * who actually asked and were refused, not an estimate of demand.
    */
-  private async waitlistDemand(win: ReportWindow): Promise<ReportRow[]> {
+  private async waitlistDemand(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const instances = await this.prisma.client.classInstance.findMany({
       where: {
         startsAt: { gte: win.start, lt: win.end },
@@ -1175,7 +1595,7 @@ export class ReportsService {
     for (const instance of instances) {
       const key = instance.template?.id ?? instance.classType?.id ?? 'unknown';
       const entry = byClass.get(key) ?? {
-        title: instance.template?.title ?? instance.classType?.name ?? 'Class',
+        title: instance.template?.title ?? instance.classType?.name ?? s.values.classFallback,
         sessions: 0,
         sessionsFull: 0,
         waitlisted: 0,
@@ -1221,7 +1641,7 @@ export class ReportsService {
    * catalogue refuses — the report says so in its own description rather than
    * shipping a column of guesses.
    */
-  private async ptSessions(win: ReportWindow): Promise<ReportRow[]> {
+  private async ptSessions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const sessions = await this.prisma.client.ptSession.findMany({
       where: { startsAt: { gte: win.start, lt: win.end } },
       select: { status: true, trainer: { select: { id: true, name: true } } },
@@ -1234,7 +1654,7 @@ export class ReportsService {
     for (const session of sessions) {
       const key = session.trainer?.id ?? UNASSIGNED_KEY;
       const entry = byTrainer.get(key) ?? {
-        name: session.trainer?.name ?? UNASSIGNED_TRAINER,
+        name: session.trainer?.name ?? s.values.unassigned,
         sessions: 0,
         completed: 0,
         cancelled: 0,
@@ -1290,26 +1710,26 @@ export class ReportsService {
       }),
     ]);
 
-    const joined = emptyBuckets(win);
+    const joined = emptyBuckets(win, win.zone);
     let baseline = 0;
     for (const member of members) {
       if (member.joinedAt < win.start) {
         baseline += 1;
         continue;
       }
-      const key = bucketKey(member.joinedAt, win.bucket);
+      const key = bucketKey(member.joinedAt, win.bucket, win.zone);
       if (joined.has(key)) {
         joined.set(key, (joined.get(key) ?? 0) + 1);
       }
     }
 
-    const cancelled = emptyBuckets(win);
+    const cancelled = emptyBuckets(win, win.zone);
     for (const sub of subscriptions) {
       const at = churnMoment(sub);
       if (!at || at < win.start || at >= win.end) {
         continue;
       }
-      const key = bucketKey(at, win.bucket);
+      const key = bucketKey(at, win.bucket, win.zone);
       if (cancelled.has(key)) {
         cancelled.set(key, (cancelled.get(key) ?? 0) + 1);
       }
@@ -1367,12 +1787,12 @@ export class ReportsService {
       return live === 0 ? null : rate(lost, live);
     };
 
-    const buckets = emptyBuckets(win);
+    const buckets = emptyBuckets(win, win.zone);
     for (const { at } of churnedAt) {
       if (!at || at < win.start || at >= win.end) {
         continue;
       }
-      const key = bucketKey(at, win.bucket);
+      const key = bucketKey(at, win.bucket, win.zone);
       if (buckets.has(key)) {
         buckets.set(key, (buckets.get(key) ?? 0) + 1);
       }
@@ -1381,7 +1801,7 @@ export class ReportsService {
     return [...buckets.entries()].map(([period, churned]) => {
       // The window closes at the END of the bucket's own span, so the rate covers
       // the period rather than stopping at its first instant.
-      const end = bucketEnd(period, win.bucket);
+      const end = bucketEnd(period, win.bucket, win.zone);
       const churnRate30 = rollingChurn(end, 30);
       return {
         period,
@@ -1403,7 +1823,7 @@ export class ReportsService {
    * have never checked in at all. Longest absence first, because that is the order
    * somebody working down the list wants.
    */
-  private async membersAtRisk(): Promise<ReportRow[]> {
+  private async membersAtRisk(zone: string, s: ReportStrings): Promise<ReportRow[]> {
     const cutoff = new Date(Date.now() - AT_RISK_DAYS * DAY_MS);
     const members = await this.prisma.client.gymMember.findMany({
       where: {
@@ -1431,9 +1851,9 @@ export class ReportsService {
         .map((member) => {
           const last = member.checkIns[0]?.checkedInAt ?? null;
           return {
-            member: memberName(member),
-            plan: member.subscriptions[0]?.plan?.name ?? NO_PLAN_LABEL,
-            lastVisit: last ? isoDate(last) : null,
+            member: memberName(member, s.values.unknownMember),
+            plan: member.subscriptions[0]?.plan?.name ?? s.values.noPlan,
+            lastVisit: last ? isoDate(last, zone) : null,
             daysAway: last === null ? null : Math.floor((now - last.getTime()) / DAY_MS),
             phone: member.user.phone ?? '',
             email: member.user.email,
@@ -1456,7 +1876,7 @@ export class ReportsService {
    * list of people who have already gone. `7d`/`30d` mean the next 7 or 30 days;
    * `12w`/`12m` the next twelve weeks or months.
    */
-  private async expiringMemberships(win: ReportWindow): Promise<ReportRow[]> {
+  private async expiringMemberships(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const now = new Date();
     const until = new Date(now.getTime() + (win.end.getTime() - win.start.getTime()));
     const subscriptions = await this.prisma.client.subscription.findMany({
@@ -1480,9 +1900,9 @@ export class ReportsService {
     });
 
     return subscriptions.map((sub) => ({
-      member: sub.member ? memberName(sub.member) : UNKNOWN_MEMBER_LABEL,
-      plan: sub.plan?.name ?? NO_PLAN_LABEL,
-      expiresOn: isoDate(sub.currentPeriodEnd),
+      member: sub.member ? memberName(sub.member, s.values.unknownMember) : s.values.unknownMember,
+      plan: sub.plan?.name ?? s.values.noPlan,
+      expiresOn: isoDate(sub.currentPeriodEnd, win.zone),
       daysLeft: Math.max(0, Math.ceil((sub.currentPeriodEnd.getTime() - now.getTime()) / DAY_MS)),
       phone: sub.member?.user.phone ?? '',
       email: sub.member?.user.email ?? '',
@@ -1496,7 +1916,7 @@ export class ReportsService {
    * Trashed (soft-deleted) memberships are excluded, exactly as the console's own
    * roster excludes them.
    */
-  private async memberRoster(): Promise<ReportRow[]> {
+  private async memberRoster(zone: string, s: ReportStrings): Promise<ReportRow[]> {
     const members = await this.prisma.client.gymMember.findMany({
       where: { role: Role.MEMBER, deletedAt: null },
       select: {
@@ -1517,11 +1937,11 @@ export class ReportsService {
     });
 
     return members.map((member) => ({
-      member: memberName(member),
+      member: memberName(member, s.values.unknownMember),
       status: member.status,
-      plan: member.subscriptions[0]?.plan?.name ?? NO_PLAN_LABEL,
-      joined: isoDate(member.joinedAt),
-      lastVisit: member.checkIns[0] ? isoDate(member.checkIns[0].checkedInAt) : null,
+      plan: member.subscriptions[0]?.plan?.name ?? s.values.noPlan,
+      joined: isoDate(member.joinedAt, zone),
+      lastVisit: member.checkIns[0] ? isoDate(member.checkIns[0].checkedInAt, zone) : null,
       email: member.user.email,
     }));
   }
@@ -1534,7 +1954,7 @@ export class ReportsService {
    * tenant rather than relying on the automatic scoping every other query here
    * gets. Forgetting that would read every gym's visits.
    */
-  private async memberCheckInLog(win: ReportWindow): Promise<ReportRow[]> {
+  private async memberCheckInLog(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     // `CheckIn` carries a bare `locationId` with no relation to follow, so the
     // branch names are resolved in one small lookup and joined in memory rather
     // than left as opaque ids in the export.
@@ -1560,9 +1980,11 @@ export class ReportsService {
 
     const locationName = new Map(locations.map((location) => [location.id, location.name]));
     return checkIns.map((checkIn) => ({
-      date: isoDate(checkIn.checkedInAt),
-      time: clockTime(checkIn.checkedInAt),
-      member: checkIn.member ? memberName(checkIn.member) : UNKNOWN_MEMBER_LABEL,
+      date: isoDate(checkIn.checkedInAt, win.zone),
+      time: clockTime(checkIn.checkedInAt, win.zone),
+      member: checkIn.member
+        ? memberName(checkIn.member, s.values.unknownMember)
+        : s.values.unknownMember,
       method: checkIn.method,
       location: checkIn.locationId ? (locationName.get(checkIn.locationId) ?? '') : '',
     }));
@@ -1577,7 +1999,7 @@ export class ReportsService {
    * New Year is handled by projecting each occasion into the coming year and
    * keeping whichever projection lands inside it.
    */
-  private async upcomingOccasions(win: ReportWindow): Promise<ReportRow[]> {
+  private async upcomingOccasions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const now = new Date();
     const until = new Date(now.getTime() + (win.end.getTime() - win.start.getTime()));
     const members = await this.prisma.client.gymMember.findMany({
@@ -1593,13 +2015,13 @@ export class ReportsService {
 
     const rows: Array<{ at: Date; row: ReportRow }> = [];
     for (const member of members) {
-      const name = memberName(member);
+      const name = memberName(member, s.values.unknownMember);
       const phone = member.user.phone ?? '';
       const occasions: Array<{ label: string; from: Date }> = [
-        { label: 'Anniversary', from: member.joinedAt },
+        { label: s.values.anniversary, from: member.joinedAt },
       ];
       if (member.dateOfBirth) {
-        occasions.push({ label: 'Birthday', from: member.dateOfBirth });
+        occasions.push({ label: s.values.birthday, from: member.dateOfBirth });
       }
       for (const occasion of occasions) {
         const next = nextAnniversary(occasion.from, now);
@@ -1609,7 +2031,7 @@ export class ReportsService {
             row: {
               member: name,
               occasion: occasion.label,
-              date: isoDate(next),
+              date: isoDate(next, win.zone),
               years: next.getUTCFullYear() - occasion.from.getUTCFullYear(),
               phone,
             },
@@ -1649,7 +2071,7 @@ export class ReportsService {
    * the Staff segment's other three reports, which cannot be built at all until
    * that changes.
    */
-  private async trainerPerformance(win: ReportWindow): Promise<ReportRow[]> {
+  private async trainerPerformance(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const [instances, ptSessions] = await Promise.all([
       this.prisma.client.classInstance.findMany({
         where: {
@@ -1706,7 +2128,7 @@ export class ReportsService {
       const key = instance.template?.trainerId ?? instance.trainerId ?? UNASSIGNED_KEY;
       const entry = entryFor(
         key,
-        instance.template?.trainer?.name ?? instance.trainer?.name ?? UNASSIGNED_TRAINER,
+        instance.template?.trainer?.name ?? instance.trainer?.name ?? s.values.unassigned,
       );
       entry.classes += 1;
       entry.seatsOffered +=
@@ -1719,7 +2141,7 @@ export class ReportsService {
 
     for (const session of ptSessions) {
       const key = session.trainerId ?? UNASSIGNED_KEY;
-      const entry = entryFor(key, session.trainer?.name ?? UNASSIGNED_TRAINER);
+      const entry = entryFor(key, session.trainer?.name ?? s.values.unassigned);
       entry.ptSessions += 1;
     }
 
@@ -1746,7 +2168,7 @@ export class ReportsService {
    * as a 0–100 percentage; a class with no assigned trainer rolls up under
    * "Unassigned". Ranked worst-first so the problem trainers surface at the top.
    */
-  private async noShowRate(win: ReportWindow): Promise<ReportRow[]> {
+  private async noShowRate(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const bookings = await this.prisma.client.booking.findMany({
       where: {
         status: { in: [BookingStatus.ATTENDED, BookingStatus.NO_SHOW] },
@@ -1773,7 +2195,7 @@ export class ReportsService {
       // own (one scheduled from a type).
       const trainerKey = inst.template?.trainerId ?? inst.trainerId ?? UNASSIGNED_KEY;
       const entry = byTrainer.get(trainerKey) ?? {
-        name: inst.template?.trainer?.name ?? inst.trainer?.name ?? UNASSIGNED_TRAINER,
+        name: inst.template?.trainer?.name ?? inst.trainer?.name ?? s.values.unassigned,
         completed: 0,
         noShow: 0,
       };
@@ -1806,12 +2228,8 @@ const CONFIRMED_BOOKING_STATUSES: readonly BookingStatus[] = [
   BookingStatus.NO_SHOW,
 ];
 
-/** Display label + grouping key for bookings on a class with no assigned trainer. */
-const UNASSIGNED_TRAINER = 'Unassigned';
 const UNASSIGNED_KEY = '__unassigned__';
 
-/** Display label + grouping key for a sale or refund with no staff member behind it. */
-const UNATTRIBUTED_SELLER = 'Unattributed';
 const UNATTRIBUTED_KEY = '__unattributed__';
 
 /** The payment provider key the till writes — the same test the order roster filters on. */
@@ -1833,25 +2251,31 @@ const POS_PROVIDER = 'pos';
  */
 const DETAIL_ROW_LIMIT = 5000;
 
-/** Human labels for the settlement methods the till records. */
-const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  MEMBER_ACCOUNT: 'Member account',
-};
+/** Human label for a settlement method the till records, in the report's language. */
+function paymentMethodLabel(s: ReportStrings, method: string): string {
+  const labels: Record<string, string> = {
+    CASH: s.values.cash,
+    CARD: s.values.card,
+    MEMBER_ACCOUNT: s.values.memberAccount,
+  };
+  return labels[method] ?? method;
+}
 
 /**
  * A staff member's display name. Staff rows carry a split first/last name of their
  * own (the roster's columns); an invited or plain membership has neither, and the
  * cross-gym `User` name is the fallback.
  */
-function staffName(staff: {
-  firstName?: string | null;
-  lastName?: string | null;
-  user?: { name: string | null } | null;
-}): string {
+function staffName(
+  staff: {
+    firstName?: string | null;
+    lastName?: string | null;
+    user?: { name: string | null } | null;
+  },
+  fallback: string,
+): string {
   const split = [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim();
-  return split || staff.user?.name?.trim() || UNATTRIBUTED_SELLER;
+  return split || staff.user?.name?.trim() || fallback;
 }
 
 /**
@@ -1890,11 +2314,6 @@ const LIVE_SUB_STATUSES: readonly SubscriptionStatus[] = [
   SubscriptionStatus.PAST_DUE,
   SubscriptionStatus.FROZEN,
 ];
-
-/** Label for a member with no live subscription behind them. */
-const NO_PLAN_LABEL = 'No plan';
-/** Bucket for takings on an order that never recorded a branch. */
-const NO_LOCATION_LABEL = 'No location';
 
 /** Months in a year, for normalising a yearly subscription price to MRR. */
 const MONTHS_PER_YEAR = 12;
@@ -1940,23 +2359,25 @@ function forwardWindow(win: ReportWindow, now: Date): ReportWindow {
     start: now,
     end: new Date(now.getTime() + (win.end.getTime() - win.start.getTime())),
     bucket: win.bucket,
+    zone: win.zone,
   };
 }
-/** Label for a row whose member row was detached (a purged membership). */
-const UNKNOWN_MEMBER_LABEL = 'Unknown';
 
 /**
  * A member's display name. The gym's own split first/last name wins — it is what
  * the roster shows and what staff edited — with the cross-gym `User` name as the
  * fallback for a membership that never captured one.
  */
-function memberName(member: {
-  firstName?: string | null;
-  lastName?: string | null;
-  user?: { name: string | null } | null;
-}): string {
+function memberName(
+  member: {
+    firstName?: string | null;
+    lastName?: string | null;
+    user?: { name: string | null } | null;
+  },
+  fallback: string,
+): string {
   const split = [member.firstName, member.lastName].filter(Boolean).join(' ').trim();
-  return split || member.user?.name?.trim() || UNKNOWN_MEMBER_LABEL;
+  return split || member.user?.name?.trim() || fallback;
 }
 
 /**
@@ -1979,13 +2400,17 @@ function churnMoment(sub: {
   return null;
 }
 
-/** The exclusive end of the bucket a `YYYY-MM-DD` key opens (UTC). */
-function bucketEnd(key: string, bucket: 'day' | 'week' | 'month'): Date {
-  const start = new Date(`${key}T00:00:00.000Z`);
+/** The exclusive end of the bucket a `YYYY-MM-DD` key opens, in `zone`. */
+function bucketEnd(key: string, bucket: 'day' | 'week' | 'month', zone: string): Date {
   if (bucket === 'month') {
-    return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+    const [year, month] = key.split('-').map(Number);
+    const next =
+      month === 12
+        ? `${(year ?? 0) + 1}-01-01`
+        : `${year}-${String((month ?? 0) + 1).padStart(2, '0')}-01`;
+    return zonedDayStart(next, zone);
   }
-  return new Date(start.getTime() + (bucket === 'week' ? 7 : 1) * DAY_MS);
+  return zonedDayStart(addZonedDays(key, bucket === 'week' ? 7 : 1, zone), zone);
 }
 
 /**

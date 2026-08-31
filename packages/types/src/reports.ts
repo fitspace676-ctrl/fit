@@ -20,23 +20,170 @@
 // decimals for spreadsheet reconciliation, exactly like the orders CSV export (T4.11).
 
 import { z } from 'zod';
-import { analyticsRangeSchema, DEFAULT_ANALYTICS_RANGE, type AnalyticsRange } from './analytics';
 
 /* -------------------------------------------------------------------------- */
 /*  Request                                                                     */
 /* -------------------------------------------------------------------------- */
 
 /**
- * The reporting window a report is computed over. Reuses the analytics range
- * vocabulary (`7d` / `30d` / `12w` / `12m`) so the Reports and Analytics screens
- * offer one consistent set of presets, and each value fixes the bucket granularity
- * of any time-series report (membership growth) the same way analytics does.
+ * The reporting window the Reports console offers: today, the last 7 days, the
+ * month so far, or two days of the reader's own choosing. The last one needs
+ * `from` / `to` beside it — see {@link reportQuerySchema}.
+ *
+ * This used to alias the analytics vocabulary (`7d` / `30d` / `12w` / `12m`).
+ * The two screens ask different questions — the dashboard trends over a fixed
+ * span, a report answers "how did today / this week / this month go" — so the
+ * Reports control now has its own words. The old spans did not vanish: they live
+ * on as {@link reportWindowPresetSchema}, which the dashboard charts and the
+ * emailed digest still window over.
  */
-export const reportRangeSchema = analyticsRangeSchema;
-export type ReportRange = AnalyticsRange;
+export const reportRangeSchema = z.enum(['today', '7d', 'mtd', 'custom']);
+export type ReportRange = z.infer<typeof reportRangeSchema>;
 
-/** The default window when a report query omits `range`. */
-export const DEFAULT_REPORT_RANGE: ReportRange = DEFAULT_ANALYTICS_RANGE;
+/**
+ * The default window when a report query omits `range` — the month so far. Typed
+ * as the literal, not {@link ReportRange}, so it can also stand in as a resolver
+ * preset: `custom` is the one range with no default window of its own.
+ */
+export const DEFAULT_REPORT_RANGE = 'mtd' satisfies ReportRange;
+
+/**
+ * Every preset the window resolver understands. A superset of the console's
+ * {@link reportRangeSchema} (minus `custom`): `30d` / `12w` / `12m` are no longer
+ * on the Reports control but the dashboard's granularity tabs and the report
+ * digest still resolve through them, and one resolver serving all three is the
+ * point — a bucket starts in the same place on every screen.
+ */
+export const reportWindowPresetSchema = z.enum(['today', '7d', '30d', 'mtd', '12w', '12m']);
+export type ReportWindowPreset = z.infer<typeof reportWindowPresetSchema>;
+
+/** Two calendar days, inclusive, in the gym's own zone. */
+export interface ReportCustomWindow {
+  from: string;
+  to: string;
+}
+
+/** What the window resolver takes: a preset token, or a custom pair of days. */
+export type ReportWindowInput = ReportWindowPreset | ReportCustomWindow;
+
+/** Inclusive length, in days, of the longest custom window a report will run over. */
+export const MAX_CUSTOM_RANGE_DAYS = 366;
+
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** `YYYY-MM-DD` → UTC-midnight epoch millis, or `null` when it is not a real day. */
+function isoDayToUtc(value: string): number | null {
+  const match = ISO_DAY.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const at = Date.UTC(year, month - 1, day);
+  const back = new Date(at);
+  // Date.UTC rolls `2026-02-30` over to March; a real day round-trips.
+  if (
+    back.getUTCFullYear() !== year ||
+    back.getUTCMonth() !== month - 1 ||
+    back.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return at;
+}
+
+/** A `YYYY-MM-DD` calendar day that exists. */
+const isoDaySchema = z.string().refine((value) => isoDayToUtc(value) !== null, {
+  message: 'Expected a YYYY-MM-DD calendar day',
+});
+
+/**
+ * The `range` / `from` / `to` trio every report query carries. Kept as a shape
+ * plus a refinement (rather than one schema) so the export query can add
+ * `format` and still be refined the same way — `z.object(...).superRefine()`
+ * cannot be extended afterwards.
+ */
+const reportWindowShape = {
+  range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
+  from: isoDaySchema.optional(),
+  to: isoDaySchema.optional(),
+};
+
+type ReportWindowFields = { range: ReportRange; from?: string; to?: string };
+
+/**
+ * A `custom` range needs both days, in order, and no longer than
+ * {@link MAX_CUSTOM_RANGE_DAYS}. A preset ignores the days — and DROPS them, so a
+ * stale `&from=` left in a URL cannot reach the resolver beside `7d`.
+ */
+function refineReportWindow<T extends ReportWindowFields>(value: T, ctx: z.RefinementCtx): void {
+  if (value.range !== 'custom') {
+    delete value.from;
+    delete value.to;
+    return;
+  }
+  if (value.from === undefined || value.to === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [value.from === undefined ? 'from' : 'to'],
+      message: 'A custom range needs both from and to',
+    });
+    return;
+  }
+  const from = isoDayToUtc(value.from);
+  const to = isoDayToUtc(value.to);
+  if (from === null || to === null) return; // already reported by isoDaySchema
+  if (to < from) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['to'],
+      message: 'to must not be before from',
+    });
+    return;
+  }
+  const days = Math.round((to - from) / 86_400_000) + 1;
+  if (days > MAX_CUSTOM_RANGE_DAYS) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['to'],
+      message: `A custom range covers at most ${MAX_CUSTOM_RANGE_DAYS} days`,
+    });
+  }
+}
+
+/**
+ * The window's name in a download's filename: the preset token, or a custom
+ * range's two days joined by an underscore (`2026-08-01_2026-08-15`) — both
+ * shell-safe and both readable back into the query they came from.
+ */
+export function reportWindowSlug(query: ReportWindowFields): string {
+  const input = reportWindowInput(query);
+  return typeof input === 'string' ? input : `${input.from}_${input.to}`;
+}
+
+/**
+ * The query string a window travels as — `range`, plus `from` / `to` only on a
+ * custom range — shared by the console's links, its fetchers and its download
+ * URLs so none of them can spell the window differently.
+ */
+export function reportQueryParams(query: ReportWindowFields): URLSearchParams {
+  const params = new URLSearchParams({ range: query.range });
+  if (query.range === 'custom' && query.from !== undefined && query.to !== undefined) {
+    params.set('from', query.from);
+    params.set('to', query.to);
+  }
+  return params;
+}
+
+/** What the resolver should window over, from a parsed query. */
+export function reportWindowInput(query: ReportWindowFields): ReportWindowInput {
+  if (query.range === 'custom') {
+    // The schemas guarantee both days on a custom range; a hand-built query
+    // that skips them gets the default rather than a half-open window.
+    if (query.from === undefined || query.to === undefined) return DEFAULT_REPORT_RANGE;
+    return { from: query.from, to: query.to };
+  }
+  return query.range;
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Segments                                                                    */
@@ -85,6 +232,8 @@ export const REPORT_KEYS = [
   'discounts-and-promotions',
   'refunds-detail',
   'pos-transaction-log',
+  'sales-transactions',
+  'daily-reconciliation',
   // Members
   'membership-movement',
   'retention-and-churn',
@@ -119,17 +268,14 @@ export type ReportKey = z.infer<typeof reportKeySchema>;
 export const reportFormatSchema = z.enum(['csv', 'xlsx']);
 export type ReportFormat = z.infer<typeof reportFormatSchema>;
 
-/** `GET /admin/reports/:report?range=` query — the on-screen preview. */
-export const reportQuerySchema = z.object({
-  range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
-});
+/** `GET /admin/reports/:report?range=&from=&to=` query — the on-screen preview. */
+export const reportQuerySchema = z.object(reportWindowShape).superRefine(refineReportWindow);
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
 
-/** `GET /admin/reports/:report/export?range=&format=` query — the file download. */
-export const reportExportQuerySchema = z.object({
-  range: reportRangeSchema.default(DEFAULT_REPORT_RANGE),
-  format: reportFormatSchema.default('csv'),
-});
+/** `GET /admin/reports/:report/export?range=&from=&to=&format=` query — the file download. */
+export const reportExportQuerySchema = z
+  .object({ ...reportWindowShape, format: reportFormatSchema.default('csv') })
+  .superRefine(refineReportWindow);
 export type ReportExportQuery = z.infer<typeof reportExportQuerySchema>;
 
 /* -------------------------------------------------------------------------- */
@@ -200,12 +346,16 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'plan-performance': {
     key: 'plan-performance',
     segment: 'sales',
-    name: 'Plan performance',
-    description: 'Sales count and revenue per plan or package, ranked by revenue.',
+    name: 'Plan & service performance',
+    description:
+      "What sold - memberships, session packs, personal training, other services and products - how many, for how much, each one's share of the window's sales, and at which branch.",
     columns: [
-      { key: 'plan', label: 'Plan', type: 'text' },
-      { key: 'orders', label: 'Sales', type: 'number' },
-      { key: 'revenue', label: 'Revenue', type: 'money' },
+      { key: 'item', label: 'Plan / service', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'sold', label: 'Sold', type: 'number' },
+      { key: 'revenue', label: 'Sales value', type: 'money' },
+      { key: 'share', label: 'Share of sales', type: 'percent' },
+      { key: 'location', label: 'Location', type: 'text' },
     ],
   },
   'sales-by-staff': {
@@ -236,14 +386,19 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   'refunds-detail': {
     key: 'refunds-detail',
     segment: 'sales',
-    name: 'Refunds detail',
-    description: 'Every refund line by line — amount, reason, and who processed it.',
+    name: 'Refunds',
+    description:
+      'Every refund in the window - when, whose, against which sale and which items, how much, why, who processed it, and where.',
     columns: [
       { key: 'date', label: 'Date', type: 'date' },
-      { key: 'order', label: 'Order', type: 'text' },
-      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'customer', label: 'Customer', type: 'text' },
+      { key: 'order', label: 'Original sale', type: 'text' },
+      { key: 'items', label: 'Original items', type: 'text' },
+      { key: 'amount', label: 'Refund amount', type: 'money' },
       { key: 'reason', label: 'Reason', type: 'text' },
-      { key: 'processedBy', label: 'Processed by', type: 'text' },
+      { key: 'processedBy', label: 'Staff member', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
     ],
   },
   'pos-transaction-log': {
@@ -259,6 +414,45 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
       { key: 'method', label: 'Method', type: 'text' },
       { key: 'total', label: 'Total', type: 'money' },
       { key: 'staff', label: 'Sold by', type: 'text' },
+    ],
+  },
+  'sales-transactions': {
+    key: 'sales-transactions',
+    segment: 'sales',
+    name: 'Sales transactions',
+    description:
+      'Every sale in the window, one row per transaction - who bought what, how much, how it was paid, through which channel, where, and by whom.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'reference', label: 'Reference', type: 'text' },
+      { key: 'customer', label: 'Customer', type: 'text' },
+      { key: 'items', label: 'Items', type: 'text' },
+      { key: 'category', label: 'Category', type: 'text' },
+      { key: 'amount', label: 'Amount', type: 'money' },
+      { key: 'method', label: 'Payment method', type: 'text' },
+      { key: 'channel', label: 'Channel', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'staff', label: 'Staff', type: 'text' },
+      { key: 'status', label: 'Status', type: 'text' },
+    ],
+  },
+  'daily-reconciliation': {
+    key: 'daily-reconciliation',
+    segment: 'sales',
+    name: 'Daily reconciliation',
+    description:
+      "Each day's takings and how they were collected - cash, card at the till, online, member account - beside the refunds issued, the number of sales, and the receipts behind the total. Bank transfer is not a payment method the till records, so it has no column.",
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'total', label: 'Total sales', type: 'money' },
+      { key: 'cash', label: 'Cash', type: 'money' },
+      { key: 'card', label: 'Card / POS', type: 'money' },
+      { key: 'online', label: 'Online', type: 'money' },
+      { key: 'memberAccount', label: 'Member account', type: 'money' },
+      { key: 'refunds', label: 'Refunds', type: 'money' },
+      { key: 'transactions', label: 'Transactions', type: 'number' },
+      { key: 'references', label: 'Underlying transactions', type: 'text' },
     ],
   },
 
@@ -578,17 +772,23 @@ export const DEFAULT_REPORT_KEY: ReportKey = REPORT_KEYS[0];
  */
 export function groupReportsBySegment(
   reports: readonly ReportDefinition[],
+  /** Segment headings — the catalogue response's own, localised, when there is one. */
+  labels: Record<ReportSegment, string> = REPORT_SEGMENT_LABEL,
 ): Array<{ segment: ReportSegment; label: string; reports: ReportDefinition[] }> {
   return REPORT_SEGMENTS.map((segment) => ({
     segment,
-    label: REPORT_SEGMENT_LABEL[segment],
+    label: labels[segment],
     reports: reports.filter((report) => report.segment === segment),
   })).filter((group) => group.reports.length > 0);
 }
 
-/** Successful `GET /admin/reports` response — the report catalogue. */
+/**
+ * Successful `GET /admin/reports` response — the report catalogue, in the
+ * language the request asked for, with the segment headings to file it under.
+ */
 export interface ReportCatalogResponse {
   reports: ReportDefinition[];
+  segments: Record<ReportSegment, string>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -611,6 +811,13 @@ export interface ReportResult {
   key: ReportKey;
   name: string;
   range: ReportRange;
+  /**
+   * The first and last calendar day (gym's zone) the window resolved to — the
+   * two days asked for on a `custom` range, and the days a preset landed on
+   * otherwise, so the screen's date control can show the window it got.
+   */
+  from: string;
+  to: string;
   currency: string;
   columns: ReportColumn[];
   rows: ReportRow[];
@@ -639,11 +846,12 @@ export const REPORT_DIGEST_CADENCE_LABEL: Record<ReportDigestCadence, string> = 
 
 /**
  * The reporting window each cadence's sections cover — a `weekly` digest reports
- * the trailing 7 days, a `monthly` one the trailing 30. Reuses the report range
- * vocabulary so a digest section is exactly the report the console would show for
- * that same range, with no separate windowing logic to drift.
+ * the trailing 7 days, a `monthly` one the trailing 30. Window PRESETS, not the
+ * console's range: `30d` left the Reports control but the resolver still knows
+ * it, so a digest section is windowed by the same math as the screen with no
+ * separate logic to drift.
  */
-export const REPORT_DIGEST_RANGE: Record<ReportDigestCadence, ReportRange> = {
+export const REPORT_DIGEST_RANGE: Record<ReportDigestCadence, ReportWindowPreset> = {
   weekly: '7d',
   monthly: '30d',
 };
@@ -670,7 +878,12 @@ export const REPORT_DIGEST_KEYS: readonly ReportKey[] = [
  * preview returns ({@link ReportResult}), so the email renderer reuses the report's
  * own columns + rows and no digest-specific report shape can drift from the source.
  */
-export type ReportDigestSection = ReportResult;
+/**
+ * One digest section: a computed report WITHOUT the console's `range` — the
+ * digest windows over a {@link ReportWindowPreset} the console no longer offers
+ * (`30d`), and the {@link ReportDigest} carries that once for every section.
+ */
+export type ReportDigestSection = Omit<ReportResult, 'range' | 'from' | 'to'>;
 
 /**
  * A gym's computed report digest (T4.10): the gym it is for, the `cadence` and the
@@ -682,7 +895,7 @@ export type ReportDigestSection = ReportResult;
 export interface ReportDigest {
   gymName: string;
   cadence: ReportDigestCadence;
-  range: ReportRange;
+  range: ReportWindowPreset;
   sections: ReportDigestSection[];
 }
 
