@@ -314,6 +314,7 @@ describe('groupReportsBySegment', () => {
       sales: 'გაყიდვები',
       members: 'წევრები',
       revenue: 'შემოსავალი',
+      products: 'პროდუქტები',
       classes: 'კლასები',
       staff: 'პერსონალი',
     });
