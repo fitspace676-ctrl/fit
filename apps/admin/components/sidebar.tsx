@@ -4,11 +4,20 @@
 //
 // Rebuilt on the Astryx `SideNav` (header + scrollable sections + sticky footer +
 // icon bar) over the Fit brand tokens. It renders the destinations the current
-// session's role may reach, with the active route highlighted. Visibility is
-// resolved client-side by `visibleNavItems` (the same role→permission matrix the
-// API enforces) purely to decide what to show — every navigation still hits
-// `middleware.ts`, which re-checks the role. Until the session resolves a
-// skeleton stands in so the layout doesn't jump.
+// operator may reach, with the active route highlighted.
+//
+// Visibility comes from `visibleNavItems` over the permission set the dashboard
+// layout resolved on the server — what THIS GYM grants this role — so the rail
+// offers exactly what the console will open, including whatever the gym has
+// edited. It used to resolve from `useSession()`, which meant two things: the
+// gates were read off the static role matrix (so a revoked capability still got
+// its link), and the rail spent the first frames as a skeleton while a `fetch`
+// resolved the role. Seeded through context, the first paint is already right and
+// there is nothing to stand in for.
+//
+// This still only decides what to SHOW: every navigation hits `middleware.ts`
+// (staff gate) and the dashboard layout's capability gate, and the API refuses
+// again behind those.
 //
 // The Check-in item carries today's live arrival count as a badge. The rail can
 // be collapsed to an icon-only strip from the button in its footer — the choice
@@ -23,14 +32,13 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   SideNav,
-  SideNavSection,
   SideNavItem,
   useSideNavCollapse,
   useSideNavRenderMode,
 } from '@astryxdesign/core/SideNav';
 import { Badge } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
-import { useSession } from '@/hooks/use-session';
+import { useConsolePermissions } from '@/components/console-permissions';
 import { isNavItemActive, NAV_GROUPS, visibleNavItems } from '@/lib/nav';
 import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar-collapse';
 import type { ShellSystemState } from './admin-shell';
@@ -46,11 +54,6 @@ function appPath(pathname: string): string {
   }
   return pathname;
 }
-
-const skeletonPulse = stylex.keyframes({
-  '0%, 100%': { opacity: 0.45 },
-  '50%': { opacity: 0.8 },
-});
 
 const styles = stylex.create({
   panel: {
@@ -278,57 +281,6 @@ const styles = stylex.create({
       backgroundColor: 'var(--color-neutral)',
     },
   },
-  skeleton: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.875rem',
-    padding: '0.5rem 0.25rem',
-    animationName: skeletonPulse,
-    animationDuration: '1.6s',
-    animationIterationCount: 'infinite',
-    animationTimingFunction: 'ease-in-out',
-  },
-  skelGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  skelHeading: {
-    width: '4.5rem',
-    height: '0.5rem',
-    marginInline: '0.625rem',
-    marginBlockEnd: '0.125rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-skeleton)',
-  },
-  skelRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    height: '2.5rem',
-    paddingInline: '0.625rem',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-overlay-hover)',
-  },
-  skelIcon: {
-    width: '1rem',
-    height: '1rem',
-    flexShrink: 0,
-    borderRadius: '0.25rem',
-    backgroundColor: 'var(--color-skeleton)',
-  },
-  skelLine: {
-    width: '62%',
-    height: '0.625rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-skeleton)',
-  },
-  skelLineShort: {
-    width: '46%',
-  },
-  skelLineWide: {
-    width: '74%',
-  },
 });
 
 export interface SidebarProps {
@@ -341,11 +293,11 @@ export interface SidebarProps {
 }
 
 export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
-  const { user, isLoading } = useSession();
+  const permissions = useConsolePermissions();
   const pathname = usePathname();
   const t = useTranslations('admin');
   const current = appPath(pathname);
-  const items = visibleNavItems(user?.role ?? null);
+  const items = visibleNavItems(permissions);
 
   // Collapse is controlled here (rather than left to SideNav's own state) so the
   // choice can be written back to the cookie and the accordions can drop their
@@ -460,62 +412,56 @@ export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
         )
       }
     >
-      {isLoading ? (
-        <SideNavSection title={t('navGroups.overview')} isHeaderHidden>
-          <SidebarSkeleton />
-        </SideNavSection>
-      ) : (
-        <>
-          <ScrollEdgeButton
-            dir="up"
-            visible={edges.up}
-            onClick={() => scrollToEnd('up')}
-            label={t('common.scrollUp')}
-            containerRef={captureScrollEl}
-          />
-          {NAV_GROUPS.map((group) => {
-            const groupItems = items.filter((item) => group.hrefs.includes(item.href));
-            if (groupItems.length === 0) return null;
+      <>
+        <ScrollEdgeButton
+          dir="up"
+          visible={edges.up}
+          onClick={() => scrollToEnd('up')}
+          label={t('common.scrollUp')}
+          containerRef={captureScrollEl}
+        />
+        {NAV_GROUPS.map((group) => {
+          const groupItems = items.filter((item) => group.hrefs.includes(item.href));
+          if (groupItems.length === 0) return null;
 
-            return (
-              <AccordionNavGroup
-                key={group.labelKey}
-                title={t(group.labelKey)}
-                isActive={groupItems.some((item) => isNavItemActive(item.href, current))}
-              >
-                {groupItems.map((item) => {
-                  const active = isNavItemActive(item.href, current);
-                  const badge =
-                    item.icon === 'checkin' && system.checkInCount && system.checkInCount > 0
-                      ? system.checkInCount
-                      : null;
-                  return (
-                    <div key={item.href} {...stylex.props(styles.navItemHover)}>
-                      <SideNavItem
-                        as={NextLink}
-                        href={item.href}
-                        label={t(item.labelKey)}
-                        icon={<NavIcon name={item.icon} />}
-                        size="lg"
-                        isSelected={active}
-                        endContent={
-                          badge !== null ? <Badge tone="neutral" label={badge} /> : undefined
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </AccordionNavGroup>
-            );
-          })}
-          <ScrollEdgeButton
-            dir="down"
-            visible={edges.down}
-            onClick={() => scrollToEnd('down')}
-            label={t('common.scrollDown')}
-          />
-        </>
-      )}
+          return (
+            <AccordionNavGroup
+              key={group.labelKey}
+              title={t(group.labelKey)}
+              isActive={groupItems.some((item) => isNavItemActive(item.href, current))}
+            >
+              {groupItems.map((item) => {
+                const active = isNavItemActive(item.href, current);
+                const badge =
+                  item.icon === 'checkin' && system.checkInCount && system.checkInCount > 0
+                    ? system.checkInCount
+                    : null;
+                return (
+                  <div key={item.href} {...stylex.props(styles.navItemHover)}>
+                    <SideNavItem
+                      as={NextLink}
+                      href={item.href}
+                      label={t(item.labelKey)}
+                      icon={<NavIcon name={item.icon} />}
+                      size="lg"
+                      isSelected={active}
+                      endContent={
+                        badge !== null ? <Badge tone="neutral" label={badge} /> : undefined
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </AccordionNavGroup>
+          );
+        })}
+        <ScrollEdgeButton
+          dir="down"
+          visible={edges.down}
+          onClick={() => scrollToEnd('down')}
+          label={t('common.scrollDown')}
+        />
+      </>
     </SideNav>
   );
 }
@@ -648,31 +594,6 @@ function AccordionNavGroup({
       >
         <div {...stylex.props(styles.accordionItems)}>{children}</div>
       </div>
-    </div>
-  );
-}
-
-/** Placeholder rows shown while the session is still resolving. */
-function SidebarSkeleton() {
-  return (
-    <div {...stylex.props(styles.skeleton)} aria-hidden="true">
-      {[3, 2, 3].map((rowCount, groupIndex) => (
-        <div key={groupIndex} {...stylex.props(styles.skelGroup)}>
-          <div {...stylex.props(styles.skelHeading)} />
-          {Array.from({ length: rowCount }).map((_, rowIndex) => (
-            <div key={rowIndex} {...stylex.props(styles.skelRow)}>
-              <span {...stylex.props(styles.skelIcon)} />
-              <span
-                {...stylex.props(
-                  styles.skelLine,
-                  rowIndex % 3 === 1 && styles.skelLineShort,
-                  rowIndex % 3 === 2 && styles.skelLineWide,
-                )}
-              />
-            </div>
-          ))}
-        </div>
-      ))}
     </div>
   );
 }

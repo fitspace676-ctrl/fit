@@ -16,10 +16,12 @@
 // and two files could drift into two different resolutions without either failing.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { Permission } from '@fit/types';
 
 const mocks = vi.hoisted(() => ({
   getServerSession: vi.fn(),
   fetchLocations: vi.fn(),
+  fetchMyPermissions: vi.fn(),
   fetchReportExport: vi.fn(),
   fetchReportDrilldownExport: vi.fn(),
   cookie: undefined as string | undefined,
@@ -33,8 +35,13 @@ vi.mock('@/lib/session', () => ({
 // roster, so the roster fetch has to answer. `@/lib/api` and the `./api` that
 // `lib/active-location-server.ts` imports are the same module, so one mock covers
 // the route handler and the resolver behind it.
+// The branch the resolver settles on is now CLAMPED to the ones this operator
+// may work at, so the permission resolution has to answer too — see
+// `lib/console-permissions.ts`. A gym-wide manager clamps to a no-op, which is
+// what keeps every expectation below reading as it did.
 vi.mock('@/lib/api', () => ({
   fetchLocations: (...args: unknown[]) => mocks.fetchLocations(...args) as unknown,
+  fetchMyPermissions: () => mocks.fetchMyPermissions() as unknown,
   fetchReportExport: (...args: unknown[]) => mocks.fetchReportExport(...args) as unknown,
   fetchReportDrilldownExport: (...args: unknown[]) =>
     mocks.fetchReportDrilldownExport(...args) as unknown,
@@ -58,6 +65,14 @@ const { GET: drilldownExport } = await import('./[metric]/export/route');
 /** A staff session that holds `ReportView` (the API re-checks regardless). */
 const MANAGER = { userId: 'u1', role: 'MANAGER' };
 
+/** What `GET /me/permissions` says about that manager: gym-wide, so no clamping. */
+const MANAGER_PERMISSIONS = {
+  role: 'MANAGER',
+  grants: [Permission.ReportView, Permission.LocationRead],
+  branchScope: 'all',
+  assignedLocationIds: [],
+};
+
 /** The gym's live branches, as `getActiveLocationId` validates against. */
 const LOCATIONS = { data: [{ id: 'loc-1', name: 'Vake' }], meta: {} };
 
@@ -69,6 +84,7 @@ function upstreamFile(): Response {
 beforeEach(() => {
   mocks.getServerSession.mockReset().mockResolvedValue(MANAGER);
   mocks.fetchLocations.mockReset().mockResolvedValue(LOCATIONS);
+  mocks.fetchMyPermissions.mockReset().mockResolvedValue(MANAGER_PERMISSIONS);
   mocks.fetchReportExport.mockReset().mockResolvedValue(upstreamFile());
   mocks.fetchReportDrilldownExport.mockReset().mockResolvedValue(upstreamFile());
   mocks.cookie = undefined;

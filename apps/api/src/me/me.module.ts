@@ -7,6 +7,7 @@ import { MeInvoicesService } from './me-invoices.service';
 import { MeProfileController } from './me-profile.controller';
 import { MeProfileService } from './me-profile.service';
 import { MeGoalsController } from './me-goals.controller';
+import { MePermissionsController } from './me-permissions.controller';
 import { MeGoalsService } from './me-goals.service';
 
 /**
@@ -16,7 +17,9 @@ import { MeGoalsService } from './me-goals.service';
  * from the session (no member id on the wire): `GET /me/subscription` (their
  * membership + billing), `GET /me/invoices/:id/pdf` (download one of their own
  * invoices, T5.10), and `GET / PATCH /me/profile` (their name / phone). All sit
- * behind the app-wide `TenantGuard` + global `PermissionsGuard`; the tenant client,
+ * behind the app-wide `TenantGuard` + global `PermissionsGuard`. `GET
+ * /me/permissions` joins them: the console's own view of what this session may do,
+ * gated on the one capability an operator cannot revoke; the tenant client,
  * guards, and tenant context come from `TenantModule` / `RbacModule`. Imports
  * {@link BillingModule} for the shared `InvoiceDocumentService` the download reuses.
  */
@@ -27,6 +30,7 @@ import { MeGoalsService } from './me-goals.service';
     MeInvoicesController,
     MeProfileController,
     MeGoalsController,
+    MePermissionsController,
   ],
   providers: [MeSubscriptionService, MeInvoicesService, MeProfileService, MeGoalsService],
 })

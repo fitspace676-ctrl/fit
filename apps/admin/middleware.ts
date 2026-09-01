@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import {
-  hasRoleAtLeast,
-  isStaff,
-  pickSessionToken,
-  requiredRoleForPath,
-  verifyAccessToken,
-} from '@/lib/auth-session';
+import { isStaff, pickSessionToken, verifyAccessToken } from '@/lib/auth-session';
+import { CONSOLE_PATHNAME_HEADER } from '@/lib/console-pathname';
 import {
   REFRESH_TOKEN_COOKIE,
   isNavigationRequest,
@@ -16,13 +11,28 @@ import {
 } from '@/lib/session-refresh';
 
 /**
- * Admin auth + role gate.
+ * Admin auth gate.
  *
- * Three checks run in order on every non-public route:
+ * Two checks run in order on every non-public route:
  *   1. Authenticated — no valid session ⇒ redirect to the web app's sign-in.
  *   2. Staff — a plain `MEMBER` has no business in the admin console ⇒ `/403`.
- *   3. Route permission — areas like `/settings/billing` require `OWNER`+
- *      (see `ROUTE_PERMISSIONS`); an under-privileged staffer ⇒ `/403`.
+ *
+ * **There used to be a third: a minimum-role check per route prefix.** It is gone,
+ * because what a route requires is now a CAPABILITY and what a role holds is
+ * editable per gym — which means the answer lives in `Gym.settings`, and this
+ * file runs on the Edge where reading them per request is not cheap. The gate
+ * moved to `app/(dashboard)/layout.tsx`, which already fetches those settings and
+ * runs before any page below it renders. See `lib/route-guards.ts`.
+ *
+ * What is left here is exactly what a JWT can answer on its own, which is also
+ * what this runtime is good at: is there a session, and is it staff. Everything
+ * gym-shaped happens one layer in.
+ *
+ * This file still contributes one thing the layout cannot get for itself: the
+ * REQUESTED PATH. The App Router hands `searchParams` and `params` to pages but
+ * never a pathname to a layout, so the path is forwarded as
+ * {@link CONSOLE_PATHNAME_HEADER} on the request and read back there. A layout
+ * that could not tell which route it was wrapping could not gate one.
  *
  * Verification is the same HS256 check the API uses. When `JWT_SECRET` is unset
  * (e.g. an unconfigured preview) tokens can't be trusted, so the gate fails
@@ -82,6 +92,21 @@ function redirectTo(req: NextRequest, path: string): NextResponse {
   const proto = req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '');
   const origin = forwardedHost ? `${proto}://${forwardedHost}` : req.nextUrl.origin;
   return NextResponse.redirect(new URL(path, origin));
+}
+
+/**
+ * Continue to the app, telling the dashboard layout which path was asked for.
+ *
+ * The header is set on the REQUEST (not the response): `NextResponse.next({
+ * request })` rewrites what the app receives, so `headers()` inside a Server
+ * Component sees it. It is also overwritten unconditionally rather than merged,
+ * so a client cannot forge the value by sending the header itself — that would
+ * be a way to make the layout gate the wrong route.
+ */
+function forward(req: NextRequest): NextResponse {
+  const headers = new Headers(req.headers);
+  headers.set(CONSOLE_PATHNAME_HEADER, req.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
 }
 
 /** Attach a refreshed session's cookies to an outgoing response before returning it. */
@@ -146,13 +171,9 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return withRefreshed(redirectTo(req, `${BASE_PATH}/403`), refreshed);
   }
 
-  // 3. Staff but lacking the role this area requires → forbidden.
-  const required = requiredRoleForPath(pathname);
-  if (required && !hasRoleAtLeast(session.role, required)) {
-    return withRefreshed(redirectTo(req, `${BASE_PATH}/403`), refreshed);
-  }
-
-  return withRefreshed(NextResponse.next(), refreshed);
+  // Staff. What this particular route requires of them is a capability question,
+  // answered in `app/(dashboard)/layout.tsx` where the gym's settings are.
+  return withRefreshed(forward(req), refreshed);
 }
 
 export const config = {

@@ -26,6 +26,7 @@ import { generateVerificationToken } from '../auth/auth.service';
 import { EmailService } from '../auth/email.service';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { TokenService } from '../auth/token.service';
+import { invalidateGymAccess } from '../common/rbac/request-access';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { isPlaceholderEmail, placeholderEmail } from '../common/directory-identity';
@@ -343,6 +344,12 @@ export class StaffService {
       return member.id;
     });
 
+    // A new employee's branch assignments are half of what `PermissionsGuard`
+    // resolves for an `assigned`-scope role, and that answer is cached per person.
+    // Bust it after the transaction commits — busting inside would let a concurrent
+    // request re-cache the pre-commit roster for the whole TTL.
+    invalidateGymAccess(gymId);
+
     return this.projectStaff(memberId);
   }
 
@@ -559,6 +566,11 @@ export class StaffService {
         }
       }
     });
+
+    // The edit may have moved this person between branches, which changes what an
+    // `assigned`-scope role of theirs may reach — see `createStaff` for why the
+    // bust waits for the commit.
+    invalidateGymAccess(gymId);
 
     return this.projectStaff(memberId);
   }

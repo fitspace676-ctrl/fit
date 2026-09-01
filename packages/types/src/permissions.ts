@@ -11,7 +11,7 @@
 // in `@fit/db` (the Prisma client). The role *names* are the stable contract.
 
 /** The gym-scoped role names a permission grant is keyed by (SUPER_ADMIN holds all). */
-type GymScopedRoleName = 'OWNER' | 'MANAGER' | 'RECEPTIONIST' | 'TRAINER' | 'MEMBER';
+export type GymScopedRoleName = 'OWNER' | 'MANAGER' | 'RECEPTIONIST' | 'TRAINER' | 'MEMBER';
 
 /**
  * Fine-grained, gym-scoped capabilities. A role is the coarse identity a caller
@@ -92,6 +92,21 @@ export enum Permission {
   /** Read and edit one's own profile (self-service; held by every gym member). */
   ProfileManage = 'profile:manage',
 }
+
+/**
+ * Every {@link Permission}, in declaration order.
+ *
+ * Read off the enum rather than re-listed, so a capability added above is
+ * automatically part of "all permissions" — which matters because that phrase is
+ * load-bearing: it is what the OWNER role is pinned to (`./role-permissions`), and
+ * a hand-maintained copy that fell one entry behind would quietly leave the gym's
+ * owner unable to reach a new screen.
+ *
+ * Also the canonical ORDER. Anything that has to present or store a permission set
+ * sorts by this list, so two sets holding the same capabilities serialise
+ * identically instead of differing by the order a click happened to add them in.
+ */
+export const ALL_PERMISSIONS: readonly Permission[] = Object.values(Permission);
 
 /**
  * Maps each gym-scoped role to the {@link Permission}s it grants. Higher-privilege
@@ -207,8 +222,14 @@ export const ROLE_PERMISSIONS = {
 /**
  * Whether `role` (a role *name*) is granted `permission`. `SUPER_ADMIN` always
  * passes — it is the platform-wide role and is never tenant-scoped. An unknown
- * role name grants nothing (fail closed). This is the one place permission
- * resolution lives, so the server guard and every client check stay in agreement.
+ * role name grants nothing (fail closed).
+ *
+ * This answers the question WITHOUT a gym: the built-in matrix, as shipped. Since
+ * a gym may now edit its roles at runtime (`./role-permissions`), a caller that
+ * holds the gym's settings should resolve against those instead —
+ * `resolveRolePermissions`. This stays the default-behaviour path, and the two
+ * agree exactly for a gym that has never opened the editor, which is why nothing
+ * had to be migrated when overrides arrived.
  */
 export function roleHasPermission(role: string, permission: Permission): boolean {
   if (role === 'SUPER_ADMIN') {

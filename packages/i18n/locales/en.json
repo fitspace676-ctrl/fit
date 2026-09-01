@@ -1911,7 +1911,8 @@
         "invoice": "Invoicing",
         "receipt": "Receipts",
         "locations": "Locations",
-        "reports": "Reports"
+        "reports": "Reports",
+        "permissions": "Roles & permissions"
       },
       "language": {
         "en": "English",
@@ -2198,6 +2199,39 @@
           "revenue": "Where the money comes from, and what is still owed.",
           "classes": "Attendance, utilisation and no-shows.",
           "staff": "Trainer performance."
+        }
+      },
+      "permissions": {
+        "title": "Roles & permissions",
+        "subtitle": "Choose what each staff role can see and do at this gym. A denied capability hides its menu item and closes its page, not just its API.",
+        "rolesLabel": "Staff roles",
+        "lockedAria": "Locked",
+        "ownerNoticeTitle": "Owner is a system role",
+        "ownerNoticeBody": "Owner always holds every capability across every branch, and cannot be edited. If it could, an owner could revoke their own access to this screen and nobody — including them — could give it back.",
+        "granted": "{granted}/{total} granted",
+        "grantedAria": "{granted} of {total} capabilities granted",
+        "reset": "Reset to defaults",
+        "resetAria": "Reset {role} to the built-in defaults",
+        "branchScope": {
+          "legend": "Branch access",
+          "hint": "How much of a multi-branch gym this role works across. Assigned uses the branches each person is actually rostered to.",
+          "all": {
+            "title": "All branches",
+            "hint": "Works across the whole gym and can switch between every branch."
+          },
+          "assigned": {
+            "title": "Assigned branches",
+            "hint": "Sees only the branches this person is rostered to. Someone rostered nowhere sees nothing."
+          }
+        },
+        "matrix": {
+          "capability": "Capability",
+          "view": "View",
+          "manage": "Manage",
+          "access": "Full access",
+          "cellLabel": "{resource} — {column}",
+          "pairHint": "Manage includes View: switching Manage on switches View on, and switching View off switches Manage off. A role that may change what it cannot open would get a hidden page over a working API.",
+          "singleHint": "Staff, gym settings and reports have one switch rather than two, because a single capability covers reading and changing them together."
         }
       }
     },
@@ -3125,6 +3159,18 @@
     },
     "classTypes": {
       "branchScope": "Class types are a gym-wide catalogue — not split by branch."
+    },
+    "permissions": {
+      "resources": {
+        "reviews": "Review moderation",
+        "catalogue": "Shop, services & till",
+        "packages": "Package plans",
+        "loyalty": "Loyalty",
+        "reports": "Reports & dashboard",
+        "locations": "Branches",
+        "gym": "Gym settings & member portal",
+        "audit": "Audit log"
+      }
     }
   },
   "auth": {

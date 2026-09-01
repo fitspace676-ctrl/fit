@@ -5,14 +5,23 @@
 // resolves that list against a session role so the sidebar only ever renders
 // links the caller can actually reach.
 //
-// The gates here are deliberately a *subset* of what `middleware.ts` enforces
-// (see `ROUTE_PERMISSIONS` in `lib/auth-session.ts`): a link is shown only when
-// the role both holds the capability AND clears the route's minimum role, so a
-// rendered link never bounces the user to `/403`. The server still re-checks on
-// every request — this only decides what the UI offers.
+// The gates here MIRROR `lib/route-guards.ts`, entry for entry: a link is shown
+// only when the session holds the capability that route requires and clears any
+// role floor it carries, so a rendered link never bounces the user to `/403`.
+// `lib/nav.spec.ts` asserts the two agree in both directions — a nav item whose
+// gate is looser than its route would render a link to a page that refuses it,
+// and one that is tighter would hide a page the operator may actually open.
+//
+// WHAT CHANGED WHEN GYMS COULD EDIT ROLES. `visibleNavItems` used to take a
+// `Role` and answer from the static `ROLE_PERMISSIONS` matrix. It now takes the
+// session's RESOLVED permissions — what this gym grants this role, right now —
+// because the matrix is only the default and a gym that has revoked a capability
+// must not be shown the link to it. The resolution happens once per request in
+// `app/(dashboard)/layout.tsx`; this function stays pure over the answer.
 
-import { Permission, roleHasPermission } from '@fit/types';
-import { hasRoleAtLeast, type Role } from './auth-session';
+import { Permission } from '@fit/types';
+import { hasRoleAtLeast, ROLES, type Role } from './auth-session';
+import { consoleCan, type ConsolePermissions } from './console-permissions';
 
 /** A single sidebar destination. */
 export interface NavItem {
@@ -20,9 +29,21 @@ export interface NavItem {
   labelKey: string;
   /** App-relative path (basePath is applied by `next/link`). */
   href: string;
-  /** Capability the role must hold for the link to appear. Omit for "all staff". */
+  /**
+   * Capability the session must hold for the link to appear — the same one
+   * `lib/route-guards.ts` gates the destination on. Omit for "all staff".
+   */
   permission?: Permission;
-  /** Minimum role, mirroring `ROUTE_PERMISSIONS`, so links never lead to `/403`. */
+  /**
+   * Role floor, mirroring the destination's `RouteGuard.minRole`, so a link is
+   * never rendered to a route a floor would refuse.
+   *
+   * The duplication is deliberate and asserted by test rather than derived,
+   * because the two answer different questions — "what may this link offer" and
+   * "what will this route admit" — and a nav item that quietly inherited its
+   * gate would hide the one place they are allowed to differ (they are not,
+   * today; the test is what keeps that true).
+   */
   minRole?: Role;
   /** One of the inline icon keys rendered by the sidebar. */
   icon: NavIcon;
@@ -56,11 +77,12 @@ export type NavIcon =
   | 'settings';
 
 /**
- * The full navigation set, ordered top-to-bottom. Permission/minRole gates mirror
- * the matrix in `@fit/types` and the route guards in `middleware.ts`:
- *   • Billing / Staff require `OWNER` (route-gated to OWNER+ despite some
- *     capabilities reaching lower roles).
- *   • Settings is gym configuration — `GymManage`, which only `OWNER` holds.
+ * The full navigation set, ordered top-to-bottom.
+ *
+ * Every gate here is the one `lib/route-guards.ts` puts on the destination, so
+ * the rail offers exactly the pages that will open. `Staff` is the only entry
+ * carrying a role floor as well as a capability, and it carries it because its
+ * route does — see that file for why.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { labelKey: 'nav.dashboard', href: '/', icon: 'dashboard' },
@@ -122,14 +144,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: '/automation',
     icon: 'automation',
     permission: Permission.AutomationRead,
-    minRole: 'MANAGER',
   },
   {
     labelKey: 'nav.marketing',
     href: '/marketing',
     icon: 'marketing',
     permission: Permission.MarketingRead,
-    minRole: 'MANAGER',
   },
   { labelKey: 'nav.reports', href: '/reports', icon: 'reports', permission: Permission.ReportView },
   {
@@ -139,17 +159,22 @@ export const NAV_ITEMS: readonly NavItem[] = [
     // numbered) and this is a design surface with a live preview, which is a
     // different job done by a different person on a different day.
     //
-    // Gated exactly as Settings is — it IS gym configuration, just visual — with
-    // `minRole` stated as well as the capability so the gate here and the route
-    // guard in `ROUTE_PERMISSIONS` read the same on the page rather than agreeing
-    // only because `GymManage` happens to be OWNER-only today.
+    // Gated exactly as Settings is — it IS gym configuration, just visual. The
+    // gate is the capability alone, deliberately: it used to state `OWNER` as
+    // well, which was accurate only for as long as `GymManage` could not be
+    // granted to anyone else. A gym that hands `GymManage` to a manager should
+    // find this link in the rail, not have it withheld by a rank the editor
+    // cannot reach.
     labelKey: 'nav.memberPortal',
     href: '/member-portal',
     icon: 'memberPortal',
     permission: Permission.GymManage,
-    minRole: 'OWNER',
   },
   {
+    // Gym configuration, gated on `GymManage` — which is what every endpoint
+    // behind the screen (`GET`/`PATCH /gyms/settings`) requires. The route guard
+    // says the same thing, so a manager can no longer type the URL and collect a
+    // page of 403s, and a gym that grants `GymManage` gets the link.
     labelKey: 'nav.settings',
     href: '/settings',
     icon: 'settings',
@@ -183,19 +208,29 @@ export const NAV_GROUPS: readonly NavGroup[] = [
 ];
 
 /**
- * The nav items a `role` may see. Returns an empty list for a `null` role (no
- * session resolved yet, or signed out) so the UI fails closed. `SUPER_ADMIN`
- * clears every gate via {@link roleHasPermission} and the role ranking.
+ * The nav items this session may see.
+ *
+ * `permissions` is the set resolved once per request from the gym's own settings
+ * — see `lib/console-permissions.ts`. `null` (no session, or a resolution that
+ * failed) renders NOTHING, so the rail fails closed rather than falling back to
+ * what the role would hold by default.
+ *
+ * The role floor is read off `permissions.role`, and an unrecognised role name
+ * clears no floor — a session whose role we cannot rank is not one to guess
+ * about.
  */
-export function visibleNavItems(role: Role | null): NavItem[] {
-  if (role === null) {
+export function visibleNavItems(permissions: ConsolePermissions | null): NavItem[] {
+  if (permissions === null) {
     return [];
   }
+  const role = (ROLES as readonly string[]).includes(permissions.role)
+    ? (permissions.role as Role)
+    : null;
   return NAV_ITEMS.filter((item) => {
-    if (item.permission && !roleHasPermission(role, item.permission)) {
+    if (item.permission && !consoleCan(permissions, item.permission)) {
       return false;
     }
-    if (item.minRole && !hasRoleAtLeast(role, item.minRole)) {
+    if (item.minRole && (role === null || !hasRoleAtLeast(role, item.minRole))) {
       return false;
     }
     return true;

@@ -28,6 +28,7 @@ import {
   type GymStaffDirectorySettings,
   type InvoiceNumberFormat,
   type ReportToggle,
+  type StaffRole,
   type UpdateGymSettingsInput,
   type Weekday,
   type WeeklyHours,
@@ -52,6 +53,12 @@ import {
   requestLogoUploadAction,
   updateGymSettingsAction,
 } from './actions';
+import {
+  RolePermissionsSection,
+  permissionsFormDefaults,
+  permissionsFormSchema,
+  type PermissionsFormValues,
+} from './role-permissions-panel';
 
 /**
  * Accepted logo MIME types. Narrowed to the two raster formats `pdfkit` can embed,
@@ -717,6 +724,12 @@ interface SettingsFormValues {
   payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
   invoice: { prefix: string; startNumber: number; format: InvoiceNumberFormat };
   receipt: { emailEnabled: boolean; printEnabled: boolean };
+  /**
+   * What each editable staff role may do at this gym. OWNER has no entry: it is
+   * the locked system role, so there is nothing here for a checkbox to write and
+   * nothing for the save to send — see `role-permissions-panel.tsx`.
+   */
+  permissions: PermissionsFormValues;
 }
 
 /** Every boolean form path — the `name`s {@link SwitchRow} may bind to. */
@@ -763,7 +776,8 @@ type SectionKey =
   | 'reports'
   | 'payments'
   | 'invoice'
-  | 'receipt';
+  | 'receipt'
+  | 'permissions';
 
 const SECTIONS: { key: SectionKey; icon: IconName }[] = [
   { key: 'general', icon: 'home' },
@@ -776,6 +790,7 @@ const SECTIONS: { key: SectionKey; icon: IconName }[] = [
   { key: 'payments', icon: 'card' },
   { key: 'invoice', icon: 'tag' },
   { key: 'receipt', icon: 'mail' },
+  { key: 'permissions', icon: 'lock' },
 ];
 
 /** Which rail section holds the first validation error, so a failed save jumps there. */
@@ -793,6 +808,7 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
   if (errors.payments) return 'payments';
   if (errors.invoice) return 'invoice';
   if (errors.receipt) return 'receipt';
+  if (errors.permissions) return 'permissions';
   return null;
 }
 
@@ -815,10 +831,17 @@ function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey |
 export function SettingsForm({
   initial,
   locations = [],
+  staffCountByRole = null,
 }: {
   initial: GymSettings;
   /** The gym's branches, for the Locations card's inline rename. Empty is normal. */
   locations?: AdminLocationRow[];
+  /**
+   * How many staff hold each role right now, counted from the live roster by the
+   * page — or `null` when that roster could not be read, which draws no counts
+   * rather than "0 staff members" under every role.
+   */
+  staffCountByRole?: Partial<Record<StaffRole, number>> | null;
 }) {
   const t = useTranslations('admin.settings');
   const router = useRouter();
@@ -936,6 +959,9 @@ export function SettingsForm({
         emailEnabled: z.boolean(),
         printEnabled: z.boolean(),
       }),
+      // The role editor writes complete rows through the contract's own shape;
+      // nothing here is restated, so the form and the PATCH body cannot drift.
+      permissions: permissionsFormSchema,
     });
   }, [t]);
 
@@ -972,6 +998,15 @@ export function SettingsForm({
       payments: values.payments,
       invoice: values.invoice,
       receipt: values.receipt,
+      // OWNER is deliberately absent. The contract normalises it to full access
+      // even when a client echoes it back, but not sending it at all means this
+      // screen never has to be trusted about the one row that could lock the gym
+      // out of its own settings.
+      permissions: {
+        MANAGER: values.permissions.MANAGER,
+        RECEPTIONIST: values.permissions.RECEPTIONIST,
+        TRAINER: values.permissions.TRAINER,
+      },
     };
     const result = await updateGymSettingsAction(input);
     if (result.ok) {
@@ -1275,6 +1310,12 @@ export function SettingsForm({
             </SectionCard>
           ) : null}
 
+          {section === 'permissions' ? (
+            // The only section that is not a single `SectionCard`: it is a rail
+            // and a panel, each a card, so it brings its own heading.
+            <RolePermissionsSection staffCountByRole={staffCountByRole} />
+          ) : null}
+
           {section === 'locations' ? (
             <SectionCard title={t('locations.title')} description={t('locations.subtitle')}>
               <div {...stylex.props(styles.stack4)}>
@@ -1357,6 +1398,7 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       emailEnabled: settings.receipt.emailEnabled,
       printEnabled: settings.receipt.printEnabled,
     },
+    permissions: permissionsFormDefaults(settings.permissions),
   };
 }
 

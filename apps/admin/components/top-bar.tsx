@@ -151,10 +151,16 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
   // refetches for the new branch. All of that lives in `ActiveLocationProvider`
   // — the bar just draws the control. (It was `useState` + `localStorage` here,
   // which no server fetch could ever see.)
-  const { active, setActive } = useActiveLocation();
+  const { active, canSelectAll, setActive } = useActiveLocation();
 
+  // "All locations" is offered only to an operator whose role works gym-wide. A
+  // role scoped to its assigned branches has no "every branch" to select — that
+  // is the absence of its restriction, not one of its choices — so the option is
+  // ABSENT rather than disabled. A disabled row would still tell them the view
+  // exists and that they are being kept out of it; the honest control is one that
+  // lists the branches they hold and nothing else.
   const locationOptions = [
-    { value: ALL_LOCATIONS, label: t('allLocations') },
+    ...(canSelectAll ? [{ value: ALL_LOCATIONS, label: t('allLocations') }] : []),
     ...locations.map((location) => ({ value: location.id, label: location.name })),
   ];
 

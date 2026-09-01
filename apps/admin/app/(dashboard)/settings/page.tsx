@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { ApiError, fetchGymSettings, fetchLocations } from '@/lib/api';
+import type { StaffRole } from '@fit/types';
+import { ApiError, fetchGymSettings, fetchLocations, fetchStaff } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
@@ -98,7 +99,26 @@ export default async function SettingsPage() {
       (page) => page.data,
       () => [],
     );
-    return <SettingsForm initial={settings} locations={locations} />;
+    // The head-count beside each role on the Roles & permissions rail. Counted
+    // from the live roster (`GET /staff`) rather than stored anywhere: the number
+    // is "who holds this role right now", and the only place that is true is the
+    // roster itself. Gym-wide, unlike the Staff console's own tally — Settings
+    // configures the whole gym, so narrowing this by the header's branch would
+    // make the count disagree with what the grants beside it actually govern.
+    // A roster call that fails yields `null` — no head-counts are drawn at all,
+    // rather than "0 staff members" under every role, which would be a claim the
+    // failed request did not earn.
+    const staffCountByRole = await fetchStaff().then(
+      ({ staff }) =>
+        staff.reduce<Partial<Record<StaffRole, number>>>((counts, member) => {
+          counts[member.role] = (counts[member.role] ?? 0) + 1;
+          return counts;
+        }, {}),
+      () => null,
+    );
+    return (
+      <SettingsForm initial={settings} locations={locations} staffCountByRole={staffCountByRole} />
+    );
   } catch (error) {
     const message =
       error instanceof ApiError

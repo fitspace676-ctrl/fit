@@ -3,7 +3,7 @@
 // The single source of truth for "who is this request" on the staff admin app.
 // Used by three runtimes, so it must stay free of `next/headers`, React, and
 // any Node-only API:
-//   • `middleware.ts`          (Edge runtime) — verifies the cookie + gates by role
+//   • `middleware.ts`          (Edge runtime) — verifies the cookie + staff gate
 //   • `lib/session.ts`         (Server)       — `getServerSession()` for RSC / route handlers
 //   • `hooks/use-session.ts`   (Browser)      — `useSession()` decodes the cookie for nav
 //
@@ -111,43 +111,17 @@ export function isStaff(role: Role): boolean {
   return role !== 'MEMBER';
 }
 
-/**
- * Minimum-role requirements for admin route prefixes, most-specific first. The
- * whole app already requires staff (see {@link isStaff}); these tighten
- * individual areas further. A request whose path starts with a listed prefix
- * must satisfy its `minRole` or it is redirected to `/403`.
- *
- * Example contract from the plan: `/settings/billing` requires `OWNER` and up,
- * so a `RECEPTIONIST` is forbidden.
- */
-export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; minRole: Role }> = [
-  { prefix: '/settings/billing', minRole: 'OWNER' },
-  { prefix: '/billing', minRole: 'OWNER' },
-  { prefix: '/staff', minRole: 'OWNER' },
-  { prefix: '/settings', minRole: 'MANAGER' },
-  // The member portal's look. OWNER+, matching the `GymManage` capability its
-  // nav entry is gated on — a link the sidebar renders must never land on /403.
-  { prefix: '/member-portal', minRole: 'OWNER' },
-  // Growth area (T12.1). Automation and Marketing are MANAGER+, mirroring the
-  // @fit/types matrix so visible links never bounce to /403.
-  { prefix: '/automation', minRole: 'MANAGER' },
-  { prefix: '/marketing', minRole: 'MANAGER' },
-];
-
-/**
- * The minimum role required for `pathname`, or `null` when no rule applies. A
- * leading `/admin` segment is tolerated so the same rules hold whether the app
- * is mounted at the root or under an `/admin` base path.
- */
-export function requiredRoleForPath(pathname: string): Role | null {
-  const path = pathname.startsWith('/admin') ? pathname.slice('/admin'.length) || '/' : pathname;
-  for (const rule of ROUTE_PERMISSIONS) {
-    if (path === rule.prefix || path.startsWith(`${rule.prefix}/`)) {
-      return rule.minRole;
-    }
-  }
-  return null;
-}
+// WHERE THE ROUTE GATE WENT. `ROUTE_PERMISSIONS` and `requiredRoleForPath` used
+// to live here, keyed by minimum role. They now live in `lib/route-guards.ts`
+// and are keyed by CAPABILITY, because a gym may edit what each role holds and a
+// rank ladder cannot express "this gym took members away from its receptionists".
+//
+// They moved out of this module rather than being converted in place because
+// this one is imported by `middleware.ts`, and the Edge bundle must not pull in
+// `@fit/types` — a barrel of Zod schemas — to learn the name of a permission.
+// Middleware no longer route-gates at all: the capability check needs the gym's
+// settings, which the Edge cannot cheaply read, so it happens in
+// `app/(dashboard)/layout.tsx` instead. See that file and `lib/route-guards.ts`.
 
 /** Narrow an arbitrary value to a known {@link Role}, or `undefined`. */
 function parseRole(value: unknown): Role | undefined {

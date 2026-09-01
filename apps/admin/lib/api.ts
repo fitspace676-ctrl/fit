@@ -3168,3 +3168,34 @@ export async function fetchRedemptions(
   });
   return unwrap<ListRedemptionsResponse>(res);
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Me — the caller's own effective permissions                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `GET /me/permissions` — what this session may do at this gym, resolved.
+ *
+ * The console cannot work this out for itself, and the reason is worth stating
+ * because it is the only thing this endpoint exists for. The grants live in
+ * `Gym.settings`, whose read endpoint requires `GymManage` — an OWNER capability
+ * — so a manager's console could never fetch the blob its own sidebar depends
+ * on. The branch assignments live in `LocationStaff`, which the console has no
+ * endpoint for at all. Both are one cheap read on the API side against a session
+ * it has already authenticated.
+ *
+ * Deliberately **not** permission-gated on the API: it tells a caller what they
+ * hold, which is not a secret from them, and gating it on any capability would
+ * make it unreadable by exactly the roles whose grants have been narrowed.
+ *
+ * The body is parsed, never cast — see `consolePermissionsFrom`. This one answer
+ * decides what the whole console offers, so a shape we merely asserted would turn
+ * a bad API deploy into a silently permissive console.
+ */
+export async function fetchMyPermissions(): Promise<unknown> {
+  const res = await fetch(`${apiBaseUrl()}/me/permissions`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<unknown>(res);
+}

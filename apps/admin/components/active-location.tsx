@@ -26,10 +26,13 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   ACTIVE_LOCATION_COOKIE,
+  ALL_BRANCHES_ALLOWED,
   ALL_LOCATIONS,
   LOCATION_PARAM,
+  clampActiveLocation,
   locationFilter,
   resolveActiveLocation,
+  type BranchAccess,
   type LocationRef,
 } from '@/lib/active-location';
 
@@ -44,8 +47,17 @@ export interface ActiveLocationValue {
   active: string;
   /** As the API wants it: `undefined` for "all branches". */
   locationId: string | undefined;
-  /** The gym's live branches, in the order the switcher lists them. */
+  /** The branches this operator may switch between, in the order the switcher lists them. */
   locations: readonly ActiveLocationOption[];
+  /**
+   * Whether "All locations" is on offer.
+   *
+   * False for a role scoped to its assigned branches. The switcher must not merely
+   * disable the option — it must not list it: "every branch" is not one of that
+   * person's branches, it is the absence of the restriction, and an option that
+   * snaps back on choosing it reads as a broken control rather than as a policy.
+   */
+  canSelectAll: boolean;
   /** Persist a new choice: cookie, URL, and a refetch of the server tree. */
   setActive: (next: string) => void;
 }
@@ -54,6 +66,7 @@ const ActiveLocationContext = createContext<ActiveLocationValue>({
   active: ALL_LOCATIONS,
   locationId: undefined,
   locations: [],
+  canSelectAll: true,
   setActive: () => {},
 });
 
@@ -68,10 +81,22 @@ const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 export function ActiveLocationProvider({
   initial,
   locations,
+  access = ALL_BRANCHES_ALLOWED,
   children,
 }: {
   initial: string;
+  /**
+   * The branches to offer — already narrowed to the ones this operator may use,
+   * by the layout that resolved their permissions. A branch they cannot select is
+   * never listed.
+   */
   locations: readonly ActiveLocationOption[];
+  /**
+   * How much of the gym this operator may look at. Defaults to unrestricted so a
+   * test or a preview rendering the provider directly behaves as it always did;
+   * the console layout always passes the resolved answer.
+   */
+  access?: BranchAccess;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -79,11 +104,19 @@ export function ActiveLocationProvider({
   const searchParams = useSearchParams();
 
   // What the request itself says the branch is: the URL override if there is one,
-  // otherwise the cookie the server already resolved for us.
-  const fromRequest = resolveActiveLocation(
-    searchParams.get(LOCATION_PARAM) ?? undefined,
-    initial,
-    locations,
+  // otherwise the cookie the server already resolved for us — then CLAMPED to a
+  // branch this operator actually holds.
+  //
+  // The clamp is what makes the scope a boundary rather than a default. A
+  // restricted operator who pastes a colleague's `?locationId=` link, or whose
+  // cookie predates their scope being narrowed, lands on one of their own
+  // branches; they never land on the one they asked for, and they never fall
+  // through to "all locations", which for them would be the whole gym. The server
+  // reaches the same answer independently in `lib/active-location-server.ts`, so
+  // the fetch is scoped the same way the control is drawn.
+  const fromRequest = clampActiveLocation(
+    resolveActiveLocation(searchParams.get(LOCATION_PARAM) ?? undefined, initial, locations),
+    access,
   );
 
   // The control has to move the instant it is clicked, but the value it moves to
@@ -109,13 +142,18 @@ export function ActiveLocationProvider({
 
   const setActive = useCallback(
     (next: string) => {
-      setChoice((prev) => ({ active: next, seen: prev.seen }));
+      // Even the setter clamps. The control cannot offer a branch outside the
+      // permitted set, but a stale render, a replayed event or a future caller
+      // could still ask for one, and this is one of two places (with the server
+      // resolver) where the answer is decided.
+      const permitted = clampActiveLocation(next, access);
+      setChoice((prev) => ({ active: permitted, seen: prev.seen }));
 
       // Year-long cookie so the next server render — on this page and every page
       // navigated to afterwards, none of whose links carry the param — scopes to
       // the same branch.
       try {
-        document.cookie = `${ACTIVE_LOCATION_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=${COOKIE_MAX_AGE}; samesite=lax`;
+        document.cookie = `${ACTIVE_LOCATION_COOKIE}=${encodeURIComponent(permitted)}; path=/; max-age=${COOKIE_MAX_AGE}; samesite=lax`;
       } catch {
         // Storage disabled — the choice still applies to this navigation via the
         // URL below; it just will not outlive the tab.
@@ -125,10 +163,10 @@ export function ActiveLocationProvider({
       // restores it. "All locations" is the absence of the param, never
       // `locationId=all` — the API is never asked to interpret the sentinel.
       const params = new URLSearchParams(search);
-      if (next === ALL_LOCATIONS) {
+      if (permitted === ALL_LOCATIONS) {
         params.delete(LOCATION_PARAM);
       } else {
-        params.set(LOCATION_PARAM, next);
+        params.set(LOCATION_PARAM, permitted);
       }
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -140,7 +178,7 @@ export function ActiveLocationProvider({
       // for one explicitly.
       router.refresh();
     },
-    [pathname, router, search],
+    [access, pathname, router, search],
   );
 
   const value = useMemo<ActiveLocationValue>(
@@ -148,9 +186,10 @@ export function ActiveLocationProvider({
       active: choice.active,
       locationId: locationFilter(choice.active),
       locations,
+      canSelectAll: access.canSelectAll,
       setActive,
     }),
-    [choice.active, locations, setActive],
+    [access.canSelectAll, choice.active, locations, setActive],
   );
 
   return <ActiveLocationContext.Provider value={value}>{children}</ActiveLocationContext.Provider>;

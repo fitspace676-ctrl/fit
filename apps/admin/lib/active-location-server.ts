@@ -18,10 +18,14 @@ import { cookies } from 'next/headers';
 import {
   ACTIVE_LOCATION_COOKIE,
   LOCATION_PARAM,
+  clampActiveLocation,
   locationFilter,
   resolveActiveLocation,
+  type BranchAccess,
   type LocationRef,
 } from './active-location';
+import { branchAccess, permittedLocations } from './console-permissions';
+import { getConsolePermissions } from './permissions-server';
 import { fetchLocations } from './api';
 
 /** A gym location as the console chrome and the resolver need it. */
@@ -51,9 +55,14 @@ export type SearchParamsInput =
  * cover it.)
  *
  * Never throws: a caller lacking `location:read`, or an API that is down, gets an
- * empty roster — which degrades every stored branch to "all locations". That is
- * the fail-*open* behaviour the location filter is specified to have (it is a
- * convenience, not an authorization boundary — see the roadmap's Stage 8).
+ * empty roster.
+ *
+ * What an empty roster MEANS now depends on the operator, and that is the change
+ * branch scope brought. For a gym-wide role it still degrades to "all locations"
+ * — the filter is a convenience for them, not a boundary. For a role scoped to
+ * its assigned branches it degrades the other way, to `NO_LOCATION`: they have no
+ * branch to fall back to, and "every branch" is precisely the answer their scope
+ * exists to withhold. See {@link fetchPermittedLocations}.
  */
 export const fetchActiveLocations = cache(async (): Promise<AdminLocation[]> => {
   try {
@@ -72,21 +81,69 @@ async function locationParam(searchParams: SearchParamsInput): Promise<string | 
 }
 
 /**
- * The branch this request is scoped to, as the UI spells it: `ALL_LOCATIONS` or
- * a live location id. Use this to seed the client provider; use
+ * The branches this operator may actually work in — {@link fetchActiveLocations}
+ * narrowed by their role's branch scope.
+ *
+ * A role scoped to `assigned` sees only the branches it holds `LocationStaff`
+ * rows for; a gym-wide role sees the whole roster. Memoised alongside the roster
+ * itself so the layout (which populates the switcher) and every page (which
+ * validates the cookie) share one answer and one round trip.
+ *
+ * This is what every other function in this file resolves against, so a branch
+ * the operator may not use is not merely hidden from the switcher — it is not a
+ * value the cookie or the URL can name.
+ */
+export const fetchPermittedLocations = cache(async (): Promise<AdminLocation[]> => {
+  const [locations, permissions] = await Promise.all([
+    fetchActiveLocations(),
+    getConsolePermissions(),
+  ]);
+  return permittedLocations(permissions, locations);
+});
+
+/** How much of the gym this request's operator may look at. */
+export const getBranchAccess = cache(async (): Promise<BranchAccess> => {
+  const [locations, permissions] = await Promise.all([
+    fetchActiveLocations(),
+    getConsolePermissions(),
+  ]);
+  return branchAccess(permissions, locations);
+});
+
+/**
+ * The branch this request is scoped to, as the UI spells it: `ALL_LOCATIONS`, a
+ * live location id, or `NO_LOCATION`. Use this to seed the client provider; use
  * {@link getActiveLocationId} to filter a fetch.
+ *
+ * Two passes, deliberately. {@link resolveActiveLocation} answers what the
+ * request asked for and whether the gym has it; {@link clampActiveLocation} then
+ * answers whether this operator may have it. Collapsing them would mean the
+ * cookie resolver had to know about permissions, and separating them is what lets
+ * the second pass be the same function the browser runs.
+ *
+ * **The clamp is why the URL is not a way around the scope.** Both candidate
+ * sources are untrusted input — a cookie survives a change of role, and a
+ * `?locationId=` is whatever was pasted into the address bar — so neither is
+ * taken at its word. A restricted operator naming a colleague's branch lands on
+ * one of their own; with no branches at all they land on `NO_LOCATION`, which
+ * filters everything out rather than falling open to the gym.
  *
  * Layouts are not handed `searchParams` by the App Router, so the console layout
  * calls this with nothing and the URL override is reconciled on the client, where
- * `useSearchParams()` can see it — see `components/active-location.tsx`.
+ * `useSearchParams()` can see it — see `components/active-location.tsx`. The two
+ * sides run the same two passes over the same two inputs, so they agree.
  */
 export async function getActiveLocation(searchParams?: SearchParamsInput): Promise<string> {
-  const [param, jar, locations] = await Promise.all([
+  const [param, jar, locations, access] = await Promise.all([
     locationParam(searchParams),
     cookies(),
-    fetchActiveLocations(),
+    fetchPermittedLocations(),
+    getBranchAccess(),
   ]);
-  return resolveActiveLocation(param, jar.get(ACTIVE_LOCATION_COOKIE)?.value, locations);
+  return clampActiveLocation(
+    resolveActiveLocation(param, jar.get(ACTIVE_LOCATION_COOKIE)?.value, locations),
+    access,
+  );
 }
 
 /**
@@ -97,6 +154,10 @@ export async function getActiveLocation(searchParams?: SearchParamsInput): Promi
  * const locationId = await getActiveLocationId(searchParams);
  * const data = await fetchMembers({ ...query, locationId });
  * ```
+ *
+ * For an operator restricted to assigned branches this is never `undefined`: it
+ * is one of their branches, or `NO_LOCATION` when they hold none. "All branches"
+ * is a gym-wide answer and they do not have one.
  */
 export async function getActiveLocationId(
   searchParams?: SearchParamsInput,

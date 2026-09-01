@@ -43,6 +43,7 @@ export * from './src/platform';
 export * from './src/products';
 export * from './src/products-admin';
 export * from './src/reports';
+export * from './src/role-permissions';
 export * from './src/pt-sessions-admin';
 export * from './src/reports-drilldown';
 export * from './src/reviews';

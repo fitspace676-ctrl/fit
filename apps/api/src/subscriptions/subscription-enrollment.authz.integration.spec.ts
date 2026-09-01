@@ -8,6 +8,11 @@ import type { NextFunction, Request, Response } from 'express';
 import { loggerConfig } from '../common/logging';
 import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
+import {
+  clearRequestAccessResolver,
+  registerRequestAccessResolver,
+} from '../common/rbac/request-access';
+import { defaultsRequestAccessResolver } from '../test/request-access-stub';
 import { TenantContext, tenantStorage, type TenantState } from '../common/tenant/tenant.context';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { AdminSubscriptionEnrollmentController } from './admin-subscription-enrollment.controller';
@@ -52,6 +57,13 @@ describe('Subscription enrolment authorization (integration)', () => {
   };
 
   beforeAll(async () => {
+    // `PermissionsGuard` resolves each request's grants through the process-wide
+    // resolver and DENIES when there is none — an unresolvable permission set is a
+    // 403, never a fall-back to the static matrix. This spec has no database, so it
+    // registers the built-in defaults: exactly what a gym that has configured
+    // nothing resolves to, which is the behaviour these routes are pinned against.
+    registerRequestAccessResolver(defaultsRequestAccessResolver());
+
     const moduleRef = await Test.createTestingModule({
       imports: [LoggerModule.forRoot(loggerConfig())],
       controllers: [SubscriptionsController, AdminSubscriptionEnrollmentController],
@@ -87,6 +99,8 @@ describe('Subscription enrolment authorization (integration)', () => {
 
   afterAll(async () => {
     await app.close();
+    // The holder is process-wide; leaving it set would change the next spec file.
+    clearRequestAccessResolver();
   });
 
   const post = (path: string, role: Role, body: unknown) =>

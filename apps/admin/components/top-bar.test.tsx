@@ -21,6 +21,8 @@ import { TopBar } from './top-bar';
 const mocks = vi.hoisted(() => ({
   setActive: vi.fn(),
   active: { current: 'all' },
+  /** Whether this operator's role works gym-wide — see the branch-scope specs below. */
+  canSelectAll: { current: true },
 }));
 
 vi.mock('next/navigation', () => navigationMock.factory());
@@ -36,6 +38,7 @@ vi.mock('./active-location', () => ({
     active: mocks.active.current,
     locationId: mocks.active.current === 'all' ? undefined : mocks.active.current,
     locations: [],
+    canSelectAll: mocks.canSelectAll.current,
     setActive: mocks.setActive,
   }),
 }));
@@ -77,6 +80,7 @@ describe('TopBar branch switcher', () => {
     navigationMock.reset();
     mocks.setActive.mockReset();
     mocks.active.current = 'all';
+    mocks.canSelectAll.current = true;
   });
 
   it('renders no switcher for a gym with no locations', () => {
@@ -125,5 +129,37 @@ describe('TopBar branch switcher', () => {
     renderBar();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Location' }), 'all');
     expect(mocks.setActive).toHaveBeenCalledWith('all');
+  });
+});
+
+describe('TopBar branch switcher, for a branch-scoped role', () => {
+  // A role whose branch scope is `assigned` may work only at the branches it is
+  // rostered to. "All locations" is not one of those branches — it is the absence
+  // of the restriction — so the option must not be on the list at all.
+  //
+  // Not merely disabled: a greyed row still announces that a gym-wide view exists
+  // and that this person is being kept out of it, and a `<select>` whose chosen
+  // value snaps back reads as a broken control rather than as a policy. The
+  // roster it does list has already been narrowed by the console layout, so every
+  // option here is one they hold.
+  beforeEach(() => {
+    navigationMock.reset();
+    mocks.setActive.mockReset();
+    mocks.canSelectAll.current = false;
+    mocks.active.current = 'loc-harbour';
+  });
+
+  it('offers no "All locations" option', () => {
+    renderBar();
+    const labels = screen
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(labels).toEqual(['Downtown', 'Harbour']);
+    expect(labels).not.toContain('All locations');
+  });
+
+  it('still draws the branches the operator does hold', () => {
+    renderBar();
+    expect(screen.getByRole('combobox')).toHaveValue('loc-harbour');
   });
 });

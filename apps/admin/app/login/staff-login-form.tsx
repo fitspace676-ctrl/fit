@@ -83,7 +83,12 @@ export function StaffLoginForm() {
           }
 
           const tokens = (await response.json()) as TokenPair;
-          await fetch('/api/session', {
+          // `BASE_PATH`-prefixed, like the sign-out call in `top-bar.tsx`: this is a
+          // raw `fetch`, and Next's `basePath` rewrites routing and links but NOT
+          // request URLs. Without it the console posts to `/api/session`, which is
+          // outside the `/admin` base and 404s — so the cookie is never set and the
+          // redirect below lands straight back on the sign-in page.
+          await fetch(`${BASE_PATH}/api/session`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(tokens),
