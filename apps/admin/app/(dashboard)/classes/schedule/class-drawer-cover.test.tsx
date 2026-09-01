@@ -113,6 +113,9 @@ function renderDrawer(over: Partial<AdminScheduleInstance> = {}) {
           open
           onClose={vi.fn()}
           canWrite={false}
+          canBook={false}
+          canMarkAttendance={false}
+          canManageWaitlist={false}
           locale="en"
           timeZone="UTC"
         />

@@ -252,14 +252,14 @@ export async function fetchPosMembersAction(query: string): Promise<ActionResult
  * snapshot against the shared `sendReceiptSchema` before forwarding it to the
  * `POST /orders/receipt` API (which renders + sends the receipt), so a malformed
  * payload is rejected at the boundary rather than surfacing as an opaque API 400.
- * Enforces `BillingRead` — the same capability the API gates the route on, held by
+ * Enforces `PosAccess` — the same capability the API gates the route on, held by
  * the POS-operator roles. The returned `delivered:false` (email unconfigured) is a
  * successful action, not an error — the caller distinguishes the two.
  */
 export async function emailReceiptAction(
   input: SendReceiptInput,
 ): Promise<ActionResult<SendReceiptResponse>> {
-  if (!(await sessionHas(Permission.BillingRead))) {
+  if (!(await sessionHas(Permission.PosAccess))) {
     return { ok: false, error: 'Not authorized' };
   }
   const parsed = sendReceiptSchema.safeParse(input);
@@ -277,14 +277,14 @@ export async function emailReceiptAction(
  * Persist a completed POS sale (T7.5) as a paid order + captured payment so the
  * day's takings exist for the end-of-day reconciliation. Re-validates the snapshot
  * against the shared `recordPosSaleSchema` before forwarding it to the
- * `POST /orders/pos-sale` API, and enforces `BillingRead` — the same capability the
+ * `POST /orders/pos-sale` API, and enforces `PaymentProcess` — the same capability the
  * API gates the route on, held by the POS-operator roles. Returns the created ids
  * so the board can finish the sale.
  */
 export async function recordPosSaleAction(
   input: RecordPosSaleInput,
 ): Promise<ActionResult<RecordPosSaleResponse>> {
-  if (!(await sessionHas(Permission.BillingRead))) {
+  if (!(await sessionHas(Permission.PaymentProcess))) {
     return { ok: false, error: 'Not authorized' };
   }
   const parsed = recordPosSaleSchema.safeParse(input);

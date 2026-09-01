@@ -1609,9 +1609,9 @@
       },
       "roleDesc": {
         "OWNER": "Full system access and control.",
-        "MANAGER": "Manage operations and staff; no Settings or role permissions.",
-        "RECEPTIONIST": "Front desk access to members, POS, bookings, and the basic dashboard.",
-        "TRAINER": "Training-focused access to classes and member profiles (view only)."
+        "MANAGER": "Full operational management; no gym settings, roles & permissions, or FormaCore subscription.",
+        "RECEPTIONIST": "Front-desk access: members, memberships, POS, bookings, and check-ins.",
+        "TRAINER": "Training-focused access: own classes and PT sessions, workout plans, member training profiles."
       },
       "manageRolesDrawer": {
         "title": "Roles & permissions"
@@ -1773,7 +1773,7 @@
         "trainerRead": "View trainers",
         "trainerWrite": "Add & edit trainers",
         "locationRead": "View locations",
-        "locationWrite": "Add & edit locations",
+        "locationWrite": "Edit locations",
         "productRead": "View products",
         "productWrite": "Add & edit products",
         "packageRead": "View package plans",
@@ -1798,7 +1798,45 @@
         "loyaltyRead": "View loyalty program & points",
         "loyaltyManage": "Manage loyalty program & rewards",
         "auditRead": "View audit log",
-        "profileManage": "Edit own profile"
+        "profileManage": "Edit own profile",
+        "gymSubscriptionManage": "Manage the gym FormaCore subscription",
+        "locationManage": "Add & deactivate locations, location settings",
+        "staffRead": "View staff",
+        "staffAssignRole": "Assign staff roles",
+        "staffAssignLocation": "Assign staff locations",
+        "staffScheduleRead": "View staff schedules",
+        "staffScheduleManage": "Manage staff schedules & time off",
+        "rolesRead": "View roles & permissions",
+        "rolesManage": "Manage roles & permissions",
+        "membershipManage": "Freeze & resume memberships",
+        "membershipSell": "Sell memberships",
+        "membershipRenew": "Renew memberships",
+        "membershipCancel": "Cancel memberships",
+        "memberPaymentRead": "View member payments",
+        "memberCheckinRead": "View member check-ins",
+        "trainerScheduleManage": "Manage trainer schedules",
+        "posAccess": "Access POS",
+        "paymentProcess": "Process payments",
+        "paymentRefund": "Process refunds",
+        "discountApply": "Apply discounts",
+        "transactionRead": "View transactions",
+        "salesHistoryRead": "View sales history & reconciliation",
+        "productPricing": "Manage product pricing & cost",
+        "inventoryRead": "View inventory",
+        "inventoryAdjust": "Adjust inventory",
+        "stocktakePerform": "Perform stocktake",
+        "stockMovementRead": "View stock movement history",
+        "ptPackageRead": "View PT packages & credits",
+        "ptPackageSell": "Sell PT packages",
+        "classManageOwn": "Manage own classes",
+        "bookingManage": "Book members into classes & cancel bookings",
+        "classAttendance": "Manage class attendance",
+        "classWaitlist": "Manage waitlists",
+        "ptSessionRead": "View PT sessions",
+        "ptSessionManage": "Create, edit & cancel PT sessions",
+        "ptSessionManageOwn": "Manage own PT sessions",
+        "revenueRead": "View revenue",
+        "reportExport": "Export reports"
       },
       "errors": {
         "loadStaff": "Could not load staff ({status}): {message}",
@@ -1811,7 +1849,8 @@
         "requestFailed": "Request failed ({status}): {message}",
         "invalidDetails": "Invalid invitation details",
         "invalidRole": "Invalid role",
-        "unexpected": "Unexpected error"
+        "unexpected": "Unexpected error",
+        "ownerRoleRestricted": "Only an owner can assign, change, or remove the Owner role."
       },
       "depth": {
         "roles": {

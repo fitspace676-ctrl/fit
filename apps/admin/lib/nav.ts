@@ -58,8 +58,8 @@ export type NavIcon =
 /**
  * The full navigation set, ordered top-to-bottom. Permission/minRole gates mirror
  * the matrix in `@fit/types` and the route guards in `middleware.ts`:
- *   • Billing / Staff require `OWNER` (route-gated to OWNER+ despite some
- *     capabilities reaching lower roles).
+ *   • Billing requires `OWNER`; Staff is `StaffRead` + MANAGER (a manager runs the
+ *     roster of their locations, an owner alone hands out the Owner role).
  *   • Settings is gym configuration — `GymManage`, which only `OWNER` holds.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -109,13 +109,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'services',
     permission: Permission.ProductRead,
   },
-  { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
+  { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.PosAccess },
   {
     labelKey: 'nav.staff',
     href: '/staff',
     icon: 'staff',
-    permission: Permission.StaffManage,
-    minRole: 'OWNER',
+    permission: Permission.StaffRead,
+    minRole: 'MANAGER',
   },
   {
     labelKey: 'nav.automation',

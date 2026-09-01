@@ -31,10 +31,10 @@ export const dynamic = 'force-dynamic';
 /** `GET /reports/export?report=&range=&from=&to=&format=` — stream one report as a file download. */
 export async function GET(req: Request): Promise<Response> {
   // Defence in depth: the middleware gates the route to staff, but re-assert the
-  // report-view capability here since this is its own endpoint. The API re-checks
+  // report-export capability here since this is its own endpoint. The API re-checks
   // again behind its own guards.
   const session = await getServerSession();
-  if (!session || !roleHasPermission(session.role, Permission.ReportView)) {
+  if (!session || !roleHasPermission(session.role, Permission.ReportExport)) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 

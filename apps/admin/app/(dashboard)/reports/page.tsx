@@ -61,6 +61,7 @@ export default async function ReportsPage({
   const t = await getTranslations('admin.reports');
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
+  const canExport = session !== null && roleHasPermission(session.role, Permission.ReportExport);
 
   const { report: rawReport, range, from, to } = await searchParams;
   // The window is validated as a whole: a `custom` range missing a day, or with
@@ -91,7 +92,7 @@ export default async function ReportsPage({
       <VisuallyHidden as="h1">{t('title')}</VisuallyHidden>
 
       {canViewReports ? (
-        <ReportsBody query={query} requested={requested} />
+        <ReportsBody query={query} requested={requested} canExport={canExport} />
       ) : (
         <p {...stylex.props(chrome.notice)}>{t('noAccess')}</p>
       )}
@@ -108,9 +109,12 @@ export default async function ReportsPage({
 async function ReportsBody({
   query,
   requested,
+  canExport,
 }: {
   query: ReportQuery;
   requested: ReportKey | null;
+  /** `ReportExport` — whether the preview offers the CSV / XLSX downloads. */
+  canExport: boolean;
 }) {
   const t = await getTranslations('admin.reports');
   try {
@@ -134,6 +138,7 @@ async function ReportsBody({
           selected={null}
           reportQuery={query}
           preview={null}
+          canExport={canExport}
         />
       );
     }
@@ -146,6 +151,7 @@ async function ReportsBody({
         selected={offered}
         reportQuery={query}
         preview={preview}
+        canExport={canExport}
       />
     );
   } catch (error) {

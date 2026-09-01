@@ -49,6 +49,7 @@ export default async function ReportDrilldownPage({
   const t = await getTranslations('admin.reports');
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
+  const canExport = session !== null && roleHasPermission(session.role, Permission.ReportExport);
 
   const { range, from, to } = await searchParams;
   // Validated as a whole, so a half-written custom range falls back rather
@@ -64,7 +65,7 @@ export default async function ReportDrilldownPage({
 
   try {
     const drilldown = await fetchReportDrilldown(metric, query);
-    return <DrilldownView drilldown={drilldown} />;
+    return <DrilldownView drilldown={drilldown} canExport={canExport} />;
   } catch (error) {
     const message =
       error instanceof ApiError

@@ -50,6 +50,8 @@ function setup(overrides?: {
   deleteManyCount?: number;
   /** The coach profile already linked to the member under test, if any. */
   trainerFindFirst?: { id: string } | null;
+  /** The caller's own role (an OWNER unless a test says otherwise). */
+  callerRole?: Role;
 }) {
   const gymMemberFindMany = vi.fn(() => Promise.resolve(overrides?.staffFindMany ?? []));
   const gymMemberFindFirst = vi.fn(() =>
@@ -99,7 +101,10 @@ function setup(overrides?: {
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
-  const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  const tenant = {
+    gymId: 'gym-1',
+    role: overrides?.callerRole ?? Role.OWNER,
+  } as unknown as TenantContext;
   const sendStaffInviteEmail = vi.fn(() => Promise.resolve());
   const email = { sendStaffInviteEmail } as unknown as EmailService;
   const revokeAllForUser = vi.fn(() => Promise.resolve());
@@ -315,6 +320,95 @@ describe('StaffService', () => {
         where: { id: 'tr-1' },
         data: { status: 'INACTIVE' },
       });
+    });
+  });
+
+  describe('owner role restriction', () => {
+    it('refuses a MANAGER promoting someone to OWNER with 403 OWNER_ROLE_RESTRICTED', async () => {
+      const { service, gymMemberUpdate } = setup({
+        staffFindFirst: row({ role: Role.MANAGER }),
+        callerRole: Role.MANAGER,
+      });
+
+      await expect(service.updateRole('gm-1', { role: 'OWNER' })).rejects.toMatchObject({
+        response: { code: 'OWNER_ROLE_RESTRICTED' },
+      });
+      expect(gymMemberUpdate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a MANAGER re-roling an existing OWNER', async () => {
+      const { service, gymMemberUpdate } = setup({
+        staffFindFirst: row({ role: Role.OWNER }),
+        ownerCount: 2,
+        callerRole: Role.MANAGER,
+      });
+
+      await expect(service.updateRole('gm-1', { role: 'MANAGER' })).rejects.toMatchObject({
+        response: { code: 'OWNER_ROLE_RESTRICTED' },
+      });
+      expect(gymMemberUpdate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a MANAGER removing an OWNER', async () => {
+      const { service, gymMemberDelete } = setup({
+        staffFindFirst: row({ role: Role.OWNER }),
+        ownerCount: 2,
+        callerRole: Role.MANAGER,
+      });
+
+      await expect(service.removeStaff('gm-1')).rejects.toMatchObject({
+        response: { code: 'OWNER_ROLE_RESTRICTED' },
+      });
+      expect(gymMemberDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses a MANAGER inviting an OWNER', async () => {
+      const { service, inviteCreate } = setup({ callerRole: Role.MANAGER });
+
+      await expect(
+        service.inviteStaff({ email: 'boss@example.com', role: 'OWNER' }),
+      ).rejects.toMatchObject({ response: { code: 'OWNER_ROLE_RESTRICTED' } });
+      expect(inviteCreate).not.toHaveBeenCalled();
+    });
+
+    it('lets an OWNER promote a manager to OWNER', async () => {
+      const { service, gymMemberUpdate } = setup({
+        staffFindFirst: row({ role: Role.MANAGER }),
+        callerRole: Role.OWNER,
+      });
+
+      await service.updateRole('gm-1', { role: 'OWNER' });
+      expect(gymMemberUpdate).toHaveBeenCalledWith({
+        where: { id: 'gm-1' },
+        data: { role: 'OWNER' },
+      });
+    });
+
+    it('lets a SUPER_ADMIN touch owners too', async () => {
+      const { service, gymMemberUpdate } = setup({
+        staffFindFirst: row({ role: Role.OWNER }),
+        ownerCount: 2,
+        callerRole: Role.SUPER_ADMIN,
+      });
+
+      await service.updateRole('gm-1', { role: 'MANAGER' });
+      expect(gymMemberUpdate).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('updateStaffProfile', () => {
+    it('needs staff:assign-location to change assignedLocationIds', async () => {
+      // A RECEPTIONIST never reaches this route (no staff:manage), but the check
+      // is the service's own: it must not rely on the route guard.
+      const { service, gymMemberUpdate } = setup({
+        staffFindFirst: row({ role: Role.TRAINER }),
+        callerRole: Role.RECEPTIONIST,
+      });
+
+      await expect(
+        service.updateStaffProfile('gm-1', { assignedLocationIds: ['loc-1'] }),
+      ).rejects.toMatchObject({ response: { code: 'INSUFFICIENT_PERMISSION' } });
+      expect(gymMemberUpdate).not.toHaveBeenCalled();
     });
   });
 

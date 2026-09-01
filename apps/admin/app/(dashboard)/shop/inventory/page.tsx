@@ -187,7 +187,7 @@ export default async function InventoryPage({
   });
 
   const session = await getServerSession();
-  const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
+  const canWrite = session !== null && roleHasPermission(session.role, Permission.InventoryAdjust);
 
   let result: ListInventoryResponse;
   try {

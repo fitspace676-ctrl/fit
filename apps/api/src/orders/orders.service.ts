@@ -14,6 +14,7 @@ import {
   StockMovementReason,
 } from '@fit/db';
 import {
+  Permission,
   buildReconciliationReport,
   deriveOrderChannel,
   encodeVariantRef,
@@ -43,6 +44,7 @@ import {
 import { resolveEmailLocale } from '../mail/email-locale';
 import { EmailService } from '../auth/email.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { assertPermission } from '../common/rbac/assert-permission';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { applyOrderStockMovements } from '../products/order-stock';
@@ -160,6 +162,11 @@ export class OrdersService {
     }
 
     const { receipt, memberId, planId, locationId } = input;
+    // Ringing up a discount is its own capability (`discount:apply`), checked here
+    // because it depends on the body, not the route.
+    if (input.promoCode) {
+      assertPermission(this.tenant.role, Permission.DiscountApply);
+    }
     if (receipt.paymentMethod === 'member_account' && !memberId) {
       throw new BadRequestException('A member-account sale must be attached to a member');
     }

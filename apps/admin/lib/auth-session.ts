@@ -123,7 +123,7 @@ export function isStaff(role: Role): boolean {
 export const ROUTE_PERMISSIONS: ReadonlyArray<{ prefix: string; minRole: Role }> = [
   { prefix: '/settings/billing', minRole: 'OWNER' },
   { prefix: '/billing', minRole: 'OWNER' },
-  { prefix: '/staff', minRole: 'OWNER' },
+  { prefix: '/staff', minRole: 'MANAGER' },
   { prefix: '/settings', minRole: 'MANAGER' },
   // The member portal's look. OWNER+, matching the `GymManage` capability its
   // nav entry is gated on — a link the sidebar renders must never land on /403.

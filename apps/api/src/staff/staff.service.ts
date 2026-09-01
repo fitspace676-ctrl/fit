@@ -19,7 +19,7 @@ import type {
   UpdateStaffRoleInput,
   UpdateStaffRoleResponse,
 } from '@fit/types';
-import { gymSettingsStoredSchema } from '@fit/types';
+import { Permission, gymSettingsStoredSchema } from '@fit/types';
 import { env } from '../config/env';
 import { generateVerificationToken } from '../auth/auth.service';
 import { EmailService } from '../auth/email.service';
@@ -27,6 +27,7 @@ import { resolveEmailLocale } from '../mail/email-locale';
 import { TokenService } from '../auth/token.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { assertPermission } from '../common/rbac/assert-permission';
 import { isPlaceholderEmail, placeholderEmail } from '../common/directory-identity';
 
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
@@ -143,6 +144,7 @@ export class StaffService {
    * same transaction. Returns the new staff member.
    */
   async createStaff(input: CreateStaffInput): Promise<StaffMember> {
+    this.assertMayHandleRole(input.role);
     const gymId = this.tenant.gymId;
     const email = input.email?.trim() ? input.email.trim().toLowerCase() : null;
 
@@ -226,6 +228,7 @@ export class StaffService {
    */
   async inviteStaff(input: InviteStaffInput): Promise<InviteStaffResponse> {
     const { email, role } = input;
+    this.assertMayHandleRole(role);
 
     // Already a staff member of *this* gym? The scoped query constrains gymId, so
     // this only ever sees our own gym's memberships. A plain MEMBER is allowed —
@@ -310,6 +313,8 @@ export class StaffService {
     input: UpdateStaffRoleInput,
   ): Promise<UpdateStaffRoleResponse> {
     const member = await this.requireStaff(memberId);
+    this.assertMayHandleRole(member.role);
+    this.assertMayHandleRole(input.role);
 
     if (member.role === Role.OWNER && input.role !== Role.OWNER) {
       await this.assertNotLastOwner();
@@ -336,10 +341,14 @@ export class StaffService {
   async updateStaffProfile(memberId: string, input: UpdateStaffProfileInput): Promise<StaffMember> {
     const existing = await this.prisma.client.gymMember.findFirst({
       where: { id: memberId, role: { in: STAFF_ROLES } },
-      select: { id: true, userId: true, firstName: true, lastName: true },
+      select: { id: true, userId: true, role: true, firstName: true, lastName: true },
     });
     if (!existing) {
       throw new NotFoundException({ message: 'Staff member not found', code: 'STAFF_NOT_FOUND' });
+    }
+    this.assertMayHandleRole(existing.role);
+    if (input.assignedLocationIds !== undefined) {
+      assertPermission(this.tenant.role, Permission.StaffAssignLocation);
     }
     const gymId = this.tenant.gymId;
 
@@ -430,6 +439,7 @@ export class StaffService {
    */
   async removeStaff(memberId: string): Promise<void> {
     const member = await this.requireStaff(memberId);
+    this.assertMayHandleRole(member.role);
 
     if (member.role === Role.OWNER) {
       await this.assertNotLastOwner();
@@ -525,6 +535,23 @@ export class StaffService {
       throw new NotFoundException({ message: 'Staff member not found', code: 'STAFF_NOT_FOUND' });
     }
     return member;
+  }
+
+  /**
+   * The OWNER role is reserved to owners: only an `OWNER` (or the platform
+   * `SUPER_ADMIN`) may create an owner, promote someone to owner, or re-role,
+   * edit, or remove an existing owner. A manager holds `staff:assign-role`
+   * for the operational roles but must never be able to reach ownership —
+   * `403 OWNER_ROLE_RESTRICTED` otherwise. A no-op for every other role.
+   */
+  private assertMayHandleRole(role: string): void {
+    if (role !== Role.OWNER) return;
+    const caller = this.tenant.role;
+    if (caller === Role.OWNER || caller === Role.SUPER_ADMIN) return;
+    throw new ForbiddenException({
+      message: 'Only an owner can assign or change the Owner role',
+      code: 'OWNER_ROLE_RESTRICTED',
+    });
   }
 
   /**

@@ -35,6 +35,7 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 }
 
 const requireLocationWrite = () => sessionHas(Permission.LocationWrite);
+const requireLocationManage = () => sessionHas(Permission.LocationManage);
 
 /** Map a thrown API error to a short, staff-facing message. */
 function toMessage(error: unknown): string {
@@ -52,13 +53,13 @@ function toMessage(error: unknown): string {
 
 /**
  * Create a location. Re-validates the body with the same Zod schema the API uses,
- * enforces `LocationWrite`, then refreshes the roster cache. Returns the new
+ * enforces `LocationManage`, then refreshes the roster cache. Returns the new
  * location's `id` so the form can navigate to its detail page.
  */
 export async function createLocationAction(
   input: CreateLocationInput,
 ): Promise<ActionResult<{ id: string }>> {
-  if (!(await requireLocationWrite())) {
+  if (!(await requireLocationManage())) {
     return { ok: false, error: 'Not authorized' };
   }
   const parsed = createLocationSchema.safeParse(input);
@@ -102,13 +103,13 @@ export async function updateLocationAction(
 /**
  * Deactivate (`INACTIVE`) or reactivate (`ACTIVE`) a location. One action behind a
  * boolean keeps the two mirror-image transitions in a single place; both enforce
- * `LocationWrite` and refresh the roster + detail caches.
+ * `LocationManage` and refresh the roster + detail caches.
  */
 export async function setLocationActiveAction(
   id: string,
   active: boolean,
 ): Promise<ActionResult<{ status: SetLocationStatusResponse['status'] }>> {
-  if (!(await requireLocationWrite())) {
+  if (!(await requireLocationManage())) {
     return { ok: false, error: 'Not authorized' };
   }
   try {

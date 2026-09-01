@@ -94,20 +94,39 @@ export const dynamic = 'force-dynamic';
  * (`GET /staff/working-now`), then hands them to the client {@link StaffConsole}
  * — which owns the "Who's Working Now" card, the Staff List / Roles &
  * Permissions tabs, filtering, the roster table, the Manage Roles drawer, the
- * Add Staff drawer and the invite modal. The whole `/staff` route already
- * requires an OWNER session (middleware + the API's `StaffManage` guard), so the
- * only failure handled here is the API call itself; the signed-in user's id is
- * passed through so the table can flag their own row and stop them self-removing.
+ * Add Staff drawer and the invite modal. The `/staff` route is MANAGER+ (middleware)
+ * and the roster read is the API's `StaffRead` guard; the finer capabilities
+ * (`StaffManage`, `StaffAssignRole`, `RolesRead`) are resolved here and handed to
+ * the console so it only offers what the session can actually do. Only an OWNER
+ * may hand out (or touch) the Owner role, so that is passed as its own flag. The
+ * signed-in user's id is passed through so the table can flag their own row and
+ * stop them self-removing.
  */
 export default async function StaffPage() {
   const t = await getTranslations('admin.staff');
   const session = await getServerSession();
-  const canManage = session !== null && roleHasPermission(session.role, Permission.StaffManage);
+  const can = (permission: Permission): boolean =>
+    session !== null && roleHasPermission(session.role, permission);
+  if (!can(Permission.StaffRead)) {
+    return (
+      <div {...stylex.props(styles.stack)}>
+        <Card padding="none" role="alert" xstyle={styles.errorCard}>
+          <Icon name="info" {...stylex.props(styles.errorIcon)} />
+          <span {...stylex.props(styles.errorText)}>{t('errors.notAuthorized')}</span>
+        </Card>
+      </div>
+    );
+  }
+  const canManage = can(Permission.StaffManage);
+  const canAssignRole = can(Permission.StaffAssignRole);
+  const canViewRoles = can(Permission.RolesRead);
+  const canAssignOwner = session?.role === 'OWNER' || session?.role === 'SUPER_ADMIN';
 
   try {
     const [{ staff }, roles, workingNow, locations, display] = await Promise.all([
       fetchStaff(),
-      fetchStaffRoles(),
+      // The matrix endpoint is `RolesRead`; anyone below it gets no roles tab.
+      canViewRoles ? fetchStaffRoles() : Promise.resolve({ roles: [] }),
       fetchWorkingNow(),
       fetchLocations({ status: 'ACTIVE', limit: 100 }),
       // What this gym shows on the page (Settings → Staff page). Falls back to
@@ -123,6 +142,9 @@ export default async function StaffPage() {
         staff={staff}
         currentUserId={session?.userId ?? null}
         canManage={canManage}
+        canAssignRole={canAssignRole}
+        canAssignOwner={canAssignOwner}
+        canViewRoles={canViewRoles}
         roles={roles}
         workingNow={workingNow.shifts}
         locations={locations.data.map((loc) => ({ id: loc.id, name: loc.name }))}

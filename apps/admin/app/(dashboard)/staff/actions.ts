@@ -34,13 +34,18 @@ type Translator = Awaited<ReturnType<typeof getTranslations>>;
 
 /**
  * Re-assert the `StaffManage` capability inside the action itself. The middleware
- * already gates the `/staff` route (OWNER+), but a Server Action is a POST
+ * already gates the `/staff` route (MANAGER+), but a Server Action is a POST
  * endpoint in its own right, so re-checking here keeps it safe even if the
  * matcher ever changes — defence in depth (the API re-checks behind its guards).
  */
 async function requireStaffManage(): Promise<boolean> {
+  return sessionHas(Permission.StaffManage);
+}
+
+/** Re-assert one capability inside the action (defence in depth; the API re-checks). */
+async function sessionHas(permission: Permission): Promise<boolean> {
   const session = await getServerSession();
-  return session !== null && roleHasPermission(session.role, Permission.StaffManage);
+  return session !== null && roleHasPermission(session.role, permission);
 }
 
 /** Map a thrown API error to a short, translated, staff-facing message. */
@@ -51,6 +56,10 @@ function toMessage(error: unknown, t: Translator): string {
     }
     if (error.message === 'LAST_OWNER') {
       return t('errors.lastOwner');
+    }
+    // Only an owner may create, promote to, or edit an Owner account.
+    if (error.message === 'OWNER_ROLE_RESTRICTED') {
+      return t('errors.ownerRoleRestricted');
     }
     if (error.message === 'STAFF_NOT_FOUND') {
       return t('errors.staffNotFound');
@@ -150,6 +159,13 @@ export async function updateStaffProfileAction(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
+  // Placing someone at a branch is its own capability (`StaffAssignLocation`).
+  if (
+    parsed.data.assignedLocationIds !== undefined &&
+    !(await sessionHas(Permission.StaffAssignLocation))
+  ) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
   try {
     const member = await updateStaffProfile(memberId, parsed.data);
     revalidatePath('/staff');
@@ -160,16 +176,17 @@ export async function updateStaffProfileAction(
 }
 
 /**
- * Change a staff member's role. Re-validates the body, enforces `StaffManage`,
- * and refreshes the staff page. A `403 LAST_OWNER` from the API surfaces as a
- * clear message rather than a generic failure.
+ * Change a staff member's role. Re-validates the body, enforces `StaffAssignRole`,
+ * and refreshes the staff page. A `403 LAST_OWNER` (or `OWNER_ROLE_RESTRICTED`,
+ * a non-owner touching the Owner role) from the API surfaces as a clear message
+ * rather than a generic failure.
  */
 export async function updateStaffRoleAction(
   memberId: string,
   role: StaffRole,
 ): Promise<ActionResult<{ member: StaffMember }>> {
   const t = await getTranslations('admin.staff');
-  if (!(await requireStaffManage())) {
+  if (!(await sessionHas(Permission.StaffAssignRole))) {
     return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = updateStaffRoleSchema.safeParse({ role });

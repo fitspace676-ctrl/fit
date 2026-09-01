@@ -135,7 +135,7 @@ export async function cancelInstanceAction(
 
 /**
  * Record one held seat's attendance outcome inline from the drawer roster (T3.5).
- * Enforces `ClassWrite`, marks the single booking `ATTENDED` / `NO_SHOW` via the
+ * Enforces `ClassAttendance`, marks the single booking `ATTENDED` / `NO_SHOW` via the
  * attendance endpoint (which transitions the occurrence to `COMPLETED`), then
  * re-reads the occurrence detail so the drawer re-renders from the refreshed
  * roster — the same `AdminClassInstanceDetail` shape it already renders, keeping
@@ -149,7 +149,7 @@ export async function markAttendanceAction(
   status: AttendanceStatus,
 ): Promise<ActionResult<GetAdminClassInstanceResponse>> {
   const t = await getTranslations('admin.schedule.drawer');
-  if (!(await sessionHas(Permission.ClassWrite))) {
+  if (!(await sessionHas(Permission.ClassAttendance))) {
     return { ok: false, error: t('errors.forbidden') };
   }
   try {
@@ -178,7 +178,7 @@ export async function promoteWaitlistAction(
   bookingId: string,
 ): Promise<ActionResult<GetAdminClassInstanceResponse>> {
   const t = await getTranslations('admin.schedule.drawer');
-  if (!(await sessionHas(Permission.ClassWrite))) {
+  if (!(await sessionHas(Permission.ClassWaitlist))) {
     return { ok: false, error: t('errors.forbidden') };
   }
   try {
@@ -192,9 +192,9 @@ export async function promoteWaitlistAction(
 
 /**
  * Search the gym's members for the drawer's "book a member" flow (T3.7). Gated on
- * `ClassWrite` — the same capability the booking itself needs — so the search only
+ * `BookingManage` — the same capability the booking itself needs — so the search only
  * runs for staff who can act on the result; the underlying `GET /members` read is
- * `MemberRead`, which every `ClassWrite` role (owner / manager) also holds. A
+ * `MemberRead`, which every `BookingManage` role also holds. A
  * blank query returns no matches without a round-trip. Returns a trimmed match
  * list (id + name + email) so the drawer can render a picker without pulling the
  * full roster shape across the boundary.
@@ -203,7 +203,7 @@ export async function searchMembersForBookingAction(
   query: string,
 ): Promise<ActionResult<MemberSearchResult[]>> {
   const t = await getTranslations('admin.schedule.drawer');
-  if (!(await sessionHas(Permission.ClassWrite))) {
+  if (!(await sessionHas(Permission.BookingManage))) {
     return { ok: false, error: t('errors.forbidden') };
   }
   const search = query.trim();
@@ -227,7 +227,7 @@ export async function searchMembersForBookingAction(
 
 /**
  * Book a member onto a scheduled occurrence on their behalf from the drawer
- * (T3.7). Enforces `ClassWrite`, then books the chosen member via the schedule API
+ * (T3.7). Enforces `BookingManage`, then books the chosen member via the schedule API
  * (which honours the same capacity/credit rules as a member self-book — an atomic
  * seat claim or a waitlist tail when full, a required class credit for a held seat
  * unless a subscription covers it), returning the refreshed
@@ -241,7 +241,7 @@ export async function bookMemberAction(
   memberId: string,
 ): Promise<ActionResult<GetAdminClassInstanceResponse>> {
   const t = await getTranslations('admin.schedule.drawer');
-  if (!(await sessionHas(Permission.ClassWrite))) {
+  if (!(await sessionHas(Permission.BookingManage))) {
     return { ok: false, error: t('errors.forbidden') };
   }
   try {

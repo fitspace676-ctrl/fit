@@ -159,7 +159,16 @@ const styles = stylex.create({
  * summarises what the chosen role can do. Errors (e.g. `ALREADY_STAFF`) surface
  * inline. The form is cleared on success so several people can be invited in a row.
  */
-export function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function InviteModal({
+  open,
+  onClose,
+  canAssignOwner,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Owners only: the Owner role is offered in the picker. */
+  canAssignOwner: boolean;
+}) {
   const t = useTranslations('admin.staff');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<StaffRole>('MANAGER');
@@ -236,7 +245,7 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
         <fieldset {...stylex.props(styles.fieldset)}>
           <legend {...stylex.props(styles.legend)}>{t('inviteModal.roleLabel')}</legend>
           <div {...stylex.props(styles.roleGrid)}>
-            {INVITE_ROLES.map((option) => {
+            {INVITE_ROLES.filter((option) => option !== 'OWNER' || canAssignOwner).map((option) => {
               const active = option === role;
               return (
                 <button

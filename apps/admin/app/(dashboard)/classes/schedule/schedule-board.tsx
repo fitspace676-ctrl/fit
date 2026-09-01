@@ -991,6 +991,9 @@ export function ScheduleBoard({
   trainerId,
   locationId,
   canWrite,
+  canBook,
+  canMarkAttendance,
+  canManageWaitlist,
   addClass,
   timeZone,
   openHour,
@@ -1011,6 +1014,12 @@ export function ScheduleBoard({
   locationId: string;
   /** Whether the staff session holds `ClassWrite` (gates the drawer's cancel). */
   canWrite: boolean;
+  /** `BookingManage` — the drawer's desk booking. */
+  canBook: boolean;
+  /** `ClassAttendance` — the drawer's attendance marks. */
+  canMarkAttendance: boolean;
+  /** `ClassWaitlist` — the drawer's waitlist promote. */
+  canManageWaitlist: boolean;
   /** Class-relation options for the "Add Class" drawer; null when the staffer can't write. */
   /** The gym's IANA zone — day columns and clock labels are read on it. */
   timeZone: string;
@@ -1293,6 +1302,9 @@ export function ScheduleBoard({
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         canWrite={canWrite}
+        canBook={canBook}
+        canMarkAttendance={canMarkAttendance}
+        canManageWaitlist={canManageWaitlist}
         locale={locale}
         timeZone={timeZone}
       />

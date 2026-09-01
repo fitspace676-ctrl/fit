@@ -16,10 +16,10 @@ import {
 } from '@/lib/api';
 import type { ActionResult } from '../actions';
 
-/** Re-assert `ClassWrite` inside the action (defence in depth; the API re-checks). */
+/** Re-assert `PtSessionManage` inside the action (defence in depth; the API re-checks). */
 async function requireClassWrite(): Promise<boolean> {
   const session = await getServerSession();
-  return session !== null && roleHasPermission(session.role, Permission.ClassWrite);
+  return session !== null && roleHasPermission(session.role, Permission.PtSessionManage);
 }
 
 /** Map a thrown API error to a short, staff-facing message. */

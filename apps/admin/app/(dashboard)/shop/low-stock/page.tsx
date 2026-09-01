@@ -281,7 +281,7 @@ export default async function LowStockPage({
 
   // Adjusting stock is a write; read-only staff still see the report + product links.
   const session = await getServerSession();
-  const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
+  const canWrite = session !== null && roleHasPermission(session.role, Permission.InventoryAdjust);
 
   let report: ListLowStockResponse | null = null;
   let error: string | null = null;

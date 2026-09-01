@@ -30,7 +30,8 @@ import { DashboardService } from './dashboard.service';
  *
  * A read-only, tenant-scoped snapshot of the gym's headline counts. {@link TenantGuard}
  * pins the request to one gym and {@link PermissionsGuard} gates on
- * {@link Permission.ReportView} (held by `OWNER` / `MANAGER`), so a lower-privileged
+ * {@link Permission.ReportView} — revenue on {@link Permission.RevenueRead} — (held by
+ * `OWNER` / `MANAGER`), so a lower-privileged
  * staff member never sees the figures. The service scopes every count to the caller's
  * gym via the tenant Prisma extension, so no handler passes or trusts a `gymId`.
  */
@@ -125,7 +126,7 @@ export class DashboardController {
    */
   @Get('revenue')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ReportView)
+  @RequirePermissions(Permission.RevenueRead)
   async revenue(@Query() query: unknown): Promise<DashboardRevenueResponse> {
     return this.revenueTab.get(dashboardRevenueQuerySchema.parse(query));
   }

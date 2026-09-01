@@ -135,10 +135,14 @@ export function StockPanel({
   product,
   movements,
   canWrite,
+  canViewMovements,
 }: {
   product: GetAdminProductResponse;
   movements: StockMovementRow[];
+  /** Whether the staff session holds `InventoryAdjust` (shows the adjust controls). */
   canWrite: boolean;
+  /** Whether the staff session holds `StockMovementRead` (shows the ledger). */
+  canViewMovements: boolean;
 }) {
   const positions: Position[] =
     product.variants.length > 0
@@ -209,66 +213,70 @@ export function StockPanel({
         </table>
       </Card>
 
-      <div {...stylex.props(styles.headRow)}>
-        <h2 {...stylex.props(styles.heading)}>Stock history</h2>
-        <span {...stylex.props(styles.subtle)}>Most recent first</span>
-      </div>
+      {canViewMovements ? (
+        <>
+          <div {...stylex.props(styles.headRow)}>
+            <h2 {...stylex.props(styles.heading)}>Stock history</h2>
+            <span {...stylex.props(styles.subtle)}>Most recent first</span>
+          </div>
 
-      <Card padding="none" xstyle={styles.card}>
-        {movements.length === 0 ? (
-          <p {...stylex.props(styles.empty)}>
-            No movements recorded yet. Adjustments, sales and refunds will appear here.
-          </p>
-        ) : (
-          <table {...stylex.props(styles.table)}>
-            <thead>
-              <tr>
-                <th {...stylex.props(styles.th)}>When</th>
-                <th {...stylex.props(styles.th)}>Position</th>
-                <th {...stylex.props(styles.th)}>Reason</th>
-                <th {...stylex.props(styles.th, styles.num)}>Change</th>
-                <th {...stylex.props(styles.th, styles.num)}>Left</th>
-                <th {...stylex.props(styles.th)}>By</th>
-                <th {...stylex.props(styles.th)}>Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movements.map((movement) => (
-                <tr key={movement.id}>
-                  <td {...stylex.props(styles.td, styles.muted)}>
-                    {createDateTimeFormat(defaultLocale, {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }).format(new Date(movement.createdAt))}
-                  </td>
-                  <td {...stylex.props(styles.td)}>
-                    {movement.variantIndex === null ? product.name : movement.variantLabel}
-                  </td>
-                  <td {...stylex.props(styles.td)}>{REASON_LABELS[movement.reason]}</td>
-                  <td
-                    {...stylex.props(
-                      styles.td,
-                      styles.num,
-                      movement.delta > 0 ? styles.deltaUp : styles.deltaDown,
-                    )}
-                  >
-                    {movement.delta > 0 ? '+' : ''}
-                    {movement.delta}
-                  </td>
-                  <td {...stylex.props(styles.td, styles.num)}>{movement.resultingStock}</td>
-                  <td {...stylex.props(styles.td, styles.muted)}>
-                    {movement.actorName ?? (movement.orderId ? 'Checkout' : '-')}
-                  </td>
-                  <td {...stylex.props(styles.td, styles.muted)}>{movement.note || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+          <Card padding="none" xstyle={styles.card}>
+            {movements.length === 0 ? (
+              <p {...stylex.props(styles.empty)}>
+                No movements recorded yet. Adjustments, sales and refunds will appear here.
+              </p>
+            ) : (
+              <table {...stylex.props(styles.table)}>
+                <thead>
+                  <tr>
+                    <th {...stylex.props(styles.th)}>When</th>
+                    <th {...stylex.props(styles.th)}>Position</th>
+                    <th {...stylex.props(styles.th)}>Reason</th>
+                    <th {...stylex.props(styles.th, styles.num)}>Change</th>
+                    <th {...stylex.props(styles.th, styles.num)}>Left</th>
+                    <th {...stylex.props(styles.th)}>By</th>
+                    <th {...stylex.props(styles.th)}>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movements.map((movement) => (
+                    <tr key={movement.id}>
+                      <td {...stylex.props(styles.td, styles.muted)}>
+                        {createDateTimeFormat(defaultLocale, {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }).format(new Date(movement.createdAt))}
+                      </td>
+                      <td {...stylex.props(styles.td)}>
+                        {movement.variantIndex === null ? product.name : movement.variantLabel}
+                      </td>
+                      <td {...stylex.props(styles.td)}>{REASON_LABELS[movement.reason]}</td>
+                      <td
+                        {...stylex.props(
+                          styles.td,
+                          styles.num,
+                          movement.delta > 0 ? styles.deltaUp : styles.deltaDown,
+                        )}
+                      >
+                        {movement.delta > 0 ? '+' : ''}
+                        {movement.delta}
+                      </td>
+                      <td {...stylex.props(styles.td, styles.num)}>{movement.resultingStock}</td>
+                      <td {...stylex.props(styles.td, styles.muted)}>
+                        {movement.actorName ?? (movement.orderId ? 'Checkout' : '-')}
+                      </td>
+                      <td {...stylex.props(styles.td, styles.muted)}>{movement.note || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        </>
+      ) : null}
     </section>
   );
 }

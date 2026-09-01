@@ -494,9 +494,13 @@ interface OpenState {
 export function LocationsBoard({
   locations,
   canWrite,
+  canManage,
 }: {
   locations: AdminLocationRow[];
+  /** `LocationWrite` — the row menu's edit link. */
   canWrite: boolean;
+  /** `LocationManage` — the add link and the activate / deactivate action. */
+  canManage: boolean;
 }) {
   const t = useTranslations('admin.locations');
   const router = useRouter();
@@ -619,7 +623,7 @@ export function LocationsBoard({
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
           <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </div>
-        {canWrite ? (
+        {canManage ? (
           <Link href="/locations/new" {...stylex.props(styles.addLink)}>
             <Icon name="plus" {...stylex.props(styles.addIcon)} sw={2} />
             {t('add')}
@@ -731,7 +735,7 @@ export function LocationsBoard({
                     />
                   </div>
 
-                  {canWrite ? (
+                  {canWrite || canManage ? (
                     <div {...stylex.props(styles.menuPos)}>
                       <div {...stylex.props(styles.menuAnchor)}>
                         <button
@@ -762,29 +766,33 @@ export function LocationsBoard({
                                 <Icon name="search" {...stylex.props(styles.menuItemIcon)} />
                                 {t('rowMenu.view')}
                               </Link>
-                              <Link
-                                href={`/locations/${location.id}/edit`}
-                                role="menuitem"
-                                onClick={() => setMenuFor(null)}
-                                {...stylex.props(styles.menuItem)}
-                              >
-                                <Icon name="settings" {...stylex.props(styles.menuItemIcon)} />
-                                {t('rowMenu.edit')}
-                              </Link>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => setActive(location, location.status !== 'ACTIVE')}
-                                {...stylex.props(styles.menuItem)}
-                              >
-                                <Icon
-                                  name={location.status === 'ACTIVE' ? 'lock' : 'check'}
-                                  {...stylex.props(styles.menuItemIcon)}
-                                />
-                                {location.status === 'ACTIVE'
-                                  ? t('rowMenu.deactivate')
-                                  : t('rowMenu.activate')}
-                              </button>
+                              {canWrite ? (
+                                <Link
+                                  href={`/locations/${location.id}/edit`}
+                                  role="menuitem"
+                                  onClick={() => setMenuFor(null)}
+                                  {...stylex.props(styles.menuItem)}
+                                >
+                                  <Icon name="settings" {...stylex.props(styles.menuItemIcon)} />
+                                  {t('rowMenu.edit')}
+                                </Link>
+                              ) : null}
+                              {canManage ? (
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => setActive(location, location.status !== 'ACTIVE')}
+                                  {...stylex.props(styles.menuItem)}
+                                >
+                                  <Icon
+                                    name={location.status === 'ACTIVE' ? 'lock' : 'check'}
+                                    {...stylex.props(styles.menuItemIcon)}
+                                  />
+                                  {location.status === 'ACTIVE'
+                                    ? t('rowMenu.deactivate')
+                                    : t('rowMenu.activate')}
+                                </button>
+                              ) : null}
                             </div>
                           </>
                         ) : null}

@@ -85,6 +85,18 @@ describe('sidebar nav ⇄ route guards', () => {
     }
   });
 
+  it('opens Staff to a MANAGER and hides it from the desk and the floor', () => {
+    // The roles policy: a manager runs the roster of their locations (StaffRead,
+    // MANAGER+), a receptionist or trainer only ever sees schedules elsewhere.
+    expect(requiredRoleForPath('/staff')).toBe('MANAGER');
+    for (const role of ['OWNER', 'MANAGER'] as Role[]) {
+      expect(visibleNavItems(role).map((item) => item.href)).toContain('/staff');
+    }
+    for (const role of ['RECEPTIONIST', 'TRAINER'] as Role[]) {
+      expect(visibleNavItems(role).map((item) => item.href)).not.toContain('/staff');
+    }
+  });
+
   it('hides the Growth routes from a RECEPTIONIST', () => {
     const hrefs = visibleNavItems('RECEPTIONIST').map((item) => item.href);
     expect(hrefs).not.toContain('/automation');
