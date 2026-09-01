@@ -203,7 +203,7 @@ export default async function ReconciliationPage({
   searchParams: Promise<SearchParams>;
 }) {
   const session = await getServerSession();
-  const canView = session !== null && roleHasPermission(session.role, Permission.BillingRead);
+  const canView = session !== null && roleHasPermission(session.role, Permission.SalesHistoryRead);
 
   if (!canView) {
     return (

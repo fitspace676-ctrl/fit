@@ -165,7 +165,7 @@ export class AdminScheduleController {
    * controls (T3.6): the chosen entry flips `WAITLIST → BOOKED`, `bookedCount`
    * grows by one (a desk override that may take the occurrence over its listed
    * capacity), the promoted member is charged a class credit best-effort, and the
-   * queue behind them is closed up. Requires {@link Permission.ClassWrite} (the
+   * queue behind them is closed up. Requires {@link Permission.ClassWaitlist} (the
    * same write capability as the cancel and attendance actions). Failure modes:
    * `404 CLASS_INSTANCE_NOT_FOUND` (unknown / cross-tenant occurrence), `404
    * BOOKING_NOT_FOUND` (booking not on this occurrence), `409 CLASS_NOT_MODIFIABLE`
@@ -174,7 +174,7 @@ export class AdminScheduleController {
    */
   @Post('instances/:id/bookings/:bookingId/promote')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.ClassWaitlist)
   async promoteWaitlist(
     @Param('id') id: string,
     @Param('bookingId') bookingId: string,
@@ -189,7 +189,7 @@ export class AdminScheduleController {
    * body. Honours the same capacity/credit rules as a member self-book — a seat is
    * claimed with the atomic capacity gate (or the member is queued onto the
    * waitlist when full), and a confirmed seat draws a required class credit unless
-   * an entitling subscription covers it. Requires {@link Permission.ClassWrite}
+   * an entitling subscription covers it. Requires {@link Permission.BookingManage}
    * (the same write capability as the cancel and promote actions). Returns `201`
    * with the refreshed occurrence detail so the drawer and week grid re-render.
    * Failure modes: `400` (blank `memberId`), `404 CLASS_INSTANCE_NOT_FOUND`
@@ -201,7 +201,7 @@ export class AdminScheduleController {
    */
   @Post('instances/:id/bookings')
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.BookingManage)
   async bookMember(
     @Param('id') id: string,
     @Body() body: unknown,

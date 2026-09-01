@@ -72,12 +72,12 @@ export class ReportsController {
    * The gym's `reports` setting (Settings → Reports) is a DISPLAY preference for
    * the catalogue only — it deliberately does NOT gate this route. A report the
    * gym has switched off still exports here for anyone holding
-   * {@link Permission.ReportView}, because a bookmarked download link and a
+   * {@link Permission.ReportExport}, because a bookmarked download link and a
    * scheduled export are both expected to keep working after a gym tidies its
    * hub. Do not add a settings check to this handler.
    */
   @Get(':report/export')
-  @RequirePermissions(Permission.ReportView)
+  @RequirePermissions(Permission.ReportExport)
   async export(
     @Param('report') report: string,
     @Query() query: unknown,

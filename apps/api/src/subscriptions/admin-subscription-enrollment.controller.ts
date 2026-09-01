@@ -26,8 +26,8 @@ import { SubscriptionEnrollmentService } from './subscription-enrollment.service
  * ({@link AdminSubscriptionPlansController}, T8.2) but is a distinct capability:
  * this enrols a *member* on a plan (creating a {@link Subscription}), whereas the
  * plan CRUD manages the catalogue. It is a staff write, so it is gated by
- * {@link Permission.BillingManage} (which covers "subscriptions, plans, and payment
- * settings") behind {@link TenantGuard} + the global {@link PermissionsGuard}. The
+ * {@link Permission.MembershipSell} (the front-desk "sell a membership"
+ * capability) behind {@link TenantGuard} + the global {@link PermissionsGuard}. The
  * member self-checkout counterpart is `POST /subscriptions`
  * ({@link SubscriptionsController}, `SubscriptionManage`); both delegate to the one
  * {@link SubscriptionEnrollmentService} so the enrolment invariants live in a single
@@ -46,7 +46,7 @@ export class AdminSubscriptionEnrollmentController {
    */
   @Post('enroll')
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.BillingManage)
+  @RequirePermissions(Permission.MembershipSell)
   @RateLimit(RATE_LIMITS.enroll)
   async enroll(@Body() body: unknown): Promise<EnrollSubscriptionResponse> {
     const input = parse(adminEnrollSubscriptionSchema, body);

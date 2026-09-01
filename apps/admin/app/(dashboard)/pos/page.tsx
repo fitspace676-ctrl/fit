@@ -137,7 +137,7 @@ const styles = stylex.create({
  * (middleware), and the POS reuses the tenant-scoped product/member endpoints
  * which enforce `ProductRead` / `MemberRead` API-side; selling is a product-read
  * capability every front-desk role (RECEPTIONIST and up) holds, so the page gates
- * on `ProductRead` and renders a forbidden notice rather than a broken board for
+ * on `PosAccess` and renders a forbidden notice rather than a broken board for
  * anyone without it.
  *
  * The cart itself is in-memory (a client Zustand store), so the page is a thin
@@ -146,8 +146,9 @@ const styles = stylex.create({
 export default async function PosPage() {
   const t = await getTranslations('admin.pos');
   const session = await getServerSession();
-  const canSell = session !== null && roleHasPermission(session.role, Permission.ProductRead);
-  const canReconcile = session !== null && roleHasPermission(session.role, Permission.BillingRead);
+  const canSell = session !== null && roleHasPermission(session.role, Permission.PosAccess);
+  const canReconcile =
+    session !== null && roleHasPermission(session.role, Permission.SalesHistoryRead);
   const canAddMember = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
 
   if (!canSell) {

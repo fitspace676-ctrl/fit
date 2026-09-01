@@ -620,6 +620,7 @@ export function ReportsView({
   selected,
   reportQuery,
   preview,
+  canExport,
 }: {
   reports: ReportDefinition[];
   /** Segment headings in the reader's language, from the catalogue response. */
@@ -628,6 +629,8 @@ export function ReportsView({
   /** The window the URL asked for, already validated by the page. */
   reportQuery: ReportQuery;
   preview: ReportResult | null;
+  /** `ReportExport` — the preview's download buttons. */
+  canExport: boolean;
 }) {
   const t = useTranslations('admin.reports');
   const router = useRouter();
@@ -796,6 +799,7 @@ export function ReportsView({
               // `ReportResult` carries no purpose line, so the catalogue supplies it.
               description={reports.find((report) => report.key === selected)?.description ?? null}
               reportQuery={reportQuery}
+              canExport={canExport}
               t={t}
             />
           ) : (
@@ -864,11 +868,13 @@ function ReportPreview({
   preview,
   description,
   reportQuery,
+  canExport,
   t,
 }: {
   preview: ReportResult;
   description: string | null;
   reportQuery: ReportQuery;
+  canExport: boolean;
   t: T;
 }) {
   const locale = useLocale();
@@ -906,22 +912,24 @@ function ReportPreview({
             {t('columnCount', { count: preview.columns.length })}
           </p>
         </div>
-        <div {...stylex.props(styles.downloads)}>
-          <Button
-            label={t('downloadCsv')}
-            variant="secondary"
-            size="sm"
-            href={exportHref('csv')}
-            icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
-          />
-          <Button
-            label={t('downloadXlsx')}
-            variant="secondary"
-            size="sm"
-            href={exportHref('xlsx')}
-            icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
-          />
-        </div>
+        {canExport ? (
+          <div {...stylex.props(styles.downloads)}>
+            <Button
+              label={t('downloadCsv')}
+              variant="secondary"
+              size="sm"
+              href={exportHref('csv')}
+              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+            />
+            <Button
+              label={t('downloadXlsx')}
+              variant="secondary"
+              size="sm"
+              href={exportHref('xlsx')}
+              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+            />
+          </div>
+        ) : null}
       </div>
 
       {preview.rows.length === 0 ? (

@@ -33,7 +33,7 @@ import { AttendanceService } from './attendance.service';
  * {@link TenantGuard} pins the request to one gym and the global
  * {@link PermissionsGuard} enforces the capability. Reading the roster requires
  * {@link Permission.ClassRead}; recording attendance requires
- * {@link Permission.ClassWrite} — the same read/write split as class-template
+ * {@link Permission.ClassAttendance} — the front-desk / trainer capability, narrower than
  * management. The service runs on the tenant-scoped Prisma client, so no handler
  * ever passes a `gymId`.
  */
@@ -68,7 +68,7 @@ export class AttendanceController {
    */
   @Post(':id/attendance')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.ClassAttendance)
   async mark(@Param('id') id: string, @Body() body: unknown): Promise<MarkAttendanceResponse> {
     return this.attendance.markAttendance(id, parse(markAttendanceSchema, body));
   }

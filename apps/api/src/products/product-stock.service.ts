@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StockMovementReason } from '@fit/db';
 import {
+  Permission,
   productVariantsSchema,
   type AdjustStockData,
   type AdjustStockResponse,
@@ -11,6 +12,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { assertPermission } from '../common/rbac/assert-permission';
 
 /**
  * A product's on-hand stock and the ledger behind it (`/admin/products/:id/stock`).
@@ -52,6 +54,10 @@ export class ProductStockService {
    * count, and the honest answer is that someone's assumption was wrong.
    */
   async adjust(productId: string, input: AdjustStockData): Promise<AdjustStockResponse> {
+    // A recount is a stocktake, its own capability on top of `inventory:adjust`.
+    if (input.reason === 'RECOUNT') {
+      assertPermission(this.tenant.role, Permission.StocktakePerform);
+    }
     const actorId = this.tenant.userId ?? null;
 
     return this.prisma.client.$transaction(async (tx) => {

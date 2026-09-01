@@ -61,9 +61,15 @@ const styles = stylex.create({
 export function LocationActions({
   locationId,
   status,
+  canWrite,
+  canManage,
 }: {
   locationId: string;
   status: LocationStatus;
+  /** `LocationWrite` — the edit link. */
+  canWrite: boolean;
+  /** `LocationManage` — the activate / deactivate button. */
+  canManage: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -86,16 +92,20 @@ export function LocationActions({
   return (
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.row)}>
-        <Link href={`/locations/${locationId}/edit`} {...stylex.props(styles.editLink)}>
-          Edit
-        </Link>
-        <Button
-          variant={isInactive ? 'primary' : 'secondary'}
-          size="inline"
-          onClick={toggle}
-          disabled={pending}
-          label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
-        />
+        {canWrite ? (
+          <Link href={`/locations/${locationId}/edit`} {...stylex.props(styles.editLink)}>
+            Edit
+          </Link>
+        ) : null}
+        {canManage ? (
+          <Button
+            variant={isInactive ? 'primary' : 'secondary'}
+            size="inline"
+            onClick={toggle}
+            disabled={pending}
+            label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+          />
+        ) : null}
       </div>
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>

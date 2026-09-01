@@ -40,6 +40,7 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 }
 
 const requireTrainerWrite = () => sessionHas(Permission.TrainerWrite);
+const requireTrainerScheduleManage = () => sessionHas(Permission.TrainerScheduleManage);
 
 type T = Awaited<ReturnType<typeof getTranslations>>;
 
@@ -144,7 +145,7 @@ export async function setTrainerAvailabilityAction(
   input: SetTrainerAvailabilityInput,
 ): Promise<ActionResult<{ availability: WeeklyAvailability }>> {
   const t = await getTranslations('admin.trainers');
-  if (!(await requireTrainerWrite())) {
+  if (!(await requireTrainerScheduleManage())) {
     return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = setTrainerAvailabilitySchema.safeParse(input);

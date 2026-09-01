@@ -208,12 +208,18 @@ export function StaffFormFields({
   onChange,
   locations,
   pending,
+  roleOptions = STAFF_ROLES,
+  roleLocked = false,
 }: {
   value: StaffFormValue;
   onChange: (patch: Partial<StaffFormValue>) => void;
   /** The gym's live locations, offered as assignable-location chips. */
   locations: { id: string; name: string }[];
   pending: boolean;
+  /** The roles this session may pick (a non-owner is never offered Owner). */
+  roleOptions?: readonly StaffRole[];
+  /** True when the role may not be changed by this session (an Owner edited by a non-owner). */
+  roleLocked?: boolean;
 }) {
   const t = useTranslations('admin.staff');
 
@@ -265,11 +271,16 @@ export function StaffFormFields({
           label={t('addStaffDrawer.role')}
           value={value.role}
           onChange={(event) => onChange({ role: event.target.value as StaffRole | '' })}
-          disabled={pending}
+          disabled={pending || roleLocked}
           xstyle={styles.field}
           options={[
             { value: '', label: t('addStaffDrawer.rolePlaceholder') },
-            ...STAFF_ROLES.map((r) => ({ value: r, label: t(`roles.${r}`) })),
+            // The current value stays listed even when it is not on offer, so an
+            // Owner's own row still reads "Owner" rather than a blank.
+            ...STAFF_ROLES.filter((r) => roleOptions.includes(r) || r === value.role).map((r) => ({
+              value: r,
+              label: t(`roles.${r}`),
+            })),
           ]}
         />
         <SelectField

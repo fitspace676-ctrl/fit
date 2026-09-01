@@ -232,7 +232,7 @@ export default async function OrdersLogPage({
   const query = parsed.success ? parsed.data : listOrdersQuerySchema.parse({ limit: PAGE_SIZE });
 
   const session = await getServerSession();
-  const canRead = session !== null && roleHasPermission(session.role, Permission.BillingRead);
+  const canRead = session !== null && roleHasPermission(session.role, Permission.TransactionRead);
   if (!canRead) {
     return (
       <div {...stylex.props(styles.page)}>

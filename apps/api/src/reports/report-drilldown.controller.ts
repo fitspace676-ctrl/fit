@@ -40,7 +40,8 @@ import { parseAcceptLanguage } from '../mail/email-locale';
  * console renders with the brand Astryx charts. Sits on its own base path (not
  * `admin/reports/:report`) so its `:metric` segment never collides with the CSV/
  * XLSX report catalogue. {@link TenantGuard} pins the gym and {@link PermissionsGuard}
- * gates every route on {@link Permission.ReportView} (OWNER / MANAGER), like the
+ * gates reads on {@link Permission.ReportView} and exports on
+ * {@link Permission.ReportExport} (OWNER / MANAGER), like the
  * rest of the reporting surfaces.
  */
 @Controller('admin/reports/drilldown')
@@ -68,7 +69,7 @@ export class ReportDrilldownController {
    * never captured as a metric — the same ordering the catalogue controller needs.
    */
   @Get(':metric/export')
-  @RequirePermissions(Permission.ReportView)
+  @RequirePermissions(Permission.ReportExport)
   async export(
     @Param('metric') metric: string,
     @Query() query: unknown,

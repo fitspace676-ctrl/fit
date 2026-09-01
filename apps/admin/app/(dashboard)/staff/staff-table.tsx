@@ -364,6 +364,8 @@ export function StaffTable({
   staff,
   currentUserId,
   canManage,
+  canAssignRole,
+  canAssignOwner,
   noMatch,
   onSelectMember,
   display,
@@ -371,6 +373,10 @@ export function StaffTable({
   staff: StaffMember[];
   currentUserId: string | null;
   canManage: boolean;
+  /** `StaffAssignRole` — shows the change-role section of the row menu. */
+  canAssignRole: boolean;
+  /** Owners only: may hand out the Owner role, or touch an existing owner's row. */
+  canAssignOwner: boolean;
   /** True when the roster is non-empty but the active search/filter hides every row. */
   noMatch: boolean;
   /** Open a member's profile drawer — a row click anywhere outside the ⋯ menu. */
@@ -541,6 +547,10 @@ export function StaffTable({
       cell: (member) => {
         if (!canManage) return null;
         const isSelf = currentUserId !== null && member.userId === currentUserId;
+        // A non-owner never touches an Owner account: no re-role, no removal.
+        const ownerLocked = member.role === 'OWNER' && !canAssignOwner;
+        const roleChoices = STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner);
+        const showRoles = canAssignRole && !ownerLocked;
         const rowBusy = busyId === member.id && pending;
         const open = menuFor === member.id;
         return (
@@ -577,27 +587,31 @@ export function StaffTable({
                       }}
                     />
                     <div role="menu" {...withPosition(stylex.props(styles.menu), menuPos)}>
-                      <p {...stylex.props(styles.menuLabel)}>{t('rowMenu.changeRole')}</p>
-                      {STAFF_ROLES.map((role) => {
-                        const active = role === member.role;
-                        return (
-                          <button
-                            key={role}
-                            type="button"
-                            role="menuitemradio"
-                            aria-checked={active}
-                            disabled={active}
-                            onClick={() => onRoleSelect(member, role)}
-                            {...stylex.props(styles.menuItem, active && styles.menuItemActive)}
-                          >
-                            <Icon name="shield" {...stylex.props(styles.menuItemIcon)} />
-                            {t('rowMenu.setRole', { role: roleLabel(role) })}
-                            {active ? (
-                              <Icon name="check" {...stylex.props(styles.menuItemCheck)} />
-                            ) : null}
-                          </button>
-                        );
-                      })}
+                      {showRoles ? (
+                        <p {...stylex.props(styles.menuLabel)}>{t('rowMenu.changeRole')}</p>
+                      ) : null}
+                      {showRoles
+                        ? roleChoices.map((role) => {
+                            const active = role === member.role;
+                            return (
+                              <button
+                                key={role}
+                                type="button"
+                                role="menuitemradio"
+                                aria-checked={active}
+                                disabled={active}
+                                onClick={() => onRoleSelect(member, role)}
+                                {...stylex.props(styles.menuItem, active && styles.menuItemActive)}
+                              >
+                                <Icon name="shield" {...stylex.props(styles.menuItemIcon)} />
+                                {t('rowMenu.setRole', { role: roleLabel(role) })}
+                                {active ? (
+                                  <Icon name="check" {...stylex.props(styles.menuItemCheck)} />
+                                ) : null}
+                              </button>
+                            );
+                          })
+                        : null}
                       {/* The coach profile this person teaches under (staff ⇄
                           trainer link). Present for every TRAINER — the API
                           creates it with the staff record — and for anyone who
@@ -624,7 +638,7 @@ export function StaffTable({
                       <button
                         type="button"
                         role="menuitem"
-                        disabled={isSelf}
+                        disabled={isSelf || ownerLocked}
                         title={isSelf ? t('rowMenu.cannotRemoveSelf') : undefined}
                         onClick={() => {
                           setMenuFor(null);

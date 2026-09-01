@@ -116,7 +116,14 @@ const styles = stylex.create({
   },
 });
 
-export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
+export function DrilldownView({
+  drilldown,
+  canExport,
+}: {
+  drilldown: ReportDrilldown;
+  /** `ReportExport` — the header's download buttons. */
+  canExport: boolean;
+}) {
   const t = useTranslations('admin.reports');
   const locale = useLocale();
 
@@ -149,22 +156,24 @@ export function DrilldownView({ drilldown }: { drilldown: ReportDrilldown }) {
             router. The XLSX carries one tab per section; the CSV carries the same
             sections as titled blocks.
           */}
-          <div {...stylex.props(styles.downloads)}>
-            <Button
-              label={t('downloadCsv')}
-              variant="secondary"
-              size="sm"
-              href={exportHref('csv')}
-              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
-            />
-            <Button
-              label={t('downloadXlsx')}
-              variant="secondary"
-              size="sm"
-              href={exportHref('xlsx')}
-              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
-            />
-          </div>
+          {canExport ? (
+            <div {...stylex.props(styles.downloads)}>
+              <Button
+                label={t('downloadCsv')}
+                variant="secondary"
+                size="sm"
+                href={exportHref('csv')}
+                icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+              />
+              <Button
+                label={t('downloadXlsx')}
+                variant="secondary"
+                size="sm"
+                href={exportHref('xlsx')}
+                icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+              />
+            </div>
+          ) : null}
         </div>
       </header>
 

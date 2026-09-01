@@ -7,7 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { StaffMember, UpdateStaffProfileInput } from '@fit/types';
 import { Badge, Dot, Drawer } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
-import { ROLE_TONES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
+import { ROLE_TONES, STAFF_ROLES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
 import {
   StaffFormFields,
   hasBadHours,
@@ -211,10 +211,19 @@ export function StaffProfileDrawer({
   member,
   onClose,
   locations,
+  canEdit,
+  canAssignRole,
+  canAssignOwner,
 }: {
   member: StaffMember | null;
   onClose: () => void;
   locations: { id: string; name: string }[];
+  /** `StaffManage` — the Edit button. */
+  canEdit: boolean;
+  /** `StaffAssignRole` — whether the edit form's role field is live. */
+  canAssignRole: boolean;
+  /** Owners only: may pick Owner, or edit an existing owner's role. */
+  canAssignOwner: boolean;
 }) {
   const t = useTranslations('admin.staff');
   const [mode, setMode] = useState<'view' | 'edit'>('view');
@@ -336,15 +345,17 @@ export function StaffProfileDrawer({
             <button type="button" onClick={close} {...stylex.props(styles.btn, styles.btnCancel)}>
               {t('profileDrawer.close')}
             </button>
-            <button
-              type="button"
-              onClick={enterEdit}
-              disabled={preparing}
-              {...stylex.props(styles.btn, styles.btnPrimary)}
-            >
-              <Icon name="settings" {...stylex.props(styles.btnIcon)} sw={2} />
-              {preparing ? t('profileDrawer.loading') : t('profileDrawer.edit')}
-            </button>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={enterEdit}
+                disabled={preparing}
+                {...stylex.props(styles.btn, styles.btnPrimary)}
+              >
+                <Icon name="settings" {...stylex.props(styles.btnIcon)} sw={2} />
+                {preparing ? t('profileDrawer.loading') : t('profileDrawer.edit')}
+              </button>
+            ) : null}
           </>
         )
       }
@@ -358,7 +369,14 @@ export function StaffProfileDrawer({
           }}
           {...stylex.props(styles.form)}
         >
-          <StaffFormFields value={form} onChange={patch} locations={locations} pending={pending} />
+          <StaffFormFields
+            value={form}
+            onChange={patch}
+            locations={locations}
+            pending={pending}
+            roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
+            roleLocked={!canAssignRole || (member.role === 'OWNER' && !canAssignOwner)}
+          />
           {error ? (
             <p role="alert" {...stylex.props(styles.error)}>
               {error}

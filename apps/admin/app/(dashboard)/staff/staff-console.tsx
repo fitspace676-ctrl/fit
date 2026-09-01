@@ -185,6 +185,9 @@ export function StaffConsole({
   staff,
   currentUserId,
   canManage,
+  canAssignRole,
+  canAssignOwner,
+  canViewRoles,
   roles,
   workingNow,
   locations,
@@ -192,7 +195,14 @@ export function StaffConsole({
 }: {
   staff: StaffMember[];
   currentUserId: string | null;
+  /** `StaffManage` — add, invite, edit, remove. */
   canManage: boolean;
+  /** `StaffAssignRole` — the row menu's change-role section. */
+  canAssignRole: boolean;
+  /** Whether the session may hand out or touch the Owner role (owners only). */
+  canAssignOwner: boolean;
+  /** `RolesRead` — the Roles & Permissions tab and the Manage Roles drawer. */
+  canViewRoles: boolean;
   roles: ListStaffRolesResponse;
   workingNow: WorkingNowRow[];
   /** The gym's live locations, offered as assignable-location chips in the Add drawer. */
@@ -220,12 +230,14 @@ export function StaffConsole({
   const tabItems = useMemo<{ value: ConsoleTab; label: string }[]>(
     () => [
       { value: 'staff', label: t('tabs.staffList') },
-      ...OPTIONAL_TABS.filter((option) => display[option.field]).map((option) => ({
+      ...OPTIONAL_TABS.filter(
+        (option) => display[option.field] && (option.tab !== 'roles' || canViewRoles),
+      ).map((option) => ({
         value: option.tab,
         label: t(option.labelKey),
       })),
     ],
-    [display, t],
+    [display, canViewRoles, t],
   );
 
   // Derived rather than synced: a gym can switch off the tab a staffer is sitting
@@ -258,7 +270,7 @@ export function StaffConsole({
           <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
           <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
         </div>
-        {canManage ? (
+        {canViewRoles ? (
           <div {...stylex.props(styles.headerActions)}>
             <Button
               variant="secondary"
@@ -342,6 +354,8 @@ export function StaffConsole({
             staff={visibleStaff}
             currentUserId={currentUserId}
             canManage={canManage}
+            canAssignRole={canAssignRole}
+            canAssignOwner={canAssignOwner}
             noMatch={staff.length > 0 && visibleStaff.length === 0}
             onSelectMember={setProfileMember}
             display={display}
@@ -353,18 +367,29 @@ export function StaffConsole({
 
       {canManage ? (
         <>
-          <AddStaffDrawer open={addOpen} onClose={() => setAddOpen(false)} locations={locations} />
+          <AddStaffDrawer
+            open={addOpen}
+            onClose={() => setAddOpen(false)}
+            locations={locations}
+            canAssignOwner={canAssignOwner}
+          />
 
-          <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
-
-          <Drawer
-            open={manageRolesOpen}
-            onClose={() => setManageRolesOpen(false)}
-            label={t('manageRolesDrawer.title')}
-          >
-            <RolesPanel roles={roles} />
-          </Drawer>
+          <InviteModal
+            open={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            canAssignOwner={canAssignOwner}
+          />
         </>
+      ) : null}
+
+      {canViewRoles ? (
+        <Drawer
+          open={manageRolesOpen}
+          onClose={() => setManageRolesOpen(false)}
+          label={t('manageRolesDrawer.title')}
+        >
+          <RolesPanel roles={roles} />
+        </Drawer>
       ) : null}
 
       <StaffProfileDrawer
@@ -372,6 +397,9 @@ export function StaffConsole({
         member={profileMember}
         onClose={() => setProfileMember(null)}
         locations={locations}
+        canEdit={canManage}
+        canAssignRole={canAssignRole}
+        canAssignOwner={canAssignOwner}
       />
     </div>
   );

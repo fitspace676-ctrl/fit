@@ -426,6 +426,9 @@ export function ClassDrawer({
   open,
   onClose,
   canWrite,
+  canBook: canBookMembers,
+  canMarkAttendance,
+  canManageWaitlist,
   locale,
   timeZone,
 }: {
@@ -435,6 +438,12 @@ export function ClassDrawer({
   onClose: () => void;
   /** Whether the staff session holds `ClassWrite` (gates the cancel action). */
   canWrite: boolean;
+  /** `BookingManage` — may book a member onto the class. */
+  canBook: boolean;
+  /** `ClassAttendance` — may mark attendance. */
+  canMarkAttendance: boolean;
+  /** `ClassWaitlist` — may promote a waitlisted member. */
+  canManageWaitlist: boolean;
   locale: string;
   /** The gym's IANA zone — the drawer's day and clock read on it, like the grid. */
   timeZone: string;
@@ -589,15 +598,18 @@ export function ClassDrawer({
   // Attendance can be marked once the class has started and while it isn't
   // canceled; the API re-checks and a mark flips the occurrence to COMPLETED.
   const canMark =
-    canWrite && status !== 'CANCELED' && head !== null && Date.parse(head.startsAt) <= Date.now();
+    canMarkAttendance &&
+    status !== 'CANCELED' &&
+    head !== null &&
+    Date.parse(head.startsAt) <= Date.now();
   // A waitlisted member can be promoted into a seat only while the occurrence is
   // still SCHEDULED (a canceled / completed class is settled) and the staff holds
-  // ClassWrite — the API re-checks both.
-  const canPromote = canWrite && status === 'SCHEDULED';
+  // ClassWaitlist — the API re-checks both.
+  const canPromote = canManageWaitlist && status === 'SCHEDULED';
   // The desk can book a member onto the class on their behalf while it is still
-  // SCHEDULED and the staff holds ClassWrite (the same gate as promote); the API
-  // re-checks and honours the capacity/credit rules.
-  const canBook = canWrite && status === 'SCHEDULED';
+  // SCHEDULED and the staff holds BookingManage; the API re-checks and honours
+  // the capacity/credit rules.
+  const canBook = canBookMembers && status === 'SCHEDULED';
   // While any roster write (a mark, a promote, or a desk booking) is recording,
   // every row's controls freeze so the desk only ever has one change in flight.
   const rosterBusy = markingId !== null || promotingId !== null || bookingMemberId !== null;

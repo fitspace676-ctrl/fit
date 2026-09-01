@@ -47,7 +47,10 @@ import { StaffDepthService } from './staff-depth.service';
  * (`roles` / `notes` / `tasks` / `time-off`) or the two-segment
  * `:staffId/<tab>` shape.
  *
- * Every route is tenant-scoped and gated on {@link Permission.StaffManage}
+ * Every route is tenant-scoped and gated on a staff capability: notes and tasks
+ * on {@link Permission.StaffManage}, schedules and time off on
+ * {@link Permission.StaffScheduleRead} / {@link Permission.StaffScheduleManage},
+ * the roles matrix on {@link Permission.RolesRead}
  * (OWNER + MANAGER), matching the rest of staff management. The service runs on
  * the tenant-scoped Prisma client, so no handler passes or trusts a `gymId`.
  */
@@ -59,7 +62,7 @@ export class StaffDepthController {
   /** `GET /staff/roles` — the read-only roles/permissions matrix. */
   @Get('roles')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.RolesRead)
   listRoles(): ListStaffRolesResponse {
     return this.staff.listRoles();
   }
@@ -121,21 +124,21 @@ export class StaffDepthController {
 
   @Get('time-off')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleRead)
   async listTimeOff(@Query() query: unknown): Promise<ListTimeOffResponse> {
     return this.staff.listTimeOff(parse(listTimeOffQuerySchema, query));
   }
 
   @Get(':staffId/time-off')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleRead)
   async listStaffTimeOff(@Param('staffId') staffId: string): Promise<ListTimeOffResponse> {
     return this.staff.listStaffTimeOff(staffId);
   }
 
   @Post(':staffId/time-off')
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleManage)
   async createTimeOff(
     @Param('staffId') staffId: string,
     @Body() body: unknown,
@@ -145,7 +148,7 @@ export class StaffDepthController {
 
   @Patch('time-off/:requestId/decision')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleManage)
   async decideTimeOff(
     @Param('requestId') requestId: string,
     @Body() body: unknown,
@@ -155,7 +158,7 @@ export class StaffDepthController {
 
   @Delete('time-off/:requestId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleManage)
   async deleteTimeOff(@Param('requestId') requestId: string): Promise<void> {
     await this.staff.deleteTimeOff(requestId);
   }
@@ -164,14 +167,14 @@ export class StaffDepthController {
 
   @Get(':staffId/schedule')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleRead)
   async getSchedule(@Param('staffId') staffId: string): Promise<StaffScheduleResponse> {
     return this.staff.getSchedule(staffId);
   }
 
   @Put(':staffId/schedule')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleManage)
   async updateSchedule(
     @Param('staffId') staffId: string,
     @Body() body: unknown,
@@ -188,7 +191,7 @@ export class StaffDepthController {
    */
   @Get('working-now')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffScheduleRead)
   async getWorkingNow(): Promise<WorkingNowResponse> {
     return this.staff.getWorkingNow();
   }

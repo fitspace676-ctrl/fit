@@ -80,8 +80,8 @@ function readParam(params: SearchParams, key: string): string {
  * The calendar is always on screen: it opens showing **every** trainer's sessions for
  * the week on the same weekly time-grid the class Schedule uses. `?trainerId=` is an
  * optional narrowing filter, not a gate — staff pick the trainer when they add a
- * session, not before they can see anything. Reads require `ClassRead` (route
- * middleware), writes `ClassWrite` — the board only offers add / cancel / complete to
+ * session, not before they can see anything. Reads require `PtSessionRead` (the API
+ * guard), writes `PtSessionManage` — the board only offers add / cancel / complete to
  * writers.
  */
 export default async function PtCalendarPage({
@@ -99,7 +99,7 @@ export default async function PtCalendarPage({
   const { from, to } = weekWindow(weekStart, timeZone);
 
   const session = await getServerSession();
-  const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
+  const canWrite = session !== null && roleHasPermission(session.role, Permission.PtSessionManage);
 
   const trainers: TrainerOption[] = await fetchTrainers({ status: 'ACTIVE', limit: TRAINER_LIMIT })
     .then((res) => res.data.map((trainer) => ({ id: trainer.id, name: trainer.name })))

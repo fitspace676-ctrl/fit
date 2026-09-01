@@ -14,6 +14,7 @@ import {
   type StaffFormValue,
 } from './staff-form-fields';
 import { createStaffAction } from './actions';
+import { STAFF_ROLES } from './role-meta';
 
 const FORM_ID = 'staff-add-form';
 
@@ -98,11 +99,14 @@ export function AddStaffDrawer({
   open,
   onClose,
   locations,
+  canAssignOwner,
 }: {
   open: boolean;
   onClose: () => void;
   /** The gym's live locations, offered as assignable-location chips. */
   locations: { id: string; name: string }[];
+  /** Owners only: the Owner role is offered in the role picker. */
+  canAssignOwner: boolean;
 }) {
   const t = useTranslations('admin.staff');
   const [form, setForm] = useState<StaffFormValue>(emptyStaffForm);
@@ -194,7 +198,13 @@ export function AddStaffDrawer({
       <form id={FORM_ID} onSubmit={onSubmit} {...stylex.props(styles.form)}>
         <p {...stylex.props(styles.intro)}>{t('addStaffDrawer.subtitle')}</p>
 
-        <StaffFormFields value={form} onChange={patch} locations={locations} pending={pending} />
+        <StaffFormFields
+          value={form}
+          onChange={patch}
+          locations={locations}
+          pending={pending}
+          roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
+        />
 
         {error ? (
           <p role="alert" {...stylex.props(styles.error)}>

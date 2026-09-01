@@ -28,7 +28,7 @@ const movementRow = {
  * callback against the same mock client, so the assertions see exactly the writes
  * the real transaction would carry.
  */
-function setup(product: Record<string, unknown> | null) {
+function setup(product: Record<string, unknown> | null, callerRole = 'OWNER') {
   const productFindFirst = vi.fn(() => Promise.resolve(product));
   const productUpdate = vi.fn((_args: unknown) => Promise.resolve({}));
   const movementCreate = vi.fn((_args: unknown) => Promise.resolve(movementRow));
@@ -50,7 +50,7 @@ function setup(product: Record<string, unknown> | null) {
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
-  const tenant = { userId: 'u-1' } as unknown as TenantContext;
+  const tenant = { userId: 'u-1', role: callerRole } as unknown as TenantContext;
 
   return {
     service: new ProductStockService(prisma, tenant),
@@ -100,6 +100,15 @@ describe('ProductStockService.adjust', () => {
 
     expect(result.stock).toBe(11);
     expect(movementData(ctx)).toMatchObject({ delta: 7, resultingStock: 11, reason: 'RECOUNT' });
+  });
+
+  it('refuses a RECOUNT from a caller without stocktake:perform (403)', async () => {
+    const ctx = setup({ id: 'p-1', gymId: 'gym-1', variants: [], stock: 4 }, 'RECEPTIONIST');
+
+    await expect(
+      ctx.service.adjust('p-1', body({ setTo: 11, reason: 'RECOUNT' })),
+    ).rejects.toMatchObject({ response: { code: 'INSUFFICIENT_PERMISSION' } });
+    expect(ctx.productUpdate).not.toHaveBeenCalled();
   });
 
   it('starts an untracked product counting from zero on its first movement', async () => {
