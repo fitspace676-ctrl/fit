@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
+import { useActiveLocation } from '@/components/active-location';
+import { LOCATION_PARAM } from '@/lib/active-location';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -77,11 +79,21 @@ const styles = stylex.create({
  */
 export function ServicesFilters({ search, type }: { search: string; type: string }) {
   const t = useTranslations('admin.services');
+  const tCommon = useTranslations('admin.common');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const [searchValue, setSearchValue] = useState(search);
+
+  // A second way into the param the top-bar switcher owns, offered only while the
+  // console is on "All locations": a branch chosen here lands in the URL, the
+  // switcher adopts it and names it in the chrome, and this control unmounts. Two
+  // live controls writing one param is how they end up disagreeing, and the
+  // switcher is the one that also persists the choice in the cookie — so
+  // deselecting happens up there, where the branch is actually named.
+  const { locationId: activeLocationId, locations } = useActiveLocation();
+  const showBranchFilter = activeLocationId === undefined && locations.length > 0;
 
   useEffect(() => setSearchValue(search), [search]);
 
@@ -141,6 +153,28 @@ export function ServicesFilters({ search, type }: { search: string; type: string
           ))}
         </select>
       </div>
+
+      {showBranchFilter ? (
+        <div {...stylex.props(styles.typeWrap)}>
+          <label htmlFor="service-branch-filter" {...stylex.props(styles.srOnly)}>
+            {tCommon('locationLabel')}
+          </label>
+          <select
+            id="service-branch-filter"
+            // Always `''` while it renders — see `showBranchFilter`.
+            value=""
+            onChange={(event) => commit({ [LOCATION_PARAM]: event.target.value })}
+            {...stylex.props(styles.control)}
+          >
+            <option value="">{tCommon('allLocations')}</option>
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
     </div>
   );
 }

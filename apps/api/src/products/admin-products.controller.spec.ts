@@ -43,6 +43,9 @@ const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductRespons
   lowStockThreshold: null,
   status: 'ACTIVE',
   category: null,
+  // NULL is the Stage 7 default: sold at every branch.
+  locationId: null,
+  locationName: null,
   createdAt: '2026-02-01T00:00:00.000Z',
   description: '',
   images: [],

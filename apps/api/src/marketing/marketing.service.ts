@@ -83,6 +83,13 @@ type CampaignRecord = Prisma.CampaignGetPayload<{ select: typeof CAMPAIGN_SELECT
  * gym's marketing data is unreachable by construction. The campaign author is
  * resolved from the session, never from the body.
  */
+/**
+ * The branch a promo code is EXCLUSIVE to, joined for its name only — every promo
+ * read includes it so the console can label the code and the form can bind its
+ * select. `null` (almost every row) means the code is redeemable at every branch.
+ */
+const PROMO_BRANCH_INCLUDE = { location: { select: { name: true } } } as const;
+
 @Injectable()
 export class MarketingService {
   constructor(
@@ -222,6 +229,7 @@ export class MarketingService {
   async listPromoCodes(): Promise<ListPromoCodesResponse> {
     const rows = await this.prisma.client.promoCode.findMany({
       orderBy: { createdAt: 'desc' },
+      include: PROMO_BRANCH_INCLUDE,
     });
     return { data: rows.map((r) => this.toPromoRow(r)) };
   }
@@ -244,7 +252,13 @@ export class MarketingService {
           expiryDate: input.expiryDate ? new Date(input.expiryDate) : null,
           oncePerMember: input.oncePerMember,
           status: input.status,
+          // The branch this code is EXCLUSIVE to. `null` — and an omitted key,
+          // which means the same — leaves it redeemable at every branch. It is
+          // deliberately NOT seeded from the console's active branch: doing so
+          // would silently make every new code unusable at every other till.
+          locationId: input.locationId ?? null,
         },
+        include: PROMO_BRANCH_INCLUDE,
       });
       return this.toPromoRow(created);
     } catch (error) {
@@ -277,7 +291,11 @@ export class MarketingService {
             : {}),
           ...(input.oncePerMember !== undefined ? { oncePerMember: input.oncePerMember } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
+          // An absent key leaves the code's branch alone; an explicit `null`
+          // widens it back to every till.
+          ...(input.locationId !== undefined ? { locationId: input.locationId } : {}),
         },
+        include: PROMO_BRANCH_INCLUDE,
       });
       return this.toPromoRow(updated);
     } catch (error) {
@@ -291,6 +309,7 @@ export class MarketingService {
     const updated = await this.prisma.client.promoCode.update({
       where: { id },
       data: { status: input.status },
+      include: PROMO_BRANCH_INCLUDE,
     });
     return this.toPromoRow(updated);
   }
@@ -313,6 +332,10 @@ export class MarketingService {
     }
     const reason = this.rejectionReason(promo, input.amount, {
       scope: input.scope,
+      // WHERE the purchase is happening — the till's branch, not a filter. An
+      // exclusive code checked from a branch it is not for, or from a caller that
+      // sends no branch at all, is `wrong_location`.
+      locationId: input.locationId,
       alreadyRedeemed: promo.oncePerMember
         ? await this.hasRedeemed(promo.id, input.memberId)
         : false,
@@ -346,6 +369,7 @@ export class MarketingService {
     }
     const reason = this.rejectionReason(promo, input.amount, {
       scope: input.scope,
+      locationId: input.locationId,
       alreadyRedeemed: promo.oncePerMember
         ? await this.hasRedeemed(promo.id, input.memberId)
         : false,
@@ -721,7 +745,10 @@ export class MarketingService {
 
   /** The promo code, or a `404 PROMO_CODE_NOT_FOUND`. */
   private async requirePromo(id: string) {
-    const promo = await this.prisma.client.promoCode.findFirst({ where: { id } });
+    const promo = await this.prisma.client.promoCode.findFirst({
+      where: { id },
+      include: PROMO_BRANCH_INCLUDE,
+    });
     if (!promo) {
       throw new NotFoundException({
         message: 'Promo code not found',
@@ -750,6 +777,7 @@ export class MarketingService {
   private async findPromoByCode(code: string) {
     return this.prisma.client.promoCode.findFirst({
       where: { code: { equals: code.trim(), mode: 'insensitive' } },
+      include: PROMO_BRANCH_INCLUDE,
     });
   }
 
@@ -790,7 +818,7 @@ export class MarketingService {
   private rejectionReason(
     promo: PromoRuleFacts,
     amount: number | undefined,
-    context: { scope?: PromoScope; alreadyRedeemed?: boolean } = {},
+    context: { scope?: PromoScope; locationId?: string; alreadyRedeemed?: boolean } = {},
   ): PromoRejectionReason | null {
     return promoRejectionReason(promo, { ...context, amount });
   }
@@ -868,6 +896,8 @@ export class MarketingService {
     expiryDate: Date | null;
     oncePerMember: boolean;
     status: PromoCodeRow['status'];
+    locationId: string | null;
+    location?: { name: string } | null;
     createdAt: Date;
     updatedAt: Date;
   }): PromoCodeRow {
@@ -885,6 +915,8 @@ export class MarketingService {
       expiryDate: row.expiryDate ? row.expiryDate.toISOString() : null,
       oncePerMember: row.oncePerMember,
       status: row.status,
+      locationId: row.locationId,
+      locationName: row.location?.name ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

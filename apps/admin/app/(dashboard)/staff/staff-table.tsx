@@ -350,8 +350,8 @@ interface PendingChange {
 /**
  * The active-staff roster, rebuilt to the reference staff artboard: one row per
  * staff member across First Name · Last Name · Role · Location · Status ·
- * Last Login · Actions. Location and Last Login are shown as placeholders
- * (`—` / "Never") until their backing data lands in a later stage.
+ * Last Login · Actions. Last Login is shown as a placeholder ("Never") until its
+ * backing data lands in a later stage.
  *
  * Server-rendered data, client-side interaction: the trailing ⋯ menu changes a
  * member's role or removes them. Re-roling to a lower-privilege role opens the
@@ -470,6 +470,25 @@ export function StaffTable({
       header: t('columns.role'),
       cell: (member) => <Badge tone={ROLE_TONES[member.role]} label={roleLabel(member.role)} />,
     },
+    /**
+     * The branches this person can be ROSTERED at — many-valued, and read off the
+     * `LocationStaff` join table. Stage 6 changed the source and not the wire
+     * shape: `StaffMember.locations` used to be resolved from the loose
+     * `GymMember.assignedLocationIds` array, which had no foreign keys and could
+     * hold the id of a deleted branch (or another gym's) forever. It now comes
+     * through a real relation, so a dangling name cannot occur. Nothing here had
+     * to move.
+     *
+     * Unlike every other branch column in the console (`pos/orders`, the members
+     * roster, invoices), this one is NOT hidden when a branch is selected. Those
+     * hide because each row carries exactly one branch, so under a filter every
+     * cell repeats the constant the chrome already names. This cell is a set: a
+     * coach who covers both sites still reads "Vake, Saburtalo" while the console
+     * is scoped to Vake, and that second name — the reason they are only half
+     * available here — is precisely what a manager reading a filtered roster
+     * needs. It is also the gym's own column to switch off, under
+     * Settings → Staff page, which is an answer to a different question.
+     */
     location: {
       key: 'location',
       header: t('columns.location'),

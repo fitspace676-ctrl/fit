@@ -7,6 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { StaffMember, UpdateStaffProfileInput } from '@fit/types';
 import { Badge, Dot, Drawer } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { ROLE_TONES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
 import {
   StaffFormFields,
@@ -217,6 +218,10 @@ export function StaffProfileDrawer({
   locations: { id: string; name: string }[];
 }) {
   const t = useTranslations('admin.staff');
+  // Only ever a fallback for a NEWLY switched-on day — `hoursFromShifts` carries
+  // each existing shift's own branch through the grid, so an edit made under one
+  // branch cannot rewrite a day assigned to another. See `toWorkingHours`.
+  const { locationId: activeLocationId } = useActiveLocation();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [form, setForm] = useState<StaffFormValue | null>(null);
   const [preparing, startPreparing] = useTransition();
@@ -271,8 +276,11 @@ export function StaffProfileDrawer({
       status: form.status,
       email: form.email.trim() || undefined,
       phone: form.phone.trim(),
+      // Unchanged on the wire and still correct: Stage 6 re-pointed
+      // `assignedLocationIds` at the `LocationStaff` join table, and `StaffService`
+      // writes the join rows and the deprecated array in one transaction.
       assignedLocationIds: form.locationIds,
-      workingHours: toWorkingHours(form.hours),
+      workingHours: toWorkingHours(form.hours, activeLocationId),
     };
 
     startSaving(async () => {

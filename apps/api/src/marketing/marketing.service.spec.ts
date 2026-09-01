@@ -28,6 +28,10 @@ function promoRecord(over?: Record<string, unknown>) {
     expiryDate: null,
     oncePerMember: false,
     status: 'active',
+    // Stage 7 exclusivity: NULL means "redeemable at every branch", which is what
+    // almost every code holds — so it is the fixture's default.
+    locationId: null,
+    location: null,
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
     updatedAt: new Date('2026-07-01T00:00:00.000Z'),
     ...over,
@@ -218,6 +222,40 @@ describe('MarketingService promo validate/redeem', () => {
     );
   });
 
+  it('honours a gym-wide code at any till, and at none', async () => {
+    const { service } = setup({
+      promoCode: { findFirst: vi.fn(() => Promise.resolve(promoRecord())) },
+    });
+    // A NULL branch on the code constrains nothing — the opposite of what a NULL
+    // branch means on an order or a payment.
+    expect((await service.validatePromoCode({ code: 'SPRING25', locationId: 'loc-9' })).valid).toBe(
+      true,
+    );
+    expect((await service.validatePromoCode({ code: 'SPRING25' })).valid).toBe(true);
+  });
+
+  it('refuses a branch-exclusive code at another till', async () => {
+    const { service } = setup({
+      promoCode: { findFirst: vi.fn(() => Promise.resolve(promoRecord({ locationId: 'loc-1' }))) },
+    });
+    expect(
+      (await service.validatePromoCode({ code: 'SPRING25', locationId: 'loc-2' })).reason,
+    ).toBe('wrong_location');
+    // Its own branch still works.
+    expect((await service.validatePromoCode({ code: 'SPRING25', locationId: 'loc-1' })).valid).toBe(
+      true,
+    );
+  });
+
+  it('refuses a branch-exclusive code when the purchase has no branch', async () => {
+    // The online shop sends none. Refusing is the conservative direction, the same
+    // one `out_of_scope` takes for a purchase whose catalogue is unknown.
+    const { service } = setup({
+      promoCode: { findFirst: vi.fn(() => Promise.resolve(promoRecord({ locationId: 'loc-1' }))) },
+    });
+    expect((await service.validatePromoCode({ code: 'SPRING25' })).reason).toBe('wrong_location');
+  });
+
   it('redeem increments usedCount only while under the limit', async () => {
     const updateMany = vi.fn((_a: AnyArgs) => Promise.resolve({ count: 1 }));
     const findFirst = vi
@@ -265,6 +303,8 @@ describe('MarketingService promo create conflicts', () => {
         appliesTo: 'all',
         oncePerMember: false,
         status: 'active',
+        // NULL is the Stage 7 default: redeemable at every branch.
+        locationId: null,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });

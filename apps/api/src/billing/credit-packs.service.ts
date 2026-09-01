@@ -182,6 +182,9 @@ export class CreditPacksService {
       amount: plan.priceAmount,
       scope: 'packages',
       memberId,
+      // No `locationId`: a pack is bought from the member app, at no branch. Every
+      // gym-wide code still applies; a branch-exclusive one is refused rather than
+      // honoured on a purchase nothing can place.
     });
     const discount = promo?.discount ?? 0;
     const total = plan.priceAmount - discount;

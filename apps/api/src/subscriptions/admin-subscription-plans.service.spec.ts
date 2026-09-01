@@ -25,6 +25,9 @@ interface SubscriptionPlanRecord {
   trialDays: number;
   popular: boolean;
   status: SubscriptionPlanStatus;
+  /** Stage 7 exclusivity: `null` means "offered at every branch". */
+  locationId: string | null;
+  location: { name: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,7 +39,7 @@ interface SubscriberCountGroup {
 }
 
 interface FindManyArgs {
-  where?: { status?: unknown; OR?: unknown };
+  where?: { status?: unknown; OR?: unknown; AND?: unknown };
   orderBy?: unknown;
   skip?: number;
   take?: number;
@@ -63,6 +66,10 @@ const row = (over?: Partial<SubscriptionPlanRecord>): SubscriptionPlanRecord => 
   trialDays: 0,
   popular: true,
   status: SubscriptionPlanStatus.ACTIVE,
+  // Stage 7 exclusivity: NULL means "sold at every branch", which is what almost
+  // every catalogue row holds — so it is the fixture's default.
+  locationId: null,
+  location: null,
   createdAt: new Date('2026-03-01T00:00:00.000Z'),
   updatedAt: new Date('2026-03-02T00:00:00.000Z'),
   ...over,
@@ -140,6 +147,8 @@ const createInput = (over?: Partial<CreateSubscriptionPlanData>): CreateSubscrip
   includedCredits: 10,
   trialDays: 0,
   status: 'ACTIVE',
+  // NULL is the Stage 7 default: sold at every branch, not "unattributed".
+  locationId: null,
   ...over,
 });
 
@@ -153,6 +162,7 @@ const updateInput = (over?: Partial<UpdateSubscriptionPlanData>): UpdateSubscrip
   freezeDaysPerPeriod: 15,
   includedCredits: 5,
   trialDays: 0,
+  locationId: null,
   ...over,
 });
 
@@ -185,6 +195,7 @@ describe('AdminSubscriptionPlansService', () => {
             subscriberCount: 12,
             popular: true,
             status: 'ACTIVE',
+            locationName: null,
             createdAt: '2026-03-01T00:00:00.000Z',
           },
         ],
@@ -245,6 +256,42 @@ describe('AdminSubscriptionPlansService', () => {
       expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({ status: 'INACTIVE' });
     });
 
+    it('narrows to a branch WITHOUT hiding the gym-wide plans', async () => {
+      const { service, findMany, count } = setup();
+
+      await service.listSubscriptionPlans(query({ locationId: 'loc-1' }));
+
+      // The Stage 7 inversion, pinned: a plan with no branch is sold at EVERY
+      // branch, so it has to survive the filter. Plain equality
+      // (`{ locationId: 'loc-1' }`) would leave only this branch's exclusives —
+      // an empty plan list for any gym that has not written one.
+      expect(findMany.mock.calls[0]?.[0]?.where?.AND).toEqual({
+        OR: [{ locationId: null }, { locationId: 'loc-1' }],
+      });
+      // The pager counts the same population, or the totals disagree with the page.
+      expect(count.mock.calls[0]?.[0]?.where).toEqual(findMany.mock.calls[0]?.[0]?.where);
+    });
+
+    it('applies no branch predicate at all in all-locations mode', async () => {
+      const { service, findMany } = setup();
+
+      await service.listSubscriptionPlans(query());
+
+      expect(findMany.mock.calls[0]?.[0]?.where?.AND).toBeUndefined();
+    });
+
+    it('keeps the search alongside the branch filter, not instead of it', async () => {
+      // The branch predicate is a disjunction and the search is another. They live
+      // on separate keys precisely so the second cannot overwrite the first.
+      const { service, findMany } = setup();
+
+      await service.listSubscriptionPlans(query({ locationId: 'loc-1', search: 'month' }));
+
+      const where = findMany.mock.calls[0]?.[0]?.where;
+      expect(where?.AND).toEqual({ OR: [{ locationId: null }, { locationId: 'loc-1' }] });
+      expect(where?.OR).toHaveLength(2);
+    });
+
     it('builds a case-insensitive name/description search', async () => {
       const { service, findMany } = setup();
 
@@ -292,9 +339,11 @@ describe('AdminSubscriptionPlansService', () => {
         subscriberCount: 7,
         popular: true,
         status: 'ACTIVE',
+        locationName: null,
         createdAt: '2026-03-01T00:00:00.000Z',
         description: 'Unlimited gym access, billed monthly.',
         features: ['Unlimited access', 'Free guest passes'],
+        locationId: null,
         updatedAt: '2026-03-02T00:00:00.000Z',
       });
       // The count is scoped to this plan and the live statuses.

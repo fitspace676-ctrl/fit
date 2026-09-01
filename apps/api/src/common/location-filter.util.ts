@@ -154,14 +154,61 @@
  * rather than partitions, because that is the property a reader will otherwise
  * assume from every other fragment in this file.
  *
+ * ## Stage 7 inverts the meaning of NULL, and it is the one thing to get right
+ *
+ * Everything above answers **which branch does this row belong to**. Stage 7 asks
+ * a different question of a different half of the schema — **which branches is
+ * this catalogue item OFFERED at** — and the answer inverts the meaning of an
+ * absent branch:
+ *
+ * > On `SubscriptionPlan`, `PackagePlan`, `Product`, `ClassType`, `PromoCode` and
+ * > `LoyaltyReward`, **`locationId` NULL means "available at EVERY branch"**. It
+ * > is not a gap, not a residue and not a backfill that has yet to run. It is the
+ * > normal, correct, permanent state of very nearly every row.
+ *
+ * Nothing backfilled those six columns and nothing ever should: an existing plan
+ * really is sold at every branch, and stamping the default branch onto it — which
+ * is exactly what Stages 0 through 5 did to their columns — would WITHDRAW it from
+ * every other branch. There is no `NOT NULL` waiting at the end of this one; the
+ * nullability is the feature.
+ *
+ * The filtering consequence is {@link availableAtLocation}, and it is **not
+ * equality**. Reaching for {@link atLocation} on one of those six models hides
+ * every gym-wide item the moment a branch is selected — emptying the catalogue
+ * rather than narrowing it, silently, and looking exactly like "this branch sells
+ * nothing". Each of the two functions carries the other's name in its doc comment
+ * so the wrong one is hard to reach for by accident.
+ *
+ * **What Stage 7 deliberately did NOT give a column**, because a shorter honest
+ * list beats ten unused columns. `Campaign`, `AudienceSegment`, `MessageTemplate`
+ * and `AutomationRule` were all named by the roadmap and all refused on one
+ * argument: **a campaign is not offered at a branch, it is sent to people.** What
+ * bounds its reach is the audience, and the audience has no branch dimension —
+ * `AudienceSegment.criteria` filters on plan, status, join date, recency, spend
+ * and attendance. A branch column there would narrow the LIST an operator browses
+ * while the blast still went to the whole gym: a field that looks like a filter
+ * and is not one, which is worse than no field. The honest fix is a branch
+ * predicate INSIDE the audience criteria and inside the automation executor's
+ * entity scan, resolved through {@link memberAtLocation} — the PERSON half of the
+ * attribution rule. That is targeting, not exclusivity, and it is a separate
+ * change. `ProductCategory` was refused too: a category is a taxonomy label rather
+ * than a thing sold, and hiding the "Supplements" heading at a branch that stocks
+ * one supplement is not a feature.
+ *
+ * `PromoCode` is the one marketing model that DID get a column, and the difference
+ * is the test: a code is *spent at a till*, so its branch is enforceable at the
+ * moment of sale rather than decorative on a list.
+ *
  * ## What still has no path to a branch
  *
  * | Model | Why it cannot be filtered | Fixed by |
  * |---|---|---|
  * | `Review` | written about a trainer; a rating is a property of the person, not a quantity produced at a branch | — |
- * | `PromoRedemption` | `orderId` is a relation-less scalar — nothing to join through | Stage 7 |
- * | `ClassType` | gym-wide catalogue; its only path is "has occurred at", not "belongs to" | Stage 7 |
+ * | `PromoRedemption` | `orderId` is a relation-less scalar — nothing to join through, and half the ledger has no order at all. Stage 7 pointedly did NOT fix this: a redemption needs an ATTRIBUTION column (NULL = unattributable, stamped from the till at write time, Stage 5's pattern), which is the exact opposite of the exclusivity semantics this stage introduced. Attributing it through `PromoCode.locationId` instead would be wrong twice over — a gym-wide code redeemed at one branch would vanish from that branch's figures | a Stage 5-shaped follow-up |
  * | `Trainer.availability` | a weekly JSON document with no branch dimension at all. The ROSTER filters (through {@link staffAtLocation}); the availability inside a filtered row is still the coach's whole week, so a utilisation rate under a branch filter would divide one branch's delivered minutes by every branch's availability | — |
+ *
+ * `ClassType` left that table in Stage 7 — see {@link availableAtLocation}, which
+ * is what makes its branch param safe to reintroduce after Stage 1 removed it.
  *
  * `Subscription` and `Invoice` used to sit in that table and no longer do — the
  * member hop is their honest path, and Stage 5 froze the invoice half of it onto
@@ -224,6 +271,15 @@
  * primary key, so the fragment there is `{ id: locationId }`; spreading this one
  * would filter a column `Location` does not have.
  *
+ * **And do not reach for it on the six Stage 7 catalogue models** —
+ * `SubscriptionPlan`, `PackagePlan`, `Product`, `ClassType`, `PromoCode`,
+ * `LoyaltyReward`. They own a `locationId` too, so this compiles perfectly and is
+ * wrong: on them NULL means "available at every branch", so plain equality drops
+ * every gym-wide plan, product and code the moment a branch is picked. A staff
+ * member would see an empty catalogue and read it as "this branch sells nothing".
+ * {@link availableAtLocation} is the fragment for those, and the contrast is
+ * argued in full at the top of this file.
+ *
  * **On the three Stage 6 event columns a NULL is a routine outcome, not a
  * residue.** Unlike Stages 0–5, no migration backfilled them onto the gym's
  * default: a shift whose free text named no branch has nothing honest to point at,
@@ -250,6 +306,84 @@
  */
 export function atLocation(locationId: string | undefined): { locationId?: string } {
   return locationId === undefined ? {} : { locationId };
+}
+
+/**
+ * One arm of the availability predicate. Hand-written and structural, like
+ * {@link MemberScope}: the two literals `{ locationId: null }` and
+ * `{ locationId: '…' }` are all {@link availableAtLocation} ever builds, and typing
+ * it this narrowly keeps the fragment from growing into a query builder while
+ * staying assignable to every model's `WhereInput`.
+ */
+export interface LocationAvailability {
+  /** `null` matches the gym-wide rows; a string matches the selected branch's exclusives. */
+  locationId: string | null;
+}
+
+/**
+ * A `where` fragment narrowing a **catalogue** model to what one branch may
+ * actually sell, run or honour — the Stage 7 half of the schema, where a NULL
+ * `locationId` means *available at every branch* rather than *unattributed*.
+ *
+ * Applies to exactly six models: `SubscriptionPlan`, `PackagePlan`, `Product`,
+ * `ClassType`, `PromoCode` and `LoyaltyReward`.
+ *
+ * ## This is NOT {@link atLocation}, and the difference is the whole stage
+ *
+ * ```text
+ *   atLocation(x)           →  locationId = x
+ *   availableAtLocation(x)  →  locationId IS NULL OR locationId = x
+ * ```
+ *
+ * Same column name, opposite meaning of NULL, therefore a different predicate:
+ *
+ * | | `atLocation` (Stages 0–6) | `availableAtLocation` (Stage 7) |
+ * |---|---|---|
+ * | The question | which branch does this row **belong to** | which branches is this item **offered at** |
+ * | `locationId` NULL means | unattributed — a gap, backfilled away where possible | available **everywhere** — the normal, permanent state |
+ * | Was it backfilled? | yes, onto the gym's default branch | **no, and it never may be** — writing a branch would withdraw the item from every other branch |
+ * | A NULL row under a filter | excluded (it was not at this branch) | **included** (it is sold at this branch, and every other) |
+ * | Partitions the gym? | yes — that is why per-branch figures sum to the gym total | no, and it must not be summed: an item counts at every branch it is offered at |
+ *
+ * The last row is why this fragment must never be used to build a per-branch
+ * BREAKDOWN. Adding up "products available at each branch" exceeds the gym's
+ * product count by every gym-wide line, counted once per branch. It answers "what
+ * can I sell here", never "how many do we have".
+ *
+ * Getting the two backwards in this direction is quiet and total: `atLocation` on
+ * a `SubscriptionPlan` returns only the branch's exclusives, which for almost
+ * every real gym is the empty set, so the console renders "no plans" instead of
+ * "these plans" and nothing errors.
+ *
+ * ## Why it spreads as `AND`, not `OR`
+ *
+ * The predicate is a disjunction, but a bare `{ OR: [...] }` cannot be spread into
+ * a caller's `where` — half these rosters already set `where.OR` for their
+ * name/description search, and the second `OR` would silently CLOBBER the first,
+ * turning "matching the search AND available here" into "available here". Prisma
+ * combines a sibling `AND` and `OR` with a logical AND, so nesting the disjunction
+ * one level down composes with any caller. The one rule that follows: a call site
+ * must not set `where.AND` of its own alongside this — none does, and a caller
+ * that needs to should put its own conditions in the `AND` array beside this one.
+ *
+ * ## Indexing
+ *
+ * `IS NULL OR =` is served by `(gymId, locationId)` as a BitmapOr of two index
+ * scans — btree indexes NULLs — on `subscription_plans`, `package_plans`,
+ * `products` and `class_types`, where the Stage 7 migration swapped the bare
+ * `(gymId)` index for the composite at no cost. `promo_codes` and
+ * `loyalty_rewards` got no such index on purpose: their existing indexes already
+ * lead on `gymId`, and the branch is a heap filter over the tens of rows a gym
+ * curates.
+ *
+ * An absent branch spreads to `{}` — "all locations" is genuinely no predicate
+ * here, since every row is available somewhere — so the caller's `where` and its
+ * query plan are untouched.
+ */
+export function availableAtLocation(locationId: string | undefined): {
+  AND?: { OR: LocationAvailability[] };
+} {
+  return locationId === undefined ? {} : { AND: { OR: [{ locationId: null }, { locationId }] } };
 }
 
 /*

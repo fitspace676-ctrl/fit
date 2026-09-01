@@ -17,6 +17,7 @@
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
+import { branchAvailabilityQuerySchema, branchExclusivitySchema } from './locations-admin';
 
 /**
  * A product's lifecycle within the gym, mirroring the Prisma `ProductStatus`
@@ -186,6 +187,19 @@ export const listAdminProductsQuerySchema = z.object({
    * freshly categorised catalogue. Omitted means every category.
    */
   categoryId: z.string().trim().min(1).optional(),
+  /**
+   * Which branch the operator is looking at. Returns the products that branch may
+   * SELL — its exclusives plus every gym-wide line — see
+   * {@link branchAvailabilityQuerySchema}.
+   *
+   * **This is not a stock filter and does not narrow any count on the row.** The
+   * roster's `stock` / `totalStock` / `lowestStock` stay the gym-wide roll-up they
+   * have always been; per-branch counts live on `GET /admin/products/inventory`,
+   * which takes its own `locationId` meaning something else entirely (whose
+   * shelves am I counting). Availability and stock are different questions: a
+   * product can be sold everywhere while only one branch holds any.
+   */
+  locationId: branchAvailabilityQuerySchema,
   sort: productSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
 });
@@ -236,6 +250,17 @@ export interface AdminProductRow {
   status: ProductStatus;
   /** The shelf this product sits on, or `null` when uncategorised. */
   category: { id: string; name: string } | null;
+  /**
+   * The branch this product is exclusive to, or **`null` for "sold at every
+   * branch"** — the state of very nearly every row.
+   *
+   * Not to be read off the stock numbers beside it: an absent
+   * {@link https://example.invalid ProductStock} row means "not counted here",
+   * never "not sold here" — the till completes a sale at a branch with no stock
+   * row on purpose. This field is the only statement about where the line is
+   * offered.
+   */
+  locationName: string | null;
   createdAt: string;
 }
 
@@ -284,6 +309,11 @@ export interface AdminProductDetail extends AdminProductRow {
   description: string;
   images: string[];
   variants: ProductVariant[];
+  /**
+   * The raw branch id the edit form binds its select to — `null` meaning **"sold
+   * at every branch"**, the select's default option rather than a missing value.
+   */
+  locationId: string | null;
   updatedAt: string;
 }
 
@@ -375,6 +405,18 @@ const productProfileFields = {
       z.string().trim().min(1).nullable(),
     )
     .default(null),
+  /**
+   * The branch this product is exclusive to, or **`null` for "sold at every
+   * branch"** — see {@link branchExclusivitySchema}.
+   *
+   * Sits next to `categoryId` and reads nothing like it: an absent category is a
+   * product not yet filed, a gap staff work through. An absent branch is the
+   * finished, correct answer for almost every line, and the console must never
+   * pre-fill it from the active branch the way it pre-fills a member's home
+   * branch — that would quietly make every new product exclusive to whichever
+   * branch the operator happened to have selected.
+   */
+  locationId: branchExclusivitySchema,
 };
 
 /**

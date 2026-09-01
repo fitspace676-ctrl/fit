@@ -7,8 +7,10 @@ import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Badge, type BadgeVariant } from '@astryxdesign/core/Badge';
 import type { AdminTrainerRow, AdminTrainerSummary, TrainerStatus } from '@fit/types';
-import { Button, Card, CountUp } from '@fit/ui-kit';
+import { Button, Card, CountUp, SelectField } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
+import { LOCATION_PARAM } from '@/lib/active-location';
 import { formatNextClass } from './format';
 
 type T = ReturnType<typeof useTranslations>;
@@ -139,6 +141,24 @@ const styles = stylex.create({
     width: {
       default: 'auto',
       '@media (min-width: 1024px)': '18rem',
+    },
+  },
+  rightControls: {
+    display: 'flex',
+    flexDirection: {
+      default: 'column',
+      '@media (min-width: 1024px)': 'row',
+    },
+    alignItems: {
+      default: 'stretch',
+      '@media (min-width: 1024px)': 'center',
+    },
+    gap: '0.75rem',
+  },
+  branchWrap: {
+    width: {
+      default: '100%',
+      '@media (min-width: 1024px)': '12rem',
     },
   },
   srOnly: {
@@ -591,11 +611,33 @@ export function TrainersRoster({
   timeZone: string;
 }) {
   const t = useTranslations('admin.trainers');
+  const tCommon = useTranslations('admin.common');
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
+
+  // A second way into the param the top-bar switcher owns, offered only while the
+  // console is on "All locations": a branch chosen here lands in the URL, the
+  // switcher adopts it and names it in the chrome, and this control unmounts.
+  // Deselecting is therefore done up there, where the branch is actually named.
+  // Same rule the members and invoice filter bars follow.
+  const { locationId: activeLocationId, locations } = useActiveLocation();
+  const showBranchFilter = activeLocationId === undefined && locations.length > 0;
+
+  function commitBranch(value: string): void {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) {
+      params.set(LOCATION_PARAM, value);
+    } else {
+      params.delete(LOCATION_PARAM);
+    }
+    // A narrowed roster rarely has the page the staffer was on.
+    params.delete('page');
+    const qs = params.toString();
+    startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
+  }
 
   const [specialty, setSpecialty] = useState<string>('All');
   const [search, setSearch] = useState('');
@@ -638,7 +680,25 @@ export function TrainersRoster({
 
   return (
     <div {...stylex.props(styles.stack)}>
-      {/* Gym-wide KPI cards — real aggregates over the whole filtered roster. */}
+      {/*
+        KPI cards — real aggregates over the whole filtered roster, computed
+        server-side, so they narrow with the branch rather than describing a wider
+        population than the cards below them.
+
+        WHAT `TRAINERS` COUNTS UNDER A BRANCH. "Coaches who can work here", not
+        "coaches we employ here". A trainer reaches a branch through their staff
+        member's `LocationStaff` assignments, which is a capability and therefore
+        many-valued: someone covering both sites is counted at both, so adding the
+        branches up exceeds the gym-wide figure by exactly the number of two-site
+        coaches. That is the right answer for staffing a timetable and the wrong one
+        for a payroll head-count, which reads `GymMember.locationId` instead and
+        lives on the members roster.
+
+        It can also come out SHORT of the gym-wide figure for a second reason: a
+        profile whose staff record was removed reaches no branch at all
+        (`Trainer.staffId` is `SetNull`, so a coach's teaching history outlives
+        them), and no branch may adopt it.
+      */}
       <section aria-label={t('list.rosterMetricsAria')} {...stylex.props(styles.kpiGrid)}>
         <KpiCard
           label={t('list.kpiTrainers')}
@@ -694,21 +754,43 @@ export function TrainersRoster({
           })}
         </div>
 
-        <div {...stylex.props(styles.searchWrap)}>
-          <label htmlFor="trainer-search" {...stylex.props(styles.srOnly)}>
-            {t('list.searchLabel')}
-          </label>
-          <span {...stylex.props(styles.searchIcon)}>
-            <Icon name="search" {...stylex.props(styles.searchIconSvg)} />
-          </span>
-          <input
-            id="trainer-search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('list.searchPlaceholder')}
-            {...stylex.props(styles.searchInput)}
-          />
+        {/* The branch hand-off sits with the search rather than with the specialty
+            tabs: both narrow the roster from the right-hand side, and the segments
+            keep the left edge they had before. */}
+        <div {...stylex.props(styles.rightControls)}>
+          {showBranchFilter ? (
+            <div {...stylex.props(styles.branchWrap)}>
+              <SelectField
+                label={tCommon('locationLabel')}
+                labelHidden
+                size="chrome"
+                // Always `''` while it renders — see `showBranchFilter`.
+                value=""
+                onChange={(event) => commitBranch(event.target.value)}
+                options={[
+                  { value: '', label: tCommon('allLocations') },
+                  ...locations.map((location) => ({ value: location.id, label: location.name })),
+                ]}
+              />
+            </div>
+          ) : null}
+
+          <div {...stylex.props(styles.searchWrap)}>
+            <label htmlFor="trainer-search" {...stylex.props(styles.srOnly)}>
+              {t('list.searchLabel')}
+            </label>
+            <span {...stylex.props(styles.searchIcon)}>
+              <Icon name="search" {...stylex.props(styles.searchIconSvg)} />
+            </span>
+            <input
+              id="trainer-search"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={t('list.searchPlaceholder')}
+              {...stylex.props(styles.searchInput)}
+            />
+          </div>
         </div>
       </div>
 

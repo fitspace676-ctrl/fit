@@ -10,6 +10,7 @@ import type {
   ListAdminClassTypesResponse,
   UpdateClassTypeData,
 } from '@fit/types';
+import { availableAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -26,6 +27,11 @@ const CLASS_TYPE_SELECT = {
   priceMinor: true,
   includedPlanIds: true,
   status: true,
+  locationId: true,
+  // The branch a type is EXCLUSIVE to, joined for its name only — the roster and
+  // the form both need to say which one. `null` (almost every row) means the type
+  // runs at every branch and there is nothing to show.
+  location: { select: { name: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ClassTypeSelect;
@@ -145,6 +151,11 @@ export class ClassTypesService {
         priceMinor: input.priceMinor,
         includedPlanIds: input.includedPlanIds,
         status: input.status,
+        // The branch this type is EXCLUSIVE to. `null` — what an untouched form
+        // sends — means it runs at every branch, and is deliberately NOT defaulted
+        // to the console's active branch: seeding it would make every new type
+        // exclusive to whichever branch the operator happened to be looking at.
+        locationId: input.locationId,
       },
       select: CLASS_TYPE_SELECT,
     });
@@ -172,6 +183,9 @@ export class ClassTypesService {
         priceMinor: input.priceMinor,
         includedPlanIds: input.includedPlanIds,
         status: input.status,
+        // A partial body: an absent key leaves the type's scope alone, while an
+        // explicit `null` widens it back to every branch.
+        ...(input.locationId !== undefined ? { locationId: input.locationId } : {}),
       },
     });
     return this.getClassType(id);
@@ -212,16 +226,21 @@ export class ClassTypesService {
   /**
    * The tenant-scoped `where` for the roster (the extension adds `gymId`).
    *
-   * No branch filter, on purpose: a `ClassType` is gym-wide catalogue with no
-   * `locationId` of its own, and reaching a branch through `instances: { some:
-   * { locationId } }` would answer "has *occurred* at this branch" — hiding a
-   * never-yet-scheduled type from everywhere and pinning a type to a branch on
-   * one old occurrence. The rationale is recorded on
-   * `listAdminClassTypesQuerySchema` in `@fit/types`; the branch-scoped roster is
-   * `GET /admin/classes` (templates), which carries a real `locationId`.
+   * The branch filter is {@link availableAtLocation}, NOT `atLocation`, and the
+   * difference decides whether this page works. Stage 7 gave `ClassType` a
+   * `locationId` meaning *branch-exclusive*, so a NULL — which is almost every row
+   * — means "runs at every branch". Plain equality would return only the selected
+   * branch's exclusives and render an empty catalogue; the availability predicate
+   * returns those PLUS everything gym-wide, which is what "what can I schedule
+   * here" means.
+   *
+   * This replaces the relation hop the roster refused for six stages
+   * (`instances: { some: { locationId } }`, "has *occurred* at this branch"), and
+   * neither of that hop's failure modes survives: a new type is NULL and shows
+   * everywhere, and scheduling one somewhere does not narrow where it is offered.
    */
   private buildWhere(query: ListAdminClassTypesQuery): Prisma.ClassTypeWhereInput {
-    const where: Prisma.ClassTypeWhereInput = {};
+    const where: Prisma.ClassTypeWhereInput = { ...availableAtLocation(query.locationId) };
     if (query.status) {
       where.status = query.status;
     }
@@ -260,6 +279,7 @@ function toRow(row: ClassTypeRecord): AdminClassTypeRow {
     pricingRule: row.pricingRule,
     priceMinor: row.priceMinor,
     includedPlanIds: row.includedPlanIds,
+    locationName: row.location?.name ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -269,6 +289,7 @@ function toDetail(row: ClassTypeRecord): AdminClassTypeDetail {
   return {
     ...toRow(row),
     description: row.description,
+    locationId: row.locationId,
     updatedAt: row.updatedAt.toISOString(),
   };
 }

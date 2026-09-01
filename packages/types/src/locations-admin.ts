@@ -311,3 +311,67 @@ export type UpdateLocationResponse = AdminLocationDetail;
  * the location detail with the new `status` (`INACTIVE` / `ACTIVE`).
  */
 export type SetLocationStatusResponse = AdminLocationDetail;
+
+// ---------------------------------------------------------------------------
+// Branch exclusivity — the Stage 7 catalogue contract, shared by six modules
+// ---------------------------------------------------------------------------
+
+/**
+ * The branch-exclusivity field a **catalogue** body carries: the one branch this
+ * item is exclusive to, or `null` for the gym-wide default.
+ *
+ * > **`null` means AVAILABLE AT EVERY BRANCH.** This is the opposite of every
+ * > other `locationId` on the wire — `createMemberSchema`'s is the member's home
+ * > branch, `createClassInstanceSchema`'s is where the class runs, POS's is the
+ * > till. Those attribute a row to one place. This one says an item is *restricted*
+ * > to one place, and saying nothing is the normal answer.
+ *
+ * Shared verbatim by `SubscriptionPlan`, `PackagePlan`, `Product`, `ClassType`,
+ * `PromoCode` and `LoyaltyReward` so the six forms cannot drift on nullability.
+ * It defaults to `null` rather than being `.optional()` because an omitted branch
+ * on a create is a positive statement — "sold everywhere" — not a missing field.
+ *
+ * Nothing about this field is backfilled or defaulted server-side: the console's
+ * "All locations" mode must NOT seed a create form with the active branch here,
+ * the way it does for a member's home branch. Doing so would silently make every
+ * new plan exclusive to whichever branch the operator happened to be looking at.
+ */
+export const branchExclusivitySchema = z
+  .preprocess(
+    // A form's empty select submits `''`; it means "every branch", the same as an
+    // absent key. Normalised here so all six catalogue forms agree, exactly as
+    // `createProductSchema.categoryId` normalises "no shelf".
+    (value) => (value === '' || value === undefined ? null : value),
+    z.string().trim().min(1).nullable(),
+  )
+  .default(null);
+
+/**
+ * The branch-exclusivity field on a PATCH body — {@link branchExclusivitySchema}
+ * without the default, so an omitted key leaves the item's scope untouched while
+ * an explicit `null` widens it back to every branch.
+ */
+export const branchExclusivityPatchSchema = z
+  .preprocess(
+    (value) => (value === '' ? null : value),
+    z.string().trim().min(1).nullable().optional(),
+  )
+  .optional();
+
+/**
+ * The `locationId` **query** param a catalogue list endpoint accepts: which branch
+ * the operator is looking at, or omitted for "all locations".
+ *
+ * Its effect is deliberately not the effect the same param has on a members,
+ * orders or check-ins list. There it means "rows belonging to this branch"; here
+ * it means "**what can I sell at this branch**" — everything exclusive to it PLUS
+ * everything gym-wide. The API implements it with `availableAtLocation()` in
+ * `apps/api/src/common/location-filter.util.ts`, never `atLocation()`; the latter
+ * would return only the branch's exclusives, which for most gyms is an empty
+ * catalogue.
+ *
+ * A consequence worth knowing before adding this to a report: the per-branch
+ * results OVERLAP and cannot be summed. A gym-wide plan appears under every
+ * branch, so counting branch by branch exceeds the gym's plan count.
+ */
+export const branchAvailabilityQuerySchema = z.string().trim().min(1).optional();

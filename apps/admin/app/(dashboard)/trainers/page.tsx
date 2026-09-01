@@ -10,6 +10,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchTrainers } from '@/lib/api';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Icon } from '@/components/ui';
 import { TrainersRoster } from './trainers-roster';
@@ -140,10 +141,36 @@ export default async function TrainersPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.TrainerWrite);
 
+  // SERVER-SIDE, unlike `/staff` next door, and for the reason that separates the
+  // two: this roster is server-paginated. Narrowing a page of trainers in the
+  // browser would filter the twelve rows that happened to arrive, leave the pager
+  // counting a total for a different set, and turn "page 3 of the Vake coaches"
+  // into "whatever survived of gym-wide page 3". `/staff` is unpaginated, so it can
+  // (and does) filter in the client.
+  //
+  // The parse above deliberately does NOT read `params.locationId`, even though
+  // `listAdminTrainersQuerySchema` accepts it: only the resolver checks an id
+  // against the gym's live branches, so a deactivated or cross-tenant id degrades
+  // to "all locations" here instead of surviving into the query and narrowing the
+  // roster to nothing. `trainersQueryString` drops `undefined`, so this is a plain
+  // spread.
+  //
+  // What the filtered roster MEANS: a trainer profile has no branch column, on
+  // purpose — a coach's branches are a capability, so this resolves through the
+  // staff member's `LocationStaff` assignments. It therefore OVERLAPS rather than
+  // partitions (a two-site coach is on both rosters, and per-branch counts sum to
+  // more than the gym-wide one), and a profile whose staff record was removed —
+  // `Trainer.staffId` is `SetNull`, so teaching history outlives the person —
+  // reaches no branch at all and appears only unfiltered.
+  const locationId = await getActiveLocationId(raw);
+
   let subtitle = t('list.subtitleDefault');
   let content;
   try {
-    const [result, { timeZone }] = await Promise.all([fetchTrainers(query), gymCalendarContext()]);
+    const [result, { timeZone }] = await Promise.all([
+      fetchTrainers({ ...query, locationId }),
+      gymCalendarContext(),
+    ]);
     const { total, active } = result.summary;
     subtitle = total === 0 ? t('list.subtitleEmpty') : t('list.subtitleCount', { total, active });
     content = (

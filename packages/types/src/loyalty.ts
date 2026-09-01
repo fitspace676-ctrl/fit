@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  branchAvailabilityQuerySchema,
+  branchExclusivityPatchSchema,
+  branchExclusivitySchema,
+} from './locations-admin';
 
 // @fit/types/loyalty — the staff console's Loyalty contract (T12.10): program
 // config, the points ledger, the rewards catalogue, and redemptions. Shared by
@@ -126,6 +131,15 @@ export interface LoyaltyRewardRow {
   type: LoyaltyRewardType;
   active: boolean;
   stock: number | null;
+  /**
+   * The branch this reward is exclusive to, or **`null` for "redeemable at every
+   * branch"** — the state of very nearly every row, and the opposite of what a
+   * `null` branch means on a member or a check-in. A site with no juice bar
+   * cannot hand over a smoothie; a day pass works anywhere.
+   */
+  locationId: string | null;
+  /** {@link locationId} resolved for display, or `null` when the reward is gym-wide. */
+  locationName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -134,6 +148,20 @@ export interface ListLoyaltyRewardsResponse {
   data: LoyaltyRewardRow[];
 }
 
+/**
+ * Query for `GET /loyalty/rewards`. `locationId` returns the rewards that branch
+ * can HONOUR — its exclusives plus every gym-wide reward — see
+ * {@link branchAvailabilityQuerySchema}. Omitted is the whole catalogue.
+ *
+ * The endpoint took no query at all before Stage 7; a bare `GET` is still valid.
+ */
+export const listLoyaltyRewardsQuerySchema = z.object({
+  locationId: branchAvailabilityQuerySchema,
+});
+
+/** Validated `GET /loyalty/rewards` query — {@link listLoyaltyRewardsQuerySchema}. */
+export type ListLoyaltyRewardsQuery = z.infer<typeof listLoyaltyRewardsQuerySchema>;
+
 const rewardBase = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).default(''),
@@ -141,6 +169,13 @@ const rewardBase = z.object({
   type: loyaltyRewardTypeSchema.default('other'),
   active: z.boolean().default(true),
   stock: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  /**
+   * The branch this reward is exclusive to, or **`null` for "redeemable at every
+   * branch"** — see {@link branchExclusivitySchema}. `stock` beside it answers a
+   * different question and cannot substitute: it is one gym-wide count with no
+   * branch dimension, so it can never express "available here, not there".
+   */
+  locationId: branchExclusivitySchema,
 });
 
 export const createLoyaltyRewardSchema = rewardBase;
@@ -154,6 +189,11 @@ export const updateLoyaltyRewardSchema = z
     type: loyaltyRewardTypeSchema,
     active: z.boolean(),
     stock: z.number().int().min(0).max(1_000_000).nullable(),
+    /**
+     * Omit to leave the reward's scope untouched; send `null` to widen it back to
+     * every branch — see {@link branchExclusivityPatchSchema}.
+     */
+    locationId: branchExclusivityPatchSchema,
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, {

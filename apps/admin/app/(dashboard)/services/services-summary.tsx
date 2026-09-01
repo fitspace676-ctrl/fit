@@ -73,7 +73,15 @@ type Tile = {
  * filtered set (not just the visible page): how many services exist, the split
  * between personal training and custom services, and how many are archived.
  * Server-rendered from the `GET /admin/services` response `summary`, so the
- * tiles always agree with the list below.
+ * tiles always agree with the list below — including under a branch filter, which
+ * narrows both together.
+ *
+ * `total` under a branch counts the services BOOKABLE there, and that overlaps
+ * rather than partitions: a service is reachable through its staff member's roster
+ * assignments, so one delivered by a coach who covers both sites is counted at
+ * both, and adding the branches up exceeds the gym-wide figure. It is a catalogue
+ * question — "what can this branch sell" — not a head-count, and nothing on this
+ * page should be read as one.
  */
 export async function ServicesSummary({ summary }: { summary: ServiceRosterSummary }) {
   const { total, personalTraining, custom, archived } = summary;

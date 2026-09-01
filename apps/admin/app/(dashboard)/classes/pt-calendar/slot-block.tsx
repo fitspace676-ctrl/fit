@@ -152,6 +152,7 @@ export function SlotDetail({
   onChanged: () => void;
 }) {
   const t = useTranslations('admin.services.sessions');
+  const tCommon = useTranslations('admin.common');
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   if (!slot) return null;
@@ -220,6 +221,17 @@ export function SlotDetail({
                 {when} · {clock(slot.startsAt, timeZone)}-{clock(slot.endsAt, timeZone)} ·{' '}
                 {t('durationHint', { count: slot.durationMinutes })}
               </span>
+            </div>
+            <div {...stylex.props(styles.row)}>
+              <span {...stylex.props(styles.label)}>{tCommon('locationLabel')}</span>
+              {/*
+                Where this slot runs, frozen at creation like its staff member — so
+                reassigning the service later never moves a slot a member has
+                already booked. A dash, not a blank, for an unattributed one: the
+                staff member was rostered at several branches (or none) when the
+                slot was opened, and nothing may pick one for them after the fact.
+              */}
+              <span {...stylex.props(styles.value)}>{slot.locationName ?? '-'}</span>
             </div>
             <div {...stylex.props(styles.row)}>
               <span {...stylex.props(styles.label)}>{t('status')}</span>

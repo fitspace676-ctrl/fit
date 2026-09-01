@@ -10,6 +10,7 @@ import {
   fetchPtSessions,
   fetchTrainers,
 } from '@/lib/api';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
@@ -101,6 +102,23 @@ export default async function PtCalendarPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
 
+  // THE GRID IS TWO POPULATIONS AND BOTH MUST NARROW.
+  //
+  // This calendar draws `PtSession` blocks and `ServiceSession` blocks on the same
+  // week, and Stage 6 gave both a branch for exactly this reason. Filtering one and
+  // not the other would assemble a branch-filtered calendar out of one branch's PT
+  // and every branch's service slots — the defect the trainer-performance report was
+  // deliberately held gym-wide to avoid, except here it would be invisible, because
+  // the two block types already look different and nobody would read the mixture as
+  // a mistake.
+  //
+  // Both narrow on their OWN `locationId` — the door the hour is booked at — not on
+  // the coach's roster and not on their base branch. Someone based at the flagship
+  // covering a Tuesday at the satellite delivered that hour at the satellite. A
+  // session with no branch is absent from a filtered week and present in an
+  // unfiltered one: nothing knows where it is, and no branch may adopt it.
+  const locationId = await getActiveLocationId(raw);
+
   const trainers: TrainerOption[] = await fetchTrainers({ status: 'ACTIVE', limit: TRAINER_LIMIT })
     .then((res) => res.data.map((trainer) => ({ id: trainer.id, name: trainer.name })))
     .catch(() => [] as TrainerOption[]);
@@ -109,12 +127,22 @@ export default async function PtCalendarPage({
   try {
     const [sessionsRes, slotsRes, servicesRes] = await Promise.all([
       // No trainer filter unless one was picked — the calendar opens on everyone.
-      fetchPtSessions({ from, to, ...(trainerId ? { trainerId } : {}) }),
+      fetchPtSessions({ from, to, ...(trainerId ? { trainerId } : {}), locationId }),
       // Service slots are keyed by staff member, not trainer profile, so the
-      // trainer filter does not apply to them; the week does.
-      fetchAdminServiceSessions({ from, to }).catch(() => ({ sessions: [] })),
-      fetchAdminServices({ status: 'ACTIVE', limit: 100 }).catch(() => null),
+      // trainer filter does not apply to them; the week and the branch do.
+      fetchAdminServiceSessions({ from, to, locationId }).catch(() => ({ sessions: [] })),
+      // The "Open a slot" picker offers what this branch can actually sell — a
+      // service is bookable wherever its staff member is rostered.
+      fetchAdminServices({ status: 'ACTIVE', limit: 100, locationId }).catch(() => null),
     ]);
+    // `fetchAdminServiceSessions` builds its query string by hand and does not yet
+    // forward `locationId`, so the branch is applied here as well as sent. Removing
+    // this line is safe the moment that fetcher forwards the param — and unsafe
+    // before then, because it is the only thing keeping the two block types on the
+    // grid drawn from the same population.
+    const slots = locationId
+      ? slotsRes.sessions.filter((slot) => slot.locationId === locationId)
+      : slotsRes.sessions;
     const services: ServiceOption[] = (servicesRes?.data ?? []).map((service) => ({
       id: service.id,
       name: service.name,
@@ -128,7 +156,7 @@ export default async function PtCalendarPage({
         closeHour={closeHour}
         weekStart={toIsoDate(weekStart)}
         sessions={sessionsRes.sessions}
-        slots={slotsRes.sessions}
+        slots={slots}
         services={services}
         canWrite={canWrite}
       />

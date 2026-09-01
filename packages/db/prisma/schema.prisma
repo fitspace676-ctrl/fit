@@ -1177,6 +1177,29 @@ model Location {
   /// branch and was not one.
   shiftSlots      ShiftSlot[]
 
+  /// ## The six back-relations below read BACKWARDS from every one above
+  ///
+  /// Stage 7 attached the catalogue, and its `locationId` means the opposite of
+  /// every other one on this model. The relations above answer "which rows BELONG
+  /// to this branch" and are exhaustive: every order, member, check-in and shift
+  /// with a branch appears under exactly one. The six below answer "which
+  /// catalogue items are EXCLUSIVE to this branch", and they are the exception
+  /// rather than the rule — a plan, package, product, class type, promo code or
+  /// reward is gym-wide by default (`locationId` NULL) and therefore appears in
+  /// NONE of these lists while still being sold here.
+  ///
+  /// So none of the six may be read as "what this branch offers". What this branch
+  /// offers is these PLUS everything with no branch at all — the predicate
+  /// `availableAtLocation()` in `apps/api/src/common/location-filter.util.ts`
+  /// spells out, and which no Prisma back-relation can express. Counting rows here
+  /// counts a branch's exclusives, and nothing else.
+  subscriptionPlans SubscriptionPlan[]
+  packagePlans      PackagePlan[]
+  products          Product[]
+  classTypes        ClassType[]
+  promoCodes        PromoCode[]
+  loyaltyRewards    LoyaltyReward[]
+
   @@index([gymId])
   @@map("locations")
 }
@@ -1346,17 +1369,55 @@ model Product {
   /// Optional shelf — `null` is "uncategorised", the state every product starts in
   /// and the state it returns to if its category is deleted.
   categoryId        String?
+  /// Branch exclusivity — **`null` means available at EVERY branch**, not
+  /// "unattributed". The inversion, and why nothing backfills it, is argued once
+  /// on {@link SubscriptionPlan.locationId}. Filter with `availableAtLocation()`,
+  /// never `atLocation()`.
+  ///
+  /// ## Why this is not already answered by {@link ProductStock}
+  ///
+  /// Stage 4 gave a product per-branch stock, so it is fair to ask whether "no
+  /// stock row at this branch" already means "not sold here". It does not, and
+  /// Stage 4 said so itself in two places:
+  ///
+  ///  * **A sale at a branch with no stock row completes** — it draws nothing and
+  ///    records nothing, deliberately, so the till never refuses a customer over
+  ///    an admitted gap in the count sheet. An absent row is therefore explicitly
+  ///    *not* a "no".
+  ///  * **{@link stock} is nullable and `null` means "not counted at all"** — the
+  ///    gym that never counts its towels. Such a product has no {@link ProductStock}
+  ///    row anywhere and is sold everywhere.
+  ///
+  /// The two are different questions on different clocks. Exclusivity is a
+  /// CATALOGUE statement an operator makes once ("the branded hoodie is a flagship
+  /// line"); stock is a physical count that reaches zero on a good Saturday and
+  /// comes back on Monday. Deriving availability from the count would delist a
+  /// product the moment it sold out and relist it on delivery, which is a
+  /// different sentence from the one the operator wrote.
+  ///
+  /// **This column does not gate the till.** Unlike {@link PromoCode.locationId},
+  /// which is refused at checkout, an exclusive product rung up at another branch
+  /// still sells: refusing to scan an item a customer is physically holding is an
+  /// outage, and Stage 4 already settled that direction for inventory. It narrows
+  /// the catalogue an operator browses, not the sale in front of them.
+  locationId        String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
   gym             Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
   category        ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  location        Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
   movements       StockMovement[]
   /// The authoritative per-branch counts this product's gym-wide `stock` and
-  /// `variants[].stock` are rolled up from — see {@link ProductStock}.
+  /// `variants[].stock` are rolled up from — see {@link ProductStock}. A DIFFERENT
+  /// question from {@link locationId} above: this is where the units are, that is
+  /// where the line may be sold.
   stockByLocation ProductStock[]
 
-  @@index([gymId])
+  /// Replaces the bare `@@index([gymId])` — see the note on
+  /// {@link SubscriptionPlan}'s index. This is the largest of the six catalogue
+  /// tables and the one where the swap is worth more than a rounding error.
+  @@index([gymId, locationId])
   @@index([categoryId])
   @@map("products")
 }
@@ -1724,14 +1785,26 @@ model PackagePlan {
   features           String[]               @default([])
   popular            Boolean                @default(false)
   status             PackagePlanStatus      @default(ACTIVE)
+  /// Branch exclusivity — **`null` means available at EVERY branch**, not
+  /// "unattributed". The inversion, and why nothing backfills it, is argued once
+  /// on {@link SubscriptionPlan.locationId}. Filter with `availableAtLocation()`,
+  /// never `atLocation()`.
+  ///
+  /// A PT package is the clearest case for the column: session packs are priced
+  /// against the coaching capacity of one site, and a gym that opens a small
+  /// satellite routinely sells its "unlimited PT" pack only at the flagship.
+  locationId         String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
   gym         Gym          @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  location    Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
   orders      Order[]
   creditPacks CreditPack[]
 
-  @@index([gymId])
+  /// Replaces the bare `@@index([gymId])` — see the note on
+  /// {@link SubscriptionPlan}'s index.
+  @@index([gymId, locationId])
   @@map("package_plans")
 }
 
@@ -1868,14 +1941,34 @@ model ClassType {
   priceMinor      Int?
   includedPlanIds String[]         @default([])
   status          ClassTypeStatus  @default(ACTIVE)
+  /// Branch exclusivity — **`null` means available at EVERY branch**, not
+  /// "unattributed". The inversion, and why nothing backfills it, is argued once
+  /// on {@link SubscriptionPlan.locationId}. Filter with `availableAtLocation()`,
+  /// never `atLocation()`.
+  ///
+  /// This column exists to close a named exemption. `GET /admin/class-types` had
+  /// its branch param REMOVED in Stage 1 because the only path to a branch was
+  /// `instances: { some: { locationId } }` — "has occurred at", not "is offered
+  /// at". That hop hid a freshly created type from every branch until it was first
+  /// scheduled, and pinned a type scheduled once at branch B to branch B forever.
+  /// The availability predicate has neither failure mode: a new type is `null`, so
+  /// it shows everywhere, and scheduling it somewhere changes nothing about where
+  /// it is offered.
+  ///
+  /// It also says a real thing an operator wants to say: a branch with no pool
+  /// cannot run Aqua Aerobics, however many instances of it exist elsewhere.
+  locationId      String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   gym        Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  location   Location?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
   instances  ClassInstance[]
   ptSessions PtSession[]
 
-  @@index([gymId])
+  /// Replaces the bare `@@index([gymId])` — see the note on
+  /// {@link SubscriptionPlan}'s index.
+  @@index([gymId, locationId])
   @@map("class_types")
 }
 
@@ -2558,13 +2651,46 @@ model SubscriptionPlan {
   /// the {@link Subscription} apply once the trial converts, so a later plan edit
   /// never re-prices a mid-trial member.
   trialDays           Int                    @default(0)
+  /// **Branch exclusivity (Stage 7 of multi-branch) — `null` means AVAILABLE AT
+  /// EVERY BRANCH, and this is the canonical statement of it for the five other
+  /// columns that share the meaning ({@link PackagePlan.locationId},
+  /// {@link Product.locationId}, {@link ClassType.locationId},
+  /// {@link PromoCode.locationId}, {@link LoyaltyReward.locationId}).**
+  ///
+  /// Every `locationId` Stages 0–6 added answered *which branch does this row
+  /// belong to*, and a `null` there was an unattributed row — a gap a migration
+  /// backfilled away. This column asks the opposite question: *which branches is
+  /// this catalogue item offered at*. A membership plan is a gym-wide thing by
+  /// default and occasionally exclusive to one branch, so `null` is the normal,
+  /// correct, permanent state of almost every row.
+  ///
+  /// **Nothing backfilled this column and nothing ever should.** An existing plan
+  /// really is sold at every branch; writing a branch onto it would take it away
+  /// from the others. There is no expand/contract here and no `NOT NULL` to
+  /// tighten to — the nullability *is* the feature.
+  ///
+  /// Consequently a branch filter here is **NOT plain equality**. "What can I sell
+  /// at Saburtalo" is `locationId IS NULL OR locationId = :branch` —
+  /// `availableAtLocation()` in `apps/api/src/common/location-filter.util.ts`.
+  /// Reaching for `atLocation()` here hides every gym-wide plan the moment a
+  /// branch is picked, which empties the catalogue rather than narrowing it.
+  ///
+  /// `SetNull` on delete: retiring a branch makes its exclusive plans gym-wide
+  /// again, which is the only non-destructive answer — the alternative is deleting
+  /// a plan people are subscribed to.
+  locationId          String?
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
   gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  location      Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
   subscriptions Subscription[]
 
-  @@index([gymId])
+  /// Replaces the bare `@@index([gymId])`: same size class, strictly more
+  /// informative, and it still serves every `gymId`-only lookup as a leading
+  /// prefix. The availability predicate is an `IS NULL OR =`, which Postgres can
+  /// satisfy as a BitmapOr of two scans over this index (btree indexes NULLs).
+  @@index([gymId, locationId])
   @@map("subscription_plans")
 }
 
@@ -3301,13 +3427,48 @@ model PromoCode {
   /// which counts redemptions across everyone.
   oncePerMember Boolean           @default(false)
   status        PromoStatus       @default(active)
+  /// Branch exclusivity — **`null` means redeemable at EVERY branch**, not
+  /// "unattributed". The inversion, and why nothing backfills it, is argued once
+  /// on {@link SubscriptionPlan.locationId}. Filter with `availableAtLocation()`,
+  /// never `atLocation()`.
+  ///
+  /// ## A column, not a fifth {@link PromoScope}
+  ///
+  /// The obvious alternative was `PromoScope.locations`. It is the wrong shape:
+  /// `appliesTo` answers WHAT a code buys (retail / packages / memberships) and a
+  /// branch answers WHERE it may be spent. Those are orthogonal, and an enum is
+  /// mutually exclusive — folding the branch in would make "20% off supplements,
+  /// Saburtalo only" inexpressible, forcing an operator to give up the scope to
+  /// get the branch. Every existing value would also have to be re-read as
+  /// "anywhere", which is the same inversion in a place with no room to document
+  /// it. Two axes, two fields.
+  ///
+  /// **Unlike {@link Product.locationId} this one IS enforced at the till.** A code
+  /// outside its branch is rejected with `wrong_location`, alongside the existing
+  /// `out_of_scope` and for the same reason: a promo rejection is loud on purpose,
+  /// because charging full price to someone who believes they have a discount is
+  /// worse than telling them the code did not work. Refusing to scan an item is an
+  /// outage; refusing a code is a corrected quote.
+  ///
+  /// A purchase whose branch is UNKNOWN (the online shop, the member app) cannot
+  /// satisfy an exclusive code and is refused — the same conservative direction
+  /// `out_of_scope` already takes for a purchase whose catalogue is unknown.
+  locationId    String?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
   gym         Gym               @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  location    Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
   redemptions PromoRedemption[]
 
   // One code per gym; the list reads newest-first and filters by status.
+  //
+  // No `(gymId, locationId)` twin, deliberately, and unlike the four catalogue
+  // tables that had a bare `@@index([gymId])` to upgrade. There is no bare index
+  // here to replace: `(gymId, code)`, `(gymId, createdAt)` and `(gymId, status)`
+  // all lead on `gymId` already, and a gym holds tens of codes — the branch is a
+  // heap filter over a handful of rows either way. A fourth index would be pure
+  // write cost.
   @@unique([gymId, code])
   @@index([gymId, createdAt])
   @@index([gymId, status])
@@ -3492,12 +3653,31 @@ model LoyaltyReward {
   active      Boolean           @default(true)
   /// @counter
   stock       Int?
+  /// Branch exclusivity — **`null` means redeemable at EVERY branch**, not
+  /// "unattributed". The inversion, and why nothing backfills it, is argued once
+  /// on {@link SubscriptionPlan.locationId}. Filter with `availableAtLocation()`,
+  /// never `atLocation()`.
+  ///
+  /// A reward is a physical thing handed over at a desk — a drink, a day pass,
+  /// merchandise, an hour of coaching — so "which branch can honour this" is a
+  /// question with a real answer. A site with no juice bar cannot give away a
+  /// smoothie however many points a member has.
+  ///
+  /// {@link stock} does NOT answer it: that is one gym-wide count with no branch
+  /// dimension at all (there is no `LoyaltyRewardStock` twin of
+  /// {@link ProductStock}), so it cannot express "available here, not there" even
+  /// in principle.
+  locationId  String?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
   gym         Gym                 @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  location    Location?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
   redemptions LoyaltyRedemption[]
 
+  // No `(gymId, locationId)` twin, for the reason spelled out on
+  // {@link PromoCode}: both existing indexes already lead on `gymId`, there is no
+  // bare one to upgrade, and a gym curates tens of rewards.
   @@index([gymId, createdAt])
   @@index([gymId, active])
   @@map("loyalty_rewards")

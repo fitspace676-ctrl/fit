@@ -36,12 +36,15 @@ interface ProductRecord {
   lowStockThreshold: number | null;
   status: ProductStatus;
   category: { id: string; name: string } | null;
+  /** Stage 7 exclusivity: `null` means "offered at every branch". */
+  locationId: string | null;
+  location: { name: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 interface FindManyArgs {
-  where?: { status?: unknown; OR?: unknown; categoryId?: unknown };
+  where?: { status?: unknown; OR?: unknown; categoryId?: unknown; AND?: unknown };
   orderBy?: unknown;
   skip?: number;
   take?: number;
@@ -64,6 +67,11 @@ const row = (over?: Partial<ProductRecord>): ProductRecord => ({
   lowStockThreshold: null,
   status: ProductStatus.ACTIVE,
   category: null,
+  // Stage 7 exclusivity: NULL means "sold at every branch", which is what almost
+  // every catalogue row holds — so it is the fixture's default. Not to be confused
+  // with the branch rows below, which are where the UNITS are.
+  locationId: null,
+  location: null,
   createdAt: new Date('2026-02-01T00:00:00.000Z'),
   updatedAt: new Date('2026-02-02T00:00:00.000Z'),
   ...over,
@@ -219,6 +227,7 @@ function setup(overrides?: {
     movementCreate,
     movementCreateMany,
     branchRows,
+    branchFindMany,
     branchCreate,
     branchUpdate,
     locationFindFirst,
@@ -240,6 +249,8 @@ const createInput = (over?: Partial<CreateProductData>): CreateProductData => ({
   lowStockThreshold: null,
   status: 'ACTIVE',
   categoryId: null,
+  // NULL is the Stage 7 default: sold at every branch, not "unattributed".
+  locationId: null,
   ...over,
 });
 
@@ -253,6 +264,7 @@ const updateInput = (over?: Partial<UpdateProductData>): UpdateProductData => ({
   stock: null,
   lowStockThreshold: null,
   categoryId: null,
+  locationId: null,
   ...over,
 });
 
@@ -281,6 +293,7 @@ describe('AdminProductsService', () => {
             lowStockThreshold: null,
             status: 'ACTIVE',
             category: null,
+            locationName: null,
             createdAt: '2026-02-01T00:00:00.000Z',
           },
         ],
@@ -384,6 +397,34 @@ describe('AdminProductsService', () => {
       await service.listProducts(query());
 
       expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('categoryId');
+    });
+
+    it('narrows to a branch WITHOUT hiding the gym-wide lines', async () => {
+      const { service, findMany } = setup();
+
+      await service.listProducts(query({ locationId: 'loc-1' }));
+
+      // Stage 7 exclusivity: a product with no branch is sold at EVERY branch, so
+      // it survives the filter. Plain equality would leave only this branch's
+      // exclusive lines — an empty catalogue for any gym that has not written one.
+      expect(findMany.mock.calls[0]?.[0]?.where?.AND).toEqual({
+        OR: [{ locationId: null }, { locationId: 'loc-1' }],
+      });
+    });
+
+    it('reads NOTHING about stock into the branch filter', async () => {
+      // Exclusivity and stock are different questions and must stay so: the roster
+      // narrows WHICH products are listed and leaves every count as the gym-wide
+      // roll-up. A branch's own counts come from `ProductStock`, which this query
+      // does not touch — a product can be sold everywhere while only one branch
+      // holds any, and an absent stock row means "not counted here", never "not
+      // sold here".
+      const { service, findMany, branchFindMany } = setup();
+
+      await service.listProducts(query({ locationId: 'loc-1' }));
+
+      expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('stockByLocation');
+      expect(branchFindMany).not.toHaveBeenCalled();
     });
 
     it('builds a case-insensitive name/description search', async () => {
@@ -621,10 +662,12 @@ describe('AdminProductsService', () => {
         lowStockThreshold: null,
         status: 'ACTIVE',
         category: null,
+        locationName: null,
         createdAt: '2026-02-01T00:00:00.000Z',
         description: 'A soft cotton training tee.',
         images: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
         variants: VARIANTS,
+        locationId: null,
         updatedAt: '2026-02-02T00:00:00.000Z',
       });
     });

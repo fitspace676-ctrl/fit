@@ -29,6 +29,7 @@ import {
   type UpdateProductData,
   type UpdateProductResponse,
 } from '@fit/types';
+import { availableAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
@@ -55,6 +56,11 @@ const PRODUCT_SELECT = {
   // The category is the gym's own row (the relation can't cross tenants), and the
   // grid renders its name, so join it rather than making the console resolve ids.
   category: { select: { id: true, name: true } },
+  locationId: true,
+  // The branch this LINE is exclusive to, joined for its name only — a different
+  // question from `stockByLocation`, which is where the units are. `null` — almost
+  // every row — means it is sold at every branch.
+  location: { select: { name: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.ProductSelect;
@@ -664,6 +670,14 @@ export class AdminProductsService {
           lowStockThreshold: input.lowStockThreshold,
           status: input.status,
           categoryId: input.categoryId,
+          // The branch this line is EXCLUSIVE to. `null` means sold everywhere,
+          // and is deliberately NOT seeded from the console's active branch.
+          //
+          // Note it is unrelated to `openingBranch` two lines down: that is where
+          // the first units are counted, this is where the line may be sold. A
+          // product's opening stock lands on the gym's default branch while the
+          // product itself stays sellable at all of them.
+          locationId: input.locationId,
         },
         select: PRODUCT_SELECT,
       });
@@ -1091,6 +1105,11 @@ export class AdminProductsService {
           variants: variants as unknown as Prisma.InputJsonValue,
           lowStockThreshold: input.lowStockThreshold,
           categoryId: input.categoryId,
+          // The edit form posts the whole profile, so an omitted branch widens the
+          // line back to every branch. Changing it moves no stock: the units stay
+          // on whatever shelves hold them, since exclusivity is a statement about
+          // where the line may be sold, not about where it is.
+          locationId: input.locationId,
         },
       });
 
@@ -1203,7 +1222,17 @@ export class AdminProductsService {
    * name + description.
    */
   private buildWhere(query: ListAdminProductsQuery): Prisma.ProductWhereInput {
-    const where: Prisma.ProductWhereInput = {};
+    // The branch filter is {@link availableAtLocation}, NOT `atLocation`: a NULL
+    // `Product.locationId` means "sold at every branch", so plain equality would
+    // return only this branch's exclusives — an empty catalogue for almost every
+    // gym. It spreads as a nested `AND` so the `OR` the search below sets cannot
+    // clobber it.
+    //
+    // This narrows WHICH PRODUCTS are listed and nothing else. The counts on each
+    // row stay the gym-wide roll-up; per-branch counts are `resolveBranchScope`'s
+    // job on the inventory and low-stock endpoints, whose `locationId` means
+    // "whose shelves am I counting" rather than "what may I sell here".
+    const where: Prisma.ProductWhereInput = { ...availableAtLocation(query.locationId) };
 
     if (query.status) {
       where.status = query.status;
@@ -1271,6 +1300,7 @@ export class AdminProductsService {
       lowStockThreshold: row.lowStockThreshold ?? null,
       status: row.status,
       category: row.category ? { id: row.category.id, name: row.category.name } : null,
+      locationName: row.location?.name ?? null,
       createdAt: row.createdAt.toISOString(),
     };
   }
@@ -1282,6 +1312,7 @@ export class AdminProductsService {
       description: row.description,
       images: row.images,
       variants: this.parseVariants(row.variants),
+      locationId: row.locationId,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

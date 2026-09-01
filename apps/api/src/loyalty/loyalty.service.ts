@@ -5,6 +5,7 @@ import {
   LOYALTY_REWARD_TYPE_CATALOG,
   type AdjustLoyaltyPointsInput,
   type CreateLoyaltyRewardInput,
+  type ListLoyaltyRewardsQuery,
   type ListLoyaltyRewardsResponse,
   type ListRedemptionsQuery,
   type ListRedemptionsResponse,
@@ -27,6 +28,7 @@ import {
   type UpdateLoyaltyProgramInput,
   type UpdateLoyaltyRewardInput,
 } from '@fit/types';
+import { availableAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -41,6 +43,10 @@ const REWARD_SELECT = {
   type: true,
   active: true,
   stock: true,
+  locationId: true,
+  // The branch this reward is EXCLUSIVE to, joined for its name only. `null` —
+  // almost every row — means any desk can honour it.
+  location: { select: { name: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.LoyaltyRewardSelect;
@@ -150,8 +156,18 @@ export class LoyaltyService {
   // Rewards catalogue
   // -------------------------------------------------------------------------
 
-  async listRewards(): Promise<ListLoyaltyRewardsResponse> {
+  /**
+   * The rewards catalogue, newest first.
+   *
+   * `query.locationId` narrows to what one branch can HONOUR, and it uses
+   * {@link availableAtLocation} rather than `atLocation`: a NULL
+   * `LoyaltyReward.locationId` means "redeemable at every branch", so plain
+   * equality would return only that branch's exclusives — an empty catalogue for
+   * almost every gym.
+   */
+  async listRewards(query: ListLoyaltyRewardsQuery = {}): Promise<ListLoyaltyRewardsResponse> {
     const rows = await this.prisma.client.loyaltyReward.findMany({
+      where: availableAtLocation(query.locationId),
       orderBy: { createdAt: 'desc' },
       select: REWARD_SELECT,
     });
@@ -168,6 +184,10 @@ export class LoyaltyService {
         type: input.type,
         active: input.active,
         stock: input.stock ?? null,
+        // The branch this reward is EXCLUSIVE to. `null` means every desk can
+        // honour it, and is deliberately NOT seeded from the console's active
+        // branch.
+        locationId: input.locationId,
       },
       select: REWARD_SELECT,
     });
@@ -213,6 +233,9 @@ export class LoyaltyService {
               stock: input.stock,
             }
           : {}),
+        // An absent key leaves the reward's branch alone; an explicit `null`
+        // widens it back to every branch.
+        ...(input.locationId !== undefined ? { locationId: input.locationId } : {}),
       },
       select: REWARD_SELECT,
     });
@@ -635,6 +658,8 @@ export class LoyaltyService {
       type: row.type,
       active: row.active,
       stock: row.stock,
+      locationId: row.locationId,
+      locationName: row.location?.name ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

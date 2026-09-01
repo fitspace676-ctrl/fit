@@ -8,6 +8,7 @@ import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import { Button } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { zonedDayStart } from '../schedule/week';
 import { createServiceSessionAction } from './pt-session-actions';
@@ -131,6 +132,17 @@ function SlotForm({
 }) {
   const t = useTranslations('admin.services.sessions');
   const router = useRouter();
+  // A slot opened while the console is scoped to a branch runs at that branch —
+  // the roadmap's "create forms inherit the active branch", and the reason the
+  // drawer needs no control of its own here.
+  //
+  // In "All locations" mode nothing is sent, and the API resolves it the only two
+  // honest ways: the service's staff member is rostered at exactly one branch, so
+  // there is a single possible answer and taking it invents nothing; or they cover
+  // several (or none) and the slot is left unattributed. The gym's default branch
+  // is never used — a slot is a plan about a room, and defaulting one would book an
+  // appointment at a door it was never opened for.
+  const { locationId: activeLocationId } = useActiveLocation();
   const [pending, startTransition] = useTransition();
   const [serviceId, setServiceId] = useState(services[0]?.id ?? '');
   const [date, setDate] = useState(defaultDate);
@@ -149,7 +161,12 @@ function SlotForm({
       dayStart.getTime() + ((hh ?? 0) * 60 + (mm ?? 0)) * 60_000,
     ).toISOString();
     startTransition(async () => {
-      const result = await createServiceSessionAction({ serviceId, startsAt, notes });
+      const result = await createServiceSessionAction({
+        serviceId,
+        startsAt,
+        notes,
+        ...(activeLocationId ? { locationId: activeLocationId } : {}),
+      });
       if (result.ok) {
         onDone();
         router.refresh();

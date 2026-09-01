@@ -169,6 +169,10 @@ export class CheckoutService {
       amount: plan.priceAmount,
       scope: 'packages',
       memberId,
+      // The branch the buyer picked, already validated as one of this gym's above.
+      // `null` there means they picked none, so a branch-exclusive code cannot be
+      // confirmed and is refused.
+      locationId: branchId ?? undefined,
     });
     const discount = promo?.discount ?? 0;
     const total = plan.priceAmount - discount;

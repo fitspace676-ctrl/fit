@@ -19,6 +19,7 @@
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
+import { branchAvailabilityQuerySchema, branchExclusivitySchema } from './locations-admin';
 
 /**
  * A subscription plan's lifecycle within the gym, mirroring the Prisma
@@ -72,6 +73,12 @@ export const listAdminSubscriptionPlansQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(100).optional(),
   status: subscriptionPlanStatusSchema.optional(),
+  /**
+   * Which branch the operator is looking at. Returns the plans that branch may
+   * SELL — its exclusives plus every gym-wide plan — not the plans "belonging"
+   * to it. See {@link branchAvailabilityQuerySchema}; omitted is every plan.
+   */
+  locationId: branchAvailabilityQuerySchema,
   sort: subscriptionPlanSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
 });
@@ -109,6 +116,13 @@ export interface AdminSubscriptionPlanRow {
   subscriberCount: number;
   popular: boolean;
   status: SubscriptionPlanStatus;
+  /**
+   * The branch this plan is exclusive to, or **`null` for "sold at every
+   * branch"** — the state of very nearly every row, and the opposite of what a
+   * `null` branch means on a member or an order. The roster prints it as a badge
+   * only when it is set; there is nothing to show for a gym-wide plan.
+   */
+  locationName: string | null;
   createdAt: string;
 }
 
@@ -133,6 +147,13 @@ export interface ListAdminSubscriptionPlansResponse {
  */
 export interface AdminSubscriptionPlanDetail extends AdminSubscriptionPlanRow {
   description: string;
+  /**
+   * The raw branch id the edit form binds its select to — `null` meaning **"sold
+   * at every branch"**, which is the select's default option and not an empty
+   * value to be filled in. The roster gets the resolved
+   * {@link AdminSubscriptionPlanRow.locationName} instead, since it only prints.
+   */
+  locationId: string | null;
   updatedAt: string;
 }
 
@@ -189,6 +210,13 @@ const subscriptionPlanProfileFields = {
     .min(0, 'Trial days cannot be negative')
     .max(MAX_SUBSCRIPTION_ALLOWANCE, `Trial days cannot exceed ${MAX_SUBSCRIPTION_ALLOWANCE}`)
     .default(0),
+  /**
+   * The branch this plan is exclusive to, or **`null` for "sold at every
+   * branch"** — see {@link branchExclusivitySchema}. Shared by create and edit,
+   * so an edit that omits it widens the plan back to the whole gym, exactly as
+   * omitting `features` clears them; the form posts the whole profile.
+   */
+  locationId: branchExclusivitySchema,
 };
 
 /**

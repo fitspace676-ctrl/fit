@@ -76,6 +76,23 @@ export class PromoRedemptionService {
     scope: PromoScope;
     /** The buyer, or `null` when anonymous. */
     memberId: string | null;
+    /**
+     * WHERE the purchase is happening — the branch of the till, or `undefined`
+     * for a sale with no branch (the online shop, the member app).
+     *
+     * Checked against `PromoCode.locationId`, which since Stage 7 of multi-branch
+     * means the code is EXCLUSIVE to that branch. **`null` there — the state of
+     * almost every code — means "redeemable anywhere" and constrains nothing**,
+     * so this argument changes the outcome for exclusive codes only.
+     *
+     * An exclusive code rung up at another branch, or on a purchase with no
+     * branch at all, is refused as `wrong_location`, for the same reason a scoped
+     * code is refused against an unknown catalogue: it cannot be confirmed, and
+     * quietly honouring it is how a grand-opening voucher ends up discounting
+     * sales at every site. Refusing is the loud direction, which is the whole
+     * posture of this service — see the note on rejection above.
+     */
+    locationId?: string;
   }): Promise<ResolvedPromo | null> {
     if (!input.code) {
       return null;
@@ -90,6 +107,7 @@ export class PromoRedemptionService {
 
     const reason = promoRejectionReason(promo, {
       scope: input.scope,
+      locationId: input.locationId,
       amount: input.amount,
       alreadyRedeemed: promo.oncePerMember
         ? await this.alreadyRedeemed(promo.id, input.memberId)

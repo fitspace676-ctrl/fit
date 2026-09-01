@@ -6,6 +6,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { CreateStaffInput } from '@fit/types';
 import { Drawer } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import {
   StaffFormFields,
   emptyStaffForm,
@@ -16,6 +17,12 @@ import {
 import { createStaffAction } from './actions';
 
 const FORM_ID = 'staff-add-form';
+
+/** A blank form pre-assigned to the console's active branch, if one is selected. */
+function seededStaffForm(activeLocationId: string | undefined): StaffFormValue {
+  const blank = emptyStaffForm();
+  return activeLocationId ? { ...blank, locationIds: [activeLocationId] } : blank;
+}
 
 const styles = stylex.create({
   form: {
@@ -105,7 +112,13 @@ export function AddStaffDrawer({
   locations: { id: string; name: string }[];
 }) {
   const t = useTranslations('admin.staff');
-  const [form, setForm] = useState<StaffFormValue>(emptyStaffForm);
+  // A new staff member starts rostered at the branch the console is scoped to, and
+  // their week's shifts start staffing it — the roadmap's "create forms inherit the
+  // active branch". The chips stay editable, because the assignment is a set and a
+  // person can cover two sites; this only says which one the desk is standing in.
+  // In "All locations" mode nothing is pre-selected and nothing is invented.
+  const { locationId: activeLocationId } = useActiveLocation();
+  const [form, setForm] = useState<StaffFormValue>(() => seededStaffForm(activeLocationId));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +127,7 @@ export function AddStaffDrawer({
   }
 
   function reset(): void {
-    setForm(emptyStaffForm());
+    setForm(seededStaffForm(activeLocationId));
     setError(null);
   }
 
@@ -148,8 +161,12 @@ export function AddStaffDrawer({
       status: form.status,
       email: form.email.trim() || undefined,
       phone: form.phone.trim() || undefined,
+      // `assignedLocationIds` is unchanged on the wire and still correct: Stage 6
+      // re-pointed it at the `LocationStaff` join table, and `StaffService` writes
+      // both the join rows and the deprecated array in one transaction. The console
+      // has nothing to migrate here.
       assignedLocationIds: form.locationIds,
-      workingHours: toWorkingHours(form.hours),
+      workingHours: toWorkingHours(form.hours, activeLocationId),
     };
 
     startTransition(async () => {

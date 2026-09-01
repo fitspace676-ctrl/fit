@@ -9,6 +9,11 @@
 import { z } from 'zod';
 import { sortDirSchema } from './members';
 import { classPricingRuleSchema, type ClassPricingRule } from './classes-admin';
+import {
+  branchAvailabilityQuerySchema,
+  branchExclusivityPatchSchema,
+  branchExclusivitySchema,
+} from './locations-admin';
 
 /** Lifecycle of a class type — `ACTIVE` types are offered when scheduling. */
 export const classTypeStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
@@ -90,6 +95,13 @@ export const createClassTypeSchema = z
   .object({
     ...classTypeProfileFields,
     status: classTypeStatusSchema.default('ACTIVE'),
+    /**
+     * The branch this type is exclusive to, or **`null` for "runs at every
+     * branch"** — see {@link branchExclusivitySchema}. Declared here rather than
+     * in `classTypeProfileFields` because the PATCH body is `.partial()` and
+     * needs the no-default variant, so the two spellings are kept apart.
+     */
+    locationId: branchExclusivitySchema,
   })
   .superRefine(refinePricing);
 
@@ -104,6 +116,11 @@ export const updateClassTypeSchema = z
   .object({
     ...classTypeProfileFields,
     status: classTypeStatusSchema,
+    /**
+     * Omit to leave the type's scope untouched; send `null` to widen it back to
+     * every branch — see {@link branchExclusivityPatchSchema}.
+     */
+    locationId: branchExclusivityPatchSchema,
   })
   .partial()
   .superRefine(refinePricing);
@@ -125,23 +142,27 @@ export type ClassTypeSort = z.infer<typeof classTypeSortSchema>;
  * `limit` capped at 100); `search` matches name, `status` narrows, and
  * `sort` + `dir` order. Numbers are coerced (they arrive as query strings).
  *
- * **Deliberately has no `locationId`** — a documented exemption from the
- * branch-filter sweep, not an oversight. A `ClassType` is gym-wide catalogue: it
- * carries reusable defaults (duration, capacity, pricing) and owns no schedule,
- * so it has no branch of its own. The only path to a location would be its
- * `ClassInstance[]`, and `instances: { some: { locationId } }` answers a
- * different question — "which types have *occurred* at this branch" — which
- * hides a freshly created type from every branch until it is first scheduled,
- * and keeps a type visible at a branch forever on the strength of one occurrence
- * years ago. That is a wrong-reading filter, so the roster stays gym-wide.
- * Branch-*exclusive* catalogue is a real feature; it needs a stored
- * `ClassType.locationId` (Stage 7 — catalogue exclusivity), not a relation hop.
+ * **`locationId` is back, and it is a different filter from the one Stage 1
+ * removed.** This endpoint carried no branch param through Stages 1–6, and that
+ * was a recorded exemption rather than an oversight: the only path to a branch
+ * was `instances: { some: { locationId } }`, which answers "which types have
+ * *occurred* at this branch" — hiding a freshly created type from everywhere
+ * until it was first scheduled, and pinning a type to a branch forever on one
+ * occurrence years ago.
+ *
+ * Stage 7 gave `ClassType` a stored `locationId` meaning **branch-exclusive**,
+ * with **`null` meaning "offered at every branch"**, and this param reads it
+ * through the availability predicate: the branch's exclusives PLUS everything
+ * gym-wide. Neither old failure mode survives — a new type is `null` and shows
+ * everywhere, and scheduling one somewhere changes nothing about where it is
+ * offered. See {@link branchAvailabilityQuerySchema}.
  */
 export const listAdminClassTypesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(100).optional(),
   status: classTypeStatusSchema.optional(),
+  locationId: branchAvailabilityQuerySchema,
   sort: classTypeSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
 });
@@ -161,12 +182,25 @@ export interface AdminClassTypeRow {
   pricingRule: ClassPricingRule;
   priceMinor: number | null;
   includedPlanIds: string[];
+  /**
+   * The branch this type is exclusive to, or **`null` for "runs at every
+   * branch"** — the state of very nearly every row. Not "which branch has
+   * scheduled it": an occurrence's branch lives on `ClassInstance.locationId`
+   * and is a different question.
+   */
+  locationName: string | null;
   createdAt: string;
 }
 
 /** One class type as the detail / edit form needs it — the row plus description. */
 export interface AdminClassTypeDetail extends AdminClassTypeRow {
   description: string;
+  /**
+   * The raw branch id the edit form binds its select to — `null` meaning
+   * **"offered at every branch"**, the select's default option rather than a
+   * value waiting to be filled in.
+   */
+  locationId: string | null;
   updatedAt: string;
 }
 

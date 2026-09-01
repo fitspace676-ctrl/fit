@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { branchExclusivityPatchSchema } from './locations-admin';
 import { memberStatusSchema } from './members';
 import { AUTOMATION_MERGE_KEYS } from './automation-merge-fields';
 import { MARKETING_MERGE_TOKEN_NAMES } from './marketing-merge-fields';
@@ -258,6 +259,15 @@ export type PromoDiscountType = z.infer<typeof promoDiscountTypeSchema>;
  * written for a purpose, so honouring it across everything the gym sells is how a
  * drinks voucher ends up discounting an annual membership. `all` is the
  * deliberate opt-in to that breadth.
+ *
+ * **There is no `locations` member, and Stage 7 of multi-branch decided that
+ * deliberately.** Branch exclusivity lives on `PromoCode.locationId` instead,
+ * because this enum answers WHAT a code buys while a branch answers WHERE it may
+ * be spent — orthogonal axes. An enum is mutually exclusive, so folding the
+ * branch in would make "20% off supplements, Saburtalo only" inexpressible,
+ * forcing an operator to trade the scope away to get the branch. It would also
+ * silently re-read every existing value as "at any branch", in a place with no
+ * room to say so. Two axes, two fields.
  */
 export const promoScopeSchema = z.enum(['all', 'products', 'packages', 'subscriptions']);
 
@@ -290,6 +300,16 @@ export interface PromoCodeRow {
   /** When true a member may redeem this code only once, ever. */
   oncePerMember: boolean;
   status: PromoStatus;
+  /**
+   * The branch this code is exclusive to, or **`null` for "redeemable at every
+   * branch"** — the state of very nearly every row, and the opposite of what a
+   * `null` branch means on an order or a payment. Unlike {@link appliesTo} this
+   * is enforced at the till: a code outside its branch is rejected with
+   * `wrong_location`.
+   */
+  locationId: string | null;
+  /** {@link locationId} resolved for display, or `null` when the code is gym-wide. */
+  locationName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -321,6 +341,20 @@ const promoBase = z.object({
   expiryDate: z.string().datetime().nullable().optional(),
   oncePerMember: z.boolean().default(false),
   status: promoStatusSchema.default('active'),
+  /**
+   * The branch this code is exclusive to, or **`null` for "redeemable at every
+   * branch"** — and an omitted key means the same thing as `null`, which is why
+   * this is `.optional()` rather than `.default(null)` like the other five
+   * catalogue forms. It follows the convention of the two nullable fields above
+   * it (`minPurchase`, `usageLimit`), whose absence the service already reads as
+   * "no constraint"; a promo body is assembled by hand in several places and none
+   * of them should have to spell out "sold everywhere".
+   *
+   * A second axis beside {@link promoScopeSchema}, never a value of it:
+   * `appliesTo` says what the code buys, this says where it may be spent, and a
+   * code can constrain both.
+   */
+  locationId: branchExclusivityPatchSchema,
 });
 
 /** Reject a `percentage` code whose value exceeds 100. */
@@ -363,6 +397,11 @@ export const updatePromoCodeSchema = z
     expiryDate: z.string().datetime().nullable().optional(),
     oncePerMember: z.boolean().optional(),
     status: promoStatusSchema.optional(),
+    /**
+     * Omit to leave the code's branch untouched; send `null` to widen it back to
+     * every branch — see {@link branchExclusivityPatchSchema}.
+     */
+    locationId: branchExclusivityPatchSchema,
   })
   .superRefine((value, ctx) => {
     if (
@@ -409,6 +448,21 @@ export const validatePromoCodeSchema = z.object({
    * refused rather than quietly granted twice.
    */
   memberId: z.string().min(1).optional(),
+  /**
+   * WHERE the purchase is happening — the branch of the till, not a filter.
+   *
+   * This is the one `locationId` in the promo contract that is NOT the
+   * exclusivity field: `PromoCodeRow.locationId` says where a code may be spent,
+   * this says where it is being spent. They are compared, and a mismatch is
+   * `wrong_location`.
+   *
+   * Omitted means the purchase's branch is unknown — the online shop, the member
+   * app — and a branch-exclusive code is then refused, the same conservative
+   * direction {@link promoScopeSchema} already takes for a purchase whose
+   * catalogue is unknown. A gym-wide code (the overwhelming majority) is
+   * unaffected.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated validate/redeem body — {@link validatePromoCodeSchema}. */
@@ -426,6 +480,12 @@ export const promoRejectionReasonSchema = z.enum([
   'already_redeemed',
   /** The purchase is not what this code is for (a drinks code on a membership). */
   'out_of_scope',
+  /**
+   * The code is exclusive to another branch — or the purchase has no branch at
+   * all, which an exclusive code cannot be confirmed against. The WHERE twin of
+   * `out_of_scope`'s WHAT.
+   */
+  'wrong_location',
   'below_min_purchase',
 ]);
 
@@ -637,6 +697,11 @@ export interface PromoRuleFacts {
   oncePerMember: boolean;
   discountType: string;
   discountValue: number;
+  /**
+   * The branch the code is exclusive to — **`null` means redeemable at EVERY
+   * branch**, which is the normal state and imposes no constraint at all.
+   */
+  locationId: string | null;
 }
 
 /** What is being bought, and by whom, when that is known. */
@@ -647,6 +712,11 @@ export interface PromoRuleContext {
   alreadyRedeemed?: boolean;
   /** Purchase total in MINOR units, for the minimum-spend floor. */
   amount?: number;
+  /**
+   * The branch the purchase is happening at; absent means "unknown", which an
+   * exclusive code cannot be confirmed against.
+   */
+  locationId?: string;
   /** Milliseconds since epoch; injectable so the window is testable. */
   now?: number;
 }
@@ -675,6 +745,14 @@ export function promoRejectionReason(
   // precisely what the scope exists to stop.
   if (promo.appliesTo !== 'all' && promo.appliesTo !== context.scope) {
     return 'out_of_scope';
+  }
+  // The same test one axis over: WHERE rather than WHAT. `promo.locationId` NULL
+  // is the gym-wide default and constrains nothing — note the asymmetry with
+  // `appliesTo`, whose "no constraint" value is the explicit `'all'`. A purchase
+  // with no branch (the online shop) cannot satisfy an exclusive code, for the
+  // same reason a purchase with no scope cannot satisfy a scoped one.
+  if (promo.locationId !== null && promo.locationId !== context.locationId) {
+    return 'wrong_location';
   }
   if (promo.oncePerMember && context.alreadyRedeemed) return 'already_redeemed';
   if (

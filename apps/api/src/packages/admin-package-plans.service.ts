@@ -12,6 +12,7 @@ import {
   type UpdatePackagePlanData,
   type UpdatePackagePlanResponse,
 } from '@fit/types';
+import { availableAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
@@ -32,6 +33,11 @@ const PACKAGE_PLAN_SELECT = {
   features: true,
   popular: true,
   status: true,
+  locationId: true,
+  // The branch this package is EXCLUSIVE to, joined for its name only. `null` —
+  // almost every row — means it is sold at every branch, and there is nothing to
+  // print.
+  location: { select: { name: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.PackagePlanSelect;
@@ -131,6 +137,11 @@ export class AdminPackagePlansService {
         features: input.features,
         popular: input.popular,
         status: input.status,
+        // The branch this package is EXCLUSIVE to. `null` means sold everywhere,
+        // and is deliberately NOT seeded from the console's active branch: doing
+        // so would restrict every new package to whichever branch the operator
+        // happened to have selected.
+        locationId: input.locationId,
       },
       select: PACKAGE_PLAN_SELECT,
     });
@@ -160,6 +171,10 @@ export class AdminPackagePlansService {
         sessionCount: input.sessionCount,
         features: input.features,
         popular: input.popular,
+        // The edit form posts the whole profile, so an omitted branch widens the
+        // package back to every branch — the same way an omitted `features` list
+        // clears it.
+        locationId: input.locationId,
       },
     });
     return this.getPackagePlan(id);
@@ -217,7 +232,12 @@ export class AdminPackagePlansService {
    * name + description.
    */
   private buildWhere(query: ListAdminPackagePlansQuery): Prisma.PackagePlanWhereInput {
-    const where: Prisma.PackagePlanWhereInput = {};
+    // The branch filter is {@link availableAtLocation}, NOT `atLocation`: a NULL
+    // `PackagePlan.locationId` means "sold at every branch", so plain equality
+    // would return only this branch's exclusives — an empty catalogue for almost
+    // every gym. It spreads as a nested `AND` precisely so the `OR` the search
+    // below sets cannot clobber it.
+    const where: Prisma.PackagePlanWhereInput = { ...availableAtLocation(query.locationId) };
 
     if (query.status) {
       where.status = query.status;
@@ -263,6 +283,7 @@ export class AdminPackagePlansService {
       featureCount: row.features.length,
       popular: row.popular,
       status: row.status,
+      locationName: row.location?.name ?? null,
       createdAt: row.createdAt.toISOString(),
     };
   }
@@ -273,6 +294,7 @@ export class AdminPackagePlansService {
       ...this.toRow(row),
       description: row.description,
       features: row.features,
+      locationId: row.locationId,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

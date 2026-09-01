@@ -228,6 +228,11 @@ export class OrdersService {
       amount: receipt.total,
       scope: planId ? 'subscriptions' : 'products',
       memberId: memberId ?? null,
+      // The till's branch, so a code exclusive to another branch is refused here
+      // rather than honoured at every desk. A till that sends no branch — a
+      // single-site gym — can still spend every gym-wide code, which is all of
+      // them until someone writes an exclusive one.
+      locationId: locationId ?? undefined,
     });
     const promoDiscount = promo?.discount ?? 0;
     const chargedTotal = receipt.total - promoDiscount;

@@ -20,6 +20,9 @@ function rewardRecord(over?: Record<string, unknown>) {
     type: 'pt_session',
     active: true,
     stock: null,
+    // Stage 7 exclusivity: NULL means "honoured at every branch".
+    locationId: null,
+    location: null,
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
     updatedAt: new Date('2026-07-01T00:00:00.000Z'),
     ...over,
@@ -153,6 +156,28 @@ describe('LoyaltyService.updateProgram', () => {
 });
 
 describe('LoyaltyService rewards', () => {
+  it('narrows the catalogue to a branch WITHOUT hiding the gym-wide rewards', async () => {
+    const findMany = vi.fn((_a: AnyArgs) => Promise.resolve([]));
+    const { service } = setup({ loyaltyReward: { findMany } });
+
+    await service.listRewards({ locationId: 'loc-1' });
+
+    // A reward with no branch is honoured at EVERY desk, so it survives the
+    // filter. Plain equality would leave only this branch's exclusives.
+    expect(findMany.mock.calls[0]![0].where).toEqual({
+      AND: { OR: [{ locationId: null }, { locationId: 'loc-1' }] },
+    });
+  });
+
+  it('applies no branch predicate in all-locations mode', async () => {
+    const findMany = vi.fn((_a: AnyArgs) => Promise.resolve([]));
+    const { service } = setup({ loyaltyReward: { findMany } });
+
+    await service.listRewards();
+
+    expect(findMany.mock.calls[0]![0].where).toEqual({});
+  });
+
   it('creates a reward, stamping the gym and defaulting stock to null', async () => {
     const create = vi.fn((a: AnyArgs) => Promise.resolve(rewardRecord(a.data)));
     const { service } = setup({ loyaltyReward: { create } });
@@ -162,6 +187,8 @@ describe('LoyaltyService rewards', () => {
       pointsCost: 200,
       type: 'day_pass',
       active: true,
+      // NULL is the Stage 7 default: honoured at every branch.
+      locationId: null,
     });
     const data = create.mock.calls[0]![0].data as Record<string, unknown>;
     expect(data.gymId).toBe('gym-1');

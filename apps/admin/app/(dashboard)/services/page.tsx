@@ -10,6 +10,7 @@ import {
 import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchAdminServices } from '@/lib/api';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { Icon } from '@/components/ui';
 import { ServicesSummary } from './services-summary';
 import { ServicesStatusTabs } from './services-status-tabs';
@@ -104,10 +105,28 @@ export default async function ServicesPage({
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
 
+  // Server-side, because this catalogue is server-paginated — filtering the page
+  // that happened to arrive would leave the pager counting a different set.
+  //
+  // The parse above deliberately does NOT read `params.locationId`, even though
+  // `listAdminServicesQuerySchema` accepts it: only the resolver checks an id
+  // against the gym's live branches, so a deactivated or cross-tenant id degrades to
+  // "all locations" rather than narrowing the catalogue to nothing.
+  //
+  // WHAT A FILTERED CATALOGUE MEANS: availability, not exclusivity. A `Service` has
+  // no branch column on purpose — it is a catalogue entry ("60-minute PT with
+  // Nino"), and a coach who works at both sites offers it at both — so the branch
+  // is derived from the service's staff member's `LocationStaff` roster. That
+  // OVERLAPS: per-branch counts sum to more than the gym-wide one, and a service
+  // whose staff member has no assignments is bookable at no branch and appears only
+  // unfiltered. "Only sold at the flagship" is a different field with a different
+  // meaning, and it is Stage 7's.
+  const locationId = await getActiveLocationId(raw);
+
   let summary = null;
   let content;
   try {
-    const result = await fetchAdminServices(query);
+    const result = await fetchAdminServices({ ...query, locationId });
     summary = <ServicesSummary summary={result.summary} />;
     content = (
       <>

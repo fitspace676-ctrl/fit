@@ -20,7 +20,21 @@ export const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
   return `${h}:${i % 2 === 0 ? '00' : '30'}`;
 });
 
-export type DayHours = { on: boolean; start: string; end: string };
+/**
+ * One day of the weekly rota.
+ *
+ * `locationId` is the branch that day's shift staffs — one gym `Location`, because
+ * a shift staffs one door. It is carried here rather than derived at submit time
+ * for a reason that is easy to miss: saving a profile REPLACES the member's whole
+ * schedule, so a value this grid drops is a value the save deletes. Before Stage 6
+ * there was nothing to drop; now every shift has a branch, and folding the stored
+ * rota into a grid that could not hold one would quietly unattribute a rota that a
+ * manager had already assigned, on an edit that never mentioned branches.
+ *
+ * `undefined` means "no branch", which is a real and permitted state — see
+ * {@link toWorkingHours}.
+ */
+export type DayHours = { on: boolean; start: string; end: string; locationId?: string };
 
 /** Mon–Fri on 09:00–17:00, weekend off — the sensible default shift week. */
 export function defaultHours(): DayHours[] {
@@ -53,24 +67,74 @@ export function emptyStaffForm(): StaffFormValue {
   };
 }
 
-/** Fold a member's stored shift rows into the seven-day toggle grid. */
+/**
+ * Fold a member's stored shift rows into the seven-day toggle grid.
+ *
+ * The branch comes across with the hours. Only `locationId` does:
+ * `unresolvedLocation` — a surviving free-text label that matched no branch of this
+ * gym — is deliberately dropped, because there is no write path that can put one
+ * back and carrying it into an editable form is how the queue would start growing
+ * again. An affected shift therefore round-trips as unattributed, which is what it
+ * has been since the migration.
+ */
 export function hoursFromShifts(shifts: ShiftSlotRow[]): DayHours[] {
   return DAYS.map((d) => {
     const shift = shifts.find((s) => s.dayOfWeek === d);
     return shift
-      ? { on: true, start: shift.startTime, end: shift.endTime }
+      ? {
+          on: true,
+          start: shift.startTime,
+          end: shift.endTime,
+          ...(shift.locationId ? { locationId: shift.locationId } : {}),
+        }
       : { on: false, start: '09:00', end: '17:00' };
   });
 }
 
-/** Project the toggle grid to the API's `workingHours` shape (on-days only). */
+/**
+ * Project the toggle grid to the API's `workingHours` shape (on-days only).
+ *
+ * A shift staffs ONE door, so it carries a single `Location` FK. The free-text
+ * `location` this replaced was a name somebody typed that joined to nothing, and
+ * there is deliberately no way to write one any more.
+ *
+ * Each day keeps whatever branch it already had; `fallbackLocationId` — the
+ * console's active branch — only fills the days that have none, which in practice
+ * means the ones this form is creating. So an edit made while the console is
+ * scoped to Saburtalo never rewrites a Tuesday that a manager assigned to the
+ * flagship, and a rota built from scratch at Saburtalo lands there without anyone
+ * having to say so twice (the roadmap's "create forms inherit the active branch").
+ *
+ * **In "All locations" mode nothing fills in, and days with no branch are written
+ * unattributed on purpose.** A rota is a plan, not a record: defaulting it onto the
+ * gym's default branch would assert that a named person will stand at a named door,
+ * which nobody said. That is the call the Stage 6 migration made for the shifts it
+ * could not match, and the opposite of the one it made for `PtSession` /
+ * `ServiceSession` — past events that really did happen somewhere and can bear a
+ * lossy attribution.
+ *
+ * What is still missing is the CONTROL: a per-day branch picker, so a manager can
+ * put Monday at the flagship and Tuesday at the satellite from this grid rather
+ * than from the console's current scope. The schema models it and this signature
+ * carries it; the select needs a "no branch" option label the catalogue has no key
+ * for. See the i18n note in the handover.
+ */
 export function toWorkingHours(
   hours: DayHours[],
-): { dayOfWeek: number; startTime: string; endTime: string }[] {
+  fallbackLocationId?: string,
+): { dayOfWeek: number; startTime: string; endTime: string; locationId?: string }[] {
   return hours
     .map((h, index) => ({ ...h, dayOfWeek: index }))
     .filter((h) => h.on)
-    .map((h) => ({ dayOfWeek: h.dayOfWeek, startTime: h.start, endTime: h.end }));
+    .map((h) => {
+      const locationId = h.locationId ?? fallbackLocationId;
+      return {
+        dayOfWeek: h.dayOfWeek,
+        startTime: h.start,
+        endTime: h.end,
+        ...(locationId ? { locationId } : {}),
+      };
+    });
 }
 
 /** True when an on-day has an end at or before its start — the one client check. */
