@@ -46,6 +46,28 @@ export const listAdminTrainersQuerySchema = z.object({
   status: trainerStatusSchema.optional(),
   sort: trainerSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
+  /**
+   * Narrow the roster to the coaches who can work at one branch.
+   *
+   * **Derived, not stored.** Stage 6 of multi-branch deliberately gave `Trainer` no
+   * `locationId`: a trainer profile is one-to-one with a staff `GymMember` who
+   * already carries a base branch and a roster of assignments, and a third branch
+   * field on the profile would be a third answer to one question, on a row nobody
+   * updates when the roster changes. So this resolves through
+   * `staff.locationAssignments` — the `LocationStaff` join table — and costs two
+   * joins that a gym's tens of coaches can afford.
+   *
+   * Two consequences worth knowing before reading the numbers. It OVERLAPS rather
+   * than partitions: a coach who covers both sites is on both branches' rosters, so
+   * per-branch totals sum to more than the gym-wide one. And a profile whose staff
+   * record was removed (`Trainer.staffId` is `SetNull`, so teaching history
+   * survives the person leaving) reaches no branch at all, so a filtered roster can
+   * be SHORTER than the gym-wide one by more than the branch split explains.
+   *
+   * The `summary` card figures narrow with the roster, since they aggregate the
+   * same filtered set.
+   */
+  locationId: z.string().trim().min(1).optional(),
 });
 
 /** Validated `GET /admin/trainers` query — {@link listAdminTrainersQuerySchema}. */

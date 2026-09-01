@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { GymMemberStatus, Role } from '@fit/db';
 import { StaffService } from './staff.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -16,7 +20,13 @@ interface StaffRecord {
   joinedAt: Date;
   firstName: string | null;
   lastName: string | null;
-  assignedLocationIds: string[];
+  /**
+   * The branch assignments as `STAFF_SELECT` reads them since Stage 6 — the
+   * `LocationStaff` join, not the deprecated `assignedLocationIds` array. The wire
+   * shape the projection produces is unchanged; its SOURCE is not, and that is
+   * exactly what these tests pin.
+   */
+  locationAssignments: { locationId: string; location: { name: string } }[];
   user: { name: string | null; email: string; phone: string | null };
   /** The linked coach profile (staff ⇄ trainer link), or `null` when they have none. */
   trainerProfile: { id: string } | null;
@@ -30,7 +40,7 @@ const row = (over?: Partial<StaffRecord>): StaffRecord => ({
   joinedAt: new Date('2026-01-15T00:00:00.000Z'),
   firstName: null,
   lastName: null,
-  assignedLocationIds: [],
+  locationAssignments: [],
   user: { name: 'Nino Beridze', email: 'nino@example.com', phone: null },
   trainerProfile: null,
   ...over,
@@ -50,13 +60,21 @@ function setup(overrides?: {
   deleteManyCount?: number;
   /** The coach profile already linked to the member under test, if any. */
   trainerFindFirst?: { id: string } | null;
+  /** The ids of the gym's live branches, for the write paths' pre-flight check. */
+  locations?: string[];
 }) {
-  const gymMemberFindMany = vi.fn(() => Promise.resolve(overrides?.staffFindMany ?? []));
+  const gymMemberFindMany = vi.fn(
+    (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
+      Promise.resolve(overrides?.staffFindMany ?? []),
+  );
   const gymMemberFindFirst = vi.fn(() =>
     Promise.resolve(overrides?.staffFindFirst === undefined ? row() : overrides.staffFindFirst),
   );
   const gymMemberCount = vi.fn(() => Promise.resolve(overrides?.ownerCount ?? 1));
-  const gymMemberUpdate = vi.fn(() => Promise.resolve(row()));
+  const gymMemberUpdate = vi.fn(
+    (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
+      Promise.resolve(row()),
+  );
   const gymMemberDelete = vi.fn(() => Promise.resolve(row()));
 
   const inviteFindMany = vi.fn(() => Promise.resolve(overrides?.inviteFindMany ?? []));
@@ -74,11 +92,30 @@ function setup(overrides?: {
   const trainerUpdate = vi.fn(() => Promise.resolve({ id: 'tr-1' }));
   const trainerUpdateMany = vi.fn(() => Promise.resolve({ count: 1 }));
 
-  const client = {
+  // The gym's live branches, and the join table the assignments are written to.
+  const locationFindMany = vi.fn(() =>
+    Promise.resolve((overrides?.locations ?? []).map((id) => ({ id }))),
+  );
+  const locationStaffDeleteMany = vi.fn(() => Promise.resolve({ count: 0 }));
+  const locationStaffCreateMany = vi.fn((_args: { data?: Record<string, unknown>[] }) =>
+    Promise.resolve({ count: 0 }),
+  );
+  const userCreate = vi.fn(() => Promise.resolve({ id: 'u-new' }));
+  const gymMemberCreate = vi.fn(
+    (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
+      Promise.resolve({ id: 'gm-new' }),
+  );
+  const shiftSlotCreateMany = vi.fn((_args: { data?: Record<string, unknown>[] }) =>
+    Promise.resolve({ count: 0 }),
+  );
+  const shiftSlotDeleteMany = vi.fn(() => Promise.resolve({ count: 0 }));
+
+  const client: Record<string, unknown> = {
     gymMember: {
       findMany: gymMemberFindMany,
       findFirst: gymMemberFindFirst,
       count: gymMemberCount,
+      create: gymMemberCreate,
       update: gymMemberUpdate,
       delete: gymMemberDelete,
     },
@@ -88,14 +125,27 @@ function setup(overrides?: {
       create: inviteCreate,
     },
     gym: { findUnique: gymFindUnique },
-    user: { update: userUpdate },
+    user: {
+      update: userUpdate,
+      create: userCreate,
+      findUnique: vi.fn(() => Promise.resolve(null)),
+    },
     trainer: {
       findFirst: trainerFindFirst,
       create: trainerCreate,
       update: trainerUpdate,
       updateMany: trainerUpdateMany,
     },
-    location: { findMany: vi.fn(() => Promise.resolve([] as { id: string; name: string }[])) },
+    location: { findMany: locationFindMany },
+    locationStaff: {
+      deleteMany: locationStaffDeleteMany,
+      createMany: locationStaffCreateMany,
+    },
+    shiftSlot: { createMany: shiftSlotCreateMany, deleteMany: shiftSlotDeleteMany },
+    // The write paths run inside one transaction; the mock hands the callback the
+    // same client, so an assertion on `locationStaff.createMany` proves the
+    // assignment landed in the SAME transaction as the member write beside it.
+    $transaction: vi.fn((fn: (tx: unknown) => unknown) => Promise.resolve(fn(client))),
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -107,6 +157,13 @@ function setup(overrides?: {
 
   return {
     service: new StaffService(prisma, tenant, email, tokens),
+    locationFindMany,
+    gymMemberFindMany,
+    locationStaffDeleteMany,
+    locationStaffCreateMany,
+    gymMemberCreate,
+    shiftSlotCreateMany,
+    shiftSlotDeleteMany,
     gymMemberFindFirst,
     gymMemberCount,
     gymMemberUpdate,
@@ -171,6 +228,195 @@ describe('StaffService', () => {
       ]);
       expect(result.invites[0]?.expired).toBe(false);
       expect(result.invites[1]?.expired).toBe(true);
+    });
+
+    it('resolves branch ids AND names off the join table, in one round trip', async () => {
+      const { service, locationFindMany } = setup({
+        staffFindMany: [
+          row({
+            locationAssignments: [
+              { locationId: 'loc-1', location: { name: 'Vake' } },
+              { locationId: 'loc-2', location: { name: 'Saburtalo' } },
+            ],
+          }),
+        ],
+      });
+
+      const result = await service.listStaff();
+
+      expect(result.staff[0]?.assignedLocationIds).toEqual(['loc-1', 'loc-2']);
+      expect(result.staff[0]?.locations).toEqual(['Vake', 'Saburtalo']);
+      // The array forced a second `location.findMany` to turn ids into names, plus
+      // a `.filter(Boolean)` to drop ids naming branches that no longer existed.
+      // The relation returns both with the row and the FK cascade makes a dangling
+      // id impossible, so neither is needed — asserted so a re-added lookup shows
+      // up as a failing test rather than as an extra query nobody notices.
+      expect(locationFindMany).not.toHaveBeenCalled();
+    });
+
+    it('narrows by branch through the ROSTER, never through the base-branch column', async () => {
+      const { service, gymMemberFindMany } = setup({ staffFindMany: [] });
+
+      await service.listStaff({ locationId: 'loc-1' });
+
+      const where = gymMemberFindMany.mock.calls[0]?.[0]?.where ?? {};
+      // "Who can work here" — the availability half of the Stage 6 rule.
+      expect(where.locationAssignments).toEqual({ some: { locationId: 'loc-1' } });
+      // And emphatically NOT `GymMember.locationId`. On a staff row that column is
+      // the person's BASE branch: it partitions the payroll, so it is what a
+      // head-count reads. Filtering the roster on it would answer a different
+      // question with a number that looks the same.
+      expect(where).not.toHaveProperty('locationId');
+    });
+
+    it('leaves the pending-invite list unfiltered under a branch filter', async () => {
+      const { service } = setup({
+        staffFindMany: [],
+        inviteFindMany: [
+          {
+            id: 'inv-1',
+            email: 'a@example.com',
+            role: Role.MANAGER,
+            expiresAt: new Date(Date.now() + 1000),
+            createdAt: new Date(),
+          },
+        ],
+      });
+
+      // An invitation names an email and a role; the person has no membership yet,
+      // so there are no assignments to filter on. The roster narrows and this does
+      // not — the honest rendering of "nobody has said where they will work".
+      const result = await service.listStaff({ locationId: 'loc-1' });
+      expect(result.invites).toHaveLength(1);
+    });
+  });
+
+  describe('branch assignments and shift branches (the Stage 6 write paths)', () => {
+    const shift = { dayOfWeek: 1, startTime: '09:00', endTime: '17:00', locationId: 'loc-1' };
+    const createInput = {
+      firstName: 'Nino',
+      lastName: 'Beridze',
+      role: 'TRAINER' as const,
+      status: 'ACTIVE' as const,
+      assignedLocationIds: ['loc-1'],
+      workingHours: [shift],
+    };
+
+    it('writes a shift with locationId — NOT the free-text `location` Prisma now rejects', async () => {
+      const { service, shiftSlotCreateMany } = setup({ locations: ['loc-1'] });
+
+      await service.createStaff(createInput);
+
+      const data = shiftSlotCreateMany.mock.calls[0]?.[0]?.data ?? [];
+      expect(data).toEqual([
+        {
+          gymId: 'gym-1',
+          staffId: 'gm-new',
+          dayOfWeek: 1,
+          startTime: '09:00',
+          endTime: '17:00',
+          locationId: 'loc-1',
+        },
+      ]);
+      // The regression this pins is INVISIBLE to the compiler: a `location:` key
+      // inside a `createMany` array literal escapes excess-property checking
+      // entirely, so the old code type-checked cleanly and threw
+      // `Unknown argument \`location\`` at runtime on every staff create.
+      expect(data[0]).not.toHaveProperty('location');
+    });
+
+    it('writes the join table AND the deprecated shadow array, in one transaction', async () => {
+      const { service, locationStaffCreateMany, locationStaffDeleteMany, gymMemberCreate } = setup({
+        locations: ['loc-1'],
+      });
+
+      await service.createStaff(createInput);
+
+      // Authoritative.
+      expect(locationStaffDeleteMany).toHaveBeenCalledWith({ where: { staffId: 'gm-new' } });
+      expect(locationStaffCreateMany).toHaveBeenCalledWith({
+        data: [{ gymId: 'gym-1', staffId: 'gm-new', locationId: 'loc-1' }],
+      });
+      // The shadow, written in the same transaction. `assignedLocationIds` is
+      // deprecated and no read path touches it any more, but it is kept in step
+      // rather than left to rot: the column exists to keep the PREVIOUS API image
+      // working through a rolling deploy, and that image renders the roster's
+      // branch column off it. Stale here means a staff member edited during the
+      // deploy window silently loses their branches on the old screens.
+      expect(gymMemberCreate.mock.calls[0]?.[0]?.data?.assignedLocationIds).toEqual(['loc-1']);
+    });
+
+    it('collapses a duplicated branch id rather than violating the pair unique', async () => {
+      const { service, locationStaffCreateMany } = setup({ locations: ['loc-1'] });
+
+      await service.createStaff({ ...createInput, assignedLocationIds: ['loc-1', 'loc-1'] });
+
+      // A duplicate in the old `String[]` was silently legal and doubled the person
+      // in anything counted off it. The join table's `@@unique([staffId, locationId])`
+      // would reject it outright, so it is collapsed at the boundary.
+      expect(locationStaffCreateMany.mock.calls[0]?.[0]?.data).toHaveLength(1);
+    });
+
+    it("422s a branch id that is not one of this gym's, on either field", async () => {
+      const assignment = setup({ locations: ['loc-1'] });
+      await expect(
+        assignment.service.createStaff({ ...createInput, assignedLocationIds: ['loc-elsewhere'] }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      // Nothing was written: the check runs before the transaction opens.
+      expect(assignment.locationStaffCreateMany).not.toHaveBeenCalled();
+
+      const rota = setup({ locations: ['loc-1'] });
+      await expect(
+        rota.service.createStaff({
+          ...createInput,
+          workingHours: [{ ...shift, locationId: 'loc-elsewhere' }],
+        }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(rota.shiftSlotCreateMany).not.toHaveBeenCalled();
+    });
+
+    it('replaces both sources on an edit, and leaves them alone when the field is absent', async () => {
+      const edited = setup({ locations: ['loc-1', 'loc-2'] });
+      await edited.service.updateStaffProfile('gm-1', { assignedLocationIds: ['loc-2'] });
+
+      expect(edited.locationStaffDeleteMany).toHaveBeenCalledWith({ where: { staffId: 'gm-1' } });
+      expect(edited.locationStaffCreateMany).toHaveBeenCalledWith({
+        data: [{ gymId: 'gym-1', staffId: 'gm-1', locationId: 'loc-2' }],
+      });
+      expect(edited.gymMemberUpdate.mock.calls[0]?.[0]?.data?.assignedLocationIds).toEqual([
+        'loc-2',
+      ]);
+
+      // A partial update that does not mention branches must not clear them —
+      // set-based replacement applies to a SENT list, not to an absent one.
+      const renamed = setup({ locations: ['loc-1'] });
+      await renamed.service.updateStaffProfile('gm-1', { firstName: 'Nina' });
+      expect(renamed.locationStaffDeleteMany).not.toHaveBeenCalled();
+    });
+
+    it('clears every assignment when an explicitly empty list is sent', async () => {
+      const { service, locationStaffDeleteMany, locationStaffCreateMany } = setup({
+        locations: ['loc-1'],
+      });
+
+      await service.updateStaffProfile('gm-1', { assignedLocationIds: [] });
+
+      // "Works nowhere" is a real state, and it is not the same as "unchanged":
+      // such a person is on the gym-wide roster and under no branch filter.
+      expect(locationStaffDeleteMany).toHaveBeenCalledWith({ where: { staffId: 'gm-1' } });
+      expect(locationStaffCreateMany).not.toHaveBeenCalled();
+    });
+
+    it('writes locationId on the schedule half of an edit too', async () => {
+      const { service, shiftSlotCreateMany } = setup({ locations: ['loc-1'] });
+
+      await service.updateStaffProfile('gm-1', { workingHours: [shift] });
+
+      // The second of the two `createMany` sites the rename broke, and the second
+      // that only failed at runtime.
+      const data = shiftSlotCreateMany.mock.calls[0]?.[0]?.data ?? [];
+      expect(data[0]).toMatchObject({ staffId: 'gm-1', locationId: 'loc-1' });
+      expect(data[0]).not.toHaveProperty('location');
     });
   });
 

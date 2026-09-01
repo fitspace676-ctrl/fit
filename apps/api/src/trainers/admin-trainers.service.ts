@@ -30,6 +30,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
+import { staffAtLocation } from '../common/location-filter.util';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
 
 /** Milliseconds in a day — the window arithmetic for the show-up rate. */
@@ -350,7 +351,22 @@ export class AdminTrainersService {
    * name + headline.
    */
   private buildWhere(query: ListAdminTrainersQuery): Prisma.TrainerWhereInput {
-    const where: Prisma.TrainerWhereInput = {};
+    // "Coaches who can work at branch X", DERIVED through the person rather than
+    // stored on the profile. Stage 6 of multi-branch gave `Trainer` no
+    // `locationId` on purpose: a profile is one-to-one with a staff `GymMember`
+    // that already carries a base branch and a roster, and a third branch field
+    // here would be a third answer nobody updates when the roster changes — the
+    // `assignedLocationIds` mistake in a new place. Two joins, driven off
+    // `location_staff(gymId, locationId)` and probing `trainers` by the `staffId`
+    // unique; affordable on tens of coaches, and nothing loops it.
+    //
+    // Two things this does NOT do. It does not partition — a coach at both sites
+    // is on both rosters — so the summary counts below narrow with the roster and
+    // must not be added across branches. And it drops orphaned profiles
+    // (`staffId` null after the person left the directory) from every branch, so a
+    // filtered roster can be shorter than the gym-wide one by more than the split
+    // explains.
+    const where: Prisma.TrainerWhereInput = { ...staffAtLocation(query.locationId) };
 
     if (query.status) {
       where.status = query.status;

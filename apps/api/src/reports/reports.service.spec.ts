@@ -1065,15 +1065,49 @@ describe('ReportsService', () => {
       expect(result.rows.map((row) => row.location)).toEqual(['Vake', '']);
     });
 
-    it('leaves trainer performance gym-wide rather than mixing two scopes in a row', async () => {
+    // Inverted by Stage 6, which gave `PtSession` a `locationId`. This report was
+    // the catalogue's worked example of why a HALF-filtered report is worse than an
+    // honestly gym-wide one: `ClassInstance` could always be filtered and
+    // `PtSession` could not, and the ranking ADDS the two columns, so half a filter
+    // would have ordered the whole table from two populations. Both halves now take
+    // the same equality, so the row is one population again.
+    it('filters BOTH halves of trainer performance, or neither', async () => {
       const { service, classInstanceFindMany, ptSessionFindMany } = setup();
 
       await service.runReport('trainer-performance', { range: '30d', locationId: 'loc-1' });
 
-      // `ClassInstance` could be filtered and `PtSession` could not; filtering half
-      // would rank trainers on one branch's classes plus every branch's PT hours.
-      expect(whereOf(classInstanceFindMany)).not.toHaveProperty('locationId');
+      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
+      expect(whereOf(ptSessionFindMany).locationId).toBe('loc-1');
+    });
+
+    it('filters the PT-sessions report on the branch the hour was delivered at', async () => {
+      const { service, ptSessionFindMany } = setup();
+
+      await service.runReport('pt-sessions', { range: '30d', locationId: 'loc-1' });
+
+      expect(whereOf(ptSessionFindMany).locationId).toBe('loc-1');
+    });
+
+    it('narrows neither coaching report when no branch is selected', async () => {
+      const { service, ptSessionFindMany } = setup();
+
+      await service.runReport('pt-sessions', { range: '30d' });
+
       expect(whereOf(ptSessionFindMany)).not.toHaveProperty('locationId');
+    });
+
+    it('does not narrow the trainer AXIS of the performance report', async () => {
+      const { service, classInstanceFindMany, ptSessionFindMany } = setup();
+
+      await service.runReport('trainer-performance', { range: '30d', locationId: 'loc-1' });
+
+      // The report counts what was DELIVERED at a branch, so a coach based
+      // elsewhere who covered a session here belongs in this branch's table.
+      // Filtering the trainers by their roster as well would drop their work from
+      // the branch that actually received it.
+      for (const fn of [classInstanceFindMany, ptSessionFindMany]) {
+        expect(whereOf(fn)).not.toHaveProperty('trainer');
+      }
     });
 
     it('leaves discounts gym-wide — its ledger is half anonymous by design', async () => {

@@ -175,6 +175,16 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'ShiftSlot',
   'Service',
   'ServiceSession',
+  // Which branches a staff member works at — the join table Stage 6 of
+  // multi-branch introduced to replace `GymMember.assignedLocationIds`. It
+  // denormalises `gymId` from both of its parents precisely so it can be listed
+  // here: the roster filter reads it as a nested `some` under an already-scoped
+  // `GymMember`, but the staff service also writes it DIRECTLY by `staffId`, and
+  // an unlisted model carrying `gymId` is the exact leak shape this list had to
+  // be repaired for across 13 models. Listing it means the assignment writer's
+  // `deleteMany` cannot reach another tenant's rows even if a staff id ever
+  // collided.
+  'LocationStaff',
   // No reader anywhere yet — listed so the first one is born isolated rather
   // than joining the queue of models this audit had to catch up on.
   'DashboardWidget',

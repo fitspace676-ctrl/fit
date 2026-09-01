@@ -35,9 +35,24 @@ const ACTION_CLASS =
 export function InvoicesTable({
   invoices,
   canManage,
+  showBranch,
 }: {
   invoices: AdminInvoiceRow[];
   canManage: boolean;
+  /**
+   * Render the BRANCH column. True only in "All locations" mode, resolved by the
+   * page from the console's active branch.
+   *
+   * This roster EXPANDS — one row per document, and in all-branches mode two
+   * adjacent rows can belong to different branches with nothing else on the row
+   * saying which — so the column is the only place the distinction can appear. The
+   * same case `pos/orders` and the members roster make, and it is hidden under the
+   * same condition they hide theirs: once the chrome names a branch, every row
+   * repeats that one constant and the column is width taken from the money figures
+   * the table exists to show. (Contrast `InventorySummary`, which aggregates and so
+   * deliberately carries no branch at all.)
+   */
+  showBranch: boolean;
 }) {
   const { toast } = useToast();
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -82,6 +97,7 @@ export function InvoicesTable({
             <tr className="border-b border-ink-200 dark:border-white/10">
               <th className={TH_CLASS}>Invoice #</th>
               <th className={TH_CLASS}>Member</th>
+              {showBranch ? <th className={TH_CLASS}>Branch</th> : null}
               <th className={TH_CLASS}>Type</th>
               <th className={TH_CLASS}>Issued</th>
               <th className={TH_CLASS}>Due</th>
@@ -108,6 +124,18 @@ export function InvoicesTable({
                       </div>
                     ) : null}
                   </td>
+                  {/* A branchless invoice gets the same dash every other optional
+                      column uses. It means "not attributable" — the member was
+                      purged, or their branch was retired — and it is only ever
+                      reachable here, in all-branches mode, because the API matches
+                      the branch by equality with no NULL arm. A blank cell would
+                      read as a row that failed to load; naming a branch would put
+                      the debt on one that never billed it. */}
+                  {showBranch ? (
+                    <td className={`${TD_CLASS} whitespace-nowrap text-ink-500 dark:text-ink-400`}>
+                      {invoice.locationName ?? '-'}
+                    </td>
+                  ) : null}
                   <td className={TD_CLASS}>{invoiceTypeLabel(invoice.type)}</td>
                   <td className={`${TD_CLASS} whitespace-nowrap`}>
                     {formatInvoiceDate(invoice.issuedAt)}

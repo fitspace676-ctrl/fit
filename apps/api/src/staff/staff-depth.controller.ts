@@ -23,6 +23,7 @@ import {
   listTimeOffQuerySchema,
   updateStaffScheduleSchema,
   updateStaffTaskSchema,
+  workingNowQuerySchema,
   type ListStaffNotesResponse,
   type ListStaffRolesResponse,
   type ListStaffTasksResponse,
@@ -182,15 +183,21 @@ export class StaffDepthController {
   // -- Working now ----------------------------------------------------------
 
   /**
-   * `GET /staff/working-now` — the gym's staff on shift at this moment, behind
-   * the "Who's Working Now" card. A static segment, so it never collides with
-   * the `:staffId/schedule` route above.
+   * `GET /staff/working-now` — the staff on shift at this moment, behind the
+   * "Who's Working Now" card. A static segment, so it never collides with the
+   * `:staffId/schedule` route above.
+   *
+   * Takes an optional `?locationId=` since Stage 6 of multi-branch. Before it the
+   * route took no query at all — not by choice but because a shift's only branch
+   * was free text — so the card answered a gym-wide question that nobody standing
+   * at a door was asking. Omitted, the answer is every branch's shifts, exactly as
+   * before.
    */
   @Get('working-now')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.StaffManage)
-  async getWorkingNow(): Promise<WorkingNowResponse> {
-    return this.staff.getWorkingNow();
+  async getWorkingNow(@Query() query: unknown): Promise<WorkingNowResponse> {
+    return this.staff.getWorkingNow(parse(workingNowQuerySchema, query));
   }
 }
 

@@ -74,7 +74,7 @@ const SCOPE_NOTE: Record<DashboardSegment, string | null> = {
   sales: null,
   members: null,
   revenue: null,
-  classes: messages.admin.dashboard.branchScope.classes,
+  classes: null,
   staff: messages.admin.dashboard.branchScope.staff,
 };
 
@@ -230,11 +230,13 @@ describe('SegmentedDashboard branch-scope note', () => {
   // The note has to be met BEFORE the numbers it qualifies, not after scrolling
   // past them — which is why it lives in the shell rather than inside each view.
   it('places the note ahead of the tab content', () => {
-    navigationMock.setSearch('segment=classes&locationId=loc-harbour');
-    renderShell('classes', 'loc-harbour');
+    // Staff is the last tab carrying a note — Stage 6 retired Classes' by giving
+    // `PtSession` a branch of its own.
+    navigationMock.setSearch('segment=staff&locationId=loc-harbour');
+    renderShell('staff', 'loc-harbour');
     const panel = screen.getByRole('tabpanel');
     const note = screen.getByRole('note');
-    const view = screen.getByText('Classes view');
+    const view = screen.getByText('Staff view');
     expect(panel).toContainElement(note);
     expect(note.compareDocumentPosition(view) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

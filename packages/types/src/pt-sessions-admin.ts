@@ -30,6 +30,21 @@ export const listAdminPtSessionsQuerySchema = z
     from: z.string().datetime(),
     to: z.string().datetime(),
     trainerId: z.string().min(1).optional(),
+    /**
+     * Narrow the calendar to the sessions running at one branch — plain equality on
+     * `PtSession.locationId`, the column Stage 6 added.
+     *
+     * **Not the coach's roster.** A session is one hour at one door, so it carries
+     * its own branch; reaching it through the trainer's assignments would leave
+     * "where is this" ambiguous for exactly the coaches who cover two sites, which
+     * are the only ones worth asking about. It is not the coach's BASE branch
+     * either: someone based at the flagship covering a Tuesday at the satellite
+     * delivered that hour at the satellite.
+     *
+     * A session with no branch is absent from a filtered calendar and present in the
+     * unfiltered one — nothing knows where it is, and no branch may adopt it.
+     */
+    locationId: z.string().min(1).optional(),
   })
   .refine((q) => new Date(q.from).getTime() <= new Date(q.to).getTime(), {
     message: 'from must be on or before to',
@@ -53,6 +68,24 @@ export type ListAdminPtSessionsQuery = z.infer<typeof listAdminPtSessionsQuerySc
 export const createPtSessionSchema = z.object({
   trainerId: z.string().min(1, 'Pick a trainer'),
   classTypeId: z.string().min(1, 'Pick a workout type'),
+  /**
+   * The branch this session runs at. Optional, and resolved server-side in one of
+   * exactly three ways — never by guessing:
+   *
+   *  1. Sent — that branch, after checking it belongs to this gym.
+   *  2. Omitted, and the coach is rostered at exactly ONE branch — that branch.
+   *     There is only one possible answer, so taking it invents nothing: the
+   *     ambiguity Stage 6 refused to resolve exists only for a coach who covers
+   *     two sites.
+   *  3. Omitted, and the coach is rostered nowhere or at several — `null`. The
+   *     session is unattributed and shows only on the unfiltered calendar.
+   *
+   * The gym's DEFAULT branch is never used, and neither is the coach's base
+   * branch. A PT session is a plan about a room, and defaulting one puts an hour
+   * of coaching at a door it was never booked for — the same reason a shift is
+   * left unattributed rather than defaulted.
+   */
+  locationId: z.string().min(1).optional(),
   startsAt: z.string().datetime({ message: 'A valid start time is required' }),
   durationMinutes: z.coerce
     .number()
@@ -84,6 +117,13 @@ export interface AdminPtSession {
   classTypeId: string | null;
   classTypeName: string | null;
   classTypeColor: string | null;
+  /**
+   * The branch this session runs at, and its name for the block's badge — both
+   * `null` for an unattributed session, and for one whose branch was later closed
+   * (`SetNull`, because the coaching still happened).
+   */
+  locationId: string | null;
+  locationName: string | null;
   startsAt: string;
   endsAt: string;
   durationMinutes: number;

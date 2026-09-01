@@ -20,6 +20,7 @@ import type {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
+import { staffAtLocation } from '../common/location-filter.util';
 
 /** The staff columns a service row and the picker both need. */
 const STAFF_SELECT = {
@@ -109,10 +110,24 @@ export class AdminServicesService {
   ) {}
 
   async listServices(query: ListAdminServicesQuery): Promise<ListAdminServicesResponse> {
+    // "Services bookable at branch X", DERIVED from where the service's staff
+    // member is rostered. Stage 6 gave `Service` no `locationId` because of SHAPE
+    // rather than duplication: a coach who works at both sites offers the service
+    // at both, so a single FK would make one branch unable to sell a thing it
+    // demonstrably sells, and a second join table would be a copy of
+    // `LocationStaff` somebody has to remember to update twice. The derivation
+    // costs one index this table already had — `services(gymId, staffId)`, probed
+    // after `location_staff(gymId, locationId)` finds the branch's people.
+    //
+    // Availability, not exclusivity: "only sold at the flagship" is a restriction
+    // an operator asserts and is Stage 7's field, where `null` will mean
+    // everywhere. And it overlaps rather than partitions — a two-branch coach's
+    // services are in both catalogues.
     const where: Prisma.ServiceWhereInput = {
       status: query.status,
       ...(query.type ? { type: query.type } : {}),
       ...(query.staffId ? { staffId: query.staffId } : {}),
+      ...staffAtLocation(query.locationId),
       ...(query.search
         ? {
             OR: [
@@ -139,12 +154,17 @@ export class AdminServicesService {
         take: query.limit,
       }),
       this.prisma.client.service.count({ where }),
+      // The summary tiles narrow with the roster, not with the page's own type /
+      // search filters — the shape they always had, now with a branch. Leaving
+      // them gym-wide would put "3 personal training" over a list showing one.
       this.prisma.client.service.groupBy({
         by: ['type'],
-        where: { status: ServiceStatus.ACTIVE },
+        where: { status: ServiceStatus.ACTIVE, ...staffAtLocation(query.locationId) },
         _count: { _all: true },
       }),
-      this.prisma.client.service.count({ where: { status: ServiceStatus.ARCHIVED } }),
+      this.prisma.client.service.count({
+        where: { status: ServiceStatus.ARCHIVED, ...staffAtLocation(query.locationId) },
+      }),
     ]);
 
     const countOf = (type: ServiceType) =>

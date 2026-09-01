@@ -108,8 +108,15 @@ interface ComputedReport {
  *     FK with a write path behind it. It is emphatically NOT the member hop above:
  *     a visit is an event at a place, so it is attributed like an order, not like
  *     a membership.
- *   • PT sessions, trainer performance and discounts — GYM-WIDE, each for a reason
- *     its own docblock states. They ignore the parameter rather than guess.
+ *   • Coaching-backed (pt-sessions, trainer-performance) — filtered by the branch
+ *     the hour was DELIVERED at, via `PtSession.locationId` ({@link atLocation}),
+ *     which Stage 6 added. Both were gym-wide before it, and trainer-performance
+ *     is the catalogue's worked example of why: half its row came from
+ *     `ClassInstance`, which could always be filtered, and half from `PtSession`,
+ *     which could not — and the ranking adds the two columns, so half a filter
+ *     would have ordered the table from two populations.
+ *   • Discounts and promotions — the last one still GYM-WIDE, for the reason its
+ *     own docblock states. It ignores the parameter rather than guess.
  *
  * The three attributions are chosen per report, never mixed inside one figure: a
  * till's takings belong to the till, an arrival belongs to the door it came
@@ -207,10 +214,12 @@ export class ReportsService {
     // The branch every figure is scoped to, or `undefined` for the gym-wide
     // roll-up across all of them. Only the reports whose rows have an honest path
     // to a `Location` take it. Since Stage 2 the member-backed ones do — through
-    // `GymMember.locationId` — and since Stage 3 the check-in log does too, through
-    // `CheckIn.locationId`. That leaves PT sessions, trainer performance and the
-    // promotions report as the three that stay gym-wide however this is set. Each
-    // says why in its own note.
+    // `GymMember.locationId` — since Stage 3 the check-in log does too, through
+    // `CheckIn.locationId`, and since Stage 6 the two coaching reports do, through
+    // `PtSession.locationId`. That leaves the promotions report as the ONE that
+    // stays gym-wide however this is set: `PromoRedemption.memberId` is null by
+    // design for an anonymous walk-in, so a member hop would drop exactly the
+    // promotions the report exists to price. It says so in its own note.
     const { locationId } = query;
 
     switch (key) {
@@ -342,7 +351,7 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.ptSessions(win),
+          rows: await this.ptSessions(win, locationId),
         };
 
       /* ---- Trainers & staff ---------------------------------------------- */
@@ -351,7 +360,7 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.trainerPerformance(win),
+          rows: await this.trainerPerformance(win, locationId),
         };
       /* ---- Members ------------------------------------------------------- */
       case 'membership-movement':
@@ -1407,13 +1416,24 @@ export class ReportsService {
    * catalogue refuses — the report says so in its own description rather than
    * shipping a column of guesses.
    *
-   * GYM-WIDE: this report ignores the branch filter. {@link PtSession} carries no
-   * `locationId` and no relation that reaches one — a PT hour is booked against a
-   * trainer and a time, never a branch (roadmap Stage 6).
+   * BRANCH-FILTERED since Stage 6, on `PtSession.locationId` — the branch the hour
+   * was delivered at. It was gym-wide for five stages because the model reached a
+   * branch through nothing at all, and the roadmap's exemption register listed it
+   * on exactly that ground; the entry is retired rather than reworded.
+   *
+   * The column and not the trainer's roster: a coach based at the flagship who
+   * covers a Tuesday at the satellite delivered that hour at the satellite, and
+   * attributing it to where they are on the books is how a utilisation figure
+   * stops reconciling with occupancy. Sessions nobody placed stay in the gym-wide
+   * roll-up and appear under no branch — the write path leaves a plan unattributed
+   * rather than defaulting it.
    */
-  private async ptSessions(win: ReportWindow): Promise<ReportRow[]> {
+  private async ptSessions(
+    win: ReportWindow,
+    locationId: string | undefined,
+  ): Promise<ReportRow[]> {
     const sessions = await this.prisma.client.ptSession.findMany({
-      where: { startsAt: { gte: win.start, lt: win.end } },
+      where: { ...atLocation(locationId), startsAt: { gte: win.start, lt: win.end } },
       select: { status: true, trainer: { select: { id: true, name: true } } },
     });
 
@@ -1930,18 +1950,28 @@ export class ReportsService {
    * the Staff segment's other three reports, which cannot be built at all until
    * that changes.
    *
-   * GYM-WIDE: this report ignores the branch filter, even though half of it could
-   * take one. {@link ClassInstance} carries a `locationId`; {@link PtSession} does
-   * not (roadmap Stage 6). Filtering only the half that can be filtered would put
-   * one branch's classes beside every branch's PT hours in a single row — and the
-   * ranking adds the two columns together, so the order of the whole table would
-   * be computed from two different populations. A report whose row mixes scopes is
-   * worse than one that is honestly gym-wide, so both halves stay whole.
+   * BRANCH-FILTERED since Stage 6, and it is the clearest case in the catalogue of
+   * why a half-filtered report was refused. {@link ClassInstance} always carried a
+   * `locationId` and {@link PtSession} carried nothing, so filtering the half that
+   * could be filtered would have put one branch's classes beside every branch's PT
+   * hours in one row — and the ranking ADDS the two columns, so the order of the
+   * whole table would have been computed from two populations. Both halves now take
+   * the same {@link atLocation} equality on their own column, so the row is one
+   * population again and the exemption entry is retired.
+   *
+   * The `trainer` axis itself is deliberately NOT narrowed by the roster: this
+   * report counts what was delivered at a branch, so a coach based elsewhere who
+   * covered a session here belongs in the branch's table. Filtering the trainers
+   * as well would drop their work from the branch that received it.
    */
-  private async trainerPerformance(win: ReportWindow): Promise<ReportRow[]> {
+  private async trainerPerformance(
+    win: ReportWindow,
+    locationId: string | undefined,
+  ): Promise<ReportRow[]> {
     const [instances, ptSessions] = await Promise.all([
       this.prisma.client.classInstance.findMany({
         where: {
+          ...atLocation(locationId),
           startsAt: { gte: win.start, lt: win.end },
           status: { not: InstanceStatus.CANCELED },
         },
@@ -1961,6 +1991,7 @@ export class ReportsService {
       }),
       this.prisma.client.ptSession.findMany({
         where: {
+          ...atLocation(locationId),
           startsAt: { gte: win.start, lt: win.end },
           status: { not: InstanceStatus.CANCELED },
         },

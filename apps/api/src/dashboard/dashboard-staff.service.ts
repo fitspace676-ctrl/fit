@@ -10,6 +10,7 @@ import {
   type TrainerDelivery,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { assignedAtLocation, atLocation, staffAtLocation } from '../common/location-filter.util';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { addZonedDays, zonedDayStart, zonedParts } from '../reports/zoned-time.util';
 import {
@@ -54,44 +55,58 @@ interface TrainerAgg {
  * Scoped by {@link TenantPrismaService}'s extension, so no query passes or trusts
  * a `gymId`.
  *
- * ## `locationId` is accepted and still changes nothing — including after Stage 2
+ * ## `locationId` narrows five of the six reads — Stage 6, and what it left behind
  *
- * The query schema carries `locationId` so the console can send it uniformly and
- * the contract does not change under Stage 6. Of the six reads below, exactly one
- * — `ClassInstance` — can answer "which branch". Every other input is branchless:
- * `PtSession` and `Trainer` have no location column, and `ShiftSlot.location` is
- * free text rather than an FK.
+ * The parameter was accepted and inert for two stages, because the tab is built
+ * out of exactly the models that had no branch. Stage 6 gave them one, and the
+ * five reads below each take the filter that matches what they are ABOUT:
  *
- * **Stage 2 does NOT unlock this tab, and the tempting read is the wrong one.**
- * `GymMember.locationId` now exists, so `TimeOffRequest` and the staff head-count
- * below could technically be narrowed by it. They must not be: that column is the
- * member's HOME BRANCH — where somebody trains — and for a staff row it is a
- * backfill artefact, set to each gym's default branch for every employee at once.
- * Filtering on it would report the whole payroll at the default branch and zero
- * staff everywhere else, which is a fabricated zero wearing a filter's clothes.
- * Where a staff member actually works is `GymMember.assignedLocationIds`, a loose
- * `String[]` with no FK integrity that Stage 6 replaces with a real
- * `LocationStaff` join table; that is the column this tab is waiting on.
+ *   • `ClassInstance` and `PtSession` — events at a place, so plain equality on
+ *     their own `locationId` ({@link atLocation}). `PtSession` gained that column
+ *     in Stage 6; it is the reason `sessionsDelivered` is now a single population
+ *     rather than one branch's classes plus every branch's PT.
+ *   • `ShiftSlot` — likewise. Its branch used to be free text nobody could join
+ *     on, which is why "who is working here" was unanswerable rather than slow.
+ *   • `Trainer` and `TimeOffRequest` — questions of AVAILABILITY ("which coaches
+ *     can this branch call on", "whose absence costs it cover"), so they hop
+ *     through the staff member's roster ({@link staffAtLocation}) rather than
+ *     through a column. Neither model has one, deliberately: a coach's branches
+ *     are a capability, and a capability is many-valued.
  *
- * Filtering the one read that could be filtered would not produce a per-branch tab
- * either; it would produce figures that are neither. `kpis.sessionsDelivered`
- * would become one branch's classes plus every branch's PT.
- * `kpis.utilizationRate` would divide one branch's delivered minutes by every
- * trainer's gym-wide availability — a rate that is simply wrong, not merely
- * partial. `trainers[]` would list gym-wide trainers with branch-truncated hours.
- * None of those is a number an owner can act on, and each would LOOK filtered.
+ * **The tab is therefore per-branch and does NOT partition, which is the one
+ * thing to know before adding a figure to it.** Every roster-derived count
+ * overlaps: a coach who covers both sites is on both branches' trainer lists and
+ * in both branches' leave queues, so summing this tab across branches exceeds the
+ * gym-wide answer by exactly the number of people who work at two sites. That is
+ * correct for the questions it asks and would be a bug for a head-count. A
+ * head-count of the payroll reads `GymMember.locationId`, the base branch — see
+ * `gaps.staffWithoutShifts` below, which is the one figure where the choice bites.
  *
- * So the tab stays whole-gym under any branch selection. Nothing here is nulled to
- * signal it — `utilizationRate`'s `null` already means "no availability to divide
- * by", and overloading it would trade one wrong reading for another. The response
- * contract has no field to carry the signal, so the admin console captions the tab
- * until Stage 6 gives trainers, PT sessions and shifts a real branch. The caption
- * this docblock was written against, which the console mirrors verbatim:
+ * ## `utilizationRate` is the one thing Stage 6 could not fix
  *
- *     Not split by branch — trainers, PT sessions and shifts have no branch yet
+ * It divides delivered minutes by bookable minutes, and the denominator is
+ * `Trainer.availability` — a weekly JSON document with **no branch dimension at
+ * all**. Under a branch filter the numerator narrows and the denominator cannot,
+ * so the rate would divide one branch's delivered minutes by every branch's
+ * availability. That is not a smaller rate, it is a wrong one, and it is the exact
+ * objection the roadmap's exemption register raised against filtering this tab at
+ * all — the half of it a column could not answer.
  *
- * Unchanged by Stage 2, which is the point: a member's home branch is not a
- * trainer's work assignment.
+ * So under a branch filter both the KPI and every `trainers[].utilizationRate` are
+ * **`null`**, and nothing else changes. Returning the gym-wide rate beside
+ * branch-filtered hours was rejected outright: it would put two populations in one
+ * row and look filtered. `null` is a reuse of the "no availability to divide by"
+ * signal and the file's own rule says not to overload one — the difference here is
+ * that the console captions the tab whenever a branch is selected, so the reader is
+ * told which `null` they are looking at rather than left to guess. `gaps
+ * .trainersWithoutAvailability` still counts the genuine article, so the
+ * unconfigured trainers stay visible either way.
+ *
+ * The caption this docblock is written against, which the console mirrors verbatim
+ * and which replaces the whole-tab one Stages 1–5 carried:
+ *
+ *     Utilization is not split by branch — a trainer's availability covers their
+ *     whole week, at every branch
  */
 @Injectable()
 export class DashboardStaffService {
@@ -109,39 +124,76 @@ export class DashboardStaffService {
     const zone = locale.timezone;
     const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
 
+    // The branch every read below is scoped to, or `undefined` for the whole gym.
+    const atBranch = atLocation(query.locationId);
+
     const [instances, ptSessions, trainers, shiftSlots, timeOff, staffCount] = await Promise.all([
       this.prisma.client.classInstance.findMany({
         where: {
+          ...atBranch,
           startsAt: { gte: win.start, lt: win.end },
           status: { not: InstanceStatus.CANCELED },
         },
         select: { trainerId: true, startsAt: true, endsAt: true },
       }),
+      // Stage 6's column. Before it this read was gym-wide while the class read
+      // beside it could have been filtered, which is why the whole tab was held
+      // whole: `sessionsDelivered` adds the two, and half a filter would have
+      // summed one branch's classes with every branch's PT.
       this.prisma.client.ptSession.findMany({
         where: {
+          ...atBranch,
           startsAt: { gte: win.start, lt: win.end },
           status: { not: InstanceStatus.CANCELED },
         },
         select: { trainerId: true, startsAt: true, endsAt: true },
       }),
+      // AVAILABILITY, so the roster hop rather than a column: "which coaches can
+      // this branch call on". Overlapping — a two-branch coach is on both lists.
       this.prisma.client.trainer.findMany({
-        where: { status: TrainerStatus.ACTIVE },
+        where: { status: TrainerStatus.ACTIVE, ...staffAtLocation(query.locationId) },
         select: { id: true, name: true, availability: true },
       }),
-      // NOT window-scoped: a recurring weekly rota carries no dates.
+      // NOT window-scoped: a recurring weekly rota carries no dates. It IS branch
+      // -scoped now — a shift staffs one door, and this is the read that makes the
+      // rota card mean "the cover at this branch" instead of "somebody's cover
+      // somewhere". A shift nobody placed (`locationId` null) is in the gym-wide
+      // answer and in no branch's; it is not folded into one.
       this.prisma.client.shiftSlot.findMany({
+        where: atBranch,
         select: { staffId: true, dayOfWeek: true, startTime: true, endTime: true },
       }),
+      // Also availability: a week off is not an event at a place, it is the
+      // absence of one, so it hops through the roster like `Trainer` does.
       this.prisma.client.timeOffRequest.findMany({
         where: {
           status: TimeOffStatus.approved,
           startDate: { lt: win.end },
           endDate: { gte: win.start },
+          ...staffAtLocation(query.locationId),
         },
         select: { startDate: true, endDate: true },
       }),
+      // The denominator of `gaps.staffWithoutShifts`, and the one figure on this
+      // tab where head-count and availability genuinely compete.
+      //
+      // It reads the ROSTER, not `GymMember.locationId`. The gap asks "can this
+      // branch be staffed" — how many of the people it can call on have no shift
+      // here — and both of its terms have to come from the same population or the
+      // subtraction is meaningless: base-branch head-count minus shifts-at-this-
+      // branch would count a coach based at the flagship who works Tuesdays at the
+      // satellite as a gap at the flagship and a surplus at the satellite, and the
+      // `Math.max(0, …)` below would quietly swallow the negative half.
+      //
+      // The consequence is stated rather than hidden: this is NOT a per-branch
+      // staff head-count and does not sum to the payroll. A tab that needs one
+      // reads the base branch — and none here does.
       this.prisma.client.gymMember.count({
-        where: { role: { not: Role.MEMBER }, deletedAt: null },
+        where: {
+          role: { not: Role.MEMBER },
+          deletedAt: null,
+          ...assignedAtLocation(query.locationId),
+        },
       }),
     ]);
 
@@ -185,6 +237,14 @@ export class DashboardStaffService {
     let ratedAvailable = 0;
     let trainersWithoutAvailability = 0;
 
+    // Under a branch filter the numerator is one branch's minutes and the
+    // denominator is every branch's availability, because `Trainer.availability`
+    // is a weekly JSON with no branch dimension. Suppressed rather than shipped
+    // wrong — see the note at the top of this file. `trainersWithoutAvailability`
+    // below is computed from the same loop and is NOT suppressed: it counts the
+    // trainers whose week is genuinely unset, which is true at any branch.
+    const branchFiltered = query.locationId !== undefined;
+
     const rows: TrainerDelivery[] = trainers.map((row) => {
       const agg = perTrainer.get(row.id) ?? { classes: 0, pt: 0, minutes: 0 };
       const available = availableMinutes(row.availability, counts);
@@ -200,7 +260,7 @@ export class DashboardStaffService {
         pt: agg.pt,
         sessions: agg.classes + agg.pt,
         hours: toHours(agg.minutes),
-        utilizationRate: available === null ? null : rate(agg.minutes, available),
+        utilizationRate: branchFiltered || available === null ? null : rate(agg.minutes, available),
       };
     });
 
@@ -246,8 +306,10 @@ export class DashboardStaffService {
           .length,
         sessionsDelivered: instances.length - classesWithoutTrainer + ptSessions.length,
         // Weighted by hours, not averaged across rates: one trainer with two
-        // available hours must not swing this like one with forty.
-        utilizationRate: ratedAvailable === 0 ? null : rate(ratedDelivered, ratedAvailable),
+        // available hours must not swing this like one with forty. Null under a
+        // branch filter for the reason above — the denominator cannot narrow.
+        utilizationRate:
+          branchFiltered || ratedAvailable === 0 ? null : rate(ratedDelivered, ratedAvailable),
         scheduledHoursPerWeek: toHours(scheduledMinutes),
       },
       sessionsOverTime: [...classBuckets.entries()].map(([label, classes]) => ({

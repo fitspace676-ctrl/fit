@@ -77,6 +77,23 @@ export type UpdateStaffRoleInput = z.infer<typeof updateStaffRoleSchema>;
 export const listStaffQuerySchema = z.object({
   role: staffRoleSchema.optional(),
   status: staffStatusSchema.optional(),
+  /**
+   * Narrow the roster to the people ROSTERED at one branch — Stage 6's
+   * `LocationStaff` join table, the work-assignment set the console edits as
+   * {@link StaffMember.assignedLocationIds}.
+   *
+   * Not `GymMember.locationId`. That column is on a staff row too, where it means
+   * the person's BASE branch, and reading it here would answer a different
+   * question: it partitions the payroll, so it is what a head-count uses, while
+   * this list answers "who can work here". A coach who covers both sites appears
+   * under both branches, and per-branch roster lengths therefore sum to more than
+   * the gym-wide roster — which is correct for a capability and would be a bug for
+   * a total.
+   *
+   * A staff member with no assignments at all reaches no branch and is visible only
+   * gym-wide. Omit for every branch, which is what "All locations" sends.
+   */
+  locationId: z.string().trim().min(1).optional(),
 });
 
 /** Validated `GET /staff` query — {@link listStaffQuerySchema}. */
@@ -105,9 +122,27 @@ export interface StaffMember {
   phone: string | null;
   role: StaffRole;
   status: StaffStatus;
-  /** Ids of the gym locations this member is assigned to (the edit form's selection). */
+  /**
+   * Ids of the gym branches this member is rostered to work at (the edit form's
+   * selection).
+   *
+   * The name is unchanged and the SOURCE is not: since Stage 6 these are read from
+   * the `LocationStaff` join table, which has real foreign keys, rather than from
+   * the `GymMember.assignedLocationIds` array, which had none and could hold the id
+   * of a deleted branch — or of another gym's — forever. The wire shape is
+   * deliberately identical so the console did not have to change with the schema.
+   *
+   * Many-valued, and a capability rather than a location: it says where this person
+   * CAN be rostered, not where they are today. Where one shift is worked is on the
+   * shift ({@link ShiftSlotRow.locationId}).
+   */
   assignedLocationIds: string[];
-  /** Names of the gym locations this member is assigned to (may be empty). */
+  /**
+   * Names of those branches, resolved through the join table's relation (may be
+   * empty). Every entry corresponds to an id in {@link assignedLocationIds}: a
+   * dangling id can no longer occur, because the FK cascades the row away with the
+   * branch.
+   */
   locations: string[];
   joinedAt: string;
   /**

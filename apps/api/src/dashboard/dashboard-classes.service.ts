@@ -58,19 +58,23 @@ interface TypeAgg {
  * Scoped by {@link TenantPrismaService}'s extension, so no query passes or trusts
  * a `gymId`.
  *
- * **`locationId` narrows the class half of the tab exactly, and leaves the PT
- * series alone.** `ClassInstance` owns a `locationId` (backfilled in Stage 0,
- * indexed as `(gymId, locationId, startsAt)`) and a `Booking` is reached through
- * its occurrence, so every KPI, trend, ranking and heatmap cell that counts
- * classes or seats is genuinely that branch's.
+ * **`locationId` narrows every figure on this tab, including the PT series.**
+ * `ClassInstance` owns a `locationId` (backfilled in Stage 0, indexed as
+ * `(gymId, locationId, startsAt)`) and a `Booking` is reached through its
+ * occurrence, so every KPI, trend, ranking and heatmap cell that counts classes or
+ * seats is genuinely that branch's.
  *
- * `ptSessionsOverTime` is the exception: `PtSession` has no location column, so it
- * stays gym-wide until Stage 6. It is a standalone series — nothing on this tab
- * sums PT together with a class figure — so no single number here ends up half
- * branch and half gym. The caption this docblock was written against, which the
- * console mirrors verbatim:
+ * `ptSessionsOverTime` was the one exception for five stages, gym-wide because
+ * `PtSession` reached a branch through nothing at all — not a column, not a
+ * relation. **Stage 6 gave it `locationId` and the exception is gone**, so the
+ * console's "PT sessions are gym-wide." caption is retired rather than reworded:
+ * it became false, not merely stale.
  *
- *     PT sessions are gym-wide.
+ * A session nobody placed (`locationId` null — the write path leaves it that way
+ * rather than defaulting a plan onto the gym's main branch) is in the gym-wide
+ * series and in no branch's. The series can therefore sum to less across branches
+ * than it does unfiltered, which is the same residual shape the occupancy card
+ * documents for a branchless arrival.
  */
 @Injectable()
 export class DashboardClassesService {
@@ -118,11 +122,11 @@ export class DashboardClassesService {
           },
         },
       }),
-      // NOT branch-filtered: `PtSession` has no location column, so
-      // `ptSessionsOverTime` is every branch's PT even when a branch is selected.
-      // Stage 6 adds `PtSession.locationId`.
+      // Branch-filtered since Stage 6, on `PtSession.locationId` — the branch the
+      // hour was delivered at, not the coach's base branch or their roster.
       this.prisma.client.ptSession.findMany({
         where: {
+          ...atBranch,
           startsAt: { gte: win.start, lt: win.end },
           status: { not: InstanceStatus.CANCELED },
         },

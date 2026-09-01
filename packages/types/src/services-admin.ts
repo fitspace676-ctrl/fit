@@ -133,6 +133,29 @@ export const listAdminServicesQuerySchema = z.object({
   staffId: z.string().trim().min(1).optional(),
   sort: serviceSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
+  /**
+   * Narrow the catalogue to the services bookable at one branch.
+   *
+   * **Derived from the roster, not stored on the service** — and here the reason is
+   * shape rather than duplication. A service is a catalogue entry ("60-minute PT
+   * with Nino"), and a coach who works at both sites offers it at both; a single
+   * `locationId` would force the row to one branch and make the other unable to
+   * sell a thing it demonstrably sells. A second join table would be a copy of
+   * `LocationStaff` that somebody has to remember to update twice and will not. So
+   * availability is exactly "wherever this service's staff member is rostered":
+   * `staff.locationAssignments`, served by indexes that already exist.
+   *
+   * Overlapping, not partitioning: a service delivered by a two-branch coach is in
+   * both catalogues, so per-branch counts sum to more than the gym-wide one. A
+   * service whose staff member has no assignments is bookable at no branch and
+   * appears only in the unfiltered list.
+   *
+   * This is availability, **not exclusivity**. "Only sold at the flagship" is a
+   * restriction an operator asserts and is Stage 7's `locationId`, alongside plans,
+   * packages and campaigns — a different field with a different meaning, where
+   * `null` would mean "everywhere" rather than "nowhere".
+   */
+  locationId: z.string().trim().min(1).optional(),
 });
 
 export type ListAdminServicesQuery = z.infer<typeof listAdminServicesQuerySchema>;

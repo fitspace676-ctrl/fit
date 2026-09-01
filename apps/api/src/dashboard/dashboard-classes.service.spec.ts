@@ -374,23 +374,30 @@ describe('DashboardClassesService.get — the branch filter', () => {
     expect(nested.startsAt).toBeDefined();
   });
 
-  // `PtSession` has no location column at all (Stage 6), so this one series stays
-  // gym-wide. It is standalone — nothing on this tab sums PT with a class figure —
-  // so no single number ends up half branch and half gym.
-  it('leaves the PT series gym-wide', async () => {
+  // Inverted by Stage 6, which gave `PtSession` a `locationId`. This series was
+  // the tab's one gym-wide figure for five stages — not because it was hard to
+  // filter but because the model reached a branch through nothing at all, neither
+  // a column nor a relation. The console's "PT sessions are gym-wide." caption is
+  // retired with this assertion: it became false, not merely stale.
+  it('narrows the PT series too, on the branch the hour was delivered at', async () => {
     const { service, ptFindMany } = setup({});
 
     await service.get({ ...QUERY, locationId: 'loc_1' });
 
-    expect(whereOf(ptFindMany)).not.toHaveProperty('locationId');
+    expect(whereOf(ptFindMany).locationId).toBe('loc_1');
+    // The column, not the coach's roster and not their base branch: a coach based
+    // at the flagship who covers a Tuesday at the satellite delivered that hour at
+    // the satellite.
+    expect(whereOf(ptFindMany)).not.toHaveProperty('trainer');
   });
 
   it('sends no branch clause when no branch is selected', async () => {
-    const { service, instanceFindMany, bookingFindMany } = setup({});
+    const { service, instanceFindMany, bookingFindMany, ptFindMany } = setup({});
 
     await service.get(QUERY);
 
     expect(whereOf(instanceFindMany)).not.toHaveProperty('locationId');
     expect(whereOf(bookingFindMany).classInstance).not.toHaveProperty('locationId');
+    expect(whereOf(ptFindMany)).not.toHaveProperty('locationId');
   });
 });

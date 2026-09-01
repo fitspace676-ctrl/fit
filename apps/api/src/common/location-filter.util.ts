@@ -12,10 +12,13 @@
  *
  * `GymMember` joined them in Stage 2: it now carries `locationId`, the member's
  * **home branch**, backfilled onto each gym's default and indexed as
- * `(gymId, locationId, status)`. Do not confuse it with
- * `GymMember.assignedLocationIds` on the same model — that is the staff
- * work-assignment array, a different concept with no FK, and it is what a
- * *trainer's* branch will come from in Stage 6.
+ * `(gymId, locationId, status)`. Do not confuse it with the staff
+ * work-assignment set on the same model — that is a different concept, it is
+ * many-valued, and since Stage 6 it lives in the `LocationStaff` join table
+ * ({@link assignedAtLocation}) rather than in the `assignedLocationIds` array.
+ * On a STAFF row `locationId` keeps its meaning as the single branch the person
+ * is attached to — their BASE branch — which is why the two are not
+ * interchangeable: see "Head-count versus availability" below.
  *
  * `CheckIn` joined them in Stage 3. Its `locationId` was the one entry in the table
  * below that named a column rather than the lack of one — it existed but was a
@@ -97,23 +100,95 @@
  * wrong one. The single place the two rules meet in one sum is
  * `dashboard-revenue`'s `kpis.totalRevenue`, and it is specified at that call site.
  *
+ * ## People and scheduling: Stage 6, and the shape argument behind it
+ *
+ * Stage 6 split the people half of the schema along ONE line, and every read
+ * below follows it: **a person can work at several branches; anything that
+ * actually HAPPENS takes exactly one.**
+ *
+ * So the events got their own columns and are read with {@link atLocation}:
+ * `ShiftSlot.locationId` (the branch a shift staffs), `PtSession.locationId` (the
+ * branch an hour of coaching was delivered at) and `ServiceSession.locationId`
+ * (the branch one booking runs at). All three are figures about a PLACE — a door
+ * was staffed, a room was occupied — so each gets a column rather than an
+ * attribution hop, the outcome `CheckIn` reached in Stage 3 and for the same
+ * reason. **None of them is resolved through the coach's base branch:** a coach
+ * based at the flagship who covers a Tuesday at the satellite delivered that hour
+ * at the satellite, and attributing it to where they are on the books is how
+ * utilisation stops reconciling with occupancy.
+ *
+ * The capability is many-valued, so it got the `LocationStaff` join table, read
+ * with {@link assignedAtLocation} (on `GymMember`) or {@link staffAtLocation} (on
+ * anything reaching a staff member through a `staff` relation). It replaced
+ * `GymMember.assignedLocationIds`, a loose `String[]` with no FK, no reverse query
+ * and no back-relation — which is why "who works at branch X" was not a slow query
+ * before Stage 6, it was an absent one.
+ *
+ * **`Trainer` and `Service` deliberately got NO column**, and that is an argument
+ * rather than an omission. A `Trainer` is one-to-one with a staff `GymMember` that
+ * already carries two branch facts; a third on the profile would be a third answer
+ * nobody would think to update, and the first time it disagreed there would be no
+ * way to say which was right — the `assignedLocationIds` mistake in a new place. A
+ * `Service` is a catalogue entry, and a coach who works at both sites offers it at
+ * both, so a single FK would make one branch unable to sell a thing it
+ * demonstrably sells. Both are therefore DERIVED through the staff member's
+ * assignments ({@link staffAtLocation}), and the cost is named rather than hidden:
+ * two joins, no composite index spanning them, affordable because a gym has tens
+ * of coaches and nothing loops the query. `location_staff(gymId, locationId)`
+ * drives it and `services(gymId, staffId)` serves the probe.
+ *
+ * ## Head-count versus availability — the one way to get Stage 6 backwards
+ *
+ * `LocationStaff` is many-to-many and therefore **cannot partition**: a coach who
+ * covers two sites has two rows, so summing anything off it counts them twice.
+ *
+ * > **A head-count of people reads `GymMember.locationId` (the base branch). A
+ * > question of availability — "can this branch be staffed on Tuesday", "which
+ * > coaches can I book here", "whose absence costs this branch cover" — reads
+ * > `LocationStaff`.**
+ *
+ * They are not interchangeable and a figure that mixes them reconciles against
+ * nothing: per-branch staff totals taken off the join table stop summing to the
+ * gym total, silently, by exactly the number of people who work at two sites. Every
+ * availability-shaped read below therefore says at its call site that it overlaps
+ * rather than partitions, because that is the property a reader will otherwise
+ * assume from every other fragment in this file.
+ *
  * ## What still has no path to a branch
  *
  * | Model | Why it cannot be filtered | Fixed by |
  * |---|---|---|
- * | `PtSession` | no location column, and no relation that reaches one | Stage 6 |
- * | `Trainer` | no location column; a trainer is not a member, so the member hop does not apply | Stage 6 |
- * | `ShiftSlot` | `location` is free text, not an FK | Stage 6 |
- * | `TimeOffRequest` | hangs off a STAFF `GymMember`, whose `locationId` is a backfill artefact rather than a work assignment | Stage 6 |
  * | `Review` | written about a trainer; a rating is a property of the person, not a quantity produced at a branch | — |
  * | `PromoRedemption` | `orderId` is a relation-less scalar — nothing to join through | Stage 7 |
  * | `ClassType` | gym-wide catalogue; its only path is "has occurred at", not "belongs to" | Stage 7 |
+ * | `Trainer.availability` | a weekly JSON document with no branch dimension at all. The ROSTER filters (through {@link staffAtLocation}); the availability inside a filtered row is still the coach's whole week, so a utilisation rate under a branch filter would divide one branch's delivered minutes by every branch's availability | — |
  *
  * `Subscription` and `Invoice` used to sit in that table and no longer do — the
  * member hop is their honest path, and Stage 5 froze the invoice half of it onto
  * the row. `CheckIn` left it too, but by the other route: it got a column of its
  * own rather than a hop, which is the only correct outcome for a figure about a
  * place. `Payment` and `Refund` now carry the place answer on the row as well.
+ * Stage 6 emptied the four remaining people rows: `PtSession`, `ShiftSlot` and
+ * `ServiceSession` by column, `Trainer` / `Service` / `TimeOffRequest` by
+ * derivation through the roster. The one thing it did NOT give a branch is the
+ * last row above, and that is a shape problem rather than a missing column.
+ *
+ * ## `shift_slots.location` survives, and now means one specific thing
+ *
+ * The free-text column was renamed to `ShiftSlot.locationName` in the Prisma
+ * schema and NOT in the database (`@map("location")`). The migration moved every
+ * string that resolved to a live branch of the SAME gym into `locationId` and
+ * NULLed the text; a string that resolved to nothing was KEPT and `locationId`
+ * left NULL, because it is the only surviving evidence of where that shift was.
+ *
+ * So **a non-NULL `locationName` means precisely: this text named no branch of
+ * this gym** — a typo, a room, a closed site, or a branch belonging to another
+ * tenant, which the migration refused to adopt for the reason Stage 3 refused it
+ * on `CheckIn.locationId`. It is a queue for an operator to resolve, never a
+ * branch to display as one, and it must never be folded into a named branch or a
+ * branch filter: doing so is the `areas[0]` mistake with a string instead of an
+ * index. The API surfaces it on its own wire field and no write path can create a
+ * new one — {@link ShiftSlot} is written by branch id now.
  *
  * Where a figure reads one of the models above, the caller leaves it gym-wide and
  * says so at the call site, naming the stage that fixes it. It never quietly
@@ -129,7 +204,8 @@
 /**
  * A `where` fragment narrowing a model that OWNS a `locationId` column to one
  * branch — `ClassTemplate`, `ClassInstance`, `Order`, `Lead`, `GymMember`,
- * `CheckIn`, `ProductStock`, and since Stage 5 `Payment`, `Refund` and `Invoice`.
+ * `CheckIn`, `ProductStock`, since Stage 5 `Payment`, `Refund` and `Invoice`, and
+ * since Stage 6 `ShiftSlot`, `PtSession` and `ServiceSession`.
  *
  * Plain equality, no null arm, and **the absence of a null arm is load-bearing on
  * the money tables specifically.** A NULL `locationId` on a payment, refund or
@@ -147,6 +223,16 @@
  * Do not reach for this on `Location` itself. The selected branch is that table's
  * primary key, so the fragment there is `{ id: locationId }`; spreading this one
  * would filter a column `Location` does not have.
+ *
+ * **On the three Stage 6 event columns a NULL is a routine outcome, not a
+ * residue.** Unlike Stages 0–5, no migration backfilled them onto the gym's
+ * default: a shift whose free text named no branch has nothing honest to point at,
+ * and a session created before the console sent a branch was not necessarily
+ * anywhere in particular. A shift is a PLAN, and defaulting one asserts somebody
+ * stood at a door they were never at — which is why `ShiftSlot.locationId` will
+ * stay nullable longer than any other branch column. Such a row is absent from
+ * every branch-filtered read and present in the gym-wide one, exactly like an
+ * un-homed member, and no caller may fold it into a named branch.
  *
  * A row CAN go back to NULL — every `location` relation is `onDelete: SetNull`, so
  * deleting a branch un-homes its members, un-places its orders and un-places the
@@ -261,4 +347,88 @@ export function memberAtLocation(
 ): { member?: MemberScope } {
   const member: MemberScope = { ...and, ...atLocation(locationId) };
   return Object.keys(member).length === 0 ? {} : { member };
+}
+
+/**
+ * The conditions a staff-assignment fragment carries. Hand-written and tiny for
+ * the same reason {@link MemberScope} is: a structural subset of
+ * `GymMemberWhereInput`, wide enough for the roster hop and the two guards its
+ * call sites already pair it with, and too narrow to grow into a query builder.
+ */
+export interface StaffScope {
+  /** Everywhere this person is rostered — see {@link assignedAtLocation}. */
+  locationAssignments?: { some: { locationId: string } };
+  /** The trash guard. `null` means "not soft-deleted"; there is no other useful value. */
+  deletedAt?: null;
+  /** Excludes plain customers, who work nowhere. */
+  role?: { not: 'MEMBER' };
+}
+
+/**
+ * A `where` fragment narrowing a `GymMember` to the people ROSTERED at one branch
+ * — the availability half of the rule at the top of this file, read off the
+ * `LocationStaff` join table Stage 6 introduced.
+ *
+ * **This is not {@link atLocation} on the same model and the two answer different
+ * questions.** `GymMember.locationId` is the single branch a person is attached
+ * to: their home branch as a customer, their base branch as an employee. It
+ * PARTITIONS, so it is what a head-count reads. This fragment reads the
+ * many-to-many roster, so it OVERLAPS: a coach who covers two sites matches at
+ * both, and summing per-branch counts taken through it exceeds the gym total by
+ * exactly the number of people who work at two sites. Use it for "who can work
+ * here", never for "how many staff does this branch have".
+ *
+ * Served by `location_staff(gymId, locationId)` — the reverse query the
+ * `assignedLocationIds` array could not answer without scanning every membership
+ * in the gym, customers included.
+ *
+ * A staff member with no assignment rows at all reaches no branch and falls out of
+ * every branch filter. The Stage 6 migration synthesised a default-branch
+ * assignment for every active employee precisely because most rows had an EMPTY
+ * array before it, but nothing keeps that true afterwards: a new employee saved
+ * with no branch ticked is invisible under every filter and visible gym-wide.
+ * That is the honest rendering of "we do not know where this person works" and it
+ * is why the create/edit forms are the place to fix it, not this fragment.
+ *
+ * An absent branch spreads to `{}`, leaving the caller's `where` untouched.
+ */
+export function assignedAtLocation(locationId: string | undefined): StaffScope {
+  return locationId === undefined ? {} : { locationAssignments: { some: { locationId } } };
+}
+
+/**
+ * {@link assignedAtLocation}, one relation hop out: a `where` fragment for a model
+ * that reaches a staff member through a `staff` relation — `Trainer`, `Service`
+ * and `TimeOffRequest`.
+ *
+ * This is the DERIVATION Stage 6 chose over giving `Trainer` and `Service` columns
+ * of their own, and the argument is at the top of this file: a third branch answer
+ * about one person, on a row nobody updates when the roster changes, is the
+ * `assignedLocationIds` mistake in a new place. Deriving costs two joins and no new
+ * index; storing would cost a field that is free to be wrong.
+ *
+ * It inherits the OVERLAP the join table has — a coach at two branches makes their
+ * services bookable at both, which is the point — so nothing built on this may be
+ * summed across branches and compared to a gym total.
+ *
+ * One residual class, silent by nature: `Trainer.staffId` is nullable (`SetNull`,
+ * so teaching history survives the person leaving the directory), and such an
+ * orphan profile reaches no staff member and therefore no branch. It is correct
+ * that it disappears under a filter — the staff service deactivates exactly these
+ * — but it means a branch-filtered coach roster can be shorter than the gym-wide
+ * one by more than the branch split explains. `Service.staffId` is NOT NULL, so
+ * services have no equivalent hole; their gap is a staff member with no
+ * assignments, described in {@link assignedAtLocation}.
+ *
+ * `and` carries the conditions the caller would otherwise have written on the same
+ * `staff` key — Prisma takes one per `where` — exactly as `and` does on
+ * {@link memberAtLocation}. With no branch and no extra conditions this spreads to
+ * `{}`.
+ */
+export function staffAtLocation(
+  locationId: string | undefined,
+  and: StaffScope = {},
+): { staff?: { is: StaffScope } } {
+  const staff: StaffScope = { ...and, ...assignedAtLocation(locationId) };
+  return Object.keys(staff).length === 0 ? {} : { staff: { is: staff } };
 }

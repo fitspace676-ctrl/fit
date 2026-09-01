@@ -206,6 +206,17 @@ describe('tenantExtension (load-bearing isolation)', () => {
     expect(TENANT_SCOPED_MODELS.has('AudienceSegment')).toBe(true);
     expect(TENANT_SCOPED_MODELS.has('MessageTemplate')).toBe(true);
   });
+
+  it('scopes LocationStaff — the Stage 6 join table, written directly by staffId', () => {
+    // It carries a denormalised `gymId` from both parents, so it is exactly the
+    // shape the 2026-08-30 audit had to repair across thirteen models. The roster
+    // filter reads it as a nested `some` under an already-scoped `GymMember`, but
+    // `staff.service.ts` also deletes and inserts rows keyed on `staffId` alone.
+    expect(TENANT_SCOPED_MODELS.has('LocationStaff')).toBe(true);
+    expect(
+      scopeArgs('LocationStaff', 'deleteMany', { where: { staffId: 'gm-1' } }, state()),
+    ).toEqual({ where: { staffId: 'gm-1', gymId: 'gym-a' } });
+  });
 });
 
 /**

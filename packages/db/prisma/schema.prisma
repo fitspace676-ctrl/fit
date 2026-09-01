@@ -424,6 +424,7 @@ model Gym {
   members                 GymMember[]
   trainers                Trainer[]
   locations               Location[]
+  locationStaff           LocationStaff[]
   products                Product[]
   productStock            ProductStock[]
   services                Service[]
@@ -701,12 +702,49 @@ model GymMember {
   // Directory-staff identity (T-staff-directory). A staff member added straight
   // to the directory is backed by a login-less `User` (no password, never
   // invited); their split name lives here so the roster's First/Last columns are
-  // real (the `User` only carries a single `name`). `assignedLocationIds` are the
-  // gym `Location`s they work at (loose ids, filtered to live locations on read —
-  // same lightweight approach as `tags`). `email`/`phone` stay on the `User`.
-  // Null/empty for plain members and invited staff, whose name comes from `User`.
-  firstName           String?
-  lastName            String?
+  // real (the `User` only carries a single `name`). `email`/`phone` stay on the
+  // `User`. Null/empty for plain members and invited staff, whose name comes
+  // from `User`.
+  firstName String?
+  lastName  String?
+
+  /// @deprecated Superseded by {@link LocationStaff} in Stage 6 of multi-branch.
+  /// **Read it if you must, but never treat it as the answer.**
+  ///
+  /// It was the staff work-assignment list: the gym `Location`s a receptionist or
+  /// coach is rostered to work at, held as loose ids with no foreign key and
+  /// filtered against live locations on read — "the same lightweight approach as
+  /// `tags`", which is exactly what it should never have been. Three costs, all
+  /// paid before Stage 6 removed the cause:
+  ///
+  ///  - **No referential integrity.** Deleting a branch left its id in every staff
+  ///    row, silently, forever; a `String[]` gets none of the `SetNull` protection
+  ///    the real branch columns get. Worse, nothing stopped an id naming a branch
+  ///    of ANOTHER GYM — the same unpoliced-scalar class Stage 3 had to repair on
+  ///    `CheckIn.locationId`.
+  ///  - **No reverse query.** "Who works at branch X" is `has` over an unindexed
+  ///    array: a sequential scan of every membership in the gym, members included.
+  ///    That is why the roadmap's exemption register lists `GET /dashboard/staff`
+  ///    as gym-wide "unblocked by Stage 6" — the read was not slow, it was absent.
+  ///  - **No `Location` back-relation**, so a branch could not list its own people
+  ///    and no `include` could resolve the names in one round trip.
+  ///
+  /// **Retained, not dropped, on the same expand/contract terms Stages 0–5 used —
+  /// and for a sharper reason than any of them.** Those stages kept a column
+  /// NULLABLE until the write paths agreed; this one keeps a column that
+  /// `staff.service.ts` still SELECTs (`STAFF_SELECT`), writes on create and
+  /// patches on update. Dropping it in the same migration that adds
+  /// `location_staff` would make the deploy fail in the gap between the migration
+  /// running and the new API image serving: every staff list would 500 on a column
+  /// that no longer exists. The migration COPIES into the join table and changes
+  /// nothing here, so old and new code both work throughout.
+  ///
+  /// While both exist, **`LocationStaff` is authoritative and this is a shadow.**
+  /// They can drift the moment the API writes one without the other; nothing
+  /// enforces agreement, because a trigger would be the only way to and this
+  /// schema has none. The follow-up migration that drops this column lands with
+  /// the `staff.service.ts` change that stops reading it — the contract half of
+  /// Stage 6, which is a different workstream from the schema half.
   assignedLocationIds String[] @default([])
 
   /// The member's **home branch**: the {@link Location} they signed up at and
@@ -721,15 +759,31 @@ model GymMember {
   /// or their subscriptions, which is why every one of them is listed gym-wide in
   /// the roadmap's exemption register, unblocked by this column and nothing else.
   ///
-  /// **Not `assignedLocationIds`, three lines up.** That is the *staff
-  /// work-assignment* array: the branches a receptionist or coach is rostered to
-  /// work at — many-valued, loose ids with no foreign key, filtered to live
-  /// locations on read, and consumed by the staff directory. This is the
-  /// *customer-side* home branch: single-valued, a real FK, and the thing every
-  /// per-branch member figure counts on. Two genuinely different concepts that both
-  /// happen to name locations on one model, so the confusion is worth naming here
-  /// rather than discovering later: writing one when you meant the other raises
-  /// nothing and reads as a quietly wrong number.
+  /// **Not `assignedLocationIds` / {@link LocationStaff}, above.** Those are the
+  /// *staff work-assignment* set: the branches a receptionist or coach is rostered
+  /// to work at — MANY-valued. This is single-valued. Two genuinely different
+  /// concepts that both name locations on one model, so the confusion is worth
+  /// naming here rather than discovering later: writing one when you meant the
+  /// other raises nothing and reads as a quietly wrong number.
+  ///
+  /// **Stage 6 gave this column a second, equally load-bearing meaning on a STAFF
+  /// row, and did not add a column for it.** For an employee this is their BASE
+  /// branch — the one they are principally attached to — while
+  /// {@link LocationStaff} lists everywhere they can be rostered. A `isPrimary`
+  /// flag on the join table was the obvious alternative and was rejected: it would
+  /// be a SECOND single-branch answer about the same person on the same person's
+  /// data, free to disagree with this one, and every reader would have to know
+  /// which of the two it meant. One person, one base branch, one column — the same
+  /// column a member uses, because "which single branch is this human attached to"
+  /// is one question whether they pay or are paid.
+  ///
+  /// That is also what keeps the attribution rule's PARTITION property intact.
+  /// `LocationStaff` is many-to-many and therefore cannot partition: summing a
+  /// per-branch head-count off it double-counts everyone who works at two sites.
+  /// **A head-count of people reads this column. A question of availability — "can
+  /// this branch be staffed on Tuesday", "which coaches can I book here" — reads
+  /// the join table.** They are not interchangeable and a figure that mixes them
+  /// reconciles against nothing.
   ///
   /// Nullable, and deliberately only for now. The
   /// `20260830130000_gym_member_home_branch` migration backfills every existing row
@@ -780,6 +834,10 @@ model GymMember {
   staffTasks              StaffTask[]
   timeOffRequests         TimeOffRequest[]
   shiftSlots              ShiftSlot[]
+  /// Every branch this staff member is rostered to work at — see
+  /// {@link LocationStaff}. Empty for a plain member, who works nowhere. NOT a
+  /// head-count source: it is many-to-many and does not partition the payroll.
+  locationAssignments     LocationStaff[]
   /// The coach profile this staff member teaches under, when they hold (or once
   /// held) the `TRAINER` role. One-to-one — see {@link Trainer.staffId}.
   trainerProfile          Trainer?
@@ -991,7 +1049,45 @@ model Trainer {
   ptSessions     PtSession[]
   reviews        Review[]
 
-  @@index([gymId])
+  /// **Stage 6 of multi-branch deliberately gave this model NO `locationId`, and
+  /// the roadmap's own line item for it is the thing being argued down.**
+  ///
+  /// A `Trainer` is a PROFILE OF A PERSON, one-to-one with a staff
+  /// {@link GymMember} through {@link staffId}. That person already carries two
+  /// branch facts: `GymMember.locationId`, their base branch, and
+  /// {@link LocationStaff}, everywhere they are rostered. A third column here
+  /// would be a third answer to the same question, on a row nobody would think to
+  /// update when the roster changed, and the first time it disagreed there would
+  /// be no way to say which was right. That is the `assignedLocationIds` mistake
+  /// again in a new place: a location-shaped field with nothing keeping it true.
+  ///
+  /// So "coaches at branch X" is a relation hop —
+  /// `{ staff: { is: { locationAssignments: { some: { locationId } } } } }` — and
+  /// the cost is named rather than hidden: two joins and no composite index to
+  /// serve them. That is affordable HERE and would not have been on `Payment`,
+  /// which is why Stage 5 denormalised and this does not: a gym has tens of
+  /// coaches, not tens of thousands of takings, and nothing loops this query.
+  /// Postgres drives it off `location_staff(gymId, locationId)`, probes
+  /// `gym_members` by primary key and `trainers` by the `staffId` unique.
+  ///
+  /// One residual class, stated because it is silent: a profile whose staff record
+  /// was removed has `staffId = null` (`SetNull`, so teaching history survives the
+  /// person leaving the directory) and therefore reaches no branch at all. It
+  /// falls out of every branch filter. That is correct — such a profile is an
+  /// orphan the staff service deactivates — but it means a branch-filtered trainer
+  /// roster can be SHORTER than the gym-wide one by more than the branch split
+  /// explains.
+  ///
+  /// The index below is the compensation. `(gymId)` was a bare tenant index and a
+  /// strict PREFIX of this one, so this supersedes it outright rather than adding
+  /// to it — the Stage 0 `class_templates_locationId_idx` shape, not the Stage 3
+  /// "both earn their keep" one. Every roster read is
+  /// `where { gymId, status } orderBy name` (`admin-trainers.service.ts`,
+  /// `trainers.service.ts`), so the composite serves the filter AND returns the
+  /// page already sorted; and under a branch filter this table is the side being
+  /// probed, so a tighter driving index matters more now than it did before the
+  /// hop existed.
+  @@index([gymId, status, name])
   @@map("trainers")
 }
 
@@ -1032,41 +1128,139 @@ model Location {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  gym            Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  classTemplates ClassTemplate[]
-  classInstances ClassInstance[]
-  orders         Order[]
-  leads          Lead[]
+  gym             Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  classTemplates  ClassTemplate[]
+  classInstances  ClassInstance[]
+  orders          Order[]
+  leads           Lead[]
   /// Members whose HOME branch this is — see {@link GymMember.locationId}. Not the
   /// staff rostered to work here: that is `GymMember.assignedLocationIds`, a loose
   /// id array with no relation, so it has no back-reference to appear in.
-  gymMembers     GymMember[]
+  gymMembers      GymMember[]
   /// Arrivals recorded at this branch — see {@link CheckIn.locationId}. A different
   /// population from {@link gymMembers}: that is who calls this branch home, this is
   /// who actually came through the door, and a drop-in appears here without
   /// appearing there.
-  checkIns       CheckIn[]
+  checkIns        CheckIn[]
   /// What this branch has on its own shelves — see {@link ProductStock}. Branches
   /// are separate operating units, so this is the authoritative on-hand count; the
   /// gym-wide `Product.stock` is the roll-up of these rows, not their source.
-  productStock   ProductStock[]
+  productStock    ProductStock[]
   /// Every stock movement recorded at this branch — see {@link StockMovement.locationId}.
-  stockMovements StockMovement[]
+  stockMovements  StockMovement[]
   /// The money this branch took, and the reversals against it — see
   /// {@link Payment.locationId} and {@link Refund.locationId}. Denormalised copies
   /// of `order.locationId`, so these are the same population as
   /// `orders.payment` / `orders.refunds` filtered to this branch, reachable
   /// without the join.
-  payments       Payment[]
-  refunds        Refund[]
+  payments        Payment[]
+  refunds         Refund[]
   /// Invoices raised against members who called this branch home at issue time —
   /// see {@link Invoice.locationId}. A DIFFERENT population from {@link payments}:
   /// that one follows the till, this one follows the person, and the two only
   /// coincide when a member buys at their own branch.
-  invoices       Invoice[]
+  invoices        Invoice[]
+  /// The staff ROSTERED to work here — see {@link LocationStaff}. The relation
+  /// `GymMember.assignedLocationIds` never had, which is why "who works at branch
+  /// X" was unanswerable before Stage 6. Overlapping, not partitioning: a coach
+  /// who covers both sites appears under both, so counting rows here counts
+  /// assignments, not people. For a head-count of people attached to this branch,
+  /// use {@link gymMembers} (their base branch) instead.
+  staff           LocationStaff[]
+  /// 1:1 coaching booked to run at this branch — see {@link PtSession.locationId}.
+  ptSessions      PtSession[]
+  /// Service slots scheduled to run at this branch — see
+  /// {@link ServiceSession.locationId}.
+  serviceSessions ServiceSession[]
+  /// Shifts rostered at this branch — see {@link ShiftSlot.locationId}. Before
+  /// Stage 6 this was a free-text branch NAME on the shift, which looked like a
+  /// branch and was not one.
+  shiftSlots      ShiftSlot[]
 
   @@index([gymId])
   @@map("locations")
+}
+
+/// Which branches a staff member works at — the many-to-many roster Stage 6 of
+/// multi-branch introduced to replace `GymMember.assignedLocationIds`, the loose
+/// `String[]` that had no foreign key, no reverse query and no back-relation.
+///
+/// ## Why a join table and not a column
+///
+/// A person can work at several branches; a shift, a PT session and a service
+/// booking each happen at exactly one place. Those are DIFFERENT SHAPES and Stage 6
+/// deliberately did not collapse them into one mechanism just because a coach
+/// appears in all four. Work assignment is a capability — "Nino can be rostered at
+/// Saburtalo" — and capabilities are many-valued. Everything that actually HAPPENS
+/// takes a single nullable FK on its own row: {@link ShiftSlot.locationId},
+/// {@link PtSession.locationId}, {@link ServiceSession.locationId}. Modelling a
+/// scheduled event through its coach's assignment set would make "where is this
+/// session" ambiguous exactly when the coach covers two sites, which is the only
+/// case worth asking about.
+///
+/// ## What it deliberately does NOT carry
+///
+/// **No `role`.** A per-branch role — manager here, receptionist there — is a real
+/// arrangement in real gyms, and it is still the wrong column. `Role` in this
+/// codebase is the AUTHORIZATION axis: `packages/types/src/permissions.ts` gates on
+/// `GymMember.role`, and the tenant state carries exactly one. A second role column
+/// the permission system never reads would look like access control and grant
+/// nothing — the same class of trap as a free-text `location` that looks like a
+/// branch. Whether the branch filter becomes a permission boundary at all is Stage
+/// 8's open question; until it is answered, this table says where someone works and
+/// not what they may do there.
+///
+/// **No `isPrimary`.** The base branch is `GymMember.locationId` — see the long note
+/// on that column. A flag here would be a second single-branch answer about the same
+/// person, free to disagree with the first, needing its own partial unique index to
+/// stay singular. One question, one column.
+///
+/// So the row is the pair plus `createdAt`, which records when someone was rostered
+/// onto a branch. No `updatedAt`: there is nothing to update. Moving an assignment
+/// is a delete and a create, because the pair IS the fact — the same stance `tags`
+/// took, this time with a foreign key behind it.
+///
+/// ## Deletes
+///
+/// `Cascade` on BOTH sides, which is the opposite of every other branch relation in
+/// this schema and is right for the same reason {@link ProductStock} cascades: a row
+/// here is nothing but the pair. `SetNull` would leave "somebody is assigned
+/// somewhere", which is not a fact worth keeping — unlike an un-homed member, an
+/// un-placed order or a check-in that has lost its door, all of which still record
+/// that something happened. Closing a branch un-rosters its people from it and
+/// leaves their base branch, their shifts' history and their employment untouched.
+model LocationStaff {
+  id         String   @id @default(cuid())
+  gymId      String
+  /// The staff {@link GymMember}. Only non-`MEMBER` roles belong here — a customer
+  /// works nowhere — but that is a convention the API enforces, not a constraint
+  /// the column can express.
+  staffId    String
+  locationId String
+  createdAt  DateTime @default(now())
+
+  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff    GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  location Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  /// The pair, once. Also the `where`-unique an assignment editor upserts on, and
+  /// the integrity `assignedLocationIds` could never have: a duplicate id in that
+  /// array was silently legal and doubled the person in any count derived from it.
+  @@unique([staffId, locationId])
+  /// **"Who works at branch X" — the reverse query that did not exist.** Against
+  /// the array it was a `has` over an unindexed `String[]`, i.e. a scan of every
+  /// membership in the gym, members included. `gymId` leads because the tenant
+  /// Prisma extension injects it into every `where`.
+  @@index([gymId, locationId])
+  /// No `@@index([gymId, staffId])`, deliberately. The unique above already LEADS
+  /// on `staffId`, so "which branches does this person work at" is served by it and
+  /// `gymId` is a heap filter over the handful of rows one person can have. A
+  /// second index would cost a write on every roster change and win nothing —
+  /// worth stating, because the reflex on this schema is that `gymId` leads
+  /// everything, and that reflex is about COMPOSITES the extension's `gymId` would
+  /// otherwise sit in front of, not about a two-column unique whose other column is
+  /// already the selective one.
+  @@map("location_staff")
 }
 
 /// A retail product a gym curates and sells from the staff console (T4.6). A
@@ -1303,6 +1497,40 @@ model Service {
   orderItems OrderItem[]
   sessions   ServiceSession[]
 
+  /// **Stage 6 of multi-branch gave this model NO `locationId` either, and here
+  /// the reason is not duplication but SHAPE.**
+  ///
+  /// A `Service` is a catalogue entry — "60-minute PT with Nino, 120 GEL" — and a
+  /// coach who works at both sites offers it at both. A single FK would force the
+  /// catalogue row to one branch and make the other branch unable to sell a thing
+  /// it demonstrably sells. A join table would be a THIRD many-to-many meaning
+  /// something already recorded: a service is deliverable exactly where its
+  /// {@link staff} is rostered, so a separate list would be a copy of
+  /// {@link LocationStaff} that an operator has to remember to update twice and
+  /// will not.
+  ///
+  /// So "services bookable at branch X" is derived:
+  /// `{ staff: { is: { locationAssignments: { some: { locationId } } } } }`. The
+  /// derivation is served by indexes that already exist —
+  /// `location_staff(gymId, locationId)` finds the branch's people, and
+  /// `services(gymId, staffId)` below is exactly the shape the resulting probe
+  /// needs. That is a positive argument for deriving rather than storing: the
+  /// filter costs one index this table already had.
+  ///
+  /// The derivation has one hole, and the Stage 6 migration is what closes it:
+  /// `staffId` is `NOT NULL`, so every service reaches a person, but a person with
+  /// no `LocationStaff` rows reaches no branch and their services vanish from
+  /// every branch. Most staff had an EMPTY `assignedLocationIds` array before
+  /// Stage 6, which is why the migration synthesises a default-branch assignment
+  /// for every active employee rather than carrying across only what the array
+  /// held.
+  ///
+  /// A `locationId` here meaning BRANCH-EXCLUSIVE — "this service is only sold at
+  /// the flagship", `null` for everywhere — is a different and legitimate field,
+  /// and it is Stage 7's, alongside plans, packages, products and campaigns. It is
+  /// not this stage's, and it is not the same column: exclusivity is a restriction
+  /// an operator asserts, availability is a fact derived from the roster.
+  ///
   /// Backs the admin roster: a tenant's services by status and type.
   @@index([gymId, status, type])
   @@index([gymId, staffId])
@@ -1315,32 +1543,65 @@ model Service {
 /// the service at creation so reassigning the service never moves a scheduled
 /// session. `endsAt = startsAt + service.durationMinutes` at creation.
 model ServiceSession {
-  id        String               @id @default(cuid())
-  gymId     String
-  serviceId String
-  staffId   String
+  id         String               @id @default(cuid())
+  gymId      String
+  serviceId  String
+  staffId    String
   /// null = an open slot any member may book.
-  memberId  String?
-  startsAt  DateTime
-  endsAt    DateTime
-  status    ServiceSessionStatus @default(OPEN)
+  memberId   String?
+  startsAt   DateTime
+  endsAt     DateTime
+  status     ServiceSessionStatus @default(OPEN)
   /// The invoice raised when the session was booked, or null while it is open.
-  invoiceId String?
-  notes     String               @default("")
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  invoiceId  String?
+  /// **The branch this slot RUNS AT.** A single FK, because a booking happens at
+  /// exactly one place — the shape argument at the top of {@link LocationStaff}.
+  /// {@link Service} carries no branch and must not: a service is offered wherever
+  /// its staff works, whereas this row is one appointment at one door, and the two
+  /// are only the same question for a coach who works at one site.
+  ///
+  /// **Not in Stage 6's headline list, and added anyway.** The roadmap named
+  /// `Trainer`, `Service` and `PtSession`; the honest reading of "a service booking
+  /// happens at exactly one place" points at this model rather than the catalogue,
+  /// and the PT calendar renders `PtSession` and `ServiceSession` side by side. Give
+  /// one a branch and not the other and a branch-filtered calendar is assembled from
+  /// two populations — the same defect the exemption register records against the
+  /// trainer-performance report, which adds a filterable column to an unfilterable
+  /// one and orders the table by the sum.
+  ///
+  /// Frozen at creation for the same reason {@link staffId} is: that field is
+  /// snapshotted from the service "so reassigning the service never moves a
+  /// scheduled session", and a branch that followed the coach's live roster would
+  /// move a booked appointment out from under the member who booked it. **A past
+  /// event does not move because a person later did** — the rule Stage 5 wrote onto
+  /// `Invoice.locationId`, applied forward.
+  ///
+  /// Nullable on the same expand/contract terms as Stages 0–5: tightening waits on
+  /// the write paths. `SetNull` on delete — a session that happened still happened.
+  locationId String?
+  notes      String               @default("")
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
 
-  gym     Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  service Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
-  staff   GymMember  @relation("ServiceSessionStaff", fields: [staffId], references: [id], onDelete: Restrict)
-  member  GymMember? @relation("ServiceSessionMember", fields: [memberId], references: [id], onDelete: SetNull)
-  invoice Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  gym      Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  service  Service    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  staff    GymMember  @relation("ServiceSessionStaff", fields: [staffId], references: [id], onDelete: Restrict)
+  member   GymMember? @relation("ServiceSessionMember", fields: [memberId], references: [id], onDelete: SetNull)
+  invoice  Invoice?   @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  /// The branch this slot runs at — see {@link ServiceSession.locationId}.
+  location Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   @@index([gymId, startsAt])
   @@index([gymId, staffId, startsAt])
   @@index([gymId, memberId, startsAt])
   @@index([serviceId])
   @@index([invoiceId])
+  /// One branch's calendar, in time order. ADDS to `(gymId, startsAt)` rather than
+  /// replacing it, for the reason Stage 3 kept `check_ins_gymId_checkedInAt_idx`:
+  /// `locationId` sits between the two columns the all-branches calendar uses, so
+  /// neither index is a prefix of the other, and "All locations" is the console's
+  /// default state and therefore the hotter path.
+  @@index([gymId, locationId, startsAt])
   @@map("service_sessions")
 }
 
@@ -1685,6 +1946,30 @@ model PtSession {
   gymId       String
   trainerId   String
   classTypeId String?
+  /// **The branch this session RUNS AT.** A single FK, not the coach's assignment
+  /// set: a session is one hour at one door, and reaching it through
+  /// {@link LocationStaff} would leave "where is this" ambiguous for exactly the
+  /// coaches who cover two sites — the only ones worth asking about.
+  ///
+  /// Before Stage 6 this model reached a branch through NOTHING. `gymId` and
+  /// `trainerId` were the whole of it, and `Trainer` had no location either, so
+  /// the roadmap's exemption register lists three surfaces as gym-wide "unblocked
+  /// by Stage 6" for this one reason: the `ptSessionsOverTime` series on the
+  /// dashboard's Classes tab, the pt-sessions report, and the trainer-performance
+  /// report, whose ranking ADDS a filterable class column to an unfilterable PT
+  /// one and would otherwise order the table from two populations.
+  ///
+  /// This is a figure about a PLACE — a room was occupied for an hour — so it gets
+  /// a column of its own rather than an attribution hop, the same outcome
+  /// {@link CheckIn.locationId} reached in Stage 3 and for the same reason. It is
+  /// NOT resolved through the trainer's base branch: a coach based at the flagship
+  /// who covers a Tuesday at the satellite delivered that hour at the satellite,
+  /// and attributing it to where they are on the books is how utilisation figures
+  /// stop reconciling with occupancy.
+  ///
+  /// Nullable on the same expand/contract terms as Stages 0–5. `SetNull` on
+  /// delete: closing a branch must not erase the coaching it hosted.
+  locationId  String?
   startsAt    DateTime
   endsAt      DateTime
   status      InstanceStatus @default(SCHEDULED)
@@ -1695,9 +1980,26 @@ model PtSession {
   gym       Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
   trainer   Trainer    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
   classType ClassType? @relation(fields: [classTypeId], references: [id], onDelete: SetNull)
+  /// The branch this session runs at — see {@link PtSession.locationId}.
+  location  Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   @@index([gymId, trainerId, startsAt])
+  /// Kept, not replaced. `(classTypeId)` is a bare single column and therefore the
+  /// wrong shape for any QUERY this codebase can issue — the tenant extension always
+  /// injects `gymId` — but it does not exist for a query: `classType` is
+  /// `onDelete: SetNull`, and without it retiring a workout type sequentially scans
+  /// every PT session in the database to find the referencing rows. It serves the
+  /// constraint, so the roadmap's "a bare index is the wrong shape" rule does not
+  /// reach it.
   @@index([classTypeId])
+  /// One branch's PT calendar, in time order — and the index the three gym-wide
+  /// exemptions above were waiting on. `gymId` leads because the tenant extension
+  /// injects it; `startsAt` trails so a branch's sessions come back already ordered
+  /// for the calendar and the utilisation buckets. It ADDS to
+  /// `(gymId, trainerId, startsAt)` rather than replacing it: that one answers a
+  /// single coach's diary, its second column is `trainerId`, and neither composite
+  /// is a prefix of the other.
+  @@index([gymId, locationId, startsAt])
   @@map("pt_sessions")
 }
 
@@ -3344,21 +3646,97 @@ model TimeOffRequest {
 /// One shift in a staff member's weekly schedule (T12.14) — the Staff detail
 /// "Calendar" tab's weekly grid. A member's full schedule is their set of
 /// `ShiftSlot` rows. `dayOfWeek` is 0 (Monday) … 6 (Sunday); `startTime` /
-/// `endTime` are "HH:mm" 24-hour strings; `location` is an optional branch name.
+/// `endTime` are "HH:mm" 24-hour strings.
+///
+/// A shift takes ONE branch — see {@link ShiftSlot.locationId}. It is the one place
+/// in this schema where a person's many-to-many work assignment
+/// ({@link LocationStaff}) narrows to a single answer, and it is the reason both
+/// shapes have to exist: "Nino can work at either site" and "Nino is at Saburtalo
+/// on Tuesday morning" are different statements, and only the second one staffs a
+/// door.
 model ShiftSlot {
-  id        String   @id @default(cuid())
-  gymId     String
-  staffId   String
-  dayOfWeek Int
-  startTime String
-  endTime   String
-  location  String?
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  gymId        String
+  staffId      String
+  dayOfWeek    Int
+  startTime    String
+  endTime      String
+  /// @deprecated The branch this shift used to be recorded at, as free text —
+  /// **a column that looked like a branch and was not one.** Staff typed a name
+  /// into it; nothing constrained it to a real {@link Location}, nothing kept it in
+  /// step when a branch was renamed, nothing stopped two spellings of one site, and
+  /// no query could join it back to anything. Stage 6 of multi-branch replaced it
+  /// with {@link locationId}.
+  ///
+  /// **What survives here after the migration is EXACTLY the residual class**, and
+  /// that is deliberate rather than leftover. Where the typed string resolved to
+  /// one live branch of the SAME gym, `locationId` now carries the answer and this
+  /// was set to NULL — keeping both would let a rename leave a stale name sitting
+  /// beside a correct id, which is the drift the free text is being removed for.
+  /// Where it resolved to nothing, `locationId` stayed NULL and the string was
+  /// KEPT: it is the only surviving evidence of where that shift was, and deleting
+  /// it to tidy the column would destroy information no backfill can reconstruct.
+  ///
+  /// So after Stage 6 `location IS NOT NULL` means precisely: *this string named no
+  /// branch of this gym* — a typo, a room, a closed site, or a name belonging to
+  /// ANOTHER GYM, which the migration refused to adopt for the same reason Stage 3
+  /// refused it on `CheckIn.locationId`: a plain foreign key would have accepted
+  /// it, because that location really does exist. The console can surface such a
+  /// row as an unresolved label and ask someone to pick a branch. When none are
+  /// left, the column goes.
+  ///
+  /// **Renamed in the Prisma schema and NOT in the database** (`@map("location")`,
+  /// so the migration moves no data). `location` now has to mean "the branch" on
+  /// this model as it does on every other one; leaving the free text holding that
+  /// name while the real relation went by some decorated variant would preserve the
+  /// exact ambiguity being removed. The new name also states what the value now is:
+  /// a name, unresolved, and nothing more.
+  ///
+  /// **This does not reopen the deploy window `assignedLocationIds` is being kept
+  /// open to avoid, and the difference is worth being precise about.** Dropping
+  /// that column changes the DATABASE, so an old API image serving against a
+  /// migrated database breaks whatever ships next. This changes only the generated
+  /// CLIENT: the SQL column is untouched, an old image with an old client keeps
+  /// working, and the new client ships in the same build as the call sites it
+  /// renames. One is a cross-deploy hazard; this is a compile-time chore.
+  ///
+  /// Note for whoever does that chore: TypeScript catches only some of it.
+  /// A `select: { location: true }` still compiles — it now selects the RELATION —
+  /// and a `location:` key inside a `createMany` array literal escapes
+  /// excess-property checking entirely, then throws `Unknown argument \`location\``
+  /// at runtime. Grep for the field; do not trust a green type-check alone.
+  locationName String?  @map("location")
+  /// **The branch this shift is worked at.** A single FK, because a shift staffs one
+  /// door — the shape argument at the top of {@link LocationStaff}, and the reason
+  /// the join table is not enough on its own.
+  ///
+  /// This is what "who is working now, per branch" was waiting on, and why the
+  /// roadmap's exemption register lists the dashboard's Staff tab as gym-wide: not
+  /// because the query was slow but because the answer was a string nobody could
+  /// join on.
+  ///
+  /// Nullable, and it will STAY nullable longer than the other Stage 6 columns: a
+  /// row whose free-text name matched no branch has nothing honest to point at, and
+  /// backfilling it to the gym's default would assert someone stood at a door they
+  /// were never at. Unlike a check-in — which really happened, so the default is a
+  /// lossy but defensible attribution — a shift is a PLAN, and a wrong plan staffs
+  /// the wrong site. `SetNull` on delete, so closing a branch un-places its rota
+  /// rather than deleting the record of who was rostered.
+  locationId   String?
+  createdAt    DateTime @default(now())
 
-  gym   Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  staff GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  staff    GymMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  /// The branch this shift is worked at — see {@link ShiftSlot.locationId}.
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   @@index([gymId, staffId, dayOfWeek])
+  /// "Who is working at branch X on day D" — the per-branch rota read. `dayOfWeek`
+  /// trails because the rota is recurring and carries no dates, so the day is the
+  /// only time key there is. ADDS to `(gymId, staffId, dayOfWeek)`, which answers
+  /// one person's weekly grid and whose second column is `staffId`; neither is a
+  /// prefix of the other.
+  @@index([gymId, locationId, dayOfWeek])
   @@map("shift_slots")
 }
 

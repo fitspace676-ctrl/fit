@@ -36,11 +36,23 @@ const row = (over: Args = {}) => ({
   service,
   staff: person('gm-1', 'Nino', 'Beridze'),
   member: null,
+  locationId: 'loc-1',
+  location: { name: 'Vake' },
   invoice: null,
   ...over,
 });
 
-function setup(over: { clash?: boolean; slot?: Args | null; userId?: string | null } = {}) {
+function setup(
+  over: {
+    clash?: boolean;
+    slot?: Args | null;
+    userId?: string | null;
+    /** The branches this service's staff member is rostered at. */
+    assignments?: string[];
+    /** Whether a branch id the caller sent resolves to one of this gym's. */
+    locationExists?: boolean;
+  } = {},
+) {
   const sessionCreate = vi.fn((args: Args) => Promise.resolve({ id: 'ss-1', ...args }));
   const sessionUpdateMany = vi.fn<(args: Args) => Promise<{ count: number }>>(() =>
     Promise.resolve({ count: 1 }),
@@ -65,17 +77,26 @@ function setup(over: { clash?: boolean; slot?: Args | null; userId?: string | nu
   const tx = {
     serviceSession: { updateMany: sessionUpdateMany, update: sessionUpdate },
   };
+  const locationFindFirst = vi.fn(() =>
+    Promise.resolve(over.locationExists === false ? null : { id: 'loc-2' }),
+  );
+  const sessionFindMany = vi.fn((_args: Args) => Promise.resolve([row()]));
+  const locationStaffFindMany = vi.fn(() =>
+    Promise.resolve((over.assignments ?? []).map((locationId) => ({ locationId }))),
+  );
   const client = {
     service: {
       findFirst: vi.fn(() => Promise.resolve({ id: 's-1', staffId: 'gm-1', durationMinutes: 60 })),
     },
     serviceSession: {
       findFirst,
-      findMany: vi.fn(() => Promise.resolve([row()])),
+      findMany: sessionFindMany,
       create: sessionCreate,
       update: sessionUpdate,
     },
     gymMember: { findFirst: vi.fn(() => Promise.resolve({ id: 'gm-9' })) },
+    location: { findFirst: locationFindFirst },
+    locationStaff: { findMany: locationStaffFindMany },
     $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(tx)),
   };
   const prisma = { client } as unknown as TenantPrismaService;
@@ -92,6 +113,8 @@ function setup(over: { clash?: boolean; slot?: Args | null; userId?: string | nu
     sessionUpdate,
     issue,
     findFirst,
+    sessionFindMany,
+    locationStaffFindMany,
   };
 }
 
@@ -109,6 +132,73 @@ describe('ServiceSessionsService.create', () => {
         startsAt: new Date('2026-09-01T14:00:00Z'),
         endsAt: new Date('2026-09-01T15:00:00Z'),
       },
+    });
+  });
+
+  describe('the branch a slot runs at (Stage 6)', () => {
+    const input = { serviceId: 's-1', startsAt: '2026-09-01T14:00:00.000Z', notes: '' };
+
+    it("takes the branch the caller sent, after checking it is this gym's", async () => {
+      const { svc, sessionCreate } = setup({ assignments: ['loc-1', 'loc-9'] });
+      await svc.create({ ...input, locationId: 'loc-2' });
+      expect(sessionCreate.mock.calls[0]?.[0]?.data).toMatchObject({ locationId: 'loc-2' });
+    });
+
+    it("422s a branch that is not one of this gym's, rather than an FK 500", async () => {
+      const { svc, sessionCreate } = setup({ locationExists: false });
+      await expect(svc.create({ ...input, locationId: 'loc-elsewhere' })).rejects.toMatchObject({
+        response: { code: 'LOCATION_INVALID' },
+      });
+      expect(sessionCreate).not.toHaveBeenCalled();
+    });
+
+    it('infers the branch when the coach is rostered at exactly one', async () => {
+      const { svc, sessionCreate } = setup({ assignments: ['loc-1'] });
+      await svc.create(input);
+      // Not a guess: there is exactly one possible answer. The ambiguity Stage 6
+      // refused to resolve through the roster exists only for a coach who covers
+      // two sites, and this is the other case.
+      expect(sessionCreate.mock.calls[0]?.[0]?.data).toMatchObject({ locationId: 'loc-1' });
+    });
+
+    it('leaves it unattributed when the coach covers two sites, or none', async () => {
+      const two = setup({ assignments: ['loc-1', 'loc-2'] });
+      await two.svc.create(input);
+      expect(two.sessionCreate.mock.calls[0]?.[0]?.data).toMatchObject({ locationId: null });
+
+      const none = setup({ assignments: [] });
+      await none.svc.create(input);
+      expect(none.sessionCreate.mock.calls[0]?.[0]?.data).toMatchObject({ locationId: null });
+    });
+
+    it("never falls back to the gym's default branch", async () => {
+      const { svc, sessionCreate, locationStaffFindMany } = setup({ assignments: [] });
+      await svc.create(input);
+      // Stages 2 and 3 defaulted, because a member and a check-in are FACTS that
+      // happened and a lossy attribution beats none. A slot is a PLAN: defaulting
+      // one books an appointment at a door nobody chose, and the utilisation
+      // figures downstream would then reconcile perfectly against something that
+      // never happened. Nothing here asks for `isDefault`.
+      expect(locationStaffFindMany).toHaveBeenCalled();
+      const created = sessionCreate.mock.calls[0]?.[0]?.data as
+        | { locationId?: string | null }
+        | undefined;
+      expect(created?.locationId).toBeNull();
+    });
+
+    it('narrows the calendar feed on the column, beside the PT blocks', async () => {
+      const { svc, sessionFindMany } = setup();
+      await svc.list({
+        from: '2026-09-01T00:00:00.000Z',
+        to: '2026-09-08T00:00:00.000Z',
+        locationId: 'loc-1',
+      });
+      // The PT calendar draws `ServiceSession` and `PtSession` blocks side by side,
+      // so the two narrow the same way. Give one a filter and not the other and a
+      // branch-filtered calendar is assembled from two populations.
+      expect((sessionFindMany.mock.calls[0]?.[0] as Args)?.where).toMatchObject({
+        locationId: 'loc-1',
+      });
     });
   });
 

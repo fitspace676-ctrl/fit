@@ -43,7 +43,7 @@ import { useActiveLocation } from '@/components/active-location';
  * narrowing honestly. A variant kept "just in case" is a variant someone re-adds
  * to the map by accident, so they are removed rather than left unused.
  */
-export type BranchScope = 'staff' | 'classes';
+export type BranchScope = 'staff';
 
 const styles = stylex.create({
   // A quiet strip, not an alert. Nothing has gone wrong — the figures are

@@ -52,9 +52,11 @@ import { BranchScopeNote, type BranchScope } from './branch-scope-note';
 // `GymMember` a home branch, which every member figure — and, through the member
 // who holds it, every subscription and invoice figure — now narrows by. Stage 3
 // retired Overview by making `CheckIn.locationId` a real column something
-// actually writes, which left nothing on that tab gym-wide at all.
+// actually writes, and Stage 6 retired Classes by giving `PtSession` one too.
+// Staff is the last, and it no longer disclaims the tab — only `utilizationRate`,
+// whose denominator is a trainer's weekly availability, a document with no branch
+// dimension to divide by.
 const BRANCH_SCOPE: Partial<Record<DashboardSegment, BranchScope>> = {
-  classes: 'classes',
   staff: 'staff',
 };
 

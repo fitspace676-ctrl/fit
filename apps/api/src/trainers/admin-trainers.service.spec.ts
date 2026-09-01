@@ -222,6 +222,45 @@ describe('AdminTrainersService', () => {
       ]);
     });
 
+    it('narrows to a branch by DERIVING it through the staff member, not a column', async () => {
+      const { service, findMany } = setup();
+
+      await service.listTrainers(query({ locationId: 'loc-1' }));
+
+      // Stage 6 of multi-branch gave `Trainer` no `locationId` deliberately: the
+      // profile is one-to-one with a staff `GymMember` that already carries a base
+      // branch and a roster, so a third branch field here would be a third answer
+      // to one question, on a row nobody updates when the roster changes — the
+      // `assignedLocationIds` mistake in a new place.
+      expect(findMany.mock.calls[0]?.[0]?.where).toMatchObject({
+        staff: { is: { locationAssignments: { some: { locationId: 'loc-1' } } } },
+      });
+      expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('locationId');
+    });
+
+    it('narrows the summary KPIs with the roster, not beside it', async () => {
+      const { service, count } = setup();
+
+      await service.listTrainers(query({ locationId: 'loc-1' }));
+
+      // The cards aggregate the same filtered set, so a gym-wide "12 trainers"
+      // above a branch list of three would be the report-level version of the
+      // half-filtered row the exemption register warns about.
+      for (const call of count.mock.calls) {
+        expect(call[0]?.where).toMatchObject({
+          staff: { is: { locationAssignments: { some: { locationId: 'loc-1' } } } },
+        });
+      }
+    });
+
+    it('sends no branch clause when no branch is selected', async () => {
+      const { service, findMany } = setup();
+
+      await service.listTrainers(query());
+
+      expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('staff');
+    });
+
     it('maps the sort column + direction to a Prisma orderBy', async () => {
       const { service, findMany } = setup();
 

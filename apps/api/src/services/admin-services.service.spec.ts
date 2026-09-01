@@ -55,7 +55,10 @@ function setup(overrides?: {
   const serviceCount = vi.fn<(args: Args) => Promise<number>>(() =>
     Promise.resolve(overrides?.rows?.length ?? 0),
   );
-  const serviceGroupBy = vi.fn(() => Promise.resolve([]));
+  const serviceGroupBy = vi.fn(
+    (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
+      Promise.resolve([]),
+  );
   const serviceFindFirst = vi.fn<(args: Args) => Promise<unknown>>(() =>
     Promise.resolve(overrides?.existing === undefined ? row() : overrides.existing),
   );
@@ -100,6 +103,8 @@ function setup(overrides?: {
     serviceUpdate,
     serviceDelete,
     serviceFindMany,
+    serviceCount,
+    serviceGroupBy,
     memberFindFirst,
   };
 }
@@ -308,6 +313,41 @@ describe('AdminServicesService.listServices', () => {
     });
     expect(result.page).toBe(2);
     expect(result.data[0]?.createdAt).toBe('2026-08-25T10:00:00.000Z');
+  });
+
+  it("derives branch availability from the service's staff, with no column of its own", async () => {
+    const { service, serviceFindMany, serviceCount, serviceGroupBy } = setup({ rows: [row()] });
+
+    await service.listServices({
+      page: 1,
+      limit: 10,
+      status: 'ACTIVE',
+      sort: 'name',
+      dir: 'asc',
+      locationId: 'loc-1',
+    });
+
+    const staffHop = { staff: { is: { locationAssignments: { some: { locationId: 'loc-1' } } } } };
+    // Stage 6 gave `Service` no `locationId`, and here the reason is SHAPE rather
+    // than duplication: a coach who works at both sites offers the service at
+    // both, so a single FK would force the catalogue row to one branch and make
+    // the other unable to sell a thing it demonstrably sells. A second join table
+    // would be a copy of `LocationStaff` somebody has to update twice.
+    expect(serviceFindMany.mock.calls[0]?.[0]?.where).toMatchObject(staffHop);
+    expect(serviceFindMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('locationId');
+    // The summary tiles narrow with it, or they contradict the list beneath them.
+    for (const call of serviceCount.mock.calls) {
+      expect(call[0]?.where).toMatchObject(staffHop);
+    }
+    expect(serviceGroupBy.mock.calls[0]?.[0]?.where).toMatchObject(staffHop);
+  });
+
+  it('sends no branch clause when no branch is selected', async () => {
+    const { service, serviceFindMany } = setup({ rows: [row()] });
+
+    await service.listServices({ page: 1, limit: 10, status: 'ACTIVE', sort: 'name', dir: 'asc' });
+
+    expect(serviceFindMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('staff');
   });
 });
 

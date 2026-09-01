@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { GymMemberStatus, Prisma, Role, TrainerStatus } from '@fit/db';
 import type {
@@ -28,6 +29,7 @@ import { TokenService } from '../auth/token.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { isPlaceholderEmail, placeholderEmail } from '../common/directory-identity';
+import { assignedAtLocation } from '../common/location-filter.util';
 
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
 const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
@@ -35,9 +37,21 @@ const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.T
 /**
  * Shape the staff roster query selects off `GymMember`, joined to the
  * (cross-tenant) `User` for the person's identity, plus the directory-staff
- * extras the roster now renders (split name, phone, assigned location ids).
+ * extras the roster now renders (split name, phone, branch assignments).
  * Kept narrow — staff management never needs the PII the member
  * endpoints also avoid (`passwordHash`, OAuth subject ids).
+ *
+ * **`locationAssignments`, not `assignedLocationIds`.** Stage 6 of multi-branch
+ * moved the work-assignment set into the `LocationStaff` join table and this read
+ * follows it. The array is still WRITTEN (see {@link writeLocationAssignments})
+ * and is never read here again, which is the whole of the drift decision: a
+ * shadow that is only ever written cannot disagree with the source.
+ *
+ * The join also collapses a round trip the array forced. Resolving names off ids
+ * used to mean a second `location.findMany` and a `Map` lookup per row, with a
+ * `.filter(Boolean)` to drop ids naming branches that no longer existed. The
+ * relation returns the names with the rows and the FK cascade means a dangling id
+ * cannot occur, so both the extra query and the defensive filter are gone.
  */
 const STAFF_SELECT = {
   id: true,
@@ -47,7 +61,10 @@ const STAFF_SELECT = {
   joinedAt: true,
   firstName: true,
   lastName: true,
-  assignedLocationIds: true,
+  locationAssignments: {
+    select: { locationId: true, location: { select: { name: true } } },
+    orderBy: { location: { name: 'asc' } },
+  },
   user: { select: { name: true, email: true, phone: true } },
   // The linked coach profile (staff ⇄ trainer link) — just its id, so the roster
   // can offer "open coach profile" without a second round-trip.
@@ -66,6 +83,87 @@ const INVITE_SELECT = {
 } satisfies Prisma.StaffInviteSelect;
 
 type InviteRecord = Prisma.StaffInviteGetPayload<{ select: typeof INVITE_SELECT }>;
+
+/**
+ * The slice of a transaction client {@link writeLocationAssignments} needs.
+ * Structural on purpose: the tenant-**extended** client is not assignable to
+ * `Prisma.TransactionClient` (their default args differ), so a helper the scoped
+ * `$transaction` can pass has to be typed by the two calls it makes rather than by
+ * either client's whole surface — the same shape `products/order-stock.ts` uses
+ * and for the same reason.
+ */
+interface LocationStaffWriter {
+  locationStaff: {
+    deleteMany(args: { where: { staffId: string } }): Promise<{ count: number }>;
+    createMany(args: {
+      data: { gymId: string; staffId: string; locationId: string }[];
+    }): Promise<{ count: number }>;
+  };
+}
+
+/** The distinct branch ids a submitted weekly schedule names. */
+function shiftLocationIds(shifts: readonly { locationId?: string }[]): string[] {
+  return [...new Set(shifts.map((shift) => shift.locationId).filter((id): id is string => !!id))];
+}
+
+/**
+ * Replace a staff member's branch assignments — the `LocationStaff` rows Stage 6
+ * of multi-branch introduced.
+ *
+ * Set-based, matching the editor: the sent list becomes the assignment set, so
+ * this deletes what is there and re-inserts. Moving an assignment is a delete and
+ * a create because the pair IS the fact; there is nothing on the row to update.
+ *
+ * ## The drift decision, in one place
+ *
+ * `GymMember.assignedLocationIds` still exists and is DEPRECATED. It is kept, not
+ * dropped, because `staff.service.ts` selected it until this change: dropping the
+ * column in the migration that added this table would 500 every staff list in the
+ * gap between the migration running and the new image serving. While both exist the
+ * join table is authoritative and the array is a shadow that nothing in the
+ * DATABASE keeps in step — there is no trigger, and the schema says so.
+ *
+ * So this codebase keeps them in step itself, on the only terms that cannot drift:
+ *
+ *  - **Every write path writes BOTH, in one transaction.** The two callers
+ *    ({@link StaffService.createStaff} and {@link StaffService.updateStaffProfile})
+ *    set the array on the member in the same `$transaction` that calls this. Either
+ *    both land or neither does.
+ *  - **No read path reads the array.** `STAFF_SELECT` takes `locationAssignments`,
+ *    the roster filter takes `assignedAtLocation`, and the dashboard takes the same
+ *    join. A shadow that is written and never read cannot make a number wrong; the
+ *    worst it can do is be stale in the database, where only the previous API image
+ *    would see it — which is precisely the image it is being kept alive for.
+ *
+ * The alternative — stop writing the array now — was rejected for that same
+ * rolling deploy: an old image reads the array to render the roster's branch
+ * column, so a staff member edited during the window would silently lose their
+ * branches on the old screens. The alternative after it — keep READING the array
+ * as a fallback — was rejected because a fallback is how two sources of truth
+ * survive: the moment a read prefers the array for some rows, "authoritative"
+ * means nothing and the drift becomes visible instead of inert.
+ *
+ * The array's write can be deleted with the column, in the follow-up migration.
+ * Nothing else has to change when it goes.
+ */
+async function writeLocationAssignments(
+  tx: LocationStaffWriter,
+  gymId: string,
+  staffId: string,
+  locationIds: readonly string[],
+): Promise<void> {
+  await tx.locationStaff.deleteMany({ where: { staffId } });
+  if (locationIds.length === 0) {
+    return;
+  }
+  await tx.locationStaff.createMany({
+    // `createMany` with the pair's unique constraint: a duplicate id in the
+    // request would violate it, so it is collapsed here rather than 500-ing. The
+    // array silently allowed one and doubled the person in any count derived
+    // from it.
+    data: [...new Set(locationIds)].map((locationId) => ({ gymId, staffId, locationId })),
+  });
+}
 
 /**
  * Staff-console staff management for a gym (T4.7): invite, list, re-role, and
@@ -108,11 +206,22 @@ export class StaffService {
    * role filter without being a useful "staff" match).
    */
   async listStaff(filter: ListStaffQuery = {}): Promise<ListStaffResponse> {
-    const [staff, invites, locationNames] = await Promise.all([
+    const [staff, invites] = await Promise.all([
       this.prisma.client.gymMember.findMany({
         where: {
           role: filter.role ? (filter.role as Role) : { in: STAFF_ROLES },
           ...(filter.status ? { status: filter.status } : {}),
+          // "Who can work at branch X" — the reverse query `assignedLocationIds`
+          // could not answer without scanning every membership in the gym,
+          // customers included. Served by `location_staff(gymId, locationId)`.
+          //
+          // Availability, so it OVERLAPS: a coach who covers both sites is on both
+          // branches' rosters and per-branch lengths sum to more than this list
+          // does unfiltered. Deliberately NOT `GymMember.locationId`, which is the
+          // person's base branch and partitions — that column is what a per-branch
+          // head-count of the payroll reads, and using it here would answer a
+          // different question with the same-looking number.
+          ...assignedAtLocation(filter.locationId),
         },
         select: STAFF_SELECT,
         orderBy: { joinedAt: 'asc' },
@@ -122,11 +231,15 @@ export class StaffService {
         select: INVITE_SELECT,
         orderBy: { createdAt: 'desc' },
       }),
-      this.resolveLocationNames(),
     ]);
 
     return {
-      staff: staff.map((row) => this.toStaffMember(row, locationNames)),
+      staff: staff.map((row) => this.toStaffMember(row)),
+      // Pending invites are NOT branch-filtered, and cannot be: an invitation
+      // names an email and a role, and the person has no membership yet — so
+      // there are no assignments to filter on. Under a branch filter the roster
+      // narrows and this list does not, which is the honest rendering of "nobody
+      // has told us where they will work".
       invites: invites.map((row) => this.toPendingInvite(row)),
     };
   }
@@ -164,6 +277,15 @@ export class StaffService {
       .filter(Boolean)
       .join(' ');
 
+    // Both branch sets are checked against the gym's own live branches BEFORE the
+    // transaction opens, so a bad id is a 422 rather than a foreign-key violation
+    // surfacing as a 500 — and so the check is written once for the two places a
+    // branch reaches this service. The array never had this: an id naming a
+    // deleted branch, or another gym's, was silently legal.
+    const live = await this.liveLocationIds();
+    this.assertLiveLocations(input.assignedLocationIds, live);
+    this.assertLiveLocations(shiftLocationIds(input.workingHours), live);
+
     const memberId = await this.prisma.client.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -182,10 +304,14 @@ export class StaffService {
           status: input.status as GymMemberStatus,
           firstName: input.firstName.trim(),
           lastName: input.lastName.trim() || null,
+          // The deprecated shadow, written in the same transaction as the join
+          // table it shadows — see {@link writeLocationAssignments}.
           assignedLocationIds: input.assignedLocationIds,
         },
         select: { id: true },
       });
+
+      await writeLocationAssignments(tx, gymId, member.id, input.assignedLocationIds);
 
       if (input.workingHours.length > 0) {
         await tx.shiftSlot.createMany({
@@ -195,7 +321,11 @@ export class StaffService {
             dayOfWeek: shift.dayOfWeek,
             startTime: shift.startTime,
             endTime: shift.endTime,
-            location: shift.location ?? null,
+            // A real branch FK. The free-text `location` this replaced took a
+            // typed name, joined to nothing, and went stale the moment a branch
+            // was renamed; the column survives ONLY to hold the strings that
+            // named no branch, and no write path may add to that queue.
+            locationId: shift.locationId ?? null,
           })),
         });
       }
@@ -359,16 +489,29 @@ export class StaffService {
       }
     }
 
+    // Same pre-flight as the create path, for the same reason.
+    if (input.assignedLocationIds !== undefined || input.workingHours !== undefined) {
+      const live = await this.liveLocationIds();
+      this.assertLiveLocations(input.assignedLocationIds ?? [], live);
+      this.assertLiveLocations(shiftLocationIds(input.workingHours ?? []), live);
+    }
+
     await this.prisma.client.$transaction(async (tx) => {
       const memberData: Prisma.GymMemberUpdateInput = {};
       if (input.firstName !== undefined) memberData.firstName = input.firstName.trim();
       if (input.lastName !== undefined) memberData.lastName = input.lastName.trim() || null;
       if (input.status !== undefined) memberData.status = input.status;
       if (input.assignedLocationIds !== undefined) {
+        // The shadow copy. Kept exactly in step with the join table below rather
+        // than left to rot: while both exist a stale array is a live 500 waiting
+        // for the rolling deploy this column is being kept alive for.
         memberData.assignedLocationIds = input.assignedLocationIds;
       }
       if (Object.keys(memberData).length > 0) {
         await tx.gymMember.update({ where: { id: memberId }, data: memberData });
+      }
+      if (input.assignedLocationIds !== undefined) {
+        await writeLocationAssignments(tx, gymId, memberId, input.assignedLocationIds);
       }
 
       const userData: Prisma.UserUpdateInput = {};
@@ -410,7 +553,7 @@ export class StaffService {
               dayOfWeek: shift.dayOfWeek,
               startTime: shift.startTime,
               endTime: shift.endTime,
-              location: shift.location ?? null,
+              locationId: shift.locationId ?? null,
             })),
           });
         }
@@ -553,29 +696,52 @@ export class StaffService {
     });
   }
 
-  /** The gym's `Location` id → name map, for resolving `assignedLocationIds`. */
-  private async resolveLocationNames(): Promise<Map<string, string>> {
-    const locations = await this.prisma.client.location.findMany({
-      select: { id: true, name: true },
-    });
-    return new Map(locations.map((loc) => [loc.id, loc.name]));
+  /**
+   * The ids of the gym's own live branches. The scoped client constrains `gymId`,
+   * so this set is exactly "branches this request may name" — which is the check
+   * `assignedLocationIds` never had and could not have had: a `String[]` gets no
+   * foreign key, so an id naming a deleted branch (or ANOTHER GYM's) was silently
+   * legal and stayed in the row forever.
+   */
+  private async liveLocationIds(): Promise<Set<string>> {
+    const locations = await this.prisma.client.location.findMany({ select: { id: true } });
+    return new Set(locations.map((loc) => loc.id));
   }
 
-  /** Re-query one staff member and project it (with resolved location names). */
+  /**
+   * Reject a branch id that is not one of this gym's — a `422 LOCATION_INVALID`.
+   *
+   * Rejecting rather than silently dropping, deliberately. The old read path
+   * filtered unknown ids out when resolving names, so a mistyped branch looked
+   * like it saved and then simply was not there; with the join table the same
+   * mistake would be a foreign-key violation surfacing as a 500. Neither tells the
+   * operator what happened, and only one of them is loud.
+   */
+  private assertLiveLocations(ids: readonly string[], live: ReadonlySet<string>): void {
+    const unknown = ids.find((id) => !live.has(id));
+    if (unknown !== undefined) {
+      throw new UnprocessableEntityException({
+        message: 'Pick a branch of this gym',
+        code: 'LOCATION_INVALID',
+      });
+    }
+  }
+
+  /** Re-query one staff member and project it. */
   private async projectStaff(memberId: string): Promise<StaffMember> {
-    const [row, locationNames] = await Promise.all([
-      this.prisma.client.gymMember.findFirst({ where: { id: memberId }, select: STAFF_SELECT }),
-      this.resolveLocationNames(),
-    ]);
+    const row = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId },
+      select: STAFF_SELECT,
+    });
     // The row was just created/updated under the scoped client, so it must resolve.
     if (!row) {
       throw new NotFoundException({ message: 'Staff member not found', code: 'STAFF_NOT_FOUND' });
     }
-    return this.toStaffMember(row, locationNames);
+    return this.toStaffMember(row);
   }
 
   /** Project a queried membership row to the wire {@link StaffMember}. */
-  private toStaffMember(row: StaffRecord, locationNames: Map<string, string>): StaffMember {
+  private toStaffMember(row: StaffRecord): StaffMember {
     const fullName = row.user.name ?? row.user.email;
     // Directory staff carry a real split name; invited/User-backed staff are split
     // from their single `User.name` so the First/Last columns are always populated.
@@ -595,10 +761,13 @@ export class StaffService {
       phone: row.user.phone,
       role: row.role as StaffRole,
       status: row.status,
-      assignedLocationIds: row.assignedLocationIds,
-      locations: row.assignedLocationIds
-        .map((id) => locationNames.get(id))
-        .filter((name): name is string => Boolean(name)),
+      // Read off `LocationStaff`, never off the deprecated array. The wire shape is
+      // unchanged so the console did not move with the schema; the guarantees did.
+      // Every id here names a live branch of this gym, because the FK cascades the
+      // row away with the branch — the `.filter(Boolean)` that used to drop
+      // dangling ids is gone because a dangling id can no longer exist.
+      assignedLocationIds: row.locationAssignments.map((a) => a.locationId),
+      locations: row.locationAssignments.map((a) => a.location.name),
       joinedAt: row.joinedAt.toISOString(),
       trainerId: row.trainerProfile?.id ?? null,
     };

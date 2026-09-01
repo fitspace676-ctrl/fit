@@ -8,6 +8,7 @@ import {
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchAdminInvoices } from '@/lib/api';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { PaymentsTabs } from '@/components/payments-tabs';
 import { CreateInvoiceDrawer } from './create-invoice-drawer';
 import { InvoiceFilters } from './invoice-filters';
@@ -72,10 +73,26 @@ export default async function InvoicesPage({
   });
   const query = parsed.success ? parsed.data : { page: 1, limit: PAGE_SIZE };
 
+  // The branch this roster is scoped to: the top-bar switcher's cookie, or an
+  // explicit `?locationId=` on this URL. `undefined` means every branch, which is
+  // what the roster showed before the switcher was wired and is still its default.
+  //
+  // Note the parse above deliberately does NOT read `params.locationId`, even
+  // though the schema accepts it: only the resolver checks an id against the gym's
+  // live branches, so an id for a deactivated or cross-tenant branch degrades to
+  // "all locations" here instead of surviving into the query and narrowing the
+  // roster to nothing. `invoicesQueryString` drops `undefined`, so this is a plain
+  // spread rather than a conditional.
+  const locationId = await getActiveLocationId(params);
+
+  // The branch column earns its width only in "All locations" mode — see the note
+  // on `InvoicesTable`'s own `showBranch` prop.
+  const showBranch = locationId === undefined;
+
   let result: ListAdminInvoicesResponse | null = null;
   let error: string | null = null;
   try {
-    result = await fetchAdminInvoices(query);
+    result = await fetchAdminInvoices({ ...query, locationId });
   } catch (caught) {
     error =
       caught instanceof ApiError
@@ -117,7 +134,11 @@ export default async function InvoicesPage({
             {t('invoiceCount', { count: result?.total ?? 0 })}
           </span>
 
-          <InvoicesTable invoices={result?.data ?? []} canManage={canManage} />
+          <InvoicesTable
+            invoices={result?.data ?? []}
+            canManage={canManage}
+            showBranch={showBranch}
+          />
         </>
       )}
     </div>

@@ -33,21 +33,46 @@ const windowRefine = <T extends { from: string; to: string }>(schema: z.ZodType<
 
 // ── Admin (PT calendar) ───────────────────────────────────────────────────────
 
-/** Query for `GET /admin/service-sessions` — the calendar feed. */
+/**
+ * Query for `GET /admin/service-sessions` — the calendar feed.
+ *
+ * `locationId` narrows to the slots running at one branch, plain equality on
+ * `ServiceSession.locationId`. **The PT calendar renders these blocks beside
+ * `PtSession` blocks, so the two had to gain a branch together**: give one a filter
+ * and not the other and a branch-filtered calendar is assembled from two
+ * populations — the defect the trainer-performance report was held gym-wide to
+ * avoid.
+ *
+ * Note what does NOT filter with it: the `Service` catalogue's own branch is
+ * derived from its staff member's roster and is a statement about availability,
+ * whereas this is one appointment at one door. A coach who moves branches does not
+ * move the sessions they have already booked.
+ */
 export const listAdminServiceSessionsQuerySchema = windowRefine(
   z.object({
     ...windowFields,
     staffId: z.string().min(1).optional(),
     serviceId: z.string().min(1).optional(),
+    locationId: z.string().min(1).optional(),
   }),
 );
 export type ListAdminServiceSessionsQuery = z.infer<typeof listAdminServiceSessionsQuerySchema>;
 
-/** Body for `POST /admin/service-sessions` — open one slot of a service. */
+/**
+ * Body for `POST /admin/service-sessions` — open one slot of a service.
+ *
+ * `locationId` is optional and resolved exactly as {@link createPtSessionSchema}
+ * resolves its own: sent wins; otherwise a staff member rostered at exactly one
+ * branch supplies the only possible answer; otherwise the slot is unattributed.
+ * Never the gym default. Frozen at creation, like `staffId`, so reassigning the
+ * service later never moves a slot a member has already booked — a past event does
+ * not move because a person later did.
+ */
 export const createServiceSessionSchema = z.object({
   serviceId: z.string().min(1, 'Pick a service'),
   startsAt: z.string().datetime({ message: 'A valid start time is required' }),
   notes: z.string().trim().max(2000).default(''),
+  locationId: z.string().min(1).optional(),
 });
 export type CreateServiceSessionInput = z.input<typeof createServiceSessionSchema>;
 export type CreateServiceSessionData = z.infer<typeof createServiceSessionSchema>;
@@ -73,6 +98,13 @@ export interface AdminServiceSession {
   staffName: string;
   memberId: string | null;
   memberName: string | null;
+  /**
+   * The branch this slot runs at, and its name for the block's badge. Both `null`
+   * for an unattributed slot, and for one whose branch was later closed — the
+   * session still happened, so the row survives with no branch.
+   */
+  locationId: string | null;
+  locationName: string | null;
   startsAt: string;
   endsAt: string;
   durationMinutes: number;
