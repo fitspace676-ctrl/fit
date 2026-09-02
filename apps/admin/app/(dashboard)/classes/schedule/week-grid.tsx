@@ -2,7 +2,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import type { useTranslations } from 'next-intl';
-import type { AdminScheduleInstance } from '@fit/types';
+import type { CalendarEvent } from './calendar-board';
 import { createDateTimeFormat } from '@fit/i18n';
 import { Icon } from '@/components/ui';
 import { toIsoDate, zonedClock, zonedMinutesOfDay } from './week';
@@ -285,7 +285,7 @@ function weekdayShort(day: Date, locale: string): string {
 }
 
 /** The hour row a class belongs to, on the gym's clock. */
-function startHourOf(instance: AdminScheduleInstance, timeZone: string): number {
+function startHourOf(instance: CalendarEvent, timeZone: string): number {
   return Math.floor(zonedMinutesOfDay(new Date(instance.startsAt), timeZone) / 60);
 }
 
@@ -295,7 +295,7 @@ function startHourOf(instance: AdminScheduleInstance, timeZone: string): number 
  * has somewhere to click.
  */
 function hourRows(
-  instances: AdminScheduleInstance[],
+  instances: CalendarEvent[],
   timeZone: string,
   openHour: number,
   closeHour: number,
@@ -312,7 +312,7 @@ function hourRows(
   return Array.from({ length: last - first }, (_, i) => first + i);
 }
 
-export function WeekGrid({
+export function WeekGrid<E extends CalendarEvent>({
   days,
   byDay,
   todayKey,
@@ -325,7 +325,7 @@ export function WeekGrid({
   onPickSlot,
 }: {
   days: Date[];
-  byDay: Map<string, AdminScheduleInstance[]>;
+  byDay: Map<string, E[]>;
   todayKey: string;
   locale: string;
   timeZone: string;
@@ -333,7 +333,7 @@ export function WeekGrid({
   openHour: number;
   closeHour: number;
   t: T;
-  onOpen: (instance: AdminScheduleInstance) => void;
+  onOpen: (instance: E) => void;
   /** Click-to-create: null when the staffer can't add classes. */
   onPickSlot: ((dayIso: string, startTime: string) => void) | null;
 }) {
@@ -438,27 +438,32 @@ function zonedClockDate(instant: Date, timeZone: string): string {
   }).format(instant);
 }
 
-/** One class card inside its hour-row slot. */
-function SlotCard({
+/** One event card inside its hour-row slot. */
+function SlotCard<E extends CalendarEvent>({
   instance,
   timeZone,
   t,
   onOpen,
 }: {
-  instance: AdminScheduleInstance;
+  instance: E;
   timeZone: string;
   t: T;
-  onOpen: (instance: AdminScheduleInstance) => void;
+  onOpen: (instance: E) => void;
 }) {
   const start = zonedClock(new Date(instance.startsAt), timeZone);
   const canceled = instance.status === 'CANCELED';
   const completed = instance.status === 'COMPLETED';
-  const spots = t('card.spots', { booked: instance.bookedCount, cap: instance.capacity });
+  // An event with no seats (a PT session) has no occupancy to state: its
+  // footer carries the subtitle (who it is for) or, failing that, its status.
+  const seated = instance.capacity !== null && instance.bookedCount !== null;
+  const spots = seated
+    ? t('card.spots', { booked: instance.bookedCount, cap: instance.capacity })
+    : (instance.subtitle ?? t('status.SCHEDULED'));
   const footText = canceled
     ? t('status.CANCELED')
     : completed
       ? t('status.COMPLETED')
-      : instance.bookedCount >= instance.capacity
+      : seated && instance.bookedCount! >= instance.capacity!
         ? t('card.full')
         : spots;
 
@@ -481,13 +486,25 @@ function SlotCard({
             <span {...stylex.props(styles.metaText)}>{instance.trainerName}</span>
           </span>
         ) : null}
+        {instance.subtitle ? (
+          <span {...stylex.props(styles.metaRow)}>
+            <Icon name="users" sw={2} {...stylex.props(styles.metaIcon)} />
+            <span {...stylex.props(styles.metaText)}>{instance.subtitle}</span>
+          </span>
+        ) : null}
         <span {...stylex.props(styles.metaRow)}>
           <Icon name="clock" sw={2} {...stylex.props(styles.metaIcon)} />
           <span {...stylex.props(styles.metaText)}>
             {t('day.minutes', { count: instance.durationMinutes })}
           </span>
         </span>
-        {canceled ? null : <OccupancyMeter instance={instance} label={spots} />}
+        {canceled || !seated ? null : (
+          <OccupancyMeter
+            bookedCount={instance.bookedCount!}
+            capacity={instance.capacity!}
+            label={spots}
+          />
+        )}
       </span>
       <span
         {...stylex.props(
@@ -505,8 +522,15 @@ function SlotCard({
  * The card's occupancy bar: one segment per seat while that stays legible,
  * a solid fill past {@link MAX_SEGMENTS}.
  */
-function OccupancyMeter({ instance, label }: { instance: AdminScheduleInstance; label: string }) {
-  const { bookedCount, capacity } = instance;
+function OccupancyMeter({
+  bookedCount,
+  capacity,
+  label,
+}: {
+  bookedCount: number;
+  capacity: number;
+  label: string;
+}) {
   const pct = capacity > 0 ? Math.min(100, Math.round((bookedCount / capacity) * 100)) : 0;
   return (
     <span
