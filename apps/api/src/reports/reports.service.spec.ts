@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingStatus } from '@fit/db';
-import { REPORT_KEYS } from '@fit/types';
+import { OFFERED_REPORT_KEYS, REPORT_KEYS } from '@fit/types';
 import { ReportsService } from './reports.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -41,6 +41,7 @@ function setup() {
   const creditPackFindMany = vi.fn().mockResolvedValue([]);
   const shiftSlotFindMany = vi.fn().mockResolvedValue([]);
   const auditLogFindMany = vi.fn().mockResolvedValue([]);
+  const trainerFindMany = vi.fn().mockResolvedValue([]);
   const gymFindFirst = vi.fn(() => Promise.resolve(gymRow));
 
   const client = {
@@ -63,6 +64,7 @@ function setup() {
     creditPack: { findMany: creditPackFindMany },
     shiftSlot: { findMany: shiftSlotFindMany },
     auditLog: { findMany: auditLogFindMany },
+    trainer: { findMany: trainerFindMany },
     gym: { findFirst: gymFindFirst },
   };
   const prisma = { client } as unknown as TenantPrismaService;
@@ -99,6 +101,7 @@ function setup() {
     creditPackFindMany,
     shiftSlotFindMany,
     auditLogFindMany,
+    trainerFindMany,
     gymFindFirst,
   };
 }
@@ -133,12 +136,13 @@ describe('ReportsService', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('catalog', () => {
-    it('offers every report by default', async () => {
+    it('offers every OFFERED report by default, and no retired one', async () => {
       const { service } = setup();
 
       const catalog = await service.catalog();
 
-      expect(catalog.reports).toHaveLength(REPORT_KEYS.length);
+      expect(catalog.reports.map((r) => r.key)).toEqual([...OFFERED_REPORT_KEYS]);
+      expect(catalog.reports.some((r) => r.key === 'sales-summary')).toBe(false);
     });
 
     it('omits a report the gym switched off', async () => {
@@ -148,29 +152,39 @@ describe('ReportsService', () => {
       const catalog = await service.catalog();
 
       expect(catalog.reports.some((r) => r.key === 'refunds-detail')).toBe(false);
-      expect(catalog.reports.some((r) => r.key === 'sales-summary')).toBe(true);
+      expect(catalog.reports.some((r) => r.key === 'sales-transactions')).toBe(true);
     });
 
     it('speaks the asked-for language: report copy and the segment headings', async () => {
       const { service } = setup();
       const catalog = await service.catalog('ka');
-      const summary = catalog.reports.find((r) => r.key === 'sales-summary');
-      expect(summary?.name).toBe('გაყიდვების შეჯამება');
-      expect(summary?.description).toMatch(/[ა-ჰ]/);
+      const transactions = catalog.reports.find((r) => r.key === 'sales-transactions');
+      expect(transactions?.name).toBe('გაყიდვების ტრანზაქციები');
+      expect(transactions?.description).toMatch(/[ა-ჰ]/);
       expect(catalog.segments.sales).toBe('გაყიდვები');
       // English carries the definitions verbatim, and English segment labels.
       const en = await service.catalog();
-      expect(en.reports.find((r) => r.key === 'sales-summary')?.name).toBe('Sales summary');
+      expect(en.reports.find((r) => r.key === 'sales-transactions')?.name).toBe(
+        'Sales transactions',
+      );
       expect(en.segments.classes).toBe('Classes & training');
     });
 
-    it('can list the whole catalogue, hidden reports included, for the settings screen', async () => {
+    it('can list the whole offered catalogue, hidden reports included, for the settings screen', async () => {
       const { service } = setup();
       gymRow!.settings = { reports: { 'refunds-detail': false } };
       const full = await service.catalog('ka', { includeHidden: true });
       expect(full.reports.some((r) => r.key === 'refunds-detail')).toBe(true);
-      expect(full.reports).toHaveLength(REPORT_KEYS.length);
+      expect(full.reports).toHaveLength(OFFERED_REPORT_KEYS.length);
       expect(full.reports.find((r) => r.key === 'refunds-detail')?.name).toBe('დაბრუნებები');
+    });
+
+    // A retired report is a product decision, not a gym preference: the settings
+    // screen must not offer a switch for it, so a gym cannot bring it back.
+    it('keeps a retired report out even of the settings listing', async () => {
+      const { service } = setup();
+      const full = await service.catalog(null, { includeHidden: true });
+      expect(full.reports.some((r) => r.key === 'sales-summary')).toBe(false);
     });
 
     it('returns an empty catalogue when every report is off, rather than throwing', async () => {
@@ -188,7 +202,7 @@ describe('ReportsService', () => {
 
       const catalog = await service.catalog();
 
-      expect(catalog.reports).toHaveLength(REPORT_KEYS.length);
+      expect(catalog.reports).toHaveLength(OFFERED_REPORT_KEYS.length);
     });
 
     // The boundary this whole feature rests on. "Hidden" is not "forbidden": a
@@ -748,7 +762,7 @@ describe('ReportsService', () => {
           card: 20_000,
           online: 0,
           bankTransfer: 0,
-          memberAccount: 5_000,
+          other: 5_000,
           refunds: 0,
           transactions: 3,
           references: '00000001, 00000002, 00000003',
@@ -760,7 +774,7 @@ describe('ReportsService', () => {
           card: 0,
           online: 90_000,
           bankTransfer: 40_000,
-          memberAccount: 0,
+          other: 0,
           refunds: 2_000,
           transactions: 2,
           references: '00000004, 00000005',
@@ -772,7 +786,7 @@ describe('ReportsService', () => {
           card: 0,
           online: 0,
           bankTransfer: 0,
-          memberAccount: 0,
+          other: 0,
           refunds: 0,
           transactions: 0,
           references: '',
@@ -1362,7 +1376,7 @@ describe('ReportsService', () => {
         { method: 'Online', payments: 1, revenue: 30_000, share: 30, location: '' },
         { method: 'Card / POS', payments: 1, revenue: 15_000, share: 15, location: 'Vake' },
         { method: 'Cash', payments: 1, revenue: 10_000, share: 10, location: 'Vake' },
-        { method: 'Member account', payments: 1, revenue: 5_000, share: 5, location: 'Vake' },
+        { method: 'Other', payments: 1, revenue: 5_000, share: 5, location: 'Vake' },
       ]);
     });
   });
@@ -2414,6 +2428,151 @@ describe('ReportsService', () => {
 
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]).toMatchObject({ trainer: 'Mia', classes: 2, seatsOffered: 18 });
+    });
+  });
+
+  describe('trainer-activity', () => {
+    // The clock is 10:00Z on 31 August; the window is the gym's month so far.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('counts classes, PT sessions from both sources, distinct members, and how bookings ended, per trainer', async () => {
+      const {
+        service,
+        classInstanceFindMany,
+        ptSessionFindMany,
+        serviceSessionFindMany,
+        trainerFindMany,
+      } = setup();
+      // Mia's staff login is linked to her trainer record; Leo has no trainer record.
+      trainerFindMany.mockResolvedValue([{ id: 'tr1', staffId: 'st1', name: 'Mia' }]);
+      classInstanceFindMany.mockResolvedValue([
+        {
+          trainerId: null,
+          trainer: null,
+          location: null,
+          template: { trainerId: 'tr1', trainer: { name: 'Mia' }, location: { name: 'Vake' } },
+          bookings: [
+            { status: BookingStatus.ATTENDED, memberId: 'm1' },
+            { status: BookingStatus.ATTENDED, memberId: 'm2' },
+            { status: BookingStatus.NO_SHOW, memberId: 'm3' },
+            { status: BookingStatus.CANCELED, memberId: 'm4' },
+            { status: BookingStatus.WAITLIST, memberId: 'm5' },
+          ],
+        },
+        {
+          trainerId: 'tr1',
+          trainer: { name: 'Mia' },
+          location: { name: 'Saburtalo' },
+          template: null,
+          bookings: [{ status: BookingStatus.ATTENDED, memberId: 'm1' }],
+        },
+      ]);
+      ptSessionFindMany.mockResolvedValue([{ trainerId: 'tr1', trainer: { name: 'Mia' } }]);
+      serviceSessionFindMany.mockResolvedValue([
+        { staffId: 'st1', memberId: 'm6', staff: { firstName: 'Mia', lastName: 'K', user: null } },
+        { staffId: 'st9', memberId: 'm7', staff: { firstName: 'Leo', lastName: null, user: null } },
+      ]);
+
+      const result = await service.runReport('trainer-activity', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          trainer: 'Mia',
+          location: 'Saburtalo, Vake',
+          classes: 2,
+          // One calendar session plus one booked slot, joined through her staff login.
+          ptSessions: 2,
+          // m1 (twice), m2, m3 held seats; m4 cancelled and m5 only waited; m6 had a PT slot.
+          membersTrained: 4,
+          attended: 3,
+          cancellations: 1,
+          noShows: 1,
+        },
+        {
+          trainer: 'Leo',
+          location: '',
+          classes: 0,
+          ptSessions: 1,
+          membersTrained: 1,
+          attended: 0,
+          cancellations: 0,
+          noShows: 0,
+        },
+      ]);
+    });
+
+    it('detail: every class booking and PT session in the window under its trainer, oldest first', async () => {
+      const { service, bookingFindMany, serviceSessionFindMany, ptSessionFindMany } = setup();
+      bookingFindMany.mockResolvedValue([
+        {
+          status: BookingStatus.ATTENDED,
+          member: { firstName: 'Nino', lastName: 'Gelashvili', user: null },
+          classInstance: {
+            // 05:00Z is 09:00 in Tbilisi.
+            startsAt: new Date('2026-08-20T05:00:00.000Z'),
+            trainer: null,
+            location: null,
+            template: { title: 'Yoga', trainer: { name: 'Mia' }, location: { name: 'Vake' } },
+            classType: null,
+          },
+        },
+      ]);
+      serviceSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-20T07:00:00.000Z'),
+          status: 'COMPLETED',
+          member: { firstName: 'Dato', lastName: 'Kapanadze', user: null },
+          staff: { firstName: 'Mia', lastName: 'K', user: null },
+          service: { name: 'Personal training' },
+        },
+      ]);
+      ptSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-19T07:00:00.000Z'),
+          status: 'SCHEDULED',
+          trainer: { name: 'Leo' },
+          classType: null,
+        },
+      ]);
+
+      const result = await service.runReport('trainer-activity-detail', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-19',
+          time: '11:00',
+          trainer: 'Leo',
+          type: 'PT session',
+          session: 'PT session',
+          member: '',
+          location: '',
+          status: 'Scheduled',
+        },
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          trainer: 'Mia',
+          type: 'Class',
+          session: 'Yoga',
+          member: 'Nino Gelashvili',
+          location: 'Vake',
+          status: 'Attended',
+        },
+        {
+          date: '2026-08-20',
+          time: '11:00',
+          trainer: 'Mia K',
+          type: 'PT session',
+          session: 'Personal training',
+          member: 'Dato Kapanadze',
+          location: '',
+          status: 'Completed',
+        },
+      ]);
     });
   });
 

@@ -168,7 +168,7 @@
         "sales": "Sales",
         "members": "Members",
         "revenue": "Revenue",
-        "products": "Product sales, margins, stock levels and movements.",
+        "products": "Products",
         "classes": "Classes",
         "staff": "Staff"
       },
@@ -2240,11 +2240,12 @@
       },
       "reports": {
         "groupHints": {
-          "sales": "Takings, plans, discounts and refunds.",
-          "members": "Joins, churn, expiry and attendance.",
-          "revenue": "Where the money comes from, and what is still owed.",
-          "classes": "Attendance, utilisation and no-shows.",
-          "staff": "Trainer performance."
+          "sales": "Transactions, plans and services, the daily till sheet, and refunds.",
+          "members": "The member base, every check-in, and who needs retention or renewal attention.",
+          "revenue": "Invoices and what is still owed, recurring and expected revenue, and how it was collected.",
+          "products": "Product sales and their lines, stock on hand, and every stock movement.",
+          "classes": "Class attendance and its bookings, personal-training sessions, and credit packs.",
+          "staff": "Trainer activity and sales, the staff rota, and the audit trail."
         }
       }
     },

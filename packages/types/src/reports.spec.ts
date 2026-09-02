@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_REPORT_RANGE,
   formatReportCsvCell,
+  DEFAULT_REPORT_KEY,
   groupReportsBySegment,
+  isOfferedReport,
+  OFFERED_REPORT_KEYS,
   REPORT_CATALOG,
   REPORT_DEFINITIONS,
   REPORT_DIGEST_KEYS,
@@ -23,11 +26,56 @@ import {
 } from './reports';
 
 describe('report definitions', () => {
-  it('exposes a definition for every catalogue key, in order', () => {
-    expect(REPORT_CATALOG.map((r) => r.key)).toEqual([...REPORT_KEYS]);
+  it('has a definition for every key, offered or retired', () => {
     for (const key of REPORT_KEYS) {
       expect(REPORT_DEFINITIONS[key].key).toBe(key);
     }
+  });
+
+  it('the catalogue lists the OFFERED reports only, in their own order', () => {
+    expect(REPORT_CATALOG.map((r) => r.key)).toEqual([...OFFERED_REPORT_KEYS]);
+    for (const key of OFFERED_REPORT_KEYS) {
+      expect(REPORT_KEYS).toContain(key);
+      expect(isOfferedReport(key)).toBe(true);
+    }
+    expect(isOfferedReport('sales-summary')).toBe(false);
+  });
+
+  it('offers exactly the reports the owner specified segment by segment on 2026-09-02', () => {
+    expect([...OFFERED_REPORT_KEYS]).toEqual([
+      'sales-transactions',
+      'plan-performance',
+      'daily-reconciliation',
+      'refunds-detail',
+      'member-roster',
+      'member-check-in-log',
+      'members-at-risk',
+      'outstanding-invoices',
+      'projected-revenue',
+      'revenue-by-payment-method',
+      'product-sales',
+      'product-sales-detail',
+      'stock-inventory',
+      'stock-movements',
+      'attendance-by-class',
+      'class-cancellations',
+      'pt-sessions',
+      'credit-usage',
+      'trainer-activity',
+      'trainer-activity-detail',
+      'trainer-sales',
+      'trainer-sales-detail',
+      'staff-schedule',
+      'audit-log',
+    ]);
+    expect(groupReportsBySegment(REPORT_CATALOG).map((g) => g.segment)).toEqual([
+      ...REPORT_SEGMENTS,
+    ]);
+  });
+
+  it('opens the hub on the first offered report, not the first key', () => {
+    expect(DEFAULT_REPORT_KEY).toBe(OFFERED_REPORT_KEYS[0]);
+    expect(isOfferedReport(DEFAULT_REPORT_KEY)).toBe(true);
   });
 
   it('every definition has a non-empty column list with unique keys', () => {
@@ -107,7 +155,7 @@ describe('plan-performance, refunds-detail, daily-reconciliation', () => {
       'card',
       'online',
       'bankTransfer',
-      'memberAccount',
+      'other',
       'refunds',
       'transactions',
       'references',
@@ -357,6 +405,36 @@ describe('classes & training reports', () => {
 });
 
 describe('trainers & staff reports', () => {
+  it('trainer activity: per trainer - classes, PT sessions, members, and how bookings ended', () => {
+    const definition = REPORT_DEFINITIONS['trainer-activity'];
+    expect(definition.segment).toBe('staff');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'trainer',
+      'location',
+      'classes',
+      'ptSessions',
+      'membersTrained',
+      'attended',
+      'cancellations',
+      'noShows',
+    ]);
+  });
+
+  it('trainer activity detail: one row per booking or session, under its trainer', () => {
+    const definition = REPORT_DEFINITIONS['trainer-activity-detail'];
+    expect(definition.segment).toBe('staff');
+    expect(definition.columns.map((c) => c.key)).toEqual([
+      'date',
+      'time',
+      'trainer',
+      'type',
+      'session',
+      'member',
+      'location',
+      'status',
+    ]);
+  });
+
   it('trainer sales: per trainer and branch - packages, sessions, value', () => {
     const definition = REPORT_DEFINITIONS['trainer-sales'];
     expect(definition.segment).toBe('staff');
@@ -413,7 +491,7 @@ describe('groupReportsBySegment', () => {
     }
     // Nothing is lost in the grouping.
     expect(grouped.flatMap((g) => g.reports.map((r) => r.key)).sort()).toEqual(
-      [...REPORT_KEYS].sort(),
+      [...OFFERED_REPORT_KEYS].sort(),
     );
   });
 
@@ -445,6 +523,12 @@ describe('report digest', () => {
     expect(REPORT_DIGEST_KEYS.length).toBeLessThan(REPORT_KEYS.length);
     for (const key of REPORT_DIGEST_KEYS) {
       expect(REPORT_KEYS).toContain(key);
+    }
+  });
+
+  it('never emails a report the console no longer offers', () => {
+    for (const key of REPORT_DIGEST_KEYS) {
+      expect(isOfferedReport(key), key).toBe(true);
     }
   });
 });
