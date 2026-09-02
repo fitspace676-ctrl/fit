@@ -22,9 +22,17 @@ vi.mock('./actions', () => ({
       ],
     }),
   ),
+  fetchServiceCategoriesAction: vi.fn(() =>
+    Promise.resolve({ ok: true, data: [{ id: 'cat-1', name: 'Boxing', serviceCount: 1 }] }),
+  ),
+  createServiceCategoryAction: vi.fn((input: { name: string }) =>
+    Promise.resolve({ ok: true, data: { id: 'cat-2', name: input.name, serviceCount: 0 } }),
+  ),
+  deleteServiceCategoryAction: vi.fn(() => Promise.resolve({ ok: true, data: undefined })),
   createServiceAction: vi.fn(() => Promise.resolve({ ok: true, data: { id: 's-1' } })),
   updateServiceAction: vi.fn(() => Promise.resolve({ ok: true, data: undefined })),
 }));
+const { createServiceCategoryAction } = await import('./actions');
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 
 describe('ServiceDrawer', () => {
@@ -33,8 +41,8 @@ describe('ServiceDrawer', () => {
 
     // Open the drawer and pick a type — advances past the type step.
     fireEvent.click(screen.getByRole('button', { name: 'New service' }));
-    await screen.findByText('Personal training');
-    fireEvent.click(screen.getByText('Personal training'));
+    await screen.findByText('Personal session');
+    fireEvent.click(screen.getByText('Personal session'));
     await screen.findByLabelText('Staff member');
 
     // Close it a way that is neither the form's Cancel nor a successful
@@ -49,7 +57,31 @@ describe('ServiceDrawer', () => {
 
     // Reopening must show the type step again, not jump straight to the form.
     fireEvent.click(screen.getByRole('button', { name: 'New service' }));
-    await waitFor(() => expect(screen.getByText('Personal training')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Personal session')).toBeTruthy());
     expect(screen.queryByLabelText('Staff member')).toBeNull();
+  });
+
+  it('offers "Create category" in place of a custom service, and adds one from the panel', async () => {
+    renderWithIntl(<ServiceDrawer mode="create" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New service' }));
+    await screen.findByText('Create category');
+    expect(screen.queryByText('Custom service')).toBeNull();
+
+    fireEvent.click(screen.getByText('Create category'));
+    // The gym's existing category is listed with how many services it files.
+    expect(await screen.findByText('Boxing')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Delete Boxing' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+
+    fireEvent.change(screen.getByLabelText('Category name'), { target: { value: 'Pilates' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+
+    await waitFor(() =>
+      expect(createServiceCategoryAction).toHaveBeenCalledWith({ name: 'Pilates' }),
+    );
+    // The new category joins the list at once, ready for the session form's picker.
+    expect(await screen.findByText('Pilates')).toBeTruthy();
   });
 });

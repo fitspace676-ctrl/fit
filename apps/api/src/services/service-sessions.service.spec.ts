@@ -16,7 +16,7 @@ const person = (id: string, first: string, last: string) => ({
 });
 
 const service = {
-  name: 'Personal training - Nino Beridze',
+  name: 'Personal session - Nino Beridze',
   type: 'PERSONAL_TRAINING',
   coverUrl: null,
   durationMinutes: 60,

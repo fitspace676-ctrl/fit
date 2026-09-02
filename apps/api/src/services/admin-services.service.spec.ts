@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { Prisma } from '@fit/db';
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { AdminServicesService, personalTrainingName } from './admin-services.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -30,13 +29,13 @@ const staff = (over: Record<string, unknown> = {}) => ({
 const row = (over: Record<string, unknown> = {}) => ({
   id: 's-1',
   type: 'PERSONAL_TRAINING',
-  name: 'Personal training - Nino Beridze',
+  name: 'Personal session - Nino Beridze',
   priceMinor: 5000,
   currency: 'GEL',
   durationMinutes: 60,
   description: '',
-  schedule: null,
   coverUrl: null,
+  category: null,
   status: 'ACTIVE',
   createdAt: new Date('2026-08-25T10:00:00Z'),
   staff: staff(),
@@ -48,6 +47,8 @@ function setup(overrides?: {
   rows?: ReturnType<typeof row>[];
   existing?: ReturnType<typeof row> | null;
   deliveredSessions?: number;
+  /** The category `serviceCategory.findFirst` answers with (null = none). */
+  category?: { id: string; name: string; _count?: { services: number } } | null;
 }) {
   const serviceFindMany = vi.fn<(args: Args) => Promise<unknown[]>>(() =>
     Promise.resolve(overrides?.rows ?? []),
@@ -74,7 +75,24 @@ function setup(overrides?: {
     Promise.resolve([staff(), staff({ id: 'gm-2', role: 'RECEPTIONIST', trainerProfile: null })]),
   );
 
+  const categoryFindFirst = vi.fn(() =>
+    Promise.resolve(overrides?.category === undefined ? null : overrides.category),
+  );
+  const categoryFindMany = vi.fn(() => Promise.resolve([]));
+  const categoryCount = vi.fn(() => Promise.resolve(0));
+  const categoryCreate = vi.fn((args: Args) =>
+    Promise.resolve({ id: 'cat-1', ...(args.data as object) }),
+  );
+  const categoryDelete = vi.fn(() => Promise.resolve({ id: 'cat-1' }));
+
   const client = {
+    serviceCategory: {
+      findFirst: categoryFindFirst,
+      findMany: categoryFindMany,
+      count: categoryCount,
+      create: categoryCreate,
+      delete: categoryDelete,
+    },
     service: {
       findMany: serviceFindMany,
       count: serviceCount,
@@ -101,13 +119,16 @@ function setup(overrides?: {
     serviceDelete,
     serviceFindMany,
     memberFindFirst,
+    categoryFindFirst,
+    categoryCreate,
+    categoryDelete,
   };
 }
 
 describe('personalTrainingName', () => {
   it('prefixes the trainer name in the gym language, with a plain hyphen', () => {
-    expect(personalTrainingName('Nino Beridze', 'en')).toBe('Personal training - Nino Beridze');
-    expect(personalTrainingName('ნინო ბერიძე', 'ka')).toBe('პერსონალური ვარჯიში - ნინო ბერიძე');
+    expect(personalTrainingName('Nino Beridze', 'en')).toBe('Personal session - Nino Beridze');
+    expect(personalTrainingName('ნინო ბერიძე', 'ka')).toBe('პერსონალური სესია - ნინო ბერიძე');
     expect(personalTrainingName('Nino Beridze', 'ka')).not.toMatch(/[—–]/);
   });
 });
@@ -120,27 +141,49 @@ describe('AdminServicesService.createService', () => {
 
     const created = await service.createService({
       type: 'PERSONAL_TRAINING',
-      schedule: null,
       coverUrl: null,
       staffId: 'gm-1',
       priceMinor: 5000,
       durationMinutes: 60,
       description: '',
+      categoryId: null,
     });
 
     expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({
       gymId: 'gym-1',
       type: 'PERSONAL_TRAINING',
-      name: 'Personal training - Nino Beridze',
+      name: 'Personal session - Nino Beridze',
       staffId: 'gm-1',
       currency: 'GEL',
-      schedule: Prisma.JsonNull,
+      categoryId: null,
     });
     expect(created.staff).toEqual({
       id: 'gm-1',
       name: 'Nino Beridze',
       photoUrl: 'https://cdn/nino.jpg',
       isTrainer: true,
+    });
+  });
+
+  it("files a service under one of the gym's categories, and refuses one it does not have", async () => {
+    const { service, serviceCreate } = setup({ category: { id: 'cat-1', name: 'Boxing' } });
+    const input = {
+      type: 'PERSONAL_TRAINING' as const,
+      coverUrl: null,
+      staffId: 'gm-1',
+      priceMinor: 5000,
+      durationMinutes: 60,
+      description: '',
+      categoryId: 'cat-1',
+    };
+
+    await service.createService(input);
+    expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({ categoryId: 'cat-1' });
+
+    const { service: other } = setup({ category: null });
+    await expect(other.createService(input)).rejects.toMatchObject({
+      constructor: UnprocessableEntityException,
+      response: { code: 'SERVICE_CATEGORY_INVALID' },
     });
   });
 
@@ -154,7 +197,7 @@ describe('AdminServicesService.createService', () => {
         priceMinor: 5000,
         durationMinutes: 60,
         description: '',
-        schedule: null,
+        categoryId: null,
         coverUrl: null,
       }),
     ).rejects.toMatchObject({
@@ -175,28 +218,15 @@ describe('AdminServicesService.createService', () => {
         priceMinor: 8000,
         durationMinutes: 45,
         description: '',
-        schedule: {
-          freq: 'DAILY',
-          weekdays: [],
-          startDate: '2026-09-01',
-          startTime: '10:00',
-          until: null,
-        },
+        categoryId: null,
       }),
     ).rejects.toMatchObject({ response: { code: 'SERVICE_STAFF_INVALID' } });
   });
 
-  it('stores a custom service with its own name and schedule', async () => {
+  it('stores a custom service with its own name', async () => {
     const { service, serviceCreate } = setup({
       staffRow: staff({ role: 'RECEPTIONIST', trainerProfile: null }),
     });
-    const schedule = {
-      freq: 'WEEKLY' as const,
-      weekdays: ['MO' as const],
-      startDate: '2026-09-01',
-      startTime: '10:00',
-      until: null,
-    };
 
     await service.createService({
       type: 'CUSTOM',
@@ -206,21 +236,14 @@ describe('AdminServicesService.createService', () => {
       priceMinor: 8000,
       durationMinutes: 45,
       description: 'Full body',
-      schedule,
+      categoryId: null,
     });
 
-    expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({ name: 'Massage', schedule });
+    expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({ name: 'Massage' });
   });
 
-  it('stores an optional schedule and cover on a PT service', async () => {
+  it('stores a cover on a PT service', async () => {
     const { service, serviceCreate } = setup();
-    const schedule = {
-      freq: 'WEEKLY' as const,
-      weekdays: ['MO' as const, 'WE' as const],
-      startDate: '2026-09-01',
-      startTime: '18:00',
-      until: '2026-12-31',
-    };
 
     await service.createService({
       type: 'PERSONAL_TRAINING',
@@ -228,12 +251,11 @@ describe('AdminServicesService.createService', () => {
       priceMinor: 5000,
       durationMinutes: 60,
       description: '',
-      schedule,
+      categoryId: null,
       coverUrl: 'https://cdn/gym-1/services/pt.jpg',
     });
 
     expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({
-      schedule,
       coverUrl: 'https://cdn/gym-1/services/pt.jpg',
     });
   });
@@ -256,7 +278,7 @@ describe('AdminServicesService.updateService', () => {
 
     expect(serviceUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
       staffId: 'gm-3',
-      name: 'Personal training - Giorgi K',
+      name: 'Personal session - Giorgi K',
     });
   });
 
@@ -267,23 +289,61 @@ describe('AdminServicesService.updateService', () => {
     );
   });
 
-  it('clears a PT schedule and replaces the cover', async () => {
+  it('removes the cover', async () => {
     const { service, serviceUpdate } = setup();
 
-    await service.updateService('s-1', { schedule: null, coverUrl: null });
+    await service.updateService('s-1', { coverUrl: null });
 
-    expect(serviceUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
-      schedule: Prisma.JsonNull,
-      coverUrl: null,
+    expect(serviceUpdate.mock.calls[0]?.[0]?.data).toMatchObject({ coverUrl: null });
+  });
+
+  it('moves a service between categories, and takes it out of one', async () => {
+    const { service, serviceUpdate } = setup({ category: { id: 'cat-2', name: 'Pilates' } });
+
+    await service.updateService('s-1', { categoryId: 'cat-2' });
+    expect(serviceUpdate.mock.calls[0]?.[0]?.data).toMatchObject({ categoryId: 'cat-2' });
+
+    await service.updateService('s-1', { categoryId: null });
+    expect(serviceUpdate.mock.calls[1]?.[0]?.data).toMatchObject({ categoryId: null });
+  });
+});
+
+describe('AdminServicesService categories', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('creates a category on the gym and refuses a duplicate name, whatever its case', async () => {
+    const { service, categoryCreate } = setup({ category: null });
+    const created = await service.createCategory({ name: 'Boxing' });
+    expect(categoryCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      gymId: 'gym-1',
+      name: 'Boxing',
+    });
+    expect(created).toEqual({ id: 'cat-1', name: 'Boxing', serviceCount: 0 });
+
+    const { service: taken } = setup({ category: { id: 'cat-1', name: 'boxing' } });
+    await expect(taken.createCategory({ name: 'Boxing' })).rejects.toMatchObject({
+      constructor: ConflictException,
+      response: { code: 'SERVICE_CATEGORY_EXISTS' },
     });
   });
 
-  it('refuses to clear a custom service schedule', async () => {
-    const { service } = setup({ existing: row({ type: 'CUSTOM', name: 'Massage' }) });
-
-    await expect(service.updateService('s-1', { schedule: null })).rejects.toMatchObject({
-      response: { code: 'SERVICE_SCHEDULE_REQUIRED' },
+  it('deletes an unused category and keeps one that still files services', async () => {
+    const { service, categoryDelete } = setup({
+      category: { id: 'cat-1', name: 'Boxing', _count: { services: 0 } },
     });
+    await service.deleteCategory('cat-1');
+    expect(categoryDelete).toHaveBeenCalledWith({ where: { id: 'cat-1' }, select: { id: true } });
+
+    const { service: used, categoryDelete: usedDelete } = setup({
+      category: { id: 'cat-1', name: 'Boxing', _count: { services: 3 } },
+    });
+    await expect(used.deleteCategory('cat-1')).rejects.toMatchObject({
+      response: { code: 'SERVICE_CATEGORY_IN_USE' },
+    });
+    expect(usedDelete).not.toHaveBeenCalled();
+
+    const { service: missing } = setup({ category: null });
+    await expect(missing.deleteCategory('nope')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 

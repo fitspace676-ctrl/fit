@@ -11,10 +11,12 @@ import type {
   AdminServiceStaff,
   CreateServiceData,
   ListAdminServicesQuery,
+  ListServiceCategoriesResponse,
+  CreateServiceCategoryData,
+  ServiceCategory,
   ListAdminServicesResponse,
   ListServiceStaffResponse,
   ServiceResponse,
-  ServiceSchedule,
   UpdateServiceData,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -42,37 +44,34 @@ const SERVICE_SELECT = {
   currency: true,
   durationMinutes: true,
   description: true,
-  schedule: true,
   coverUrl: true,
   status: true,
   createdAt: true,
   staff: { select: STAFF_SELECT },
+  category: { select: { id: true, name: true } },
 } satisfies Prisma.ServiceSelect;
 
 type ServiceRecord = Prisma.ServiceGetPayload<{ select: typeof SERVICE_SELECT }>;
 
-/** "Personal training" in each interface language a gym can pick. */
+/**
+ * "Personal session" in each interface language a gym can pick. The owner's
+ * word for the service (2026-09-02): it is one session with a trainer, and
+ * "training" read as the whole programme.
+ */
 const PERSONAL_TRAINING_LABEL: Record<GymLanguage, string> = {
-  ka: 'პერსონალური ვარჯიში',
-  en: 'Personal training',
-  ru: 'Персональная тренировка',
+  ka: 'პერსონალური სესია',
+  en: 'Personal session',
+  ru: 'Персональная сессия',
 };
 
 /**
  * The generated name of a personal-training service, in the gym's own language:
- * `"პერსონალური ვარჯიში - ნინო ბერიძე"`. A plain hyphen, never an em or en
+ * `"პერსონალური სესია - ნინო ბერიძე"`. A plain hyphen, never an em or en
  * dash: the name reaches receipts, CSV exports and SMS, where a long dash
  * arrives mangled through anything that is not UTF-8 clean.
  */
 export function personalTrainingName(staffName: string, language: GymLanguage): string {
   return `${PERSONAL_TRAINING_LABEL[language]} - ${staffName}`;
-}
-
-/** A schedule as the `Json?` column stores it — `null` becomes SQL NULL, not the JSON `null`. */
-function toScheduleColumn(
-  schedule: ServiceSchedule | null,
-): Prisma.InputJsonValue | Prisma.NullTypes.JsonNull {
-  return schedule === null ? Prisma.JsonNull : schedule;
 }
 
 /** The name staff see for a member row: the gym-scoped name, else the account name. */
@@ -113,6 +112,7 @@ export class AdminServicesService {
       status: query.status,
       ...(query.type ? { type: query.type } : {}),
       ...(query.staffId ? { staffId: query.staffId } : {}),
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(query.search
         ? {
             OR: [
@@ -130,7 +130,7 @@ export class AdminServicesService {
           : { name: query.dir };
     const skip = (query.page - 1) * query.limit;
 
-    const [rows, total, byType, archived] = await Promise.all([
+    const [rows, total, byType, archived, categories] = await Promise.all([
       this.prisma.client.service.findMany({
         where,
         select: SERVICE_SELECT,
@@ -145,6 +145,7 @@ export class AdminServicesService {
         _count: { _all: true },
       }),
       this.prisma.client.service.count({ where: { status: ServiceStatus.ARCHIVED } }),
+      this.prisma.client.serviceCategory.count(),
     ]);
 
     const countOf = (type: ServiceType) =>
@@ -157,7 +158,13 @@ export class AdminServicesService {
       total,
       page: query.page,
       limit: query.limit,
-      summary: { total: personalTraining + custom, personalTraining, custom, archived },
+      summary: {
+        total: personalTraining + custom,
+        personalTraining,
+        custom,
+        categories,
+        archived,
+      },
     };
   }
 
@@ -167,6 +174,7 @@ export class AdminServicesService {
 
   async createService(input: CreateServiceData): Promise<ServiceResponse> {
     const staff = await this.requireStaff(input.staffId, input.type);
+    if (input.categoryId !== null) await this.requireCategory(input.categoryId);
     const { currency, language } = await this.locale.get();
 
     const row = await this.prisma.client.service.create({
@@ -183,7 +191,7 @@ export class AdminServicesService {
         durationMinutes: input.durationMinutes,
         description: input.description,
         coverUrl: input.coverUrl,
-        schedule: toScheduleColumn(input.schedule),
+        categoryId: input.categoryId,
       },
       select: SERVICE_SELECT,
     });
@@ -193,27 +201,21 @@ export class AdminServicesService {
   async updateService(id: string, input: UpdateServiceData): Promise<ServiceResponse> {
     const existing = await this.requireService(id);
     const staff = input.staffId ? await this.requireStaff(input.staffId, existing.type) : null;
+    if (input.categoryId) await this.requireCategory(input.categoryId);
 
     const data: Prisma.ServiceUncheckedUpdateInput = {
       ...(input.priceMinor !== undefined ? { priceMinor: input.priceMinor } : {}),
       ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.coverUrl !== undefined ? { coverUrl: input.coverUrl } : {}),
+      ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
       ...(staff ? { staffId: staff.id } : {}),
     };
     if (existing.type === ServiceType.PERSONAL_TRAINING) {
       if (staff)
         data.name = personalTrainingName(displayName(staff), (await this.locale.get()).language);
-      if (input.schedule !== undefined) data.schedule = toScheduleColumn(input.schedule);
-    } else {
-      if (input.name !== undefined) data.name = input.name;
-      if (input.schedule === null) {
-        throw new UnprocessableEntityException({
-          message: 'A custom service needs a schedule',
-          code: 'SERVICE_SCHEDULE_REQUIRED',
-        });
-      }
-      if (input.schedule !== undefined) data.schedule = toScheduleColumn(input.schedule);
+    } else if (input.name !== undefined) {
+      data.name = input.name;
     }
 
     const row = await this.prisma.client.service.update({
@@ -263,6 +265,79 @@ export class AdminServicesService {
       this.prisma.client.serviceSession.deleteMany({ where: { serviceId: id } }),
       this.prisma.client.service.delete({ where: { id }, select: { id: true } }),
     ]);
+  }
+
+  /** The gym's categories, by name, each with how many services it files. */
+  async listCategories(): Promise<ListServiceCategoriesResponse> {
+    const rows = await this.prisma.client.serviceCategory.findMany({
+      select: { id: true, name: true, _count: { select: { services: true } } },
+      orderBy: { name: 'asc' },
+    });
+    return {
+      data: rows.map((row) => ({ id: row.id, name: row.name, serviceCount: row._count.services })),
+    };
+  }
+
+  /**
+   * Make a category. The name is unique within the gym - the same word twice
+   * is `409 SERVICE_CATEGORY_EXISTS` rather than two rows that look alike in
+   * every picker.
+   */
+  async createCategory(input: CreateServiceCategoryData): Promise<ServiceCategory> {
+    const taken = await this.prisma.client.serviceCategory.findFirst({
+      where: { name: { equals: input.name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (taken) {
+      throw new ConflictException({
+        message: 'A category with that name already exists',
+        code: 'SERVICE_CATEGORY_EXISTS',
+      });
+    }
+    const row = await this.prisma.client.serviceCategory.create({
+      data: { gymId: this.tenant.gymId, name: input.name },
+      select: { id: true, name: true },
+    });
+    return { id: row.id, name: row.name, serviceCount: 0 };
+  }
+
+  /**
+   * Remove a category nothing is filed under. One in use is `409
+   * SERVICE_CATEGORY_IN_USE`: the desk moves its services first, so a category
+   * cannot vanish from a service behind someone's back.
+   */
+  async deleteCategory(id: string): Promise<void> {
+    const row = await this.prisma.client.serviceCategory.findFirst({
+      where: { id },
+      select: { id: true, _count: { select: { services: true } } },
+    });
+    if (!row) {
+      throw new NotFoundException({
+        message: 'Category not found',
+        code: 'SERVICE_CATEGORY_NOT_FOUND',
+      });
+    }
+    if (row._count.services > 0) {
+      throw new ConflictException({
+        message: 'Move its services to another category before deleting it',
+        code: 'SERVICE_CATEGORY_IN_USE',
+      });
+    }
+    await this.prisma.client.serviceCategory.delete({ where: { id }, select: { id: true } });
+  }
+
+  /** A category this gym has - a picked id that is not one is `422 SERVICE_CATEGORY_INVALID`. */
+  private async requireCategory(id: string): Promise<void> {
+    const row = await this.prisma.client.serviceCategory.findFirst({
+      where: { id },
+      select: { id: true },
+    });
+    if (!row) {
+      throw new UnprocessableEntityException({
+        message: "Pick one of the gym's categories",
+        code: 'SERVICE_CATEGORY_INVALID',
+      });
+    }
   }
 
   /** Staff the form can assign: every non-MEMBER, non-deleted person in the gym. */
@@ -342,8 +417,8 @@ function toRow(row: ServiceRecord): AdminServiceRow {
     currency: row.currency,
     durationMinutes: row.durationMinutes,
     description: row.description,
-    schedule: (row.schedule as ServiceSchedule | null) ?? null,
     coverUrl: row.coverUrl,
+    category: row.category ? { id: row.category.id, name: row.category.name } : null,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
   };

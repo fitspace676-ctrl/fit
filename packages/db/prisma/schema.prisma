@@ -431,6 +431,7 @@ model Gym {
   locations               Location[]
   products                Product[]
   services                Service[]
+  serviceCategories       ServiceCategory[]
   serviceSessions         ServiceSession[]
   productCategories       ProductCategory[]
   packagePlans            PackagePlan[]
@@ -1037,10 +1038,11 @@ model Service {
   currency        String
   durationMinutes Int           @default(60)
   description     String        @default("")
-  schedule        Json?
   /// Public URL of the service's cover image in R2 (`{gymId}/services/…`), or null
   /// when it has none. Referenced by the media sweep.
   coverUrl        String?
+  /// The gym's own category for the service (see {@link ServiceCategory}), or null.
+  categoryId      String?
   status          ServiceStatus @default(ACTIVE)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -1048,13 +1050,36 @@ model Service {
   gym        Gym              @relation(fields: [gymId], references: [id], onDelete: Cascade)
   /// `Restrict`: a staff member with services cannot be hard-deleted — reassign first.
   staff      GymMember        @relation("ServiceStaff", fields: [staffId], references: [id], onDelete: Restrict)
+  /// `SetNull`: removing a category leaves its services in place, uncategorised.
+  category   ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
   sessions   ServiceSession[]
 
   /// Backs the admin roster: a tenant's services by status and type.
   @@index([gymId, status, type])
   @@index([gymId, staffId])
+  @@index([gymId, categoryId])
   @@map("services")
+}
+
+/// A gym's own way of filing its services - "Boxing", "Pilates", "Nutrition" -
+/// created by staff from the Services page and picked on a personal session.
+/// Replaced the free-form "custom service" type on 2026-09-02: the owner wanted
+/// one kind of service (a session with a trainer) filed under categories, not a
+/// second kind named by hand.
+model ServiceCategory {
+  id        String   @id @default(cuid())
+  gymId     String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  services Service[]
+
+  @@unique([gymId, name])
+  @@index([gymId])
+  @@map("service_categories")
 }
 
 /// One bookable run of a {@link Service}: a slot staff open on the PT calendar
