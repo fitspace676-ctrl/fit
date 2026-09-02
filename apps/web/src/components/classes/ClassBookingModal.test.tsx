@@ -60,6 +60,7 @@ function card(over: Partial<ClassInstanceCard> = {}): ClassInstanceCard {
     category: 'Yoga',
     color: '#22c55e',
     imageUrl: null,
+    description: '',
     ...over,
   };
 }
@@ -86,5 +87,10 @@ describe('ClassBookingModal cover image', () => {
     expect(screen.queryByRole('img')).toBeNull();
     // The rest of the modal still renders.
     expect(screen.getByText('Morning Yoga')).toBeTruthy();
+  });
+
+  it('reads the class description in the modal, in full, when the template has one', () => {
+    renderModal({ description: 'A gentle vinyasa to start the day.\nBring a mat.' });
+    expect(screen.getByText(/A gentle vinyasa to start the day/)).toBeTruthy();
   });
 });

@@ -81,6 +81,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         system={system}
         locations={locations}
         sidebarCollapsed={sidebarCollapsed}
+        // The verified session, so the sidebar paints its nav on the first frame
+        // instead of a skeleton that waits for `/api/session`.
+        session={session}
         // Into the shell's own banner slot, not above it: the shell is exactly
         // one viewport tall, so a bar stacked on top of it is a bar's worth of
         // document scroll. See the `banner` prop's note in `admin-shell.tsx`.

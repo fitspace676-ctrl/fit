@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Session } from '@/lib/auth-session';
-import { nextSessionState, type UseSessionResult } from './use-session';
+import { nextSessionState, seedSessionState, type UseSessionResult } from './use-session';
 
 const USER: Session = { userId: 'u1', gymId: 'g1', role: 'OWNER' };
 
@@ -69,5 +69,20 @@ describe('nextSessionState — an expired token is not a sign-out', () => {
         { ok: true, user: null, recoverable: true },
       ),
     ).toEqual({ user: null, isLoading: false });
+  });
+});
+
+describe('seedSessionState', () => {
+  // The module holds one shared state; in this file nothing has fetched, so the
+  // seed lands on the cold-start state exactly as it does on a page load.
+  it('gives the first paint the server-rendered session, and does not seed twice', () => {
+    seedSessionState(USER);
+    const other: Session = { userId: 'u2', gymId: 'g1', role: 'MANAGER' };
+    seedSessionState(other);
+    // No fetch has answered, yet the state is already the first seed and stays it.
+    expect(nextSessionState({ user: USER, isLoading: false }, { ok: false })).toEqual({
+      user: USER,
+      isLoading: false,
+    });
   });
 });

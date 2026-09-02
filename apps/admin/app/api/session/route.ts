@@ -15,6 +15,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { IMPERSONATION_COOKIES, impersonationCookieOptions } from '@/lib/impersonation';
 import { getServerSession } from '@/lib/session';
+import { refreshTokens, sessionCookies } from '@/lib/session-refresh';
+import { renewSession } from '@/lib/session-renewal';
+import { verifyAccessToken } from '@/lib/auth-session';
 
 /** Cookie holding the rotating refresh token (httpOnly; never exposed to JS). */
 const REFRESH_TOKEN_COOKIE = 'refreshToken';
@@ -91,15 +94,28 @@ function accessTokenMaxAge(token: string): number {
  * the flag lets the client keep its nav and ask for a navigation, which the
  * middleware then refreshes through the single path built for it.
  */
+/**
+ * `GET /api/session` - the session as the browser sees it, renewed in place when
+ * the access token has expired. See {@link renewSession} for why it renews here
+ * rather than leaving that to a navigation.
+ */
 export async function GET(): Promise<NextResponse> {
-  const user = await getServerSession();
-  if (user) {
-    return NextResponse.json({ user, recoverable: false });
-  }
+  const [current, cookieStore] = await Promise.all([getServerSession(), cookies()]);
+  const secret = process.env.JWT_SECRET;
+  const { user, recoverable, refreshed } = await renewSession({
+    current,
+    refreshToken: cookieStore.get(REFRESH_TOKEN_COOKIE)?.value ?? null,
+    refresh: refreshTokens,
+    verify: (token) => (secret ? verifyAccessToken(token, secret) : Promise.resolve(null)),
+  });
 
-  const cookieStore = await cookies();
-  const recoverable = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value !== undefined;
-  return NextResponse.json({ user: null, recoverable });
+  const res = NextResponse.json({ user, recoverable });
+  if (refreshed) {
+    for (const cookie of sessionCookies(refreshed)) {
+      res.cookies.set(cookie.name, cookie.value, cookie.options);
+    }
+  }
+  return res;
 }
 
 /**
