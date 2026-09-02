@@ -356,8 +356,9 @@ export class ReportDrilldownService {
       byPlan.set(order.package.name, (byPlan.get(order.package.name) ?? 0) + order.total);
     }
 
+    // No gross tile: the owner removed it (2026-09-02). Net beside refunds says
+    // the same thing without a second total to reconcile against.
     const kpis: ReportKpi[] = [
-      { id: 'gross-sales', label: 'Gross sales', value: gross, unit: 'money' },
       { id: 'refunds', label: 'Refunds', value: refunded, unit: 'money' },
       { id: 'net-sales', label: 'Net sales', value: gross - refunded, unit: 'money' },
       { id: 'sale-count', label: 'Sales', value: payments.length, unit: 'count' },
@@ -1224,7 +1225,6 @@ export class ReportDrilldownService {
     const transactions = payments.length;
     const net = gross - refunded;
     const kpis: ReportKpi[] = [
-      { id: 'gross-sales', label: 'Gross sales', value: gross, unit: 'money' },
       { id: 'net-sales', label: 'Net sales', value: net, unit: 'money' },
       { id: 'transactions', label: 'Transactions', value: transactions, unit: 'count' },
       {
