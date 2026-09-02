@@ -65,6 +65,7 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'TimeOffRequest',
   'ShiftSlot',
   'Service',
+  'ServiceCategory',
   'ServiceSession',
 ]);
 

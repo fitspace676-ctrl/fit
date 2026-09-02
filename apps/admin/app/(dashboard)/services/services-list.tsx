@@ -8,7 +8,6 @@ import type { AdminServiceRow } from '@fit/types';
 import { Avatar, Badge, Button, Card, ConfirmDialog } from '@fit/ui-kit';
 import { formatPrice } from '../shop/format-price';
 import { archiveServiceAction, deleteServiceAction, restoreServiceAction } from './actions';
-import { useServiceScheduleFormatter } from './format-schedule';
 import { ServiceDrawer } from './service-drawer';
 
 const styles = stylex.create({
@@ -67,7 +66,6 @@ export function ServicesList({
   canWrite: boolean;
 }) {
   const t = useTranslations('admin.services');
-  const formatSchedule = useServiceScheduleFormatter();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [toDelete, setToDelete] = useState<AdminServiceRow | null>(null);
@@ -144,13 +142,15 @@ export function ServicesList({
                       tone={service.type === 'PERSONAL_TRAINING' ? 'positive' : 'neutral'}
                       label={t(`type.${service.type}`)}
                     />
+                    {service.category ? (
+                      <Badge tone="neutral" label={service.category.name} />
+                    ) : null}
                     {service.status === 'ARCHIVED' ? (
                       <Badge tone="neutral" label={t('list.archivedBadge')} />
                     ) : null}
                   </span>
                   <span {...stylex.props(styles.sub)}>
                     {service.staff.name} · {t('list.minutes', { count: service.durationMinutes })}
-                    {service.schedule ? ` · ${formatSchedule(service.schedule)}` : ''}
                   </span>
                 </div>
               </div>

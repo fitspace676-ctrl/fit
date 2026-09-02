@@ -75,7 +75,7 @@ describe('TrainersService.getTrainer', () => {
           serviceId: 's-1',
           startsAt: new Date('2026-09-01T10:00:00Z'),
           endsAt: new Date('2026-09-01T11:00:00Z'),
-          service: { name: 'Personal training - Nino Beridze' },
+          service: { name: 'Personal session - Nino Beridze' },
         },
       ],
       instances: [
@@ -101,7 +101,7 @@ describe('TrainersService.getTrainer', () => {
     expect(result.trainer.schedule).toEqual([
       {
         id: 'ss-1',
-        title: 'Personal training - Nino Beridze',
+        title: 'Personal session - Nino Beridze',
         startsAt: '2026-09-01T10:00:00.000Z',
         endsAt: '2026-09-01T11:00:00.000Z',
         locationName: '',

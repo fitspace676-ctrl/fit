@@ -228,7 +228,7 @@ export function InvoiceForm({
               required
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="e.g. Personal training block - 10 sessions"
+              placeholder="e.g. Personal session block - 10 sessions"
               className={FIELD_CLASS}
             />
             <p className="text-xs text-ink-400">This is the line the member sees on the PDF.</p>

@@ -7,7 +7,6 @@
 // two can never drift.
 
 import { z } from 'zod';
-import { recurrenceFreqSchema, recurrenceWeekdaySchema } from './classes-admin';
 import { sortDirSchema } from './members';
 
 export const serviceTypeSchema = z.enum(['PERSONAL_TRAINING', 'CUSTOM']);
@@ -15,51 +14,6 @@ export type ServiceType = z.infer<typeof serviceTypeSchema>;
 
 export const serviceStatusSchema = z.enum(['ACTIVE', 'ARCHIVED']);
 export type ServiceStatus = z.infer<typeof serviceStatusSchema>;
-
-/** `YYYY-MM-DD` — a calendar date with no time zone. */
-const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
-/** `HH:MM`, 24-hour. */
-const clockTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM');
-
-/**
- * When a service runs. The classes-admin recurrence vocabulary plus a start
- * date, a start time and an optional end date. `weekdays` only applies to
- * `WEEKLY` (and is then required); the API expands this into sessions in stage 2.
- * Required on a CUSTOM service; optional on a PT one, whose slots otherwise
- * come from the trainer's PT calendar.
- */
-export const serviceScheduleSchema = z
-  .object({
-    freq: recurrenceFreqSchema,
-    weekdays: z.array(recurrenceWeekdaySchema).default([]),
-    startDate: isoDateSchema,
-    startTime: clockTimeSchema,
-    until: z
-      .preprocess(
-        (value) => (value === '' || value === undefined ? null : value),
-        isoDateSchema.nullable(),
-      )
-      .default(null),
-  })
-  .superRefine((value, ctx) => {
-    if (value.freq === 'WEEKLY' && value.weekdays.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Pick at least one weekday for a weekly service',
-        path: ['weekdays'],
-      });
-    }
-    if (value.until !== null && value.until < value.startDate) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'The end date must not be before the start date',
-        path: ['until'],
-      });
-    }
-  });
-
-export type ServiceSchedule = z.infer<typeof serviceScheduleSchema>;
-export type ServiceScheduleInput = z.input<typeof serviceScheduleSchema>;
 
 /**
  * The optional cover image, as a public URL. `''` and absent both normalise to
@@ -72,6 +26,17 @@ const coverUrlSchema = z
   )
   .default(null);
 
+/**
+ * The gym's category a service is filed under, as an id. `''` and absent both
+ * normalise to null so "no category" has exactly one representation.
+ */
+const categoryIdSchema = z
+  .preprocess(
+    (value) => (value === '' || value === undefined ? null : value),
+    z.string().trim().min(1).nullable(),
+  )
+  .default(null);
+
 /** The fields every service carries, whatever its type. */
 const serviceProfileFields = {
   staffId: z.string().trim().min(1, 'Pick a staff member'),
@@ -79,23 +44,55 @@ const serviceProfileFields = {
   durationMinutes: z.number().int().min(15).max(480).default(60),
   description: z.string().trim().max(2000).default(''),
   coverUrl: coverUrlSchema,
+  categoryId: categoryIdSchema,
 };
+
+// ── Categories ───────────────────────────────────────────────────────────────
+
+/** A category's name: short, and unique within the gym (the API says so with 409). */
+export const serviceCategoryNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Give the category a name')
+  .max(60);
+
+/** Body for `POST /admin/services/categories`. */
+export const createServiceCategorySchema = z.object({ name: serviceCategoryNameSchema });
+export type CreateServiceCategoryInput = z.input<typeof createServiceCategorySchema>;
+export type CreateServiceCategoryData = z.infer<typeof createServiceCategorySchema>;
+
+/**
+ * One of the gym's service categories. `serviceCount` is how many services
+ * (active or archived) are filed under it - a category in use cannot be
+ * deleted (`409 SERVICE_CATEGORY_IN_USE`).
+ */
+export interface ServiceCategory {
+  id: string;
+  name: string;
+  serviceCount: number;
+}
+
+export interface ListServiceCategoriesResponse {
+  data: ServiceCategory[];
+}
 
 /**
  * Body for `POST /admin/services`, discriminated on `type`. A PT service has no
- * `name` (generated from its trainer) and an optional `schedule`; a CUSTOM one
- * needs both.
+ * `name` (generated from its trainer); a CUSTOM one is named by staff.
+ *
+ * There is no schedule on a service any more: it never produced a bookable
+ * slot (those are opened one by one on the PT calendar), so the owner had the
+ * whole recurrence section removed on 2026-09-02 rather than keep a form that
+ * described nothing.
  */
 export const createServiceSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('PERSONAL_TRAINING'),
-    schedule: serviceScheduleSchema.nullable().default(null),
     ...serviceProfileFields,
   }),
   z.object({
     type: z.literal('CUSTOM'),
     name: z.string().trim().min(1, 'Give the service a name').max(120),
-    schedule: serviceScheduleSchema,
     ...serviceProfileFields,
   }),
 ]);
@@ -105,9 +102,7 @@ export type CreateServiceData = z.infer<typeof createServiceSchema>;
 
 /**
  * Body for `PATCH /admin/services/:id`. `type` is immutable. `name` is ignored by
- * the API on a PT service (regenerated when `staffId` changes). `schedule: null`
- * clears a PT service's schedule; on a CUSTOM service the API rejects it
- * (`SERVICE_SCHEDULE_REQUIRED`).
+ * the API on a PT service (regenerated when `staffId` changes).
  */
 export const updateServiceSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
@@ -115,8 +110,8 @@ export const updateServiceSchema = z.object({
   priceMinor: z.number().int().nonnegative().optional(),
   durationMinutes: z.number().int().min(15).max(480).optional(),
   description: z.string().trim().max(2000).optional(),
-  schedule: serviceScheduleSchema.nullable().optional(),
   coverUrl: coverUrlSchema.optional(),
+  categoryId: z.string().trim().min(1).nullable().optional(),
 });
 
 export type UpdateServiceData = z.infer<typeof updateServiceSchema>;
@@ -131,6 +126,7 @@ export const listAdminServicesQuerySchema = z.object({
   type: serviceTypeSchema.optional(),
   status: serviceStatusSchema.default('ACTIVE'),
   staffId: z.string().trim().min(1).optional(),
+  categoryId: z.string().trim().min(1).optional(),
   sort: serviceSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
 });
@@ -145,6 +141,12 @@ export interface AdminServiceStaff {
   isTrainer: boolean;
 }
 
+/** The category on a service row, or null when it is filed under none. */
+export interface AdminServiceCategoryRef {
+  id: string;
+  name: string;
+}
+
 /** One service as the admin roster and POS render it. */
 export interface AdminServiceRow {
   id: string;
@@ -155,8 +157,8 @@ export interface AdminServiceRow {
   currency: string;
   durationMinutes: number;
   description: string;
-  schedule: ServiceSchedule | null;
   coverUrl: string | null;
+  category: AdminServiceCategoryRef | null;
   status: ServiceStatus;
   createdAt: string;
 }
@@ -166,6 +168,8 @@ export interface ServiceRosterSummary {
   total: number;
   personalTraining: number;
   custom: number;
+  /** How many categories the gym has made - the tile that replaced "custom". */
+  categories: number;
   archived: number;
 }
 
@@ -215,7 +219,8 @@ export const serviceCardSchema = z.object({
   currency: z.string(),
   durationMinutes: z.number().int(),
   coverUrl: z.string().nullable(),
-  schedule: serviceScheduleSchema.nullable(),
+  /** The gym's category name, or null. */
+  category: z.string().nullable(),
   staff: z.object({
     id: z.string(),
     name: z.string(),

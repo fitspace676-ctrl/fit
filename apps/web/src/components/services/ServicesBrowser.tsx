@@ -78,8 +78,6 @@ const TYPE_FILTERS: readonly TypeFilter[] = ['ALL', 'PERSONAL_TRAINING', 'CUSTOM
 export interface ServicesBrowserProps {
   /** Active gym id, or `null` when no tenant is in scope (apex / preview). */
   gymId: string | null;
-  /** The gym's current calendar day (`YYYY-MM-DD`), resolved server-side in its timezone. */
-  today: string;
 }
 
 interface LoadState {
@@ -89,17 +87,14 @@ interface LoadState {
 
 /**
  * Client orchestrator for the portal's Services page: fetches the gym's
- * catalogue once, owns the type filter and which card is expanded, and renders
- * the card grid. Tapping a card opens its schedule table (when it runs) in
- * place; only one card is open at a time so the grid stays scannable.
+ * catalogue once, owns the type filter, and renders the card grid.
  */
-export function ServicesBrowser({ gymId, today }: ServicesBrowserProps) {
+export function ServicesBrowser({ gymId }: ServicesBrowserProps) {
   const t = useTranslations('services');
   const locale = useLocale();
   const [load, setLoad] = useState<LoadState>({ services: [], status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState<TypeFilter>('ALL');
-  const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!gymId) {
@@ -170,15 +165,7 @@ export function ServicesBrowser({ gymId, today }: ServicesBrowserProps) {
         <ul aria-label={t('grid.label')} {...stylex.props(styles.grid)}>
           {visible.map((service) => (
             <li key={service.id}>
-              <ServiceCard
-                service={service}
-                locale={locale}
-                today={today}
-                open={openId === service.id}
-                onToggle={() =>
-                  setOpenId((current) => (current === service.id ? null : service.id))
-                }
-              />
+              <ServiceCard service={service} locale={locale} />
             </li>
           ))}
         </ul>

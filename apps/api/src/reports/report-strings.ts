@@ -196,7 +196,7 @@ const EN: ReportStrings = {
     categoryMembership: 'Membership',
     categorySessionPack: 'Session pack',
     categoryOneTimePlan: 'One-time plan',
-    categoryPersonalTraining: 'Personal training',
+    categoryPersonalTraining: 'Personal session',
     categoryService: 'Service',
     categoryUncategorised: 'Uncategorised',
     membershipStatuses: {
@@ -228,7 +228,7 @@ const EN: ReportStrings = {
     },
     invoiceTypes: {
       MEMBERSHIP: 'Membership',
-      PERSONAL_TRAINING: 'Personal training',
+      PERSONAL_TRAINING: 'Personal session',
       CLASS: 'Class',
       PRODUCT: 'Product',
       SERVICE: 'Service',
@@ -334,7 +334,7 @@ const KA: ReportStrings = {
     'plan-performance': {
       name: 'გეგმებისა და სერვისების შედეგები',
       description:
-        'რა გაიყიდა - წევრობები, სესიების პაკეტები, პერსონალური ვარჯიშები, სხვა სერვისები და პროდუქტები - რამდენი, რა თანხად, თითოეულის წილი პერიოდის გაყიდვებში და რომელ ფილიალში.',
+        'რა გაიყიდა - წევრობები, სესიების პაკეტები, პერსონალური სესიები, სხვა სერვისები და პროდუქტები - რამდენი, რა თანხად, თითოეულის წილი პერიოდის გაყიდვებში და რომელ ფილიალში.',
       columns: {
         item: 'გეგმა / სერვისი',
         category: 'კატეგორია',
@@ -747,9 +747,9 @@ const KA: ReportStrings = {
       },
     },
     'pt-sessions': {
-      name: 'პერსონალური ვარჯიშები',
+      name: 'პერსონალური სესიები',
       description:
-        'ყველა პერსონალური ვარჯიში ამ პერიოდში, თითო მწკრივი: წევრის მიერ დაჯავშნილი სლოტი (მისი ინვოისით) და მწვრთნელის კალენდრის საკუთარი სესიები. არცერთი კრედიტების პაკეტს არ უკავშირდება, ამიტომ პაკეტის სვეტი ჯერ არ არის.',
+        'ყველა პერსონალური სესია ამ პერიოდში, თითო მწკრივი: წევრის მიერ დაჯავშნილი სლოტი (მისი ინვოისით) და მწვრთნელის კალენდრის საკუთარი სესიები. არცერთი კრედიტების პაკეტს არ უკავშირდება, ამიტომ პაკეტის სვეტი ჯერ არ არის.',
       columns: {
         date: KA_COMMON.date,
         time: KA_COMMON.time,
@@ -809,7 +809,7 @@ const KA: ReportStrings = {
     'trainer-performance': {
       name: 'მწვრთნელების შედეგები',
       description:
-        'ჩატარებული სესიები მწვრთნელების მიხედვით - ჯგუფური კლასები და პერსონალური ვარჯიშები - და რამდენად ივსებოდა მათი კლასები.',
+        'ჩატარებული სესიები მწვრთნელების მიხედვით - ჯგუფური კლასები და პერსონალური სესიები - და რამდენად ივსებოდა მათი კლასები.',
       columns: {
         trainer: KA_COMMON.trainer,
         classes: 'კლასები',
@@ -832,7 +832,7 @@ const KA: ReportStrings = {
     'trainer-sales': {
       name: 'მწვრთნელების გაყიდვები',
       description:
-        'პერსონალური ვარჯიშების გაყიდვები მწვრთნელისა და ფილიალის მიხედვით: გაყიდული სესიების პაკეტები (მიეკუთვნება იმ თანამშრომელს, ვინც გაყიდა - პაკეტი მწვრთნელს არ უკავშირდება) და ჩატარებული PT სესიები (მიეკუთვნება მწვრთნელს, ვინც ატარებს, თითოეულის ინვოისით), და მათი ღირებულება.',
+        'პერსონალური სესიების გაყიდვები მწვრთნელისა და ფილიალის მიხედვით: გაყიდული სესიების პაკეტები (მიეკუთვნება იმ თანამშრომელს, ვინც გაყიდა - პაკეტი მწვრთნელს არ უკავშირდება) და ჩატარებული PT სესიები (მიეკუთვნება მწვრთნელს, ვინც ატარებს, თითოეულის ინვოისით), და მათი ღირებულება.',
       columns: {
         trainer: KA_COMMON.trainer,
         packagesSold: 'გაყიდული PT პაკეტი',
@@ -844,7 +844,7 @@ const KA: ReportStrings = {
     'trainer-sales-detail': {
       name: 'მწვრთნელების გაყიდვების დეტალები',
       description:
-        'ყველა პერსონალური ვარჯიშის გაყიდვა ამ პერიოდში, თითო მწკრივი: რომელ მწვრთნელს მიეკუთვნება, წევრი, პაკეტი ან სესია, რამდენ სესიას შეიცავს, თანხა, როდის და სად.',
+        'ყველა პერსონალური სესიის გაყიდვა ამ პერიოდში, თითო მწკრივი: რომელ მწვრთნელს მიეკუთვნება, წევრი, პაკეტი ან სესია, რამდენ სესიას შეიცავს, თანხა, როდის და სად.',
       columns: {
         date: 'შეძენის თარიღი',
         trainer: KA_COMMON.trainer,
@@ -924,7 +924,6 @@ const KA: ReportStrings = {
     },
   },
   kpis: {
-    'gross-sales': 'მთლიანი გაყიდვები',
     refunds: 'დაბრუნებები',
     'net-sales': 'წმინდა გაყიდვები',
     'sale-count': 'გაყიდვები',
@@ -1091,7 +1090,7 @@ const KA: ReportStrings = {
     categoryMembership: 'წევრობა',
     categorySessionPack: 'სესიების პაკეტი',
     categoryOneTimePlan: 'ერთჯერადი გეგმა',
-    categoryPersonalTraining: 'პერსონალური ვარჯიში',
+    categoryPersonalTraining: 'პერსონალური სესია',
     categoryService: 'სერვისი',
     categoryUncategorised: 'კატეგორიის გარეშე',
     membershipStatuses: {
@@ -1123,7 +1122,7 @@ const KA: ReportStrings = {
     },
     invoiceTypes: {
       MEMBERSHIP: 'წევრობა',
-      PERSONAL_TRAINING: 'პერსონალური ვარჯიში',
+      PERSONAL_TRAINING: 'პერსონალური სესია',
       CLASS: 'კლასი',
       PRODUCT: 'პროდუქტი',
       SERVICE: 'სერვისი',
