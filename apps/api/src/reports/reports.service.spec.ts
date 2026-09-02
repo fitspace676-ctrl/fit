@@ -682,7 +682,7 @@ describe('ReportsService', () => {
         },
         {
           item: 'PT session',
-          category: 'Personal training',
+          category: 'Personal session',
           sold: 1,
           revenue: 8_000,
           share: 5.3,
@@ -2527,7 +2527,7 @@ describe('ReportsService', () => {
           status: 'COMPLETED',
           member: { firstName: 'Dato', lastName: 'Kapanadze', user: null },
           staff: { firstName: 'Mia', lastName: 'K', user: null },
-          service: { name: 'Personal training' },
+          service: { name: 'Personal session' },
         },
       ]);
       ptSessionFindMany.mockResolvedValue([
@@ -2567,7 +2567,7 @@ describe('ReportsService', () => {
           time: '11:00',
           trainer: 'Mia K',
           type: 'PT session',
-          session: 'Personal training',
+          session: 'Personal session',
           member: 'Dato Kapanadze',
           location: '',
           status: 'Completed',

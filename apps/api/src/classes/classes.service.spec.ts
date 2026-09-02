@@ -130,6 +130,8 @@ describe('ClassesService', () => {
             category: 'Yoga',
             color: '#2563eb',
             imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg',
+            // On the card too: the booking modal opens from it.
+            description: 'A gentle vinyasa to start the day.',
           },
         ],
       });
