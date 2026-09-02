@@ -11,6 +11,7 @@ import {
   PackageBillingInterval,
   PaymentMethod,
   ServiceType,
+  ServiceSessionStatus,
   StockMovementReason,
   CreditPackStatus,
 } from '@fit/db';
@@ -480,6 +481,20 @@ export class ReportsService {
       }
       case 'audit-log': {
         const [currency, rows] = await Promise.all([this.resolveCurrency(), this.auditLog(win, s)]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'trainer-activity': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.trainerActivity(win, s),
+        ]);
+        return { name: definition.name, currency, columns: definition.columns, rows };
+      }
+      case 'trainer-activity-detail': {
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(),
+          this.trainerActivityDetail(win, s),
+        ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'trainer-performance':
@@ -979,9 +994,11 @@ export class ReportsService {
    * row would have nothing to be checked against. Days with no sales are real
    * zero rows, so a closed Sunday reads as closed rather than missing.
    *
-   * The columns follow the till's own vocabulary: cash, card at the till, a
-   * bank transfer the desk recorded, and a member's account are the
-   * `pos`-provider methods; everything captured by a gateway is "online".
+   * The columns follow the till's own vocabulary: cash, card at the till and a
+   * bank transfer the desk recorded are the named `pos`-provider methods;
+   * everything captured by a gateway is "online"; whatever is left (a member's
+   * account balance today, any method the till learns later) is "other", so
+   * the five method columns always add up to the day's total.
    */
   private async dailyReconciliation(win: ReportWindow): Promise<ReportRow[]> {
     const days: ReportWindow = { ...win, bucket: 'day' };
@@ -1003,7 +1020,7 @@ export class ReportsService {
       card: number;
       online: number;
       bankTransfer: number;
-      memberAccount: number;
+      other: number;
       refunds: number;
       transactions: number;
       references: string[];
@@ -1016,7 +1033,7 @@ export class ReportsService {
         card: 0,
         online: 0,
         bankTransfer: 0,
-        memberAccount: 0,
+        other: 0,
         refunds: 0,
         transactions: 0,
         references: [],
@@ -1034,10 +1051,10 @@ export class ReportsService {
         day.cash += payment.amount;
       } else if (payment.method === PaymentMethod.BANK_TRANSFER) {
         day.bankTransfer += payment.amount;
-      } else if (payment.method === PaymentMethod.MEMBER_ACCOUNT) {
-        day.memberAccount += payment.amount;
-      } else {
+      } else if (payment.method === PaymentMethod.CARD) {
         day.card += payment.amount;
+      } else {
+        day.other += payment.amount;
       }
     }
     for (const refund of refunds) {
@@ -1052,7 +1069,7 @@ export class ReportsService {
       card: day.card,
       online: day.online,
       bankTransfer: day.bankTransfer,
-      memberAccount: day.memberAccount,
+      other: day.other,
       refunds: day.refunds,
       transactions: day.transactions,
       references: day.references.join(', '),
@@ -1810,8 +1827,9 @@ export class ReportsService {
 
   /**
    * How revenue was collected, per branch, net of refunds: cash, card at the
-   * till, online, bank transfer, member account. The same classification the
-   * daily reconciliation uses, so the two agree on what "online" means.
+   * till, online, bank transfer, and "other" for whatever is left (a member's
+   * account balance today). The same classification the daily reconciliation
+   * uses, so the two agree on what "online" and "other" mean.
    */
   private async revenueByPaymentMethod(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const payments = await this.prisma.client.payment.findMany({
@@ -1840,9 +1858,9 @@ export class ReportsService {
             ? s.values.cash
             : payment.method === PaymentMethod.BANK_TRANSFER
               ? s.values.bankTransfer
-              : payment.method === PaymentMethod.MEMBER_ACCOUNT
-                ? s.values.memberAccount
-                : s.values.cardPos;
+              : payment.method === PaymentMethod.CARD
+                ? s.values.cardPos
+                : s.values.other;
       const location = payment.order?.location?.name ?? '';
       const key = `${method}|${location}`;
       const entry = entries.get(key) ?? { method, location, payments: 0, revenue: 0 };
@@ -3002,6 +3020,268 @@ export class ReportsService {
   /* ---------------------------------------------------------------------- */
   /*  Trainers & staff                                                       */
   /* ---------------------------------------------------------------------- */
+
+  /**
+   * What each trainer did over the window: the classes they ran, the PT sessions
+   * they delivered, how many different members they trained, and how their
+   * class bookings ended - attended, cancelled, no-show.
+   *
+   * PT sessions come from BOTH places the product records one: the trainer
+   * calendar's own sessions (on the {@link Trainer}) and a personal-training slot
+   * a member booked (filed under the STAFF member who took it). A trainer whose
+   * staff login is linked (`Trainer.staffId`) gets both on one row; an unlinked
+   * one is two people to the data and reads as two rows, which is the honest
+   * shape rather than a guess by name.
+   *
+   * One row per trainer, not per trainer and branch: a PT session carries no
+   * branch at all, so a per-branch split would file every PT hour under "no
+   * location". The location column lists the branches their classes ran at.
+   *
+   * "Members trained" counts distinct members across confirmed class bookings
+   * ({@link CONFIRMED_BOOKING_STATUSES} - a no-show still held a seat) and the PT
+   * sessions that name a member. A cancelled booking trained nobody.
+   */
+  private async trainerActivity(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const [instances, calendar, booked, trainers] = await Promise.all([
+      this.prisma.client.classInstance.findMany({
+        where: {
+          startsAt: { gte: win.start, lt: win.end },
+          status: { not: InstanceStatus.CANCELED },
+        },
+        select: {
+          trainerId: true,
+          trainer: { select: { name: true } },
+          location: { select: { name: true } },
+          template: {
+            select: {
+              trainerId: true,
+              trainer: { select: { name: true } },
+              location: { select: { name: true } },
+            },
+          },
+          bookings: { select: { status: true, memberId: true } },
+        },
+      }),
+      this.prisma.client.ptSession.findMany({
+        where: {
+          startsAt: { gte: win.start, lt: win.end },
+          status: { not: InstanceStatus.CANCELED },
+        },
+        select: { trainerId: true, trainer: { select: { name: true } } },
+      }),
+      this.prisma.client.serviceSession.findMany({
+        where: {
+          startsAt: { gte: win.start, lt: win.end },
+          service: { type: ServiceType.PERSONAL_TRAINING },
+          status: { in: [ServiceSessionStatus.BOOKED, ServiceSessionStatus.COMPLETED] },
+        },
+        select: {
+          staffId: true,
+          memberId: true,
+          staff: {
+            select: { firstName: true, lastName: true, user: { select: { name: true } } },
+          },
+        },
+      }),
+      this.prisma.client.trainer.findMany({
+        where: { staffId: { not: null } },
+        select: { id: true, staffId: true, name: true },
+      }),
+    ]);
+
+    interface Entry {
+      name: string;
+      locations: Set<string>;
+      classes: number;
+      ptSessions: number;
+      members: Set<string>;
+      attended: number;
+      cancellations: number;
+      noShows: number;
+    }
+    const byTrainer = new Map<string, Entry>();
+    const entryFor = (key: string, name: string): Entry => {
+      const existing = byTrainer.get(key);
+      if (existing) return existing;
+      const created: Entry = {
+        name,
+        locations: new Set(),
+        classes: 0,
+        ptSessions: 0,
+        members: new Set(),
+        attended: 0,
+        cancellations: 0,
+        noShows: 0,
+      };
+      byTrainer.set(key, created);
+      return created;
+    };
+    // A staff login that is a trainer's, so their booked PT slots join their row.
+    const trainerByStaff = new Map(
+      trainers.flatMap((trainer) => (trainer.staffId ? [[trainer.staffId, trainer] as const] : [])),
+    );
+
+    for (const instance of instances) {
+      // The template's trainer (a generated occurrence) or the instance's own
+      // (one scheduled straight from a type) - the same precedence the other
+      // trainer reports use, so one person's work is not split across two rows.
+      const key = instance.template?.trainerId ?? instance.trainerId ?? UNASSIGNED_KEY;
+      const entry = entryFor(
+        key,
+        instance.template?.trainer?.name ?? instance.trainer?.name ?? s.values.unassigned,
+      );
+      entry.classes += 1;
+      const branch = instance.location?.name ?? instance.template?.location?.name;
+      if (branch) entry.locations.add(branch);
+      for (const booking of instance.bookings) {
+        if (CONFIRMED_BOOKING_STATUSES.includes(booking.status)) {
+          entry.members.add(booking.memberId);
+        }
+        if (booking.status === BookingStatus.ATTENDED) entry.attended += 1;
+        else if (booking.status === BookingStatus.CANCELED) entry.cancellations += 1;
+        else if (booking.status === BookingStatus.NO_SHOW) entry.noShows += 1;
+      }
+    }
+    for (const session of calendar) {
+      const key = session.trainerId ?? UNASSIGNED_KEY;
+      entryFor(key, session.trainer?.name ?? s.values.unassigned).ptSessions += 1;
+    }
+    for (const session of booked) {
+      const linked = trainerByStaff.get(session.staffId);
+      const entry = linked
+        ? entryFor(linked.id, linked.name)
+        : entryFor(`staff:${session.staffId}`, staffName(session.staff, s.values.unassigned));
+      entry.ptSessions += 1;
+      if (session.memberId) entry.members.add(session.memberId);
+    }
+
+    return [...byTrainer.values()]
+      .sort(
+        (a, b) =>
+          b.classes + b.ptSessions - (a.classes + a.ptSessions) || a.name.localeCompare(b.name),
+      )
+      .map((entry) => ({
+        trainer: entry.name,
+        location: [...entry.locations].sort((a, b) => a.localeCompare(b)).join(', '),
+        classes: entry.classes,
+        ptSessions: entry.ptSessions,
+        membersTrained: entry.members.size,
+        attended: entry.attended,
+        cancellations: entry.cancellations,
+        noShows: entry.noShows,
+      }));
+  }
+
+  /**
+   * The line-level view behind {@link trainerActivity}: every class booking in
+   * the window (one row per member on the class, with how it ended) and every
+   * PT session, oldest first, each under the trainer it belongs to.
+   *
+   * PT sessions come from both sources again: a member-booked slot (with the
+   * member; an OPEN slot nobody booked is not an activity and is left out) and
+   * the trainer calendar's own sessions (which name no member). A class booking
+   * is a row per MEMBER rather than per class because the report's question is
+   * who each trainer trained, and a class row alone could not name anyone.
+   */
+  private async trainerActivityDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+    const person = {
+      select: { firstName: true, lastName: true, user: { select: { name: true } } },
+    } as const;
+    const [bookings, booked, calendar] = await Promise.all([
+      this.prisma.client.booking.findMany({
+        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        select: {
+          status: true,
+          member: person,
+          classInstance: {
+            select: {
+              startsAt: true,
+              trainer: { select: { name: true } },
+              location: { select: { name: true } },
+              template: {
+                select: {
+                  title: true,
+                  trainer: { select: { name: true } },
+                  location: { select: { name: true } },
+                },
+              },
+              classType: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: [{ classInstance: { startsAt: 'asc' } }, { createdAt: 'asc' }],
+        take: DETAIL_ROW_LIMIT,
+      }),
+      this.prisma.client.serviceSession.findMany({
+        where: {
+          startsAt: { gte: win.start, lt: win.end },
+          service: { type: ServiceType.PERSONAL_TRAINING },
+          status: { not: ServiceSessionStatus.OPEN },
+        },
+        select: {
+          startsAt: true,
+          status: true,
+          member: person,
+          staff: person,
+          service: { select: { name: true } },
+        },
+        take: DETAIL_ROW_LIMIT,
+      }),
+      this.prisma.client.ptSession.findMany({
+        where: { startsAt: { gte: win.start, lt: win.end } },
+        select: {
+          startsAt: true,
+          status: true,
+          trainer: { select: { name: true } },
+          classType: { select: { name: true } },
+        },
+        take: DETAIL_ROW_LIMIT,
+      }),
+    ]);
+
+    const rows = [
+      ...bookings.map((booking) => {
+        const inst = booking.classInstance;
+        return {
+          at: inst.startsAt,
+          trainer: inst.template?.trainer?.name ?? inst.trainer?.name ?? s.values.unassigned,
+          type: s.values.activityTypes.class,
+          session: inst.template?.title ?? inst.classType?.name ?? s.values.classFallback,
+          member: booking.member
+            ? memberName(booking.member, s.values.unknownMember)
+            : s.values.unknownMember,
+          location: inst.location?.name ?? inst.template?.location?.name ?? '',
+          status: s.values.bookingStatuses[booking.status] ?? booking.status,
+        };
+      }),
+      ...booked.map((session) => ({
+        at: session.startsAt,
+        trainer: staffName(session.staff, s.values.unassigned),
+        type: s.values.activityTypes.pt,
+        session: session.service.name,
+        member: session.member ? memberName(session.member, s.values.unknownMember) : '',
+        location: '',
+        status: s.values.sessionStatuses[session.status] ?? session.status,
+      })),
+      ...calendar.map((session) => ({
+        at: session.startsAt,
+        trainer: session.trainer?.name ?? s.values.unassigned,
+        type: s.values.activityTypes.pt,
+        session: session.classType?.name ?? s.values.activityTypes.pt,
+        member: '',
+        location: '',
+        status: s.values.sessionStatuses[session.status] ?? session.status,
+      })),
+    ];
+    return rows
+      .sort((a, b) => a.at.getTime() - b.at.getTime())
+      .slice(0, DETAIL_ROW_LIMIT)
+      .map(({ at, ...row }) => ({
+        date: isoDate(at, win.zone),
+        time: clockTime(at, win.zone),
+        ...row,
+      }));
+  }
 
   /**
    * What each trainer delivered over the window, and how full it ran.

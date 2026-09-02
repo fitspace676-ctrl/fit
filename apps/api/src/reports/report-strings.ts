@@ -58,6 +58,8 @@ export interface ReportStrings {
     card: string;
     bankTransfer: string;
     memberAccount: string;
+    /** Every payment method the till does not name outright (member account today). */
+    other: string;
     unattributed: string;
     unassigned: string;
     noPlan: string;
@@ -107,6 +109,8 @@ export interface ReportStrings {
     sessionStatuses: Record<string, string>;
     /** A credit pack: active, used up, expired. */
     creditPackStatuses: Record<string, string>;
+    /** What a trainer-activity line is: a group class booking or a PT session. */
+    activityTypes: { class: string; pt: string };
     yes: string;
     no: string;
     /** Staff roles, by `Role`. */
@@ -158,6 +162,7 @@ const EN: ReportStrings = {
     card: 'Card',
     bankTransfer: 'Bank transfer',
     memberAccount: 'Member account',
+    other: 'Other',
     unattributed: 'Unattributed',
     unassigned: 'Unassigned',
     noPlan: 'No plan',
@@ -262,6 +267,7 @@ const EN: ReportStrings = {
       CANCELLED: 'Cancelled',
     },
     creditPackStatuses: { active: 'Active', usedUp: 'Used up', expired: 'Expired' },
+    activityTypes: { class: 'Class', pt: 'PT session' },
     yes: 'Yes',
     no: 'No',
     roles: {
@@ -410,7 +416,7 @@ const KA: ReportStrings = {
     'daily-reconciliation': {
       name: 'დღიური შედარება',
       description:
-        'ყოველი დღის შემოსავალი და როგორ შეგროვდა - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, წევრის ანგარიში - გაცემული დაბრუნებების, გაყიდვების რაოდენობისა და ჯამის უკან მდგომი ჩეკების გვერდით.',
+        'ყოველი დღის შემოსავალი და როგორ შეგროვდა - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, სხვა მეთოდი - გაცემული დაბრუნებების, გაყიდვების რაოდენობისა და ჯამის უკან მდგომი ჩეკების გვერდით.',
       columns: {
         date: KA_COMMON.date,
         total: 'სულ გაყიდვები',
@@ -418,7 +424,7 @@ const KA: ReportStrings = {
         card: 'ბარათი / სალარო',
         online: 'ონლაინ',
         bankTransfer: 'საბანკო გადარიცხვა',
-        memberAccount: 'წევრის ანგარიში',
+        other: 'სხვა გადახდის მეთოდები',
         refunds: 'დაბრუნებები',
         transactions: 'ტრანზაქციები',
         references: 'ტრანზაქციების ნომრები',
@@ -548,7 +554,7 @@ const KA: ReportStrings = {
     'revenue-by-payment-method': {
       name: 'შემოსავალი გადახდის მეთოდით',
       description:
-        'როგორ შეგროვდა შემოსავალი - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, წევრის ანგარიში - ფილიალების მიხედვით, დაბრუნებების გამოკლებით, თითოეული მეთოდის წილით.',
+        'როგორ შეგროვდა შემოსავალი - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, სხვა მეთოდი - ფილიალების მიხედვით, დაბრუნებების გამოკლებით, თითოეული მეთოდის წილით.',
       columns: {
         method: 'გადახდის მეთოდი',
         payments: 'გადახდები',
@@ -767,6 +773,36 @@ const KA: ReportStrings = {
         remaining: 'დარჩენილი',
         expiresOn: 'იწურება',
         lastSession: 'ბოლო სესია',
+        status: KA_COMMON.status,
+      },
+    },
+    'trainer-activity': {
+      name: 'მწვრთნელების აქტივობა',
+      description:
+        'რა გააკეთა თითოეულმა მწვრთნელმა პერიოდში: ჩატარებული კლასები და PT სესიები, რამდენი სხვადასხვა წევრი გაწვრთნა და როგორ დასრულდა კლასების ჯავშნები - დაესწრო, გაუქმდა, არ მოვიდა. ფილიალის სვეტში მისი კლასების ფილიალებია; PT სესიას ფილიალი არ აქვს.',
+      columns: {
+        trainer: KA_COMMON.trainer,
+        location: KA_COMMON.location,
+        classes: 'ჩატარებული კლასები',
+        ptSessions: 'ჩატარებული PT სესიები',
+        membersTrained: 'გაწვრთნილი წევრები',
+        attended: 'კლასზე დასწრება',
+        cancellations: 'გაუქმებები',
+        noShows: 'არ მოვიდა',
+      },
+    },
+    'trainer-activity-detail': {
+      name: 'მწვრთნელების აქტივობის დეტალები',
+      description:
+        'პერიოდის ყველა კლასის ჯავშანი და PT სესია, თითო სტრიქონად, თავისი მწვრთნელის ქვეშ: როდის, რა ტიპის, რომელი კლასი ან სესია, რომელი წევრი, სად და როგორ დასრულდა.',
+      columns: {
+        date: KA_COMMON.date,
+        time: KA_COMMON.time,
+        trainer: KA_COMMON.trainer,
+        type: 'ტიპი',
+        session: 'კლასი / სესია',
+        member: KA_COMMON.member,
+        location: KA_COMMON.location,
         status: KA_COMMON.status,
       },
     },
@@ -1021,6 +1057,7 @@ const KA: ReportStrings = {
     card: 'ბარათი',
     bankTransfer: 'საბანკო გადარიცხვა',
     memberAccount: 'წევრის ანგარიში',
+    other: 'სხვა',
     unattributed: 'მიუკუთვნებელი',
     unassigned: 'მიუნიჭებელი',
     noPlan: 'გეგმის გარეშე',
@@ -1125,6 +1162,7 @@ const KA: ReportStrings = {
       CANCELLED: 'გაუქმებული',
     },
     creditPackStatuses: { active: 'აქტიური', usedUp: 'ამოწურული', expired: 'ვადაგასული' },
+    activityTypes: { class: 'კლასი', pt: 'PT სესია' },
     yes: 'დიახ',
     no: 'არა',
     roles: {

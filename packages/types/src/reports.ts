@@ -272,6 +272,8 @@ export const REPORT_KEYS = [
   'credit-usage',
   'no-show-rate',
   // Staff
+  'trainer-activity',
+  'trainer-activity-detail',
   'trainer-performance',
   'trainer-sales',
   'trainer-sales-detail',
@@ -282,6 +284,60 @@ export const REPORT_KEYS = [
 /** A report catalogue key — {@link REPORT_KEYS}. */
 export const reportKeySchema = z.enum(REPORT_KEYS);
 export type ReportKey = z.infer<typeof reportKeySchema>;
+
+/**
+ * The reports the product OFFERS: the ones the hub lists, Settings > Reports
+ * can toggle, and the digest may draw from. In the owner's own reading order.
+ *
+ * On 2026-09-02 the owner re-specified the catalogue segment by segment (Sales,
+ * Members, Revenue, Products, Classes, Staff) and asked to see these and nothing else. The other {@link REPORT_KEYS} are
+ * RETIRED, not deleted: their definitions, services, translations and tests
+ * stay in the repo (a retired report still answers a bookmarked preview or
+ * export link, exactly as a report a gym switched off does), so a segment the
+ * owner re-specifies later is a matter of adding its keys here, not of digging
+ * code out of git. Nothing derives its visible list from `REPORT_KEYS` any
+ * more; everything a reader can find goes through this list.
+ */
+export const OFFERED_REPORT_KEYS = [
+  // Sales
+  'sales-transactions',
+  'plan-performance',
+  'daily-reconciliation',
+  'refunds-detail',
+  // Members
+  'member-roster',
+  'member-check-in-log',
+  'members-at-risk',
+  // Revenue
+  'outstanding-invoices',
+  'projected-revenue',
+  'revenue-by-payment-method',
+  // Products - the detail report is the "transaction detail" of Product sales.
+  'product-sales',
+  'product-sales-detail',
+  'stock-inventory',
+  'stock-movements',
+  // Classes & training - the bookings report is the "class detail" of Classes & attendance.
+  'attendance-by-class',
+  'class-cancellations',
+  'pt-sessions',
+  'credit-usage',
+  // Trainers & staff - each "detail" report is the line-level view of the one before it.
+  'trainer-activity',
+  'trainer-activity-detail',
+  'trainer-sales',
+  'trainer-sales-detail',
+  'staff-schedule',
+  'audit-log',
+] as const satisfies readonly ReportKey[];
+
+/** A report the product currently offers — {@link OFFERED_REPORT_KEYS}. */
+export type OfferedReportKey = (typeof OFFERED_REPORT_KEYS)[number];
+
+/** Whether `key` is one of the reports the product currently offers. */
+export function isOfferedReport(key: ReportKey): key is OfferedReportKey {
+  return (OFFERED_REPORT_KEYS as readonly ReportKey[]).includes(key);
+}
 
 /** The file formats a report can be exported as. */
 export const reportFormatSchema = z.enum(['csv', 'xlsx']);
@@ -461,7 +517,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'sales',
     name: 'Daily reconciliation',
     description:
-      "Each day's takings and how they were collected - cash, card at the till, online, bank transfer, member account - beside the refunds issued, the number of sales, and the receipts behind the total.",
+      "Each day's takings and how they were collected - cash, card at the till, online, bank transfer, any other method - beside the refunds issued, the number of sales, and the receipts behind the total.",
     columns: [
       { key: 'date', label: 'Date', type: 'date' },
       { key: 'total', label: 'Total sales', type: 'money' },
@@ -469,7 +525,9 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
       { key: 'card', label: 'Card / POS', type: 'money' },
       { key: 'online', label: 'Online', type: 'money' },
       { key: 'bankTransfer', label: 'Bank transfer', type: 'money' },
-      { key: 'memberAccount', label: 'Member account', type: 'money' },
+      // Everything the four named methods do not cover - today a member's account
+      // balance, and any method the till learns later - so the row always sums.
+      { key: 'other', label: 'Other payment methods', type: 'money' },
       { key: 'refunds', label: 'Refunds', type: 'money' },
       { key: 'transactions', label: 'Transactions', type: 'number' },
       { key: 'references', label: 'Underlying transactions', type: 'text' },
@@ -639,7 +697,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'revenue',
     name: 'Revenue by payment method',
     description:
-      "How revenue was collected - cash, card at the till, online, bank transfer, member account - per branch, net of refunds, with each method's share of the total.",
+      "How revenue was collected - cash, card at the till, online, bank transfer, any other method - per branch, net of refunds, with each method's share of the total.",
     columns: [
       { key: 'method', label: 'Payment method', type: 'text' },
       { key: 'payments', label: 'Payments', type: 'number' },
@@ -892,6 +950,40 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   },
   /* ---- Trainers & staff ------------------------------------------------- */
 
+  'trainer-activity': {
+    key: 'trainer-activity',
+    segment: 'staff',
+    name: 'Trainer activity',
+    description:
+      'What each trainer did in the window: classes run, PT sessions delivered, how many different members they trained, and how their class bookings ended - attended, cancelled, no-show. The location column lists the branches their classes ran at; a PT session carries no branch.',
+    columns: [
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'classes', label: 'Classes run', type: 'number' },
+      { key: 'ptSessions', label: 'PT sessions delivered', type: 'number' },
+      { key: 'membersTrained', label: 'Members trained', type: 'number' },
+      { key: 'attended', label: 'Class attendance', type: 'number' },
+      { key: 'cancellations', label: 'Cancellations', type: 'number' },
+      { key: 'noShows', label: 'No-shows', type: 'number' },
+    ],
+  },
+  'trainer-activity-detail': {
+    key: 'trainer-activity-detail',
+    segment: 'staff',
+    name: 'Trainer activity detail',
+    description:
+      'Every class booking and PT session in the window, one row each, under the trainer it belongs to: when, which kind, which class or session, which member, where, and how it ended.',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'time', label: 'Time', type: 'text' },
+      { key: 'trainer', label: 'Trainer', type: 'text' },
+      { key: 'type', label: 'Type', type: 'text' },
+      { key: 'session', label: 'Class / session', type: 'text' },
+      { key: 'member', label: 'Member', type: 'text' },
+      { key: 'location', label: 'Location', type: 'text' },
+      { key: 'status', label: 'Status', type: 'text' },
+    ],
+  },
   'trainer-performance': {
     key: 'trainer-performance',
     segment: 'staff',
@@ -983,18 +1075,24 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
   },
 };
 
-/** The catalogue as an ordered list, for the Reports hub's `GET /admin/reports`. */
-export const REPORT_CATALOG: ReportDefinition[] = REPORT_KEYS.map((key) => REPORT_DEFINITIONS[key]);
+/**
+ * The catalogue as an ordered list, for the Reports hub's `GET /admin/reports`:
+ * the OFFERED reports only, in {@link OFFERED_REPORT_KEYS} order. A retired
+ * report keeps its definition in {@link REPORT_DEFINITIONS} but is not in here.
+ */
+export const REPORT_CATALOG: ReportDefinition[] = OFFERED_REPORT_KEYS.map(
+  (key) => REPORT_DEFINITIONS[key],
+);
 
 /**
  * The report the hub opens on when the URL names none.
  *
  * The hub used to open on nothing: an empty preview pane beside an index where no
  * row was marked, which is a screen with no answer to "what am I looking at". The
- * first report in {@link REPORT_KEYS} is the catalogue's own idea of the most
- * general one, so it is what the screen leads with.
+ * first OFFERED report is the catalogue's own idea of the most general one, so it
+ * is what the screen leads with.
  */
-export const DEFAULT_REPORT_KEY: ReportKey = REPORT_KEYS[0];
+export const DEFAULT_REPORT_KEY: ReportKey = OFFERED_REPORT_KEYS[0];
 
 /**
  * The catalogue grouped for the hub, in {@link REPORT_SEGMENTS} order, with each
@@ -1098,14 +1196,16 @@ export const REPORT_DIGEST_RANGE: Record<ReportDigestCadence, ReportWindowPreset
  * This used to be an alias for {@link REPORT_KEYS}, which meant every report added
  * to the console silently joined the weekly email to every owner and manager. The
  * catalogue has since grown past what anyone wants in an inbox, so the digest now
- * names its four sections outright: a new report reaches the digest only when
- * somebody decides it should.
+ * names its sections outright: a new report reaches the digest only when somebody
+ * decides it should.
+ *
+ * Drawn from {@link OFFERED_REPORT_KEYS} only: an email must not carry a report
+ * the console no longer shows. The two sections are the ones that summarise a
+ * week - a per-transaction table would be the whole ledger in an inbox.
  */
-export const REPORT_DIGEST_KEYS: readonly ReportKey[] = [
-  'sales-summary',
-  'membership-movement',
-  'attendance-by-class',
-  'no-show-rate',
+export const REPORT_DIGEST_KEYS: readonly OfferedReportKey[] = [
+  'daily-reconciliation',
+  'plan-performance',
 ];
 
 /**

@@ -664,6 +664,8 @@ export const gymReportsSettingsSchema = z.object({
   'credit-usage': z.boolean().default(true),
   'no-show-rate': z.boolean().default(true),
   // Staff
+  'trainer-activity': z.boolean().default(true),
+  'trainer-activity-detail': z.boolean().default(true),
   'trainer-performance': z.boolean().default(true),
   'trainer-sales': z.boolean().default(true),
   'trainer-sales-detail': z.boolean().default(true),
