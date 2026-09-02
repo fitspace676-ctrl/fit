@@ -27,6 +27,7 @@ const STATUS_TONES: Record<string, BadgeTone> = {
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
   card: 'Card',
+  bank_transfer: 'Bank transfer',
   member_account: 'Member account',
 };
 
@@ -143,7 +144,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
 
   const session = await getServerSession();
-  if (session === null || !roleHasPermission(session.role, Permission.BillingRead)) {
+  if (session === null || !roleHasPermission(session.role, Permission.TransactionRead)) {
     return (
       <div {...stylex.props(styles.page)}>
         <Card role="alert" padding="none" xstyle={styles.errorCard}>

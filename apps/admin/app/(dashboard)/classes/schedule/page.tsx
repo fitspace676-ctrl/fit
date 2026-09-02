@@ -156,7 +156,15 @@ export default async function SchedulePage({
   // "Add Class" opens the class-type drawer — offered only to staff who hold the
   // write capability, and its form needs the gym's trainer/location/plan options.
   const session = await getServerSession();
-  const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
+  const can = (permission: Permission): boolean =>
+    session !== null && roleHasPermission(session.role, permission);
+  const canWrite = can(Permission.ClassWrite);
+  // The roster actions are separate capabilities from editing the class itself,
+  // so the front desk can book, mark and promote without being able to cancel or
+  // schedule classes.
+  const canBook = can(Permission.BookingManage);
+  const canMarkAttendance = can(Permission.ClassAttendance);
+  const canManageWaitlist = can(Permission.ClassWaitlist);
 
   let content;
   try {
@@ -180,6 +188,9 @@ export default async function SchedulePage({
         trainers={filters.trainers}
         trainerId={trainerId}
         canWrite={canWrite}
+        canBook={canBook}
+        canMarkAttendance={canMarkAttendance}
+        canManageWaitlist={canManageWaitlist}
         addClass={addClass}
         timeZone={timeZone}
         openHour={openHour}

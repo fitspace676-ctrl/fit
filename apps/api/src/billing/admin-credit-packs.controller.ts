@@ -33,9 +33,9 @@ import { CreditPacksService } from './credit-packs.service';
  * - `POST /admin/members/:id/credit-packs` — grant the pack named by `{ packId }`.
  * - `GET  /admin/credit-packs/catalogue`   — the gym's buyable packs, for the modal.
  *
- * Reads require {@link Permission.BillingRead} (held by OWNER / MANAGER /
+ * Reads require {@link Permission.PtPackageRead} (held by OWNER / MANAGER /
  * RECEPTIONIST — the roles that can view billing); the grant write requires
- * {@link Permission.BillingManage} (OWNER / MANAGER), mirroring the T5.7 admin
+ * {@link Permission.PtPackageSell} (OWNER / MANAGER / RECEPTIONIST), mirroring the T5.7 admin
  * freeze endpoint. Deliberately *not* the member's `CreditPackManage`, which staff
  * roles don't hold. The service runs on the tenant-scoped Prisma client, so no
  * handler passes a `gymId`; an unknown / cross-tenant member id is a
@@ -53,7 +53,7 @@ export class AdminCreditPacksController {
    */
   @Get('members/:id/credit-packs')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.BillingRead)
+  @RequirePermissions(Permission.PtPackageRead)
   async listForMember(@Param('id') id: string): Promise<ListCreditPacksResponse> {
     return this.creditPacks.listMemberCreditPacks(id);
   }
@@ -66,7 +66,7 @@ export class AdminCreditPacksController {
    */
   @Post('members/:id/credit-packs')
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.BillingManage)
+  @RequirePermissions(Permission.PtPackageSell)
   async grantForMember(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -81,7 +81,7 @@ export class AdminCreditPacksController {
    */
   @Get('credit-packs/catalogue')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.BillingRead)
+  @RequirePermissions(Permission.PtPackageRead)
   async catalogue(): Promise<ListCreditPackCatalogueResponse> {
     return this.creditPacks.listCatalogue();
   }

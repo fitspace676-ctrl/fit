@@ -230,7 +230,7 @@ export class ReportDeliveryService {
       async () => {
         const results: ReportDigestSection[] = [];
         for (const key of REPORT_DIGEST_KEYS) {
-          results.push(await this.reports.runReport(key, { range }));
+          results.push(await this.reports.runDigestSection(key, range));
         }
         return results;
       },

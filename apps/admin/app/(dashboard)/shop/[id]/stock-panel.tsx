@@ -160,11 +160,15 @@ export function StockPanel({
   product,
   movements,
   canWrite,
+  canViewMovements,
   branchName,
 }: {
   product: GetAdminProductResponse;
   movements: StockMovementRow[];
+  /** Whether the staff session holds `InventoryAdjust` (shows the adjust controls). */
   canWrite: boolean;
+  /** Whether the staff session holds `StockMovementRead` (shows the ledger). */
+  canViewMovements: boolean;
   /** The console's active branch, or `null` in "All locations" mode. */
   branchName: string | null;
 }) {
@@ -249,87 +253,96 @@ export function StockPanel({
         .
       </p>
 
-      <div {...stylex.props(styles.headRow)}>
-        <h2 {...stylex.props(styles.heading)}>Stock history</h2>
-        <span {...stylex.props(styles.subtle)}>
-          {branchName === null ? 'Most recent first' : `${branchName} · most recent first`}
-        </span>
-      </div>
+      {/* The ledger is a capability of its own (`StockMovementRead`): a
+          receptionist may see what a branch holds without being shown who
+          moved it, or why. */}
+      {canViewMovements ? (
+        <>
+          <div {...stylex.props(styles.headRow)}>
+            <h2 {...stylex.props(styles.heading)}>Stock history</h2>
+            <span {...stylex.props(styles.subtle)}>
+              {branchName === null ? 'Most recent first' : `${branchName} · most recent first`}
+            </span>
+          </div>
 
-      <Card padding="none" xstyle={styles.card}>
-        {movements.length === 0 ? (
-          <p {...stylex.props(styles.empty)}>
-            No movements recorded yet. Adjustments, sales and refunds will appear here.
-          </p>
-        ) : (
-          <table {...stylex.props(styles.table)}>
-            <thead>
-              <tr>
-                <th {...stylex.props(styles.th)}>When</th>
-                {/* The branch is on the ROW here, unlike the aggregate views: the
-                    ledger really does mix branches, so the column changes down the
-                    page and earns its place. */}
-                <th {...stylex.props(styles.th)}>Branch</th>
-                <th {...stylex.props(styles.th)}>Position</th>
-                <th {...stylex.props(styles.th)}>Reason</th>
-                <th {...stylex.props(styles.th, styles.num)}>Change</th>
-                {/* Not the gym-wide figure the table above shows: this is what the
-                    row's own branch held afterwards. */}
-                <th {...stylex.props(styles.th, styles.num)}>Left at branch</th>
-                <th {...stylex.props(styles.th)}>By</th>
-                <th {...stylex.props(styles.th)}>Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movements.map((movement) => (
-                <tr key={movement.id}>
-                  <td {...stylex.props(styles.td, styles.muted)}>
-                    {createDateTimeFormat(defaultLocale, {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }).format(new Date(movement.createdAt))}
-                  </td>
-                  {/* A movement with no branch is a row written before per-branch
-                      stock existed, or one whose branch has since been retired.
-                      Both are facts worth stating; neither is a blank cell. */}
-                  <td {...stylex.props(styles.td, movement.locationName === null && styles.muted)}>
-                    {movement.locationName ?? 'No branch recorded'}
-                  </td>
-                  <td {...stylex.props(styles.td)}>
-                    {movement.variantIndex === null ? product.name : movement.variantLabel}
-                  </td>
-                  <td {...stylex.props(styles.td)}>{REASON_LABELS[movement.reason]}</td>
-                  <td
-                    {...stylex.props(
-                      styles.td,
-                      styles.num,
-                      movement.delta > 0 ? styles.deltaUp : styles.deltaDown,
-                    )}
-                  >
-                    {movement.delta > 0 ? '+' : ''}
-                    {movement.delta}
-                  </td>
-                  <td {...stylex.props(styles.td, styles.num)}>{movement.resultingStock}</td>
-                  <td {...stylex.props(styles.td, styles.muted)}>
-                    {movement.actorName ?? (movement.orderId ? 'Checkout' : '-')}
-                  </td>
-                  <td {...stylex.props(styles.td, styles.muted)}>{movement.note || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+          <Card padding="none" xstyle={styles.card}>
+            {movements.length === 0 ? (
+              <p {...stylex.props(styles.empty)}>
+                No movements recorded yet. Adjustments, sales and refunds will appear here.
+              </p>
+            ) : (
+              <table {...stylex.props(styles.table)}>
+                <thead>
+                  <tr>
+                    <th {...stylex.props(styles.th)}>When</th>
+                    {/* The branch is on the ROW here, unlike the aggregate views: the
+                        ledger really does mix branches, so the column changes down the
+                        page and earns its place. */}
+                    <th {...stylex.props(styles.th)}>Branch</th>
+                    <th {...stylex.props(styles.th)}>Position</th>
+                    <th {...stylex.props(styles.th)}>Reason</th>
+                    <th {...stylex.props(styles.th, styles.num)}>Change</th>
+                    {/* Not the gym-wide figure the table above shows: this is what the
+                        row's own branch held afterwards. */}
+                    <th {...stylex.props(styles.th, styles.num)}>Left at branch</th>
+                    <th {...stylex.props(styles.th)}>By</th>
+                    <th {...stylex.props(styles.th)}>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movements.map((movement) => (
+                    <tr key={movement.id}>
+                      <td {...stylex.props(styles.td, styles.muted)}>
+                        {createDateTimeFormat(defaultLocale, {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }).format(new Date(movement.createdAt))}
+                      </td>
+                      {/* A movement with no branch is a row written before per-branch
+                          stock existed, or one whose branch has since been retired.
+                          Both are facts worth stating; neither is a blank cell. */}
+                      <td
+                        {...stylex.props(styles.td, movement.locationName === null && styles.muted)}
+                      >
+                        {movement.locationName ?? 'No branch recorded'}
+                      </td>
+                      <td {...stylex.props(styles.td)}>
+                        {movement.variantIndex === null ? product.name : movement.variantLabel}
+                      </td>
+                      <td {...stylex.props(styles.td)}>{REASON_LABELS[movement.reason]}</td>
+                      <td
+                        {...stylex.props(
+                          styles.td,
+                          styles.num,
+                          movement.delta > 0 ? styles.deltaUp : styles.deltaDown,
+                        )}
+                      >
+                        {movement.delta > 0 ? '+' : ''}
+                        {movement.delta}
+                      </td>
+                      <td {...stylex.props(styles.td, styles.num)}>{movement.resultingStock}</td>
+                      <td {...stylex.props(styles.td, styles.muted)}>
+                        {movement.actorName ?? (movement.orderId ? 'Checkout' : '-')}
+                      </td>
+                      <td {...stylex.props(styles.td, styles.muted)}>{movement.note || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
 
-      {branchName === null ? null : (
-        <p {...stylex.props(styles.note)}>
-          Movements at {branchName} only. Rows recorded before stock was held per branch name no
-          branch, and are listed under All locations.
-        </p>
-      )}
+          {branchName === null ? null : (
+            <p {...stylex.props(styles.note)}>
+              Movements at {branchName} only. Rows recorded before stock was held per branch name no
+              branch, and are listed under All locations.
+            </p>
+          )}
+        </>
+      ) : null}
     </section>
   );
 }

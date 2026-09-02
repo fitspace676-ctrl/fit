@@ -12,14 +12,14 @@ export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; e
 type Translator = Awaited<ReturnType<typeof getTranslations>>;
 
 /**
- * Re-assert the `StaffManage` capability inside the action. The `/staff` route is
- * gated by the middleware and every depth endpoint sits behind the API's
- * `StaffManage` guard, but a Server Action is its own POST endpoint — re-checking
+ * Re-assert the `StaffScheduleRead` capability inside the action. The `/staff` route is
+ * gated by the middleware and the schedule endpoint sits behind the API's
+ * `StaffScheduleRead` guard, but a Server Action is its own POST endpoint — re-checking
  * here is defence in depth.
  */
 async function requireStaffManage(): Promise<boolean> {
   const session = await getServerSession();
-  return session !== null && roleHasPermission(session.role, Permission.StaffManage);
+  return session !== null && roleHasPermission(session.role, Permission.StaffScheduleRead);
 }
 
 /** Map a thrown API error to a short, translated, staff-facing message. */
@@ -33,7 +33,7 @@ function toMessage(error: unknown, t: Translator): string {
   return error instanceof Error ? error.message : t('errors.unexpected');
 }
 
-/** Run `work` behind the `StaffManage` guard, folding thrown errors into a result. */
+/** Run `work` behind the `StaffScheduleRead` guard, folding thrown errors into a result. */
 async function guarded<T>(work: (t: Translator) => Promise<T>): Promise<ActionResult<T>> {
   const t = await getTranslations('admin.staff');
   if (!(await requireStaffManage())) {

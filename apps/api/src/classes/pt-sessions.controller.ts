@@ -32,7 +32,7 @@ import { PtSessionsService } from './pt-sessions.service';
  * one; `POST .../cancel` and `.../complete` move a session's lifecycle. Every route
  * is tenant-scoped staff access — {@link TenantGuard} pins the request to one gym
  * and {@link PermissionsGuard} enforces the capability: the read requires
- * {@link Permission.ClassRead}, the writes {@link Permission.ClassWrite} (the same
+ * {@link Permission.PtSessionRead}, the writes {@link Permission.PtSessionManage} (the same
  * read/write split as class scheduling). The service runs on the tenant-scoped
  * Prisma client, so no handler passes or trusts a `gymId`.
  */
@@ -50,7 +50,7 @@ export class AdminPtSessionsController {
    */
   @Get()
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassRead)
+  @RequirePermissions(Permission.PtSessionRead)
   async list(@Query() query: unknown): Promise<AdminPtSessionsResponse> {
     return this.ptSessions.listPtSessions(parse(listAdminPtSessionsQuerySchema, query));
   }
@@ -58,37 +58,37 @@ export class AdminPtSessionsController {
   /**
    * `POST /admin/pt-sessions` — schedule one session: `{ trainerId, classTypeId,
    * startsAt, durationMinutes, notes? }`. `endsAt` is derived server-side. Requires
-   * {@link Permission.ClassWrite}. Returns `201` with the created session. Failure
+   * {@link Permission.PtSessionManage}. Returns `201` with the created session. Failure
    * modes: `400` (invalid body), `404 TRAINER_NOT_FOUND` / `CLASS_TYPE_NOT_FOUND`
    * (unknown / cross-tenant).
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.PtSessionManage)
   async create(@Body() body: unknown): Promise<CreatePtSessionResponse> {
     return this.ptSessions.createPtSession(parse(createPtSessionSchema, body));
   }
 
   /**
    * `POST /admin/pt-sessions/:id/cancel` — cancel a scheduled session (status
-   * `CANCELED`), keeping the row for history. Requires {@link Permission.ClassWrite}.
+   * `CANCELED`), keeping the row for history. Requires {@link Permission.PtSessionManage}.
    * A `404 PT_SESSION_NOT_FOUND` for an unknown / cross-tenant id.
    */
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.PtSessionManage)
   async cancel(@Param('id') id: string): Promise<PtSessionStatusResponse> {
     return this.ptSessions.cancelPtSession(id);
   }
 
   /**
    * `POST /admin/pt-sessions/:id/complete` — mark a session done (status
-   * `COMPLETED`). Requires {@link Permission.ClassWrite}. A `404
+   * `COMPLETED`). Requires {@link Permission.PtSessionManage}. A `404
    * PT_SESSION_NOT_FOUND` for an unknown / cross-tenant id.
    */
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.PtSessionManage)
   async complete(@Param('id') id: string): Promise<PtSessionStatusResponse> {
     return this.ptSessions.completePtSession(id);
   }

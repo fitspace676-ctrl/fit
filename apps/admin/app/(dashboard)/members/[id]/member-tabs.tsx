@@ -732,12 +732,16 @@ function FieldRow({ label, value }: { label: string; value: string }) {
  */
 export function MemberTabs({
   member,
-  canManageBilling,
+  canManageMembership,
+  canSellCredits,
   creditPacks,
   creditCatalogue,
 }: {
   member: MemberDetail;
-  canManageBilling: boolean;
+  /** `MembershipManage` — freeze / resume the current plan. */
+  canManageMembership: boolean;
+  /** `PtPackageSell` — the "Add credit" purchase. */
+  canSellCredits: boolean;
   creditPacks: CreditPackSummary[];
   creditCatalogue: CreditPackCatalogueEntry[];
 }) {
@@ -776,7 +780,8 @@ export function MemberTabs({
         {active === 'membership' && (
           <MembershipPanel
             member={member}
-            canManageBilling={canManageBilling}
+            canManageMembership={canManageMembership}
+            canSellCredits={canSellCredits}
             creditPacks={creditPacks}
             creditCatalogue={creditCatalogue}
             t={t}
@@ -1012,14 +1017,16 @@ function ProfilePanel({ member, t, locale }: { member: MemberDetail; t: T; local
 /** Membership — the current plan (with freeze), credits, previous memberships and bookings. */
 function MembershipPanel({
   member,
-  canManageBilling,
+  canManageMembership,
+  canSellCredits,
   creditPacks,
   creditCatalogue,
   t,
   locale,
 }: {
   member: MemberDetail;
-  canManageBilling: boolean;
+  canManageMembership: boolean;
+  canSellCredits: boolean;
   creditPacks: CreditPackSummary[];
   creditCatalogue: CreditPackCatalogueEntry[];
   t: T;
@@ -1036,7 +1043,7 @@ function MembershipPanel({
           plan={member.currentPlan}
           memberId={member.id}
           currency={member.currency}
-          canManageBilling={canManageBilling}
+          canManageMembership={canManageMembership}
           t={t}
           locale={locale}
         />
@@ -1044,7 +1051,7 @@ function MembershipPanel({
           memberId={member.id}
           packs={creditPacks}
           catalogue={creditCatalogue}
-          canManageBilling={canManageBilling}
+          canSellCredits={canSellCredits}
           t={t}
           locale={locale}
         />
@@ -1119,14 +1126,14 @@ function CurrentPlanCard({
   plan,
   memberId,
   currency,
-  canManageBilling,
+  canManageMembership,
   t,
   locale,
 }: {
   plan: MemberCurrentPlan | null;
   memberId: string;
   currency: string;
-  canManageBilling: boolean;
+  canManageMembership: boolean;
   t: T;
   locale: string;
 }) {
@@ -1194,7 +1201,7 @@ function CurrentPlanCard({
       <PlanFreezeControls
         plan={plan}
         memberId={memberId}
-        canManageBilling={canManageBilling}
+        canManageMembership={canManageMembership}
         t={t}
         locale={locale}
       />
@@ -1213,13 +1220,13 @@ function CurrentPlanCard({
 function PlanFreezeControls({
   plan,
   memberId,
-  canManageBilling,
+  canManageMembership,
   t,
   locale,
 }: {
   plan: MemberCurrentPlan;
   memberId: string;
-  canManageBilling: boolean;
+  canManageMembership: boolean;
   t: T;
   locale: string;
 }) {
@@ -1231,7 +1238,7 @@ function PlanFreezeControls({
 
   const isFrozen = plan.status === 'FROZEN';
   const remaining = Math.max(0, plan.freezeDaysPerPeriod - plan.freezeDaysUsed);
-  const canFreeze = canManageBilling && plan.status !== 'PAST_DUE' && remaining > 0;
+  const canFreeze = canManageMembership && plan.status !== 'PAST_DUE' && remaining > 0;
 
   function submitFreeze(): void {
     const durationDays = Number(days);
@@ -1288,7 +1295,7 @@ function PlanFreezeControls({
             size="inline"
             icon={<Icon name="spark" {...stylex.props(styles.kitGlyph)} />}
             onClick={resume}
-            disabled={!canManageBilling}
+            disabled={!canManageMembership}
             loading={pending}
             label={pending ? t('form.saving') : t('detail.resume')}
           />
@@ -1357,14 +1364,14 @@ function CreditsCard({
   memberId,
   packs,
   catalogue,
-  canManageBilling,
+  canSellCredits,
   t,
   locale,
 }: {
   memberId: string;
   packs: CreditPackSummary[];
   catalogue: CreditPackCatalogueEntry[];
-  canManageBilling: boolean;
+  canSellCredits: boolean;
   t: T;
   locale: string;
 }) {
@@ -1375,7 +1382,7 @@ function CreditsCard({
   const [grantingId, setGrantingId] = useState<string | null>(null);
 
   const totalRemaining = packs.reduce((sum, pack) => sum + pack.remainingCredits, 0);
-  const canBuy = canManageBilling && catalogue.length > 0;
+  const canBuy = canSellCredits && catalogue.length > 0;
 
   function grant(pack: CreditPackCatalogueEntry): void {
     setGrantingId(pack.id);
@@ -1429,7 +1436,7 @@ function CreditsCard({
         </ul>
       )}
 
-      {canManageBilling ? (
+      {canSellCredits ? (
         <Button
           variant="secondary"
           size="inline"

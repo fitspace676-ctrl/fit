@@ -431,16 +431,19 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   // to staff who hold it, and re-checked by the actions and the API behind them.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
-  // Freezing / resuming a membership is a billing capability (the freeze endpoints
-  // sit behind `BillingManage`), distinct from the `MemberWrite` roster edit above.
-  const canManageBilling =
-    session !== null && roleHasPermission(session.role, Permission.BillingManage);
-  // Billing-read staff also see the member's credit balance and (when they can
-  // manage billing) the "Add credit" purchase modal. These are secondary to the
+  // Freezing / resuming a membership is `MembershipManage` (the freeze endpoints
+  // sit behind it), distinct from the `MemberWrite` roster edit above.
+  const canManageMembership =
+    session !== null && roleHasPermission(session.role, Permission.MembershipManage);
+  // Selling a PT / credit pack is `PtPackageSell` — the front desk holds it too.
+  const canSellCredits =
+    session !== null && roleHasPermission(session.role, Permission.PtPackageSell);
+  // Staff who may read a member's payments also see the credit balance and (when
+  // they can sell) the "Add credit" purchase modal. These are secondary to the
   // member detail, so a failure degrades to an empty balance / no catalogue rather
   // than failing the whole page.
   const canReadBilling =
-    session !== null && roleHasPermission(session.role, Permission.BillingRead);
+    session !== null && roleHasPermission(session.role, Permission.MemberPaymentRead);
   let creditPacks: CreditPackSummary[] = [];
   let creditCatalogue: CreditPackCatalogueEntry[] = [];
   if (canReadBilling) {
@@ -544,7 +547,8 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
 
       <MemberTabs
         member={member}
-        canManageBilling={canManageBilling}
+        canManageMembership={canManageMembership}
+        canSellCredits={canSellCredits}
         creditPacks={creditPacks}
         creditCatalogue={creditCatalogue}
       />

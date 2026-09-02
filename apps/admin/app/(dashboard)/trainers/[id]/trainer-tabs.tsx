@@ -360,12 +360,13 @@ function WeekRow({ label, value }: { label: string; value: number }) {
 export function TrainerTabs({
   trainer,
   availability,
-  canWrite,
+  canEditAvailability,
   timeZone,
 }: {
   trainer: AdminTrainerDetail;
   availability: WeeklyAvailability;
-  canWrite: boolean;
+  /** Whether the staff session holds `TrainerScheduleManage` (the Availability tab edits). */
+  canEditAvailability: boolean;
   /** The gym's IANA zone — the next-class time is read on it. */
   timeZone: string;
 }) {
@@ -406,7 +407,11 @@ export function TrainerTabs({
         {active === 'Clients' && <ClientsPanel t={t} />}
         {active === 'Reviews' && <ReviewsPanel trainer={trainer} t={t} />}
         {active === 'Availability' && (
-          <AvailabilityPanel trainer={trainer} availability={availability} canWrite={canWrite} />
+          <AvailabilityPanel
+            trainer={trainer}
+            availability={availability}
+            canWrite={canEditAvailability}
+          />
         )}
       </div>
     </div>

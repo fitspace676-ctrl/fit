@@ -39,9 +39,11 @@ export type OrderStatus = z.infer<typeof orderStatusSchema>;
  * staff-facing settlement choice and is intentionally separate from a
  * {@link Payment} `provider` key (`"stub"` today, a real gateway with T8.8): a
  * `card` sale may flow through any provider, and `cash` / `member_account` never
- * touch one. Values are lower-snake-case to match the other wire enums.
+ * touch one. `bank_transfer` is a transfer the member made to the gym's account,
+ * which the desk records the way it records cash. Values are lower-snake-case to
+ * match the other wire enums.
  */
-export const paymentMethodSchema = z.enum(['cash', 'card', 'member_account']);
+export const paymentMethodSchema = z.enum(['cash', 'card', 'bank_transfer', 'member_account']);
 
 /** How a POS sale is settled — {@link paymentMethodSchema}. */
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
@@ -317,7 +319,7 @@ export type RecordPosSaleResponse = z.infer<typeof recordPosSaleResponseSchema>;
 // money field is an integer in the currency's MINOR units, as elsewhere.
 
 /** The settlement methods a reconciliation always reports, in display order. */
-export const RECONCILIATION_METHODS = ['cash', 'card', 'member_account'] as const;
+export const RECONCILIATION_METHODS = ['cash', 'card', 'bank_transfer', 'member_account'] as const;
 
 /** True when `YYYY-MM-DD` names a real calendar date (rejects e.g. `2026-02-30`). */
 function isCalendarDate(value: string): boolean {

@@ -9,6 +9,7 @@
 // token must never reach the browser bundle.
 
 import { cookies } from 'next/headers';
+import { getLocale } from 'next-intl/server';
 import type {
   BulkExportMembersInput,
   BulkExportMembersResponse,
@@ -199,10 +200,10 @@ import type {
   ReportCatalogResponse,
   ReportResult,
   ReportKey,
-  ReportRange,
+  ReportQuery,
   ReportFormat,
   ReportDrilldown,
-  ReportDrilldownRange,
+  ReportDrilldownQuery,
   ReportMetric,
   ListAutomationRulesQuery,
   ListAutomationRulesResponse,
@@ -246,6 +247,7 @@ import type {
   ListRedemptionsQuery,
   ListRedemptionsResponse,
 } from '@fit/types';
+import { reportQueryParams } from '@fit/types';
 import { pickSessionToken } from './auth-session';
 
 /** Base URL of the @fit/api backend. Defaults to the local dev API. */
@@ -263,7 +265,21 @@ function apiBaseUrl(): string {
 async function authHeaders(): Promise<Record<string, string>> {
   const jar = await cookies();
   const token = pickSessionToken((name) => jar.get(name)?.value);
-  return token ? { authorization: `Bearer ${token.value}` } : {};
+  return {
+    ...(token ? { authorization: `Bearer ${token.value}` } : {}),
+    // The interface language the reader is using, so anything the API writes
+    // in words (report names, column headings, "No plan") comes back in it.
+    'accept-language': await requestLanguage(),
+  };
+}
+
+/** The active console locale, or English outside a request scope that knows it. */
+async function requestLanguage(): Promise<string> {
+  try {
+    return await getLocale();
+  } catch {
+    return 'en';
+  }
 }
 
 /** Raised when the API answers a non-2xx; carries the status for the caller. */
@@ -2314,8 +2330,10 @@ export async function fetchAnalytics(range?: AnalyticsRange): Promise<AdminAnaly
  * set of cards for two gyms, and a different set for the same gym before and
  * after someone edits that toggle.
  */
-export async function fetchReportCatalog(): Promise<ReportCatalogResponse> {
-  const res = await fetch(`${apiBaseUrl()}/admin/reports`, {
+export async function fetchReportCatalog(
+  query: { all?: boolean } = {},
+): Promise<ReportCatalogResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/reports${query.all ? '?all=true' : ''}`, {
     headers: await authHeaders(),
     // Per-gym AND session/tenant-scoped — caching or hoisting this call out of
     // the request path would leak one gym's (or one moment's) catalogue into another.
@@ -2325,19 +2343,13 @@ export async function fetchReportCatalog(): Promise<ReportCatalogResponse> {
 }
 
 /**
- * `GET /admin/reports/:report?range=` — run one report for on-screen preview,
- * returning its columns and computed rows over `range` (defaults to the API's
- * `30d` when omitted). Money cells are MINOR-unit integers; the view formats them.
+ * `GET /admin/reports/:report?range=&from=&to=` — run one report for on-screen
+ * preview, returning its columns and computed rows over `query`'s window
+ * (the API's month-to-date default when omitted). Money cells are MINOR-unit
+ * integers; the view formats them.
  */
-export async function fetchReport(
-  key: ReportKey,
-  range?: ReportRange,
-  locationId?: string,
-): Promise<ReportResult> {
-  const params = new URLSearchParams();
-  if (range) params.set('range', range);
-  if (locationId) params.set('locationId', locationId);
-  const qs = params.toString() ? `?${params.toString()}` : '';
+export async function fetchReport(key: ReportKey, query?: ReportQuery): Promise<ReportResult> {
+  const qs = query ? `?${reportQueryParams(query).toString()}` : '';
   const res = await fetch(`${apiBaseUrl()}/admin/reports/${encodeURIComponent(key)}${qs}`, {
     headers: await authHeaders(),
     // The report reflects live tenant state — never serve a stale preview.
@@ -2354,12 +2366,9 @@ export async function fetchReport(
  */
 export async function fetchReportExport(
   key: ReportKey,
-  query: { range?: ReportRange; format?: ReportFormat; locationId?: string } = {},
+  query: { window?: ReportQuery; format?: ReportFormat; locationId?: string } = {},
 ): Promise<Response> {
-  const params = new URLSearchParams();
-  if (query.range) {
-    params.set('range', query.range);
-  }
+  const params = query.window ? reportQueryParams(query.window) : new URLSearchParams();
   if (query.format) {
     params.set('format', query.format);
   }
@@ -2385,12 +2394,9 @@ export async function fetchReportExport(
  */
 export async function fetchReportDrilldownExport(
   metric: ReportMetric,
-  query: { range?: ReportDrilldownRange; format?: ReportFormat; locationId?: string } = {},
+  query: { window?: ReportDrilldownQuery; format?: ReportFormat; locationId?: string } = {},
 ): Promise<Response> {
-  const params = new URLSearchParams();
-  if (query.range) {
-    params.set('range', query.range);
-  }
+  const params = query.window ? reportQueryParams(query.window) : new URLSearchParams();
   if (query.format) {
     params.set('format', query.format);
   }
@@ -2414,20 +2420,16 @@ export async function fetchReportDrilldownExport(
 // ── Reports drill-down + Pin to Dashboard (T12.12) ────────────────────────────
 
 /**
- * `GET /admin/reports/drilldown/:metric?range=` — one drill-down report (KPIs +
- * typed sections) for on-screen rendering over `range` (defaults to the API's
- * `30d`). Money cells are MINOR-unit integers; the view formats them. Gated
+ * `GET /admin/reports/drilldown/:metric?range=&from=&to=` — one drill-down
+ * report (KPIs + typed sections) for on-screen rendering over `query`'s window
+ * (the API's month-to-date default when omitted). Money cells are MINOR-unit integers; the view formats them. Gated
  * `ReportView` API-side.
  */
 export async function fetchReportDrilldown(
   metric: ReportMetric,
-  range?: ReportRange,
-  locationId?: string,
+  query?: ReportDrilldownQuery,
 ): Promise<ReportDrilldown> {
-  const params = new URLSearchParams();
-  if (range) params.set('range', range);
-  if (locationId) params.set('locationId', locationId);
-  const qs = params.toString() ? `?${params.toString()}` : '';
+  const qs = query ? `?${reportQueryParams(query).toString()}` : '';
   const res = await fetch(
     `${apiBaseUrl()}/admin/reports/drilldown/${encodeURIComponent(metric)}${qs}`,
     {

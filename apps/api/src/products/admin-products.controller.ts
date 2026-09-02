@@ -36,6 +36,8 @@ import {
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
+import { TenantContext } from '../common/tenant/tenant.context';
+import { assertPermission } from '../common/rbac/assert-permission';
 import { AdminProductsService } from './admin-products.service';
 import { ProductStockService } from './product-stock.service';
 
@@ -56,7 +58,29 @@ export class AdminProductsController {
   constructor(
     private readonly products: AdminProductsService,
     private readonly stock: ProductStockService,
+    private readonly tenant: TenantContext,
   ) {}
+
+  /**
+   * Changing what a product costs or sells for is `product:pricing`, a
+   * capability on top of `product:write`. The schema defaults a missing
+   * `priceAmount` to 0, so the raw body is what tells us whether the caller
+   * *sent* a price — hence the check here, before parsing.
+   */
+  private assertPricingAllowed(body: unknown): void {
+    if (!body || typeof body !== 'object') return;
+    const fields = body as Record<string, unknown>;
+    const variants = Array.isArray(fields.variants) ? (fields.variants as unknown[]) : [];
+    const sendsPricing =
+      'priceAmount' in fields ||
+      'costAmount' in fields ||
+      variants.some(
+        (variant) => !!variant && typeof variant === 'object' && 'priceAmount' in variant,
+      );
+    if (sendsPricing) {
+      assertPermission(this.tenant.role, Permission.ProductPricing);
+    }
+  }
 
   /**
    * `GET /admin/products?page&limit&search&status&sort&dir` — one filtered,
@@ -84,7 +108,7 @@ export class AdminProductsController {
    */
   @Get('low-stock')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProductRead)
+  @RequirePermissions(Permission.InventoryRead)
   async lowStock(@Query() query: unknown): Promise<ListLowStockResponse> {
     return this.products.listLowStock(parse(lowStockQuerySchema, query));
   }
@@ -101,7 +125,7 @@ export class AdminProductsController {
    */
   @Get('inventory')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProductRead)
+  @RequirePermissions(Permission.InventoryRead)
   async inventory(@Query() query: unknown): Promise<ListInventoryResponse> {
     return this.products.listInventory(parse(inventoryQuerySchema, query));
   }
@@ -127,6 +151,7 @@ export class AdminProductsController {
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions(Permission.ProductWrite)
   async create(@Body() body: unknown): Promise<CreateProductResponse> {
+    this.assertPricingAllowed(body);
     return this.products.createProduct(parse(createProductSchema, body));
   }
 
@@ -138,6 +163,7 @@ export class AdminProductsController {
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ProductWrite)
   async update(@Param('id') id: string, @Body() body: unknown): Promise<UpdateProductResponse> {
+    this.assertPricingAllowed(body);
     return this.products.updateProduct(id, parse(updateProductSchema, body));
   }
 
@@ -148,7 +174,8 @@ export class AdminProductsController {
    * Separate from `PATCH :id` (which replaces the whole product) so the roster can
    * offer the move directly: filing a catalogue is many small writes in a row, and
    * each one here touches the single column it names. A category belonging to
-   * another gym is a `404`, as is an unknown product. Requires `ProductWrite`.
+   * another gym is a `404`, as is an unknown product. Requires `ProductWrite`
+   * (and `ProductPricing` when the body carries a price or cost).
    */
   @Patch(':id/category')
   @HttpCode(HttpStatus.OK)
@@ -193,7 +220,7 @@ export class AdminProductsController {
    *
    * A body that is neither a delta nor an absolute count — or is both — is a
    * `400`, as is a change that would drive the count negative. Requires
-   * `ProductWrite`: adjusting stock is editing the catalogue's truth.
+   * `InventoryAdjust`; a `RECOUNT` additionally needs `StocktakePerform`.
    *
    * `locationId` is required and names the branch whose shelf changed — the one
    * place multi-branch refuses rather than defaulting, because an untargeted
@@ -201,7 +228,7 @@ export class AdminProductsController {
    */
   @Post(':id/stock')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProductWrite)
+  @RequirePermissions(Permission.InventoryAdjust)
   async adjustStock(@Param('id') id: string, @Body() body: unknown): Promise<AdjustStockResponse> {
     return this.stock.adjust(id, parse(adjustStockSchema, body));
   }
@@ -209,8 +236,7 @@ export class AdminProductsController {
   /**
    * `GET /admin/products/:id/stock-movements?page&limit&locationId` — that
    * product's ledger, newest first, so "why is this 3?" is answerable from the
-   * console. Read-only, and gated on `ProductRead` like every other view of the
-   * catalogue.
+   * console. Read-only, and gated on `StockMovementRead`.
    *
    * `locationId` narrows to one branch. Omitted keeps every branch **and** the
    * movements that name none — the pre-Stage-4 rows, which no branch filter can
@@ -218,7 +244,7 @@ export class AdminProductsController {
    */
   @Get(':id/stock-movements')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProductRead)
+  @RequirePermissions(Permission.StockMovementRead)
   async stockMovements(
     @Param('id') id: string,
     @Query() query: unknown,

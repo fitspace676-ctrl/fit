@@ -50,6 +50,7 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 }
 
 const requireProductWrite = () => sessionHas(Permission.ProductWrite);
+const requireInventoryAdjust = () => sessionHas(Permission.InventoryAdjust);
 
 /** Map a thrown API error to a short, staff-facing message. */
 function toMessage(error: unknown): string {
@@ -284,14 +285,14 @@ export async function requestProductImageUploadAction(input: {
  * `variantIndex` is the position — `null` for a product sold with no variants.
  * The change is either a signed `delta` or an absolute `setTo`; the server derives
  * the delta for the latter, so a recount cannot be computed against a stale
- * figure. Enforces `ProductWrite` as defence in depth behind the route middleware
+ * figure. Enforces `InventoryAdjust` as defence in depth behind the route middleware
  * and the API guard, and refreshes every surface that shows the number.
  */
 export async function adjustStockAction(
   productId: string,
   input: AdjustStockInput,
 ): Promise<ActionResult<{ stock: number }>> {
-  if (!(await requireProductWrite())) {
+  if (!(await requireInventoryAdjust())) {
     return { ok: false, error: 'Not authorized' };
   }
   const parsed = adjustStockSchema.safeParse(input);

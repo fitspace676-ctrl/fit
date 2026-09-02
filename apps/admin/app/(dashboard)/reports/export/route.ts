@@ -10,11 +10,14 @@
 
 import { NextResponse } from 'next/server';
 import {
+  DEFAULT_REPORT_RANGE,
   Permission,
   reportFormatSchema,
   reportKeySchema,
-  reportRangeSchema,
+  reportQuerySchema,
+  reportWindowSlug,
   roleHasPermission,
+  type ReportQuery,
 } from '@fit/types';
 import { fetchReportExport } from '@/lib/api';
 import { getActiveLocationId } from '@/lib/active-location-server';
@@ -27,7 +30,7 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 export const dynamic = 'force-dynamic';
 
 /**
- * `GET /reports/export?report=&range=&format=&locationId=` — stream one report as
+ * `GET /reports/export?report=&range=&from=&to=&format=&locationId=` — stream one report as
  * a file download, covering exactly the branch the screen was showing.
  *
  * A ROUTE HANDLER IS NOT A PAGE, and the branch has to be resolved anyway. The App
@@ -51,10 +54,10 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(req: Request): Promise<Response> {
   // Defence in depth: the middleware gates the route to staff, but re-assert the
-  // report-view capability here since this is its own endpoint. The API re-checks
+  // report-export capability here since this is its own endpoint. The API re-checks
   // again behind its own guards.
   const session = await getServerSession();
-  if (!session || !roleHasPermission(session.role, Permission.ReportView)) {
+  if (!session || !roleHasPermission(session.role, Permission.ReportExport)) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
@@ -63,9 +66,13 @@ export async function GET(req: Request): Promise<Response> {
   if (!key.success) {
     return NextResponse.json({ error: 'Unknown report' }, { status: 400 });
   }
-  // Range/format fall back to the API defaults when absent or invalid, so a bare
-  // link still yields a valid download rather than a 400.
-  const range = reportRangeSchema.safeParse(params.get('range'));
+  // Window/format fall back to the API defaults when absent or invalid, so a
+  // bare link still yields a valid download rather than a 400.
+  const window = reportQuerySchema.safeParse({
+    range: params.get('range') ?? undefined,
+    from: params.get('from') ?? undefined,
+    to: params.get('to') ?? undefined,
+  });
   const format = reportFormatSchema.safeParse(params.get('format'));
   // Same resolver the page uses, over this request's own params + cookie. An id
   // naming a branch this gym does not have degrades to every branch rather than
@@ -74,7 +81,7 @@ export async function GET(req: Request): Promise<Response> {
   const locationId = await getActiveLocationId(Object.fromEntries(params));
 
   const upstream = await fetchReportExport(key.data, {
-    range: range.success ? range.data : undefined,
+    window: window.success ? window.data : undefined,
     format: format.success ? format.data : undefined,
     locationId,
   });
@@ -86,8 +93,8 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const chosenFormat = format.success ? format.data : 'csv';
-  const chosenRange = range.success ? range.data : '30d';
-  const filename = `report-${key.data}-${chosenRange}.${chosenFormat}`;
+  const chosenWindow: ReportQuery = window.success ? window.data : { range: DEFAULT_REPORT_RANGE };
+  const filename = `report-${key.data}-${reportWindowSlug(chosenWindow)}.${chosenFormat}`;
 
   return new Response(upstream.body, {
     status: 200,

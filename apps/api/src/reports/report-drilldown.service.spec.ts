@@ -6,6 +6,7 @@ import {
   PaymentMethod,
   SubscriptionStatus,
 } from '@fit/db';
+import { REPORT_METRICS } from '@fit/types';
 import type {
   ReportBreakdownSection,
   ReportHeatmapSection,
@@ -111,11 +112,10 @@ function payment(
     refundedAmount,
     currency,
     createdAt: new Date(createdAt),
-    // The plan still comes off the order; the BRANCH is the payment's own column
-    // since Stage 5 — the same one the `where` filters, so the breakdown cannot
-    // disagree with the filter that produced it.
-    order: { package: plan === null ? null : { name: plan } },
-    location: location === null ? null : { name: location },
+    order: {
+      package: plan === null ? null : { name: plan },
+      location: location === null ? null : { name: location },
+    },
   };
 }
 
@@ -167,6 +167,12 @@ function redemption(
   return { rewardName, rewardType, pointsSpent, status, redeemedAt: new Date(redeemedAt) };
 }
 
+/**
+ * The window the retired `30d` preset gave the May fixtures at the pinned
+ * 15 June clock, spelled as the custom range the console offers now.
+ */
+const MAY_WINDOW = { range: 'custom', from: '2026-05-16', to: '2026-06-15' } as const;
+
 describe('ReportDrilldownService', () => {
   // Pin the clock so `resolveWindow('30d')` is a fixed [2026-05-16, 2026-06-15) day
   // window and every bucket key is deterministic.
@@ -177,6 +183,43 @@ describe('ReportDrilldownService', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  describe('reporting zone', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T00:30:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("puts a 01:00 Tbilisi sale on the gym's today, and echoes the range", async () => {
+      const { service, paymentFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        salePayment(10_000, '2026-08-30T21:00:00.000Z', PaymentMethod.CARD, null),
+      ]);
+
+      const result = await service.run('sales', { range: 'today' });
+
+      expect(result).toMatchObject({ range: 'today', from: '2026-08-31', to: '2026-08-31' });
+      const series = result.sections.find(
+        (s) => s.id === 'net-sales-over-time',
+      ) as ReportSeriesSection;
+      expect(series.points).toEqual([{ label: '2026-08-31', value: 10_000 }]);
+    });
+
+    it('echoes the two days of a custom range', async () => {
+      const { service } = setup();
+      const result = await service.run('sales', {
+        range: 'custom',
+        from: '2026-08-01',
+        to: '2026-08-03',
+      });
+      expect(result).toMatchObject({ range: 'custom', from: '2026-08-01', to: '2026-08-03' });
+      const series = result.sections.find(
+        (s) => s.id === 'net-sales-over-time',
+      ) as ReportSeriesSection;
+      expect(series.points.map((p) => p.label)).toEqual(['2026-08-01', '2026-08-02', '2026-08-03']);
+    });
   });
 
   describe('sales', () => {
@@ -196,7 +239,7 @@ describe('ReportDrilldownService', () => {
         },
       ]);
 
-      const result = await service.run('sales', { range: '30d' });
+      const result = await service.run('sales', MAY_WINDOW);
 
       const series = result.sections.find(
         (s) => s.id === 'net-sales-over-time',
@@ -225,7 +268,7 @@ describe('ReportDrilldownService', () => {
         salePayment(12_000, '2026-05-22T09:00:00.000Z', PaymentMethod.CARD, null),
       ]);
 
-      const result = await service.run('sales', { range: '30d' });
+      const result = await service.run('sales', MAY_WINDOW);
 
       const method = result.sections.find(
         (s) => s.id === 'sales-mix-by-method',
@@ -256,7 +299,7 @@ describe('ReportDrilldownService', () => {
         },
       ]);
 
-      const result = await service.run('sales', { range: '30d' });
+      const result = await service.run('sales', MAY_WINDOW);
 
       const table = result.sections.find((s) => s.id === 'recent-refunds') as ReportTableSection;
       expect(table.rows[0]).toEqual({
@@ -278,7 +321,7 @@ describe('ReportDrilldownService', () => {
         payment(3000, 0, '2026-06-01T10:00:00.000Z', null, 'Downtown'),
       ]);
 
-      const result = await service.run('revenue', { range: '30d' });
+      const result = await service.run('revenue', MAY_WINDOW);
 
       expect(result.metric).toBe('revenue');
       expect(result.currency).toBe('GEL');
@@ -329,7 +372,7 @@ describe('ReportDrilldownService', () => {
       const { service, paymentFindMany } = setup();
       paymentFindMany.mockResolvedValue([]);
 
-      const result = await service.run('revenue', { range: '30d' });
+      const result = await service.run('revenue', MAY_WINDOW);
 
       expect(result.currency).toBe('GEL');
       expect(result.kpis.find((k) => k.id === 'orders')?.value).toBe(0);
@@ -366,7 +409,7 @@ describe('ReportDrilldownService', () => {
         },
       ]);
 
-      const result = await service.run('members', { range: '30d' });
+      const result = await service.run('members', MAY_WINDOW);
 
       const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
       expect(kpis['total-members']).toBe(3);
@@ -397,12 +440,13 @@ describe('ReportDrilldownService', () => {
     it('buckets check-ins over time, fills a 7×24 heatmap, and lists a daily table', async () => {
       const { service, checkInFindMany } = setup();
       checkInFindMany.mockResolvedValue([
-        { gymMemberId: 'm1', checkedInAt: new Date('2026-05-20T07:00:00.000Z') }, // Wed 07:00
-        { gymMemberId: 'm2', checkedInAt: new Date('2026-05-20T07:30:00.000Z') }, // Wed 07:00
-        { gymMemberId: 'm1', checkedInAt: new Date('2026-05-21T18:00:00.000Z') }, // Thu 18:00
+        // The heatmap reads the gym's wall clock (Tbilisi, UTC+4), not UTC.
+        { gymMemberId: 'm1', checkedInAt: new Date('2026-05-20T07:00:00.000Z') }, // Wed 11:00
+        { gymMemberId: 'm2', checkedInAt: new Date('2026-05-20T07:30:00.000Z') }, // Wed 11:30
+        { gymMemberId: 'm1', checkedInAt: new Date('2026-05-21T18:00:00.000Z') }, // Thu 22:00
       ]);
 
-      const result = await service.run('attendance', { range: '30d' });
+      const result = await service.run('attendance', MAY_WINDOW);
 
       const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
       expect(kpis['total-checkins']).toBe(3);
@@ -412,10 +456,10 @@ describe('ReportDrilldownService', () => {
       expect(heatmap.kind).toBe('heatmap');
       expect(heatmap.rowLabels).toHaveLength(7);
       expect(heatmap.colLabels).toHaveLength(24);
-      // Wednesday (index 2) at 07:00 has two arrivals.
-      expect(heatmap.cells[2]?.[7]).toBe(2);
-      // Thursday (index 3) at 18:00 has one.
-      expect(heatmap.cells[3]?.[18]).toBe(1);
+      // Wednesday (index 2) at 11:00 has two arrivals.
+      expect(heatmap.cells[2]?.[11]).toBe(2);
+      // Thursday (index 3) at 22:00 has one.
+      expect(heatmap.cells[3]?.[22]).toBe(1);
 
       const daily = result.sections.find((s) => s.id === 'attendance-daily') as ReportTableSection;
       expect(daily.rows).toEqual([
@@ -439,7 +483,7 @@ describe('ReportDrilldownService', () => {
         booking(BookingStatus.CANCELED, '2026-05-21T09:00:00.000Z', 'Spin'),
       ]);
 
-      const result = await service.run('classes', { range: '30d' });
+      const result = await service.run('classes', MAY_WINDOW);
 
       expect(result.metric).toBe('classes');
       const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
@@ -502,7 +546,7 @@ describe('ReportDrilldownService', () => {
         { trainer: null, rating: 3 }, // trainerless review is ignored
       ]);
 
-      const result = await service.run('staff', { range: '30d' });
+      const result = await service.run('staff', MAY_WINDOW);
 
       const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
       expect(kpis['trainers']).toBe(2); // Ana + Unassigned both taught
@@ -538,7 +582,7 @@ describe('ReportDrilldownService', () => {
         ]),
       ]);
 
-      const result = await service.run('pos', { range: '30d' });
+      const result = await service.run('pos', MAY_WINDOW);
 
       const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
       expect(kpis['gross-sales']).toBe(15000);
@@ -588,7 +632,7 @@ describe('ReportDrilldownService', () => {
         ),
       ]);
 
-      const result = await service.run('loyalty', { range: '30d' });
+      const result = await service.run('loyalty', MAY_WINDOW);
 
       const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
       expect(kpis['points-issued']).toBe(150);
@@ -623,202 +667,43 @@ describe('ReportDrilldownService', () => {
     });
   });
 
-  /**
-   * The branch filter (roadmap Stage 1). As in the catalogue service, thehalf
-   * that matters most is the metrics that CANNOT narrow: they must ignore the
-   * parameter rather than filter on a column nothing writes.
-   */
-  describe('branch filter', () => {
-    /** The `where` the nth call to a stubbed delegate was issued with. */
-    const whereOf = (mock: { mock: { calls: unknown[][] } }, call = 0) =>
-      (mock.mock.calls[call]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
-
-    it('adds no location predicate at all when no branch is selected', async () => {
-      const { service, paymentFindMany } = setup();
-
-      await service.run('revenue', { range: '30d' });
-
-      expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
-    });
-
-    // Inverted by Stage 5: all three money tables now carry the branch on the row,
-    // so every read here is one equality. The property is unchanged — the three
-    // money metrics narrow by the branch that RANG THE SALE UP — and the relation
-    // shape is now what must never reappear.
-    it('scopes the money metrics on each row’s own branch column', async () => {
-      const { service, paymentFindMany, refundFindMany, orderFindMany } = setup();
-
-      await service.run('revenue', { range: '30d', locationId: 'loc-1' });
-      await service.run('pos', { range: '30d', locationId: 'loc-1' });
-      await service.run('sales', { range: '30d', locationId: 'loc-1' });
-
-      for (const call of [0, 1, 2]) {
-        expect(whereOf(paymentFindMany, call).locationId).toBe('loc-1');
-        expect(whereOf(paymentFindMany, call)).not.toHaveProperty('order');
+  describe('language', () => {
+    it.each(REPORT_METRICS)('renders every fixed label of %s in Georgian', async (metric) => {
+      const { service } = setup();
+      const result = await service.run(metric, MAY_WINDOW, 'ka');
+      expect(result.name, 'name').toMatch(/[ა-ჰ]/);
+      expect(result.description, 'description').toMatch(/[ა-ჰ]/);
+      for (const kpi of result.kpis) expect(kpi.label, kpi.id).toMatch(/[ა-ჰ]/);
+      for (const section of result.sections) {
+        expect(section.title, section.id).toMatch(/[ა-ჰ]/);
+        if (section.kind === 'table') {
+          for (const column of section.columns) {
+            expect(column.label, `${section.id}.${column.key}`).toMatch(/[ა-ჰ]/);
+          }
+        }
+        if (section.kind === 'split') {
+          for (const slice of section.slices) expect(slice.label, section.id).toMatch(/[ა-ჰ]/);
+        }
+        if (section.kind === 'heatmap') {
+          expect(section.rowLabels[0], section.id).toBe('ორშ');
+        }
       }
-      expect(whereOf(refundFindMany).locationId).toBe('loc-1');
-      expect(whereOf(refundFindMany)).not.toHaveProperty('order');
-      // The sales metric's plan orders read `Order` directly — its own column, and
-      // the one place an `order` key is still legitimate here.
-      expect(whereOf(orderFindMany).locationId).toBe('loc-1');
     });
 
-    it('scopes the class metrics through the instance, on both sides', async () => {
-      const { service, classInstanceFindMany, bookingFindMany } = setup();
-
-      await service.run('classes', { range: '30d', locationId: 'loc-1' });
-
-      // Instances and bookings must come from the SAME population, or the seat
-      // counts stop reconciling with the session counts in the same table.
-      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
-      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: 'loc-1' });
-    });
-
-    it('narrows a trainer’s delivery but not their rating', async () => {
-      const { service, classInstanceFindMany, bookingFindMany, reviewFindMany } = setup();
-
-      await service.run('staff', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
-      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: 'loc-1' });
-      // A review is written about a TRAINER and carries no branch — an average
-      // rating is a property of the person, not a quantity produced at a branch.
-      expect(whereOf(reviewFindMany)).not.toHaveProperty('locationId');
-    });
-
-    // Stage 2 gave `GymMember` a home branch. This assertion is the inverse of the
-    // one that stood here — `members` and `loyalty` moved out of the gym-wide list,
-    // `attendance` did not — and the property it pins is the same: every read
-    // inside one metric moves together, or a rate ends up with a numerator and a
-    // denominator drawn from different populations.
-    it('narrows members and loyalty by the home branch, on every read', async () => {
-      const {
-        service,
-        gymMemberFindMany,
-        gymMemberCount,
-        subscriptionFindMany,
-        loyaltyLedgerEntryFindMany,
-        loyaltyRedemptionFindMany,
-      } = setup();
-
-      await service.run('members', { range: '30d', locationId: 'loc-1' });
-      await service.run('loyalty', { range: '30d', locationId: 'loc-1' });
-
-      // `GymMember` owns the column; everything else hops through `member`.
-      expect(whereOf(gymMemberFindMany).locationId).toBe('loc-1');
-      expect(whereOf(gymMemberCount).locationId).toBe('loc-1');
-      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
-      // `memberId` is NOT NULL on both loyalty tables, so the hop drops no row and
-      // the branches still sum to the gym's own ledger.
-      expect(whereOf(loyaltyLedgerEntryFindMany).member).toEqual({ locationId: 'loc-1' });
-      expect(whereOf(loyaltyRedemptionFindMany).member).toEqual({ locationId: 'loc-1' });
-    });
-
-    // Stage 3 gave `CheckIn` a real branch and a write path, so this assertion is
-    // the inverse of the one that stood here. The property it protects is the one
-    // that made the old exemption right and now makes the filter right: a check-in
-    // is an event at a PLACE, so it narrows by the door the visitor came through
-    // and NEVER by the member hop — a home branch says whose member they are, not
-    // where they walked in, and a heatmap built the second way would be read as
-    // this branch's footfall and used to roster staff against it.
-    it('narrows attendance by the branch each arrival walked into', async () => {
-      const { service, checkInFindMany } = setup();
-
-      await service.run('attendance', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(checkInFindMany).locationId).toBe('loc-1');
-      expect(whereOf(checkInFindMany)).not.toHaveProperty('member');
-      // Redundant since `CheckIn` joined the tenant extension's model set, kept as
-      // belt and braces on the one read here that would leak another gym's visits.
-      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
-    });
-
-    // "All branches" must leave the read's original, index-served plan untouched —
-    // no `locationId: undefined` key, which would narrow to the un-homed visits.
-    it('sends no location clause on attendance when no branch is selected', async () => {
-      const { service, checkInFindMany } = setup();
-
-      await service.run('attendance', { range: '30d' });
-
-      expect(whereOf(checkInFindMany)).not.toHaveProperty('locationId');
-      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
-    });
-
-    // The export and the pinned-section routes both go through `compute`, so the
-    // file and the widget cannot show a different branch from the screen they came
-    // from. Asserted on `attendance` specifically because it is the metric that
-    // just gained the filter, and the one whose exports were previously immune.
-    it('carries the branch into a resolved attendance section', async () => {
-      const { service, checkInFindMany } = setup();
-
-      await service.resolveSection('attendance', 'peak-hours', {
-        range: '30d',
-        locationId: 'loc-1',
-      });
-
-      expect(whereOf(checkInFindMany).locationId).toBe('loc-1');
-    });
-
-    // Not `locationId: undefined`, and no empty `member` key: "all branches" must
-    // leave each read's original, index-served plan untouched.
-    it('sends no member clause at all when no branch is selected', async () => {
-      const { service, gymMemberFindMany, subscriptionFindMany, loyaltyLedgerEntryFindMany } =
-        setup();
-
-      await service.run('members', { range: '30d' });
-      await service.run('loyalty', { range: '30d' });
-
-      expect(whereOf(gymMemberFindMany)).not.toHaveProperty('locationId');
-      expect(whereOf(subscriptionFindMany)).not.toHaveProperty('member');
-      expect(whereOf(loyaltyLedgerEntryFindMany)).not.toHaveProperty('member');
-    });
-
-    it('collapses the revenue-by-location section to the selected branch', async () => {
+    it('writes the values it invents itself in Georgian: a sale nobody sold, a payment method', async () => {
       const { service, paymentFindMany } = setup();
       paymentFindMany.mockResolvedValue([
-        {
-          amount: 10_000,
-          refundedAmount: 0,
-          currency: 'GEL',
-          createdAt: new Date(),
-          order: { package: null },
-          location: { name: 'Vake' },
-        },
+        salePayment(9_000, '2026-05-20T09:00:00.000Z', PaymentMethod.CARD, null),
       ]);
-
-      const result = await service.run('revenue', { range: '30d', locationId: 'loc-1' });
-
-      const byLocation = result.sections.find(
-        (s) => s.id === 'revenue-by-location',
+      const result = await service.run('sales', MAY_WINDOW, 'ka');
+      const bySeller = result.sections.find(
+        (s) => s.id === 'sales-by-seller',
       ) as ReportBreakdownSection;
-      // A breakdown of one thing is one item — the section's contract fixes its
-      // shape, not its length.
-      expect(byLocation.items).toEqual([{ label: 'Vake', value: 10_000 }]);
-    });
-
-    // A downloaded file that disagrees with the screen it came from is worse than
-    // no filter, and a pinned dashboard widget is the same hazard by another route.
-    it('applies the same filter to the exports and to a pinned section', async () => {
-      const { service, paymentFindMany } = setup();
-
-      for await (const _chunk of service.streamDrilldownCsv('revenue', {
-        range: '30d',
-        locationId: 'loc-1',
-      })) {
-        // drained so the generator actually issues its query
-      }
-      await service.buildDrilldownXlsx('revenue', {
-        range: '30d',
-        locationId: 'loc-1',
-      });
-      await service.resolveSection('revenue', 'revenue-over-time', {
-        range: '30d',
-        locationId: 'loc-1',
-      });
-
-      for (const call of [0, 1, 2]) {
-        expect(whereOf(paymentFindMany, call).locationId).toBe('loc-1');
-      }
+      expect(bySeller.items[0]?.label).toBe('მიუკუთვნებელი');
+      const byMethod = result.sections.find(
+        (s) => s.id === 'sales-mix-by-method',
+      ) as ReportBreakdownSection;
+      expect(byMethod.items.map((i) => i.label)).toContain('ბარათი');
     });
   });
 
@@ -827,7 +712,7 @@ describe('ReportDrilldownService', () => {
       const { service, checkInFindMany } = setup();
       checkInFindMany.mockResolvedValue([]);
 
-      const resolved = await service.resolveSection('attendance', 'peak-hours', { range: '30d' });
+      const resolved = await service.resolveSection('attendance', 'peak-hours', MAY_WINDOW);
 
       expect(resolved).not.toBeNull();
       expect(resolved?.section.id).toBe('peak-hours');
@@ -836,7 +721,7 @@ describe('ReportDrilldownService', () => {
 
     it('returns null for an unknown section id', async () => {
       const { service } = setup();
-      const resolved = await service.resolveSection('revenue', 'does-not-exist', { range: '30d' });
+      const resolved = await service.resolveSection('revenue', 'does-not-exist', MAY_WINDOW);
       expect(resolved).toBeNull();
     });
   });

@@ -72,7 +72,8 @@ function renderProfileTab(member: MemberDetail) {
         <ToastProvider>
           <MemberTabs
             member={member}
-            canManageBilling={false}
+            canManageMembership={false}
+            canSellCredits={false}
             creditPacks={[]}
             creditCatalogue={[]}
           />

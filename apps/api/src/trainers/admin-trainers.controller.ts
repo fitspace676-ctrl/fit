@@ -41,7 +41,8 @@ import { AdminTrainersService } from './admin-trainers.service';
  * here is tenant-scoped staff access: {@link TenantGuard} pins the request to one
  * gym and {@link PermissionsGuard} enforces the capability. Reads require
  * {@link Permission.TrainerRead}; the writes — create, edit, and
- * deactivate/reactivate — require {@link Permission.TrainerWrite}. The service
+ * deactivate/reactivate — require {@link Permission.TrainerWrite}; editing
+ * availability requires {@link Permission.TrainerScheduleManage}. The service
  * runs on the tenant-scoped Prisma client, so no handler ever passes a `gymId`.
  */
 @Controller('admin/trainers')
@@ -118,7 +119,7 @@ export class AdminTrainersController {
    */
   @Put(':id/availability')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.TrainerWrite)
+  @RequirePermissions(Permission.TrainerScheduleManage)
   async setAvailability(
     @Param('id') id: string,
     @Body() body: unknown,

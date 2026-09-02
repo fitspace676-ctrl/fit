@@ -96,11 +96,14 @@ export const dynamic = 'force-dynamic';
 export default async function LocationsPage() {
   const t = await getTranslations('admin.locations');
   const session = await getServerSession();
+  // Editing a branch's details is `LocationWrite`; adding one or switching it
+  // off is `LocationManage` (owners only).
   const canWrite = session !== null && roleHasPermission(session.role, Permission.LocationWrite);
+  const canManage = session !== null && roleHasPermission(session.role, Permission.LocationManage);
 
   try {
     const { data } = await fetchLocations({ limit: 100 });
-    return <LocationsBoard locations={data} canWrite={canWrite} />;
+    return <LocationsBoard locations={data} canWrite={canWrite} canManage={canManage} />;
   } catch (error) {
     const message =
       error instanceof ApiError

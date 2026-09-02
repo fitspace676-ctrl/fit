@@ -37,7 +37,7 @@ export class AdminServiceSessionsController {
   /** `GET /admin/service-sessions?from&to&staffId?&serviceId?` — the calendar feed. */
   @Get()
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassRead)
+  @RequirePermissions(Permission.PtSessionRead)
   async list(@Query() query: unknown): Promise<AdminServiceSessionsResponse> {
     return this.sessions.list(parse(listAdminServiceSessionsQuerySchema, query));
   }
@@ -45,21 +45,21 @@ export class AdminServiceSessionsController {
   /** `POST /admin/service-sessions` — open one slot: `{ serviceId, startsAt, notes? }`. */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.PtSessionManage)
   async create(@Body() body: unknown): Promise<AdminServiceSession> {
     return this.sessions.create(parse(createServiceSessionSchema, body));
   }
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.PtSessionManage)
   async cancel(@Param('id') id: string): Promise<AdminServiceSession> {
     return this.sessions.cancel(id);
   }
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassWrite)
+  @RequirePermissions(Permission.PtSessionManage)
   async complete(@Param('id') id: string): Promise<AdminServiceSession> {
     return this.sessions.complete(id);
   }

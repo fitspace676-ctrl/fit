@@ -48,13 +48,13 @@ function columnTypeFor(unit: ReportValueUnit): ReportColumnType {
  * "7 243 ₾" into a cell nobody can compute with, and it stays unambiguous about
  * which figure is currency.
  */
-function kpiTable(kpis: ReportKpi[], currency: string): TabularSection {
+function kpiTable(kpis: ReportKpi[], currency: string, labels: TabularLabels): TabularSection {
   return {
-    title: 'Summary',
+    title: labels.summary,
     columns: [
-      { key: 'metric', label: 'Metric', type: 'text' },
-      { key: 'value', label: 'Value', type: 'number' },
-      { key: 'unit', label: 'Unit', type: 'text' },
+      { key: 'metric', label: labels.metric, type: 'text' },
+      { key: 'value', label: labels.value, type: 'number' },
+      { key: 'unit', label: labels.unit, type: 'text' },
     ],
     rows: kpis.map((kpi) => ({
       metric: kpi.label,
@@ -131,6 +131,27 @@ function sectionTable(section: ReportSection): TabularSection {
  * and no rows), because "this section had nothing in the window" is an answer the
  * export should carry rather than silently omit.
  */
-export function drilldownTables(drilldown: ReportDrilldown): TabularSection[] {
-  return [kpiTable(drilldown.kpis, drilldown.currency), ...drilldown.sections.map(sectionTable)];
+/** The fixed words of the KPI summary tab, in the file's language. */
+export interface TabularLabels {
+  summary: string;
+  metric: string;
+  value: string;
+  unit: string;
+}
+
+const ENGLISH_LABELS: TabularLabels = {
+  summary: 'Summary',
+  metric: 'Metric',
+  value: 'Value',
+  unit: 'Unit',
+};
+
+export function drilldownTables(
+  drilldown: ReportDrilldown,
+  labels: TabularLabels = ENGLISH_LABELS,
+): TabularSection[] {
+  return [
+    kpiTable(drilldown.kpis, drilldown.currency, labels),
+    ...drilldown.sections.map(sectionTable),
+  ];
 }

@@ -55,7 +55,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function NewLocationPage() {
   const session = await getServerSession();
-  if (!session || !roleHasPermission(session.role, Permission.LocationWrite)) {
+  if (!session || !roleHasPermission(session.role, Permission.LocationManage)) {
     redirect('/403');
   }
 

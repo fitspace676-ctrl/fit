@@ -83,7 +83,7 @@ export interface EmailStrings {
     cashReceived: string;
     change: string;
     paidBy: (method: string) => string;
-    methods: { cash: string; card: string; member_account: string };
+    methods: { cash: string; card: string; bank_transfer: string; member_account: string };
     footer: string;
   };
   invoice: {
@@ -212,7 +212,12 @@ const en: EmailStrings = {
     cashReceived: 'Cash received',
     change: 'Change',
     paidBy: (method) => `Paid by ${method}.`,
-    methods: { cash: 'Cash', card: 'Card', member_account: 'Member account' },
+    methods: {
+      cash: 'Cash',
+      card: 'Card',
+      bank_transfer: 'Bank transfer',
+      member_account: 'Member account',
+    },
     footer: 'This is a receipt for your records. No payment is due.',
   },
   invoice: {
@@ -344,7 +349,12 @@ const ka: EmailStrings = {
     cashReceived: 'მიღებული ნაღდი',
     change: 'ხურდა',
     paidBy: (method) => `გადახდის მეთოდი: ${method}.`,
-    methods: { cash: 'ნაღდი', card: 'ბარათი', member_account: 'წევრის ანგარიში' },
+    methods: {
+      cash: 'ნაღდი',
+      card: 'ბარათი',
+      bank_transfer: 'საბანკო გადარიცხვა',
+      member_account: 'წევრის ანგარიში',
+    },
     footer: 'ეს ჩეკი თქვენი ჩანაწერებისთვისაა. გადასახდელი არაფერია.',
   },
   invoice: {

@@ -35,6 +35,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash',
   card: 'Card',
+  bank_transfer: 'Bank transfer',
   member_account: 'Member account',
 };
 
@@ -229,7 +230,7 @@ export default async function ReconciliationPage({
   searchParams: Promise<SearchParams>;
 }) {
   const session = await getServerSession();
-  const canView = session !== null && roleHasPermission(session.role, Permission.BillingRead);
+  const canView = session !== null && roleHasPermission(session.role, Permission.SalesHistoryRead);
 
   if (!canView) {
     return (

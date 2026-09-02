@@ -38,12 +38,6 @@
 // Presentation is Astryx `Card` / `Button` / `TextInput` over the Fit brand theme
 // tokens, with all layout authored in compiled StyleX — no Tailwind utilities and
 // no FormaCore Aurora-glass primitives.
-//
-// THE BRANCH IS A PROP, NOT A CONTEXT READ. `locationId` arrives from the server
-// component that ran the preview with it, so the table, the "not split by branch"
-// caveat and the two download links are all describing the same fetch. See the
-// prop's own docblock for why `useActiveLocation()` would be the wrong source, and
-// `branch-scope.ts` for which reports the filter genuinely reaches.
 
 import { useDeferredValue, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { Card } from '@fit/ui-kit';
@@ -54,33 +48,28 @@ import type { NumberFormatter } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { groupReportsBySegment } from '@fit/types';
+import { groupReportsBySegment, reportQueryParams } from '@fit/types';
 import type {
   ReportCellValue,
   ReportColumn,
   ReportColumnType,
   ReportDefinition,
   ReportKey,
-  ReportRange,
+  ReportQuery,
   ReportResult,
   ReportSegment,
 } from '@fit/types';
 import { Icon, type IconName } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import { chrome } from './report-chrome';
-import { BranchScopeNote } from './branch-scope-note';
-import { GYM_WIDE_REPORTS, gymWideColumnKeys } from './branch-scope';
+import { ReportRangeControl } from './report-range-control';
 
 type T = ReturnType<typeof useTranslations>;
 
-/** The range options offered by the toolbar's segmented control, ascending by span. */
-const RANGE_OPTIONS: ReadonlyArray<{ value: ReportRange; labelKey: string }> = [
-  { value: '7d', labelKey: 'range7d' },
-  { value: '30d', labelKey: 'range30d' },
-  { value: '12w', labelKey: 'range12w' },
-  { value: '12m', labelKey: 'range12m' },
-];
+/** Today as `YYYY-MM-DD`, for a range control with no resolved window to show. */
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const styles = stylex.create({
   page: {
@@ -487,30 +476,6 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-code)',
     fontVariantNumeric: 'tabular-nums',
   },
-  // A column header the branch filter does not reach, marked in the header itself
-  // rather than only in the note above the table. The note names the columns; this
-  // is what lets a reader scanning the fifth column of row twenty-nine find the
-  // caveat without travelling back up to it. A dotted underline plus a `title`,
-  // not a colour: the screen has exactly one accent and it means "current".
-  thGymWide: {
-    textDecorationLine: 'underline',
-    textDecorationStyle: 'dotted',
-    textUnderlineOffset: '0.25em',
-    cursor: 'help',
-  },
-  // The cell under one of those headers when the API answered `null` — which for
-  // `revenue-summary` under a branch filter is every row of `mrr` / `activeMembers`
-  // / `arpm`.
-  //
-  // The generic empty cell renders "-" in the table's own ink, and at that weight,
-  // in a money column, it reads as "zero" or as a fetch that failed. This one is an
-  // EM DASH in disabled ink carrying the caveat as its accessible name, so a reader
-  // who hovers, and a screen-reader user who never can, both get "Not split by
-  // branch" instead of a blank they have to interpret.
-  cellNotSplit: {
-    color: 'var(--color-text-disabled)',
-    cursor: 'help',
-  },
 
   /* ---------------------------------------------------------------------- */
   /*  Empty states                                                           */
@@ -573,6 +538,13 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   'discounts-and-promotions': 'tag',
   'refunds-detail': 'minus',
   'pos-transaction-log': 'bag',
+  'sales-transactions': 'ticket',
+  'daily-reconciliation': 'check',
+  // Products
+  'product-sales': 'bag',
+  'product-sales-detail': 'ticket',
+  'stock-inventory': 'grid',
+  'stock-movements': 'arrow',
   // Members
   'membership-movement': 'users',
   'retention-and-churn': 'target',
@@ -584,6 +556,7 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   // Revenue
   'revenue-summary': 'chart',
   'revenue-by-channel': 'grid',
+  'revenue-by-payment-method': 'card',
   'revenue-by-location': 'pin',
   'outstanding-invoices': 'info',
   'projected-revenue': 'arrow',
@@ -593,9 +566,14 @@ const REPORT_ICONS: Partial<Record<ReportKey, IconName>> = {
   'class-utilization': 'grid',
   'class-cancellations': 'x',
   'waitlist-demand': 'flame',
+  'credit-usage': 'star',
   'pt-sessions': 'dumbbell',
   'no-show-rate': 'clock',
   // Staff
+  'trainer-sales': 'briefcase',
+  'trainer-sales-detail': 'ticket',
+  'staff-schedule': 'clock',
+  'audit-log': 'shield',
   'trainer-performance': 'award',
 };
 
@@ -638,25 +616,21 @@ function matchesQuery(report: ReportDefinition, segmentLabel: string, query: str
  */
 export function ReportsView({
   reports,
+  segments,
   selected,
-  range,
+  reportQuery,
   preview,
-  locationId,
+  canExport,
 }: {
   reports: ReportDefinition[];
+  /** Segment headings in the reader's language, from the catalogue response. */
+  segments: Record<ReportSegment, string>;
   selected: ReportKey | null;
-  range: ReportRange;
+  /** The window the URL asked for, already validated by the page. */
+  reportQuery: ReportQuery;
   preview: ReportResult | null;
-  /**
-   * The branch the server actually ran `preview` for — `undefined` for every
-   * branch. Passed down rather than read from `useActiveLocation()` on purpose:
-   * the context answers "what is selected now", and the download links have to
-   * answer "what is on this screen". Those are the same value almost always, and
-   * the exception — a branch switched in another tab, so the cookie has moved but
-   * this render has not — is exactly the case where a file that silently disagrees
-   * with the table above it would be worst.
-   */
-  locationId: string | undefined;
+  /** `ReportExport` — the preview's download buttons. */
+  canExport: boolean;
 }) {
   const t = useTranslations('admin.reports');
   const router = useRouter();
@@ -692,13 +666,13 @@ export function ReportsView({
   const needle = deferredQuery.trim().toLowerCase();
   const groups = useMemo(
     () =>
-      groupReportsBySegment(reports)
+      groupReportsBySegment(reports, segments)
         .map((group) => ({
           ...group,
           reports: group.reports.filter((report) => matchesQuery(report, group.label, needle)),
         }))
         .filter((group) => group.reports.length > 0),
-    [reports, needle],
+    [reports, segments, needle],
   );
 
   // The tab strip is drawn from the filtered groups, so a search rewrites BOTH
@@ -737,21 +711,16 @@ export function ReportsView({
             startIcon={<Icon name="search" {...stylex.props(styles.searchIcon)} />}
           />
         </div>
-        <SegmentedControl
-          value={range}
-          onChange={(next) => setParam('range', next)}
-          label={t('reportingRange')}
-          size="sm"
+        {/* The window's days come from the PREVIEW, which echoes what the API
+            resolved a preset to; with nothing previewed (a gym that offers no
+            reports) the control still needs two days to stand on, and the URL's
+            own — or today — will do. */}
+        <ReportRangeControl
+          range={reportQuery.range}
+          from={preview?.from ?? reportQuery.from ?? isoToday()}
+          to={preview?.to ?? reportQuery.to ?? isoToday()}
           isDisabled={isPending}
-        >
-          {RANGE_OPTIONS.map((option) => (
-            <SegmentedControlItem
-              key={option.value}
-              value={option.value}
-              label={t(option.labelKey)}
-            />
-          ))}
-        </SegmentedControl>
+        />
       </div>
 
       {shown === null ? (
@@ -829,8 +798,8 @@ export function ReportsView({
               preview={preview}
               // `ReportResult` carries no purpose line, so the catalogue supplies it.
               description={reports.find((report) => report.key === selected)?.description ?? null}
-              range={range}
-              locationId={locationId}
+              reportQuery={reportQuery}
+              canExport={canExport}
               t={t}
             />
           ) : (
@@ -898,18 +867,17 @@ function ReportChip({
 function ReportPreview({
   preview,
   description,
-  range,
-  locationId,
+  reportQuery,
+  canExport,
   t,
 }: {
   preview: ReportResult;
   description: string | null;
-  range: ReportRange;
-  locationId: string | undefined;
+  reportQuery: ReportQuery;
+  canExport: boolean;
   t: T;
 }) {
   const locale = useLocale();
-  const common = useTranslations('admin.common');
   const money = useMemo(
     () =>
       createNumberFormat(locale, {
@@ -923,31 +891,12 @@ function ReportPreview({
 
   // Renders as a plain anchor so the browser downloads the file, so the basePath is
   // not applied for us.
-  //
-  // The branch is written into the link EXPLICITLY rather than left to the cookie
-  // the export route would otherwise fall back to. The route resolves both the same
-  // way (`getActiveLocationId`), and the param outranks the cookie — so a link built
-  // from the value this render fetched with is a file that matches this table, even
-  // if the switcher has moved in another tab since. "All locations" is the ABSENCE
-  // of the param, never `locationId=all`.
-  const exportHref = (format: 'csv' | 'xlsx'): string => {
-    const params = new URLSearchParams({ report: preview.key, range, format });
-    if (locationId) {
-      params.set('locationId', locationId);
-    }
-    return adminPath(`/reports/export?${params.toString()}`);
-  };
-
-  // What this report cannot honestly say about one branch. Both are silent in "All
-  // locations" mode: there, "not split by branch" is not a caveat but the definition
-  // of what is on screen, and a note that is always up is a note nobody reads.
-  const wholeReportGymWide = locationId !== undefined && GYM_WIDE_REPORTS.has(preview.key);
-  const gymWideKeys = locationId === undefined ? [] : gymWideColumnKeys(preview.key);
-  // Named by the API catalogue's own labels, so the note points at headers the
-  // reader can actually see rather than at row-object keys.
-  const gymWideLabels = preview.columns
-    .filter((column) => gymWideKeys.includes(column.key))
-    .map((column) => column.label);
+  const exportHref = (format: 'csv' | 'xlsx'): string =>
+    adminPath(
+      `/reports/export?report=${encodeURIComponent(preview.key)}&${reportQueryParams(
+        reportQuery,
+      ).toString()}&format=${format}`,
+    );
 
   return (
     <Card padding="none" xstyle={styles.detailCard}>
@@ -962,30 +911,25 @@ function ReportPreview({
             {' · '}
             {t('columnCount', { count: preview.columns.length })}
           </p>
-          {/* Directly under what you are about to download, because it is a fact
-              about the file as much as about the table: a gym-wide report exports
-              gym-wide rows, and a branch-blind column exports empty cells. */}
-          {wholeReportGymWide ? <BranchScopeNote /> : null}
-          {!wholeReportGymWide && gymWideLabels.length > 0 ? (
-            <BranchScopeNote columns={gymWideLabels} />
-          ) : null}
         </div>
-        <div {...stylex.props(styles.downloads)}>
-          <Button
-            label={t('downloadCsv')}
-            variant="secondary"
-            size="sm"
-            href={exportHref('csv')}
-            icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
-          />
-          <Button
-            label={t('downloadXlsx')}
-            variant="secondary"
-            size="sm"
-            href={exportHref('xlsx')}
-            icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
-          />
-        </div>
+        {canExport ? (
+          <div {...stylex.props(styles.downloads)}>
+            <Button
+              label={t('downloadCsv')}
+              variant="secondary"
+              size="sm"
+              href={exportHref('csv')}
+              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+            />
+            <Button
+              label={t('downloadXlsx')}
+              variant="secondary"
+              size="sm"
+              href={exportHref('xlsx')}
+              icon={<Icon name="download" {...stylex.props(styles.iconSm)} />}
+            />
+          </div>
+        ) : null}
       </div>
 
       {preview.rows.length === 0 ? (
@@ -998,14 +942,7 @@ function ReportPreview({
                 {preview.columns.map((column) => (
                   <th
                     key={column.key}
-                    title={
-                      gymWideKeys.includes(column.key) ? common('notSplitByBranch') : undefined
-                    }
-                    {...stylex.props(
-                      styles.th,
-                      isNumericColumn(column.type) && styles.numericHead,
-                      gymWideKeys.includes(column.key) && styles.thGymWide,
-                    )}
+                    {...stylex.props(styles.th, isNumericColumn(column.type) && styles.numericHead)}
                   >
                     {column.label}
                   </th>
@@ -1021,27 +958,17 @@ function ReportPreview({
                     i === preview.rows.length - 1 && styles.bodyRowLast,
                   )}
                 >
-                  {preview.columns.map((column) => {
-                    const value = row[column.key] ?? null;
-                    // A `null` in a branch-blind column is the API declining to
-                    // answer, not a missing figure — say so in place of the
-                    // table's generic "-", which in a money column reads as zero.
-                    const notSplit = value === null && gymWideKeys.includes(column.key);
-                    return (
-                      <td
-                        key={column.key}
-                        title={notSplit ? common('notSplitByBranch') : undefined}
-                        aria-label={notSplit ? common('notSplitByBranch') : undefined}
-                        {...stylex.props(
-                          styles.td,
-                          isNumericColumn(column.type) && styles.numericCell,
-                          notSplit && styles.cellNotSplit,
-                        )}
-                      >
-                        {notSplit ? '—' : formatCell(column, value, money, number)}
-                      </td>
-                    );
-                  })}
+                  {preview.columns.map((column) => (
+                    <td
+                      key={column.key}
+                      {...stylex.props(
+                        styles.td,
+                        isNumericColumn(column.type) && styles.numericCell,
+                      )}
+                    >
+                      {formatCell(column, row[column.key] ?? null, money, number)}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

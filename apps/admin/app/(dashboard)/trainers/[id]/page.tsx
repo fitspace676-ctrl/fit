@@ -369,10 +369,13 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     ? t(STATUS_LABEL_KEYS[trainer.status]!)
     : trainer.status;
 
-  // Write controls (edit + deactivate + the availability editor) are a
-  // `TrainerWrite` capability.
+  // Write controls (edit + deactivate) are a `TrainerWrite` capability; the
+  // availability editor is `TrainerScheduleManage` — a receptionist reads a
+  // trainer's hours, a manager sets them.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.TrainerWrite);
+  const canEditAvailability =
+    session !== null && roleHasPermission(session.role, Permission.TrainerScheduleManage);
 
   // The weekly hours the Availability tab edits. Fail-soft: a trainer whose
   // availability call fails still gets a rendered page (the editor opens on a
@@ -477,7 +480,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
       <TrainerTabs
         trainer={trainer}
         availability={availability}
-        canWrite={canWrite}
+        canEditAvailability={canEditAvailability}
         timeZone={timeZone}
       />
 

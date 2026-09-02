@@ -3,7 +3,13 @@ import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import type { StaffRole } from '@fit/types';
-import { ApiError, fetchGymSettings, fetchLocations, fetchStaff } from '@/lib/api';
+import {
+  ApiError,
+  fetchGymSettings,
+  fetchLocations,
+  fetchReportCatalog,
+  fetchStaff,
+} from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
@@ -99,7 +105,11 @@ export default async function SettingsPage() {
       (page) => page.data,
       () => [],
     );
-    // The head-count beside each role on the Roles & permissions rail. Counted
+    // Two independent reads, neither of which may sink the page: each degrades to
+    // its own fallback so a failure narrows what the form can say rather than
+    // costing the operator the whole screen.
+    //
+    // The head-count beside each role on the Roles & permissions rail is counted
     // from the live roster (`GET /staff`) rather than stored anywhere: the number
     // is "who holds this role right now", and the only place that is true is the
     // roster itself. Gym-wide, unlike the Staff console's own tally — Settings
@@ -108,16 +118,31 @@ export default async function SettingsPage() {
     // A roster call that fails yields `null` — no head-counts are drawn at all,
     // rather than "0 staff members" under every role, which would be a claim the
     // failed request did not earn.
-    const staffCountByRole = await fetchStaff().then(
-      ({ staff }) =>
-        staff.reduce<Partial<Record<StaffRole, number>>>((counts, member) => {
-          counts[member.role] = (counts[member.role] ?? 0) + 1;
-          return counts;
-        }, {}),
-      () => null,
-    );
+    //
+    // The report catalogue is every report, hidden ones too, in the reader's
+    // language — the toggles have to name what the hub names. A failed call leaves
+    // the form its English fallback.
+    const [staffCountByRole, reportCatalog] = await Promise.all([
+      fetchStaff().then(
+        ({ staff }) =>
+          staff.reduce<Partial<Record<StaffRole, number>>>((counts, member) => {
+            counts[member.role] = (counts[member.role] ?? 0) + 1;
+            return counts;
+          }, {}),
+        () => null,
+      ),
+      fetchReportCatalog({ all: true }).then(
+        (catalog) => catalog,
+        () => undefined,
+      ),
+    ]);
     return (
-      <SettingsForm initial={settings} locations={locations} staffCountByRole={staffCountByRole} />
+      <SettingsForm
+        initial={settings}
+        locations={locations}
+        staffCountByRole={staffCountByRole}
+        reportCatalog={reportCatalog}
+      />
     );
   } catch (error) {
     const message =

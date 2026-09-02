@@ -131,13 +131,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'services',
     permission: Permission.ProductRead,
   },
-  { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.ProductRead },
+  { labelKey: 'nav.pos', href: '/pos', icon: 'pos', permission: Permission.PosAccess },
   {
     labelKey: 'nav.staff',
     href: '/staff',
     icon: 'staff',
-    permission: Permission.StaffManage,
-    minRole: 'OWNER',
+    permission: Permission.StaffRead,
+    minRole: 'MANAGER',
   },
   {
     labelKey: 'nav.automation',

@@ -30,8 +30,8 @@ import { SubscriptionFreezeService } from './subscription-freeze.service';
  * own. Both delegate to the one {@link SubscriptionFreezeService} so the freeze
  * legality (state machine) and per-plan allowance
  * (`422 EXCEEDS_FREEZE_ALLOWANCE`) live in a single place. It is a staff write, so
- * it is gated by {@link Permission.BillingManage} (which covers "subscriptions,
- * plans, and payment settings") behind {@link TenantGuard} + the global
+ * it is gated by {@link Permission.MembershipManage} (freeze / resume a member's
+ * membership) behind {@link TenantGuard} + the global
  * {@link PermissionsGuard}; the tenant-scoped Prisma client constrains the
  * subscription id to the caller's gym, so a cross-tenant id is a `404`.
  */
@@ -48,7 +48,7 @@ export class AdminSubscriptionFreezeController {
    */
   @Post(':id/freeze')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.BillingManage)
+  @RequirePermissions(Permission.MembershipManage)
   async freezeSubscription(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -63,7 +63,7 @@ export class AdminSubscriptionFreezeController {
    */
   @Post(':id/unfreeze')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.BillingManage)
+  @RequirePermissions(Permission.MembershipManage)
   async unfreezeSubscription(@Param('id') id: string): Promise<UnfreezeSubscriptionResponse> {
     return this.freeze.unfreezeForStaff(id);
   }

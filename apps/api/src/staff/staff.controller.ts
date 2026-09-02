@@ -34,7 +34,9 @@ import { StaffService } from './staff.service';
  * Staff-console staff management API (`/staff`, T4.7).
  *
  * Every route is tenant-scoped staff access: {@link TenantGuard} pins the request
- * to one gym and {@link PermissionsGuard} enforces {@link Permission.StaffManage}
+ * to one gym and {@link PermissionsGuard} enforces the staff capabilities —
+ * {@link Permission.StaffRead} to list, {@link Permission.StaffManage} to change,
+ * {@link Permission.StaffAssignRole} to re-role —
  * (held by OWNER + MANAGER, though the admin route is OWNER-gated client-side).
  * The service runs on the tenant-scoped Prisma client, so no handler ever passes
  * or trusts a `gymId`. The `accept-invite` redirect + the redemption that creates
@@ -54,7 +56,7 @@ export class StaffController {
    */
   @Get()
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffRead)
   async list(@Query() query: unknown): Promise<ListStaffResponse> {
     return this.staff.listStaff(parse(listStaffQuerySchema, query));
   }
@@ -103,7 +105,7 @@ export class StaffController {
    */
   @Patch(':memberId/role')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.StaffManage)
+  @RequirePermissions(Permission.StaffAssignRole)
   async updateRole(
     @Param('memberId') memberId: string,
     @Body() body: unknown,

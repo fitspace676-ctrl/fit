@@ -275,18 +275,27 @@ export default async function ProductDetailPage({
     tone: 'ink' as BadgeTone,
   };
 
-  // The ledger is supporting detail, not the point of the page: if it fails to
-  // load the product still renders, with the history section simply empty.
-  let movements: StockMovementRow[] = [];
-  try {
-    movements = (await fetchStockMovements(id, { limit: 20, locationId })).data;
-  } catch {
-    movements = [];
-  }
-
-  // Write controls (edit + deactivate) are a `ProductWrite` capability.
+  // Write controls (edit + deactivate) are a `ProductWrite` capability; moving
+  // stock is `InventoryAdjust` and reading the ledger `StockMovementRead` — a
+  // receptionist sees the count, a manager may change it and read why it moved.
   const session = await getServerSession();
-  const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
+  const can = (permission: Permission): boolean =>
+    session !== null && roleHasPermission(session.role, permission);
+  const canWrite = can(Permission.ProductWrite);
+  const canAdjustStock = can(Permission.InventoryAdjust);
+  const canViewMovements = can(Permission.StockMovementRead);
+
+  // The ledger is supporting detail, not the point of the page: if it fails to
+  // load the product still renders, with the history section simply empty. It is
+  // only fetched for staff who may read it — the API would refuse anyone else.
+  let movements: StockMovementRow[] = [];
+  if (canViewMovements) {
+    try {
+      movements = (await fetchStockMovements(id, { limit: 20, locationId })).data;
+    } catch {
+      movements = [];
+    }
+  }
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -331,7 +340,8 @@ export default async function ProductDetailPage({
       <StockPanel
         product={product}
         movements={movements}
-        canWrite={canWrite}
+        canWrite={canAdjustStock}
+        canViewMovements={canViewMovements}
         branchName={branchName}
       />
 

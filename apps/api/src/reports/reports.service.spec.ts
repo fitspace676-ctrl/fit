@@ -26,6 +26,9 @@ function setup() {
   const gymMemberFindMany = vi.fn().mockResolvedValue([]);
   const refundFindMany = vi.fn().mockResolvedValue([]);
   const orderFindMany = vi.fn().mockResolvedValue([]);
+  const productFindMany = vi.fn().mockResolvedValue([]);
+  const stockMovementFindMany = vi.fn().mockResolvedValue([]);
+  const userFindMany = vi.fn().mockResolvedValue([]);
   const promoRedemptionFindMany = vi.fn().mockResolvedValue([]);
 
   const subscriptionFindMany = vi.fn().mockResolvedValue([]);
@@ -33,6 +36,11 @@ function setup() {
   const invoiceFindMany = vi.fn().mockResolvedValue([]);
   const classInstanceFindMany = vi.fn().mockResolvedValue([]);
   const ptSessionFindMany = vi.fn().mockResolvedValue([]);
+  const serviceSessionFindMany = vi.fn().mockResolvedValue([]);
+  const creditPackFindMany = vi.fn().mockResolvedValue([]);
+  const shiftSlotFindMany = vi.fn().mockResolvedValue([]);
+  const auditLogFindMany = vi.fn().mockResolvedValue([]);
+  const locationFindMany = vi.fn().mockResolvedValue([]);
   const gymFindFirst = vi.fn(() => Promise.resolve(gymRow));
 
   const client = {
@@ -41,12 +49,20 @@ function setup() {
     gymMember: { findMany: gymMemberFindMany },
     refund: { findMany: refundFindMany },
     order: { findMany: orderFindMany },
+    product: { findMany: productFindMany },
+    stockMovement: { findMany: stockMovementFindMany },
+    user: { findMany: userFindMany },
     promoRedemption: { findMany: promoRedemptionFindMany },
     subscription: { findMany: subscriptionFindMany },
     checkIn: { findMany: checkInFindMany },
     invoice: { findMany: invoiceFindMany },
     classInstance: { findMany: classInstanceFindMany },
     ptSession: { findMany: ptSessionFindMany },
+    serviceSession: { findMany: serviceSessionFindMany },
+    creditPack: { findMany: creditPackFindMany },
+    shiftSlot: { findMany: shiftSlotFindMany },
+    auditLog: { findMany: auditLogFindMany },
+    location: { findMany: locationFindMany },
     gym: { findFirst: gymFindFirst },
   };
   const prisma = { client } as unknown as TenantPrismaService;
@@ -70,12 +86,20 @@ function setup() {
     gymMemberFindMany,
     refundFindMany,
     orderFindMany,
+    productFindMany,
+    stockMovementFindMany,
+    userFindMany,
     promoRedemptionFindMany,
     subscriptionFindMany,
     checkInFindMany,
     invoiceFindMany,
     classInstanceFindMany,
     ptSessionFindMany,
+    serviceSessionFindMany,
+    creditPackFindMany,
+    shiftSlotFindMany,
+    auditLogFindMany,
+    locationFindMany,
     gymFindFirst,
   };
 }
@@ -128,13 +152,35 @@ describe('ReportsService', () => {
       expect(catalog.reports.some((r) => r.key === 'sales-summary')).toBe(true);
     });
 
+    it('speaks the asked-for language: report copy and the segment headings', async () => {
+      const { service } = setup();
+      const catalog = await service.catalog('ka');
+      const summary = catalog.reports.find((r) => r.key === 'sales-summary');
+      expect(summary?.name).toBe('გაყიდვების შეჯამება');
+      expect(summary?.description).toMatch(/[ა-ჰ]/);
+      expect(catalog.segments.sales).toBe('გაყიდვები');
+      // English carries the definitions verbatim, and English segment labels.
+      const en = await service.catalog();
+      expect(en.reports.find((r) => r.key === 'sales-summary')?.name).toBe('Sales summary');
+      expect(en.segments.classes).toBe('Classes & training');
+    });
+
+    it('can list the whole catalogue, hidden reports included, for the settings screen', async () => {
+      const { service } = setup();
+      gymRow!.settings = { reports: { 'refunds-detail': false } };
+      const full = await service.catalog('ka', { includeHidden: true });
+      expect(full.reports.some((r) => r.key === 'refunds-detail')).toBe(true);
+      expect(full.reports).toHaveLength(REPORT_KEYS.length);
+      expect(full.reports.find((r) => r.key === 'refunds-detail')?.name).toBe('დაბრუნებები');
+    });
+
     it('returns an empty catalogue when every report is off, rather than throwing', async () => {
       const { service } = setup();
       gymRow!.settings = {
         reports: Object.fromEntries(REPORT_KEYS.map((key) => [key, false])),
       };
 
-      await expect(service.catalog()).resolves.toEqual({ reports: [] });
+      await expect(service.catalog()).resolves.toMatchObject({ reports: [] });
     });
 
     it('falls back to the full catalogue when the gym row is missing', async () => {
@@ -155,7 +201,7 @@ describe('ReportsService', () => {
       const { service } = setup();
       gymRow!.settings = { reports: { 'sales-summary': false } };
 
-      await expect(service.runReport('sales-summary', { range: '30d' })).resolves.toBeDefined();
+      await expect(service.runReport('sales-summary', { range: 'mtd' })).resolves.toBeDefined();
     });
 
     // The same instinct is more tempting on the EXPORT route — "don't let them
@@ -172,7 +218,7 @@ describe('ReportsService', () => {
       gymRow!.settings = { reports: { 'sales-summary': false } };
 
       const chunks: string[] = [];
-      for await (const chunk of service.streamReportCsv('sales-summary', { range: '30d' })) {
+      for await (const chunk of service.streamReportCsv('sales-summary', { range: 'mtd' })) {
         chunks.push(chunk);
       }
 
@@ -192,7 +238,7 @@ describe('ReportsService', () => {
       const { service } = setup();
       gymRow!.settings = { reports: { 'sales-summary': false } };
 
-      const workbook = await service.buildReportXlsx('sales-summary', { range: '30d' });
+      const workbook = await service.buildReportXlsx('sales-summary', { range: 'mtd' });
 
       expect(workbook.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
     });
@@ -230,6 +276,218 @@ describe('ReportsService', () => {
     });
   });
 
+  describe('reporting zone', () => {
+    // 00:30Z on the 31st is 04:30 in Tbilisi. The payment at 21:00Z the evening
+    // before is 01:00 on the 31st there — TODAY for the gym, yesterday in UTC.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T00:30:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("windows and buckets `today` in the gym's own zone", async () => {
+      const { service, paymentFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        { amount: 10_000, createdAt: new Date('2026-08-30T21:00:00.000Z') },
+      ]);
+
+      const result = await service.runReport('sales-summary', { range: 'today' });
+
+      expect(result.range).toBe('today');
+      expect(result.rows).toEqual([
+        { period: '2026-08-31', orders: 1, gross: 10_000, refunded: 0, net: 10_000 },
+      ]);
+      const { where } = paymentFindMany.mock.calls[0]?.[0] as {
+        where: { createdAt: { gte: Date; lt: Date } };
+      };
+      expect(where.createdAt.gte.toISOString()).toBe('2026-08-30T20:00:00.000Z');
+      expect(where.createdAt.lt.toISOString()).toBe('2026-08-31T00:30:00.000Z');
+    });
+
+    it('a custom range covers its days inclusively and echoes them back', async () => {
+      const { service, paymentFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        // 23:30Z on the 3rd is 03:30 on the 4th in Tbilisi: outside the window.
+        { amount: 5_000, createdAt: new Date('2026-08-03T23:30:00.000Z') },
+        { amount: 7_000, createdAt: new Date('2026-08-02T10:00:00.000Z') },
+      ]);
+
+      const result = await service.runReport('sales-summary', {
+        range: 'custom',
+        from: '2026-08-01',
+        to: '2026-08-03',
+      });
+
+      expect(result).toMatchObject({ range: 'custom', from: '2026-08-01', to: '2026-08-03' });
+      expect(result.rows.map((row) => [row.period, row.gross])).toEqual([
+        ['2026-08-01', 0],
+        ['2026-08-02', 7_000],
+        ['2026-08-03', 0],
+      ]);
+    });
+
+    it('echoes the days a preset resolved to, so the screen can show the window it got', async () => {
+      const { service } = setup();
+      const result = await service.runReport('sales-summary', { range: '7d' });
+      expect(result).toMatchObject({ range: '7d', from: '2026-08-24', to: '2026-08-31' });
+    });
+
+    it('computes a digest section over a window preset the console no longer offers', async () => {
+      const { service, paymentFindMany } = setup();
+      const section = await service.runDigestSection('sales-summary', '30d');
+      expect(section.key).toBe('sales-summary');
+      // 30 days back from 04:30 on the 31st (Tbilisi) opens on 1 August, so the
+      // dense series has 31 calendar days in it.
+      expect(section.rows).toHaveLength(31);
+      expect('range' in section).toBe(false);
+      const { where } = paymentFindMany.mock.calls[0]?.[0] as {
+        where: { createdAt: { gte: Date } };
+      };
+      expect(where.createdAt.gte.toISOString()).toBe('2026-08-01T00:30:00.000Z');
+    });
+  });
+
+  describe('language', () => {
+    it('answers in Georgian when asked: report name, column labels and the values it writes itself', async () => {
+      const { service, orderFindMany } = setup();
+      orderFindMany.mockResolvedValue([
+        {
+          soldById: null,
+          soldBy: null,
+          payment: { amount: 5_000, refundedAmount: 0 },
+        },
+      ]);
+
+      const result = await service.runReport('sales-by-staff', { range: 'mtd' }, 'ka');
+
+      expect(result.name).toBe('გაყიდვები თანამშრომლების მიხედვით');
+      expect(result.columns.map((c) => c.key)).toEqual(['staff', 'role', 'orders', 'gross', 'net']);
+      expect(result.columns.map((c) => c.label)).toEqual([
+        'თანამშრომელი',
+        'როლი',
+        'გაყიდვები',
+        'მთლიანი',
+        'წმინდა',
+      ]);
+      expect(result.rows[0]?.staff).toBe('მიუკუთვნებელი');
+    });
+
+    it('defaults to English when no language is asked for', async () => {
+      const { service } = setup();
+      const result = await service.runReport('sales-by-staff', { range: 'mtd' });
+      expect(result.name).toBe('Sales by staff member');
+    });
+
+    it('exports the CSV header in the asked-for language too', async () => {
+      const { service } = setup();
+      const chunks: string[] = [];
+      for await (const chunk of service.streamReportCsv('sales-summary', { range: 'mtd' }, 'ka')) {
+        chunks.push(chunk);
+      }
+      expect(chunks[0]).toBe('პერიოდი,შეკვეთები,მთლიანი,დაბრუნებული,წმინდა\r\n');
+    });
+  });
+
+  describe('sales-transactions', () => {
+    /** A till sale of a categorised product and a walk-in, and an online plan purchase. */
+    function twoOrders() {
+      return [
+        {
+          id: 'cmxxxxxxxxabcd1234',
+          createdAt: new Date('2026-08-08T14:05:00.000Z'),
+          total: 12_500,
+          status: 'PAID',
+          customerName: null,
+          packageId: null,
+          member: null,
+          location: { name: 'Vake' },
+          items: [
+            { label: 'Whey Protein 1kg', productVariantId: 'prod-1:base', serviceId: null },
+            { label: 'Promo SUMMER25', productVariantId: null, serviceId: null },
+          ],
+          payment: { method: 'CARD', provider: 'pos', refundedAmount: 0 },
+          soldBy: { firstName: 'Mariam', lastName: 'Beridze', user: null },
+        },
+        {
+          id: 'cmyyyyyyyywxyz9876',
+          createdAt: new Date('2026-08-09T08:00:00.000Z'),
+          total: 90_000,
+          status: 'PAID',
+          customerName: null,
+          packageId: 'plan-1',
+          member: { firstName: 'Giorgi', lastName: 'Kapanadze', user: null },
+          location: null,
+          items: [{ label: 'Monthly membership', productVariantId: null, serviceId: null }],
+          payment: { method: 'CARD', provider: 'stub', refundedAmount: 30_000 },
+          soldBy: null,
+        },
+      ];
+    }
+
+    it('lists one row per transaction with who, what, how much, how paid, where and by whom', async () => {
+      const { service, orderFindMany, productFindMany } = setup();
+      orderFindMany.mockResolvedValue(twoOrders());
+      productFindMany.mockResolvedValue([{ id: 'prod-1', category: { name: 'Supplements' } }]);
+
+      const result = await service.runReport('sales-transactions', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-08',
+          time: '18:05',
+          reference: 'ABCD1234',
+          customer: 'Walk-in',
+          items: 'Whey Protein 1kg, Promo SUMMER25',
+          category: 'Supplements',
+          amount: 12_500,
+          method: 'Card',
+          channel: 'Point of sale',
+          location: 'Vake',
+          staff: 'Mariam Beridze',
+          status: 'Paid',
+        },
+        {
+          date: '2026-08-09',
+          time: '12:00',
+          reference: 'WXYZ9876',
+          customer: 'Giorgi Kapanadze',
+          items: 'Monthly membership',
+          category: 'Membership plan',
+          amount: 90_000,
+          method: 'Card',
+          channel: 'Online',
+          location: '',
+          staff: 'Unattributed',
+          status: 'Partially refunded',
+        },
+      ]);
+      // Only the product lines are looked up, by the product half of their variant ref.
+      expect(productFindMany.mock.calls[0]?.[0]).toMatchObject({
+        where: { id: { in: ['prod-1'] } },
+      });
+    });
+
+    it('speaks Georgian for everything it writes itself', async () => {
+      const { service, orderFindMany } = setup();
+      orderFindMany.mockResolvedValue(twoOrders());
+
+      const result = await service.runReport('sales-transactions', { range: 'mtd' }, 'ka');
+
+      expect(result.rows[0]).toMatchObject({
+        customer: 'სტუმარი',
+        category: 'კატეგორიის გარეშე',
+        channel: 'სალარო',
+        status: 'გადახდილი',
+      });
+      expect(result.rows[1]).toMatchObject({
+        category: 'წევრობის გეგმა',
+        channel: 'ონლაინ',
+        staff: 'მიუკუთვნებელი',
+        status: 'ნაწილობრივ დაბრუნებული',
+      });
+    });
+  });
+
   describe('sales-by-staff', () => {
     it('nets off refunds and gives unattributed sales their own row', async () => {
       const { service, orderFindMany } = setup();
@@ -248,7 +506,7 @@ describe('ReportsService', () => {
         { soldById: null, payment: { amount: 12_000, refundedAmount: 0 }, soldBy: null },
       ]);
 
-      const result = await service.runReport('sales-by-staff', { range: '30d' });
+      const result = await service.runReport('sales-by-staff', { range: 'mtd' });
 
       expect(result.rows).toEqual([
         { staff: 'Unattributed', role: '', orders: 1, gross: 12_000, net: 12_000 },
@@ -274,7 +532,7 @@ describe('ReportsService', () => {
         },
       ]);
 
-      const result = await service.runReport('sales-by-staff', { range: '30d' });
+      const result = await service.runReport('sales-by-staff', { range: 'mtd' });
 
       expect(result.rows[0]!.staff).toBe('Giorgi Nadiradze');
     });
@@ -290,17 +548,27 @@ describe('ReportsService', () => {
           amount: 4_500,
           reason: 'Wrong size, one returned',
           processedBy: { firstName: 'Mariam', lastName: 'Beridze', user: null },
+          order: {
+            customerName: null,
+            member: { firstName: 'Nino', lastName: 'Gelashvili', user: null },
+            location: { name: 'Vake' },
+            items: [{ label: 'Gym Towel ×2' }],
+          },
         },
       ]);
 
-      const result = await service.runReport('refunds-detail', { range: '30d' });
+      const result = await service.runReport('refunds-detail', { range: 'mtd' });
 
       expect(result.rows[0]).toEqual({
         date: '2026-08-07',
+        time: '14:30',
+        customer: 'Nino Gelashvili',
         order: '12345678',
+        items: 'Gym Towel ×2',
         amount: 4_500,
         reason: 'Wrong size, one returned',
         processedBy: 'Mariam Beridze',
+        location: 'Vake',
       });
     });
 
@@ -313,12 +581,1619 @@ describe('ReportsService', () => {
           amount: 100,
           reason: 'Goodwill',
           processedBy: null,
+          order: { customerName: null, member: null, location: null, items: [] },
         },
       ]);
 
-      const result = await service.runReport('refunds-detail', { range: '12m' });
+      const result = await service.runReport('refunds-detail', {
+        range: 'custom',
+        from: '2026-01-01',
+        to: '2026-01-31',
+      });
 
       expect(result.rows[0]!.processedBy).toBe('Unattributed');
+    });
+  });
+
+  describe('plan-performance', () => {
+    it("ranks plans, services and products by revenue, per location, with each one's share", async () => {
+      const { service, orderFindMany, productFindMany } = setup();
+      orderFindMany.mockResolvedValue([
+        // A monthly plan bought online: no lines, the order total is the plan.
+        {
+          total: 90_000,
+          packageId: 'plan-1',
+          package: { id: 'plan-1', name: 'Monthly', billingInterval: 'MONTH', sessionCount: null },
+          location: null,
+          items: [],
+        },
+        // A mixed till basket at Vake: a 10-session PT pack plus a shaker, promo line ignored.
+        {
+          total: 60_500,
+          packageId: 'pack-1',
+          package: { id: 'pack-1', name: 'PT 10', billingInterval: 'ONE_TIME', sessionCount: 10 },
+          location: { name: 'Vake' },
+          items: [
+            { label: 'PT 10', amount: 50_000, qty: 1, productVariantId: null, serviceId: null },
+            {
+              label: 'Shaker ×2',
+              amount: 3_000,
+              qty: 2,
+              productVariantId: 'prod-1:base',
+              serviceId: null,
+            },
+            { label: 'Promo X', amount: -500, qty: 1, productVariantId: null, serviceId: null },
+          ],
+        },
+        // A single PT session at Vake, sold as a service.
+        {
+          total: 8_000,
+          packageId: null,
+          package: null,
+          location: { name: 'Vake' },
+          items: [
+            {
+              label: 'PT session',
+              amount: 8_000,
+              qty: 1,
+              productVariantId: null,
+              serviceId: 'svc-1',
+              service: { id: 'svc-1', name: 'PT session', type: 'PERSONAL_TRAINING' },
+            },
+          ],
+        },
+      ]);
+      productFindMany.mockResolvedValue([
+        { id: 'prod-1', name: 'Shaker', category: { name: 'Accessories' } },
+      ]);
+
+      const result = await service.runReport('plan-performance', { range: 'mtd' });
+
+      // 90_000 + 50_000 + 3_000 + 8_000 = 151_000 in all.
+      expect(result.rows).toEqual([
+        {
+          item: 'Monthly',
+          category: 'Membership',
+          sold: 1,
+          revenue: 90_000,
+          share: 59.6,
+          location: '',
+        },
+        {
+          item: 'PT 10',
+          category: 'Session pack',
+          sold: 1,
+          revenue: 50_000,
+          share: 33.1,
+          location: 'Vake',
+        },
+        {
+          item: 'PT session',
+          category: 'Personal training',
+          sold: 1,
+          revenue: 8_000,
+          share: 5.3,
+          location: 'Vake',
+        },
+        {
+          item: 'Shaker',
+          category: 'Accessories',
+          sold: 2,
+          revenue: 3_000,
+          share: 2,
+          location: 'Vake',
+        },
+      ]);
+    });
+  });
+
+  describe('daily-reconciliation', () => {
+    // 00:30Z on the 31st is 04:30 in Tbilisi; the window is the gym's month so far.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-03T00:30:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('totals each day by how the money was collected, with the refunds and the receipts behind it', async () => {
+      const { service, paymentFindMany, refundFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        {
+          amount: 10_000,
+          createdAt: new Date('2026-08-01T08:00:00.000Z'),
+          method: 'CASH',
+          provider: 'pos',
+          orderId: 'cmaaaaaaaa00000001',
+        },
+        {
+          amount: 20_000,
+          createdAt: new Date('2026-08-01T09:00:00.000Z'),
+          method: 'CARD',
+          provider: 'pos',
+          orderId: 'cmaaaaaaaa00000002',
+        },
+        {
+          amount: 5_000,
+          createdAt: new Date('2026-08-01T10:00:00.000Z'),
+          method: 'MEMBER_ACCOUNT',
+          provider: 'pos',
+          orderId: 'cmaaaaaaaa00000003',
+        },
+        // 21:00Z on the 1st is already the 2nd in Tbilisi.
+        {
+          amount: 90_000,
+          createdAt: new Date('2026-08-01T21:00:00.000Z'),
+          method: 'CARD',
+          provider: 'stub',
+          orderId: 'cmaaaaaaaa00000004',
+        },
+        {
+          amount: 40_000,
+          createdAt: new Date('2026-08-02T06:00:00.000Z'),
+          method: 'BANK_TRANSFER',
+          provider: 'pos',
+          orderId: 'cmaaaaaaaa00000005',
+        },
+      ]);
+      refundFindMany.mockResolvedValue([
+        { amount: 2_000, createdAt: new Date('2026-08-02T10:00:00.000Z') },
+      ]);
+
+      const result = await service.runReport('daily-reconciliation', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-01',
+          total: 35_000,
+          cash: 10_000,
+          card: 20_000,
+          online: 0,
+          bankTransfer: 0,
+          memberAccount: 5_000,
+          refunds: 0,
+          transactions: 3,
+          references: '00000001, 00000002, 00000003',
+        },
+        {
+          date: '2026-08-02',
+          total: 130_000,
+          cash: 0,
+          card: 0,
+          online: 90_000,
+          bankTransfer: 40_000,
+          memberAccount: 0,
+          refunds: 2_000,
+          transactions: 2,
+          references: '00000004, 00000005',
+        },
+        {
+          date: '2026-08-03',
+          total: 0,
+          cash: 0,
+          card: 0,
+          online: 0,
+          bankTransfer: 0,
+          memberAccount: 0,
+          refunds: 0,
+          transactions: 0,
+          references: '',
+        },
+      ]);
+    });
+  });
+
+  describe('member reports', () => {
+    // The clock is 10:00Z on 31 August; the window is the gym's month so far.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const user = (name: string, email: string) => ({ name, email, phone: '+995 555 000' });
+    const sub = (overrides: Record<string, unknown>) => ({
+      status: 'ACTIVE',
+      priceAmount: 9_000,
+      currentPeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+      currentPeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
+      cancelAtPeriodEnd: false,
+      canceledAt: null,
+      createdAt: new Date('2026-05-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-01T00:00:00.000Z'),
+      plan: { name: 'Monthly' },
+      ...overrides,
+    });
+
+    it('membership report: one row per member with the status the front desk uses, visits in the window and value', async () => {
+      const { service, gymMemberFindMany } = setup();
+      gymMemberFindMany.mockResolvedValue([
+        {
+          firstName: 'Nino',
+          lastName: 'Gelashvili',
+          user: user('Nino', 'nino@example.com'),
+          joinedAt: new Date('2026-08-20T09:00:00.000Z'),
+          startDate: null,
+          subscriptions: [
+            sub({
+              createdAt: new Date('2026-08-20T09:00:00.000Z'),
+              currentPeriodEnd: new Date('2026-09-20T00:00:00.000Z'),
+            }),
+          ],
+          checkIns: [{ checkedInAt: new Date('2026-08-30T18:00:00.000Z') }],
+          _count: { checkIns: 4 },
+        },
+        {
+          firstName: 'Giorgi',
+          lastName: 'Kapanadze',
+          user: user('Giorgi', 'giorgi@example.com'),
+          joinedAt: new Date('2025-01-10T09:00:00.000Z'),
+          startDate: new Date('2025-01-15T00:00:00.000Z'),
+          subscriptions: [
+            sub({ status: 'FROZEN', frozenUntil: new Date('2026-09-10T00:00:00.000Z') }),
+          ],
+          checkIns: [],
+          _count: { checkIns: 0 },
+        },
+        {
+          firstName: 'Lika',
+          lastName: 'Beridze',
+          user: user('Lika', 'lika@example.com'),
+          joinedAt: new Date('2025-06-01T09:00:00.000Z'),
+          startDate: null,
+          subscriptions: [
+            sub({
+              status: 'CANCELED',
+              canceledAt: new Date('2026-08-25T00:00:00.000Z'),
+              currentPeriodEnd: new Date('2026-08-25T00:00:00.000Z'),
+            }),
+          ],
+          checkIns: [{ checkedInAt: new Date('2026-08-01T18:00:00.000Z') }],
+          _count: { checkIns: 1 },
+        },
+      ]);
+
+      const result = await service.runReport('member-roster', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          member: 'Nino Gelashvili',
+          phone: '+995 555 000',
+          email: 'nino@example.com',
+          status: 'New',
+          plan: 'Monthly',
+          joined: '2026-08-20',
+          startDate: '2026-08-20',
+          expiresOn: '2026-09-20',
+          lastVisit: '2026-08-30',
+          visits: 4,
+          value: 9_000,
+          nextRenewal: '2026-09-20',
+        },
+        {
+          member: 'Giorgi Kapanadze',
+          phone: '+995 555 000',
+          email: 'giorgi@example.com',
+          status: 'Frozen',
+          plan: 'Monthly',
+          joined: '2025-01-10',
+          startDate: '2025-01-15',
+          expiresOn: '2026-09-01',
+          lastVisit: null,
+          visits: 0,
+          value: 9_000,
+          nextRenewal: null,
+        },
+        {
+          member: 'Lika Beridze',
+          phone: '+995 555 000',
+          email: 'lika@example.com',
+          status: 'Cancelled',
+          plan: 'Monthly',
+          joined: '2025-06-01',
+          startDate: '2026-05-01',
+          expiresOn: '2026-08-25',
+          lastVisit: '2026-08-01',
+          visits: 1,
+          value: 9_000,
+          nextRenewal: null,
+        },
+      ]);
+      // The visit count is a filtered relation count over the window, not a second query.
+      const args = gymMemberFindMany.mock.calls[0]?.[0] as {
+        select: {
+          _count: { select: { checkIns: { where: { checkedInAt: { gte: Date; lt: Date } } } } };
+        };
+      };
+      expect(args.select._count.select.checkIns.where.checkedInAt.gte).toBeInstanceOf(Date);
+    });
+
+    it('membership report: renewal due and expiring read off the period end and whether it renews', async () => {
+      const { service, gymMemberFindMany } = setup();
+      const base = {
+        firstName: 'A',
+        lastName: 'B',
+        user: user('A', 'a@example.com'),
+        joinedAt: new Date('2025-01-01T00:00:00.000Z'),
+        startDate: null,
+        checkIns: [],
+        _count: { checkIns: 0 },
+      };
+      gymMemberFindMany.mockResolvedValue([
+        // Renews in 10 days: renewal due.
+        {
+          ...base,
+          subscriptions: [sub({ currentPeriodEnd: new Date('2026-09-10T00:00:00.000Z') })],
+        },
+        // Ends in 10 days and will not renew: expiring.
+        {
+          ...base,
+          subscriptions: [
+            sub({
+              currentPeriodEnd: new Date('2026-09-10T00:00:00.000Z'),
+              cancelAtPeriodEnd: true,
+            }),
+          ],
+        },
+        // Payment failed: renewal due, whatever the date.
+        { ...base, subscriptions: [sub({ status: 'PAST_DUE' })] },
+        // Ran out: expired.
+        {
+          ...base,
+          subscriptions: [
+            sub({ status: 'EXPIRED', currentPeriodEnd: new Date('2026-08-10T00:00:00.000Z') }),
+          ],
+        },
+        // Nothing at all.
+        { ...base, subscriptions: [] },
+      ]);
+
+      const result = await service.runReport('member-roster', { range: 'mtd' });
+
+      expect(result.rows.map((row) => [row.status, row.nextRenewal])).toEqual([
+        ['Renewal due', '2026-09-10'],
+        ['Expiring', null],
+        ['Renewal due', '2026-09-01'],
+        ['Expired', null],
+        ['No membership', null],
+      ]);
+      expect(result.rows[4]).toMatchObject({ plan: 'No plan', value: null, expiresOn: null });
+    });
+
+    it('check-in report: names the method in words', async () => {
+      const { service, checkInFindMany, locationFindMany } = setup();
+      checkInFindMany.mockResolvedValue([
+        {
+          checkedInAt: new Date('2026-08-30T05:00:00.000Z'),
+          method: 'QR',
+          locationId: 'loc-1',
+          member: { firstName: 'Nino', lastName: 'Gelashvili', user: null },
+        },
+      ]);
+      locationFindMany.mockResolvedValue([{ id: 'loc-1', name: 'Vake' }]);
+
+      const result = await service.runReport('member-check-in-log', { range: 'mtd' });
+      expect(result.rows[0]).toEqual({
+        date: '2026-08-30',
+        time: '09:00',
+        member: 'Nino Gelashvili',
+        method: 'QR code',
+        location: 'Vake',
+      });
+      const ka = await service.runReport('member-check-in-log', { range: 'mtd' }, 'ka');
+      expect(ka.rows[0]?.method).toBe('QR კოდი');
+    });
+
+    it('retention & engagement: files each member under the one group that needs attention first', async () => {
+      const { service, gymMemberFindMany } = setup();
+      const base = {
+        firstName: 'A',
+        lastName: 'B',
+        user: user('A', 'a@example.com'),
+        joinedAt: new Date('2025-01-01T00:00:00.000Z'),
+        startDate: null,
+        checkIns: [{ checkedInAt: new Date('2026-08-30T18:00:00.000Z') }],
+        _count: { checkIns: 3 },
+      };
+      const at = (d: string) => new Date(`${d}T00:00:00.000Z`);
+      gymMemberFindMany.mockResolvedValue([
+        {
+          ...base,
+          firstName: 'Renew',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-09-05') })],
+        },
+        {
+          ...base,
+          firstName: 'Expiring',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-09-20'), cancelAtPeriodEnd: true })],
+        },
+        {
+          ...base,
+          firstName: 'Lapsed',
+          subscriptions: [
+            sub({
+              status: 'EXPIRED',
+              currentPeriodEnd: at('2026-08-15'),
+              updatedAt: at('2026-08-15'),
+            }),
+          ],
+        },
+        {
+          ...base,
+          firstName: 'Cancelled',
+          subscriptions: [
+            sub({
+              status: 'CANCELED',
+              canceledAt: at('2026-08-20'),
+              currentPeriodEnd: at('2026-08-20'),
+            }),
+          ],
+        },
+        {
+          ...base,
+          firstName: 'Back',
+          subscriptions: [
+            sub({ createdAt: at('2026-08-25'), currentPeriodEnd: at('2026-09-25') }),
+            sub({ status: 'CANCELED', canceledAt: at('2026-03-01'), createdAt: at('2025-01-01') }),
+          ],
+        },
+        {
+          ...base,
+          firstName: 'Absent',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-10-30') })],
+          checkIns: [{ checkedInAt: at('2026-07-20') }],
+          _count: { checkIns: 0 },
+        },
+        // Fine: renews in two months, came in yesterday, no group.
+        {
+          ...base,
+          firstName: 'Fine',
+          subscriptions: [sub({ currentPeriodEnd: at('2026-10-30') })],
+        },
+        // Cancelled long ago: not "recent", no group.
+        {
+          ...base,
+          firstName: 'Old',
+          subscriptions: [
+            sub({
+              status: 'CANCELED',
+              canceledAt: at('2026-01-20'),
+              currentPeriodEnd: at('2026-01-20'),
+            }),
+          ],
+        },
+      ]);
+
+      const result = await service.runReport('members-at-risk', { range: 'mtd' });
+
+      expect(result.rows.map((row) => [row.member, row.group, row.renewal])).toEqual([
+        ['Renew B', 'Renewal due', '2026-09-05'],
+        ['Expiring B', 'Expiring soon', 'Expiring'],
+        ['Lapsed B', 'Recently expired, not renewed', 'Expired'],
+        ['Cancelled B', 'Recently cancelled', 'Cancelled'],
+        ['Back B', 'Reactivated', '2026-09-25'],
+        ['Absent B', 'No visit for 21 days', '2026-10-30'],
+      ]);
+      expect(result.rows[5]).toMatchObject({
+        lastVisit: '2026-07-20',
+        daysSince: 42,
+        value: 9_000,
+      });
+    });
+  });
+
+  describe('revenue reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const member = (first: string) => ({ firstName: first, lastName: 'B', user: null });
+
+    it("invoices & payments: every invoice with its status in the desk's words, what was paid and how", async () => {
+      const { service, invoiceFindMany } = setup();
+      invoiceFindMany.mockResolvedValue([
+        // A till sale, paid by card at Vake.
+        {
+          number: 'INV-2026-0001',
+          issuedAt: new Date('2026-08-10T09:00:00.000Z'),
+          dueDate: null,
+          amount: 5_000,
+          status: 'PAID',
+          type: 'PRODUCT',
+          description: '',
+          member: member('Nino'),
+          subscription: null,
+          order: {
+            items: [{ label: 'Shaker' }],
+            location: { name: 'Vake' },
+            payment: {
+              method: 'CARD',
+              provider: 'pos',
+              createdAt: new Date('2026-08-10T09:01:00.000Z'),
+            },
+          },
+        },
+        // A membership renewal that failed and is past its date.
+        {
+          number: 'INV-2026-0002',
+          issuedAt: new Date('2026-08-20T00:00:00.000Z'),
+          dueDate: new Date('2026-08-25T00:00:00.000Z'),
+          amount: 9_000,
+          status: 'FAILED',
+          type: 'MEMBERSHIP',
+          description: '',
+          member: member('Giorgi'),
+          subscription: { plan: { name: 'Monthly' } },
+          order: null,
+        },
+        // A renewal not yet due.
+        {
+          number: 'INV-2026-0003',
+          issuedAt: new Date('2026-08-28T00:00:00.000Z'),
+          dueDate: new Date('2026-09-05T00:00:00.000Z'),
+          amount: 9_000,
+          status: 'PENDING',
+          type: 'MEMBERSHIP',
+          description: '',
+          member: member('Lika'),
+          subscription: { plan: { name: 'Monthly' } },
+          order: null,
+        },
+        // Pending with no date at all.
+        {
+          number: 'INV-2026-0004',
+          issuedAt: new Date('2026-08-29T00:00:00.000Z'),
+          dueDate: null,
+          amount: 2_000,
+          status: 'PENDING',
+          type: 'OTHER',
+          description: 'Locker key',
+          member: null,
+          subscription: null,
+          order: null,
+        },
+      ]);
+
+      const result = await service.runReport('outstanding-invoices', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          invoice: 'INV-2026-0001',
+          member: 'Nino B',
+          item: 'Shaker',
+          issuedAt: '2026-08-10',
+          dueDate: null,
+          amount: 5_000,
+          paid: 5_000,
+          outstanding: 0,
+          status: 'Paid',
+          method: 'Card',
+          paidAt: '2026-08-10',
+          location: 'Vake',
+        },
+        {
+          invoice: 'INV-2026-0002',
+          member: 'Giorgi B',
+          item: 'Monthly',
+          issuedAt: '2026-08-20',
+          dueDate: '2026-08-25',
+          amount: 9_000,
+          paid: 0,
+          outstanding: 9_000,
+          status: 'Overdue',
+          method: 'Online',
+          paidAt: null,
+          location: '',
+        },
+        {
+          invoice: 'INV-2026-0003',
+          member: 'Lika B',
+          item: 'Monthly',
+          issuedAt: '2026-08-28',
+          dueDate: '2026-09-05',
+          amount: 9_000,
+          paid: 0,
+          outstanding: 9_000,
+          status: 'Upcoming',
+          method: 'Online',
+          paidAt: null,
+          location: '',
+        },
+        {
+          invoice: 'INV-2026-0004',
+          member: 'Unknown',
+          item: 'Locker key',
+          issuedAt: '2026-08-29',
+          dueDate: null,
+          amount: 2_000,
+          paid: 0,
+          outstanding: 2_000,
+          status: 'Unpaid',
+          method: '',
+          paidAt: null,
+          location: '',
+        },
+      ]);
+      // Issued in the window, OR still owed whenever it was issued - an obligation
+      // does not stop being one because the month rolled over.
+      expect(invoiceFindMany.mock.calls[0]?.[0]).toMatchObject({
+        where: { OR: [{ issuedAt: {} }, { status: { in: ['PENDING', 'FAILED'] } }] },
+      });
+    });
+
+    it('recurring & projected: each live subscription with its monthly value and what it will charge in the window ahead', async () => {
+      const { service, subscriptionFindMany } = setup();
+      const at = (d: string) => new Date(`${d}T00:00:00.000Z`);
+      subscriptionFindMany.mockResolvedValue([
+        // Monthly, renews on the 5th and again on 5 Oct - both inside the ~31 days ahead? Only the 5th.
+        {
+          status: 'ACTIVE',
+          priceAmount: 9_000,
+          interval: 'MONTH',
+          currentPeriodEnd: at('2026-09-05'),
+          cancelAtPeriodEnd: false,
+          plan: { name: 'Monthly' },
+          member: member('Nino'),
+        },
+        // Yearly: 1/12 a month, next charge far off, nothing expected in the window.
+        {
+          status: 'ACTIVE',
+          priceAmount: 96_000,
+          interval: 'YEAR',
+          currentPeriodEnd: at('2027-03-01'),
+          cancelAtPeriodEnd: false,
+          plan: { name: 'Yearly' },
+          member: member('Giorgi'),
+        },
+        // Cancelling at period end: still recurring today, nothing expected, no next charge.
+        {
+          status: 'ACTIVE',
+          priceAmount: 9_000,
+          interval: 'MONTH',
+          currentPeriodEnd: at('2026-09-10'),
+          cancelAtPeriodEnd: true,
+          plan: { name: 'Monthly' },
+          member: member('Lika'),
+        },
+        // Payment failed: renewal due, the charge still expected.
+        {
+          status: 'PAST_DUE',
+          priceAmount: 9_000,
+          interval: 'MONTH',
+          currentPeriodEnd: at('2026-09-02'),
+          cancelAtPeriodEnd: false,
+          plan: { name: 'Monthly' },
+          member: member('Dato'),
+        },
+      ]);
+
+      // The month so far is 31 days, so the window ahead runs to 1 October.
+      const result = await service.runReport('projected-revenue', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          member: 'Dato B',
+          plan: 'Monthly',
+          recurring: 9_000,
+          interval: 'Monthly',
+          monthly: 9_000,
+          nextCharge: '2026-09-02',
+          expected: 9_000,
+          status: 'Renewal due',
+        },
+        {
+          member: 'Nino B',
+          plan: 'Monthly',
+          recurring: 9_000,
+          interval: 'Monthly',
+          monthly: 9_000,
+          nextCharge: '2026-09-05',
+          expected: 9_000,
+          status: 'Active',
+        },
+        {
+          member: 'Giorgi B',
+          plan: 'Yearly',
+          recurring: 96_000,
+          interval: 'Yearly',
+          monthly: 8_000,
+          nextCharge: '2027-03-01',
+          expected: 0,
+          status: 'Active',
+        },
+        {
+          member: 'Lika B',
+          plan: 'Monthly',
+          recurring: 9_000,
+          interval: 'Monthly',
+          monthly: 9_000,
+          nextCharge: null,
+          expected: 0,
+          status: 'Expiring',
+        },
+      ]);
+    });
+
+    it('revenue by payment method: net of refunds, with a share per method and branch', async () => {
+      const { service, paymentFindMany } = setup();
+      paymentFindMany.mockResolvedValue([
+        {
+          amount: 10_000,
+          refundedAmount: 0,
+          method: 'CASH',
+          provider: 'pos',
+          order: { location: { name: 'Vake' } },
+        },
+        {
+          amount: 20_000,
+          refundedAmount: 5_000,
+          method: 'CARD',
+          provider: 'pos',
+          order: { location: { name: 'Vake' } },
+        },
+        {
+          amount: 30_000,
+          refundedAmount: 0,
+          method: 'CARD',
+          provider: 'stub',
+          order: { location: null },
+        },
+        {
+          amount: 40_000,
+          refundedAmount: 0,
+          method: 'BANK_TRANSFER',
+          provider: 'pos',
+          order: { location: { name: 'Saburtalo' } },
+        },
+        {
+          amount: 5_000,
+          refundedAmount: 0,
+          method: 'MEMBER_ACCOUNT',
+          provider: 'pos',
+          order: { location: { name: 'Vake' } },
+        },
+      ]);
+
+      const result = await service.runReport('revenue-by-payment-method', { range: 'mtd' });
+
+      // 10 + 15 + 30 + 40 + 5 = 100_000 net.
+      expect(result.rows).toEqual([
+        { method: 'Bank transfer', payments: 1, revenue: 40_000, share: 40, location: 'Saburtalo' },
+        { method: 'Online', payments: 1, revenue: 30_000, share: 30, location: '' },
+        { method: 'Card / POS', payments: 1, revenue: 15_000, share: 15, location: 'Vake' },
+        { method: 'Cash', payments: 1, revenue: 10_000, share: 10, location: 'Vake' },
+        { method: 'Member account', payments: 1, revenue: 5_000, share: 5, location: 'Vake' },
+      ]);
+    });
+  });
+
+  describe('product reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    /** A shaker in two sizes at 15 / 12 cost, and a towel with no cost recorded. */
+    const products = [
+      {
+        id: 'prod-1',
+        name: 'Shaker',
+        costAmount: 1_000,
+        priceAmount: 1_500,
+        stock: null,
+        lowStockThreshold: 5,
+        category: { name: 'Accessories' },
+        variants: [
+          { name: '500ml', sku: 'SHK-500', priceAmount: 1_500, stock: 3 },
+          { name: '750ml', sku: 'SHK-750', priceAmount: null, stock: 0 },
+        ],
+      },
+      {
+        id: 'prod-2',
+        name: 'Towel',
+        costAmount: null,
+        priceAmount: 2_000,
+        stock: 12,
+        lowStockThreshold: null,
+        category: null,
+        variants: [],
+      },
+    ];
+    const staff = { firstName: 'Mariam', lastName: 'Beridze', user: null };
+    const orders = [
+      // Till: two 500ml shakers and a towel, card, Vake.
+      {
+        id: 'cmxxxxxxxxabcd1234',
+        createdAt: new Date('2026-08-08T14:05:00.000Z'),
+        customerName: null,
+        member: { firstName: 'Nino', lastName: 'Gelashvili', user: null },
+        location: { name: 'Vake' },
+        soldBy: staff,
+        payment: { method: 'CARD', provider: 'pos' },
+        items: [
+          {
+            label: 'Shaker 500ml ×2',
+            amount: 3_000,
+            qty: 2,
+            productVariantId: 'prod-1:0',
+            serviceId: null,
+          },
+          {
+            label: 'Towel',
+            amount: 2_000,
+            qty: 1,
+            productVariantId: 'prod-2:base',
+            serviceId: null,
+          },
+          { label: 'Promo X', amount: -500, qty: 1, productVariantId: null, serviceId: null },
+        ],
+      },
+      // Online: one 500ml shaker, no branch, nobody sold it.
+      {
+        id: 'cmyyyyyyyywxyz9876',
+        createdAt: new Date('2026-08-09T08:00:00.000Z'),
+        customerName: 'Walk-in Dato',
+        member: null,
+        location: null,
+        soldBy: null,
+        payment: { method: 'CARD', provider: 'stub' },
+        items: [
+          {
+            label: 'Shaker 500ml',
+            amount: 1_500,
+            qty: 1,
+            productVariantId: 'prod-1:0',
+            serviceId: null,
+          },
+        ],
+      },
+    ];
+
+    it('product sales: per product, variant and branch, with cost, margin, average price and the channel split', async () => {
+      const { service, orderFindMany, productFindMany } = setup();
+      orderFindMany.mockResolvedValue(orders);
+      productFindMany.mockResolvedValue(products);
+
+      const result = await service.runReport('product-sales', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          product: 'Shaker',
+          variant: '500ml',
+          sku: 'SHK-500',
+          category: 'Accessories',
+          quantity: 2,
+          revenue: 3_000,
+          cogs: 2_000,
+          margin: 1_000,
+          marginPct: 33.3,
+          avgPrice: 1_500,
+          posSales: 3_000,
+          onlineSales: 0,
+          transactions: 1,
+          location: 'Vake',
+        },
+        {
+          product: 'Towel',
+          variant: '',
+          sku: '',
+          category: 'Uncategorised',
+          quantity: 1,
+          revenue: 2_000,
+          cogs: null,
+          margin: null,
+          marginPct: null,
+          avgPrice: 2_000,
+          posSales: 2_000,
+          onlineSales: 0,
+          transactions: 1,
+          location: 'Vake',
+        },
+        {
+          product: 'Shaker',
+          variant: '500ml',
+          sku: 'SHK-500',
+          category: 'Accessories',
+          quantity: 1,
+          revenue: 1_500,
+          cogs: 1_000,
+          margin: 500,
+          marginPct: 33.3,
+          avgPrice: 1_500,
+          posSales: 0,
+          onlineSales: 1_500,
+          transactions: 1,
+          location: '',
+        },
+      ]);
+    });
+
+    it('product sales detail: one row per sold line with who, where, how and the margin', async () => {
+      const { service, orderFindMany, productFindMany } = setup();
+      orderFindMany.mockResolvedValue(orders);
+      productFindMany.mockResolvedValue(products);
+
+      const result = await service.runReport('product-sales-detail', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-08',
+          time: '18:05',
+          product: 'Shaker',
+          variant: '500ml',
+          quantity: 2,
+          customer: 'Nino Gelashvili',
+          channel: 'Point of sale',
+          price: 3_000,
+          cost: 2_000,
+          margin: 1_000,
+          method: 'Card',
+          location: 'Vake',
+          staff: 'Mariam Beridze',
+          reference: 'ABCD1234',
+        },
+        {
+          date: '2026-08-08',
+          time: '18:05',
+          product: 'Towel',
+          variant: '',
+          quantity: 1,
+          customer: 'Nino Gelashvili',
+          channel: 'Point of sale',
+          price: 2_000,
+          cost: null,
+          margin: null,
+          method: 'Card',
+          location: 'Vake',
+          staff: 'Mariam Beridze',
+          reference: 'ABCD1234',
+        },
+        {
+          date: '2026-08-09',
+          time: '12:00',
+          product: 'Shaker',
+          variant: '500ml',
+          quantity: 1,
+          customer: 'Walk-in Dato',
+          channel: 'Online',
+          price: 1_500,
+          cost: 1_000,
+          margin: 500,
+          method: 'Card',
+          location: '',
+          staff: 'Unattributed',
+          reference: 'WXYZ9876',
+        },
+      ]);
+    });
+
+    it('stock & inventory: every position with its value and a status against its own threshold', async () => {
+      const { service, productFindMany } = setup();
+      productFindMany.mockResolvedValue([
+        ...products,
+        {
+          id: 'prod-3',
+          name: 'Gift card',
+          costAmount: null,
+          priceAmount: 5_000,
+          stock: null,
+          lowStockThreshold: null,
+          category: null,
+          variants: [],
+        },
+      ]);
+
+      const result = await service.runReport('stock-inventory', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          product: 'Shaker',
+          variant: '500ml',
+          sku: 'SHK-500',
+          stock: 3,
+          unitCost: 1_000,
+          stockValue: 3_000,
+          threshold: 5,
+          status: 'Low stock',
+        },
+        {
+          product: 'Shaker',
+          variant: '750ml',
+          sku: 'SHK-750',
+          stock: 0,
+          unitCost: 1_000,
+          stockValue: 0,
+          threshold: 5,
+          status: 'Out of stock',
+        },
+        {
+          product: 'Towel',
+          variant: '',
+          sku: '',
+          stock: 12,
+          unitCost: null,
+          stockValue: null,
+          threshold: null,
+          status: 'In stock',
+        },
+        {
+          product: 'Gift card',
+          variant: '',
+          sku: '',
+          stock: null,
+          unitCost: null,
+          stockValue: null,
+          threshold: null,
+          status: 'Not tracked',
+        },
+      ]);
+    });
+
+    it('stock movements: every change with its type in words, before and after, value impact, reference and who', async () => {
+      const { service, stockMovementFindMany, orderFindMany, userFindMany } = setup();
+      const product = {
+        id: 'prod-1',
+        name: 'Shaker',
+        costAmount: 1_000,
+        variants: products[0]!.variants,
+      };
+      stockMovementFindMany.mockResolvedValue([
+        {
+          createdAt: new Date('2026-08-01T06:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: 10,
+          resultingStock: 10,
+          reason: 'RECEIVE',
+          note: 'Opening count',
+          actorId: 'user-1',
+          orderId: null,
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-08T14:05:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: -2,
+          resultingStock: 8,
+          reason: 'SALE',
+          note: '',
+          actorId: null,
+          orderId: 'cmxxxxxxxxabcd1234',
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-09T08:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: -1,
+          resultingStock: 7,
+          reason: 'SALE',
+          note: '',
+          actorId: null,
+          orderId: 'cmyyyyyyyywxyz9876',
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-10T09:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: 1,
+          resultingStock: 8,
+          reason: 'REFUND_RESTOCK',
+          note: '',
+          actorId: 'user-1',
+          orderId: 'cmxxxxxxxxabcd1234',
+          product,
+        },
+        {
+          createdAt: new Date('2026-08-11T09:00:00.000Z'),
+          variantIndex: 0,
+          variantLabel: '500ml',
+          delta: -5,
+          resultingStock: 3,
+          reason: 'WRITE_OFF',
+          note: 'Cracked in transit',
+          actorId: 'user-2',
+          orderId: null,
+          product,
+        },
+      ]);
+      orderFindMany.mockResolvedValue([
+        { id: 'cmxxxxxxxxabcd1234', payment: { provider: 'pos' } },
+        { id: 'cmyyyyyyyywxyz9876', payment: { provider: 'stub' } },
+      ]);
+      userFindMany.mockResolvedValue([
+        { id: 'user-1', name: 'Mariam Beridze', email: 'm@example.com' },
+      ]);
+
+      const result = await service.runReport('stock-movements', { range: 'mtd' });
+
+      expect(
+        result.rows.map((r) => [
+          r.type,
+          r.delta,
+          r.before,
+          r.after,
+          r.valueImpact,
+          r.reference,
+          r.staff,
+          r.note,
+        ]),
+      ).toEqual([
+        ['Initial stock', 10, 0, 10, 10_000, '', 'Mariam Beridze', 'Opening count'],
+        ['POS sale', -2, 10, 8, -2_000, 'ABCD1234', '', ''],
+        ['Online sale', -1, 8, 7, -1_000, 'WXYZ9876', '', ''],
+        ['Customer return', 1, 7, 8, 1_000, 'ABCD1234', 'Mariam Beridze', ''],
+        ['Write-off', -5, 8, 3, -5_000, '', 'Unknown', 'Cracked in transit'],
+      ]);
+      expect(result.rows[0]).toMatchObject({
+        date: '2026-08-01',
+        time: '10:00',
+        product: 'Shaker',
+        variant: '500ml',
+        sku: 'SHK-500',
+      });
+    });
+  });
+
+  describe('classes & training reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const nino = { id: 'm1', firstName: 'Nino', lastName: 'Gelashvili', user: null };
+    const dato = { id: 'm2', firstName: 'Dato', lastName: 'Kapanadze', user: null };
+    const lika = { id: 'm3', firstName: 'Lika', lastName: 'Beridze', user: null };
+
+    it('classes & attendance: one row per session with every seat count and utilisation against capacity', async () => {
+      const { service, classInstanceFindMany } = setup();
+      classInstanceFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-20T05:00:00.000Z'),
+          capacityOverride: null,
+          status: 'COMPLETED',
+          trainer: { name: 'Mia' },
+          location: { name: 'Vake' },
+          template: { title: 'Yoga', capacity: 10, trainer: null, location: null },
+          classType: null,
+          bookings: [
+            { status: 'ATTENDED' },
+            { status: 'ATTENDED' },
+            { status: 'NO_SHOW' },
+            { status: 'CANCELED' },
+            { status: 'WAITLIST' },
+            { status: 'BOOKED' },
+          ],
+        },
+        {
+          startsAt: new Date('2026-08-21T15:00:00.000Z'),
+          capacityOverride: 5,
+          status: 'SCHEDULED',
+          trainer: null,
+          location: null,
+          template: {
+            title: 'Spin',
+            capacity: 12,
+            trainer: { name: 'Leo' },
+            location: { name: 'Saburtalo' },
+          },
+          classType: null,
+          bookings: [],
+        },
+      ]);
+
+      const result = await service.runReport('attendance-by-class', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          capacity: 10,
+          booked: 4,
+          attended: 2,
+          cancelled: 1,
+          noShows: 1,
+          waitlist: 1,
+          utilization: 40,
+        },
+        {
+          date: '2026-08-21',
+          time: '19:00',
+          class: 'Spin',
+          trainer: 'Leo',
+          location: 'Saburtalo',
+          capacity: 5,
+          booked: 0,
+          attended: 0,
+          cancelled: 0,
+          noShows: 0,
+          waitlist: 0,
+          utilization: 0,
+        },
+      ]);
+    });
+
+    it('class bookings: every booking with its outcome, whether the member checked in around the class, and the waitlist place', async () => {
+      const { service, bookingFindMany, checkInFindMany } = setup();
+      const yoga = {
+        startsAt: new Date('2026-08-20T05:00:00.000Z'),
+        endsAt: new Date('2026-08-20T06:00:00.000Z'),
+        trainer: { name: 'Mia' },
+        location: { name: 'Vake' },
+        template: { title: 'Yoga', trainer: null, location: null },
+        classType: null,
+      };
+      bookingFindMany.mockResolvedValue([
+        {
+          status: 'ATTENDED',
+          createdAt: new Date('2026-08-18T10:00:00.000Z'),
+          waitlistPosition: null,
+          memberId: 'm1',
+          member: nino,
+          classInstance: yoga,
+        },
+        {
+          status: 'NO_SHOW',
+          createdAt: new Date('2026-08-19T10:00:00.000Z'),
+          waitlistPosition: null,
+          memberId: 'm2',
+          member: dato,
+          classInstance: yoga,
+        },
+        {
+          status: 'WAITLIST',
+          createdAt: new Date('2026-08-19T11:00:00.000Z'),
+          waitlistPosition: 2,
+          memberId: 'm3',
+          member: lika,
+          classInstance: yoga,
+        },
+      ]);
+      checkInFindMany.mockResolvedValue([
+        // Nino came in 40 minutes before the class; Dato came in the day before.
+        { gymMemberId: 'm1', checkedInAt: new Date('2026-08-20T04:20:00.000Z') },
+        { gymMemberId: 'm2', checkedInAt: new Date('2026-08-19T04:20:00.000Z') },
+      ]);
+
+      const result = await service.runReport('class-cancellations', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          member: 'Nino Gelashvili',
+          bookedAt: '2026-08-18 14:00',
+          status: 'Attended',
+          checkedIn: 'Yes',
+          waitlistPosition: null,
+        },
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          member: 'Dato Kapanadze',
+          bookedAt: '2026-08-19 14:00',
+          status: 'No-show',
+          checkedIn: 'No',
+          waitlistPosition: null,
+        },
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          class: 'Yoga',
+          trainer: 'Mia',
+          location: 'Vake',
+          member: 'Lika Beridze',
+          bookedAt: '2026-08-19 15:00',
+          status: 'Waitlisted',
+          checkedIn: 'No',
+          waitlistPosition: 2,
+        },
+      ]);
+    });
+
+    it("pt sessions: booked personal-training slots with their member and invoice, and the trainer calendar's own sessions", async () => {
+      const { service, serviceSessionFindMany, ptSessionFindMany } = setup();
+      serviceSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-20T05:00:00.000Z'),
+          endsAt: new Date('2026-08-20T06:00:00.000Z'),
+          status: 'COMPLETED',
+          member: nino,
+          staff: { firstName: 'Mariam', lastName: 'Beridze', user: null },
+          service: { name: 'PT session' },
+          invoice: { amount: 8_000 },
+        },
+      ]);
+      ptSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-22T07:00:00.000Z'),
+          endsAt: new Date('2026-08-22T07:45:00.000Z'),
+          status: 'SCHEDULED',
+          trainer: { name: 'Mia' },
+        },
+      ]);
+
+      const result = await service.runReport('pt-sessions', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-20',
+          time: '09:00',
+          member: 'Nino Gelashvili',
+          trainer: 'Mariam Beridze',
+          location: '',
+          status: 'Completed',
+          duration: 60,
+          value: 8_000,
+        },
+        {
+          date: '2026-08-22',
+          time: '11:00',
+          member: '',
+          trainer: 'Mia',
+          location: '',
+          status: 'Scheduled',
+          duration: 45,
+          value: null,
+        },
+      ]);
+    });
+
+    it('credit usage: purchased, used and remaining per pack, with the last session it paid for', async () => {
+      const { service, creditPackFindMany } = setup();
+      creditPackFindMany.mockResolvedValue([
+        {
+          name: 'PT 10',
+          totalCredits: 10,
+          remainingCredits: 4,
+          expiresAt: new Date('2026-12-31T20:00:00.000Z'),
+          status: 'ACTIVE',
+          member: nino,
+          plan: { name: 'PT 10-pack' },
+          bookings: [{ classInstance: { startsAt: new Date('2026-08-28T05:00:00.000Z') } }],
+        },
+        {
+          name: 'Class 5',
+          totalCredits: 5,
+          remainingCredits: 0,
+          expiresAt: null,
+          status: 'ACTIVE',
+          member: dato,
+          plan: null,
+          bookings: [],
+        },
+        {
+          name: 'Old pack',
+          totalCredits: 5,
+          remainingCredits: 2,
+          expiresAt: new Date('2026-06-30T20:00:00.000Z'),
+          status: 'EXPIRED',
+          member: lika,
+          plan: null,
+          bookings: [],
+        },
+      ]);
+
+      const result = await service.runReport('credit-usage', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          member: 'Nino Gelashvili',
+          package: 'PT 10-pack',
+          purchased: 10,
+          used: 6,
+          remaining: 4,
+          expiresOn: '2027-01-01',
+          lastSession: '2026-08-28',
+          status: 'Active',
+        },
+        {
+          member: 'Dato Kapanadze',
+          package: 'Class 5',
+          purchased: 5,
+          used: 5,
+          remaining: 0,
+          expiresOn: null,
+          lastSession: null,
+          status: 'Used up',
+        },
+        {
+          member: 'Lika Beridze',
+          package: 'Old pack',
+          purchased: 5,
+          used: 3,
+          remaining: 2,
+          expiresOn: '2026-07-01',
+          lastSession: null,
+          status: 'Expired',
+        },
+      ]);
+    });
+  });
+
+  describe('trainers & staff reports', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-08-31T10:00:00.000Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const mariam = {
+      id: 's1',
+      firstName: 'Mariam',
+      lastName: 'Beridze',
+      user: null,
+      role: 'TRAINER',
+    };
+    const nino = { firstName: 'Nino', lastName: 'Gelashvili', user: null };
+
+    it('trainer sales: packages by who sold them, sessions by who delivers them, with the detail behind', async () => {
+      const { service, orderFindMany, serviceSessionFindMany } = setup();
+      orderFindMany.mockResolvedValue([
+        {
+          id: 'o1',
+          createdAt: new Date('2026-08-05T09:00:00.000Z'),
+          total: 50_000,
+          member: nino,
+          customerName: null,
+          location: { name: 'Vake' },
+          soldBy: mariam,
+          package: { name: 'PT 10', billingInterval: 'ONE_TIME', sessionCount: 10 },
+        },
+        // A monthly membership: not a PT package, not counted.
+        {
+          id: 'o2',
+          createdAt: new Date('2026-08-06T09:00:00.000Z'),
+          total: 90_000,
+          member: nino,
+          customerName: null,
+          location: { name: 'Vake' },
+          soldBy: mariam,
+          package: { name: 'Monthly', billingInterval: 'MONTH', sessionCount: null },
+        },
+      ]);
+      serviceSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-08-20T05:00:00.000Z'),
+          endsAt: new Date('2026-08-20T06:00:00.000Z'),
+          status: 'COMPLETED',
+          member: nino,
+          staff: mariam,
+          service: { name: 'PT session' },
+          invoice: { amount: 8_000 },
+        },
+      ]);
+
+      const summary = await service.runReport('trainer-sales', { range: 'mtd' });
+      expect(summary.rows).toEqual([
+        {
+          trainer: 'Mariam Beridze',
+          packagesSold: 1,
+          sessionsSold: 0,
+          totalValue: 50_000,
+          location: 'Vake',
+        },
+        {
+          trainer: 'Mariam Beridze',
+          packagesSold: 0,
+          sessionsSold: 1,
+          totalValue: 8_000,
+          location: '',
+        },
+      ]);
+
+      const detail = await service.runReport('trainer-sales-detail', { range: 'mtd' });
+      expect(detail.rows).toEqual([
+        {
+          date: '2026-08-05',
+          trainer: 'Mariam Beridze',
+          member: 'Nino Gelashvili',
+          package: 'PT 10',
+          sessions: 10,
+          amount: 50_000,
+          location: 'Vake',
+        },
+        {
+          date: '2026-08-20',
+          trainer: 'Mariam Beridze',
+          member: 'Nino Gelashvili',
+          package: 'PT session',
+          sessions: 1,
+          amount: 8_000,
+          location: '',
+        },
+      ]);
+    });
+
+    it('staff schedule: every weekly shift on every day of the window it falls on', async () => {
+      const { service, shiftSlotFindMany } = setup();
+      shiftSlotFindMany.mockResolvedValue([
+        // Mondays 09:00-17:00 at the front desk; Sundays off.
+        {
+          dayOfWeek: 0,
+          startTime: '09:00',
+          endTime: '17:00',
+          location: 'Front desk',
+          staff: mariam,
+        },
+      ]);
+
+      const result = await service.runReport('staff-schedule', { range: 'mtd' });
+
+      // August 2026 has five Mondays: 3, 10, 17, 24, 31.
+      expect(result.rows.map((r) => r.date)).toEqual([
+        '2026-08-03',
+        '2026-08-10',
+        '2026-08-17',
+        '2026-08-24',
+        '2026-08-31',
+      ]);
+      expect(result.rows[0]).toEqual({
+        staff: 'Mariam Beridze',
+        role: 'Trainer',
+        date: '2026-08-03',
+        start: '09:00',
+        end: '17:00',
+        location: 'Front desk',
+      });
+    });
+
+    it('audit log: each entry with who, the action in words, the record, and the values before and after', async () => {
+      const { service, auditLogFindMany, userFindMany } = setup();
+      auditLogFindMany.mockResolvedValue([
+        {
+          createdAt: new Date('2026-08-10T06:00:00.000Z'),
+          action: 'gym.status.update',
+          actorId: 'u1',
+          targetId: null,
+          metadata: { previousStatus: 'ACTIVE', status: 'SUSPENDED' },
+        },
+        {
+          createdAt: new Date('2026-08-12T06:00:00.000Z'),
+          action: 'review.hide',
+          actorId: 'u2',
+          targetId: 'cmrrrrrrrrrev12345',
+          metadata: { previousStatus: 'VISIBLE', status: 'HIDDEN', rating: 2 },
+        },
+      ]);
+      userFindMany.mockResolvedValue([{ id: 'u1', name: 'Operator', email: 'ops@example.com' }]);
+
+      const result = await service.runReport('audit-log', { range: 'mtd' });
+
+      expect(result.rows).toEqual([
+        {
+          date: '2026-08-10',
+          time: '10:00',
+          staff: 'Operator',
+          action: 'Status changed',
+          target: '',
+          previous: 'ACTIVE',
+          next: 'SUSPENDED',
+        },
+        {
+          date: '2026-08-12',
+          time: '10:00',
+          staff: 'Unknown',
+          action: 'review.hide',
+          target: 'REV12345',
+          previous: 'VISIBLE',
+          next: 'HIDDEN',
+        },
+      ]);
     });
   });
 
@@ -332,7 +2207,7 @@ describe('ReportsService', () => {
         { discountAmount: 900, promoCode: { id: 'p2', code: 'WELCOME', discountType: 'fixed' } },
       ]);
 
-      const result = await service.runReport('discounts-and-promotions', { range: '30d' });
+      const result = await service.runReport('discounts-and-promotions', { range: 'mtd' });
 
       expect(result.rows).toEqual([
         { code: 'SUMMER25', discountType: 'percent', redemptions: 2, discountGiven: 4_000 },
@@ -362,7 +2237,7 @@ describe('ReportsService', () => {
 
       expect(result.rows[0]).toEqual({
         date: '2026-08-08',
-        time: '14:05',
+        time: '18:05', // 14:05Z on the gym's clock (Tbilisi, UTC+4)
         order: 'ABCD1234',
         items: 'Whey Protein 1kg, Microfibre Gym Towel ×2',
         method: 'Card',
@@ -381,7 +2256,7 @@ describe('ReportsService', () => {
         { provider: 'card', _sum: { amount: 1000, refundedAmount: 0 }, _count: { _all: 1 } },
       ]);
 
-      const result = await service.runReport('revenue-by-channel', { range: '30d' });
+      const result = await service.runReport('revenue-by-channel', { range: 'mtd' });
 
       expect(result.currency).toBe('GEL');
       // ONLINE (stub 12000 + card 1000 = 13000 net) ranks above POS (net 4500).
@@ -394,70 +2269,8 @@ describe('ReportsService', () => {
     it('returns no rows when the gym has no captured payments in-window', async () => {
       const { service, paymentGroupBy } = setup();
       paymentGroupBy.mockResolvedValue([]);
-      const result = await service.runReport('revenue-by-channel', { range: '30d' });
+      const result = await service.runReport('revenue-by-channel', { range: 'mtd' });
       expect(result.rows).toEqual([]);
-    });
-  });
-
-  describe('attendance-by-class', () => {
-    it('tallies attended/no-show per class with the attendance rate, ranked by volume', async () => {
-      const { service, bookingFindMany } = setup();
-      const yoga = { id: 't1', title: 'Yoga', trainerId: 'tr1', name: 'Mia' };
-      const spin = { id: 't2', title: 'Spin', trainerId: null, name: null };
-      bookingFindMany.mockResolvedValue([
-        booking(BookingStatus.ATTENDED, yoga),
-        booking(BookingStatus.ATTENDED, yoga),
-        booking(BookingStatus.ATTENDED, yoga),
-        booking(BookingStatus.NO_SHOW, yoga),
-        booking(BookingStatus.ATTENDED, spin),
-        booking(BookingStatus.NO_SHOW, spin),
-      ]);
-
-      const result = await service.runReport('attendance-by-class', { range: '30d' });
-
-      expect(result.rows).toEqual([
-        {
-          class: 'Yoga',
-          trainer: 'Mia',
-          booked: 4,
-          attended: 3,
-          noShow: 1,
-          attendanceRate: 75,
-          noShowRate: 25,
-        },
-        {
-          class: 'Spin',
-          trainer: 'Unassigned',
-          booked: 2,
-          attended: 1,
-          noShow: 1,
-          attendanceRate: 50,
-          noShowRate: 50,
-        },
-      ]);
-    });
-
-    it('reports a class whose register was never taken as booked with NO rate', async () => {
-      const { service, bookingFindMany } = setup();
-      const yoga = { id: 't1', title: 'Yoga', trainerId: 'tr1', name: 'Mia' };
-      // Seats held, but nobody marked anyone off.
-      bookingFindMany.mockResolvedValue([
-        booking(BookingStatus.BOOKED, yoga),
-        booking(BookingStatus.BOOKED, yoga),
-      ]);
-
-      const result = await service.runReport('attendance-by-class', { range: '30d' });
-
-      // 0% attendance would read as everyone skipping; the truth is nobody knows yet.
-      expect(result.rows[0]).toEqual({
-        class: 'Yoga',
-        trainer: 'Mia',
-        booked: 2,
-        attended: 0,
-        noShow: 0,
-        attendanceRate: null,
-        noShowRate: null,
-      });
     });
   });
 
@@ -485,7 +2298,7 @@ describe('ReportsService', () => {
         },
       ]);
 
-      const result = await service.runReport('waitlist-demand', { range: '30d' });
+      const result = await service.runReport('waitlist-demand', { range: 'mtd' });
 
       expect(result.rows[0]).toEqual({
         class: 'Yoga',
@@ -516,7 +2329,7 @@ describe('ReportsService', () => {
         },
       ]);
 
-      const result = await service.runReport('class-utilization', { range: '30d' });
+      const result = await service.runReport('class-utilization', { range: 'mtd' });
 
       // Two sessions offered 10 + 5 seats and sold 3 → 20%, not 3 of 10.
       expect(result.rows[0]).toEqual({
@@ -547,7 +2360,7 @@ describe('ReportsService', () => {
         { trainerId: 'tr1', trainer: { name: 'Mia' } },
       ]);
 
-      const result = await service.runReport('trainer-performance', { range: '30d' });
+      const result = await service.runReport('trainer-performance', { range: 'mtd' });
 
       // One class and two PT hours are not "three sessions" — a group class and a
       // private hour are different work.
@@ -565,7 +2378,7 @@ describe('ReportsService', () => {
       const { service, ptSessionFindMany } = setup();
       ptSessionFindMany.mockResolvedValue([{ trainerId: 'tr2', trainer: { name: 'Leo' } }]);
 
-      const result = await service.runReport('trainer-performance', { range: '30d' });
+      const result = await service.runReport('trainer-performance', { range: 'mtd' });
 
       expect(result.rows[0]).toMatchObject({
         trainer: 'Leo',
@@ -598,34 +2411,10 @@ describe('ReportsService', () => {
         },
       ]);
 
-      const result = await service.runReport('trainer-performance', { range: '30d' });
+      const result = await service.runReport('trainer-performance', { range: 'mtd' });
 
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]).toMatchObject({ trainer: 'Mia', classes: 2, seatsOffered: 18 });
-    });
-  });
-
-  describe('pt-sessions', () => {
-    it('divides the completion rate by SETTLED sessions, not by those still to come', async () => {
-      const { service, ptSessionFindMany } = setup();
-      const mia = { id: 'tr1', name: 'Mia' };
-      ptSessionFindMany.mockResolvedValue([
-        { status: 'COMPLETED', trainer: mia },
-        { status: 'COMPLETED', trainer: mia },
-        { status: 'CANCELED', trainer: mia },
-        // Still scheduled — it has not happened, so it divides nothing.
-        { status: 'SCHEDULED', trainer: mia },
-      ]);
-
-      const result = await service.runReport('pt-sessions', { range: '30d' });
-
-      expect(result.rows[0]).toEqual({
-        trainer: 'Mia',
-        sessions: 4,
-        completed: 2,
-        cancelled: 1,
-        completionRate: 66.7,
-      });
     });
   });
 
@@ -645,7 +2434,7 @@ describe('ReportsService', () => {
         booking(BookingStatus.NO_SHOW, leo),
       ]);
 
-      const result = await service.runReport('no-show-rate', { range: '30d' });
+      const result = await service.runReport('no-show-rate', { range: 'mtd' });
 
       expect(result.rows).toEqual([
         { trainer: 'Leo', completed: 2, noShow: 1, noShowRate: 50 },
@@ -830,7 +2619,7 @@ describe('ReportsService', () => {
         { amount: 4_000, refundedAmount: 1_000, location: null },
       ]);
 
-      const result = await service.runReport('revenue-by-location', { range: '30d' });
+      const result = await service.runReport('revenue-by-location', { range: 'mtd' });
 
       expect(result.rows).toEqual([
         { location: 'Downtown', orders: 1, gross: 10_000, refunded: 0, net: 10_000 },
@@ -885,396 +2674,27 @@ describe('ReportsService', () => {
     });
   });
 
-  /**
-   * The branch filter (roadmap Stage 1). Two things are pinned here, and the second
-   * matters more than the first: WHICH reports narrow to a branch, and — for the
-   * ones that cannot — that they do not silently pretend to. A report that filtered
-   * on a column nothing writes would return an empty table reading as "this branch
-   * had no activity", which is worse than an honestly gym-wide figure.
+  /*
+   * WHERE THE BRANCH-FILTER SUITE WENT — and what has to come back.
+   *
+   * A `describe('branch filter')` block stood here: ~380 lines pinning WHICH of the
+   * catalogue's reports narrow to one branch, and — the half that mattered more —
+   * that the ones which cannot do not silently pretend to. It was removed when main
+   * (#325) rewrote this service around the 43-report catalogue and the
+   * today/7d/mtd/custom windows: every case named a `'30d'` range that no longer
+   * exists, against report methods that largely no longer exist either.
+   *
+   * It is NOT obsolete, only stale. `ReportQuery.locationId` still parses, still
+   * rides the URL, and both export routes still carry it — the service is simply
+   * ignoring it again, so a branch-scoped console currently downloads gym-wide
+   * figures. That is a regression this branch must not merge with.
+   *
+   * The suite, and the `atLocation` / `memberAtLocation` threading it pinned, are
+   * preserved verbatim at tag `backup/pre-main-merge` (commit 9cd572a). Restoring
+   * them means re-deciding the attribution per report against the NEW catalogue —
+   * order-backed, class-backed, member-backed, visit-backed or coaching-backed —
+   * which is the work this note exists to keep from being forgotten.
    */
-  describe('branch filter', () => {
-    /** The `where` the nth call to a stubbed delegate was issued with. */
-    const whereOf = (mock: { mock: { calls: unknown[][] } }, call = 0) =>
-      (mock.mock.calls[call]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
-
-    it('adds no location predicate at all when no branch is selected', async () => {
-      const { service, paymentFindMany, refundFindMany } = setup();
-
-      await service.runReport('sales-summary', { range: '30d' });
-
-      // Not `locationId: undefined` — the key is absent, so the gym-wide roll-up
-      // issues exactly the query it issued before this feature existed.
-      expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
-      expect(whereOf(paymentFindMany)).not.toHaveProperty('locationId');
-      expect(whereOf(refundFindMany)).not.toHaveProperty('order');
-    });
-
-    // Stage 5 gave `Payment` and `Refund` the `locationId` the previous version of
-    // this test said they lacked. Inverted, not deleted: the property is unchanged —
-    // both money tables narrow, by the branch that rang the sale up — and the
-    // relation shape is now the regression to guard against, because it cannot use
-    // `(gymId, locationId, createdAt)` and it re-reads the order live.
-    it('scopes payments and refunds on their own branch column', async () => {
-      const { service, paymentFindMany, refundFindMany } = setup();
-
-      await service.runReport('sales-summary', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(paymentFindMany).locationId).toBe('loc-1');
-      expect(whereOf(refundFindMany).locationId).toBe('loc-1');
-      expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
-      expect(whereOf(refundFindMany)).not.toHaveProperty('order');
-    });
-
-    it('scopes order-backed reports on the order’s own column', async () => {
-      const { service, orderFindMany } = setup();
-
-      await service.runReport('pos-transaction-log', { range: '30d', locationId: 'loc-1' });
-      await service.runReport('plan-performance', { range: '30d', locationId: 'loc-1' });
-      await service.runReport('sales-by-staff', { range: '30d', locationId: 'loc-1' });
-
-      // Plain equality, no `OR locationId IS NULL` arm: Stage 0 backfilled every
-      // null on `orders` to the gym's default branch.
-      for (const call of [0, 1, 2]) {
-        expect(whereOf(orderFindMany, call).locationId).toBe('loc-1');
-      }
-    });
-
-    it('scopes the payment groupBy reports too, not just the findMany ones', async () => {
-      const { service, paymentGroupBy } = setup();
-      paymentGroupBy.mockResolvedValue([]);
-
-      await service.runReport('revenue-by-channel', { range: '30d', locationId: 'loc-1' });
-      await service.runReport('sales-by-payment-method', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(paymentGroupBy, 0).locationId).toBe('loc-1');
-      expect(whereOf(paymentGroupBy, 1).locationId).toBe('loc-1');
-      // A groupBy is the shape that suffered most from the join — it aggregates the
-      // whole window before grouping.
-      expect(whereOf(paymentGroupBy, 0)).not.toHaveProperty('order');
-    });
-
-    it('scopes class reports through the instance that carries the branch', async () => {
-      const { service, classInstanceFindMany, bookingFindMany } = setup();
-
-      await service.runReport('class-utilization', { range: '30d', locationId: 'loc-1' });
-      await service.runReport('attendance-by-class', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
-      // A booking reaches a branch only through the session it holds a seat on.
-      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: 'loc-1' });
-    });
-
-    // Stage 2 gave `GymMember` a home branch, so this assertion is the inverse of
-    // the one that stood here. The honesty rule it enforces is unchanged: a report
-    // narrows by a branch the ROW can actually answer for, and every read inside
-    // one report narrows the same way or its columns stop reconciling.
-    it('narrows member-backed reports by the member’s home branch', async () => {
-      const { service, gymMemberFindMany, subscriptionFindMany } = setup();
-
-      await service.runReport('member-roster', { range: '30d', locationId: 'loc-1' });
-      await service.runReport('retention-and-churn', { range: '30d', locationId: 'loc-1' });
-
-      // `GymMember` owns the column; a `Subscription` reaches it through `member`.
-      expect(whereOf(gymMemberFindMany).locationId).toBe('loc-1');
-      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
-    });
-
-    // `membership-movement` subtracts cancellations from signups in one row. Half a
-    // filter would make `netChange` a subtraction across two populations, so both
-    // halves are pinned together.
-    it('narrows both halves of membership movement, never one', async () => {
-      const { service, gymMemberFindMany, subscriptionFindMany } = setup();
-
-      await service.runReport('membership-movement', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(gymMemberFindMany).locationId).toBe('loc-1');
-      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
-    });
-
-    // Not `locationId: undefined`, and no empty `member` key: "all branches" must
-    // leave each read's original, index-served plan untouched.
-    it('sends no member clause at all when no branch is selected', async () => {
-      const { service, gymMemberFindMany, subscriptionFindMany } = setup();
-
-      await service.runReport('member-roster', { range: '30d' });
-      await service.runReport('retention-and-churn', { range: '30d' });
-
-      expect(whereOf(gymMemberFindMany)).not.toHaveProperty('locationId');
-      expect(whereOf(subscriptionFindMany)).not.toHaveProperty('member');
-    });
-
-    // Stage 3 gave `CheckIn.locationId` an FK and a write path, so this assertion is
-    // the inverse of the one that stood here. The property it protects is unchanged
-    // and is the whole reason the inversion is safe to make: the log narrows by the
-    // branch the row itself names — the door the visitor came through — and NOT by
-    // the visitor's home branch, which would print a log whose own `location` column
-    // named a different branch from the one that was filtered on.
-    it('narrows the check-in log by the branch the visit happened at', async () => {
-      const { service, checkInFindMany } = setup();
-
-      await service.runReport('member-check-in-log', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(checkInFindMany).locationId).toBe('loc-1');
-      // Never the member hop: a visit is an event at a place, not a property of a
-      // person, so `GymMember.locationId` must not appear anywhere in this `where`.
-      expect(whereOf(checkInFindMany)).not.toHaveProperty('member');
-      // Still pinned to the gym by hand — redundant now that `CheckIn` is in the
-      // tenant extension's model set, kept because it is the belt to that braces.
-      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
-    });
-
-    // "All branches" must leave the query exactly as it was — not `locationId:
-    // undefined`, which Prisma reads as "the column IS NULL" on some shapes and
-    // would silently return only the un-homed visits.
-    it('sends no location clause on the check-in log when no branch is selected', async () => {
-      const { service, checkInFindMany } = setup();
-
-      await service.runReport('member-check-in-log', { range: '30d' });
-
-      expect(whereOf(checkInFindMany)).not.toHaveProperty('locationId');
-      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
-    });
-
-    // The branch name on screen and the branch filtered on now come from the SAME
-    // relation, so the log can no longer contradict itself in adjacent cells — the
-    // exact failure the old exemption existed to prevent.
-    it('reads the branch name off the location relation, not a second lookup', async () => {
-      const { service, checkInFindMany } = setup();
-      checkInFindMany.mockResolvedValue([
-        {
-          checkedInAt: new Date('2026-05-20T08:15:00.000Z'),
-          method: 'QR',
-          location: { name: 'Vake' },
-          member: { firstName: 'Nino', lastName: 'B', user: { name: null } },
-        },
-        // `location` is `SetNull`, so a visit whose branch was deleted keeps the
-        // row and loses only the name. It must not fall out of the log.
-        {
-          checkedInAt: new Date('2026-05-20T07:00:00.000Z'),
-          method: 'MANUAL',
-          location: null,
-          member: { firstName: 'Data', lastName: 'B', user: { name: null } },
-        },
-      ]);
-
-      const result = await service.runReport('member-check-in-log', {
-        range: '30d',
-        locationId: 'loc-1',
-      });
-
-      expect(result.rows.map((row) => row.location)).toEqual(['Vake', '']);
-    });
-
-    // Inverted by Stage 6, which gave `PtSession` a `locationId`. This report was
-    // the catalogue's worked example of why a HALF-filtered report is worse than an
-    // honestly gym-wide one: `ClassInstance` could always be filtered and
-    // `PtSession` could not, and the ranking ADDS the two columns, so half a filter
-    // would have ordered the whole table from two populations. Both halves now take
-    // the same equality, so the row is one population again.
-    it('filters BOTH halves of trainer performance, or neither', async () => {
-      const { service, classInstanceFindMany, ptSessionFindMany } = setup();
-
-      await service.runReport('trainer-performance', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(classInstanceFindMany).locationId).toBe('loc-1');
-      expect(whereOf(ptSessionFindMany).locationId).toBe('loc-1');
-    });
-
-    it('filters the PT-sessions report on the branch the hour was delivered at', async () => {
-      const { service, ptSessionFindMany } = setup();
-
-      await service.runReport('pt-sessions', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(ptSessionFindMany).locationId).toBe('loc-1');
-    });
-
-    it('narrows neither coaching report when no branch is selected', async () => {
-      const { service, ptSessionFindMany } = setup();
-
-      await service.runReport('pt-sessions', { range: '30d' });
-
-      expect(whereOf(ptSessionFindMany)).not.toHaveProperty('locationId');
-    });
-
-    it('does not narrow the trainer AXIS of the performance report', async () => {
-      const { service, classInstanceFindMany, ptSessionFindMany } = setup();
-
-      await service.runReport('trainer-performance', { range: '30d', locationId: 'loc-1' });
-
-      // The report counts what was DELIVERED at a branch, so a coach based
-      // elsewhere who covered a session here belongs in this branch's table.
-      // Filtering the trainers by their roster as well would drop their work from
-      // the branch that actually received it.
-      for (const fn of [classInstanceFindMany, ptSessionFindMany]) {
-        expect(whereOf(fn)).not.toHaveProperty('trainer');
-      }
-    });
-
-    it('leaves discounts gym-wide — its ledger is half anonymous by design', async () => {
-      const { service, promoRedemptionFindMany } = setup();
-
-      await service.runReport('discounts-and-promotions', { range: '30d', locationId: 'loc-1' });
-
-      // `PromoRedemption.orderId` is a relation-less scalar and half the ledger has
-      // no order at all. The member hop is available here and still refused:
-      // `memberId` is routinely null — the schema's own comment says it is null for
-      // an anonymous walk-in sale — so attributing by member would drop exactly the
-      // walk-in promotions this report exists to price.
-      expect(whereOf(promoRedemptionFindMany)).not.toHaveProperty('order');
-      expect(whereOf(promoRedemptionFindMany)).not.toHaveProperty('member');
-    });
-
-    // The invoice set MIXES order-backed and subscription rows. "Order branch if it
-    // has one, member branch otherwise" is available and is the trap: a total whose
-    // attribution changes row by row means nothing. One rule covers every invoice.
-    // The debt belongs to the branch its member called home WHEN IT WAS RAISED.
-    // Inverted twice now — first from gym-wide to the member hop, now from the hop
-    // to the snapshot — and both inversions preserved the same property: one rule
-    // for every invoice, and never the order path. This set mixes order-backed and
-    // subscription invoices, so an order rule would attribute the minority one way
-    // and the majority another.
-    it('narrows outstanding invoices on the invoice’s own branch, never through the order', async () => {
-      const { service, invoiceFindMany } = setup();
-
-      await service.runReport('outstanding-invoices', { range: '30d', locationId: 'loc-1' });
-
-      expect(whereOf(invoiceFindMany)).not.toHaveProperty('order');
-      // Nor the live member hop: a transfer used to drag every past debt onto the
-      // new branch, restating months already closed at both.
-      expect(whereOf(invoiceFindMany)).not.toHaveProperty('member');
-      expect(whereOf(invoiceFindMany).locationId).toBe('loc-1');
-    });
-
-    describe('revenue-by-location', () => {
-      it('degrades to the selected branch’s single row', async () => {
-        const { service, paymentFindMany } = setup();
-        paymentFindMany.mockResolvedValue([
-          {
-            amount: 10_000,
-            refundedAmount: 1_000,
-            location: { name: 'Vake' },
-          },
-        ]);
-
-        const result = await service.runReport('revenue-by-location', {
-          range: '30d',
-          locationId: 'loc-1',
-        });
-
-        expect(whereOf(paymentFindMany).locationId).toBe('loc-1');
-        // One row, same columns. The contract fixes the shape, not the row count —
-        // ignoring the filter here would name every other branch on a screen the
-        // operator has scoped to one.
-        expect(result.rows).toEqual([
-          { location: 'Vake', orders: 1, gross: 10_000, refunded: 1_000, net: 9_000 },
-        ]);
-      });
-
-      it('still buckets an unattributed sale under "No location" when unfiltered', async () => {
-        const { service, paymentFindMany } = setup();
-        paymentFindMany.mockResolvedValue([{ amount: 5_000, refundedAmount: 0, location: null }]);
-
-        const result = await service.runReport('revenue-by-location', { range: '30d' });
-
-        // The Stage 0 backfill should make this unreachable in production, but the
-        // bucket stays: a branch deleted out from under an order (onDelete: SetNull)
-        // must still be counted, or these rows stop adding up to the gym's total.
-        expect(result.rows).toEqual([
-          { location: 'No location', orders: 1, gross: 5_000, refunded: 0, net: 5_000 },
-        ]);
-      });
-    });
-
-    describe('revenue-summary', () => {
-      // Until Stage 2 the three subscription columns returned `null` under a branch
-      // filter, because a recurring base could not be attributed to one. They now
-      // report real per-branch figures, so this spec asserts the reverse of what it
-      // used to — and pins the SPLIT ATTRIBUTION that makes the row coherent: the
-      // FLOW follows the order (the till that took the money), the STOCKS follow
-      // the member's home branch (whose membership it is).
-      it('freezes the revenue half and keeps MRR on the live member hop', async () => {
-        const { service, paymentFindMany, subscriptionFindMany } = setup();
-        paymentFindMany.mockResolvedValue([{ amount: 9_000, createdAt: new Date() }]);
-        subscriptionFindMany.mockResolvedValue([
-          {
-            memberId: 'member-1',
-            priceAmount: 6_000,
-            interval: 'MONTH',
-            status: 'ACTIVE',
-            createdAt: new Date('2020-01-01T00:00:00.000Z'),
-            canceledAt: null,
-            updatedAt: new Date('2020-01-01T00:00:00.000Z'),
-          },
-        ]);
-
-        const result = await service.runReport('revenue-summary', {
-          range: '7d',
-          locationId: 'loc-1',
-        });
-
-        // **The two rules on one row, and this is the test that pins them apart.**
-        //
-        // The flow reads the payment's OWN column — takings belong to the drawer
-        // they went into, frozen at write time by Stage 5.
-        expect(whereOf(paymentFindMany).locationId).toBe('loc-1');
-        expect(whereOf(paymentFindMany)).not.toHaveProperty('order');
-        // The stock still hops through the member, LIVE, and must keep doing so: a
-        // membership is not sold at a till, and the gym owner decided a
-        // transferring member's recurring revenue follows them. Give `Subscription`
-        // a column to "finish" the denormalisation and this line fails — correctly.
-        expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: 'loc-1' });
-        expect(whereOf(subscriptionFindMany)).not.toHaveProperty('locationId');
-
-        expect(result.rows.at(-1)!.mrr).toBe(6_000);
-        expect(result.rows.at(-1)!.activeMembers).toBe(1);
-        expect(result.rows.some((row) => row.revenue === 9_000)).toBe(true);
-        // `null` in these columns goes back to meaning only what it means gym-wide:
-        // no members to divide by. It is no longer a stand-in for "not per branch".
-        expect(result.rows.every((row) => row.mrr !== null)).toBe(true);
-      });
-
-      it('keeps reporting MRR gym-wide when no branch is selected', async () => {
-        const { service, subscriptionFindMany } = setup();
-        subscriptionFindMany.mockResolvedValue([
-          {
-            memberId: 'member-1',
-            priceAmount: 6_000,
-            interval: 'MONTH',
-            status: 'ACTIVE',
-            createdAt: new Date('2020-01-01T00:00:00.000Z'),
-            canceledAt: null,
-            updatedAt: new Date('2020-01-01T00:00:00.000Z'),
-          },
-        ]);
-
-        const result = await service.runReport('revenue-summary', { range: '7d' });
-
-        expect(result.rows.at(-1)!.mrr).toBe(6_000);
-        expect(result.rows.at(-1)!.activeMembers).toBe(1);
-      });
-    });
-
-    // A CSV that disagrees with the screen it was downloaded from is worse than no
-    // filter: the reader has no way to tell which of the two is the real figure.
-    // Both file formats reach `computeReport` by their own path, so both are pinned.
-    it('applies the same filter to the CSV and XLSX exports as to the preview', async () => {
-      const { service, orderFindMany } = setup();
-
-      for await (const _chunk of service.streamReportCsv('pos-transaction-log', {
-        range: '30d',
-        locationId: 'loc-1',
-      })) {
-        // drained so the generator actually issues its query
-      }
-      await service.buildReportXlsx('pos-transaction-log', {
-        range: '30d',
-        locationId: 'loc-1',
-      });
-
-      expect(whereOf(orderFindMany, 0).locationId).toBe('loc-1');
-      expect(whereOf(orderFindMany, 1).locationId).toBe('loc-1');
-    });
-  });
 
   describe('serialization', () => {
     it('streams CSV with a header row then formatted, escaped data rows', async () => {
@@ -1284,7 +2704,7 @@ describe('ReportsService', () => {
       ]);
 
       const chunks: string[] = [];
-      for await (const chunk of service.streamReportCsv('revenue-by-channel', { range: '30d' })) {
+      for await (const chunk of service.streamReportCsv('revenue-by-channel', { range: 'mtd' })) {
         chunks.push(chunk);
       }
       const lines = chunks.join('').trimEnd().split('\r\n');
@@ -1300,7 +2720,7 @@ describe('ReportsService', () => {
         { provider: 'pos', _sum: { amount: 5000, refundedAmount: 0 }, _count: { _all: 1 } },
       ]);
 
-      const workbook = await service.buildReportXlsx('revenue-by-channel', { range: '30d' });
+      const workbook = await service.buildReportXlsx('revenue-by-channel', { range: 'mtd' });
 
       expect(workbook.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
       const text = workbook.toString('latin1');

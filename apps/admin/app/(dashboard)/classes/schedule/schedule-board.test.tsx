@@ -107,6 +107,9 @@ function renderBoard({
             trainers={TRAINERS}
             trainerId={trainerId}
             canWrite={false}
+            canBook={false}
+            canMarkAttendance={false}
+            canManageWaitlist={false}
             addClass={null}
             timeZone="UTC"
             openHour={6}

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Headers,
   Query,
   Res,
   UseGuards,
@@ -16,6 +17,7 @@ import {
   reportExportQuerySchema,
   reportKeySchema,
   reportQuerySchema,
+  reportWindowSlug,
   type ReportCatalogResponse,
   type ReportResult,
 } from '@fit/types';
@@ -23,6 +25,7 @@ import { RequirePermissions } from '../common/decorators/require-permissions.dec
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { ReportsService } from './reports.service';
+import { parseAcceptLanguage } from '../mail/email-locale';
 
 /** MIME type for a `.xlsx` workbook. */
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -57,8 +60,14 @@ export class ReportsController {
   @Get()
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ReportView)
-  catalog(): Promise<ReportCatalogResponse> {
-    return this.reports.catalog();
+  catalog(
+    @Headers('accept-language') acceptLanguage?: string,
+    @Query('all') all?: string,
+  ): Promise<ReportCatalogResponse> {
+    // `?all=true` is the settings screen asking for the reports it has hidden too.
+    return this.reports.catalog(parseAcceptLanguage(acceptLanguage), {
+      includeHidden: all === 'true',
+    });
   }
 
   /**
@@ -76,23 +85,27 @@ export class ReportsController {
    * The gym's `reports` setting (Settings → Reports) is a DISPLAY preference for
    * the catalogue only — it deliberately does NOT gate this route. A report the
    * gym has switched off still exports here for anyone holding
-   * {@link Permission.ReportView}, because a bookmarked download link and a
+   * {@link Permission.ReportExport}, because a bookmarked download link and a
    * scheduled export are both expected to keep working after a gym tidies its
    * hub. Do not add a settings check to this handler.
    */
   @Get(':report/export')
-  @RequirePermissions(Permission.ReportView)
+  @RequirePermissions(Permission.ReportExport)
   async export(
     @Param('report') report: string,
     @Query() query: unknown,
     @Res() res: Response,
+    @Headers('accept-language') acceptLanguage?: string,
   ): Promise<void> {
+    // The console forwards the language its reader is using; a bare API call
+    // (a script, a scheduled export) gets the gym's own.
+    const lang = parseAcceptLanguage(acceptLanguage);
     const key = parse(reportKeySchema, report);
     const params = parse(reportExportQuerySchema, query);
-    const filename = `report-${key}-${params.range}.${params.format}`;
+    const filename = `report-${key}-${reportWindowSlug(params)}.${params.format}`;
 
     if (params.format === 'xlsx') {
-      const workbook = await this.reports.buildReportXlsx(key, params);
+      const workbook = await this.reports.buildReportXlsx(key, params, lang);
       res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(workbook);
@@ -101,7 +114,7 @@ export class ReportsController {
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    for await (const chunk of this.reports.streamReportCsv(key, params)) {
+    for await (const chunk of this.reports.streamReportCsv(key, params, lang)) {
       res.write(chunk);
     }
     res.end();
@@ -130,9 +143,17 @@ export class ReportsController {
   @Get(':report')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ReportView)
-  async run(@Param('report') report: string, @Query() query: unknown): Promise<ReportResult> {
+  async run(
+    @Param('report') report: string,
+    @Query() query: unknown,
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<ReportResult> {
     const key = parse(reportKeySchema, report);
-    return this.reports.runReport(key, parse(reportQuerySchema, query));
+    return this.reports.runReport(
+      key,
+      parse(reportQuerySchema, query),
+      parseAcceptLanguage(acceptLanguage),
+    );
   }
 }
 

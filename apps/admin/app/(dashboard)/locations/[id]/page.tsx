@@ -231,9 +231,10 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
     tone: 'ink' as BadgeTone,
   };
 
-  // Write controls (edit + deactivate) are a `LocationWrite` capability.
+  // Editing is `LocationWrite`; switching the branch off is `LocationManage`.
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.LocationWrite);
+  const canManage = session !== null && roleHasPermission(session.role, Permission.LocationManage);
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -250,7 +251,14 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
           {location.address ? <p {...stylex.props(styles.metaLine)}>{location.address}</p> : null}
           {location.phone ? <p {...stylex.props(styles.metaLine)}>{location.phone}</p> : null}
         </div>
-        {canWrite ? <LocationActions locationId={location.id} status={location.status} /> : null}
+        {canWrite || canManage ? (
+          <LocationActions
+            locationId={location.id}
+            status={location.status}
+            canWrite={canWrite}
+            canManage={canManage}
+          />
+        ) : null}
       </header>
 
       {location.photoUrl ? (

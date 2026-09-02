@@ -1,4 +1,5 @@
-import type { ReportRange } from '@fit/types';
+import { BadRequestException } from '@nestjs/common';
+import { MAX_CUSTOM_RANGE_DAYS, type ReportWindowInput } from '@fit/types';
 import { addZonedDays, zonedDayStart, zonedIsoDate, zonedParts } from './zoned-time.util';
 
 /**
@@ -6,7 +7,8 @@ import { addZonedDays, zonedDayStart, zonedIsoDate, zonedParts } from './zoned-t
  *
  * The Reports CSV/XLSX catalogue ({@link ReportsService}) and the drill-down
  * framework ({@link ReportDrilldownService}) both window their aggregates over the
- * same `7d`/`30d`/`12w`/`12m` vocabulary and bucket time series identically. These
+ * same preset vocabulary (or a custom pair of days) and bucket time series
+ * identically. These
  * pure helpers are that single source of truth so the two services (and the
  * analytics screen's own copy) can never drift on where a bucket starts or which
  * periods a dense series fills.
@@ -32,6 +34,13 @@ export interface ReportWindow {
   end: Date;
   /** Bucket granularity for any time-series report. */
   bucket: 'day' | 'week' | 'month';
+  /**
+   * The IANA zone the window was answered in. Rides along so every bucket key,
+   * calendar date and clock time derived from this window reads the same
+   * calendar — a window opened at the gym's midnight and bucketed in UTC would
+   * put the first hours of every day on the day before.
+   */
+  zone: string;
 }
 
 /** A count as a 0–100 percentage of a total, rounded to one decimal. */
@@ -39,24 +48,110 @@ export function rate(part: number, total: number): number {
   return Math.round((part / total) * 1000) / 10;
 }
 
-/** Resolve a range token into a concrete window + series bucket granularity. */
-export function resolveWindow(range: ReportRange, timeZone = 'UTC'): ReportWindow {
-  const end = new Date();
-  switch (range) {
+/**
+ * Resolve a window input into a concrete window + series bucket granularity.
+ *
+ * `input` is a preset token or `{ from, to }` (two inclusive calendar days). The
+ * calendar-anchored ones — `today`, `mtd`, and a custom pair — are answered in
+ * `timeZone`, which is why the reports services pass the gym's own zone: "today"
+ * in UTC is still yesterday at 02:00 in Tbilisi. `now` is injectable for tests
+ * and defaults to the wall clock.
+ *
+ * A custom window never reaches into the future: one ending today stops at
+ * `now`, and one ending after today is refused as a bad request rather than
+ * quietly clipped, because the reader asked for days that have not happened.
+ */
+export function resolveWindow(
+  input: ReportWindowInput,
+  timeZone = 'UTC',
+  now = new Date(),
+): ReportWindow {
+  const end = now;
+  if (typeof input !== 'string') return resolveCustomWindow(input, timeZone, now);
+  switch (input) {
+    case 'today':
+      return {
+        start: zonedDayStart(zonedIsoDate(end, timeZone), timeZone),
+        end,
+        bucket: 'day',
+        zone: timeZone,
+      };
+    case 'mtd': {
+      const { year, month } = zonedParts(end, timeZone);
+      const first = `${year}-${String(month).padStart(2, '0')}-01`;
+      return { start: zonedDayStart(first, timeZone), end, bucket: 'day', zone: timeZone };
+    }
     case '7d':
-      return { start: new Date(end.getTime() - 7 * DAY_MS), end, bucket: 'day' };
+      return { start: new Date(end.getTime() - 7 * DAY_MS), end, bucket: 'day', zone: timeZone };
     case '30d':
-      return { start: new Date(end.getTime() - 30 * DAY_MS), end, bucket: 'day' };
+      return { start: new Date(end.getTime() - 30 * DAY_MS), end, bucket: 'day', zone: timeZone };
     case '12w':
-      return { start: new Date(end.getTime() - 12 * 7 * DAY_MS), end, bucket: 'week' };
+      return {
+        start: new Date(end.getTime() - 12 * 7 * DAY_MS),
+        end,
+        bucket: 'week',
+        zone: timeZone,
+      };
     case '12m': {
       // Twelve CALENDAR months back from the gym's today, not 365 days: the
       // month buckets have to land on month starts, and months are not equal.
       const { year, month, day } = zonedParts(end, timeZone);
       const back = new Date(Date.UTC(year, month - 1 - 12, day));
-      return { start: zonedDayStart(zonedIsoDate(back, 'UTC'), timeZone), end, bucket: 'month' };
+      return {
+        start: zonedDayStart(zonedIsoDate(back, 'UTC'), timeZone),
+        end,
+        bucket: 'month',
+        zone: timeZone,
+      };
     }
   }
+}
+
+/**
+ * Bucket a custom span the way the presets do: a month or less reads by day
+ * (as `30d` does), up to half a year by week (`12w` is 84 days), longer by
+ * month (`12m`). Inclusive day counts.
+ */
+function customBucket(days: number): ReportWindow['bucket'] {
+  if (days <= 31) return 'day';
+  if (days <= 26 * 7) return 'week';
+  return 'month';
+}
+
+function resolveCustomWindow(
+  { from, to }: { from: string; to: string },
+  timeZone: string,
+  now: Date,
+): ReportWindow {
+  const today = zonedIsoDate(now, timeZone);
+  if (to > today) {
+    throw new BadRequestException(`A custom range cannot end after today (${today})`);
+  }
+  const start = zonedDayStart(from, timeZone);
+  // `to` is inclusive, so the half-open window ends where the NEXT day starts —
+  // capped at `now` so a range ending today does not count hours yet to come.
+  const after = zonedDayStart(addZonedDays(to, 1, timeZone), timeZone);
+  const end = after > now ? now : after;
+  if (end < start) {
+    throw new BadRequestException('A custom range must not end before it starts');
+  }
+  const days = Math.round((after.getTime() - start.getTime()) / DAY_MS);
+  if (days > MAX_CUSTOM_RANGE_DAYS) {
+    throw new BadRequestException(`A custom range covers at most ${MAX_CUSTOM_RANGE_DAYS} days`);
+  }
+  return { start, end, bucket: customBucket(days), zone: timeZone };
+}
+
+/**
+ * The first and last calendar day a window touches, in its own zone — what a
+ * response echoes as `from` / `to` so the screen can show the window it was
+ * actually given. A custom window reads back as the two days asked for; a
+ * rolling preset reads back as the days its instants land on. `end` is
+ * exclusive, so the last day is the one just before it.
+ */
+export function windowDays(win: ReportWindow): { from: string; to: string } {
+  const lastInstant = new Date(Math.max(win.end.getTime() - 1, win.start.getTime()));
+  return { from: zonedIsoDate(win.start, win.zone), to: zonedIsoDate(lastInstant, win.zone) };
 }
 
 /** The `YYYY-MM-DD` bucket key an instant falls into, at the given granularity. */

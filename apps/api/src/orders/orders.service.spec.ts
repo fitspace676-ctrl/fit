@@ -128,6 +128,8 @@ function setup(over?: {
   enrollMember?: ReturnType<typeof vi.fn>;
   /** JWT `sub` on the request; omitted for an unauthenticated (subdomain) caller. */
   userId?: string;
+  /** The caller's role (an OWNER unless a test says otherwise). */
+  role?: string;
   /** The caller's staff row at this gym, or null when they hold no membership here. */
   staff?: { id: string } | null;
   /** The product rows the sale's stock draw-down reads back. */
@@ -182,7 +184,11 @@ function setup(over?: {
   };
   const $transaction = vi.fn((cb: (client: typeof tx) => unknown) => cb(tx));
   const email = { sendReceiptEmail } as unknown as EmailService;
-  const tenant = { gymId: 'gym-1', userId: over?.userId } as unknown as TenantContext;
+  const tenant = {
+    gymId: 'gym-1',
+    userId: over?.userId,
+    role: over?.role ?? 'OWNER',
+  } as unknown as TenantContext;
   // `findFirst`, not `findUnique` — the tenant extension scopes reads by injecting
   // `gymId` into the `where`, and `findUnique` is not one of the operations it
   // scopes, so a compound-unique lookup here would run across every gym.
@@ -375,6 +381,15 @@ describe('OrdersService.recordSale', () => {
       method: 'CARD',
       provider: 'pos',
     });
+  });
+
+  it('refuses a promo code from a caller without discount:apply (403)', async () => {
+    const { service, orderCreate } = setup({ role: 'TRAINER' });
+
+    await expect(service.recordSale({ ...saleInput, promoCode: 'SUMMER20' })).rejects.toMatchObject(
+      { response: { code: 'INSUFFICIENT_PERMISSION' } },
+    );
+    expect(orderCreate).not.toHaveBeenCalled();
   });
 
   it('attributes the sale to the staff member who rang it', async () => {
@@ -791,7 +806,12 @@ describe('OrdersService.reconcile', () => {
     expect(report.expectedCash).toBe(1500);
     expect(report.grossTotal).toBe(5500);
     expect(report.salesCount).toBe(5);
-    expect(report.methods.map((m) => m.method)).toEqual(['cash', 'card', 'member_account']);
+    expect(report.methods.map((m) => m.method)).toEqual([
+      'cash',
+      'card',
+      'bank_transfer',
+      'member_account',
+    ]);
 
     // The groupBy is constrained to captured payments inside the day window.
     const args = groupBy.mock.calls[0]![0] as {
@@ -853,7 +873,7 @@ describe('OrdersService.reconcile', () => {
     const report = await service.reconcile({ date: '2026-06-07' });
 
     expect(report.grossTotal).toBe(0);
-    expect(report.methods).toHaveLength(3);
+    expect(report.methods).toHaveLength(4);
     expect(report.currency).toHaveLength(3);
   });
 });
@@ -947,7 +967,7 @@ function adminSetup(over?: {
   const $transaction = vi.fn((cb: (client: typeof tx) => unknown) => cb(tx));
 
   const email = {} as unknown as EmailService;
-  const tenant = { gymId: 'gym-1', userId: 'user-1' } as unknown as TenantContext;
+  const tenant = { gymId: 'gym-1', userId: 'user-1', role: 'OWNER' } as unknown as TenantContext;
   const gymMemberFindFirst = vi.fn((_args: unknown) =>
     Promise.resolve(over?.staff === undefined ? { id: 'staff-1' } : over.staff),
   );

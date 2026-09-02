@@ -55,6 +55,11 @@ const METHODS: ReadonlyArray<{ method: PaymentMethod; labelKey: string; hintKey:
   { method: 'cash', labelKey: 'methods.cash', hintKey: 'methods.cashHint' },
   { method: 'card', labelKey: 'methods.card', hintKey: 'methods.cardHint' },
   {
+    method: 'bank_transfer',
+    labelKey: 'methods.bankTransfer',
+    hintKey: 'methods.bankTransferHint',
+  },
+  {
     method: 'member_account',
     labelKey: 'methods.memberAccount',
     hintKey: 'methods.memberAccountHint',

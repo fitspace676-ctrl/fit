@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type {
   CreateProductData,
   CreateProductResponse,
@@ -13,6 +13,7 @@ import type {
 import { AdminProductsController } from './admin-products.controller';
 import type { AdminProductsService } from './admin-products.service';
 import type { ProductStockService } from './product-stock.service';
+import type { TenantContext } from '../common/tenant/tenant.context';
 
 const movementRow = (over?: Partial<StockMovementRow>): StockMovementRow => ({
   id: 'm-1',
@@ -54,7 +55,7 @@ const detail = (over?: Partial<GetAdminProductResponse>): GetAdminProductRespons
   ...over,
 });
 
-function setup() {
+function setup(callerRole = 'OWNER') {
   const listProducts = vi.fn<() => Promise<ListAdminProductsResponse>>(() =>
     Promise.resolve({
       data: [],
@@ -105,7 +106,9 @@ function setup() {
   );
   const stock = { adjust, listMovements } as unknown as ProductStockService;
   return {
-    controller: new AdminProductsController(service, stock),
+    controller: new AdminProductsController(service, stock, {
+      role: callerRole,
+    } as unknown as TenantContext),
     listProducts,
     getProduct,
     listLowStock,
@@ -195,6 +198,20 @@ describe('AdminProductsController', () => {
         }),
       );
       expect(ctx.createProduct.mock.calls[0]?.[0]).not.toHaveProperty('currency');
+    });
+
+    it('refuses a price from a caller without product:pricing with 403', async () => {
+      ctx = setup('TRAINER');
+      await expect(
+        ctx.controller.create({ name: 'Tee', priceAmount: 1500, variants: [] }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(ctx.createProduct).not.toHaveBeenCalled();
+    });
+
+    it('lets a body without pricing fields through the pricing check', async () => {
+      ctx = setup('TRAINER');
+      await ctx.controller.create({ name: 'Tee', variants: [] });
+      expect(ctx.createProduct).toHaveBeenCalledOnce();
     });
 
     it('rejects a missing name with 400 without hitting the service', async () => {

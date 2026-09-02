@@ -11,6 +11,7 @@ import {
   DEFAULT_TIMEZONE,
   GYM_LOGO_MAX_WIDTH,
   REPORT_CATALOG,
+  REPORT_SEGMENT_LABEL,
   STAFF_COLUMN_FIELDS,
   STAFF_SECTION_FIELDS,
   WEEKDAYS,
@@ -27,6 +28,7 @@ import {
   type GymSettings,
   type GymStaffDirectorySettings,
   type InvoiceNumberFormat,
+  type ReportCatalogResponse,
   type ReportToggle,
   type StaffRole,
   type UpdateGymSettingsInput,
@@ -721,7 +723,12 @@ interface SettingsFormValues {
   freeAccount: { enabled: boolean; name: string; description: string };
   staffDirectory: GymStaffDirectorySettings;
   reports: GymReportsSettings;
-  payments: { acceptCash: boolean; acceptCard: boolean; acceptPrepaidCredits: boolean };
+  payments: {
+    acceptCash: boolean;
+    acceptCard: boolean;
+    acceptPrepaidCredits: boolean;
+    acceptBankTransfer: boolean;
+  };
   invoice: { prefix: string; startNumber: number; format: InvoiceNumberFormat };
   receipt: { emailEnabled: boolean; printEnabled: boolean };
   /**
@@ -737,6 +744,7 @@ type BoolFieldName =
   | 'payments.acceptCash'
   | 'payments.acceptCard'
   | 'payments.acceptPrepaidCredits'
+  | 'payments.acceptBankTransfer'
   | 'receipt.emailEnabled'
   | 'receipt.printEnabled'
   | 'memberIntake.name'
@@ -832,6 +840,7 @@ export function SettingsForm({
   initial,
   locations = [],
   staffCountByRole = null,
+  reportCatalog = { reports: REPORT_CATALOG, segments: REPORT_SEGMENT_LABEL },
 }: {
   initial: GymSettings;
   /** The gym's branches, for the Locations card's inline rename. Empty is normal. */
@@ -842,6 +851,12 @@ export function SettingsForm({
    * rather than "0 staff members" under every role.
    */
   staffCountByRole?: Partial<Record<StaffRole, number>> | null;
+  /**
+   * The WHOLE report catalogue in the reader's language (hidden reports too),
+   * from `GET /admin/reports?all=true`, so the toggles read as the hub does.
+   * Falls back to the English definitions when the page has none to give.
+   */
+  reportCatalog?: ReportCatalogResponse;
 }) {
   const t = useTranslations('admin.settings');
   const router = useRouter();
@@ -948,6 +963,7 @@ export function SettingsForm({
           acceptCash: z.boolean(),
           acceptCard: z.boolean(),
           acceptPrepaidCredits: z.boolean(),
+          acceptBankTransfer: z.boolean(),
         })
         .refine((value) => enabledPaymentMethods(value).length > 0, t('payments.noneEnabled')),
       invoice: z.object({
@@ -1214,7 +1230,7 @@ export function SettingsForm({
 
           {section === 'reports' ? (
             <>
-              {groupReportsBySegment(REPORT_CATALOG).map((group) => (
+              {groupReportsBySegment(reportCatalog.reports, reportCatalog.segments).map((group) => (
                 <SectionCard
                   key={group.segment}
                   title={group.label}
@@ -1254,6 +1270,11 @@ export function SettingsForm({
                   name="payments.acceptPrepaidCredits"
                   label={t('payments.acceptPrepaidLabel')}
                   description={t('payments.acceptPrepaidDesc')}
+                />
+                <SwitchRow
+                  name="payments.acceptBankTransfer"
+                  label={t('payments.acceptBankTransferLabel')}
+                  description={t('payments.acceptBankTransferDesc')}
                 />
               </div>
               <PaymentsWarning />
@@ -1388,6 +1409,7 @@ function toFormValues(settings: GymSettings): SettingsFormValues {
       acceptCash: settings.payments.acceptCash,
       acceptCard: settings.payments.acceptCard,
       acceptPrepaidCredits: settings.payments.acceptPrepaidCredits,
+      acceptBankTransfer: settings.payments.acceptBankTransfer,
     },
     invoice: {
       prefix: settings.invoice.prefix,

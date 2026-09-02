@@ -11,8 +11,8 @@ import type {
   ReportDigest,
   ReportDigestCadence,
   ReportKey,
-  ReportQuery,
-  ReportResult,
+  ReportDigestSection,
+  ReportWindowPreset,
 } from '@fit/types';
 import { REPORT_DIGEST_KEYS } from '@fit/types';
 import { ReportDeliveryService } from './report-delivery.service';
@@ -62,18 +62,17 @@ function setup(
   } as unknown as PrismaService;
 
   // Each report echoes the tenant in scope at call time so we can assert scoping.
-  const runReport = vi.fn(
-    (key: ReportKey, _query: ReportQuery): Promise<ReportResult> =>
+  const runDigestSection = vi.fn(
+    (key: ReportKey, _preset: ReportWindowPreset): Promise<ReportDigestSection> =>
       Promise.resolve({
         key,
         name: key,
-        range: '7d',
         currency: 'USD',
         columns: [],
         rows: [{ scopedGym: tenantStorage.getStore()?.gymId ?? null }],
       }),
   );
-  const reports = { runReport } as unknown as ReportsService;
+  const reports = { runDigestSection } as unknown as ReportsService;
 
   const sendReportDigestEmail = vi.fn(
     (email: string, _digest: ReportDigest, _options?: { reportsUrl?: string }): Promise<boolean> =>
@@ -93,7 +92,7 @@ function setup(
     service: new ReportDeliveryService(prisma, reports, email, redis),
     gymFindMany,
     gymMemberFindMany,
-    runReport,
+    runDigestSection,
     sendReportDigestEmail,
     set,
   };
@@ -142,7 +141,8 @@ describe('ReportDeliveryService.deliverAll', () => {
   });
 
   it('skips a gym with no eligible recipients without building its digest', async () => {
-    const { service, gymFindMany, gymMemberFindMany, runReport, sendReportDigestEmail } = setup();
+    const { service, gymFindMany, gymMemberFindMany, runDigestSection, sendReportDigestEmail } =
+      setup();
     gymFindMany.mockResolvedValue([gym('g1', 'Downtown')]);
     gymMemberFindMany.mockResolvedValue([]);
 
@@ -150,24 +150,25 @@ describe('ReportDeliveryService.deliverAll', () => {
 
     expect(summary.gymsProcessed).toBe(1);
     expect(summary.gymsWithRecipients).toBe(0);
-    expect(runReport).not.toHaveBeenCalled();
+    expect(runDigestSection).not.toHaveBeenCalled();
     expect(sendReportDigestEmail).not.toHaveBeenCalled();
   });
 
   it('computes each included report for the cadence range inside the gym tenant scope', async () => {
-    const { service, gymFindMany, gymMemberFindMany, runReport } = setup();
+    const { service, gymFindMany, gymMemberFindMany, runDigestSection } = setup();
     gymFindMany.mockResolvedValue([gym('g7', 'Downtown')]);
     gymMemberFindMany.mockResolvedValue([staff('owner@g7', 'Owner')]);
 
     await service.deliverAll('monthly');
 
-    expect(runReport).toHaveBeenCalledTimes(REPORT_DIGEST_KEYS.length);
-    // Monthly digest uses the 30d window for every section.
-    for (const [, query] of runReport.mock.calls) {
-      expect(query).toEqual({ range: '30d' });
+    expect(runDigestSection).toHaveBeenCalledTimes(REPORT_DIGEST_KEYS.length);
+    // Monthly digest uses the 30d window PRESET for every section — a window the
+    // console no longer offers, which is why it is not a console range query.
+    for (const [, preset] of runDigestSection.mock.calls) {
+      expect(preset).toBe('30d');
     }
     // The report ran with the gym pinned into the tenant ALS context.
-    const firstResult = (await runReport.mock.results[0]!.value) as ReportResult;
+    const firstResult = (await runDigestSection.mock.results[0]!.value) as ReportDigestSection;
     expect(firstResult.rows[0]).toEqual({ scopedGym: 'g7' });
   });
 

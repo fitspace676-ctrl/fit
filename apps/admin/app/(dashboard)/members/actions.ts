@@ -81,7 +81,8 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 
 const requireMemberRead = () => sessionHas(Permission.MemberRead);
 const requireMemberWrite = () => sessionHas(Permission.MemberWrite);
-const requireBillingManage = () => sessionHas(Permission.BillingManage);
+const requireMembershipManage = () => sessionHas(Permission.MembershipManage);
+const requirePtPackageSell = () => sessionHas(Permission.PtPackageSell);
 
 /** Map a thrown API error to a short, staff-facing message. */
 function toMessage(error: unknown, t: Translator): string {
@@ -265,7 +266,7 @@ export async function freezeMemberSubscriptionAction(
   input: FreezeSubscriptionInput,
 ): Promise<ActionResult<{ frozenUntil: string }>> {
   const t = await getTranslations('admin.members');
-  if (!(await requireBillingManage())) {
+  if (!(await requireMembershipManage())) {
     return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = freezeSubscriptionSchema.safeParse(input);
@@ -284,7 +285,7 @@ export async function freezeMemberSubscriptionAction(
 
 /**
  * Sell / grant a credit pack to a member from the console (T5.8). `memberId` is the
- * detail page to refresh; `packId` names the catalogue pack. Gated by `BillingManage`
+ * detail page to refresh; `packId` names the catalogue pack. Gated by `PtPackageSell`
  * (the API re-checks) and re-validated with the same Zod schema the API uses. On
  * success the member's detail page is refreshed so the credit balance updates.
  */
@@ -293,7 +294,7 @@ export async function grantMemberCreditPackAction(
   packId: string,
 ): Promise<ActionResult<{ creditPackId: string }>> {
   const t = await getTranslations('admin.members');
-  if (!(await requireBillingManage())) {
+  if (!(await requirePtPackageSell())) {
     return { ok: false, error: t('errors.notAuthorized') };
   }
   const parsed = purchaseCreditPackSchema.safeParse({ packId });
@@ -435,7 +436,7 @@ export async function unfreezeMemberSubscriptionAction(
   subscriptionId: string,
 ): Promise<ActionResult<{ newPeriodEnd: string }>> {
   const t = await getTranslations('admin.members');
-  if (!(await requireBillingManage())) {
+  if (!(await requireMembershipManage())) {
     return { ok: false, error: t('errors.notAuthorized') };
   }
   try {

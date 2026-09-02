@@ -38,7 +38,8 @@ import { AdminLocationsService } from './admin-locations.service';
  * {@link TenantGuard} pins the request to one gym and {@link PermissionsGuard}
  * enforces the capability. Reads require {@link Permission.LocationRead}; the
  * writes — create, edit, and deactivate/reactivate — require
- * {@link Permission.LocationWrite}. The service runs on the tenant-scoped Prisma
+ * {@link Permission.LocationWrite}; adding and (de)activating a location require
+ * {@link Permission.LocationManage}. The service runs on the tenant-scoped Prisma
  * client, so no handler ever passes a `gymId`.
  */
 @Controller('admin/locations')
@@ -77,7 +78,7 @@ export class AdminLocationsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.LocationWrite)
+  @RequirePermissions(Permission.LocationManage)
   async create(@Body() body: unknown): Promise<CreateLocationResponse> {
     return this.locations.createLocation(parse(createLocationSchema, body));
   }
@@ -100,7 +101,7 @@ export class AdminLocationsController {
    */
   @Post(':id/deactivate')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.LocationWrite)
+  @RequirePermissions(Permission.LocationManage)
   async deactivate(@Param('id') id: string): Promise<SetLocationStatusResponse> {
     return this.locations.deactivateLocation(id);
   }
@@ -111,7 +112,7 @@ export class AdminLocationsController {
    */
   @Post(':id/reactivate')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.LocationWrite)
+  @RequirePermissions(Permission.LocationManage)
   async reactivate(@Param('id') id: string): Promise<SetLocationStatusResponse> {
     return this.locations.reactivateLocation(id);
   }

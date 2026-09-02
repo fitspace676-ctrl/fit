@@ -169,6 +169,7 @@
         "sales": "Sales",
         "members": "Members",
         "revenue": "Revenue",
+        "products": "Product sales, margins, stock levels and movements.",
         "classes": "Classes",
         "staff": "Staff"
       },
@@ -223,6 +224,7 @@
           "name": {
             "cash": "Cash",
             "card": "Card",
+            "bank-transfer": "Bank transfer",
             "member-account": "Member account"
           },
           "row": "{channel} · {name}",
@@ -643,10 +645,18 @@
       "loadError": "Could not load reports ({status}): {message}",
       "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
       "reportingRange": "Reporting range",
+      "rangeToday": "Today",
       "range7d": "7 days",
-      "range30d": "30 days",
-      "range12w": "12 weeks",
-      "range12m": "12 months",
+      "rangeMtd": "Month to date",
+      "rangeCustom": "Custom",
+      "rangeFrom": "From",
+      "rangeTo": "To",
+      "calendar": {
+        "open": "Choose a date",
+        "previousMonth": "Previous month",
+        "nextMonth": "Next month",
+        "chooseYear": "Choose a year"
+      },
       "catalogueLabel": "Report catalogue",
       "columnCount": "{count, plural, one {# column} other {# columns}}",
       "selectPrompt": "Pick a report from the list to preview its rows and download it as CSV or XLSX.",
@@ -837,7 +847,9 @@
           "card": "Card",
           "cardHint": "Card terminal",
           "memberAccount": "Member account",
-          "memberAccountHint": "Charge to house account"
+          "memberAccountHint": "Charge to house account",
+          "bankTransfer": "Bank transfer",
+          "bankTransferHint": "Transfer to the gym account"
         },
         "chargedTo": "Charged to {name}’s account.",
         "cashReceived": "Cash received",
@@ -1603,9 +1615,9 @@
       },
       "roleDesc": {
         "OWNER": "Full system access and control.",
-        "MANAGER": "Manage operations and staff; no Settings or role permissions.",
-        "RECEPTIONIST": "Front desk access to members, POS, bookings, and the basic dashboard.",
-        "TRAINER": "Training-focused access to classes and member profiles (view only)."
+        "MANAGER": "Full operational management; no gym settings, roles & permissions, or FormaCore subscription.",
+        "RECEPTIONIST": "Front-desk access: members, memberships, POS, bookings, and check-ins.",
+        "TRAINER": "Training-focused access: own classes and PT sessions, workout plans, member training profiles."
       },
       "manageRolesDrawer": {
         "title": "Roles & permissions"
@@ -1767,7 +1779,7 @@
         "trainerRead": "View trainers",
         "trainerWrite": "Add & edit trainers",
         "locationRead": "View locations",
-        "locationWrite": "Add & edit locations",
+        "locationWrite": "Edit locations",
         "productRead": "View products",
         "productWrite": "Add & edit products",
         "packageRead": "View package plans",
@@ -1792,7 +1804,45 @@
         "loyaltyRead": "View loyalty program & points",
         "loyaltyManage": "Manage loyalty program & rewards",
         "auditRead": "View audit log",
-        "profileManage": "Edit own profile"
+        "profileManage": "Edit own profile",
+        "gymSubscriptionManage": "Manage the gym FormaCore subscription",
+        "locationManage": "Add & deactivate locations, location settings",
+        "staffRead": "View staff",
+        "staffAssignRole": "Assign staff roles",
+        "staffAssignLocation": "Assign staff locations",
+        "staffScheduleRead": "View staff schedules",
+        "staffScheduleManage": "Manage staff schedules & time off",
+        "rolesRead": "View roles & permissions",
+        "rolesManage": "Manage roles & permissions",
+        "membershipManage": "Freeze & resume memberships",
+        "membershipSell": "Sell memberships",
+        "membershipRenew": "Renew memberships",
+        "membershipCancel": "Cancel memberships",
+        "memberPaymentRead": "View member payments",
+        "memberCheckinRead": "View member check-ins",
+        "trainerScheduleManage": "Manage trainer schedules",
+        "posAccess": "Access POS",
+        "paymentProcess": "Process payments",
+        "paymentRefund": "Process refunds",
+        "discountApply": "Apply discounts",
+        "transactionRead": "View transactions",
+        "salesHistoryRead": "View sales history & reconciliation",
+        "productPricing": "Manage product pricing & cost",
+        "inventoryRead": "View inventory",
+        "inventoryAdjust": "Adjust inventory",
+        "stocktakePerform": "Perform stocktake",
+        "stockMovementRead": "View stock movement history",
+        "ptPackageRead": "View PT packages & credits",
+        "ptPackageSell": "Sell PT packages",
+        "classManageOwn": "Manage own classes",
+        "bookingManage": "Book members into classes & cancel bookings",
+        "classAttendance": "Manage class attendance",
+        "classWaitlist": "Manage waitlists",
+        "ptSessionRead": "View PT sessions",
+        "ptSessionManage": "Create, edit & cancel PT sessions",
+        "ptSessionManageOwn": "Manage own PT sessions",
+        "revenueRead": "View revenue",
+        "reportExport": "Export reports"
       },
       "errors": {
         "loadStaff": "Could not load staff ({status}): {message}",
@@ -1805,7 +1855,8 @@
         "requestFailed": "Request failed ({status}): {message}",
         "invalidDetails": "Invalid invitation details",
         "invalidRole": "Invalid role",
-        "unexpected": "Unexpected error"
+        "unexpected": "Unexpected error",
+        "ownerRoleRestricted": "Only an owner can assign, change, or remove the Owner role."
       },
       "depth": {
         "roles": {
@@ -2148,6 +2199,8 @@
         "acceptCardDesc": "Accept card payments.",
         "acceptPrepaidLabel": "Prepaid credits",
         "acceptPrepaidDesc": "Let members pay from their prepaid credit balance.",
+        "acceptBankTransferLabel": "Bank transfer",
+        "acceptBankTransferDesc": "Record sales paid by transfer to the gym account. Check the transfer arrived before settling.",
         "noneEnabled": "Keep at least one payment method on - the POS cannot settle a sale without one."
       },
       "invoice": {

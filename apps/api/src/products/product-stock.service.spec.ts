@@ -44,7 +44,11 @@ interface BranchRow {
  * `branch` of `null` is a branch that has never counted this product — a missing
  * row, not a zero.
  */
-function setup(product: Record<string, unknown> | null, branch: BranchRow | null = null) {
+function setup(
+  product: Record<string, unknown> | null,
+  branch: BranchRow | null = null,
+  callerRole = 'OWNER',
+) {
   const state = {
     product: product ? { ...product } : null,
     branch: branch ? { ...branch, variants: [...branch.variants] } : null,
@@ -126,7 +130,7 @@ function setup(product: Record<string, unknown> | null, branch: BranchRow | null
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
-  const tenant = { userId: 'u-1' } as unknown as TenantContext;
+  const tenant = { userId: 'u-1', role: callerRole } as unknown as TenantContext;
 
   return {
     service: new ProductStockService(prisma, tenant),
@@ -216,6 +220,19 @@ describe('ProductStockService.adjust', () => {
 
     expect(result.stock).toBe(11);
     expect(movementData(ctx)).toMatchObject({ delta: 7, resultingStock: 11, reason: 'RECOUNT' });
+  });
+
+  it('refuses a RECOUNT from a caller without stocktake:perform (403)', async () => {
+    const ctx = setup(
+      { id: 'p-1', gymId: 'gym-1', variants: [], stock: 4 },
+      { stock: 4, variants: [] },
+      'RECEPTIONIST',
+    );
+
+    await expect(
+      ctx.service.adjust('p-1', body({ setTo: 11, reason: 'RECOUNT' })),
+    ).rejects.toMatchObject({ response: { code: 'INSUFFICIENT_PERMISSION' } });
+    expect(ctx.productUpdate).not.toHaveBeenCalled();
   });
 
   it('starts a branch that has never counted this product from zero', async () => {

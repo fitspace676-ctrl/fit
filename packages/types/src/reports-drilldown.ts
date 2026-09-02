@@ -17,19 +17,29 @@
 // never a fabricated zero.
 
 import { z } from 'zod';
-import { analyticsRangeSchema, DEFAULT_ANALYTICS_RANGE, type AnalyticsRange } from './analytics';
-import { reportColumnTypeSchema, reportFormatSchema } from './reports';
+import {
+  DEFAULT_REPORT_RANGE,
+  reportColumnTypeSchema,
+  reportExportQuerySchema,
+  reportQuerySchema,
+  reportRangeSchema,
+  type ReportRange,
+} from './reports';
 
 /* -------------------------------------------------------------------------- */
 /*  Request                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** The reporting window a drill-down is computed over — the shared range vocabulary. */
-export const reportDrilldownRangeSchema = analyticsRangeSchema;
-export type ReportDrilldownRange = AnalyticsRange;
+/**
+ * The reporting window a drill-down is computed over — the Reports console's own
+ * vocabulary ({@link reportRangeSchema}), so the hub and a drill-down offer the
+ * same four choices and a `?range=` carries across the link between them.
+ */
+export const reportDrilldownRangeSchema = reportRangeSchema;
+export type ReportDrilldownRange = ReportRange;
 
 /** The default window when a drill-down query omits `range`. */
-export const DEFAULT_REPORT_DRILLDOWN_RANGE: ReportDrilldownRange = DEFAULT_ANALYTICS_RANGE;
+export const DEFAULT_REPORT_DRILLDOWN_RANGE: ReportDrilldownRange = DEFAULT_REPORT_RANGE;
 
 /**
  * The drill-down report metrics. Stable, URL-safe slugs used as the
@@ -61,15 +71,13 @@ export const reportMetricSchema = z.enum(REPORT_METRICS);
 export type ReportMetric = z.infer<typeof reportMetricSchema>;
 
 /**
- * `GET /admin/reports/drilldown/:metric?range=` query — coerced + validated.
- * `locationId` drills into a single branch; omitted, the drill-down spans every
- * branch. It travels in the URL because a drill-down link is the one thing staff
- * paste to each other, and it must arrive showing the branch the sender saw.
+ * `GET /admin/reports/drilldown/:metric?range=&from=&to=` query — the catalogue's
+ * own query schema, so a custom range is validated once and identically, and so a
+ * drill-down carries the same `locationId` as the report it was opened from. That
+ * id travels in the URL because a drill-down link is the one thing staff paste to
+ * each other, and it must arrive showing the branch the sender saw.
  */
-export const reportDrilldownQuerySchema = z.object({
-  range: reportDrilldownRangeSchema.default(DEFAULT_REPORT_DRILLDOWN_RANGE),
-  locationId: z.string().min(1).optional(),
-});
+export const reportDrilldownQuerySchema = reportQuerySchema;
 export type ReportDrilldownQuery = z.infer<typeof reportDrilldownQuerySchema>;
 
 /**
@@ -79,9 +87,7 @@ export type ReportDrilldownQuery = z.infer<typeof reportDrilldownQuerySchema>;
  * inherits `locationId` from the preview query so the exported file is scoped to
  * the same branch — every branch when it is omitted.
  */
-export const reportDrilldownExportQuerySchema = reportDrilldownQuerySchema.extend({
-  format: reportFormatSchema.default('csv'),
-});
+export const reportDrilldownExportQuerySchema = reportExportQuerySchema;
 export type ReportDrilldownExportQuery = z.infer<typeof reportDrilldownExportQuerySchema>;
 
 /* -------------------------------------------------------------------------- */
@@ -339,6 +345,9 @@ export const reportDrilldownSchema = z.object({
   description: z.string(),
   /** The window the response was computed over (echoes the resolved query). */
   range: reportDrilldownRangeSchema,
+  /** The first and last calendar day the window resolved to — see `ReportResult`. */
+  from: z.string(),
+  to: z.string(),
   /** ISO-4217 currency the money figures are denominated in. */
   currency: z.string(),
   /** Headline KPI tiles, left to right. */

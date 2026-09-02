@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   BookingStatus,
   LoyaltyRedemptionStatus,
-  LoyaltyRewardType,
-  PaymentMethod,
   PaymentStatus,
   ReviewStatus,
   Role,
@@ -19,13 +17,13 @@ import {
   type ReportKpi,
   type ReportMetric,
   type ReportSection,
+  reportWindowInput,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { drilldownTables } from './drilldown-tabular.util';
 import { buildWorkbook } from './xlsx';
-import { atLocation, memberAtLocation } from '../common/location-filter.util';
 import {
   bucketKey,
   emptyBuckets,
@@ -33,7 +31,16 @@ import {
   rate,
   resolveWindow,
   type ReportWindow,
+  windowDays,
 } from './report-window.util';
+import { zonedParts } from './zoned-time.util';
+import { resolveEmailLocale } from '../mail/email-locale';
+import {
+  localizeDrilldown,
+  reportStrings,
+  type ReportLocale,
+  type ReportStrings,
+} from './report-strings';
 
 /** Subscription states that count a member as currently subscribed (not churned). */
 const LIVE_SUB_STATUSES: readonly SubscriptionStatus[] = [
@@ -48,8 +55,6 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 /** Label for revenue on orders with no linked plan (product / POS sales). */
 const RETAIL_LABEL = 'Retail';
-/** Label for revenue on orders with no linked location. */
-const NO_LOCATION_LABEL = 'No location';
 /** Bucket for class occurrences / bookings whose trainer was removed or never set. */
 const UNASSIGNED_TRAINER_LABEL = 'Unassigned';
 
@@ -59,24 +64,6 @@ const CONFIRMED_BOOKING_STATUSES: readonly BookingStatus[] = [
   BookingStatus.ATTENDED,
   BookingStatus.NO_SHOW,
 ];
-
-/** Human labels for the POS payment methods, in the end-of-day reconciliation order. */
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  [PaymentMethod.CASH]: 'Cash',
-  [PaymentMethod.CARD]: 'Card',
-  [PaymentMethod.MEMBER_ACCOUNT]: 'Member account',
-};
-
-/** Human labels for loyalty reward types, driving the by-reward-type breakdown. */
-const REWARD_TYPE_LABELS: Record<LoyaltyRewardType, string> = {
-  [LoyaltyRewardType.pt_session]: 'PT session',
-  [LoyaltyRewardType.day_pass]: 'Day pass',
-  [LoyaltyRewardType.guest_pass]: 'Guest pass',
-  [LoyaltyRewardType.merchandise]: 'Merchandise',
-  [LoyaltyRewardType.drink]: 'Drink',
-  [LoyaltyRewardType.discount]: 'Discount',
-  [LoyaltyRewardType.other]: 'Other',
-};
 
 /** What a metric resolves to before it is wrapped as a {@link ReportDrilldown}. */
 interface ComputedDrilldown {
@@ -115,43 +102,11 @@ interface TrainerAgg {
  * honesty contract as {@link AnalyticsService} / {@link ReportsService}); a section
  * with no source rows in the window is an empty section, never a fabricated zero.
  *
- * Every aggregate runs on the **tenant-scoped** {@link TenantPrismaService}
- * (auto-constrained to the caller's gym), {@link CheckIn} now included — Stage 3
- * added it to the extension's hand-maintained model set, which it had been missing
- * from. The attendance query still pins `gymId` explicitly from
- * {@link TenantContext}, exactly like the reception feed: redundant now rather than
- * load-bearing, and kept as belt and braces on the one read here that would
- * otherwise expose another gym's visits.
- *
- * `ReportDrilldownQuery.locationId` narrows a drill-down to one branch. Unlike
- * `gymId` it is EXPLICIT, not ambient — location coverage across the schema is
- * partial and will stay partial — so each metric decides for itself and records
- * the decision on its own method:
- *
- *   • `sales`, `revenue`, `pos` — filtered by the branch that RANG THE SALE UP.
- *     All three tables now carry that branch on the row — `Order.locationId`, and
- *     since Stage 5 `Payment.locationId` / `Refund.locationId` denormalised from
- *     the order at write time — so every one of them is {@link atLocation}. The
- *     relation filter these used to issue is gone.
- *   • `classes`, `staff` — filtered through `ClassInstance.locationId`.
- *   • `members`, `loyalty` — filtered by the member's HOME BRANCH, through
- *     `GymMember.locationId` directly or via the `member` relation
- *     ({@link memberAtLocation}). Stage 2 added that column; before it both were
- *     gym-wide.
- *   • `attendance` — filtered by the branch the member WALKED INTO, through
- *     `CheckIn.locationId` ({@link atLocation}). Stage 3 made that a real FK with a
- *     write path behind it; before that it was the last gym-wide metric here. It
- *     takes the PLACE rule and not the member hop, for the reason
- *     {@link attendance} records.
- *
- * Every metric on this service now narrows. That is worth stating because the
- * absence of a gym-wide entry above is otherwise indistinguishable from someone
- * having forgotten to write one; the only branch-blind thing left is a single
- * COLUMN, `staff`'s `rating`, and it says so at its own call site.
- *
- * The same scoping reaches the export routes and {@link resolveSection} because all
- * three go through {@link compute} — a CSV or a pinned widget that disagreed with
- * the screen it was opened from would be worse than no filter at all.
+ * Revenue/member aggregates run on the **tenant-scoped** {@link TenantPrismaService}
+ * (auto-constrained to the caller's gym). {@link CheckIn} is deliberately *not* in
+ * the tenant extension's model set (see `check-in.service.ts`), so the attendance
+ * queries pin `gymId` explicitly from {@link TenantContext}, exactly like the
+ * reception feed.
  */
 @Injectable()
 export class ReportDrilldownService {
@@ -162,19 +117,29 @@ export class ReportDrilldownService {
   ) {}
 
   /** Build one drill-down report for on-screen rendering. */
-  async run(metric: ReportMetric, query: ReportDrilldownQuery): Promise<ReportDrilldown> {
+  async run(
+    metric: ReportMetric,
+    query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
+  ): Promise<ReportDrilldown> {
     const definition = REPORT_METRIC_DEFINITIONS[metric];
-    const win = resolveWindow(query.range);
-    const computed = await this.compute(metric, win, query.locationId);
-    return {
-      metric,
-      name: definition.name,
-      description: definition.description,
-      range: query.range,
-      currency: computed.currency,
-      kpis: computed.kpis,
-      sections: computed.sections,
-    };
+    const { win, language, s } = await this.context(query, lang);
+    const computed = await this.compute(metric, win, s);
+    // Built in English and translated on the way out, by id — see `report-strings.ts`.
+    return localizeDrilldown(
+      {
+        metric,
+        name: definition.name,
+        description: definition.description,
+        range: query.range,
+        // The days the window resolved to, for every range — see `ReportsService.runReport`.
+        ...windowDays(win),
+        currency: computed.currency,
+        kpis: computed.kpis,
+        sections: computed.sections,
+      },
+      language,
+    );
   }
 
   /**
@@ -191,8 +156,10 @@ export class ReportDrilldownService {
   async *streamDrilldownCsv(
     metric: ReportMetric,
     query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
   ): AsyncGenerator<string> {
-    const tables = drilldownTables(await this.run(metric, query));
+    const built = await this.run(metric, query, lang);
+    const tables = drilldownTables(built, reportStrings(await this.language(lang)).tabular);
     let first = true;
     for (const table of tables) {
       if (!first) {
@@ -208,8 +175,13 @@ export class ReportDrilldownService {
   }
 
   /** Build one drill-down as an XLSX workbook — the KPI summary plus a tab per section. */
-  async buildDrilldownXlsx(metric: ReportMetric, query: ReportDrilldownQuery): Promise<Buffer> {
-    const tables = drilldownTables(await this.run(metric, query));
+  async buildDrilldownXlsx(
+    metric: ReportMetric,
+    query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
+  ): Promise<Buffer> {
+    const built = await this.run(metric, query, lang);
+    const tables = drilldownTables(built, reportStrings(await this.language(lang)).tabular);
     return buildWorkbook(
       tables.map((table) => ({
         name: table.title,
@@ -229,41 +201,57 @@ export class ReportDrilldownService {
     metric: ReportMetric,
     sectionId: string,
     query: ReportDrilldownQuery,
+    lang: ReportLocale | null = null,
   ): Promise<{ currency: string; section: ReportSection } | null> {
-    const computed = await this.compute(metric, resolveWindow(query.range), query.locationId);
-    const section = computed.sections.find((candidate) => candidate.id === sectionId);
-    return section ? { currency: computed.currency, section } : null;
+    const built = await this.run(metric, query, lang);
+    const section = built.sections.find((candidate) => candidate.id === sectionId);
+    return section ? { currency: built.currency, section } : null;
   }
 
   /**
-   * `locationId` narrows a drill-down to one branch; `undefined` is the gym-wide
-   * roll-up. Only the metrics whose rows have an honest path to a `Location` take
-   * it — which, since Stage 3 gave `CheckIn` a real branch, is every one of them.
-   * A metric that ever loses that path takes it away here rather than accepting the
-   * parameter and quietly ignoring it.
+   * The query's window, answered in the gym's own zone (see `report-window.util`),
+   * and the language to write in: the caller's when it said, the gym's otherwise.
    */
+  /** The language a file export is written in — the caller's, else the gym's. */
+  private async language(lang: ReportLocale | null): Promise<ReportLocale> {
+    return lang ?? resolveEmailLocale((await this.locale.get()).language);
+  }
+
+  private async context(
+    query: ReportDrilldownQuery,
+    lang: ReportLocale | null,
+  ): Promise<{ win: ReportWindow; language: ReportLocale; s: ReportStrings }> {
+    const locale = await this.locale.get();
+    const language = lang ?? resolveEmailLocale(locale.language);
+    return {
+      win: resolveWindow(reportWindowInput(query), locale.timezone),
+      language,
+      s: reportStrings(language),
+    };
+  }
+
   private compute(
     metric: ReportMetric,
     win: ReportWindow,
-    locationId?: string,
+    s: ReportStrings,
   ): Promise<ComputedDrilldown> {
     switch (metric) {
       case 'sales':
-        return this.sales(win, locationId);
+        return this.sales(win, s);
       case 'revenue':
-        return this.revenue(win, locationId);
+        return this.revenue(win, s);
       case 'members':
-        return this.members(win, locationId);
+        return this.members(win);
       case 'attendance':
-        return this.attendance(win, locationId);
+        return this.attendance(win);
       case 'classes':
-        return this.classes(win, locationId);
+        return this.classes(win, s);
       case 'staff':
-        return this.staff(win, locationId);
+        return this.staff(win);
       case 'pos':
-        return this.pos(win, locationId);
+        return this.pos(win, s);
       case 'loyalty':
-        return this.loyalty(win, locationId);
+        return this.loyalty(win, s);
     }
   }
 
@@ -282,14 +270,10 @@ export class ReportDrilldownService {
    * was reported in. Both are legitimate; they answer different questions, which is
    * why the two metrics coexist rather than one deriving from the other.
    */
-  private async sales(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async sales(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const [payments, refunds, planOrders] = await Promise.all([
       this.prisma.client.payment.findMany({
-        where: {
-          status: PaymentStatus.CAPTURED,
-          createdAt: { gte: win.start, lt: win.end },
-          ...atLocation(locationId),
-        },
+        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
         select: {
           amount: true,
           currency: true,
@@ -307,7 +291,7 @@ export class ReportDrilldownService {
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.client.refund.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        where: { createdAt: { gte: win.start, lt: win.end } },
         select: {
           amount: true,
           createdAt: true,
@@ -324,7 +308,6 @@ export class ReportDrilldownService {
           packageId: { not: null },
           createdAt: { gte: win.start, lt: win.end },
           payment: { is: { status: PaymentStatus.CAPTURED } },
-          ...atLocation(locationId),
         },
         select: { total: true, package: { select: { name: true } } },
       }),
@@ -332,24 +315,24 @@ export class ReportDrilldownService {
 
     const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
-    const grossBuckets = emptyBuckets(win);
-    const refundBuckets = emptyBuckets(win);
+    const grossBuckets = emptyBuckets(win, win.zone);
+    const refundBuckets = emptyBuckets(win, win.zone);
     const byMethod = new Map<string, number>();
     const bySeller = new Map<string, { label: string; value: number }>();
     let gross = 0;
 
     for (const payment of payments) {
       gross += payment.amount;
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (grossBuckets.has(key)) {
         grossBuckets.set(key, (grossBuckets.get(key) ?? 0) + payment.amount);
       }
-      const method = SALES_METHOD_LABEL[payment.method] ?? payment.method;
+      const method = methodLabel(s, payment.method);
       byMethod.set(method, (byMethod.get(method) ?? 0) + payment.amount);
 
       const sellerKey = payment.order?.soldById ?? UNATTRIBUTED_SELLER_KEY;
       const seller = bySeller.get(sellerKey) ?? {
-        label: payment.order?.soldBy ? sellerName(payment.order.soldBy) : UNATTRIBUTED_SELLER_LABEL,
+        label: payment.order?.soldBy ? sellerName(payment.order.soldBy, s) : s.values.unattributed,
         value: 0,
       };
       seller.value += payment.amount;
@@ -359,7 +342,7 @@ export class ReportDrilldownService {
     let refunded = 0;
     for (const refund of refunds) {
       refunded += refund.amount;
-      const key = bucketKey(refund.createdAt, win.bucket);
+      const key = bucketKey(refund.createdAt, win.bucket, win.zone);
       if (refundBuckets.has(key)) {
         refundBuckets.set(key, (refundBuckets.get(key) ?? 0) + refund.amount);
       }
@@ -426,13 +409,13 @@ export class ReportDrilldownService {
           { key: 'processedBy', label: 'Processed by', type: 'text' },
         ],
         rows: refunds.slice(0, DRILLDOWN_TABLE_ROWS).map((refund) => ({
-          date: isoDate(refund.createdAt),
+          date: isoDate(refund.createdAt, win.zone),
           order: refund.orderId.slice(-8).toUpperCase(),
           amount: refund.amount,
           reason: refund.reason,
           processedBy: refund.processedBy
-            ? sellerName(refund.processedBy)
-            : UNATTRIBUTED_SELLER_LABEL,
+            ? sellerName(refund.processedBy, s)
+            : s.values.unattributed,
         })),
       },
     ];
@@ -451,37 +434,28 @@ export class ReportDrilldownService {
    * payments in the MVP, so this is order/POS revenue only — the plan breakdown
    * attributes each order to its `package` (or "Retail" for a product sale), never
    * fabricating subscription cash.
-   *
-   * BRANCH-AWARE. With a branch selected the `revenue-by-location` section becomes
-   * a breakdown of one thing and collapses to a single item — an honest degradation
-   * rather than a special case, since a breakdown section's contract fixes its
-   * shape, not its length. `NO_LOCATION_LABEL` is then unreachable: the filter is
-   * an equality on a real branch id, so every surviving payment has that branch.
    */
-  private async revenue(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async revenue(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const payments = await this.prisma.client.payment.findMany({
-      where: {
-        status: PaymentStatus.CAPTURED,
-        createdAt: { gte: win.start, lt: win.end },
-        ...atLocation(locationId),
-      },
+      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
       select: {
         amount: true,
         refundedAmount: true,
         currency: true,
         createdAt: true,
-        // The plan still comes off the order (a payment has no package), but the
-        // BRANCH is the payment's own column since Stage 5 — the same one the
-        // `where` above filters, so the breakdown cannot disagree with the filter.
-        order: { select: { package: { select: { name: true } } } },
-        location: { select: { name: true } },
+        order: {
+          select: {
+            package: { select: { name: true } },
+            location: { select: { name: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'asc' },
     });
 
     const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
-    const overTime = emptyBuckets(win);
+    const overTime = emptyBuckets(win, win.zone);
     const byPlan = new Map<string, number>();
     const byLocation = new Map<string, number>();
     const monthly = new Map<string, { orders: number; gross: number; refunded: number }>();
@@ -493,7 +467,7 @@ export class ReportDrilldownService {
       totalNet += net;
       totalRefunded += payment.refundedAmount;
 
-      const timeKey = bucketKey(payment.createdAt, win.bucket);
+      const timeKey = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (overTime.has(timeKey)) {
         overTime.set(timeKey, (overTime.get(timeKey) ?? 0) + net);
       }
@@ -501,11 +475,10 @@ export class ReportDrilldownService {
       const planLabel = payment.order.package?.name ?? RETAIL_LABEL;
       byPlan.set(planLabel, (byPlan.get(planLabel) ?? 0) + net);
 
-      // NULL is counted under its own label, never folded into a named branch.
-      const locationLabel = payment.location?.name ?? NO_LOCATION_LABEL;
+      const locationLabel = payment.order.location?.name ?? s.values.noLocation;
       byLocation.set(locationLabel, (byLocation.get(locationLabel) ?? 0) + net);
 
-      const monthKey = monthStart(payment.createdAt);
+      const monthKey = monthStart(payment.createdAt, win.zone);
       const month = monthly.get(monthKey) ?? { orders: 0, gross: 0, refunded: 0 };
       month.orders += 1;
       month.gross += payment.amount;
@@ -585,23 +558,14 @@ export class ReportDrilldownService {
    * subscription ({@link LIVE_SUB_STATUSES}), "expired" if all their subscriptions
    * are terminal (CANCELED / EXPIRED). Churn is terminal subscriptions in a bucket
    * as a percentage of the subscriptions active at that bucket's start.
-   *
-   * BRANCH-AWARE since Stage 2, by the member's HOME BRANCH throughout.
-   * {@link GymMember} carries `locationId` and {@link Subscription} reaches it
-   * through `member`, so every figure here — headcount, new members,
-   * active-vs-expired, churn — is one branch's, and all four come out of the same
-   * population. Filtering the head-count read alone would have made `churn` a rate
-   * of one branch's losses over the gym's base, which is why this metric was
-   * gym-wide rather than half-filtered before the column existed.
    */
-  private async members(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async members(win: ReportWindow): Promise<ComputedDrilldown> {
     const [members, subscriptions, totalMembers] = await Promise.all([
       this.prisma.client.gymMember.findMany({
-        where: { role: Role.MEMBER, joinedAt: { lt: win.end }, ...atLocation(locationId) },
+        where: { role: Role.MEMBER, joinedAt: { lt: win.end } },
         select: { joinedAt: true },
       }),
       this.prisma.client.subscription.findMany({
-        where: memberAtLocation(locationId),
         select: {
           memberId: true,
           status: true,
@@ -610,20 +574,18 @@ export class ReportDrilldownService {
           updatedAt: true,
         },
       }),
-      this.prisma.client.gymMember.count({
-        where: { role: Role.MEMBER, ...atLocation(locationId) },
-      }),
+      this.prisma.client.gymMember.count({ where: { role: Role.MEMBER } }),
     ]);
 
     // New members over time + the pre-window baseline for the cumulative column.
-    const newOverTime = emptyBuckets(win);
+    const newOverTime = emptyBuckets(win, win.zone);
     let joinedBefore = 0;
     for (const member of members) {
       if (member.joinedAt < win.start) {
         joinedBefore += 1;
         continue;
       }
-      const key = bucketKey(member.joinedAt, win.bucket);
+      const key = bucketKey(member.joinedAt, win.bucket, win.zone);
       if (newOverTime.has(key)) {
         newOverTime.set(key, (newOverTime.get(key) ?? 0) + 1);
       }
@@ -646,8 +608,8 @@ export class ReportDrilldownService {
     }
 
     // Churn trend — terminal subs per bucket over the subs active at bucket start.
-    const churnBuckets = emptyBuckets(win);
-    const activeAtStart = emptyBuckets(win);
+    const churnBuckets = emptyBuckets(win, win.zone);
+    const activeAtStart = emptyBuckets(win, win.zone);
     for (const [key] of churnBuckets) {
       const bucketStart = new Date(`${key}T00:00:00.000Z`);
       let base = 0;
@@ -663,7 +625,7 @@ export class ReportDrilldownService {
       if (!churnedAt || churnedAt < win.start || churnedAt >= win.end) {
         continue;
       }
-      const key = bucketKey(churnedAt, win.bucket);
+      const key = bucketKey(churnedAt, win.bucket, win.zone);
       if (churnBuckets.has(key)) {
         churnBuckets.set(key, (churnBuckets.get(key) ?? 0) + 1);
       }
@@ -675,7 +637,7 @@ export class ReportDrilldownService {
       if (member.joinedAt < win.start) {
         continue;
       }
-      const key = monthStart(member.joinedAt);
+      const key = monthStart(member.joinedAt, win.zone);
       monthlyNew.set(key, (monthlyNew.get(key) ?? 0) + 1);
     }
     const monthlyChurn = new Map<string, number>();
@@ -684,7 +646,7 @@ export class ReportDrilldownService {
       if (!churnedAt || churnedAt < win.start || churnedAt >= win.end) {
         continue;
       }
-      const key = monthStart(churnedAt);
+      const key = monthStart(churnedAt, win.zone);
       monthlyChurn.set(key, (monthlyChurn.get(key) ?? 0) + 1);
     }
     const monthKeys = [...new Set([...monthlyNew.keys(), ...monthlyChurn.keys()])].sort();
@@ -765,49 +727,19 @@ export class ReportDrilldownService {
   /* ---------------------------------------------------------------------- */
 
   /**
-   * Gym arrivals over the window from {@link CheckIn}. Surfaces check-ins over
-   * time, a weekday × hour peak-hours heatmap, and a per-day table with unique
-   * visitors.
-   *
-   * BRANCH-AWARE on `CheckIn.locationId` — the door each arrival came through.
-   * Stage 3 promoted that column to a real {@link Location} FK, indexed
-   * `(gymId, locationId, checkedInAt)` for exactly this range scan, backfilled the
-   * historic NULLs onto each gym's default branch and made the reception write path
-   * supply a branch, so the heatmap is now real door traffic rather than an empty
-   * grid. This was the last gym-wide metric on the service.
-   *
-   * It takes the PLACE rule, never the member hop that Stage 2 opened for
-   * {@link members} and {@link loyalty}, and the distinction is the entire point of
-   * this chart. A member's home branch says whose member they are, not where they
-   * walked in. A peak-hours heatmap built from "members homed here, wherever they
-   * actually trained" would be read as this branch's footfall and used to roster
-   * staff against it — a confident wrong number, which is worse than the honest
-   * gym-wide chart this used to be.
-   *
-   * `uniqueMembers` is therefore unique visitors TO THIS BRANCH: someone who trains
-   * at both sites counts once in each branch's figure and once gym-wide. The
-   * check-in counts still partition — every arrival has one door — so the daily
-   * `checkIns` column sums across branches to the gym total; the unique head-count
-   * deliberately does not, because a person is not divisible between the two doors
-   * they used.
-   *
-   * `gymId` is pinned below. Stage 3 put {@link CheckIn} in the tenant extension's
-   * model set, so the pin is redundant now rather than load-bearing, and is kept as
-   * belt and braces on the one read here whose leak would show another gym's
-   * visits — the failure the missing allowlist entry had actually left open.
+   * Gym arrivals over the window from {@link CheckIn}. `CheckIn` is not in the
+   * tenant extension's scoped set, so `gymId` is pinned explicitly from
+   * {@link TenantContext} (like the reception feed). Surfaces check-ins over time,
+   * a weekday × hour peak-hours heatmap, and a per-day table with unique visitors.
    */
-  private async attendance(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async attendance(win: ReportWindow): Promise<ComputedDrilldown> {
     const checkIns = await this.prisma.client.checkIn.findMany({
-      where: {
-        gymId: this.tenant.gymId,
-        checkedInAt: { gte: win.start, lt: win.end },
-        ...atLocation(locationId),
-      },
+      where: { gymId: this.tenant.gymId, checkedInAt: { gte: win.start, lt: win.end } },
       select: { gymMemberId: true, checkedInAt: true },
       orderBy: { checkedInAt: 'asc' },
     });
 
-    const overTime = emptyBuckets(win);
+    const overTime = emptyBuckets(win, win.zone);
     const heatmap: number[][] = WEEKDAYS.map(() => new Array<number>(24).fill(0));
     const daily = new Map<string, { count: number; members: Set<string> }>();
     const uniqueMembers = new Set<string>();
@@ -816,19 +748,18 @@ export class ReportDrilldownService {
       const at = checkIn.checkedInAt;
       uniqueMembers.add(checkIn.gymMemberId);
 
-      const timeKey = bucketKey(at, win.bucket);
+      const timeKey = bucketKey(at, win.bucket, win.zone);
       if (overTime.has(timeKey)) {
         overTime.set(timeKey, (overTime.get(timeKey) ?? 0) + 1);
       }
 
-      const weekday = (at.getUTCDay() + 6) % 7; // Monday = 0
+      const { weekday, hour } = zonedParts(at, win.zone); // Monday = 0, gym's clock
       const row = heatmap[weekday];
       if (row) {
-        const hour = at.getUTCHours();
         row[hour] = (row[hour] ?? 0) + 1;
       }
 
-      const dayKey = isoDate(at);
+      const dayKey = isoDate(at, win.zone);
       const day = daily.get(dayKey) ?? { count: 0, members: new Set<string>() };
       day.count += 1;
       day.members.add(checkIn.gymMemberId);
@@ -895,15 +826,11 @@ export class ReportDrilldownService {
    * cancellation-rate trend, and a per-class performance table (sessions, fill rate,
    * attendance rate). Every figure is a real count over rows in the window; a class
    * with no occurrences in the window simply does not appear.
-   *
-   * BRANCH-AWARE: both sides scope through `ClassInstance.locationId` — the
-   * instances directly, the bookings through the instance they hold a seat on — so
-   * the seat counts and the session counts are drawn from the same population.
    */
-  private async classes(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async classes(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const [instances, bookings] = await Promise.all([
       this.prisma.client.classInstance.findMany({
-        where: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        where: { startsAt: { gte: win.start, lt: win.end } },
         select: {
           capacityOverride: true,
           bookedCount: true,
@@ -912,9 +839,7 @@ export class ReportDrilldownService {
         },
       }),
       this.prisma.client.booking.findMany({
-        where: {
-          classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
-        },
+        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
         select: {
           status: true,
           classInstance: {
@@ -939,7 +864,9 @@ export class ReportDrilldownService {
     };
 
     for (const instance of instances) {
-      const agg = classAgg(instance.template?.title ?? instance.classType?.name ?? 'Class');
+      const agg = classAgg(
+        instance.template?.title ?? instance.classType?.name ?? s.values.classFallback,
+      );
       agg.sessions += 1;
       agg.capacity +=
         instance.capacityOverride ??
@@ -949,14 +876,16 @@ export class ReportDrilldownService {
       agg.booked += instance.bookedCount;
     }
 
-    const cancelTrend = emptyBuckets(win);
-    const totalTrend = emptyBuckets(win);
+    const cancelTrend = emptyBuckets(win, win.zone);
+    const totalTrend = emptyBuckets(win, win.zone);
     let attended = 0;
     let noShow = 0;
     let canceled = 0;
     for (const booking of bookings) {
       const agg = classAgg(
-        booking.classInstance.template?.title ?? booking.classInstance.classType?.name ?? 'Class',
+        booking.classInstance.template?.title ??
+          booking.classInstance.classType?.name ??
+          s.values.classFallback,
       );
       if (booking.status === BookingStatus.ATTENDED) {
         agg.attended += 1;
@@ -969,7 +898,7 @@ export class ReportDrilldownService {
         canceled += 1;
       }
 
-      const key = bucketKey(booking.classInstance.startsAt, win.bucket);
+      const key = bucketKey(booking.classInstance.startsAt, win.bucket, win.zone);
       if (totalTrend.has(key)) {
         totalTrend.set(key, (totalTrend.get(key) ?? 0) + 1);
         if (booking.status === BookingStatus.CANCELED) {
@@ -1076,29 +1005,18 @@ export class ReportDrilldownService {
    * attendance rate, and seats booked per trainer, plus a performance table. A class
    * whose trainer was removed (or never set) is grouped under "Unassigned" rather
    * than dropped, so the totals still reconcile with the classes report.
-   *
-   * BRANCH-AWARE for the delivery figures — classes and bookings scope through
-   * `ClassInstance.locationId`, so they stay reconcilable with the `classes`
-   * metric. The `rating` column deliberately does NOT narrow: a {@link Review} is
-   * written about a TRAINER, carries no branch and no relation that reaches one,
-   * and a trainer's average rating is a property of the person rather than a
-   * quantity produced at a branch. So the row reads "what this trainer delivered
-   * here, and how they are rated" — not a rating recomputed from a subset the
-   * reviewers never chose.
    */
-  private async staff(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async staff(win: ReportWindow): Promise<ComputedDrilldown> {
     const [instances, bookings, reviews] = await Promise.all([
       this.prisma.client.classInstance.findMany({
-        where: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        where: { startsAt: { gte: win.start, lt: win.end } },
         select: {
           trainer: { select: { name: true } },
           template: { select: { trainer: { select: { name: true } } } },
         },
       }),
       this.prisma.client.booking.findMany({
-        where: {
-          classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
-        },
+        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
         select: {
           status: true,
           classInstance: {
@@ -1252,18 +1170,10 @@ export class ReportDrilldownService {
    * units throughout. Surfaces daily sales, takings by payment method, the product
    * sales breakdown (positive line items grouped by label), and the end-of-day
    * summary table.
-   *
-   * BRANCH-AWARE through `Order.locationId` — which for a till sale is the branch
-   * that rang it up, so an end-of-day summary reconciles against one till rather
-   * than against every branch's takings added together.
    */
-  private async pos(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async pos(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const payments = await this.prisma.client.payment.findMany({
-      where: {
-        status: PaymentStatus.CAPTURED,
-        createdAt: { gte: win.start, lt: win.end },
-        ...atLocation(locationId),
-      },
+      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
       select: {
         amount: true,
         refundedAmount: true,
@@ -1277,7 +1187,7 @@ export class ReportDrilldownService {
 
     const currency = payments[payments.length - 1]?.currency ?? (await this.currency());
 
-    const overTime = emptyBuckets(win);
+    const overTime = emptyBuckets(win, win.zone);
     const byMethod = new Map<string, number>();
     const byProduct = new Map<string, number>();
     const daily = new Map<string, { transactions: number; gross: number; refunded: number }>();
@@ -1289,13 +1199,13 @@ export class ReportDrilldownService {
       gross += payment.amount;
       refunded += payment.refundedAmount;
 
-      const key = bucketKey(payment.createdAt, win.bucket);
+      const key = bucketKey(payment.createdAt, win.bucket, win.zone);
       if (overTime.has(key)) {
         overTime.set(key, (overTime.get(key) ?? 0) + net);
       }
 
-      const methodLabel = PAYMENT_METHOD_LABELS[payment.method];
-      byMethod.set(methodLabel, (byMethod.get(methodLabel) ?? 0) + net);
+      const label = methodLabel(s, payment.method);
+      byMethod.set(label, (byMethod.get(label) ?? 0) + net);
 
       for (const item of payment.order.items) {
         if (item.amount > 0) {
@@ -1303,7 +1213,7 @@ export class ReportDrilldownService {
         }
       }
 
-      const dayKey = isoDate(payment.createdAt);
+      const dayKey = isoDate(payment.createdAt, win.zone);
       const day = daily.get(dayKey) ?? { transactions: 0, gross: 0, refunded: 0 };
       day.transactions += 1;
       day.gross += payment.amount;
@@ -1386,29 +1296,15 @@ export class ReportDrilldownService {
    * signed deltas; redemptions-by-type and the recent-redemptions table come from the
    * redemption rows (cancelled redemptions, whose points were refunded, are excluded
    * from the aggregates but still listed).
-   *
-   * BRANCH-AWARE since Stage 2, by the member's HOME BRANCH. Neither
-   * {@link LoyaltyLedgerEntry} nor {@link LoyaltyRedemption} carries a `locationId`,
-   * but `memberId` is NOT NULL on both, so the hop is a plain equality that drops
-   * no row and the branches still sum to the gym's own ledger.
-   *
-   * The RULES of the programme remain gym-level — a point is worth the same
-   * everywhere, and nothing here claims otherwise. What is being split is the
-   * BALANCE: whose points these are. A member holds one loyalty account attached to
-   * one home branch, so "points issued to the members we look after" is a real
-   * quantity, and it is the same population every other member-backed figure in
-   * this file counts. Attributing instead by where the points were EARNED would
-   * need an order on the ledger, which there isn't, and would scatter one member's
-   * balance across branches.
    */
-  private async loyalty(win: ReportWindow, locationId?: string): Promise<ComputedDrilldown> {
+  private async loyalty(win: ReportWindow, s: ReportStrings): Promise<ComputedDrilldown> {
     const [ledger, redemptions] = await Promise.all([
       this.prisma.client.loyaltyLedgerEntry.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end }, ...memberAtLocation(locationId) },
+        where: { createdAt: { gte: win.start, lt: win.end } },
         select: { delta: true, createdAt: true },
       }),
       this.prisma.client.loyaltyRedemption.findMany({
-        where: { redeemedAt: { gte: win.start, lt: win.end }, ...memberAtLocation(locationId) },
+        where: { redeemedAt: { gte: win.start, lt: win.end } },
         select: {
           rewardName: true,
           rewardType: true,
@@ -1420,13 +1316,13 @@ export class ReportDrilldownService {
       }),
     ]);
 
-    const issuedOverTime = emptyBuckets(win);
+    const issuedOverTime = emptyBuckets(win, win.zone);
     let issued = 0;
     let redeemed = 0;
     for (const entry of ledger) {
       if (entry.delta > 0) {
         issued += entry.delta;
-        const key = bucketKey(entry.createdAt, win.bucket);
+        const key = bucketKey(entry.createdAt, win.bucket, win.zone);
         if (issuedOverTime.has(key)) {
           issuedOverTime.set(key, (issuedOverTime.get(key) ?? 0) + entry.delta);
         }
@@ -1442,7 +1338,7 @@ export class ReportDrilldownService {
         continue;
       }
       redemptionCount += 1;
-      const label = REWARD_TYPE_LABELS[redemption.rewardType];
+      const label = s.values.rewardTypes[redemption.rewardType] ?? redemption.rewardType;
       byRewardType.set(label, (byRewardType.get(label) ?? 0) + 1);
     }
 
@@ -1491,9 +1387,9 @@ export class ReportDrilldownService {
         ],
         rows: redemptions.slice(0, 20).map(
           (redemption): ReportDrilldownRow => ({
-            date: isoDate(redemption.redeemedAt),
+            date: isoDate(redemption.redeemedAt, win.zone),
             reward: redemption.rewardName,
-            type: REWARD_TYPE_LABELS[redemption.rewardType],
+            type: s.values.rewardTypes[redemption.rewardType] ?? redemption.rewardType,
             points: redemption.pointsSpent,
             status: capitalize(redemption.status),
           }),
@@ -1543,9 +1439,10 @@ function isTerminalBefore(
   return churnedAt !== null && churnedAt < at;
 }
 
-/** The `YYYY-MM-01` month key an instant falls into (UTC). */
-function monthStart(at: Date): string {
-  return isoDate(new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)));
+/** The `YYYY-MM-01` month key an instant falls into, in `zone`. */
+function monthStart(at: Date, zone: string): string {
+  const { year, month } = zonedParts(at, zone);
+  return `${year}-${String(month).padStart(2, '0')}-01`;
 }
 
 /** Escape one CSV field (RFC 4180) — quote + double embedded quotes when needed. */
@@ -1553,15 +1450,6 @@ function csvCell(value: string): string {
   return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-/** Display labels for the settlement methods the till records. */
-const SALES_METHOD_LABEL: Record<string, string> = {
-  CASH: 'Cash',
-  CARD: 'Card',
-  MEMBER_ACCOUNT: 'Member account',
-};
-
-/** Label + grouping key for a sale or refund with no staff member behind it. */
-const UNATTRIBUTED_SELLER_LABEL = 'Unattributed';
 const UNATTRIBUTED_SELLER_KEY = '__unattributed__';
 
 /**
@@ -1577,13 +1465,16 @@ const DRILLDOWN_TABLE_ROWS = 20;
  * an invited or plain membership has neither, and the cross-gym `User` name is the
  * fallback.
  */
-function sellerName(staff: {
-  firstName?: string | null;
-  lastName?: string | null;
-  user?: { name: string | null } | null;
-}): string {
+function sellerName(
+  staff: {
+    firstName?: string | null;
+    lastName?: string | null;
+    user?: { name: string | null } | null;
+  },
+  s: ReportStrings,
+): string {
   const split = [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim();
-  return split || staff.user?.name?.trim() || UNATTRIBUTED_SELLER_LABEL;
+  return split || staff.user?.name?.trim() || s.values.unattributed;
 }
 
 /** A label→value map as breakdown items, richest first, dropping empty slices. */
@@ -1597,4 +1488,15 @@ function sortedBreakdown(totals: Map<string, number>): { label: string; value: n
 /** Capitalise a lowercase enum value for display (e.g. `fulfilled` → `Fulfilled`). */
 function capitalize(value: string): string {
   return value.length === 0 ? value : value[0]!.toUpperCase() + value.slice(1);
+}
+
+/** Human label for a settlement method, in the report's language. */
+function methodLabel(s: ReportStrings, method: string): string {
+  const labels: Record<string, string> = {
+    CASH: s.values.cash,
+    CARD: s.values.card,
+    BANK_TRANSFER: s.values.bankTransfer,
+    MEMBER_ACCOUNT: s.values.memberAccount,
+  };
+  return labels[method] ?? method;
 }

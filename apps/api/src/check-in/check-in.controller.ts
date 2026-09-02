@@ -35,7 +35,7 @@ const eligibilityQuerySchema = z.object({ gymMemberId: z.string().min(1) });
  * Every route is tenant-scoped staff access: {@link TenantGuard} pins the request
  * to one gym and {@link PermissionsGuard} enforces the capability. Reads (today's
  * arrivals, the stats snapshot, a member's eligibility) require
- * {@link Permission.MemberRead}; recording an arrival requires
+ * {@link Permission.MemberCheckinRead}; recording an arrival requires
  * {@link Permission.MemberWrite} — the same capabilities the member roster gates
  * on, both held by the `RECEPTIONIST` role that mans the desk. The service runs on
  * the tenant-scoped Prisma client, so no handler ever passes or trusts a `gymId`.
@@ -69,7 +69,7 @@ export class CheckInController {
    */
   @Get('today')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.MemberRead)
+  @RequirePermissions(Permission.MemberCheckinRead)
   async today(@Query() query: unknown): Promise<TodayCheckInsResponse> {
     return this.checkIns.listToday(parse(listTodayCheckInsQuerySchema, query));
   }
@@ -82,7 +82,7 @@ export class CheckInController {
    */
   @Get('stats')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.MemberRead)
+  @RequirePermissions(Permission.MemberCheckinRead)
   async stats(@Query() query: unknown): Promise<CheckInStatsResponse> {
     return this.checkIns.getStats(parse(checkInStatsQuerySchema, query));
   }
@@ -94,7 +94,7 @@ export class CheckInController {
    */
   @Get('eligibility')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.MemberRead)
+  @RequirePermissions(Permission.MemberCheckinRead)
   async eligibility(@Query() query: unknown): Promise<MemberEligibility> {
     return this.checkIns.getEligibility(parse(eligibilityQuerySchema, query).gymMemberId);
   }

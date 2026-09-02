@@ -47,8 +47,10 @@ describe('sidebar nav ⇄ route guards', () => {
   it('gates every nav item exactly as its destination is gated', () => {
     for (const item of NAV_ITEMS) {
       const guard = routeGuardForPath(item.href);
-      expect(guard, `${item.href} has no route guard — the page opens for any staff session`)
-        .not.toBeNull();
+      expect(
+        guard,
+        `${item.href} has no route guard — the page opens for any staff session`,
+      ).not.toBeNull();
       expect(
         item.permission,
         `nav "${item.href}" and its route guard require different capabilities`,
@@ -116,10 +118,7 @@ describe('sidebar nav ⇄ route guards', () => {
       '/reports',
       '/locations',
     ]) {
-      expect(
-        routeGuardForPath(href)?.permission,
-        `${href} is not capability-gated`,
-      ).toBeDefined();
+      expect(routeGuardForPath(href)?.permission, `${href} is not capability-gated`).toBeDefined();
     }
   });
 
@@ -190,6 +189,22 @@ describe('sidebar nav ⇄ route guards', () => {
   it('shows the Growth group to an OWNER and to a MANAGER', () => {
     for (const role of ['OWNER', 'MANAGER'] as Role[]) {
       expect(defaultNav(role)).toEqual(expect.arrayContaining(['/automation', '/marketing']));
+    }
+  });
+
+  it('opens Staff to a MANAGER and hides it from the desk and the floor', () => {
+    // The roles policy: a manager runs the roster of their locations (StaffRead,
+    // MANAGER+), a receptionist or trainer only ever sees schedules elsewhere.
+    // Stated through the route guard rather than a rank ladder — `/staff` is the
+    // one route that carries BOTH a capability and a role floor, because handing
+    // out roles is not a thing a gym may delegate by unticking a box.
+    expect(routeGuardForPath('/staff')?.minRole).toBe('MANAGER');
+    expect(routeGuardForPath('/staff')?.permission).toBe(Permission.StaffRead);
+    for (const role of ['OWNER', 'MANAGER'] as Role[]) {
+      expect(defaultNav(role)).toContain('/staff');
+    }
+    for (const role of ['RECEPTIONIST', 'TRAINER'] as Role[]) {
+      expect(defaultNav(role)).not.toContain('/staff');
     }
   });
 

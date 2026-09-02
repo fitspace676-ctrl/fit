@@ -8,7 +8,9 @@ function drilldown(sections: ReportDrilldown['sections']): ReportDrilldown {
     metric: 'sales',
     name: 'Sales',
     description: 'Test',
-    range: '30d',
+    range: 'mtd',
+    from: '2026-08-01',
+    to: '2026-08-31',
     currency: 'GEL',
     kpis: [
       { id: 'gross-sales', label: 'Gross sales', value: 724_300, unit: 'money' },

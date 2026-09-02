@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Headers,
   Query,
   Res,
   UseGuards,
@@ -16,6 +17,7 @@ import {
   REPORT_METRIC_CATALOG,
   reportDrilldownExportQuerySchema,
   reportDrilldownQuerySchema,
+  reportWindowSlug,
   reportMetricSchema,
   type ReportDrilldown,
   type ReportMetricDefinition,
@@ -27,6 +29,7 @@ import { RequirePermissions } from '../common/decorators/require-permissions.dec
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { ReportDrilldownService } from './report-drilldown.service';
+import { parseAcceptLanguage } from '../mail/email-locale';
 
 /**
  * Admin-console reports drill-down API (`/admin/reports/drilldown`, T12.12).
@@ -37,7 +40,8 @@ import { ReportDrilldownService } from './report-drilldown.service';
  * console renders with the brand Astryx charts. Sits on its own base path (not
  * `admin/reports/:report`) so its `:metric` segment never collides with the CSV/
  * XLSX report catalogue. {@link TenantGuard} pins the gym and {@link PermissionsGuard}
- * gates every route on {@link Permission.ReportView} (OWNER / MANAGER), like the
+ * gates reads on {@link Permission.ReportView} and exports on
+ * {@link Permission.ReportExport} (OWNER / MANAGER), like the
  * rest of the reporting surfaces.
  */
 @Controller('admin/reports/drilldown')
@@ -69,18 +73,22 @@ export class ReportDrilldownController {
    * branch from the screen it was downloaded from.
    */
   @Get(':metric/export')
-  @RequirePermissions(Permission.ReportView)
+  @RequirePermissions(Permission.ReportExport)
   async export(
     @Param('metric') metric: string,
     @Query() query: unknown,
     @Res() res: Response,
+    @Headers('accept-language') acceptLanguage?: string,
   ): Promise<void> {
+    // The console forwards the language its reader is using; a bare API call
+    // (a script, a scheduled export) gets the gym's own.
+    const lang = parseAcceptLanguage(acceptLanguage);
     const parsedMetric = parse(reportMetricSchema, metric);
     const params = parse(reportDrilldownExportQuerySchema, query);
-    const filename = `report-${parsedMetric}-${params.range}.${params.format}`;
+    const filename = `report-${parsedMetric}-${reportWindowSlug(params)}.${params.format}`;
 
     if (params.format === 'xlsx') {
-      const workbook = await this.drilldown.buildDrilldownXlsx(parsedMetric, params);
+      const workbook = await this.drilldown.buildDrilldownXlsx(parsedMetric, params, lang);
       res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(workbook);
@@ -89,7 +97,7 @@ export class ReportDrilldownController {
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    for await (const chunk of this.drilldown.streamDrilldownCsv(parsedMetric, params)) {
+    for await (const chunk of this.drilldown.streamDrilldownCsv(parsedMetric, params, lang)) {
       res.write(chunk);
     }
     res.end();
@@ -109,9 +117,17 @@ export class ReportDrilldownController {
   @Get(':metric')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ReportView)
-  async run(@Param('metric') metric: string, @Query() query: unknown): Promise<ReportDrilldown> {
+  async run(
+    @Param('metric') metric: string,
+    @Query() query: unknown,
+    @Headers('accept-language') acceptLanguage?: string,
+  ): Promise<ReportDrilldown> {
     const parsedMetric = parse(reportMetricSchema, metric);
-    return this.drilldown.run(parsedMetric, parse(reportDrilldownQuerySchema, query));
+    return this.drilldown.run(
+      parsedMetric,
+      parse(reportDrilldownQuerySchema, query),
+      parseAcceptLanguage(acceptLanguage),
+    );
   }
 }
 

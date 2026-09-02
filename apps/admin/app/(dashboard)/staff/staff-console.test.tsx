@@ -120,6 +120,9 @@ function renderConsole({
             staff={staff}
             currentUserId={null}
             canManage={false}
+            canAssignRole={false}
+            canAssignOwner={false}
+            canViewRoles={false}
             roles={ROLES}
             workingNow={workingNow}
             locations={[
