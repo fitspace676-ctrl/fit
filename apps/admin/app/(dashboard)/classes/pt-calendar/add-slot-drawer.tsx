@@ -1,22 +1,33 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
+import { serviceLabel } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { zonedDayStart } from '../schedule/week';
 import { createServiceSessionAction } from './pt-session-actions';
 
+/** The slot the drawer opens on when the host pointed at a time on the grid. */
+export interface SlotSeed {
+  /** `YYYY-MM-DD` on the gym's calendar. */
+  date: string;
+  /** `HH:MM` on the gym's clock. */
+  time: string;
+}
+
 /** A service the slot drawer can open a slot for. */
 export interface ServiceOption {
   id: string;
   name: string;
   staffName: string;
+  /** The gym's category the service is filed under, or null. */
+  category: string | null;
   durationMinutes: number;
 }
 
@@ -63,14 +74,39 @@ export function AddSlotDrawer({
   services,
   defaultDate,
   timeZone,
+  seed,
+  openToken = 0,
 }: {
   services: ServiceOption[];
   /** `YYYY-MM-DD` the date field opens on (the visible week's Monday). */
   defaultDate: string;
   timeZone: string;
+  /**
+   * Slot the form opens on, when the host opened this drawer by pointing at a
+   * time rather than pressing the button - see {@link openToken}.
+   */
+  seed?: SlotSeed;
+  /**
+   * Opens the drawer from outside its own button: the calendar bumps this when a
+   * staffer clicks an empty slot on the grid. A counter rather than a boolean so
+   * clicking the same slot twice reopens the drawer both times.
+   */
+  openToken?: number;
 }) {
   const t = useTranslations('admin.services.sessions');
   const drawer = useSlideDrawer();
+
+  // `openToken` starts at 0 and only ever climbs, so this fires on a real request
+  // from the host and never on mount.
+  const lastToken = useRef(openToken);
+  const openDrawer = drawer.open;
+  useEffect(() => {
+    if (openToken !== lastToken.current) {
+      lastToken.current = openToken;
+      openDrawer();
+    }
+  }, [openToken, openDrawer]);
+
   return (
     <>
       <Button
@@ -106,7 +142,8 @@ export function AddSlotDrawer({
               <SlotForm
                 key={drawer.contentKey}
                 services={services}
-                defaultDate={defaultDate}
+                defaultDate={seed?.date ?? defaultDate}
+                defaultTime={seed?.time ?? '10:00'}
                 timeZone={timeZone}
                 onDone={drawer.requestClose}
               />
@@ -121,11 +158,13 @@ export function AddSlotDrawer({
 function SlotForm({
   services,
   defaultDate,
+  defaultTime,
   timeZone,
   onDone,
 }: {
   services: ServiceOption[];
   defaultDate: string;
+  defaultTime: string;
   timeZone: string;
   onDone: () => void;
 }) {
@@ -134,7 +173,7 @@ function SlotForm({
   const [pending, startTransition] = useTransition();
   const [serviceId, setServiceId] = useState(services[0]?.id ?? '');
   const [date, setDate] = useState(defaultDate);
-  const [time, setTime] = useState('10:00');
+  const [time, setTime] = useState(defaultTime);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const service = services.find((s) => s.id === serviceId) ?? null;
@@ -178,7 +217,8 @@ function SlotForm({
         >
           {services.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name} · {s.staffName}
+              {serviceLabel(s.name, s.staffName)}
+              {s.category ? ` · ${s.category}` : ''}
             </option>
           ))}
         </select>

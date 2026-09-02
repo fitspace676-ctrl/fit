@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
+import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -8,25 +9,37 @@ import {
   fetchAdminServiceSessions,
   fetchAdminServices,
   fetchPtSessions,
+  fetchServiceCategories,
   fetchTrainers,
 } from '@/lib/api';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
-import { resolveWeekStart, toIsoDate, weekWindow, zonedToday } from '../schedule/week';
-import { TrainerSelect, type TrainerOption } from './trainer-select';
+import type { ScheduleOption, ScheduleView } from '../schedule/calendar-board';
+import {
+  dayWindow,
+  monthWindow,
+  resolveDayAnchor,
+  resolveMonthAnchor,
+  resolveWeekStart,
+  toIsoDate,
+  weekWindow,
+  zonedToday,
+} from '../schedule/week';
 import { PtCalendarBoard } from './pt-calendar-board';
 import type { ServiceOption } from './add-slot-drawer';
 
 export const metadata: Metadata = {
   title: 'Classes · PT Calendar - FormaCore Admin',
   description:
-    'The gym’s weekly personal-training calendar: every trainer’s 1:1 sessions on one grid, filterable by trainer, with new sessions scheduled like classes.',
+    "The gym's personal-training calendar: every trainer's 1:1 sessions and service slots on the same day, week, month and list views as the class schedule, filterable by trainer.",
 };
 
+// The calendar reflects live tenant state and the staff session token, so it must
+// never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
 
-/** Enough trainers to fill the selector without paging. */
+/** Enough trainers to fill the filter without paging. */
 const TRAINER_LIMIT = 100;
 
 const styles = stylex.create({
@@ -74,15 +87,17 @@ function readParam(params: SearchParams, key: string): string {
 }
 
 /**
- * The Classes hub's PT Calendar tab. Personal training is a 1:1 session between a
- * trainer and a member on its own calendar (no class type / template).
+ * The Classes hub's PT Calendar tab: the class Schedule's own calendar, drawn
+ * over personal training. It resolves the visible window from `?week=` and
+ * `?view=` exactly as the Schedule page does, fetches the trainer calendar's
+ * sessions and the service slots for that window, and hands them to the board.
  *
- * The calendar is always on screen: it opens showing **every** trainer's sessions for
- * the week on the same weekly time-grid the class Schedule uses. `?trainerId=` is an
- * optional narrowing filter, not a gate — staff pick the trainer when they add a
- * session, not before they can see anything. Reads require `PtSessionRead` (the API
- * guard), writes `PtSessionManage` — the board only offers add / cancel / complete to
- * writers.
+ * `?trainerId=` and `?categoryId=` are optional narrowing filters, not gates:
+ * the calendar opens on every trainer and every category. A category is a
+ * property of a service, so the category filter narrows the service slots;
+ * the trainer calendar's own sessions carry no category and step aside while
+ * one is chosen. Reads require `PtSessionRead` (the API guard), writes
+ * `PtSessionManage` - the board only offers add / cancel / complete to writers.
  */
 export default async function PtCalendarPage({
   searchParams,
@@ -90,54 +105,92 @@ export default async function PtCalendarPage({
   searchParams: Promise<SearchParams>;
 }) {
   const raw = await searchParams;
+  const t = await getTranslations('admin.ptCalendar');
+
+  const rawView = readParam(raw, 'view');
+  const view: ScheduleView =
+    rawView === 'month' || rawView === 'list' || rawView === 'day' ? rawView : 'week';
   const trainerId = readParam(raw, 'trainerId');
+  const categoryId = readParam(raw, 'categoryId');
   const weekParam = readParam(raw, 'week') || undefined;
 
-  // The PT week is the gym's week, on the gym's clock — see `gymTimeZone`.
+  // The PT calendar is the gym's own week, on the gym's clock - see `gymTimeZone`.
   const { timeZone, openHour, closeHour } = await gymCalendarContext();
-  const weekStart = resolveWeekStart(weekParam, zonedToday(new Date(), timeZone));
-  const { from, to } = weekWindow(weekStart, timeZone);
+  const today = zonedToday(new Date(), timeZone);
+  const weekStart = resolveWeekStart(weekParam, today);
+  const monthAnchor = resolveMonthAnchor(weekParam, today);
+  const dayAnchor = resolveDayAnchor(weekParam, today);
+  // Each view fetches exactly the window it draws: the whole month grid, one
+  // gym-local day for the agenda, a single week for the week grid + list.
+  const { from, to } =
+    view === 'month'
+      ? monthWindow(monthAnchor, timeZone)
+      : view === 'day'
+        ? dayWindow(dayAnchor, timeZone)
+        : weekWindow(weekStart, timeZone);
 
   const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.PtSessionManage);
 
-  const trainers: TrainerOption[] = await fetchTrainers({ status: 'ACTIVE', limit: TRAINER_LIMIT })
-    .then((res) => res.data.map((trainer) => ({ id: trainer.id, name: trainer.name })))
-    .catch(() => [] as TrainerOption[]);
+  const [trainers, categories] = await Promise.all([
+    fetchTrainers({ status: 'ACTIVE', limit: TRAINER_LIMIT })
+      .then((res): ScheduleOption[] =>
+        res.data.map((trainer) => ({ id: trainer.id, name: trainer.name })),
+      )
+      .catch((): ScheduleOption[] => []),
+    // The category filter's options: the gym's own service categories.
+    fetchServiceCategories()
+      .then((res): ScheduleOption[] => res.data.map((c) => ({ id: c.id, name: c.name })))
+      .catch((): ScheduleOption[] => []),
+  ]);
 
   let body;
   try {
     const [sessionsRes, slotsRes, servicesRes] = await Promise.all([
-      // No trainer filter unless one was picked — the calendar opens on everyone.
-      fetchPtSessions({ from, to, ...(trainerId ? { trainerId } : {}) }),
+      // No trainer filter unless one was picked - the calendar opens on everyone.
+      // A category filter leaves the trainer calendar out: those sessions have
+      // no service, so no category to match.
+      categoryId
+        ? Promise.resolve({ sessions: [] })
+        : fetchPtSessions({ from, to, ...(trainerId ? { trainerId } : {}) }),
       // Service slots are keyed by staff member, not trainer profile, so the
-      // trainer filter does not apply to them; the week does.
-      fetchAdminServiceSessions({ from, to }).catch(() => ({ sessions: [] })),
+      // trainer filter does not apply to them; the window and the category do.
+      fetchAdminServiceSessions({ from, to, ...(categoryId ? { categoryId } : {}) }).catch(() => ({
+        sessions: [],
+      })),
       fetchAdminServices({ status: 'ACTIVE', limit: 100 }).catch(() => null),
     ]);
     const services: ServiceOption[] = (servicesRes?.data ?? []).map((service) => ({
       id: service.id,
       name: service.name,
       staffName: service.staff.name,
+      category: service.category?.name ?? null,
       durationMinutes: service.durationMinutes,
     }));
     body = (
       <PtCalendarBoard
-        timeZone={timeZone}
-        openHour={openHour}
-        closeHour={closeHour}
+        view={view}
         weekStart={toIsoDate(weekStart)}
+        monthAnchor={toIsoDate(monthAnchor)}
+        dayAnchor={toIsoDate(dayAnchor)}
         sessions={sessionsRes.sessions}
         slots={slotsRes.sessions}
         services={services}
+        trainers={trainers}
+        trainerId={trainerId}
+        categories={categories}
+        categoryId={categoryId}
         canWrite={canWrite}
+        timeZone={timeZone}
+        openHour={openHour}
+        closeHour={closeHour}
       />
     );
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load PT sessions (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('error.withStatus', { status: error.status, message: error.message })
+        : t('error.unreachable');
     body = (
       <Card padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -151,17 +204,11 @@ export default async function PtCalendarPage({
   return (
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>PT Calendar</h1>
-        <p {...stylex.props(styles.subtitle)}>
-          Every trainer’s personal-training week, on one calendar. Schedule a 1:1 session the same
-          way you add classes — picking the trainer as you go — and cancel or complete it from the
-          session. Narrow to a single trainer with the filter.
-        </p>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
 
       <ClassesTabs />
-
-      <TrainerSelect trainers={trainers} trainerId={trainerId} />
 
       {body}
     </div>
