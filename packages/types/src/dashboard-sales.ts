@@ -130,9 +130,12 @@ export type SalesTopSeller = z.infer<typeof salesTopSellerSchema>;
 /** How many rows the ranked top-sellers list carries. */
 export const SALES_TOP_SELLERS_LIMIT = 8;
 
-/** The tab's four headline figures. All MINOR units. */
+/**
+ * The tab's three headline figures. All MINOR units. There is deliberately no
+ * gross figure: the owner removed it (2026-09-02), and the gross-vs-refunds
+ * chart already shows what net is net of.
+ */
 export const salesKpisSchema = z.object({
-  grossSales: z.number(),
   netSales: z.number(),
   refunded: z.number(),
   avgSale: z.number(),

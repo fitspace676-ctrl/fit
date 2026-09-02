@@ -26,7 +26,6 @@ const messages = {
           retail: 'Retail & POS',
         },
         kpi: {
-          grossSales: 'Gross sales',
           netSales: 'Net sales',
           refunded: 'Refunded',
           avgSale: 'Avg sale',
@@ -72,7 +71,7 @@ function response(over: Partial<DashboardSalesResponse> = {}): DashboardSalesRes
     granularity: 'daily',
     productType: 'all',
     currency: 'GEL',
-    kpis: { grossSales: 16_000, netSales: 14_000, refunded: 2_000, avgSale: 7_000 },
+    kpis: { netSales: 14_000, refunded: 2_000, avgSale: 7_000 },
     revenueOverTime: [
       { label: '2026-08-01', value: 9_000 },
       { label: '2026-08-02', value: 5_000 },
@@ -108,7 +107,9 @@ describe('SalesView', () => {
     expect(screen.getByText('New sales vs refunds')).toBeInTheDocument();
     expect(screen.getByText('Sales by payment method')).toBeInTheDocument();
     expect(screen.getByText('Top sellers')).toBeInTheDocument();
-    expect(screen.getByText('Gross sales')).toBeInTheDocument();
+    expect(screen.getByText('Net sales')).toBeInTheDocument();
+    // Gross sales was removed from the strip on the owner's word; it must not creep back.
+    expect(screen.queryByText('Gross sales')).not.toBeInTheDocument();
     expect(loadSalesAction).toHaveBeenCalledWith({ granularity: 'daily', productType: 'all' });
   });
 
@@ -120,8 +121,7 @@ describe('SalesView', () => {
     renderView();
     await screen.findByText('Revenue over time');
 
-    // KPI strip: 16_000 / 14_000 / 2_000 / 7_000 minor units.
-    expect(screen.getByText('GEL 160')).toBeInTheDocument();
+    // KPI strip: 14_000 / 2_000 / 7_000 minor units.
     expect(screen.getByText('GEL 20')).toBeInTheDocument();
     expect(screen.getByText('GEL 70')).toBeInTheDocument();
     // Four sites land on 140: the strip's net sales (14_000), the trend
@@ -192,7 +192,7 @@ describe('SalesView', () => {
     loadSalesAction.mockResolvedValue({
       ok: true,
       data: response({
-        kpis: { grossSales: 0, netSales: 0, refunded: 0, avgSale: 0 },
+        kpis: { netSales: 0, refunded: 0, avgSale: 0 },
         revenueOverTime: [{ label: '2026-08-01', value: 0 }],
         salesVsRefunds: [{ label: '2026-08-01', sales: 0, refunds: 0 }],
         byPaymentMethod: [],
