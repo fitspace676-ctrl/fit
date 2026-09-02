@@ -5,13 +5,12 @@ import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
-import type { AdminServiceSession, ServiceSessionStatus } from '@fit/types';
+import { serviceLabel, type AdminServiceSession, type ServiceSessionStatus } from '@fit/types';
 import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
 import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 import { Icon } from '@/components/ui';
 import type { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { zonedClock, zonedIsoDate } from '../schedule/week';
-import type { PlacedSession } from './pt-calendar-board';
 import { cancelServiceSessionAction, completeServiceSessionAction } from './pt-session-actions';
 
 const STATUS_TONE: Record<ServiceSessionStatus, BadgeTone> = {
@@ -22,36 +21,6 @@ const STATUS_TONE: Record<ServiceSessionStatus, BadgeTone> = {
 };
 
 const styles = stylex.create({
-  block: {
-    position: 'absolute',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.125rem',
-    overflow: 'hidden',
-    padding: '0.25rem 0.375rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    textAlign: 'left',
-    cursor: 'pointer',
-    outlineStyle: 'none',
-    fontSize: '0.6875rem',
-    lineHeight: 1.2,
-  },
-  open: {
-    borderStyle: 'dashed',
-    borderColor: 'var(--color-border-emphasized)',
-    backgroundColor: 'var(--color-background-surface)',
-    color: 'var(--color-text-secondary)',
-  },
-  booked: {
-    borderColor: 'var(--color-accent)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  done: { opacity: 0.55 },
-  time: { fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
-  who: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   drawer: {
     height: 'calc(100dvh - 1.5rem)',
     borderRadius: 'var(--radius-container)',
@@ -93,47 +62,8 @@ const styles = stylex.create({
   errorText: { margin: 0, fontSize: '0.875rem', color: 'var(--color-error)' },
 });
 
-/** `HH:MM` on the gym's clock — `createDateTimeFormat` reads UTC, so it must not do this. */
+/** `HH:MM` on the gym's clock - `createDateTimeFormat` reads UTC, so it must not do this. */
 const clock = (iso: string, timeZone: string) => zonedClock(new Date(iso), timeZone);
-
-/** One positioned service slot: open (dashed) or booked (lime, the member's name). */
-export function SlotBlock({
-  placed,
-  timeZone,
-  onOpen,
-}: {
-  placed: PlacedSession<AdminServiceSession>;
-  timeZone: string;
-  onOpen: (slot: AdminServiceSession) => void;
-}) {
-  const t = useTranslations('admin.services.sessions');
-  const { session: slot } = placed;
-  const isOpen = slot.status === 'OPEN';
-  const isBooked = slot.status === 'BOOKED';
-  const who = isOpen ? t('openSlotLabel') : (slot.memberName ?? slot.serviceName);
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(slot)}
-      aria-label={`${clock(slot.startsAt, timeZone)} · ${slot.serviceName} · ${who}`}
-      {...stylex.props(
-        styles.block,
-        isOpen && styles.open,
-        isBooked && styles.booked,
-        !isOpen && !isBooked && styles.done,
-      )}
-      style={{
-        top: `${placed.topRem}rem`,
-        height: `${placed.heightRem}rem`,
-        left: `calc(${placed.leftPct}% + 0.125rem)`,
-        width: `calc(${placed.widthPct}% - 0.25rem)`,
-      }}
-    >
-      <span {...stylex.props(styles.time)}>{clock(slot.startsAt, timeZone)}</span>
-      <span {...stylex.props(styles.who)}>{who}</span>
-    </button>
-  );
-}
 
 /** The slot's detail drawer: service, staff, when, member, invoice; cancel / complete. */
 export function SlotDetail({
@@ -211,7 +141,7 @@ export function SlotDetail({
             <div {...stylex.props(styles.row)}>
               <span {...stylex.props(styles.label)}>{t('service')}</span>
               <span {...stylex.props(styles.value)}>
-                {slot.serviceName} · {slot.staffName}
+                {serviceLabel(slot.serviceName, slot.staffName)}
               </span>
             </div>
             <div {...stylex.props(styles.row)}>

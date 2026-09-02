@@ -4,12 +4,10 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
+import type { ServiceCategory } from '@fit/types';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
-
-/** The type select's values; `''` is "all types". Labels come from `admin.services`. */
-const TYPE_OPTIONS = ['', 'PERSONAL_TRAINING', 'CUSTOM'] as const;
 
 const styles = stylex.create({
   row: {
@@ -69,13 +67,21 @@ const styles = stylex.create({
 
 /**
  * The services catalogue filter bar: a debounced search box (name / description)
- * and a type select, following the shop catalog's filter bar. Both write their
+ * and a category select, following the shop catalog's filter bar. Both write their
  * state to the URL search params (the single source of truth the server page
  * reads), resetting to page 1 on any change. Navigation runs in a transition so
  * the input stays responsive. Status filtering lives in the sibling
  * `ServicesStatusTabs`.
  */
-export function ServicesFilters({ search, type }: { search: string; type: string }) {
+export function ServicesFilters({
+  search,
+  categoryId,
+  categories,
+}: {
+  search: string;
+  categoryId: string;
+  categories: ServiceCategory[];
+}) {
   const t = useTranslations('admin.services');
   const router = useRouter();
   const pathname = usePathname();
@@ -125,18 +131,19 @@ export function ServicesFilters({ search, type }: { search: string; type: string
       </div>
 
       <div {...stylex.props(styles.typeWrap)}>
-        <label htmlFor="service-type-filter" {...stylex.props(styles.srOnly)}>
-          {t('filters.typeLabel')}
+        <label htmlFor="service-category-filter" {...stylex.props(styles.srOnly)}>
+          {t('filters.categoryLabel')}
         </label>
         <select
-          id="service-type-filter"
-          value={type}
-          onChange={(event) => commit({ type: event.target.value })}
+          id="service-category-filter"
+          value={categoryId}
+          onChange={(event) => commit({ categoryId: event.target.value })}
           {...stylex.props(styles.control)}
         >
-          {TYPE_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option === '' ? t('filters.allTypes') : t(`type.${option}`)}
+          <option value="">{t('filters.allCategories')}</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
             </option>
           ))}
         </select>

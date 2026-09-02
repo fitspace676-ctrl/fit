@@ -39,6 +39,8 @@ export const listAdminServiceSessionsQuerySchema = windowRefine(
     ...windowFields,
     staffId: z.string().min(1).optional(),
     serviceId: z.string().min(1).optional(),
+    /** Only slots of services filed under this category (see `ServiceCategory`). */
+    categoryId: z.string().min(1).optional(),
   }),
 );
 export type ListAdminServiceSessionsQuery = z.infer<typeof listAdminServiceSessionsQuerySchema>;
@@ -151,3 +153,16 @@ export interface ListMemberServiceSessionsResponse {
 /** `POST /me/service-sessions/:id/book` — the booked session with its invoice. */
 export const bookServiceSessionResultSchema = z.object({ session: memberServiceSessionSchema });
 export type BookServiceSessionResult = z.infer<typeof bookServiceSessionResultSchema>;
+
+/**
+ * A service named beside the staff member who delivers it, once. A
+ * personal-training service is named after its trainer when it is created
+ * ("Personal training - Nino"), so appending the trainer again would print the
+ * name twice; only a service whose name does not already carry it gets the
+ * " · staff" suffix.
+ */
+export function serviceLabel(name: string, staffName: string): string {
+  const staff = staffName.trim();
+  if (staff === '' || name.toLocaleLowerCase().includes(staff.toLocaleLowerCase())) return name;
+  return `${name} · ${staff}`;
+}

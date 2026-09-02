@@ -49,8 +49,9 @@ const DETAIL_SELECT = {
 /** The columns the calendar CARD projection reads — a strict subset of
  * {@link DETAIL_SELECT}. The listing is the hottest query on the public surface
  * (a week view is ~40 rows per request, unauthenticated and cacheable), so it
- * deliberately does not pull `description` or the room/duration columns only the
- * detail page renders. */
+ * deliberately does not pull the room/duration columns only the detail page
+ * renders. It does pull `description`: the booking modal opens straight from a
+ * card, and the member reads what they are booking there. */
 const CARD_SELECT = {
   id: true,
   startsAt: true,
@@ -62,6 +63,7 @@ const CARD_SELECT = {
   template: {
     select: {
       title: true,
+      description: true,
       category: true,
       color: true,
       imageUrl: true,
@@ -70,7 +72,7 @@ const CARD_SELECT = {
       location: { select: { name: true } },
     },
   },
-  classType: { select: { name: true, color: true, capacity: true } },
+  classType: { select: { name: true, description: true, color: true, capacity: true } },
 } satisfies Prisma.ClassInstanceSelect;
 
 type InstanceCardRow = Prisma.ClassInstanceGetPayload<{ select: typeof CARD_SELECT }>;
@@ -173,6 +175,7 @@ function toCard(row: InstanceCardRow): ListClassInstancesResponse['instances'][n
     color: row.template?.color ?? row.classType?.color ?? '#2563eb',
     // Only templates carry a cover; a one-off from a class type has none.
     imageUrl: row.template?.imageUrl ?? null,
+    description: row.template?.description ?? row.classType?.description ?? '',
   };
 }
 

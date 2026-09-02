@@ -1,20 +1,26 @@
 'use client';
 
-// @fit/admin — live class-occupancy stream (T8.10).
+// @fit/admin - live class-occupancy stream (T8.10).
 //
 // The push replacement for the schedule's polling. `useOccupancyStream()` opens a
 // same-origin `EventSource` against the `/classes/schedule/stream` proxy (which forwards
 // the staff token to the API's `GET /admin/schedule/stream`) and, on each
 // `class.occupancy` snapshot, calls `router.refresh()` so the `force-dynamic`
-// schedule page re-fetches and the capacity bars move without a navigation — the
+// schedule page re-fetches and the capacity bars move without a navigation - the
 // same refresh seam `useLiveRefresh` uses, but driven by real events instead of a
 // timer.
 //
 // Refreshes are throttled: the server already debounces per occurrence, but a busy
 // gym can still change several distinct classes in a burst, and one route refresh
-// picks them all up. The stream is dropped while the tab is hidden (a back-office
-// screen left open all day shouldn't hold a connection or refresh in the
-// background) and re-opened — with an immediate catch-up refresh — when shown.
+// picks them all up.
+//
+// A hidden tab keeps the stream but not the refreshes. It used to drop the
+// stream and refresh unconditionally on every return, which made each glance at
+// another window cost a whole route re-render (the layout's three API calls
+// included) whether or not anything had changed. Now events that land while the
+// tab is hidden only set a flag, and the one catch-up refresh happens on return
+// only when that flag is set. An idle SSE connection with a 25-second ping is
+// cheaper than the refreshes it saves.
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -38,10 +44,16 @@ export function useOccupancyStream(enabled = true): void {
 
     let source: EventSource | undefined;
     let throttle: ReturnType<typeof setTimeout> | undefined;
+    /** An event arrived while the tab was hidden; refresh once on return. */
+    let missedWhileHidden = false;
 
     // Coalesce bursts: schedule one refresh per window rather than one per event.
     const scheduleRefresh = (): void => {
-      if (throttle !== undefined || (typeof document !== 'undefined' && document.hidden)) {
+      if (document.hidden) {
+        missedWhileHidden = true;
+        return;
+      }
+      if (throttle !== undefined) {
         return;
       }
       throttle = setTimeout(() => {
@@ -72,12 +84,16 @@ export function useOccupancyStream(enabled = true): void {
 
     const onVisibilityChange = (): void => {
       if (document.hidden) {
-        close();
-      } else {
-        // Catch up to whatever landed while hidden, then re-open the stream.
-        router.refresh();
-        open();
+        return;
       }
+      // Back in view: catch up only if something actually landed meanwhile.
+      if (missedWhileHidden) {
+        missedWhileHidden = false;
+        scheduleRefresh();
+      }
+      // The browser may have dropped the connection while hidden; `open` is a
+      // no-op when it is still there.
+      open();
     };
 
     open();

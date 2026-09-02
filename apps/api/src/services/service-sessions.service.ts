@@ -83,6 +83,7 @@ export class ServiceSessionsService {
       where: {
         ...(query.staffId ? { staffId: query.staffId } : {}),
         ...(query.serviceId ? { serviceId: query.serviceId } : {}),
+        ...(query.categoryId ? { service: { categoryId: query.categoryId } } : {}),
         startsAt: { gte: new Date(query.from), lt: new Date(query.to) },
       },
       select: SESSION_SELECT,

@@ -55,7 +55,7 @@
       },
       "sessions": {
         "title": "Sessions",
-        "subtitle": "Personal training and other sessions you have booked, with each invoice.",
+        "subtitle": "Personal session and other sessions you have booked, with each invoice.",
         "action": "Book a session",
         "upcoming": "Upcoming",
         "past": "History",
@@ -192,7 +192,6 @@
           "retail": "Retail & POS"
         },
         "kpi": {
-          "grossSales": "Gross sales",
           "netSales": "Net sales",
           "refunded": "Refunded",
           "avgSale": "Avg sale"
@@ -802,7 +801,7 @@
         },
         "servicesEmpty": "No active services to sell yet.",
         "servicesNoMatch": "No services match that.",
-        "ptTitle": "Personal training - {staff}",
+        "ptTitle": "Personal session - {staff}",
         "membersOwing": "Owes {amount}"
       },
       "member": {
@@ -1097,6 +1096,89 @@
         "addAt": "Add a class at {time}",
         "now": "Now",
         "stacked": "{count} classes at this time"
+      }
+    },
+    "ptCalendar": {
+      "title": "PT Calendar",
+      "subtitle": "Every trainer's personal-session week on the same calendar as the class schedule: day, week, month or list. Open a slot the way you add a class, and cancel or complete a session from it. Narrow to one trainer with the filter.",
+      "error": {
+        "withStatus": "Could not load PT sessions ({status}): {message}",
+        "unreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      },
+      "toolbar": {
+        "prev": "Previous",
+        "next": "Next",
+        "today": "Today",
+        "range": "Calendar range",
+        "mode": "Calendar mode",
+        "week": "Week",
+        "month": "Month",
+        "calendar": "Calendar",
+        "list": "List"
+      },
+      "time": "Time",
+      "month": {
+        "more": "+{count} more"
+      },
+      "filters": {
+        "aria": "PT calendar filters",
+        "trainer": "Filter by trainer",
+        "allTrainers": "All trainers",
+        "clear": "Clear",
+        "category": "Filter by category",
+        "allCategories": "All categories"
+      },
+      "week": {
+        "gridAria": "Week of PT sessions"
+      },
+      "day": {
+        "agendaAria": "Day of PT sessions",
+        "today": "Today",
+        "classes": "Sessions",
+        "booked": "Booked",
+        "canceled": "Canceled",
+        "morning": "Morning",
+        "afternoon": "Afternoon",
+        "evening": "Evening",
+        "minutes": "{count} min",
+        "add": "Open a slot on this day",
+        "empty": "No PT sessions on this day.",
+        "emptyFiltered": "No PT sessions match this filter on this day."
+      },
+      "status": {
+        "SCHEDULED": "Scheduled",
+        "CANCELED": "Canceled",
+        "COMPLETED": "Completed"
+      },
+      "card": {
+        "viewAria": "{title} at {time} - open session",
+        "spots": "{booked}/{cap} booked",
+        "remaining": "{remaining} left",
+        "full": "Full"
+      },
+      "empty": {
+        "day": "No sessions",
+        "week": "No PT sessions this week.",
+        "filtered": "No PT sessions match this filter this week."
+      },
+      "grid": {
+        "addAt": "Open a slot at {time}",
+        "now": "Now",
+        "stacked": "{count} sessions at this time"
+      },
+      "slot": {
+        "open": "Open slot"
+      },
+      "session": {
+        "title": "PT session",
+        "trainer": "Trainer",
+        "workoutType": "Workout type",
+        "when": "When",
+        "status": "Status",
+        "notes": "Notes",
+        "markComplete": "Mark complete",
+        "cancel": "Cancel session",
+        "unexpected": "Something went wrong"
       }
     },
     "members": {
@@ -2244,7 +2326,7 @@
           "members": "The member base, every check-in, and who needs retention or renewal attention.",
           "revenue": "Invoices and what is still owed, recurring and expected revenue, and how it was collected.",
           "products": "Product sales and their lines, stock on hand, and every stock movement.",
-          "classes": "Class attendance and its bookings, personal-training sessions, and credit packs.",
+          "classes": "Class attendance and its bookings, personal-session sessions, and credit packs.",
           "staff": "Trainer activity and sales, the staff rota, and the audit trail."
         }
       }
@@ -3007,17 +3089,17 @@
     },
     "services": {
       "title": "Services",
-      "subtitle": "Personal training and custom services, who delivers them and what a session costs. Sell them at the POS; personal-training slots go on the PT calendar.",
+      "subtitle": "Personal sessions filed under your own categories: who delivers them and what a session costs. Sell them at the POS; slots go on the PT calendar.",
       "newService": "New service",
       "editService": "Edit service",
       "summary": {
         "total": "Services",
-        "personalTraining": "Personal training",
-        "custom": "Custom",
-        "archived": "Archived"
+        "personalTraining": "Personal session",
+        "archived": "Archived",
+        "categories": "Categories"
       },
       "type": {
-        "PERSONAL_TRAINING": "Personal training",
+        "PERSONAL_TRAINING": "Personal session",
         "CUSTOM": "Custom"
       },
       "tabs": {
@@ -3028,8 +3110,8 @@
       "filters": {
         "searchLabel": "Search services by name or description",
         "searchPlaceholder": "Search by name or description…",
-        "typeLabel": "Filter services by type",
-        "allTypes": "All types"
+        "categoryLabel": "Filter services by category",
+        "allCategories": "All categories"
       },
       "list": {
         "empty": "No services here yet.",
@@ -3038,25 +3120,10 @@
         "edit": "Edit",
         "archive": "Archive",
         "restore": "Restore",
-        "ptTitle": "Personal training - {staff}",
+        "ptTitle": "Personal session - {staff}",
         "delete": "Delete",
         "confirmDelete": "Delete \"{name}\" for good? Open slots are removed with it; this cannot be undone.",
         "deleteTitle": "Delete service"
-      },
-      "schedule": {
-        "weekly": "Every {days}",
-        "daily": "Daily",
-        "once": "Once · {date}",
-        "until": "until {date}",
-        "weekday": {
-          "MO": "Mon",
-          "TU": "Tue",
-          "WE": "Wed",
-          "TH": "Thu",
-          "FR": "Fri",
-          "SA": "Sat",
-          "SU": "Sun"
-        }
       },
       "pager": {
         "range": "{from}-{to} of {total}",
@@ -3065,37 +3132,24 @@
       },
       "drawer": {
         "loadingStaff": "Loading staff…",
-        "ptTitle": "Personal training",
+        "ptTitle": "Personal session",
         "ptHint": "One-to-one sessions with a trainer. Named after the trainer; slots are added on the PT calendar.",
-        "customTitle": "Custom service",
-        "customHint": "Anything else: a massage, a body-composition test. You name it and set when it runs."
+        "categoryTitle": "Create category",
+        "categoryHint": "File your sessions under your own names: boxing, pilates, nutrition. A category is picked on a personal session and shown on it."
       },
       "form": {
         "name": "Name",
-        "ptNameHint": "Named after the trainer automatically, e.g. \"Personal training - Nino Beridze\".",
+        "ptNameHint": "Named after the trainer automatically, e.g. \"Personal session - Nino Beridze\".",
         "staff": "Staff member",
         "choose": "Choose…",
         "noTrainers": "No staff member has a trainer profile yet. Add one under Trainers first.",
         "price": "Price per session",
         "duration": "Duration (minutes)",
         "description": "Description",
-        "repeats": "Repeats",
-        "freq": {
-          "ONCE": "Once",
-          "DAILY": "Daily",
-          "WEEKLY": "Weekly"
-        },
-        "on": "On",
-        "date": "Date",
-        "startsOn": "Starts on",
-        "time": "Time",
-        "until": "Until (optional)",
         "priceRequired": "Enter a price",
         "cancel": "Cancel",
         "saveChanges": "Save changes",
         "create": "Create service",
-        "schedule": "Schedule",
-        "scheduleOptionalHint": "Optional for personal training: leave the date empty and the trainer's slots come from the PT calendar instead.",
         "cover": "Cover image",
         "optional": "(optional)",
         "coverAlt": "Service cover",
@@ -3108,7 +3162,10 @@
         "coverTooLarge": "The image is larger than 5 MB. Choose a smaller file.",
         "coverUploadFailed": "Upload failed ({status}). Please try again.",
         "coverNoPublicUrl": "Uploaded, but no public URL is configured for storage.",
-        "coverNetwork": "Could not upload the image. Check your connection and try again."
+        "coverNetwork": "Could not upload the image. Check your connection and try again.",
+        "category": "Category",
+        "noCategory": "No category",
+        "noCategoriesHint": "No categories yet. Make one from New service > Create category."
       },
       "errors": {
         "load": "Could not load services ({status}): {message}",
@@ -3147,6 +3204,18 @@
           "FAILED": "Failed",
           "REFUNDED": "Refunded"
         }
+      },
+      "categories": {
+        "hint": "Categories are the gym's own names for its sessions. Pick one on a personal session; it shows on the service and on the member portal.",
+        "name": "Category name",
+        "placeholder": "e.g. Boxing",
+        "add": "Add category",
+        "empty": "No categories yet.",
+        "listAria": "Categories",
+        "serviceCount": "{count, plural, =0 {No services} one {# service} other {# services}}",
+        "inUse": "Move its services to another category before deleting it.",
+        "delete": "Delete {name}",
+        "back": "Back"
       }
     },
     "agent": {
@@ -3932,7 +4001,7 @@
           "sessionsLeftOther": "{count} PT sessions left",
           "none": "No PT sessions left",
           "refreshesActive": "Refreshes with your renewal",
-          "refreshesEmpty": "Buy a pack to book personal training",
+          "refreshesEmpty": "Buy a pack to book personal session",
           "buy": "Buy"
         },
         "stats": {
@@ -3966,7 +4035,7 @@
           "notificationsHint": "Reminders & updates",
           "trainers": "Trainers",
           "trainersHint": "Browse and book",
-          "training": "Personal training",
+          "training": "Personal session",
           "trainingHint": "Packages & PT sessions"
         },
         "freezeSheet": {
@@ -4391,16 +4460,16 @@
   },
   "services": {
     "title": "Services",
-    "subtitle": "Personal training and the other services this gym offers, and when they run.",
-    "ptTitle": "Personal training - {staff}",
+    "subtitle": "Personal session and the other services this gym offers, and when they run.",
+    "ptTitle": "Personal session - {staff}",
     "type": {
-      "PERSONAL_TRAINING": "Personal training",
+      "PERSONAL_TRAINING": "Personal session",
       "CUSTOM": "Service"
     },
     "filters": {
       "label": "Filter services",
       "ALL": "All",
-      "PERSONAL_TRAINING": "Personal training",
+      "PERSONAL_TRAINING": "Personal session",
       "CUSTOM": "Other services",
       "noMatch": "No services of this type yet."
     },
@@ -4411,31 +4480,7 @@
       "with": "With {staff}",
       "minutes": "{count} min",
       "perSession": "per session",
-      "showSchedule": "When it runs",
-      "hideSchedule": "Hide dates",
       "bookSession": "Book a session"
-    },
-    "schedule": {
-      "title": "When it runs",
-      "byAppointment": "Sessions are booked one by one with the trainer - ask at the front desk or message the gym.",
-      "weekly": "Every {days}",
-      "daily": "Every day",
-      "once": "Once, on {date}",
-      "until": "until {date}",
-      "noUpcoming": "No dates in the next four weeks.",
-      "columns": {
-        "day": "Day",
-        "time": "Time"
-      },
-      "weekday": {
-        "MO": "Mon",
-        "TU": "Tue",
-        "WE": "Wed",
-        "TH": "Thu",
-        "FR": "Fri",
-        "SA": "Sat",
-        "SU": "Sun"
-      }
     },
     "empty": {
       "title": "No services yet",
@@ -4459,7 +4504,7 @@
       "retry": "Try again"
     },
     "booking": {
-      "ptTitle": "Personal training - {staff}",
+      "ptTitle": "Personal session - {staff}",
       "minutes": "{count} min",
       "book": "Book this slot",
       "booking": "Booking…",
@@ -4547,7 +4592,7 @@
     "retry": "Try again"
   },
   "training": {
-    "title": "Personal Training",
+    "title": "Personal Session",
     "subtitle": "Train one-on-one with a coach. Choose a package and track your upcoming sessions.",
     "retry": "Try again",
     "packages": {
@@ -4560,7 +4605,7 @@
       "confirmTitle": "Buy {name}?",
       "empty": {
         "title": "No packages yet",
-        "subtitle": "This gym hasn’t set up any personal-training packages yet. Check back soon."
+        "subtitle": "This gym hasn’t set up any personal-session packages yet. Check back soon."
       },
       "errAlreadySubscribed": "You already have an active membership.",
       "errGeneric": "The purchase did not go through. Please try again.",

@@ -70,13 +70,13 @@ type Tile = {
 
 /**
  * The services catalogue's summary tiles — four at-a-glance counts for the whole
- * filtered set (not just the visible page): how many services exist, the split
- * between personal training and custom services, and how many are archived.
+ * whole set (not just the visible page): how many services exist, how many are
+ * personal sessions, how many categories the gym has made, and how many are archived.
  * Server-rendered from the `GET /admin/services` response `summary`, so the
  * tiles always agree with the list below.
  */
 export async function ServicesSummary({ summary }: { summary: ServiceRosterSummary }) {
-  const { total, personalTraining, custom, archived } = summary;
+  const { total, personalTraining, categories, archived } = summary;
   const t = await getTranslations('admin.services.summary');
   const count = createNumberFormat(await getLocale());
 
@@ -96,11 +96,11 @@ export async function ServicesSummary({ summary }: { summary: ServiceRosterSumma
       value: count.format(personalTraining),
     },
     {
-      key: 'custom',
-      label: t('custom'),
+      key: 'categories',
+      label: t('categories'),
       icon: 'tag',
       tone: styles.toneWarning,
-      value: count.format(custom),
+      value: count.format(categories),
     },
     {
       key: 'archived',

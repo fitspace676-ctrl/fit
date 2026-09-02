@@ -165,7 +165,6 @@ export class DashboardSalesService {
       productType: query.productType,
       currency: locale.currency,
       kpis: {
-        grossSales: gross,
         netSales: net,
         refunded,
         avgSale: transactions === 0 ? 0 : Math.round(net / transactions),

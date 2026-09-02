@@ -145,6 +145,16 @@ const styles = stylex.create({
     width: '0.875rem',
     flexShrink: 0,
   },
+  // The class in the template's own words. `pre-line` keeps the paragraphs a
+  // staffer typed; the size and colour match the detail page's description so
+  // the modal and the page read as one.
+  description: {
+    margin: 0,
+    whiteSpace: 'pre-line',
+    fontSize: '0.875rem',
+    lineHeight: 1.7,
+    color: 'var(--color-text-secondary)',
+  },
   capCard: {
     display: 'flex',
     flexDirection: 'column',
@@ -412,6 +422,13 @@ export function ClassBookingModal({ instance, onClose, timeZone }: ClassBookingM
               <Badge tone="neutral" label={instance.category} xstyle={styles.categoryBadge} />
             ) : null}
             {when}
+
+            {/* What the class is - the member decides to book here, so the
+                description that used to live only on the detail page is here
+                too, in full. */}
+            {instance.description ? (
+              <p {...stylex.props(styles.description)}>{instance.description}</p>
+            ) : null}
 
             <Card variant="muted" padding="none" xstyle={styles.capCard}>
               <span {...stylex.props(styles.capLabel)}>{t('modal.capacity')}</span>

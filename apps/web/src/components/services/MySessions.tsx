@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations } from 'next-intl/server';
-import type { MemberServiceSession } from '@fit/types';
+import { serviceLabel, type MemberServiceSession } from '@fit/types';
 import { Badge, Card, type BadgeTone } from '@/src/components/ui/kit';
 import { formatMoney } from '@/lib/shop';
 import { formatZoned, formatZonedTime } from '../classes/date-utils';
@@ -64,9 +64,7 @@ export async function MySessions({
                 })}{' '}
                 · {formatZonedTime(s.startsAt, timeZone)}
               </p>
-              <p {...stylex.props(styles.sub)}>
-                {s.serviceName} · {s.staffName}
-              </p>
+              <p {...stylex.props(styles.sub)}>{serviceLabel(s.serviceName, s.staffName)}</p>
             </div>
             <div {...stylex.props(styles.meta)}>
               <Badge tone={TONE[s.status]} label={t(`status.${s.status}`)} />

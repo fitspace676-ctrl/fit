@@ -31,6 +31,7 @@ import {
 import { Badge } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useSession } from '@/hooks/use-session';
+import type { Session } from '@/lib/auth-session';
 import { isNavItemActive, NAV_GROUPS, visibleNavItems } from '@/lib/nav';
 import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar-collapse';
 import type { ShellSystemState } from './admin-shell';
@@ -338,10 +339,12 @@ export interface SidebarProps {
   system: ShellSystemState;
   /** Collapsed state seeded from the cookie on the server (no first-paint jump). */
   defaultCollapsed?: boolean;
+  /** The server-verified session, so the nav paints on the first frame (no skeleton). */
+  initialSession?: Session | null;
 }
 
-export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
-  const { user, isLoading } = useSession();
+export function Sidebar({ system, defaultCollapsed = false, initialSession }: SidebarProps) {
+  const { user, isLoading } = useSession(initialSession);
   const pathname = usePathname();
   const t = useTranslations('admin');
   const current = appPath(pathname);

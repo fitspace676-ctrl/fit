@@ -3,10 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import {
   Permission,
+  createServiceCategorySchema,
   createServiceSchema,
   roleHasPermission,
   updateServiceSchema,
+  type CreateServiceCategoryInput,
   type CreateServiceInput,
+  type ServiceCategory,
   type ServiceStaffOption,
   type UpdateServiceData,
 } from '@fit/types';
@@ -14,8 +17,11 @@ import {
   ApiError,
   archiveService,
   createService,
+  createServiceCategory,
   createUpload,
   deleteService,
+  deleteServiceCategory,
+  fetchServiceCategories,
   fetchServiceStaff,
   restoreService,
   updateService,
@@ -41,8 +47,14 @@ function toMessage(error: unknown): string {
         return 'Pick a staff member of this gym.';
       case 'SERVICE_STAFF_NOT_TRAINER':
         return 'A personal-training service needs a staff member with a trainer profile.';
-      case 'SERVICE_SCHEDULE_REQUIRED':
-        return 'A custom service needs a schedule.';
+      case 'SERVICE_CATEGORY_INVALID':
+        return "Pick one of this gym's categories.";
+      case 'SERVICE_CATEGORY_EXISTS':
+        return 'A category with that name already exists.';
+      case 'SERVICE_CATEGORY_IN_USE':
+        return 'Move its services to another category before deleting it.';
+      case 'SERVICE_CATEGORY_NOT_FOUND':
+        return 'That category no longer exists - refresh the page.';
       case 'SERVICE_NOT_ARCHIVED':
         return 'Archive the service before deleting it.';
       case 'SERVICE_HAS_SESSIONS':
@@ -145,6 +157,44 @@ export async function fetchServiceStaffAction(): Promise<ActionResult<ServiceSta
   if (!(await sessionHas(Permission.ProductRead))) return { ok: false, error: 'Not authorized' };
   try {
     return { ok: true, data: (await fetchServiceStaff()).data };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** The gym's categories, for the form's picker and the drawer's category panel. */
+export async function fetchServiceCategoriesAction(): Promise<ActionResult<ServiceCategory[]>> {
+  if (!(await sessionHas(Permission.ProductRead))) return { ok: false, error: 'Not authorized' };
+  try {
+    return { ok: true, data: (await fetchServiceCategories()).data };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+export async function createServiceCategoryAction(
+  input: CreateServiceCategoryInput,
+): Promise<ActionResult<ServiceCategory>> {
+  if (!(await sessionHas(Permission.ProductWrite))) return { ok: false, error: 'Not authorized' };
+  const parsed = createServiceCategorySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid category' };
+  }
+  try {
+    const category = await createServiceCategory(parsed.data);
+    revalidatePath('/services');
+    return { ok: true, data: category };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+export async function deleteServiceCategoryAction(id: string): Promise<ActionResult> {
+  if (!(await sessionHas(Permission.ProductWrite))) return { ok: false, error: 'Not authorized' };
+  try {
+    await deleteServiceCategory(id);
+    revalidatePath('/services');
+    return { ok: true, data: undefined };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

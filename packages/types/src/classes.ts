@@ -52,6 +52,13 @@ export const classInstanceCardSchema = z.object({
    * one nullable URL per row costs almost nothing.
    */
   imageUrl: z.string().url().nullable(),
+  /**
+   * What the class is, in the template's own words (empty when it has none).
+   * On the card for the same reason as the cover: the booking modal opens
+   * straight from a calendar card, and a member deciding whether to book
+   * should read what they are booking without a second round-trip.
+   */
+  description: z.string(),
 });
 
 /** A single class occurrence card — {@link classInstanceCardSchema}. */
@@ -72,7 +79,7 @@ export type ClassInstanceStatus = z.infer<typeof classInstanceStatusSchema>;
 /**
  * One class occurrence as the member-facing **detail** page needs it (T5.9) — a
  * richer denormalised projection than the calendar {@link classInstanceCardSchema
- * card}. Adds the template's full `description`, the scheduled `durationMinutes`,
+ * card}. Adds the scheduled `durationMinutes`,
  * the `room` within the location (empty string when none), and the occurrence
  * `status` so a shared link to a since-canceled class degrades gracefully. As on
  * the card, `trainerName` / `locationName` are empty strings when the template
@@ -80,7 +87,6 @@ export type ClassInstanceStatus = z.infer<typeof classInstanceStatusSchema>;
  * override, so the page renders remaining spots as `capacity - bookedCount`.
  */
 export const classInstanceDetailSchema = classInstanceCardSchema.extend({
-  description: z.string(),
   durationMinutes: z.number().int().positive(),
   room: z.string(),
   status: classInstanceStatusSchema,
