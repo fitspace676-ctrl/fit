@@ -59,6 +59,7 @@ import type {
   ListAdminLocationsResponse,
   ListAdminTrainersQuery,
   ListAdminTrainersResponse,
+  ListTrainerClientsResponse,
   ListMembersQuery,
   ListMembersResponse,
   ListAdminProductsQuery,
@@ -552,6 +553,18 @@ export async function fetchTrainerAvailability(
     cache: 'no-store',
   });
   return unwrap<GetTrainerAvailabilityResponse>(res);
+}
+
+/**
+ * `GET /admin/trainers/:id/clients` — the coach's personal-training clients,
+ * folded from their booked and completed service sessions.
+ */
+export async function fetchTrainerClients(id: string): Promise<ListTrainerClientsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}/clients`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListTrainerClientsResponse>(res);
 }
 
 /**

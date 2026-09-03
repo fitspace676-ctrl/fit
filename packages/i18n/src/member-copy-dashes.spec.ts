@@ -64,7 +64,13 @@ describe('member portal copy', () => {
  * Console namespaces held to the same rule. The console's older copy predates it,
  * so this list grows one feature at a time rather than covering `admin.*` wholesale.
  */
-const CONSOLE_NAMESPACES = ['admin.services', 'admin.pos.products', 'admin.ptCalendar'] as const;
+const CONSOLE_NAMESPACES = [
+  'admin.services',
+  'admin.pos.products',
+  'admin.ptCalendar',
+  'admin.trainers.addDrawer',
+  'admin.trainers.clients',
+] as const;
 
 /** The subtree at a dotted `path`, e.g. `admin.services`. */
 function at(catalogue: Record<string, unknown>, path: string): unknown {

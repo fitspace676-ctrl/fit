@@ -11,7 +11,7 @@ import {
   type AdminTrainerDetail,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchTrainer, fetchTrainerAvailability } from '@/lib/api';
+import { ApiError, fetchTrainer, fetchTrainerAvailability, fetchTrainerClients } from '@/lib/api';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
@@ -384,6 +384,13 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     .then((res) => res.availability)
     .catch(() => weeklyAvailabilitySchema.parse({}));
 
+  // The PT clients the Clients tab lists. Fail-soft for the same reason
+  // availability is: one secondary read must not turn the whole trainer page
+  // into a 500, and an empty list renders as the tab's normal empty state.
+  const clients = await fetchTrainerClients(trainer.id)
+    .then((res) => res.clients)
+    .catch(() => []);
+
   // The gym's zone, for the next-class label — read on the gym clock, like the
   // schedule board (falls back to the platform default inside the helper).
   const { timeZone } = await gymCalendarContext();
@@ -480,6 +487,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
       <TrainerTabs
         trainer={trainer}
         availability={availability}
+        clients={clients}
         canEditAvailability={canEditAvailability}
         timeZone={timeZone}
       />
