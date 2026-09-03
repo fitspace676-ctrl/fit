@@ -85,6 +85,9 @@ function setup(overrides?: {
     findMany: vi.fn((_args: unknown) => Promise.resolve([] as unknown[])),
   };
   const review = { count: vi.fn(() => Promise.resolve(0)) };
+  const serviceSession = {
+    findMany: vi.fn((_args: unknown) => Promise.resolve([] as unknown[])),
+  };
 
   // Staff ⇄ trainer link: a coach is created/renamed together with the
   // (login-less) staff record, so the writes run in one transaction over the
@@ -116,6 +119,7 @@ function setup(overrides?: {
     classInstance,
     booking,
     review,
+    serviceSession,
   };
   // Interactive transactions hand the callback the same scoped client here — the
   // service only needs `tx` to expose the models it writes.
@@ -142,6 +146,7 @@ function setup(overrides?: {
     gymMemberUpdate,
     classInstance,
     booking,
+    serviceSession,
   };
 }
 
@@ -519,6 +524,113 @@ describe('AdminTrainersService', () => {
       expect(args as { where: { classInstance: unknown } }).toMatchObject({
         where: { classInstance: bothShapes },
       });
+    });
+  });
+  describe('listClients', () => {
+    /** A `ServiceSession` row as `listClients` selects it. */
+    const session = (over?: Record<string, unknown>) => ({
+      memberId: 'm-1',
+      startsAt: new Date('2026-08-01T09:00:00.000Z'),
+      status: 'COMPLETED',
+      member: { id: 'm-1', firstName: 'Nino', lastName: 'Beridze', user: { name: null } },
+      ...over,
+    });
+
+    /**
+     * `listClients` reads the trainer only through `requireTrainer`, whose select
+     * is `{ id, staffId, photoUrl }` - so stub that projection rather than a
+     * roster row (`row()` models the roster select and carries no `staffId`).
+     */
+    function withSessions(rows: unknown[], staffId: string | null = 'gm-1') {
+      const ctx = setup();
+      ctx.findFirst.mockResolvedValue({
+        id: 't-1',
+        staffId,
+        photoUrl: null,
+      } as unknown as TrainerRecord);
+      ctx.serviceSession.findMany.mockResolvedValue(rows);
+      return ctx;
+    }
+
+    it('folds sessions into one row per member', async () => {
+      const { service } = withSessions([
+        session(),
+        session({ startsAt: new Date('2026-08-08T09:00:00.000Z'), status: 'BOOKED' }),
+      ]);
+
+      const result = await service.listClients('t-1');
+
+      expect(result.clients).toHaveLength(1);
+      expect(result.clients[0]).toMatchObject({
+        memberId: 'm-1',
+        name: 'Nino Beridze',
+        sessionCount: 2,
+        completedCount: 1,
+      });
+      expect(result.totalSessions).toBe(2);
+    });
+
+    it("queries only this coach's booked and completed sessions", async () => {
+      const { service, serviceSession } = withSessions([]);
+
+      await service.listClients('t-1');
+
+      expect(serviceSession.findMany.mock.calls[0]![0]).toMatchObject({
+        where: {
+          staffId: 'gm-1',
+          memberId: { not: null },
+          status: { in: ['BOOKED', 'COMPLETED'] },
+        },
+      });
+    });
+
+    it('returns an empty list without querying when the coach has no staff record', async () => {
+      const { service, serviceSession } = withSessions([], null);
+
+      const result = await service.listClients('t-1');
+
+      // No `staffId` means no session can point at this coach - the query would
+      // match every session in the gym, or none, depending on how null compares.
+      expect(result).toEqual({ clients: [], totalSessions: 0 });
+      expect(serviceSession.findMany).not.toHaveBeenCalled();
+    });
+
+    it('puts clients with an upcoming session first, soonest first', async () => {
+      const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const later = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const { service } = withSessions([
+        session({
+          memberId: 'm-3',
+          startsAt: past,
+          status: 'COMPLETED',
+          member: { id: 'm-3', firstName: 'Old', lastName: 'Client', user: { name: null } },
+        }),
+        session({
+          memberId: 'm-2',
+          startsAt: later,
+          status: 'BOOKED',
+          member: { id: 'm-2', firstName: 'Later', lastName: 'Client', user: { name: null } },
+        }),
+        session({
+          memberId: 'm-1',
+          startsAt: future,
+          status: 'BOOKED',
+          member: { id: 'm-1', firstName: 'Soon', lastName: 'Client', user: { name: null } },
+        }),
+      ]);
+
+      const result = await service.listClients('t-1');
+
+      expect(result.clients.map((client) => client.memberId)).toEqual(['m-1', 'm-2', 'm-3']);
+      expect(result.clients[0]?.upcomingCount).toBe(1);
+      expect(result.clients[2]?.nextSessionAt).toBeNull();
+    });
+
+    it('throws 404 TRAINER_NOT_FOUND for an unknown / cross-tenant id', async () => {
+      const { service } = setup({ findFirst: null });
+
+      await expect(service.listClients('missing')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

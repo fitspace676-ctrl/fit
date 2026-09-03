@@ -6,6 +6,7 @@ import {
   Prisma,
   ReviewStatus,
   Role,
+  ServiceSessionStatus,
   TrainerStatus,
 } from '@fit/db';
 import {
@@ -19,9 +20,11 @@ import {
   type GetTrainerAvailabilityResponse,
   type ListAdminTrainersQuery,
   type ListAdminTrainersResponse,
+  type ListTrainerClientsResponse,
   type SetTrainerAvailabilityData,
   type SetTrainerAvailabilityResponse,
   type SetTrainerStatusResponse,
+  type TrainerClientRow,
   type TrainerNextClass,
   type TrainerThisWeek,
   type UpdateTrainerData,
@@ -361,6 +364,91 @@ export class AdminTrainersService {
    * scoped `where` constrains `gymId`, so a cross-tenant id never matches — the
    * guard for every write.
    */
+  /**
+   * The trainer's personal-training clients (the detail page's Clients tab).
+   *
+   * The relationship the gym actually records is `ServiceSession`: a slot of a
+   * service, opened on the PT calendar against the coach's **staff** record and
+   * booked by a member. So the join runs through `Trainer.staffId`, not the
+   * trainer id - and a coach whose staff record was removed has none by
+   * construction, which is why that case returns early rather than issuing a
+   * query whose `staffId` would be `null`.
+   *
+   * `OPEN` slots carry no member and `CANCELLED` ones did not happen, so neither
+   * makes someone a client. The fold to one row per member happens in memory: a
+   * single coach's session history is small and bounded, and doing it here keeps
+   * the four figures per client (total, completed, upcoming, and the two
+   * instants) consistent with one another, which four separate `groupBy`
+   * round-trips would not guarantee.
+   */
+  async listClients(id: string): Promise<ListTrainerClientsResponse> {
+    const trainer = await this.requireTrainer(id);
+    if (!trainer.staffId) {
+      return { clients: [], totalSessions: 0 };
+    }
+
+    const rows = await this.prisma.client.serviceSession.findMany({
+      where: {
+        staffId: trainer.staffId,
+        memberId: { not: null },
+        status: { in: [ServiceSessionStatus.BOOKED, ServiceSessionStatus.COMPLETED] },
+      },
+      select: {
+        memberId: true,
+        startsAt: true,
+        status: true,
+        member: {
+          select: { id: true, firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+      },
+      orderBy: { startsAt: 'asc' },
+    });
+
+    const now = Date.now();
+    const byMember = new Map<string, TrainerClientRow>();
+
+    for (const row of rows) {
+      // The `memberId: { not: null }` filter guarantees both, but Prisma types
+      // the relation as optional - narrow rather than assert.
+      const memberId = row.memberId;
+      if (!memberId) continue;
+
+      const existing = byMember.get(memberId);
+      const client: TrainerClientRow = existing ?? {
+        memberId,
+        name: memberName(row.member),
+        sessionCount: 0,
+        completedCount: 0,
+        upcomingCount: 0,
+        lastSessionAt: null,
+        nextSessionAt: null,
+      };
+
+      client.sessionCount += 1;
+      if (row.status === ServiceSessionStatus.COMPLETED) {
+        client.completedCount += 1;
+      }
+
+      const startsAt = row.startsAt.toISOString();
+      if (row.startsAt.getTime() > now) {
+        client.upcomingCount += 1;
+        // Rows arrive ascending, so the first future one is the soonest.
+        client.nextSessionAt ??= startsAt;
+      } else {
+        // ...and each past one is more recent than the last seen.
+        client.lastSessionAt = startsAt;
+      }
+
+      byMember.set(memberId, client);
+    }
+
+    const clients = [...byMember.values()].sort(compareClients);
+    return {
+      clients,
+      totalSessions: clients.reduce((sum, client) => sum + client.sessionCount, 0),
+    };
+  }
+
   private async requireTrainer(
     id: string,
   ): Promise<{ id: string; staffId: string | null; photoUrl: string | null }> {
@@ -637,4 +725,38 @@ export class AdminTrainersService {
     ]);
     return { classesLed, newReviews, membersTrained: attendedMembers.length };
   }
+}
+
+/**
+ * A member's display name for the clients list: the gym's own first/last
+ * (what staff typed at the desk) ahead of the account name, and a neutral
+ * fallback rather than a blank cell.
+ */
+function memberName(
+  member: {
+    firstName: string | null;
+    lastName: string | null;
+    user: { name: string | null };
+  } | null,
+): string {
+  if (!member) return 'Member';
+  const scoped = [member.firstName, member.lastName].filter(Boolean).join(' ').trim();
+  return scoped || member.user.name || 'Member';
+}
+
+/**
+ * Live relationships first. Someone with a session ahead of them outranks
+ * someone without, soonest first; everyone else falls back to their most recent
+ * session, newest first, so a list read top-down goes from "seeing them Tuesday"
+ * to "hasn't been in since spring". Name breaks the remaining ties so the order
+ * is stable across requests.
+ */
+function compareClients(a: TrainerClientRow, b: TrainerClientRow): number {
+  if (a.nextSessionAt && b.nextSessionAt) return a.nextSessionAt.localeCompare(b.nextSessionAt);
+  if (a.nextSessionAt) return -1;
+  if (b.nextSessionAt) return 1;
+  if (a.lastSessionAt && b.lastSessionAt) return b.lastSessionAt.localeCompare(a.lastSessionAt);
+  if (a.lastSessionAt) return -1;
+  if (b.lastSessionAt) return 1;
+  return a.name.localeCompare(b.name);
 }

@@ -23,6 +23,7 @@ import {
   type GetAdminTrainerResponse,
   type GetTrainerAvailabilityResponse,
   type ListAdminTrainersResponse,
+  type ListTrainerClientsResponse,
   type SetTrainerAvailabilityResponse,
   type SetTrainerStatusResponse,
   type UpdateTrainerResponse,
@@ -72,6 +73,23 @@ export class AdminTrainersController {
   @RequirePermissions(Permission.TrainerRead)
   async getOne(@Param('id') id: string): Promise<GetAdminTrainerResponse> {
     return this.trainers.getTrainer(id);
+  }
+
+  /**
+   * `GET /admin/trainers/:id/clients` — the coach's personal-training clients,
+   * folded from their `ServiceSession` bookings. Requires
+   * {@link Permission.MemberRead} on top of `TrainerRead`: the rows name members,
+   * which is a member-directory fact rather than a trainer one, and a session
+   * holding both is exactly who should see it.
+   *
+   * A `404 TRAINER_NOT_FOUND` for an unknown / cross-tenant id; an empty list is
+   * a normal `200`.
+   */
+  @Get(':id/clients')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.TrainerRead, Permission.MemberRead)
+  async listClients(@Param('id') id: string): Promise<ListTrainerClientsResponse> {
+    return this.trainers.listClients(id);
   }
 
   /**
