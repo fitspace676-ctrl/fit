@@ -14,6 +14,7 @@
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
+import { weeklyAvailabilitySchema } from './trainer-availability';
 
 /**
  * A trainer's lifecycle within the gym, mirroring the Prisma `TrainerStatus`
@@ -200,10 +201,25 @@ const trainerProfileFields = {
  * plus an initial `status` that defaults to `ACTIVE` (a staff-added trainer is
  * live on the roster unless explicitly created inactive). The API re-validates
  * with this exact schema, so the admin form and the controller can never drift.
+ *
+ * `availability` is the coach's opening working week, the same
+ * {@link weeklyAvailabilitySchema} document `PUT /admin/trainers/:id/availability`
+ * replaces later. It is here rather than left to a follow-up call because the
+ * console asks for the hours in the same Add-trainer drawer that asks for the
+ * name: splitting them across two requests means a create that succeeds and a
+ * schedule that silently does not, and a brand-new coach who cannot be booked
+ * for a reason nobody is shown. Omitting it keeps the old behaviour exactly - a
+ * bare `{}` fills to a fully-unavailable seven-day week.
+ *
+ * Every role that holds `TrainerWrite` (OWNER, MANAGER) also holds
+ * `TrainerScheduleManage`, so accepting the week on the create endpoint widens
+ * nothing today. Should the two ever come apart, this field is the place that
+ * has to grow its own check.
  */
 export const createTrainerSchema = z.object({
   ...trainerProfileFields,
   status: trainerStatusSchema.default('ACTIVE'),
+  availability: weeklyAvailabilitySchema.default({}),
 });
 
 /** Validated `POST /admin/trainers` body — {@link createTrainerSchema}. */

@@ -88,6 +88,11 @@ function setup(overrides?: {
   const serviceSession = {
     findMany: vi.fn((_args: unknown) => Promise.resolve([] as unknown[])),
   };
+  // A coach's availability is mirrored onto their staff shift rows.
+  const shiftSlot = {
+    deleteMany: vi.fn((_args: unknown) => Promise.resolve({ count: 0 })),
+    createMany: vi.fn((_args: unknown) => Promise.resolve({ count: 0 })),
+  };
 
   // Staff ⇄ trainer link: a coach is created/renamed together with the
   // (login-less) staff record, so the writes run in one transaction over the
@@ -120,6 +125,7 @@ function setup(overrides?: {
     booking,
     review,
     serviceSession,
+    shiftSlot,
   };
   // Interactive transactions hand the callback the same scoped client here — the
   // service only needs `tx` to expose the models it writes.
@@ -147,6 +153,7 @@ function setup(overrides?: {
     classInstance,
     booking,
     serviceSession,
+    shiftSlot,
   };
 }
 
@@ -631,6 +638,75 @@ describe('AdminTrainersService', () => {
       const { service } = setup({ findFirst: null });
 
       await expect(service.listClients('missing')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+  describe('availability mirrors to the staff shift schedule', () => {
+    const workingWeek = () =>
+      weeklyAvailabilitySchema.parse({
+        mon: { available: true, windows: [{ start: '09:00', end: '13:00' }] },
+        tue: {
+          available: true,
+          windows: [
+            { start: '09:00', end: '12:00' },
+            { start: '14:00', end: '18:00' },
+          ],
+        },
+      });
+
+    /** `requireTrainer` selects `{ id, staffId, photoUrl }` - stub that shape. */
+    function withStaffId(staffId: string | null) {
+      const ctx = setup({ findFirst: row() });
+      ctx.findFirst.mockResolvedValue({
+        id: 't-1',
+        staffId,
+        photoUrl: null,
+      } as unknown as TrainerRecord);
+      return ctx;
+    }
+
+    it("rewrites the coach's shift rows when availability is saved", async () => {
+      const { service, shiftSlot } = withStaffId('gm-1');
+
+      await service.setAvailability('t-1', { availability: workingWeek() });
+
+      // Set-based, like the staff schedule editor: the whole week is replaced.
+      expect(shiftSlot.deleteMany).toHaveBeenCalledWith({ where: { staffId: 'gm-1' } });
+      const created = shiftSlot.createMany.mock.calls[0]![0] as {
+        data: { dayOfWeek: number; startTime: string; endTime: string }[];
+      };
+      // 0 = Monday .. 6 = Sunday, and a split day yields one row per window.
+      expect(created.data).toEqual([
+        { gymId: 'gym-1', staffId: 'gm-1', dayOfWeek: 0, startTime: '09:00', endTime: '13:00' },
+        { gymId: 'gym-1', staffId: 'gm-1', dayOfWeek: 1, startTime: '09:00', endTime: '12:00' },
+        { gymId: 'gym-1', staffId: 'gm-1', dayOfWeek: 1, startTime: '14:00', endTime: '18:00' },
+      ]);
+    });
+
+    it('writes the opening week to the shift schedule on create', async () => {
+      const { service, shiftSlot } = setup({ findFirst: row() });
+
+      await service.createTrainer(createInput({ availability: workingWeek() }));
+
+      expect(shiftSlot.createMany).toHaveBeenCalled();
+    });
+
+    it('clears the shift rows for a fully unavailable week without an empty insert', async () => {
+      const { service, shiftSlot } = withStaffId('gm-1');
+
+      await service.setAvailability('t-1', { availability: weeklyAvailabilitySchema.parse({}) });
+
+      expect(shiftSlot.deleteMany).toHaveBeenCalled();
+      expect(shiftSlot.createMany).not.toHaveBeenCalled();
+    });
+
+    it('skips the mirror when the coach has no staff record', async () => {
+      const { service, shiftSlot } = withStaffId(null);
+
+      await service.setAvailability('t-1', { availability: workingWeek() });
+
+      // ShiftSlot hangs off a GymMember; with no staff record there is nothing
+      // to hang it on, and a `staffId: null` delete would not be scoped.
+      expect(shiftSlot.deleteMany).not.toHaveBeenCalled();
     });
   });
 });

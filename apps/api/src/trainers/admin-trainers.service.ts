@@ -34,6 +34,7 @@ import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
+import { mirrorAvailabilityToShifts } from './trainer-shift-mirror';
 
 /** Milliseconds in a day — the window arithmetic for the show-up rate. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -247,6 +248,16 @@ export class AdminTrainersService {
         },
         select: { id: true },
       });
+
+      // The opening week also lands on the staff shift schedule, which is what
+      // the Staff profile, Who's-working and the coverage report read. One
+      // writer, two readers - see `trainer-shift-mirror.ts`.
+      await mirrorAvailabilityToShifts(tx, {
+        gymId,
+        staffId: staff.id,
+        availability: input.availability,
+      });
+
       return row.id;
     });
 
@@ -344,10 +355,21 @@ export class AdminTrainersService {
     id: string,
     input: SetTrainerAvailabilityData,
   ): Promise<SetTrainerAvailabilityResponse> {
-    await this.requireTrainer(id);
-    await this.prisma.client.trainer.update({
-      where: { id },
-      data: { availability: input.availability as unknown as Prisma.InputJsonValue },
+    const trainer = await this.requireTrainer(id);
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.trainer.update({
+        where: { id },
+        data: { availability: input.availability as unknown as Prisma.InputJsonValue },
+      });
+      // A coach with no staff record has nothing to hang shifts on, and a
+      // `staffId: null` delete would not be scoped to anyone.
+      if (trainer.staffId) {
+        await mirrorAvailabilityToShifts(tx, {
+          gymId: this.tenant.gymId,
+          staffId: trainer.staffId,
+          availability: input.availability,
+        });
+      }
     });
     return this.getAvailability(id);
   }
@@ -359,11 +381,6 @@ export class AdminTrainersService {
     return this.getTrainer(id);
   }
 
-  /**
-   * Resolve a trainer in the caller's gym or throw `404 TRAINER_NOT_FOUND`. The
-   * scoped `where` constrains `gymId`, so a cross-tenant id never matches — the
-   * guard for every write.
-   */
   /**
    * The trainer's personal-training clients (the detail page's Clients tab).
    *
@@ -449,6 +466,11 @@ export class AdminTrainersService {
     };
   }
 
+  /**
+   * Resolve a trainer in the caller's gym or throw `404 TRAINER_NOT_FOUND`. The
+   * scoped `where` constrains `gymId`, so a cross-tenant id never matches — the
+   * guard for every write.
+   */
   private async requireTrainer(
     id: string,
   ): Promise<{ id: string; staffId: string | null; photoUrl: string | null }> {
