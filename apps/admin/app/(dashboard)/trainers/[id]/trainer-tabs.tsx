@@ -106,21 +106,6 @@ const styles = stylex.create({
     letterSpacing: '0.15em',
     color: 'var(--color-text-secondary)',
   },
-  sectionLabelRow: {
-    margin: 0,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.15em',
-    color: 'var(--color-text-secondary)',
-  },
-  labelIcon: {
-    width: '0.875rem',
-    height: '0.875rem',
-  },
   bioText: {
     margin: 0,
     whiteSpace: 'pre-line',
@@ -151,44 +136,6 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     fontWeight: 500,
     color: 'var(--color-text-secondary)',
-  },
-  certList: {
-    listStyle: 'none',
-    margin: 0,
-    padding: 0,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  certItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    paddingBlock: '0.625rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--color-border)',
-    ':first-child': {
-      borderTopWidth: 0,
-    },
-  },
-  certIconTile: {
-    display: 'grid',
-    height: '2rem',
-    width: '2rem',
-    flexShrink: 0,
-    placeItems: 'center',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-text-accent)',
-  },
-  certIcon: {
-    width: '1rem',
-    height: '1rem',
-  },
-  certText: {
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
   },
   weekCard: {
     display: 'flex',
@@ -418,7 +365,16 @@ export function TrainerTabs({
   );
 }
 
-/** Overview — the About card plus the "This week" side card. */
+/**
+ * Overview - the About card plus the "This week" side card.
+ *
+ * There is no Certifications block. There used to be, and it printed
+ * `trainer.specialties` a second time as "Certified - {tag}" under a heading the
+ * schema has no column for; an empty roster then read "this gym tracks
+ * specialties, not formal certificates", explaining an absence the UI had
+ * invented. Specialties are listed once, above, which is the whole of what is
+ * actually recorded.
+ */
 function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
     <div {...stylex.props(styles.overviewGrid)}>
@@ -444,27 +400,6 @@ function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
             </div>
           ) : (
             <p {...stylex.props(styles.mutedText)}>{t('tabs.noSpecialties')}</p>
-          )}
-        </div>
-
-        <div {...stylex.props(styles.block)}>
-          <h3 {...stylex.props(styles.sectionLabelRow)}>
-            <Icon name="award" {...stylex.props(styles.labelIcon)} />
-            {t('tabs.certifications')}
-          </h3>
-          {trainer.specialties.length > 0 ? (
-            <ul {...stylex.props(styles.certList)}>
-              {trainer.specialties.map((tag) => (
-                <li key={tag} {...stylex.props(styles.certItem)}>
-                  <span {...stylex.props(styles.certIconTile)}>
-                    <Icon name="award" {...stylex.props(styles.certIcon)} />
-                  </span>
-                  <span {...stylex.props(styles.certText)}>{t('tabs.certified', { tag })}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p {...stylex.props(styles.mutedText)}>{t('tabs.noCertifications')}</p>
           )}
         </div>
       </Card>
