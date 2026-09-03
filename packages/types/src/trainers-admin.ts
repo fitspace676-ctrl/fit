@@ -14,6 +14,7 @@
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
+import { weeklyAvailabilitySchema } from './trainer-availability';
 
 /**
  * A trainer's lifecycle within the gym, mirroring the Prisma `TrainerStatus`
@@ -200,10 +201,25 @@ const trainerProfileFields = {
  * plus an initial `status` that defaults to `ACTIVE` (a staff-added trainer is
  * live on the roster unless explicitly created inactive). The API re-validates
  * with this exact schema, so the admin form and the controller can never drift.
+ *
+ * `availability` is the coach's opening working week, the same
+ * {@link weeklyAvailabilitySchema} document `PUT /admin/trainers/:id/availability`
+ * replaces later. It is here rather than left to a follow-up call because the
+ * console asks for the hours in the same Add-trainer drawer that asks for the
+ * name: splitting them across two requests means a create that succeeds and a
+ * schedule that silently does not, and a brand-new coach who cannot be booked
+ * for a reason nobody is shown. Omitting it keeps the old behaviour exactly - a
+ * bare `{}` fills to a fully-unavailable seven-day week.
+ *
+ * Every role that holds `TrainerWrite` (OWNER, MANAGER) also holds
+ * `TrainerScheduleManage`, so accepting the week on the create endpoint widens
+ * nothing today. Should the two ever come apart, this field is the place that
+ * has to grow its own check.
  */
 export const createTrainerSchema = z.object({
   ...trainerProfileFields,
   status: trainerStatusSchema.default('ACTIVE'),
+  availability: weeklyAvailabilitySchema.default({}),
 });
 
 /** Validated `POST /admin/trainers` body — {@link createTrainerSchema}. */
@@ -239,3 +255,49 @@ export type UpdateTrainerResponse = AdminTrainerDetail;
  * the trainer detail with the new `status` (`INACTIVE` / `ACTIVE`).
  */
 export type SetTrainerStatusResponse = AdminTrainerDetail;
+
+/**
+ * One personal-training client of a trainer, as the detail page's Clients tab
+ * lists them.
+ *
+ * The relationship is `ServiceSession`: staff open a slot of a service on the PT
+ * calendar (`staffId` is the coach's `GymMember`), a member books it (`memberId`
+ * is set and an invoice is raised), and the slot runs to `COMPLETED`. A client is
+ * therefore a member with at least one `BOOKED` or `COMPLETED` session with this
+ * coach - `OPEN` slots have no member and `CANCELLED` ones did not happen.
+ *
+ * Counts are all-time; the two instants bracket the relationship (`lastSessionAt`
+ * is the most recent session that has already started, `nextSessionAt` the
+ * soonest still ahead), so a front desk can see at a glance who is active and who
+ * has drifted. Both are `null` when there is nothing on that side of now.
+ */
+export interface TrainerClientRow {
+  memberId: string;
+  name: string;
+  /** `BOOKED` + `COMPLETED` sessions with this coach, all time. */
+  sessionCount: number;
+  /** Of those, the ones that ran. */
+  completedCount: number;
+  /** Of those, the ones still ahead. */
+  upcomingCount: number;
+  /** The most recent session that has already started, ISO-8601, or `null`. */
+  lastSessionAt: string | null;
+  /** The soonest session still ahead, ISO-8601, or `null`. */
+  nextSessionAt: string | null;
+}
+
+/**
+ * Successful `GET /admin/trainers/:id/clients` response. `clients` is ordered
+ * with the live relationships first - anyone with an upcoming session, soonest
+ * first - then everyone else by their most recent session, so the list reads as
+ * "who this coach is working with" rather than as an archive. `totalSessions`
+ * sums `sessionCount` across the rows.
+ *
+ * An empty list is a normal `200`: a coach with no PT bookings, or one whose
+ * staff record was removed (`Trainer.staffId` is `null`, so no session can point
+ * at them).
+ */
+export interface ListTrainerClientsResponse {
+  clients: TrainerClientRow[];
+  totalSessions: number;
+}

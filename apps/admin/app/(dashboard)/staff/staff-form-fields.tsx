@@ -53,6 +53,24 @@ export function emptyStaffForm(): StaffFormValue {
   };
 }
 
+/** One stored window of a day - `start`/`end` in the API's `HH:mm` format. */
+export type DayBlock = { start: string; end: string };
+
+/**
+ * Group a member's stored shift rows by weekday, each day's blocks in start
+ * order. Unlike {@link hoursFromShifts} - which folds a day to the single block
+ * the editor can hold - this keeps every row, so a coach's split shift (two
+ * windows on one day, mirrored from `Trainer.availability`) reads in full.
+ */
+export function blocksFromShifts(shifts: ShiftSlotRow[]): DayBlock[][] {
+  return DAYS.map((d) =>
+    shifts
+      .filter((s) => s.dayOfWeek === d)
+      .map((s) => ({ start: s.startTime, end: s.endTime }))
+      .sort((a, b) => a.start.localeCompare(b.start)),
+  );
+}
+
 /** Fold a member's stored shift rows into the seven-day toggle grid. */
 export function hoursFromShifts(shifts: ShiftSlotRow[]): DayHours[] {
   return DAYS.map((d) => {
@@ -210,6 +228,8 @@ export function StaffFormFields({
   pending,
   roleOptions = STAFF_ROLES,
   roleLocked = false,
+  hoursLocked = false,
+  lockedHours,
 }: {
   value: StaffFormValue;
   onChange: (patch: Partial<StaffFormValue>) => void;
@@ -220,6 +240,19 @@ export function StaffFormFields({
   roleOptions?: readonly StaffRole[];
   /** True when the role may not be changed by this session (an Owner edited by a non-owner). */
   roleLocked?: boolean;
+  /**
+   * True when this member's hours are owned elsewhere and must not be edited
+   * here - a coach, whose week lives on `Trainer.availability` and is mirrored
+   * onto their shift rows. The grid renders the stored week without controls, so
+   * the front desk can still read it.
+   */
+  hoursLocked?: boolean;
+  /**
+   * The stored week a locked grid displays, by weekday - the rows themselves
+   * rather than `value.hours`, which holds at most one block a day. Absent (or
+   * a day with no blocks) reads as a day off. Ignored unless `hoursLocked`.
+   */
+  lockedHours?: DayBlock[][];
 }) {
   const t = useTranslations('admin.staff');
 
@@ -358,22 +391,40 @@ export function StaffFormFields({
 
       <div {...stylex.props(styles.section)}>
         <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.workingHours')}</span>
+        {hoursLocked ? (
+          <p {...stylex.props(styles.empty)}>{t('addStaffDrawer.hoursFromTrainer')}</p>
+        ) : null}
         <div {...stylex.props(styles.hours)}>
           {DAYS.map((d) => {
             const h = value.hours[d]!;
+            // A locked row reads from the stored rows, so a split shift shows
+            // both of its windows instead of only the first.
+            const blocks = hoursLocked ? (lockedHours?.[d] ?? []) : [];
             return (
               <div key={d} {...stylex.props(styles.hourRow)}>
                 <span {...stylex.props(styles.dayName)}>
                   {t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
                 </span>
-                <Switch
-                  checked={h.on}
-                  onChange={(next) => setDay(d, { on: next })}
-                  label={t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
-                  // The day-name span already names the row.
-                  hideLabel
-                />
-                {h.on ? (
+                {hoursLocked ? (
+                  <span />
+                ) : (
+                  <Switch
+                    checked={h.on}
+                    onChange={(next) => setDay(d, { on: next })}
+                    label={t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
+                    // The day-name span already names the row.
+                    hideLabel
+                  />
+                )}
+                {hoursLocked ? (
+                  blocks.length > 0 ? (
+                    <span {...stylex.props(styles.dayOff)}>
+                      {blocks.map((b) => `${b.start} - ${b.end}`).join(', ')}
+                    </span>
+                  ) : (
+                    <span {...stylex.props(styles.dayOff)}>{t('addStaffDrawer.dayOff')}</span>
+                  )
+                ) : h.on ? (
                   <>
                     <SelectField
                       label={t('addStaffDrawer.startTime')}

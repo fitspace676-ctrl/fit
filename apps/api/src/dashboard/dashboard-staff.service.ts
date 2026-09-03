@@ -42,10 +42,13 @@ interface TrainerAgg {
  * classes against PT, per-trainer delivery and utilization, the standing weekly
  * rota, and the gaps card.
  *
- * **The tab has two halves that this service cannot join.** `Trainer` carries the
+ * **The tab has two halves and no figure here spans both.** `Trainer` carries the
  * availability that utilization divides by; `ShiftSlot` hangs off a staff
- * `GymMember`. The schema has no foreign key between them, so no figure here
- * crosses that line and no total spans both.
+ * `GymMember`. They are joinable now - `Trainer.staffId` and `ShiftSlot.staffId`
+ * both point at `GymMember`, and a coach's availability is mirrored onto their
+ * shift rows (`trainer-shift-mirror.ts`) - but a coach is not the only kind of
+ * staff, so a total spanning both would be adding a coach's hours to a
+ * receptionist's and calling the sum coverage. The split is kept on purpose.
  *
  * **Nothing here claims a staff member worked.** `ShiftSlot` is the standing plan
  * and `TimeOffRequest` the approved absence; attendance is not recorded anywhere.

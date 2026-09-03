@@ -6,6 +6,7 @@ import {
   Prisma,
   ReviewStatus,
   Role,
+  ServiceSessionStatus,
   TrainerStatus,
 } from '@fit/db';
 import {
@@ -19,9 +20,11 @@ import {
   type GetTrainerAvailabilityResponse,
   type ListAdminTrainersQuery,
   type ListAdminTrainersResponse,
+  type ListTrainerClientsResponse,
   type SetTrainerAvailabilityData,
   type SetTrainerAvailabilityResponse,
   type SetTrainerStatusResponse,
+  type TrainerClientRow,
   type TrainerNextClass,
   type TrainerThisWeek,
   type UpdateTrainerData,
@@ -31,9 +34,33 @@ import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
+import { mirrorAvailabilityToShifts } from './trainer-shift-mirror';
 
 /** Milliseconds in a day — the window arithmetic for the show-up rate. */
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The `where` fragment matching class occurrences led by one of `trainerIds`.
+ *
+ * An occurrence keeps its coach in one of two columns, and which one depends on
+ * how it was scheduled. A template-generated occurrence leaves
+ * `ClassInstance.trainerId` null and inherits the coach from its template
+ * (`admin-class-templates.service.ts` never writes the column); one placed on
+ * the Schedule board from a class type sets `trainerId` and has no template at
+ * all. Nothing in the API ever writes `trainerId` onto a template-backed row, so
+ * the two cases are disjoint and `trainerId: null` is a safe discriminator
+ * rather than a guess.
+ *
+ * Matching only the template shape - which every trainer figure did until now -
+ * meant a coach whose classes live on the calendar read zero classes, zero
+ * members trained and no upcoming class, with nothing on screen to say why.
+ */
+function ledBy(trainerIds: readonly string[]): Prisma.ClassInstanceWhereInput {
+  const ids = [...trainerIds];
+  return {
+    OR: [{ trainerId: { in: ids } }, { trainerId: null, template: { trainerId: { in: ids } } }],
+  };
+}
 
 /**
  * The columns the roster/detail queries select off `Trainer`. Every field is the
@@ -210,10 +237,27 @@ export class AdminTrainersService {
           photoUrl: input.photoUrl,
           specialties: input.specialties,
           status: input.status,
+          // The opening working week, already canonicalised by
+          // `weeklyAvailabilitySchema` (unavailable days cleared, windows
+          // sorted). It is written here, inside the same transaction as the
+          // trainer and the staff row, so a coach never exists for a moment
+          // with hours that were asked for and not stored. An omitted week
+          // parses to a fully-unavailable one, which is the column default.
+          availability: input.availability as unknown as Prisma.InputJsonValue,
           staffId: staff.id,
         },
         select: { id: true },
       });
+
+      // The opening week also lands on the staff shift schedule, which is what
+      // the Staff profile, Who's-working and the coverage report read. One
+      // writer, two readers - see `trainer-shift-mirror.ts`.
+      await mirrorAvailabilityToShifts(tx, {
+        gymId,
+        staffId: staff.id,
+        availability: input.availability,
+      });
+
       return row.id;
     });
 
@@ -311,10 +355,21 @@ export class AdminTrainersService {
     id: string,
     input: SetTrainerAvailabilityData,
   ): Promise<SetTrainerAvailabilityResponse> {
-    await this.requireTrainer(id);
-    await this.prisma.client.trainer.update({
-      where: { id },
-      data: { availability: input.availability as unknown as Prisma.InputJsonValue },
+    const trainer = await this.requireTrainer(id);
+    await this.prisma.client.$transaction(async (tx) => {
+      await tx.trainer.update({
+        where: { id },
+        data: { availability: input.availability as unknown as Prisma.InputJsonValue },
+      });
+      // A coach with no staff record has nothing to hang shifts on, and a
+      // `staffId: null` delete would not be scoped to anyone.
+      if (trainer.staffId) {
+        await mirrorAvailabilityToShifts(tx, {
+          gymId: this.tenant.gymId,
+          staffId: trainer.staffId,
+          availability: input.availability,
+        });
+      }
     });
     return this.getAvailability(id);
   }
@@ -324,6 +379,91 @@ export class AdminTrainersService {
     await this.requireTrainer(id);
     await this.prisma.client.trainer.update({ where: { id }, data: { status } });
     return this.getTrainer(id);
+  }
+
+  /**
+   * The trainer's personal-training clients (the detail page's Clients tab).
+   *
+   * The relationship the gym actually records is `ServiceSession`: a slot of a
+   * service, opened on the PT calendar against the coach's **staff** record and
+   * booked by a member. So the join runs through `Trainer.staffId`, not the
+   * trainer id - and a coach whose staff record was removed has none by
+   * construction, which is why that case returns early rather than issuing a
+   * query whose `staffId` would be `null`.
+   *
+   * `OPEN` slots carry no member and `CANCELLED` ones did not happen, so neither
+   * makes someone a client. The fold to one row per member happens in memory: a
+   * single coach's session history is small and bounded, and doing it here keeps
+   * the four figures per client (total, completed, upcoming, and the two
+   * instants) consistent with one another, which four separate `groupBy`
+   * round-trips would not guarantee.
+   */
+  async listClients(id: string): Promise<ListTrainerClientsResponse> {
+    const trainer = await this.requireTrainer(id);
+    if (!trainer.staffId) {
+      return { clients: [], totalSessions: 0 };
+    }
+
+    const rows = await this.prisma.client.serviceSession.findMany({
+      where: {
+        staffId: trainer.staffId,
+        memberId: { not: null },
+        status: { in: [ServiceSessionStatus.BOOKED, ServiceSessionStatus.COMPLETED] },
+      },
+      select: {
+        memberId: true,
+        startsAt: true,
+        status: true,
+        member: {
+          select: { id: true, firstName: true, lastName: true, user: { select: { name: true } } },
+        },
+      },
+      orderBy: { startsAt: 'asc' },
+    });
+
+    const now = Date.now();
+    const byMember = new Map<string, TrainerClientRow>();
+
+    for (const row of rows) {
+      // The `memberId: { not: null }` filter guarantees both, but Prisma types
+      // the relation as optional - narrow rather than assert.
+      const memberId = row.memberId;
+      if (!memberId) continue;
+
+      const existing = byMember.get(memberId);
+      const client: TrainerClientRow = existing ?? {
+        memberId,
+        name: memberName(row.member),
+        sessionCount: 0,
+        completedCount: 0,
+        upcomingCount: 0,
+        lastSessionAt: null,
+        nextSessionAt: null,
+      };
+
+      client.sessionCount += 1;
+      if (row.status === ServiceSessionStatus.COMPLETED) {
+        client.completedCount += 1;
+      }
+
+      const startsAt = row.startsAt.toISOString();
+      if (row.startsAt.getTime() > now) {
+        client.upcomingCount += 1;
+        // Rows arrive ascending, so the first future one is the soonest.
+        client.nextSessionAt ??= startsAt;
+      } else {
+        // ...and each past one is more recent than the last seen.
+        client.lastSessionAt = startsAt;
+      }
+
+      byMember.set(memberId, client);
+    }
+
+    const clients = [...byMember.values()].sort(compareClients);
+    return {
+      clients,
+      totalSessions: clients.reduce((sum, client) => sum + client.sessionCount, 0),
+    };
   }
 
   /**
@@ -431,7 +571,8 @@ export class AdminTrainersService {
    * whole filtered roster (the same `where`, no pagination): the total + active
    * counts, the sum of every matched trainer's current-week `ClassInstance`s, and
    * the mean rating over the trainers that have at least one review. Every figure
-   * is real; `PT clients` has no source and is deliberately absent.
+   * is real; PT clients are their own read (see `listClients`) rather than a
+   * roster-summary figure.
    */
   private async buildSummary(
     where: Prisma.TrainerWhereInput,
@@ -467,11 +608,10 @@ export class AdminTrainersService {
   }
 
   /**
-   * The count of each trainer's `ClassInstance`s in the current calendar week,
-   * keyed by trainer id. One `groupBy` over the occurrences whose template belongs
-   * to one of `trainerIds` and whose `startsAt` falls in the week — a set-based
-   * query, not one per card. Trainers with no classes this week are simply absent
-   * from the map (the caller defaults them to `0`).
+   * The count of each trainer's class occurrences in the current calendar week,
+   * keyed by trainer id. One set-based query over {@link ledBy}, not one per
+   * card. Trainers with no classes this week are simply absent from the map (the
+   * caller defaults them to `0`).
    */
   private async classesThisWeekByTrainer(
     trainerIds: string[],
@@ -483,15 +623,16 @@ export class AdminTrainersService {
     const rows = await this.prisma.client.classInstance.findMany({
       where: {
         startsAt: { gte: week.start, lt: week.end },
-        template: { trainerId: { in: trainerIds } },
+        ...ledBy(trainerIds),
       },
-      select: { template: { select: { trainerId: true } } },
+      select: { trainerId: true, template: { select: { trainerId: true } } },
     });
     const counts = new Map<string, number>();
     for (const row of rows) {
-      // The query filters on `template.trainerId`, so only template-backed
-      // occurrences reach here — `template` is always present.
-      const trainerId = row.template?.trainerId;
+      // The occurrence's own column wins where it is set - that is the coach
+      // actually leading it; otherwise the template it was generated from names
+      // them. `ledBy` guarantees one of the two is present.
+      const trainerId = row.trainerId ?? row.template?.trainerId;
       if (trainerId) {
         counts.set(trainerId, (counts.get(trainerId) ?? 0) + 1);
       }
@@ -516,22 +657,25 @@ export class AdminTrainersService {
       where: {
         startsAt: { gte: from },
         status: InstanceStatus.SCHEDULED,
-        template: { trainerId: { in: trainerIds } },
+        ...ledBy(trainerIds),
       },
       select: {
         startsAt: true,
+        trainerId: true,
         template: { select: { trainerId: true, title: true } },
+        // A calendar-scheduled occurrence has no template, so its title comes
+        // from the class type it was opened from.
+        classType: { select: { name: true } },
       },
       orderBy: { startsAt: 'asc' },
     });
     const next = new Map<string, TrainerNextClass>();
     for (const row of rows) {
-      // Filtered on `template.trainerId`, so `template` is always present here.
-      const trainerId = row.template?.trainerId;
+      const trainerId = row.trainerId ?? row.template?.trainerId;
       if (trainerId && !next.has(trainerId)) {
         next.set(trainerId, {
           startsAt: row.startsAt.toISOString(),
-          title: row.template?.title ?? 'Class',
+          title: row.template?.title ?? row.classType?.name ?? 'Class',
         });
       }
     }
@@ -550,7 +694,7 @@ export class AdminTrainersService {
       status,
       classInstance: {
         startsAt: { gte: since },
-        template: { trainerId },
+        ...ledBy([trainerId]),
       },
     });
     const [attended, noShow] = await Promise.all([
@@ -565,10 +709,11 @@ export class AdminTrainersService {
   }
 
   /**
-   * The trainer's own current-week activity: classes led (their `ClassInstance`s
-   * this week), new `VISIBLE` reviews posted this week, and the distinct members
-   * who *attended* one of their classes this week. Each is a real, tenant-scoped
-   * count over the same Mon–Sun window the "Classes / week" figure uses.
+   * The trainer's own current-week activity: classes led (their occurrences this
+   * week, by {@link ledBy}), new `VISIBLE` reviews posted this week, and the
+   * distinct members who *attended* one of their classes this week. Each is a
+   * real, tenant-scoped count over the same Mon-Sun window the "Classes / week"
+   * figure uses.
    */
   private async thisWeekCounts(
     trainerId: string,
@@ -578,7 +723,7 @@ export class AdminTrainersService {
       this.prisma.client.classInstance.count({
         where: {
           startsAt: { gte: week.start, lt: week.end },
-          template: { trainerId },
+          ...ledBy([trainerId]),
         },
       }),
       this.prisma.client.review.count({
@@ -593,7 +738,7 @@ export class AdminTrainersService {
           status: BookingStatus.ATTENDED,
           classInstance: {
             startsAt: { gte: week.start, lt: week.end },
-            template: { trainerId },
+            ...ledBy([trainerId]),
           },
         },
         select: { memberId: true },
@@ -602,4 +747,38 @@ export class AdminTrainersService {
     ]);
     return { classesLed, newReviews, membersTrained: attendedMembers.length };
   }
+}
+
+/**
+ * A member's display name for the clients list: the gym's own first/last
+ * (what staff typed at the desk) ahead of the account name, and a neutral
+ * fallback rather than a blank cell.
+ */
+function memberName(
+  member: {
+    firstName: string | null;
+    lastName: string | null;
+    user: { name: string | null };
+  } | null,
+): string {
+  if (!member) return 'Member';
+  const scoped = [member.firstName, member.lastName].filter(Boolean).join(' ').trim();
+  return scoped || member.user.name || 'Member';
+}
+
+/**
+ * Live relationships first. Someone with a session ahead of them outranks
+ * someone without, soonest first; everyone else falls back to their most recent
+ * session, newest first, so a list read top-down goes from "seeing them Tuesday"
+ * to "hasn't been in since spring". Name breaks the remaining ties so the order
+ * is stable across requests.
+ */
+function compareClients(a: TrainerClientRow, b: TrainerClientRow): number {
+  if (a.nextSessionAt && b.nextSessionAt) return a.nextSessionAt.localeCompare(b.nextSessionAt);
+  if (a.nextSessionAt) return -1;
+  if (b.nextSessionAt) return 1;
+  if (a.lastSessionAt && b.lastSessionAt) return b.lastSessionAt.localeCompare(a.lastSessionAt);
+  if (a.lastSessionAt) return -1;
+  if (b.lastSessionAt) return 1;
+  return a.name.localeCompare(b.name);
 }

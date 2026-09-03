@@ -1594,6 +1594,15 @@
         "kpiShowUpRateContext": "last 90 days",
         "profileAdded": "Profile added {date}."
       },
+      "clients": {
+        "heading": "{count, plural, one {# client} other {# clients}}",
+        "sessionCount": "{count, plural, one {# session} other {# sessions}} · {completed} completed",
+        "next": "Next {when}",
+        "last": "Last {when}",
+        "noSessions": "No sessions",
+        "emptyTitle": "No PT clients yet",
+        "emptyBody": "Members who book one of this coach's sessions on the PT calendar appear here, with their session history."
+      },
       "tabs": {
         "overview": "Overview",
         "schedule": "Schedule",
@@ -1604,9 +1613,6 @@
         "noBio": "No bio yet.",
         "specialties": "Specialties",
         "noSpecialties": "No specialties listed.",
-        "certifications": "Certifications",
-        "certified": "Certified · {tag}",
-        "noCertifications": "No certifications recorded - this gym tracks specialties, not formal certificates.",
         "thisWeek": "This week",
         "classesLed": "Classes led",
         "newReviews": "New reviews",
@@ -1614,8 +1620,6 @@
         "nextClass": "Next class",
         "noUpcomingClass": "No upcoming class scheduled.",
         "scheduleCalendarNote": "{count, plural, one {# class} other {# classes}} on the calendar this week. Manage the full timetable from <link>Classes</link>.",
-        "clientsTitle": "Personal-training clients aren’t tracked yet",
-        "clientsBody": "This gym doesn’t model one-to-one PT relationships, so there’s no client roster to show here.",
         "reviewsSummary": "{count, plural, one {# review} other {# reviews}} · {newReviews} new this week",
         "noReviews": "No reviews yet.",
         "reviewsModerate": "Read and moderate individual reviews from the trainer’s review queue.",
@@ -1767,6 +1771,7 @@
       "addStaffDrawer": {
         "title": "Add staff member",
         "subtitle": "Saves a staff record to the directory only - no app login or invitation email is sent.",
+        "trainerHint": "Adding a coach? Use the Trainers screen instead - it asks for their photo, specialties and working hours, and they appear here too.",
         "firstName": "First name",
         "firstNamePlaceholder": "John",
         "lastName": "Last name",
@@ -1785,6 +1790,7 @@
         "locations": "Assigned locations",
         "noLocations": "No locations yet. Add one under Locations first.",
         "workingHours": "Working hours",
+        "hoursFromTrainer": "Set on the coach’s Availability tab, under Trainers - edit them there so the two stay in step.",
         "startTime": "Start time",
         "endTime": "End time",
         "dayOff": "Day off",
