@@ -77,12 +77,12 @@ function setup(overrides?: {
   // so the tests below assert the projection shape via `toMatchObject`.
   const aggregate = vi.fn(() => Promise.resolve({ _avg: { rating: null } }));
   const classInstance = {
-    findMany: vi.fn(() => Promise.resolve([] as unknown[])),
-    count: vi.fn(() => Promise.resolve(0)),
+    findMany: vi.fn((_args: unknown) => Promise.resolve([] as unknown[])),
+    count: vi.fn((_args: unknown) => Promise.resolve(0)),
   };
   const booking = {
-    count: vi.fn(() => Promise.resolve(0)),
-    findMany: vi.fn(() => Promise.resolve([] as unknown[])),
+    count: vi.fn((_args: unknown) => Promise.resolve(0)),
+    findMany: vi.fn((_args: unknown) => Promise.resolve([] as unknown[])),
   };
   const review = { count: vi.fn(() => Promise.resolve(0)) };
 
@@ -140,6 +140,8 @@ function setup(overrides?: {
     userCreate,
     gymMemberCreate,
     gymMemberUpdate,
+    classInstance,
+    booking,
   };
 }
 
@@ -154,6 +156,7 @@ const createInput = (over?: Partial<CreateTrainerData>): CreateTrainerData => ({
   photoUrl: null,
   specialties: ['Strength'],
   status: 'ACTIVE',
+  availability: weeklyAvailabilitySchema.parse({}),
   ...over,
 });
 
@@ -282,6 +285,19 @@ describe('AdminTrainersService', () => {
         status: 'INACTIVE',
         specialties: ['Strength'],
       });
+    });
+
+    it('stores the opening working week on the trainer row', async () => {
+      const { service, create } = setup({ findFirst: row() });
+      const availability = weeklyAvailabilitySchema.parse({
+        mon: { available: true, windows: [{ start: '09:00', end: '13:00' }] },
+      });
+
+      await service.createTrainer(createInput({ availability }));
+
+      // The hours the Add-trainer drawer collected land in the same insert as
+      // the profile, not in a follow-up PUT that could fail on its own.
+      expect(create.mock.calls[0]?.[0]?.data).toMatchObject({ availability });
     });
 
     it('adds the coach to the staff directory and links the two', async () => {
@@ -436,6 +452,73 @@ describe('AdminTrainersService', () => {
         service.setAvailability('missing', { availability: weeklyAvailabilitySchema.parse({}) }),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(update).not.toHaveBeenCalled();
+    });
+  });
+  describe('class figures resolve the occurrence trainer', () => {
+    /**
+     * A template-generated occurrence leaves `ClassInstance.trainerId` null and
+     * carries its coach on the template; one scheduled from a class type on the
+     * calendar sets `trainerId` and has no template. Matching only the template
+     * shape - which is what these queries used to do - hides every calendar class
+     * from the trainer's own page.
+     */
+    const bothShapes = {
+      OR: [
+        { trainerId: { in: ['t-1'] } },
+        { trainerId: null, template: { trainerId: { in: ['t-1'] } } },
+      ],
+    };
+
+    it('matches both occurrence shapes in every class query', async () => {
+      const { service, classInstance } = setup({ findFirst: row() });
+
+      await service.getTrainer('t-1');
+
+      // `getTrainer` runs both the this-week count and the next-class lookup.
+      expect(classInstance.findMany.mock.calls.length).toBeGreaterThan(0);
+      for (const [args] of classInstance.findMany.mock.calls) {
+        expect(args as { where: unknown }).toMatchObject({ where: bothShapes });
+      }
+    });
+
+    it('keys the per-trainer map off the occurrence trainer, falling back to the template', async () => {
+      const { service, findMany, classInstance } = setup({ findMany: [row({ id: 't-1' })] });
+      // One stub serves both the week count and the next-class lookup, so the
+      // rows need the `startsAt` the latter reads.
+      const startsAt = new Date('2026-09-04T18:00:00.000Z');
+      classInstance.findMany.mockResolvedValue([
+        // Scheduled from a class type on the calendar.
+        { trainerId: 't-1', template: null, classType: { name: 'Power Spin' }, startsAt },
+        // Generated from a template.
+        { trainerId: null, template: { trainerId: 't-1', title: 'Strength' }, startsAt },
+      ]);
+
+      const result = await service.listTrainers(query());
+
+      expect(findMany).toHaveBeenCalled();
+      expect(result.data[0]?.classesThisWeek).toBe(2);
+    });
+
+    it('reads the show-up rate over either shape', async () => {
+      const { service, booking } = setup({ findFirst: row() });
+
+      await service.getTrainer('t-1');
+
+      const [args] = booking.count.mock.calls[0]!;
+      expect(args as { where: { classInstance: unknown } }).toMatchObject({
+        where: { classInstance: bothShapes },
+      });
+    });
+
+    it('counts members trained over either shape', async () => {
+      const { service, booking } = setup({ findFirst: row() });
+
+      await service.getTrainer('t-1');
+
+      const [args] = booking.findMany.mock.calls[0]!;
+      expect(args as { where: { classInstance: unknown } }).toMatchObject({
+        where: { classInstance: bothShapes },
+      });
     });
   });
 });

@@ -36,6 +36,29 @@ import { MediaCleanupService } from '../storage/media-cleanup.service';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * The `where` fragment matching class occurrences led by one of `trainerIds`.
+ *
+ * An occurrence keeps its coach in one of two columns, and which one depends on
+ * how it was scheduled. A template-generated occurrence leaves
+ * `ClassInstance.trainerId` null and inherits the coach from its template
+ * (`admin-class-templates.service.ts` never writes the column); one placed on
+ * the Schedule board from a class type sets `trainerId` and has no template at
+ * all. Nothing in the API ever writes `trainerId` onto a template-backed row, so
+ * the two cases are disjoint and `trainerId: null` is a safe discriminator
+ * rather than a guess.
+ *
+ * Matching only the template shape - which every trainer figure did until now -
+ * meant a coach whose classes live on the calendar read zero classes, zero
+ * members trained and no upcoming class, with nothing on screen to say why.
+ */
+function ledBy(trainerIds: readonly string[]): Prisma.ClassInstanceWhereInput {
+  const ids = [...trainerIds];
+  return {
+    OR: [{ trainerId: { in: ids } }, { trainerId: null, template: { trainerId: { in: ids } } }],
+  };
+}
+
+/**
  * The columns the roster/detail queries select off `Trainer`. Every field is the
  * gym's own content (no cross-tenant join), so the whole row is safe to project.
  * `rating` / `reviewCount` are the denormalised aggregate the reviews service
@@ -210,6 +233,13 @@ export class AdminTrainersService {
           photoUrl: input.photoUrl,
           specialties: input.specialties,
           status: input.status,
+          // The opening working week, already canonicalised by
+          // `weeklyAvailabilitySchema` (unavailable days cleared, windows
+          // sorted). It is written here, inside the same transaction as the
+          // trainer and the staff row, so a coach never exists for a moment
+          // with hours that were asked for and not stored. An omitted week
+          // parses to a fully-unavailable one, which is the column default.
+          availability: input.availability as unknown as Prisma.InputJsonValue,
           staffId: staff.id,
         },
         select: { id: true },
@@ -431,7 +461,8 @@ export class AdminTrainersService {
    * whole filtered roster (the same `where`, no pagination): the total + active
    * counts, the sum of every matched trainer's current-week `ClassInstance`s, and
    * the mean rating over the trainers that have at least one review. Every figure
-   * is real; `PT clients` has no source and is deliberately absent.
+   * is real; PT clients are their own read (see `listClients`) rather than a
+   * roster-summary figure.
    */
   private async buildSummary(
     where: Prisma.TrainerWhereInput,
@@ -467,11 +498,10 @@ export class AdminTrainersService {
   }
 
   /**
-   * The count of each trainer's `ClassInstance`s in the current calendar week,
-   * keyed by trainer id. One `groupBy` over the occurrences whose template belongs
-   * to one of `trainerIds` and whose `startsAt` falls in the week — a set-based
-   * query, not one per card. Trainers with no classes this week are simply absent
-   * from the map (the caller defaults them to `0`).
+   * The count of each trainer's class occurrences in the current calendar week,
+   * keyed by trainer id. One set-based query over {@link ledBy}, not one per
+   * card. Trainers with no classes this week are simply absent from the map (the
+   * caller defaults them to `0`).
    */
   private async classesThisWeekByTrainer(
     trainerIds: string[],
@@ -483,15 +513,16 @@ export class AdminTrainersService {
     const rows = await this.prisma.client.classInstance.findMany({
       where: {
         startsAt: { gte: week.start, lt: week.end },
-        template: { trainerId: { in: trainerIds } },
+        ...ledBy(trainerIds),
       },
-      select: { template: { select: { trainerId: true } } },
+      select: { trainerId: true, template: { select: { trainerId: true } } },
     });
     const counts = new Map<string, number>();
     for (const row of rows) {
-      // The query filters on `template.trainerId`, so only template-backed
-      // occurrences reach here — `template` is always present.
-      const trainerId = row.template?.trainerId;
+      // The occurrence's own column wins where it is set - that is the coach
+      // actually leading it; otherwise the template it was generated from names
+      // them. `ledBy` guarantees one of the two is present.
+      const trainerId = row.trainerId ?? row.template?.trainerId;
       if (trainerId) {
         counts.set(trainerId, (counts.get(trainerId) ?? 0) + 1);
       }
@@ -516,22 +547,25 @@ export class AdminTrainersService {
       where: {
         startsAt: { gte: from },
         status: InstanceStatus.SCHEDULED,
-        template: { trainerId: { in: trainerIds } },
+        ...ledBy(trainerIds),
       },
       select: {
         startsAt: true,
+        trainerId: true,
         template: { select: { trainerId: true, title: true } },
+        // A calendar-scheduled occurrence has no template, so its title comes
+        // from the class type it was opened from.
+        classType: { select: { name: true } },
       },
       orderBy: { startsAt: 'asc' },
     });
     const next = new Map<string, TrainerNextClass>();
     for (const row of rows) {
-      // Filtered on `template.trainerId`, so `template` is always present here.
-      const trainerId = row.template?.trainerId;
+      const trainerId = row.trainerId ?? row.template?.trainerId;
       if (trainerId && !next.has(trainerId)) {
         next.set(trainerId, {
           startsAt: row.startsAt.toISOString(),
-          title: row.template?.title ?? 'Class',
+          title: row.template?.title ?? row.classType?.name ?? 'Class',
         });
       }
     }
@@ -550,7 +584,7 @@ export class AdminTrainersService {
       status,
       classInstance: {
         startsAt: { gte: since },
-        template: { trainerId },
+        ...ledBy([trainerId]),
       },
     });
     const [attended, noShow] = await Promise.all([
@@ -565,10 +599,11 @@ export class AdminTrainersService {
   }
 
   /**
-   * The trainer's own current-week activity: classes led (their `ClassInstance`s
-   * this week), new `VISIBLE` reviews posted this week, and the distinct members
-   * who *attended* one of their classes this week. Each is a real, tenant-scoped
-   * count over the same Mon–Sun window the "Classes / week" figure uses.
+   * The trainer's own current-week activity: classes led (their occurrences this
+   * week, by {@link ledBy}), new `VISIBLE` reviews posted this week, and the
+   * distinct members who *attended* one of their classes this week. Each is a
+   * real, tenant-scoped count over the same Mon-Sun window the "Classes / week"
+   * figure uses.
    */
   private async thisWeekCounts(
     trainerId: string,
@@ -578,7 +613,7 @@ export class AdminTrainersService {
       this.prisma.client.classInstance.count({
         where: {
           startsAt: { gte: week.start, lt: week.end },
-          template: { trainerId },
+          ...ledBy([trainerId]),
         },
       }),
       this.prisma.client.review.count({
@@ -593,7 +628,7 @@ export class AdminTrainersService {
           status: BookingStatus.ATTENDED,
           classInstance: {
             startsAt: { gte: week.start, lt: week.end },
-            template: { trainerId },
+            ...ledBy([trainerId]),
           },
         },
         select: { memberId: true },
