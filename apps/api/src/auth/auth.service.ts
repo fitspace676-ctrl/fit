@@ -42,6 +42,7 @@ import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
 import { TokenService, type SessionClaims } from './token.service';
+import { syncTrainerProfile, type TrainerSyncClient } from '../staff/trainer-profile-sync';
 
 /** Redis key namespace for one-time email-verification tokens. */
 const VERIFY_KEY_PREFIX = 'email-verify:';
@@ -978,7 +979,7 @@ export class AuthService {
         if (claimed.count === 0) {
           return;
         }
-        await tx.gymMember.upsert({
+        const member = await tx.gymMember.upsert({
           where: { userId_gymId: { userId, gymId: invite.gymId } },
           create: {
             userId,
@@ -987,6 +988,17 @@ export class AuthService {
             status: GymMemberStatus.ACTIVE,
           },
           update: { role: invite.role, status: GymMemberStatus.ACTIVE },
+          select: { id: true },
+        });
+
+        // An invited TRAINER used to get the role, a login and a Staff roster
+        // row - and no coach profile at all, so they were missing from the
+        // Trainers roster and from every class's trainer picker. The role-change
+        // path has always closed that gap; this one never did.
+        await syncTrainerProfile(tx as unknown as TrainerSyncClient, {
+          gymId: invite.gymId,
+          memberId: member.id,
+          role: invite.role,
         });
       });
 

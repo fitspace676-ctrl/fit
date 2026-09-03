@@ -46,6 +46,18 @@ function setup(opts?: {
     Promise.resolve({ count: opts?.inviteUpdateCount ?? 1 }),
   );
   const gymMemberUpsert = vi.fn((_args: unknown) => Promise.resolve({ id: 'gm-1' }));
+  // The staff <-> trainer sync reads the member back when it has to invent a
+  // coach name, and writes the profile.
+  const gymMemberFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve({
+      firstName: null,
+      lastName: null,
+      user: { name: 'Invitee', email: 'invitee@example.com' },
+    }),
+  );
+  const trainerFindFirst = vi.fn((_args: unknown) => Promise.resolve(null));
+  const trainerCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 't-1' }));
+  const trainerUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 't-1' }));
 
   const userFindUnique = vi.fn(() =>
     Promise.resolve(opts?.userExists ? { id: 'u-existing' } : null),
@@ -56,7 +68,8 @@ function setup(opts?: {
   const client = {
     user: { findUnique: userFindUnique, create: userCreate, updateMany: userUpdateMany },
     staffInvite: { findUnique: staffInviteFindUnique, updateMany: staffInviteUpdateMany },
-    gymMember: { upsert: gymMemberUpsert },
+    gymMember: { upsert: gymMemberUpsert, findFirst: gymMemberFindFirst },
+    trainer: { findFirst: trainerFindFirst, create: trainerCreate, update: trainerUpdate },
     $transaction: vi.fn((cb: (tx: typeof client) => unknown) => cb(client)),
   };
 
@@ -78,6 +91,9 @@ function setup(opts?: {
     staffInviteFindUnique,
     staffInviteUpdateMany,
     gymMemberUpsert,
+    trainerFindFirst,
+    trainerCreate,
+    trainerUpdate,
   };
 }
 
@@ -150,6 +166,40 @@ describe('AuthService — staff invites (T4.7)', () => {
         where: { userId_gymId: { userId: 'u-new', gymId: 'gym-1' } },
         create: { role: Role.RECEPTIONIST, status: 'ACTIVE' },
       });
+    });
+
+    it('creates the coach profile when the invited role is TRAINER', async () => {
+      const { service, trainerCreate } = setup({
+        invite: liveInvite({ email: 'invitee@example.com', role: Role.TRAINER }),
+      });
+
+      await service.register({
+        name: 'Invitee',
+        email: 'invitee@example.com',
+        password: 'password123',
+        inviteToken: 'tok-123',
+      });
+
+      // Without this a coach signs in, shows on the Staff roster, and is absent
+      // from the Trainers roster and every class's trainer picker.
+      expect(trainerCreate.mock.calls[0]?.[0]).toMatchObject({
+        data: { gymId: 'gym-1', staffId: 'gm-1', name: 'Invitee' },
+      });
+    });
+
+    it('creates no coach profile for a non-trainer role', async () => {
+      const { service, trainerCreate } = setup({
+        invite: liveInvite({ email: 'invitee@example.com', role: Role.RECEPTIONIST }),
+      });
+
+      await service.register({
+        name: 'Invitee',
+        email: 'invitee@example.com',
+        password: 'password123',
+        inviteToken: 'tok-123',
+      });
+
+      expect(trainerCreate).not.toHaveBeenCalled();
     });
 
     it('ignores an invite whose email does not match the account', async () => {

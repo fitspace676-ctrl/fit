@@ -27,6 +27,7 @@ import { resolveEmailLocale } from '../mail/email-locale';
 import { TokenService } from '../auth/token.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { syncTrainerProfile, type TrainerSyncClient } from './trainer-profile-sync';
 import { assertPermission } from '../common/rbac/assert-permission';
 import { isPlaceholderEmail, placeholderEmail } from '../common/directory-identity';
 
@@ -467,57 +468,16 @@ export class StaffService {
   }
 
   /**
-   * Bring the member's coach profile in line with the role they now hold.
-   *
-   * Becoming a `TRAINER` creates the profile (or reactivates the one they had
-   * before), because a class can only be assigned to a `Trainer` row — without
-   * this a gym could put someone on the roster as a coach and then not find them
-   * in the class trainer picker, which is exactly the gap this link closes.
-   * Losing the role deactivates the profile rather than deleting it: the classes
-   * they already taught still reference it, and re-promoting them later should
-   * restore the same coach, ratings and reviews included.
+   * Bring the member's coach profile in line with the role they now hold. The
+   * rule itself lives in `trainer-profile-sync.ts`, because auth's invite
+   * redemption needs exactly the same behaviour and cannot reach a private
+   * method on this service.
    */
   private async syncTrainerProfile(memberId: string, role: Role): Promise<void> {
-    const existing = await this.prisma.client.trainer.findFirst({
-      where: { staffId: memberId },
-      select: { id: true },
-    });
-
-    if (role !== Role.TRAINER) {
-      if (existing) {
-        await this.prisma.client.trainer.update({
-          where: { id: existing.id },
-          data: { status: TrainerStatus.INACTIVE },
-        });
-      }
-      return;
-    }
-
-    if (existing) {
-      await this.prisma.client.trainer.update({
-        where: { id: existing.id },
-        data: { status: TrainerStatus.ACTIVE },
-      });
-      return;
-    }
-
-    const member = await this.prisma.client.gymMember.findFirst({
-      where: { id: memberId },
-      select: { firstName: true, lastName: true, user: { select: { name: true, email: true } } },
-    });
-    if (!member) {
-      return;
-    }
-    const name =
-      [member.firstName, member.lastName]
-        .map((part) => part?.trim() ?? '')
-        .filter(Boolean)
-        .join(' ') ||
-      member.user.name?.trim() ||
-      'Trainer';
-    await this.prisma.client.trainer.create({
-      data: { gymId: this.tenant.gymId, name, staffId: memberId },
-      select: { id: true },
+    await syncTrainerProfile(this.prisma.client as unknown as TrainerSyncClient, {
+      gymId: this.tenant.gymId,
+      memberId,
+      role,
     });
   }
 
