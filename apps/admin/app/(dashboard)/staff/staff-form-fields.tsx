@@ -53,6 +53,24 @@ export function emptyStaffForm(): StaffFormValue {
   };
 }
 
+/** One stored window of a day - `start`/`end` in the API's `HH:mm` format. */
+export type DayBlock = { start: string; end: string };
+
+/**
+ * Group a member's stored shift rows by weekday, each day's blocks in start
+ * order. Unlike {@link hoursFromShifts} - which folds a day to the single block
+ * the editor can hold - this keeps every row, so a coach's split shift (two
+ * windows on one day, mirrored from `Trainer.availability`) reads in full.
+ */
+export function blocksFromShifts(shifts: ShiftSlotRow[]): DayBlock[][] {
+  return DAYS.map((d) =>
+    shifts
+      .filter((s) => s.dayOfWeek === d)
+      .map((s) => ({ start: s.startTime, end: s.endTime }))
+      .sort((a, b) => a.start.localeCompare(b.start)),
+  );
+}
+
 /** Fold a member's stored shift rows into the seven-day toggle grid. */
 export function hoursFromShifts(shifts: ShiftSlotRow[]): DayHours[] {
   return DAYS.map((d) => {
@@ -211,6 +229,7 @@ export function StaffFormFields({
   roleOptions = STAFF_ROLES,
   roleLocked = false,
   hoursLocked = false,
+  lockedHours,
 }: {
   value: StaffFormValue;
   onChange: (patch: Partial<StaffFormValue>) => void;
@@ -228,6 +247,12 @@ export function StaffFormFields({
    * the front desk can still read it.
    */
   hoursLocked?: boolean;
+  /**
+   * The stored week a locked grid displays, by weekday - the rows themselves
+   * rather than `value.hours`, which holds at most one block a day. Absent (or
+   * a day with no blocks) reads as a day off. Ignored unless `hoursLocked`.
+   */
+  lockedHours?: DayBlock[][];
 }) {
   const t = useTranslations('admin.staff');
 
@@ -372,6 +397,9 @@ export function StaffFormFields({
         <div {...stylex.props(styles.hours)}>
           {DAYS.map((d) => {
             const h = value.hours[d]!;
+            // A locked row reads from the stored rows, so a split shift shows
+            // both of its windows instead of only the first.
+            const blocks = hoursLocked ? (lockedHours?.[d] ?? []) : [];
             return (
               <div key={d} {...stylex.props(styles.hourRow)}>
                 <span {...stylex.props(styles.dayName)}>
@@ -388,31 +416,35 @@ export function StaffFormFields({
                     hideLabel
                   />
                 )}
-                {h.on ? (
-                  hoursLocked ? (
-                    <span {...stylex.props(styles.dayOff)}>{`${h.start} - ${h.end}`}</span>
+                {hoursLocked ? (
+                  blocks.length > 0 ? (
+                    <span {...stylex.props(styles.dayOff)}>
+                      {blocks.map((b) => `${b.start} - ${b.end}`).join(', ')}
+                    </span>
                   ) : (
-                    <>
-                      <SelectField
-                        label={t('addStaffDrawer.startTime')}
-                        labelHidden
-                        size="chrome"
-                        value={h.start}
-                        onChange={(event) => setDay(d, { start: event.target.value })}
-                        disabled={pending}
-                        options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
-                      />
-                      <SelectField
-                        label={t('addStaffDrawer.endTime')}
-                        labelHidden
-                        size="chrome"
-                        value={h.end}
-                        onChange={(event) => setDay(d, { end: event.target.value })}
-                        disabled={pending}
-                        options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
-                      />
-                    </>
+                    <span {...stylex.props(styles.dayOff)}>{t('addStaffDrawer.dayOff')}</span>
                   )
+                ) : h.on ? (
+                  <>
+                    <SelectField
+                      label={t('addStaffDrawer.startTime')}
+                      labelHidden
+                      size="chrome"
+                      value={h.start}
+                      onChange={(event) => setDay(d, { start: event.target.value })}
+                      disabled={pending}
+                      options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
+                    />
+                    <SelectField
+                      label={t('addStaffDrawer.endTime')}
+                      labelHidden
+                      size="chrome"
+                      value={h.end}
+                      onChange={(event) => setDay(d, { end: event.target.value })}
+                      disabled={pending}
+                      options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
+                    />
+                  </>
                 ) : (
                   <span {...stylex.props(styles.dayOff)}>{t('addStaffDrawer.dayOff')}</span>
                 )}

@@ -10,9 +10,11 @@ import { Icon } from '@/components/ui';
 import { ROLE_TONES, STAFF_ROLES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
 import {
   StaffFormFields,
+  blocksFromShifts,
   hasBadHours,
   hoursFromShifts,
   toWorkingHours,
+  type DayBlock,
   type StaffFormValue,
 } from './staff-form-fields';
 import { loadStaffScheduleAction } from './depth-actions';
@@ -228,6 +230,9 @@ export function StaffProfileDrawer({
   const t = useTranslations('admin.staff');
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [form, setForm] = useState<StaffFormValue | null>(null);
+  // The stored week, kept alongside the folded `form.hours` so a locked grid can
+  // show a coach's split shifts, which the one-block-a-day fold cannot carry.
+  const [storedHours, setStoredHours] = useState<DayBlock[][]>([]);
   const [preparing, startPreparing] = useTransition();
   const [pending, startSaving] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -248,6 +253,7 @@ export function StaffProfileDrawer({
     startPreparing(async () => {
       const result = await loadStaffScheduleAction(member.id);
       const hours = result.ok ? hoursFromShifts(result.data.shifts) : seed.hours;
+      setStoredHours(result.ok ? blocksFromShifts(result.data.shifts) : []);
       setForm({ ...seed, hours });
       setMode('edit');
     });
@@ -377,6 +383,7 @@ export function StaffProfileDrawer({
             roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
             roleLocked={!canAssignRole || (member.role === 'OWNER' && !canAssignOwner)}
             hoursLocked={form.role === 'TRAINER'}
+            lockedHours={storedHours}
           />
           {error ? (
             <p role="alert" {...stylex.props(styles.error)}>
