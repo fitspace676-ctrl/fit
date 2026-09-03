@@ -94,6 +94,18 @@ const styles = stylex.create({
  * shared animated {@link Drawer}. Only a first name and role are required; contact
  * details, assigned locations and a weekly shift schedule are optional. On success
  * the page revalidates so the new member joins the roster.
+ *
+ * It does not offer the TRAINER role. A coach created here would be a stub - this
+ * form has no photo, headline, bio, specialties or availability field, so
+ * `POST /staff` writes a `Trainer` row carrying nothing but a name that someone
+ * then has to go finish on the Trainers screen. Two doors to one record, each
+ * filling a different half of it. Coaches are added on Trainers instead, where
+ * the form asks for all of it, and they still appear on this roster because
+ * creating a trainer creates their staff record too.
+ *
+ * The role itself is untouched: promoting an existing staff member to TRAINER
+ * still works from the profile drawer (and creates or reactivates their coach
+ * profile), and TRAINER is still offered when inviting someone.
  */
 export function AddStaffDrawer({
   open,
@@ -197,13 +209,16 @@ export function AddStaffDrawer({
     >
       <form id={FORM_ID} onSubmit={onSubmit} {...stylex.props(styles.form)}>
         <p {...stylex.props(styles.intro)}>{t('addStaffDrawer.subtitle')}</p>
+        <p {...stylex.props(styles.intro)}>{t('addStaffDrawer.trainerHint')}</p>
 
         <StaffFormFields
           value={form}
           onChange={patch}
           locations={locations}
           pending={pending}
-          roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
+          roleOptions={STAFF_ROLES.filter(
+            (role) => role !== 'TRAINER' && (role !== 'OWNER' || canAssignOwner),
+          )}
         />
 
         {error ? (

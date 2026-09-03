@@ -1771,6 +1771,7 @@
       "addStaffDrawer": {
         "title": "Add staff member",
         "subtitle": "Saves a staff record to the directory only - no app login or invitation email is sent.",
+        "trainerHint": "Adding a coach? Use the Trainers screen instead - it asks for their photo, specialties and working hours, and they appear here too.",
         "firstName": "First name",
         "firstNamePlaceholder": "John",
         "lastName": "Last name",
