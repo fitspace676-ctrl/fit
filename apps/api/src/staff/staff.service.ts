@@ -335,8 +335,10 @@ export class StaffService {
    * A partial update — only the fields present in `input` change. `firstName` /
    * `lastName` (and the mirrored `User.name`), `status`, contact `email` / `phone`
    * and `assignedLocationIds` patch the member/user; a sent `workingHours`
-   * replaces the whole weekly schedule (set-based, matching the schedule editor).
-   * Role is changed via {@link updateRole}, not here. `404 STAFF_NOT_FOUND` for an
+   * replaces the whole weekly schedule (set-based, matching the schedule editor) -
+   * except for a `TRAINER`, whose week is owned by `Trainer.availability` and only
+   * mirrored onto these rows, so a sent schedule is ignored rather than becoming a
+   * second writer. Role is changed via {@link updateRole}, not here. `404 STAFF_NOT_FOUND` for an
    * unknown id; `409 EMAIL_IN_USE` when a new email already belongs to someone else.
    */
   async updateStaffProfile(memberId: string, input: UpdateStaffProfileInput): Promise<StaffMember> {
@@ -409,8 +411,14 @@ export class StaffService {
         await tx.user.update({ where: { id: existing.userId }, data: userData });
       }
 
-      // A sent schedule replaces the member's whole week (set-based editor).
-      if (input.workingHours !== undefined) {
+      // A sent schedule replaces the member's whole week (set-based editor) -
+      // unless they are a coach. A coach's hours live on `Trainer.availability`
+      // and are mirrored onto these rows by `trainer-shift-mirror.ts`; accepting
+      // them here too would make this the second writer, and the two would
+      // disagree the first time either screen was used. The console renders the
+      // section read-only for a TRAINER row; this is the same rule for anything
+      // that talks to the API directly.
+      if (input.workingHours !== undefined && existing.role !== Role.TRAINER) {
         await tx.shiftSlot.deleteMany({ where: { staffId: memberId } });
         if (input.workingHours.length > 0) {
           await tx.shiftSlot.createMany({

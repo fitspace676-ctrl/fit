@@ -1790,6 +1790,7 @@
         "locations": "Assigned locations",
         "noLocations": "No locations yet. Add one under Locations first.",
         "workingHours": "Working hours",
+        "hoursFromTrainer": "Set on the coach’s Availability tab, under Trainers - edit them there so the two stay in step.",
         "startTime": "Start time",
         "endTime": "End time",
         "dayOff": "Day off",

@@ -376,6 +376,7 @@ export function StaffProfileDrawer({
             pending={pending}
             roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
             roleLocked={!canAssignRole || (member.role === 'OWNER' && !canAssignOwner)}
+            hoursLocked={form.role === 'TRAINER'}
           />
           {error ? (
             <p role="alert" {...stylex.props(styles.error)}>

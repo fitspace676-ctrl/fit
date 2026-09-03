@@ -210,6 +210,7 @@ export function StaffFormFields({
   pending,
   roleOptions = STAFF_ROLES,
   roleLocked = false,
+  hoursLocked = false,
 }: {
   value: StaffFormValue;
   onChange: (patch: Partial<StaffFormValue>) => void;
@@ -220,6 +221,13 @@ export function StaffFormFields({
   roleOptions?: readonly StaffRole[];
   /** True when the role may not be changed by this session (an Owner edited by a non-owner). */
   roleLocked?: boolean;
+  /**
+   * True when this member's hours are owned elsewhere and must not be edited
+   * here - a coach, whose week lives on `Trainer.availability` and is mirrored
+   * onto their shift rows. The grid renders the stored week without controls, so
+   * the front desk can still read it.
+   */
+  hoursLocked?: boolean;
 }) {
   const t = useTranslations('admin.staff');
 
@@ -358,6 +366,9 @@ export function StaffFormFields({
 
       <div {...stylex.props(styles.section)}>
         <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.workingHours')}</span>
+        {hoursLocked ? (
+          <p {...stylex.props(styles.empty)}>{t('addStaffDrawer.hoursFromTrainer')}</p>
+        ) : null}
         <div {...stylex.props(styles.hours)}>
           {DAYS.map((d) => {
             const h = value.hours[d]!;
@@ -366,34 +377,42 @@ export function StaffFormFields({
                 <span {...stylex.props(styles.dayName)}>
                   {t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
                 </span>
-                <Switch
-                  checked={h.on}
-                  onChange={(next) => setDay(d, { on: next })}
-                  label={t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
-                  // The day-name span already names the row.
-                  hideLabel
-                />
+                {hoursLocked ? (
+                  <span />
+                ) : (
+                  <Switch
+                    checked={h.on}
+                    onChange={(next) => setDay(d, { on: next })}
+                    label={t(`depth.schedule.days.${d}` as 'depth.schedule.days.0')}
+                    // The day-name span already names the row.
+                    hideLabel
+                  />
+                )}
                 {h.on ? (
-                  <>
-                    <SelectField
-                      label={t('addStaffDrawer.startTime')}
-                      labelHidden
-                      size="chrome"
-                      value={h.start}
-                      onChange={(event) => setDay(d, { start: event.target.value })}
-                      disabled={pending}
-                      options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
-                    />
-                    <SelectField
-                      label={t('addStaffDrawer.endTime')}
-                      labelHidden
-                      size="chrome"
-                      value={h.end}
-                      onChange={(event) => setDay(d, { end: event.target.value })}
-                      disabled={pending}
-                      options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
-                    />
-                  </>
+                  hoursLocked ? (
+                    <span {...stylex.props(styles.dayOff)}>{`${h.start} - ${h.end}`}</span>
+                  ) : (
+                    <>
+                      <SelectField
+                        label={t('addStaffDrawer.startTime')}
+                        labelHidden
+                        size="chrome"
+                        value={h.start}
+                        onChange={(event) => setDay(d, { start: event.target.value })}
+                        disabled={pending}
+                        options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
+                      />
+                      <SelectField
+                        label={t('addStaffDrawer.endTime')}
+                        labelHidden
+                        size="chrome"
+                        value={h.end}
+                        onChange={(event) => setDay(d, { end: event.target.value })}
+                        disabled={pending}
+                        options={TIME_OPTIONS.map((time) => ({ value: time, label: time }))}
+                      />
+                    </>
+                  )
                 ) : (
                   <span {...stylex.props(styles.dayOff)}>{t('addStaffDrawer.dayOff')}</span>
                 )}
