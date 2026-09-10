@@ -1,0 +1,24 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the invalidation matrix > matches the reviewed matrix 1`] = `
+"bookClass: classes, bookings, creditPacks
+cancelBooking: classes, bookings, creditPacks
+enrollSubscription: membership, classes
+freezeSubscription: membership, classes, bookings
+unfreezeSubscription: membership, classes, bookings
+purchaseCreditPack: creditPacks, packCatalogue
+createCheckout: membership, creditPacks, packCatalogue, catalogue, bookings
+addCartItem: cart
+updateCartItem: cart
+removeCartItem: cart
+checkoutCart: cart, products, myOrders
+checkoutCartPriceChanged: cart
+checkoutCartOutOfStock: cart, products
+updateMyProfile: profile
+replaceMyGoals: goals
+createReview: trainers
+bookServiceSession: myServiceSessions, serviceSlots, membership
+markNotificationsRead: notifications
+registerPushToken: (nothing)
+unregisterPushToken: (nothing)"
+`;
