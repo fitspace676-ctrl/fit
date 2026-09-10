@@ -432,7 +432,19 @@ describe('DashboardRevenueService — the gym clock', () => {
 });
 
 describe('DashboardRevenueService.get — the branch filter', () => {
-  afterEach(() => vi.clearAllMocks());
+  // The same frozen clock the other two blocks run on. Most specs here only read
+  // back a `where`, which no calendar can move — but the `totalRevenue` one puts
+  // money in the window, and `day(-1)` is an offset from a HARDCODED `TODAY`. On
+  // the wall clock this block used to keep, that fixture fell out of the 30-day
+  // window a month after it was written and the sum silently went to zero.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
 
   /** Every `where` a mocked read was issued with. */
   function wheres(fn: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
