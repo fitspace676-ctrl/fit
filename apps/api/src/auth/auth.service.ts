@@ -10,7 +10,9 @@ import {
 import * as argon2 from 'argon2';
 import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
 import {
+  ALREADY_MEMBER_CODE,
   EMAIL_TAKEN_CODE,
+  MEMBERSHIP_NOT_ACTIVE_CODE,
   gymPublicMemberIntake,
   gymPublicStartDatePolicy,
   gymPublicTimezone,
@@ -71,6 +73,25 @@ function resetKey(token: string): string {
   return `${RESET_KEY_PREFIX}${token}`;
 }
 
+/** One of the user's gym memberships, as the session-scope resolver projects it. */
+interface ScopeMembership {
+  gymId: string;
+  role: Role;
+  joinedAt: Date;
+  gym: { status: GymStatus; slug: string };
+}
+
+/**
+ * How a caller names the gym a session should bind to, as a predicate over the
+ * user's own memberships — the single place the "which of my gyms?" question is
+ * expressed, so a second way of asking it (an explicit gym id, rather than the
+ * subdomain slug) is a sibling of this rather than another branch inside
+ * {@link AuthService.resolveSessionScope}.
+ */
+function bySlug(gymSlug: string): (membership: ScopeMembership) => boolean {
+  return (membership) => membership.gym.slug === gymSlug;
+}
+
 /**
  * Email/password registration, verification, and session login.
  *
@@ -114,8 +135,13 @@ export class AuthService {
     });
     if (existing) {
       // The address is unavoidably revealed as taken here, but no further detail
-      // (e.g. whether it's verified) leaks.
-      throw new ConflictException({ message: 'Email is already registered', code: 'EMAIL_TAKEN' });
+      // (e.g. whether it's verified) leaks. Unlike {@link signupMember} there is
+      // no gym in the request to qualify this with, so it stays the plain
+      // "address taken" answer — a bare registration joins nothing.
+      throw new ConflictException({
+        message: 'Email is already registered',
+        code: EMAIL_TAKEN_CODE,
+      });
     }
 
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
@@ -223,12 +249,30 @@ export class AuthService {
       select: { id: true },
     });
     if (existing) {
-      // The wizard turns this into a "you already have an account — sign in"
-      // branch, so the buyer keeps their place in the flow.
-      throw new ConflictException({
-        message: 'Email is already registered',
-        code: EMAIL_TAKEN_CODE,
+      // Both answers are a 409 on a taken address, but they send the buyer to
+      // different places: someone who already belongs to *this* gym has nothing
+      // to join and should just sign in, while an account from another gym (or a
+      // plain platform account) still has this membership ahead of it. Telling
+      // them apart needs the membership lookup; conflating them puts a returning
+      // member back into a wizard that can only fail at this same step.
+      const alreadyMember = await this.prisma.client.gymMember.findUnique({
+        where: { userId_gymId: { userId: existing.id, gymId: gym.id } },
+        select: { id: true },
       });
+
+      throw new ConflictException(
+        alreadyMember
+          ? {
+              message: 'You are already a member of this gym',
+              code: ALREADY_MEMBER_CODE,
+            }
+          : {
+              // The wizard turns this into a "you already have an account — sign
+              // in" branch, so the buyer keeps their place in the flow.
+              message: 'Email is already registered',
+              code: EMAIL_TAKEN_CODE,
+            },
+      );
     }
 
     // Hash outside the transaction — argon2 is deliberately slow and there is no
@@ -661,7 +705,7 @@ export class AuthService {
     // unchanged.
     await this.redeemStaffInvite(user.id, input.email, input.inviteToken);
 
-    await this.assertGymAccessNotSuspended(user.id);
+    await this.assertGymAccessNotSuspended(user.id, input.gymSlug);
 
     return this.tokens.issueTokenPair(
       user.id,
@@ -696,8 +740,11 @@ export class AuthService {
     // Gate suspended tenants here too — otherwise a suspended gym's members
     // could keep getting fresh sessions via social login while email/password
     // login and refresh are blocked.
-    await this.assertGymAccessNotSuspended(userId);
-    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
+    await this.assertGymAccessNotSuspended(userId, input.gymSlug);
+    return this.tokens.issueTokenPair(
+      userId,
+      await this.resolveSessionScope(userId, input.gymSlug),
+    );
   }
 
   /**
@@ -767,8 +814,11 @@ export class AuthService {
     const userId = await this.resolveAppleUser(profile, input.name);
     // Gate suspended tenants here too (see loginWithGoogle) so social login can't
     // sidestep a suspension that blocks email/password login and refresh.
-    await this.assertGymAccessNotSuspended(userId);
-    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
+    await this.assertGymAccessNotSuspended(userId, input.gymSlug);
+    return this.tokens.issueTokenPair(
+      userId,
+      await this.resolveSessionScope(userId, input.gymSlug),
+    );
   }
 
   /**
@@ -877,9 +927,12 @@ export class AuthService {
    *     subdomain) and the user has an active membership in that active gym, the
    *     session binds to *that* gym — so a multi-gym user lands on the tenant they
    *     actually signed in on, not their earliest-joined one. The slug is only a
-   *     selector among the user's own memberships: a slug they don't belong to (or
-   *     an unknown/suspended one) is ignored and the primary fallback applies, so
-   *     it can never widen scope.
+   *     selector among the user's own memberships: a slug they don't belong to at
+   *     all is ignored and the primary fallback applies, so it can never widen
+   *     scope. A slug they *do* belong to but whose membership is not `ACTIVE`
+   *     (invited, suspended) is refused with `403 MEMBERSHIP_NOT_ACTIVE` instead —
+   *     silently signing them into a different gym than the one they asked for is
+   *     the confusing failure that gate exists to prevent.
    *   • Otherwise the session binds to the user's "home" gym: the earliest-joined
    *     active membership in an active gym. A user who belongs to several gyms
    *     lands on one per session; switching tenants is done by signing in on the
@@ -920,10 +973,14 @@ export class AuthService {
 
     // Subdomain-scoped sign-in: bind to the named gym when the user belongs to it.
     if (gymSlug) {
-      const onSubdomain = active.find((m) => m.gym.slug === gymSlug);
+      const onSubdomain = active.find(bySlug(gymSlug));
       if (onSubdomain) {
         return { gymId: onSubdomain.gymId, role: onSubdomain.role, tokenVersion };
       }
+      // Asked for a gym and didn't get it. Either the user has no membership
+      // there (fall through to the primary, as before) or they have one that
+      // isn't usable — which this refuses rather than papering over.
+      await this.assertRequestedMembershipActive(userId, gymSlug);
     }
 
     const primary = active.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
@@ -932,6 +989,35 @@ export class AuthService {
     }
 
     return { gymId: null, role: Role.MEMBER, tokenVersion };
+  }
+
+  /**
+   * Refuse a session on a gym the caller explicitly asked for but whose
+   * membership is not `ACTIVE` — `403 MEMBERSHIP_NOT_ACTIVE`.
+   *
+   * Only reached when {@link resolveSessionScope} could not honour a `gymSlug`,
+   * so it costs one extra query on the miss path and none on the common one. A
+   * user with no membership in the named gym at all resolves to `null` here and
+   * keeps the long-standing silent fallback to their primary gym: an unknown or
+   * someone-else's slug is noise, whereas *their own* invited / suspended
+   * membership is a real answer the client can act on.
+   *
+   * Note this asks only about the membership row. A gym that is itself suspended
+   * is caught earlier by {@link assertGymAccessNotSuspended}, which reports the
+   * tenant-level `GYM_SUSPENDED` rather than blaming the member's standing.
+   */
+  private async assertRequestedMembershipActive(userId: string, gymSlug: string): Promise<void> {
+    const membership = await this.prisma.client.gymMember.findFirst({
+      where: { userId, gym: { slug: gymSlug } },
+      select: { status: true },
+    });
+
+    if (membership && membership.status !== GymMemberStatus.ACTIVE) {
+      throw new ForbiddenException({
+        message: 'Your membership in this gym is not active yet',
+        code: MEMBERSHIP_NOT_ACTIVE_CODE,
+      });
+    }
   }
 
   /**
@@ -945,8 +1031,30 @@ export class AuthService {
    * session to one gym, so it asks the session-level question "are all my gyms
    * suspended?" rather than inspecting the about-to-be-issued gym claim; for a
    * single-gym member — the common case — the two are equivalent.
+   *
+   * `gymSlug` sharpens exactly that gap for a multi-gym user. When the sign-in
+   * names a tenant (a `<slug>.fit.ge` subdomain) and *that* gym is suspended, the
+   * answer is `403 GYM_SUSPENDED` even though another of the user's gyms is
+   * live — otherwise the session-level question says "yes, you have a live gym"
+   * and the member is quietly signed into the wrong one, which reads as the
+   * suspension having no effect. The named gym is checked on its own, not through
+   * the user's memberships: a suspended tenant is closed to everyone, member or
+   * not, and answering differently would leak who belongs to it.
    */
-  private async assertGymAccessNotSuspended(userId: string): Promise<void> {
+  private async assertGymAccessNotSuspended(userId: string, gymSlug?: string): Promise<void> {
+    if (gymSlug) {
+      const gym = await this.prisma.client.gym.findUnique({
+        where: { slug: gymSlug },
+        select: { status: true },
+      });
+      if (gym && gym.status !== GymStatus.ACTIVE) {
+        throw new ForbiddenException({
+          message: 'This gym has been suspended',
+          code: 'GYM_SUSPENDED',
+        });
+      }
+    }
+
     const [anyMembership, activeMembership] = await Promise.all([
       this.prisma.client.gymMember.findFirst({ where: { userId }, select: { id: true } }),
       this.prisma.client.gymMember.findFirst({
