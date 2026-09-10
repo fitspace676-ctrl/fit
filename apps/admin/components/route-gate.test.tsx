@@ -8,7 +8,7 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { Permission } from '@fit/types';
+import { ALL_PERMISSIONS, Permission } from '@fit/types';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { defaultPermissionsForRole } from '@/lib/console-permissions.fixture';
 import { DENIED_ACCESS, type ConsolePermissions } from '@/lib/console-permissions';
@@ -76,9 +76,18 @@ describe('ConsoleRouteGate', () => {
 
 describe('mayOpenRoute', () => {
   it('enforces the role floor as well as the capability', () => {
-    // MANAGER holds `StaffManage` and the API honours it; the console keeps
-    // `/staff` on an OWNER floor. Both halves of the guard have to be read.
-    expect(mayOpenRoute(defaultPermissionsForRole('MANAGER'), '/staff')).toBe(false);
+    // `/staff` carries a MANAGER floor on top of `StaffRead`, because behind the
+    // roster sits who may become an owner. Both halves of the guard have to be
+    // read: the capability alone would let a gym grant its way in from the
+    // permission editor, and the floor alone would let anyone senior enough past a
+    // capability their gym had revoked.
+    const desk = { ...defaultPermissionsForRole('RECEPTIONIST'), grants: [...ALL_PERMISSIONS] };
+    expect(mayOpenRoute(desk, '/staff')).toBe(false);
+
+    const manager = defaultPermissionsForRole('MANAGER');
+    expect(mayOpenRoute(manager, '/staff')).toBe(true);
+    expect(mayOpenRoute({ ...manager, grants: [] }, '/staff')).toBe(false);
+
     expect(mayOpenRoute(defaultPermissionsForRole('OWNER'), '/staff')).toBe(true);
   });
 

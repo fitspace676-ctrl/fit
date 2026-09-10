@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
 import {
+  DEFAULT_REPORT_RANGE,
   REPORT_CATALOG,
   REPORT_SEGMENT_LABEL,
   type ReportCatalogResponse,
@@ -143,13 +144,18 @@ describe('ReportsController', () => {
       );
     });
 
+    // The service is currently ignoring the branch — see
+    // docs/superpowers/plans/2026-09-02-restore-report-branch-filter.md — but the
+    // plumbing that carries it is intact and stays pinned, because the parsing and
+    // the filtering fail differently and only one of them is outstanding.
     it('passes the branch through to the service', async () => {
       const { controller, runReport } = setup();
-      await controller.run('revenue-by-channel', { range: '30d', locationId: 'loc-1' });
-      expect(runReport).toHaveBeenCalledWith('revenue-by-channel', {
-        range: '30d',
-        locationId: 'loc-1',
-      });
+      await controller.run('revenue-by-channel', { range: '7d', locationId: 'loc-1' });
+      expect(runReport).toHaveBeenCalledWith(
+        'revenue-by-channel',
+        { range: '7d', locationId: 'loc-1' },
+        null,
+      );
     });
 
     it('omits the branch entirely when none is given', async () => {
@@ -157,7 +163,11 @@ describe('ReportsController', () => {
       await controller.run('revenue-by-channel', {});
       // Absent, not `locationId: undefined` — "all branches" is the absence of the
       // parameter, and the service must not have to tell the two apart.
-      expect(runReport).toHaveBeenCalledWith('revenue-by-channel', { range: '30d' });
+      expect(runReport).toHaveBeenCalledWith(
+        'revenue-by-channel',
+        { range: DEFAULT_REPORT_RANGE },
+        null,
+      );
     });
 
     // The console normalises its `'all'` sentinel to an absent param, so an empty
@@ -240,25 +250,25 @@ describe('ReportsController', () => {
 
       await controller.export(
         'revenue-by-channel',
-        { range: '30d', locationId: 'loc-1' },
+        { range: '7d', locationId: 'loc-1' },
         responseDouble().res,
       );
       await controller.export(
         'revenue-by-channel',
-        { range: '30d', format: 'xlsx', locationId: 'loc-1' },
+        { range: '7d', format: 'xlsx', locationId: 'loc-1' },
         responseDouble().res,
       );
 
-      expect(streamReportCsv).toHaveBeenCalledWith('revenue-by-channel', {
-        range: '30d',
-        format: 'csv',
-        locationId: 'loc-1',
-      });
-      expect(buildReportXlsx).toHaveBeenCalledWith('revenue-by-channel', {
-        range: '30d',
-        format: 'xlsx',
-        locationId: 'loc-1',
-      });
+      expect(streamReportCsv).toHaveBeenCalledWith(
+        'revenue-by-channel',
+        { range: '7d', format: 'csv', locationId: 'loc-1' },
+        null,
+      );
+      expect(buildReportXlsx).toHaveBeenCalledWith(
+        'revenue-by-channel',
+        { range: '7d', format: 'xlsx', locationId: 'loc-1' },
+        null,
+      );
     });
   });
 });

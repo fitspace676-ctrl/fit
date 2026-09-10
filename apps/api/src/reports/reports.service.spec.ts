@@ -2122,12 +2122,13 @@ describe('ReportsService', () => {
     it('staff schedule: every weekly shift on every day of the window it falls on', async () => {
       const { service, shiftSlotFindMany } = setup();
       shiftSlotFindMany.mockResolvedValue([
-        // Mondays 09:00-17:00 at the front desk; Sundays off.
+        // Mondays 09:00-17:00 at Vake; Sundays off.
         {
           dayOfWeek: 0,
           startTime: '09:00',
           endTime: '17:00',
-          location: 'Front desk',
+          locationName: null,
+          location: { name: 'Vake' },
           staff: mariam,
         },
       ]);
@@ -2148,8 +2149,31 @@ describe('ReportsService', () => {
         date: '2026-08-03',
         start: '09:00',
         end: '17:00',
-        location: 'Front desk',
+        location: 'Vake',
       });
+    });
+
+    // Stage 6 turned `ShiftSlot.location` from typed-in text into a real branch and
+    // renamed the string to `locationName`. What is left in that string is exactly
+    // what the migration could NOT resolve — a room, a typo, a closed site — and it
+    // is the only surviving record of where such a shift is worked, so the report
+    // prints it rather than an empty cell.
+    it('staff schedule: falls back to the unresolved label when no branch is attached', async () => {
+      const { service, shiftSlotFindMany } = setup();
+      shiftSlotFindMany.mockResolvedValue([
+        {
+          dayOfWeek: 0,
+          startTime: '09:00',
+          endTime: '17:00',
+          locationName: 'Front desk',
+          location: null,
+          staff: mariam,
+        },
+      ]);
+
+      const result = await service.runReport('staff-schedule', { range: 'mtd' });
+
+      expect(result.rows[0]?.location).toBe('Front desk');
     });
 
     it('audit log: each entry with who, the action in words, the record, and the values before and after', async () => {

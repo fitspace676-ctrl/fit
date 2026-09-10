@@ -161,6 +161,12 @@ function toggleCell(
   if (row.cells.kind === 'single') {
     return withGrant(grants, row.cells.permission, next);
   }
+  if (row.cells.kind === 'actions') {
+    // Unreachable: an action row's checkboxes call `toggleAction`, which names the
+    // capability rather than a column. Returning the grants unchanged keeps this a
+    // no-op rather than a silent write to the wrong permission.
+    return grants;
+  }
   const { view, manage } = row.cells;
   if (column === 'view') {
     return next
@@ -172,6 +178,19 @@ function toggleCell(
     : withGrant(grants, manage, false);
 }
 
+/**
+ * The grants after one named action is toggled.
+ *
+ * No implication in either direction, unlike {@link toggleCell}. A View/Manage pair
+ * has an order — you cannot manage what you cannot see — and these do not: counting
+ * a shelf without being allowed to correct it is a real front-desk configuration,
+ * and so is taking payment without being able to refund. Ticking a neighbour here
+ * would be the editor inventing policy the specification did not ask for.
+ */
+function toggleAction(grants: Permission[], permission: Permission, next: boolean): Permission[] {
+  return withGrant(grants, permission, next);
+}
+
 /** Whether `grants` holds the permission behind one cell of `row`. */
 function cellChecked(
   grants: readonly Permission[],
@@ -180,6 +199,9 @@ function cellChecked(
 ): boolean {
   if (row.cells.kind === 'single') {
     return grants.includes(row.cells.permission);
+  }
+  if (row.cells.kind === 'actions') {
+    return false;
   }
   return grants.includes(column === 'view' ? row.cells.view : row.cells.manage);
 }
@@ -544,6 +566,25 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     color: 'var(--color-text-secondary)',
   },
+  // A verb list wraps rather than scrolls: the widest row carries four actions, and
+  // a horizontal scrollbar inside a table cell hides the very box an operator is
+  // looking for.
+  actionList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.25rem 1rem',
+  },
+  action: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  },
+  actionLabel: {
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+    whiteSpace: 'nowrap',
+  },
   matrixHint: {
     margin: 0,
     fontSize: '0.8125rem',
@@ -788,7 +829,42 @@ function RolePanel({ role }: { role: StaffRole }) {
                     <th scope="row" {...stylex.props(styles.rowLabel)}>
                       {label}
                     </th>
-                    {row.cells.kind === 'single' ? (
+                    {row.cells.kind === 'actions' ? (
+                      // A verb list, spanning both columns. The header's View and
+                      // Manage do not apply — these capabilities are siblings, not a
+                      // ladder — so each names itself beside its own box rather than
+                      // borrowing a column heading that would misdescribe it.
+                      <td colSpan={2} {...stylex.props(styles.cell)}>
+                        <span {...stylex.props(styles.actionList)}>
+                          {row.cells.actions.map((action) => (
+                            <span key={action.permission} {...stylex.props(styles.action)}>
+                              <Checkbox
+                                label={t('matrix.cellLabel', {
+                                  resource: label,
+                                  column: tAdmin(action.labelKey),
+                                })}
+                                labelHidden
+                                checked={locked || value.grants.includes(action.permission)}
+                                disabled={locked}
+                                onChange={(event) =>
+                                  write({
+                                    ...value,
+                                    grants: toggleAction(
+                                      value.grants,
+                                      action.permission,
+                                      event.target.checked,
+                                    ),
+                                  })
+                                }
+                              />
+                              <span aria-hidden {...stylex.props(styles.actionLabel)}>
+                                {tAdmin(action.labelKey)}
+                              </span>
+                            </span>
+                          ))}
+                        </span>
+                      </td>
+                    ) : row.cells.kind === 'single' ? (
                       // One permission, so ONE control spanning both columns —
                       // never a live checkbox beside a greyed ghost, which would
                       // read as a Manage the gym is not allowed rather than a

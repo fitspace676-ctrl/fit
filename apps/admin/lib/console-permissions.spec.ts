@@ -12,7 +12,7 @@
 //     answers.
 
 import { describe, expect, it } from 'vitest';
-import { ALL_PERMISSIONS, Permission, ROLE_PERMISSIONS } from '@fit/types';
+import { ACCOUNT_PERMISSIONS, ALL_PERMISSIONS, Permission, ROLE_PERMISSIONS } from '@fit/types';
 import {
   ALL_LOCATIONS,
   NO_LOCATION,
@@ -41,9 +41,13 @@ describe('a gym that has configured nothing', () => {
     'gives %s exactly the capabilities it has always had',
     (role) => {
       const permissions = defaultPermissionsForRole(role);
-      const shipped: readonly Permission[] = ROLE_PERMISSIONS[role];
+      // The role's own entry PLUS the account capabilities, which `ROLE_PERMISSIONS`
+      // deliberately omits: every signed-in user edits their own profile and
+      // registers their own push device whatever job they do, so listing those
+      // under "Receptionist" would be describing the person rather than the role.
+      const shipped = new Set<Permission>([...ROLE_PERMISSIONS[role], ...ACCOUNT_PERMISSIONS]);
       for (const permission of ALL_PERMISSIONS) {
-        expect(consoleCan(permissions, permission)).toBe(shipped.includes(permission));
+        expect(consoleCan(permissions, permission)).toBe(shipped.has(permission));
       }
     },
   );

@@ -1601,13 +1601,19 @@ export class ReportsService {
       select: {
         amount: true,
         refundedAmount: true,
-        order: { select: { location: { select: { name: true } } } },
+        // The payment's OWN branch, not a hop through the order. Stage 5
+        // denormalised `order.locationId` onto the payment row precisely so this
+        // aggregate could be one equality on an indexed column; reading it through
+        // the relation plans as a join plus a heap filter and cannot use the index.
+        // The two answer identically — the copy is stamped from the order at write
+        // time and nothing moves a payment between branches afterwards.
+        location: { select: { name: true } },
       },
     });
 
     const byLocation = new Map<string, { orders: number; gross: number; refunded: number }>();
     for (const payment of payments) {
-      const name = payment.order?.location?.name ?? s.values.noLocation;
+      const name = payment.location?.name ?? s.values.noLocation;
       const entry = byLocation.get(name) ?? { orders: 0, gross: 0, refunded: 0 };
       entry.orders += 1;
       entry.gross += payment.amount;

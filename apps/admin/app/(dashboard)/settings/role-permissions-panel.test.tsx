@@ -20,7 +20,12 @@ import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import { en } from '@fit/i18n';
 import { z } from 'zod';
-import { EDITABLE_PERMISSIONS, Permission, defaultGymRolePermissions } from '@fit/types';
+import {
+  EDITABLE_PERMISSIONS,
+  PERMISSION_MATRIX_PERMISSIONS,
+  Permission,
+  defaultGymRolePermissions,
+} from '@fit/types';
 import { FormProvider, useZodForm, type UseFormReturn } from '@/components/ui';
 import {
   RolePermissionsSection,
@@ -126,23 +131,41 @@ describe('RolePermissionsSection — the matrix', () => {
   it('gives a single-column resource one wide toggle, not a greyed second cell', async () => {
     renderEditor();
     await selectRole('Manager');
-    // `staff:manage` grants read and write together — one control, spanning both
-    // columns, labelled as full access.
-    expect(screen.getByLabelText('Staff — Full access')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Staff — View')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Staff — Manage')).not.toBeInTheDocument();
+    // Reading the audit log is the whole capability — nobody writes to an audit
+    // trail — so it draws one control spanning both columns rather than a live
+    // checkbox beside a greyed ghost, which would read as a Manage the gym is not
+    // allowed rather than a Manage that does not exist.
+    expect(screen.getByLabelText('Audit log — Full access')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Audit log — View')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Audit log — Manage')).not.toBeInTheDocument();
     // …and a two-column resource still has both.
     expect(screen.getByLabelText('Members — View')).toBeInTheDocument();
     expect(screen.getByLabelText('Members — Manage')).toBeInTheDocument();
   });
 
-  it('renders one cell per column and no more', async () => {
+  it('names each capability on an action row, and offers it no View/Manage pair', async () => {
+    renderEditor();
+    await selectRole('Manager');
+    // The till's four capabilities are siblings, not a ladder: opening the drawer,
+    // taking payment, discounting and refunding are four separate grants and the
+    // specification hands a receptionist exactly three of them. Borrowing the View
+    // and Manage headings here would have made "Manage POS" mean "may refund".
+    for (const action of ['Open the till', 'Take payment', 'Apply discounts', 'Refund']) {
+      expect(screen.getByLabelText(`POS — ${action}`)).toBeInTheDocument();
+    }
+    expect(screen.queryByLabelText('POS — View')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('POS — Manage')).not.toBeInTheDocument();
+  });
+
+  it('renders one control per editable capability and no control without one', async () => {
     renderEditor();
     await selectRole('Trainer');
-    // Ten two-column rows and five single-column ones — which is exactly the
-    // editable vocabulary, one control per capability and no control without one.
-    expect(screen.getAllByRole('checkbox')).toHaveLength(10 * 2 + 5);
+    // The whole contract of this screen in one assertion. A capability with no
+    // control is one a gym can never revoke; a control with no capability writes a
+    // value the schema drops on read. Counted rather than listed, so adding a
+    // permission fails here instead of shipping a screen that quietly omits it.
     expect(screen.getAllByRole('checkbox')).toHaveLength(EDITABLE_PERMISSIONS.length);
+    expect(PERMISSION_MATRIX_PERMISSIONS).toEqual([...EDITABLE_PERMISSIONS]);
   });
 });
 
@@ -178,10 +201,27 @@ describe('RolePermissionsSection — editing round-trips', () => {
   it('toggles a single-column resource through its one control', async () => {
     const editor = renderEditor();
     await selectRole('Manager');
-    expect(editor.grants('MANAGER')).toContain(Permission.StaffManage);
+    expect(editor.grants('MANAGER')).toContain(Permission.AuditRead);
 
-    await userEvent.click(screen.getByLabelText('Staff — Full access'));
-    expect(editor.grants('MANAGER')).not.toContain(Permission.StaffManage);
+    await userEvent.click(screen.getByLabelText('Audit log — Full access'));
+    expect(editor.grants('MANAGER')).not.toContain(Permission.AuditRead);
+  });
+
+  it('moves one action without disturbing its siblings', async () => {
+    // The refund line, drawn: a gym takes `payment:refund` off its managers and
+    // every other till capability stays exactly where it was. Nothing here implies
+    // anything else, which is what separates an action row from a View/Manage pair.
+    const editor = renderEditor();
+    await selectRole('Manager');
+    const siblings = [Permission.PosAccess, Permission.PaymentProcess, Permission.DiscountApply];
+    expect(editor.grants('MANAGER')).toContain(Permission.PaymentRefund);
+
+    await userEvent.click(screen.getByLabelText('POS — Refund'));
+
+    expect(editor.grants('MANAGER')).not.toContain(Permission.PaymentRefund);
+    for (const sibling of siblings) {
+      expect(editor.grants('MANAGER')).toContain(sibling);
+    }
   });
 
   it('edits one role without touching the others', async () => {

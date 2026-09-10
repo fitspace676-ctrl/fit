@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { en, ka } from '@fit/i18n';
-import { Permission, ROLE_PERMISSIONS } from '@fit/types';
+import { ALL_PERMISSIONS, Permission, ROLE_PERMISSIONS } from '@fit/types';
 import { NAV_GROUPS, NAV_ITEMS, visibleNavItems } from './nav';
 import { defaultPermissionsForRole } from './console-permissions.fixture';
 import { ROUTE_PERMISSIONS, routeGuardForPath } from './route-guards';
@@ -175,15 +175,19 @@ describe('sidebar nav ⇄ route guards', () => {
     expect(defaultNav('OWNER')).toContain('/settings');
   });
 
-  it('keeps /staff on its OWNER floor even though MANAGER holds StaffManage', () => {
-    // The one deliberate divergence between console policy and the capability
-    // the API enforces. Asserted so that changing it is a decision rather than a
-    // side effect — see `lib/route-guards.ts`.
-    expect(routeGuardForPath('/staff')?.permission).toBe(Permission.StaffManage);
-    expect(routeGuardForPath('/staff')?.minRole).toBe('OWNER');
-    expect(ROLE_PERMISSIONS.MANAGER as readonly Permission[]).toContain(Permission.StaffManage);
-    expect(defaultNav('MANAGER')).not.toContain('/staff');
-    expect(defaultNav('OWNER')).toContain('/staff');
+  // The floor on `/staff` is the one gate in this table a gym cannot open from the
+  // permission editor, and this is the property that justifies it: granting the
+  // capability is NOT enough. Everything else here is a capability precisely so an
+  // operator can change it; this one is not, because behind the roster sits who may
+  // become an owner. Asserted so that removing the floor is a decision rather than
+  // a side effect — see `lib/route-guards.ts`.
+  it('keeps /staff shut to the desk and the floor even when the gym grants StaffRead', () => {
+    expect(routeGuardForPath('/staff')?.minRole).toBe('MANAGER');
+
+    for (const role of ['RECEPTIONIST', 'TRAINER'] as Role[]) {
+      const granted = { ...defaultPermissionsForRole(role), grants: [...ALL_PERMISSIONS] };
+      expect(visibleNavItems(granted).map((item) => item.href)).not.toContain('/staff');
+    }
   });
 
   it('shows the Growth group to an OWNER and to a MANAGER', () => {

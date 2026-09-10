@@ -70,6 +70,16 @@ jobs:
       - name: Check migrated screens are Tailwind-free
         run: pnpm check:tailwind-guardrail
 
+      # WP-17 contract test. The deleted mobile app called `POST /orders` (no such
+      # route) and `GET /orders/:id` (BillingRead — a MEMBER 403), so shop checkout
+      # could never succeed, and it shipped with a green Maestro flow because that
+      # flow asserted UI state rather than a completed order. This compares the
+      # app's ENDPOINTS table against a route manifest built from the API's AST:
+      # no server, no database, no emulator, so it runs on every PR. It no-ops
+      # until apps/mobile/lib/api/endpoints.ts exists.
+      - name: Check mobile endpoints exist and are MEMBER-callable
+        run: pnpm check:mobile-endpoints
+
       - name: Test
         run: pnpm test
 

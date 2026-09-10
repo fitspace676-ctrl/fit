@@ -110,15 +110,15 @@ async function runDrilldown(metric: string, query: string): Promise<Record<strin
 describe('report export routes — branch resolution', () => {
   it('falls back to the top bar cookie when the link names no branch', async () => {
     mocks.cookie = 'loc-1';
-    expect(await runCatalogue('report=sales-summary&range=30d&format=csv')).toMatchObject({
-      range: '30d',
+    expect(await runCatalogue('report=sales-summary&range=7d&format=csv')).toMatchObject({
+      window: { range: '7d' },
       format: 'csv',
       locationId: 'loc-1',
     });
 
     mocks.cookie = 'loc-1';
-    expect(await runDrilldown('sales', 'range=30d&format=xlsx')).toMatchObject({
-      range: '30d',
+    expect(await runDrilldown('sales', 'range=7d&format=xlsx')).toMatchObject({
+      window: { range: '7d' },
       format: 'xlsx',
       locationId: 'loc-1',
     });
@@ -130,11 +130,11 @@ describe('report export routes — branch resolution', () => {
     // page, not the switcher.
     mocks.cookie = 'all';
     expect(
-      await runCatalogue('report=sales-summary&range=30d&format=csv&locationId=loc-1'),
+      await runCatalogue('report=sales-summary&range=7d&format=csv&locationId=loc-1'),
     ).toMatchObject({ locationId: 'loc-1' });
 
     mocks.cookie = 'all';
-    expect(await runDrilldown('sales', 'range=30d&format=csv&locationId=loc-1')).toMatchObject({
+    expect(await runDrilldown('sales', 'range=7d&format=csv&locationId=loc-1')).toMatchObject({
       locationId: 'loc-1',
     });
   });

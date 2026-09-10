@@ -64,16 +64,18 @@ export const ROUTE_PERMISSIONS: readonly RouteGuard[] = [
   // ---- People -------------------------------------------------------------
   { prefix: '/members', permission: Permission.MemberRead },
   { prefix: '/trainers', permission: Permission.TrainerRead },
-  // One capability covers reading the roster and re-roling people — there is no
-  // `staff:read` to withhold.
+  // OPENING the roster is `StaffRead`; changing it is `StaffManage`, and handing
+  // out a role is `StaffAssignRole` — three capabilities where there used to be
+  // one, which is what lets a manager run the roster of their branches without
+  // being able to make another owner.
   //
-  // The OWNER floor is the single deliberate divergence in this table. MANAGER
-  // holds `StaffManage` and the API honours it, but re-roling colleagues has
-  // always been the owner's own screen in this console. It is stated as a floor
-  // rather than folded into the capability so the divergence is visible — and so
-  // it is one line to drop if the Staff row in the permission editor should mean
-  // what it says for a MANAGER.
-  { prefix: '/staff', permission: Permission.StaffManage, minRole: 'OWNER' },
+  // The MANAGER floor rides on top because that last part is not a checkbox: the
+  // spec is explicit that a manager cannot create, promote to, or modify
+  // Owner/Admin accounts, and a gym must not be able to grant its way past that
+  // from the permission editor. Everything below the floor is capability-gated as
+  // usual, and the owner-only half is enforced inside the console (`canAssignOwner`)
+  // and again at the API.
+  { prefix: '/staff', permission: Permission.StaffRead, minRole: 'MANAGER' },
 
   // ---- Operations ---------------------------------------------------------
   { prefix: '/classes', permission: Permission.ClassRead },
@@ -84,11 +86,14 @@ export const ROUTE_PERMISSIONS: readonly RouteGuard[] = [
   { prefix: '/settings/billing', permission: Permission.GymManage },
   { prefix: '/payments', permission: Permission.BillingRead },
   { prefix: '/packages', permission: Permission.PackageRead },
-  // Shop, Services and the till are one row in the permission editor because
-  // they are one capability in the API: all three read `product:read`.
+  // Shop and Services are one capability in the API: both read `product:read`.
   { prefix: '/shop', permission: Permission.ProductRead },
   { prefix: '/services', permission: Permission.ProductRead },
-  { prefix: '/pos', permission: Permission.ProductRead },
+  // The till is its OWN capability, and it has to be. Seeing the catalogue and
+  // being allowed to ring a sale up on it are different jobs — a trainer reads
+  // prices and never opens the drawer — so `/pos` gates on `pos:access` while the
+  // two catalogue routes stay on `product:read`.
+  { prefix: '/pos', permission: Permission.PosAccess },
 
   // ---- Growth -------------------------------------------------------------
   // Were MANAGER+ by rank. The capability is the same gate for a gym that has
@@ -169,7 +174,9 @@ export function requiredPermissionForPath(pathname: string): Permission | null {
 /**
  * The minimum role `pathname` requires, or `null` when it imposes no floor.
  *
- * Only `/staff` answers anything today — see {@link ROUTE_PERMISSIONS}.
+ * Only `/staff` answers anything today — see {@link ROUTE_PERMISSIONS}. It is a
+ * floor rather than a capability because it guards who may become an owner, which
+ * is the one thing the permission editor must not be able to grant.
  */
 export function requiredRoleForPath(pathname: string): Role | null {
   return routeGuardForPath(pathname)?.minRole ?? null;

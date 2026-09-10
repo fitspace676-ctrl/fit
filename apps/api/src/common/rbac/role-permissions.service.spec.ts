@@ -1,6 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Role } from '@fit/db';
-import { ALL_PERMISSIONS, Permission, ROLE_PERMISSIONS } from '@fit/types';
+import { ACCOUNT_PERMISSIONS, ALL_PERMISSIONS, Permission, ROLE_PERMISSIONS } from '@fit/types';
+
+/**
+ * What a role resolves to at a gym that has configured nothing: its entry in the
+ * built-in matrix, PLUS the account capabilities.
+ *
+ * `ROLE_PERMISSIONS` deliberately omits the latter — a roles matrix that listed
+ * "edit own profile" under Receptionist would be describing the user rather than
+ * the job — and both `roleHasPermission` and the resolver add them back. Writing
+ * that sum here rather than in four assertions keeps the two definitions of "the
+ * defaults" from drifting apart.
+ */
+const shipped = (role: keyof typeof ROLE_PERMISSIONS): Permission[] =>
+  [...ROLE_PERMISSIONS[role], ...ACCOUNT_PERMISSIONS].sort();
 import type { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import type { TenantState } from '../tenant/tenant.context';
 import { clearRequestAccessResolver, invalidateGymAccess } from './request-access';
@@ -62,13 +75,13 @@ describe('RolePermissionsService', () => {
     it('resolves a staff role to the built-in matrix when settings are absent', async () => {
       const { service } = fakePrisma({ settings: null });
       const resolved = await new RolePermissionsService(service).resolve(state());
-      expect([...resolved.grants].sort()).toEqual([...ROLE_PERMISSIONS.RECEPTIONIST].sort());
+      expect([...resolved.grants].sort()).toEqual(shipped('RECEPTIONIST'));
     });
 
     it('resolves the same way when the settings blob has no permissions section', async () => {
       const { service } = fakePrisma({ settings: { brand: { logoUrl: null } } });
       const resolved = await new RolePermissionsService(service).resolve(state());
-      expect([...resolved.grants].sort()).toEqual([...ROLE_PERMISSIONS.RECEPTIONIST].sort());
+      expect([...resolved.grants].sort()).toEqual(shipped('RECEPTIONIST'));
     });
 
     it('degrades a malformed permissions section to that field’s default, never to nothing', async () => {
@@ -78,7 +91,7 @@ describe('RolePermissionsService', () => {
         settings: { permissions: { RECEPTIONIST: { grants: 'not-an-array', branchScope: 42 } } },
       });
       const resolved = await new RolePermissionsService(service).resolve(state());
-      expect([...resolved.grants].sort()).toEqual([...ROLE_PERMISSIONS.RECEPTIONIST].sort());
+      expect([...resolved.grants].sort()).toEqual(shipped('RECEPTIONIST'));
       expect(resolved.branchScope).toBe('assigned');
     });
   });
@@ -99,13 +112,16 @@ describe('RolePermissionsService', () => {
     });
 
     it('keeps the self-service capabilities an override cannot express', async () => {
-      // `ProfileManage` is not in the editable vocabulary, so an override with an
-      // empty grants array must not take away a receptionist's own profile.
+      // The account capabilities are not in the editable vocabulary, so an override
+      // with an empty grants array strips a receptionist of every JOB capability and
+      // still leaves them their own profile and their own push registrations. A gym
+      // revoking "view members" is making a staffing decision, not locking someone
+      // out of their account.
       const { service } = fakePrisma({
         settings: { permissions: { RECEPTIONIST: { grants: [], branchScope: 'all' } } },
       });
       const resolved = await new RolePermissionsService(service).resolve(state());
-      expect(resolved.grants).toEqual([Permission.ProfileManage]);
+      expect([...resolved.grants].sort()).toEqual([...ACCOUNT_PERMISSIONS].sort());
     });
   });
 
@@ -153,7 +169,7 @@ describe('RolePermissionsService', () => {
       const resolved = await new RolePermissionsService(service).resolve(
         state({ role: Role.MEMBER }),
       );
-      expect([...resolved.grants].sort()).toEqual([...ROLE_PERMISSIONS.MEMBER].sort());
+      expect([...resolved.grants].sort()).toEqual(shipped('MEMBER'));
       expect(resolved.branchScope).toBe('all');
       expect(gym.findUnique).not.toHaveBeenCalled();
     });

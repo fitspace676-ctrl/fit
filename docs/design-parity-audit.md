@@ -2,6 +2,14 @@
 
 _Audit date: 2026-07-05 · Design: formacore (`6MfRKxx4LyI1`) · Surfaces: admin console, member web portal, Expo mobile, marketing — light **and** dark._
 
+> **Superseded for mobile (2026-08-30).** `@fit/mobile` and `@fit/ui-mobile` were
+> deleted so the mobile client could be rebuilt from scratch. The mobile rows below
+> are historical: `ui-mobile`'s palette was transcribed in July and never repainted
+> after the August "Lime Block" redesign, so this document's byte-for-byte token
+> claim had drifted for `brand`, `accent`, `ink` and `iris` by the time the package
+> was removed. The companion `mobile-parity-audit.md` was deleted with the app. The
+> admin, web and platform findings below still stand.
+
 This is the **final cross-app parity sweep** before the pilot go-live. It rolls up
 the two per-surface audits it depends on — the member portal audit (T6.8, shipped
 across the FormaCore redesign PRs) and the [mobile parity audit](./mobile-parity-audit.md)

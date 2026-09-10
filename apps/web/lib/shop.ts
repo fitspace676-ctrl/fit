@@ -3,9 +3,7 @@
 // Thin wrapper over the public `@fit/api` `GET /products` endpoint used by the
 // web shop listing (T7.6). Like the class/trainer helpers this is an
 // unauthenticated read: the listing is `@Public()`, scoped by an explicit
-// `gymId` the page resolves from the active subdomain. The wire contract is
-// shared with the mobile Shop tab (`@fit/mobile` `lib/shop.ts`) — same
-// `productSummarySchema`, so the two storefronts can never drift.
+// `gymId` the page resolves from the active subdomain.
 
 import { productSummarySchema, type ProductSummary } from '@fit/types';
 import { createNumberFormat } from '@fit/i18n';
