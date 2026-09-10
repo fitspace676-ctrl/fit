@@ -53,3 +53,32 @@ export function extractGymSlug(
   }
   return label;
 }
+
+/**
+ * The other direction: the absolute origin one gym's surfaces are served at —
+ * `https://<slug>.<rootDomain>` — which is what {@link extractGymSlug} reads back
+ * off a request Host. Used to address a tenant from outside a request: the API's
+ * console deep links in email, and the platform / superadmin links into a gym.
+ *
+ * `http` is used for a `localhost` dev root (which may carry a port, e.g.
+ * `localhost:3001`, and keeps it), `https` otherwise. Returns `null` when either
+ * side is missing or blank — no root domain is configured, or there is no tenant
+ * in scope — so the caller can fall back to a generic URL or plain text rather
+ * than link to a host that does not exist.
+ *
+ * Pure: `rootDomain` is passed in rather than read from config, because the var
+ * that holds it differs per app (`PLATFORM_ROOT_DOMAIN` in the API,
+ * `NEXT_PUBLIC_ROOT_DOMAIN` in the Next apps).
+ */
+export function tenantOrigin(
+  slug: string | null | undefined,
+  rootDomain: string | null | undefined,
+): string | null {
+  const label = slug?.trim().toLowerCase();
+  const root = rootDomain?.trim().toLowerCase();
+  if (!label || !root) {
+    return null;
+  }
+  const scheme = root === 'localhost' || root.startsWith('localhost:') ? 'http' : 'https';
+  return `${scheme}://${label}.${root}`;
+}

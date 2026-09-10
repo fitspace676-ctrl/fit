@@ -11,6 +11,7 @@ import {
 } from '@fit/types';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { EmailService } from '../auth/email.service';
+import { buildConsoleUrl } from '../common/console-url';
 import { tenantStorage } from '../common/tenant/tenant.context';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -137,7 +138,7 @@ export class ReportDeliveryService {
   async deliverAll(cadence: ReportDigestCadence): Promise<ReportDeliverySummary> {
     const gyms = await this.prisma.client.gym.findMany({
       where: { status: GymStatus.ACTIVE },
-      select: { id: true, name: true, settings: true },
+      select: { id: true, name: true, slug: true, settings: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -149,7 +150,6 @@ export class ReportDeliveryService {
       emailsSkipped: 0,
       emailsFailed: 0,
     };
-    const reportsUrl = buildReportsUrl();
 
     for (const gym of gyms) {
       summary.gymsProcessed += 1;
@@ -160,6 +160,9 @@ export class ReportDeliveryService {
       summary.gymsWithRecipients += 1;
 
       const digest = await this.buildDigest(gym.id, gym.name, cadence);
+      // Per gym, not once per sweep: the "View full reports" link is addressed to
+      // the gym's own console host, so it opens on the gym the digest is about.
+      const reportsUrl = buildConsoleUrl('reports', gym.slug);
 
       for (const recipient of recipients) {
         try {
@@ -259,18 +262,4 @@ export class ReportDeliveryService {
       return false;
     }
   }
-}
-
-/**
- * The admin console's Reports screen URL, for the "View full reports" link — built
- * from `ADMIN_URL` when set, otherwise omitted (the email simply renders no link).
- *
- * `ADMIN_BASE_PATH` — the prefix the console is served under — is joined on because
- * `ADMIN_URL` is a bare ORIGIN everywhere it is set. Without it the link lands one
- * directory above every console route and 404s, the same regression the owner
- * onboarding link shipped with (see `buildOwnerOnboardingUrl`).
- */
-function buildReportsUrl(): string | undefined {
-  if (!env.ADMIN_URL) return undefined;
-  return `${env.ADMIN_URL.replace(/\/+$/, '')}${env.ADMIN_BASE_PATH}/reports`;
 }

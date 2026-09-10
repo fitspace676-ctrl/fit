@@ -13,8 +13,8 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 
 /** A gym row as both sweeps' `select` projects it. */
-function gym(id: string, name: string, settings: unknown = {}) {
-  return { id, name, settings };
+function gym(id: string, name: string, settings: unknown = {}, slug: string = id) {
+  return { id, name, slug, settings };
 }
 
 /** A staff `GymMember` row as `recipientsFor`'s `select` projects it. */
@@ -45,6 +45,7 @@ function setup(
     threshold?: number;
     adminUrl?: string;
     adminBasePath?: string;
+    rootDomain?: string;
     lowStockSend?: (email: string) => boolean | Promise<boolean>;
     dailySend?: (email: string) => boolean | Promise<boolean>;
   } = {},
@@ -60,6 +61,9 @@ function setup(
     // schema, so the real `env` always has a string here — a setup that left it
     // undefined would be testing a state that cannot occur.
     adminBasePath = '/admin',
+    // Left unset by default so the shared setup exercises the platform-wide
+    // fallback; the per-tenant cases opt in.
+    rootDomain,
     lowStockSend = () => true,
     dailySend = () => true,
   } = options;
@@ -71,10 +75,15 @@ function setup(
     OPS_LOW_STOCK_THRESHOLD: threshold,
     ADMIN_URL: adminUrl,
     ADMIN_BASE_PATH: adminBasePath,
+    PLATFORM_ROOT_DOMAIN: rootDomain,
   });
 
   const gymFindMany =
-    vi.fn<(args: unknown) => Promise<Array<{ id: string; name: string; settings: unknown }>>>();
+    vi.fn<
+      (
+        args: unknown,
+      ) => Promise<Array<{ id: string; name: string; slug: string; settings: unknown }>>
+    >();
   const gymMemberFindMany =
     vi.fn<
       (args: {
@@ -231,7 +240,7 @@ describe('OpsNotificationsService.sweepLowStock', () => {
 
   // The link is built from a bare ORIGIN plus the prefix the console is served
   // under; dropping the prefix lands it one directory above every console route.
-  it('passes the ADMIN_URL products link into the digest when set', async () => {
+  it('falls back to the ADMIN_URL products link when no root domain is configured', async () => {
     const s = setup({ adminUrl: 'https://admin.fit/' });
     s.gymFindMany.mockResolvedValue([gym('g1', 'Downtown')]);
     s.gymMemberFindMany.mockResolvedValue([staff('owner@g1', 'Owner')]);
@@ -241,6 +250,27 @@ describe('OpsNotificationsService.sweepLowStock', () => {
 
     expect(s.sendLowStockDigestEmail.mock.calls[0]![1].productsUrl).toBe(
       'https://admin.fit/admin/products',
+    );
+  });
+
+  it("addresses each gym's link at its own console host when a root domain is set", async () => {
+    const s = setup({ rootDomain: 'formacore.io', adminUrl: 'https://app.formacore.io' });
+    s.gymFindMany.mockResolvedValue([
+      gym('g1', 'Downtown', {}, 'downtown'),
+      gym('g2', 'Uptown', {}, 'uptown'),
+    ]);
+    s.gymMemberFindMany
+      .mockResolvedValueOnce([staff('owner@g1', 'Owner')])
+      .mockResolvedValueOnce([staff('owner@g2', 'Owner')]);
+    s.productFindMany.mockResolvedValue([product('Bar', [{ name: 'Choc', stock: 1 }])]);
+
+    await s.service.sweepLowStock();
+
+    expect(s.sendLowStockDigestEmail.mock.calls[0]![1].productsUrl).toBe(
+      'https://downtown.formacore.io/admin/products',
+    );
+    expect(s.sendLowStockDigestEmail.mock.calls[1]![1].productsUrl).toBe(
+      'https://uptown.formacore.io/admin/products',
     );
   });
 
@@ -328,6 +358,36 @@ describe('OpsNotificationsService.sweepDailySummary', () => {
       newMembers: 2,
       lowStockProducts: 0,
     });
+  });
+
+  it("addresses the summary's dashboard link at the gym's own console host", async () => {
+    const s = setup({ rootDomain: 'formacore.io', adminUrl: 'https://app.formacore.io' });
+    s.gymFindMany.mockResolvedValue([
+      gym('g1', 'Downtown', { locale: { currency: 'USD', timezone: 'UTC' } }, 'downtown'),
+    ]);
+    s.gymMemberFindMany.mockResolvedValue([staff('owner@g1', 'Owner')]);
+    s.checkInCount.mockResolvedValue(1); // make the day non-quiet
+
+    await s.service.sweepDailySummary({ now });
+
+    expect(s.sendDailySummaryEmail.mock.calls[0]![1].dashboardUrl).toBe(
+      'https://downtown.formacore.io/admin/dashboard',
+    );
+  });
+
+  it('falls back to the ADMIN_URL dashboard link when no root domain is configured', async () => {
+    const s = setup({ adminUrl: 'https://admin.fit/' });
+    s.gymFindMany.mockResolvedValue([
+      gym('g1', 'Downtown', { locale: { currency: 'USD', timezone: 'UTC' } }),
+    ]);
+    s.gymMemberFindMany.mockResolvedValue([staff('owner@g1', 'Owner')]);
+    s.checkInCount.mockResolvedValue(1); // make the day non-quiet
+
+    await s.service.sweepDailySummary({ now });
+
+    expect(s.sendDailySummaryEmail.mock.calls[0]![1].dashboardUrl).toBe(
+      'https://admin.fit/admin/dashboard',
+    );
   });
 
   it('counts new members by MEMBER role within the gym-local day window', async () => {

@@ -23,8 +23,8 @@ import type { RedisService } from '../redis/redis.service';
 import type { ReportsService } from './reports.service';
 
 /** A gym row as the sweep's `select` projects it. */
-function gym(id: string, name: string) {
-  return { id, name };
+function gym(id: string, name: string, slug: string = id) {
+  return { id, name, slug };
 }
 
 /** A staff `GymMember` row as `recipientsFor`'s `select` projects it. */
@@ -40,6 +40,7 @@ function setup(
     sendResult?: (email: string) => boolean | Promise<boolean>;
     adminUrl?: string;
     adminBasePath?: string;
+    rootDomain?: string;
   } = {},
 ) {
   const {
@@ -51,6 +52,9 @@ function setup(
     // schema, so the real `env` always has a string here — a setup that left it
     // undefined would be testing a state that cannot occur.
     adminBasePath = '/admin',
+    // Left unset by default so the shared setup exercises the platform-wide
+    // fallback; the per-tenant cases opt in.
+    rootDomain,
   } = options;
 
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
@@ -58,9 +62,11 @@ function setup(
     REPORT_DIGEST_ENABLED: true,
     ADMIN_URL: adminUrl,
     ADMIN_BASE_PATH: adminBasePath,
+    PLATFORM_ROOT_DOMAIN: rootDomain,
   });
 
-  const gymFindMany = vi.fn<(args: unknown) => Promise<Array<{ id: string; name: string }>>>();
+  const gymFindMany =
+    vi.fn<(args: unknown) => Promise<Array<{ id: string; name: string; slug: string }>>>();
   const gymMemberFindMany =
     vi.fn<
       (args: {
@@ -216,7 +222,7 @@ describe('ReportDeliveryService.deliverAll', () => {
 
   // The link is built from a bare ORIGIN plus the prefix the console is served
   // under; dropping the prefix lands it one directory above every console route.
-  it('passes the ADMIN_URL reports link through to the email when set', async () => {
+  it('falls back to the ADMIN_URL reports link when no root domain is configured', async () => {
     const { service, gymFindMany, gymMemberFindMany, sendReportDigestEmail } = setup({
       adminUrl: 'https://admin.fit/',
     });
@@ -229,6 +235,29 @@ describe('ReportDeliveryService.deliverAll', () => {
       reportsUrl: 'https://admin.fit/admin/reports',
       locale: 'en',
     });
+  });
+
+  it("addresses each gym's link at its own console host when a root domain is set", async () => {
+    const { service, gymFindMany, gymMemberFindMany, sendReportDigestEmail } = setup({
+      rootDomain: 'formacore.io',
+      adminUrl: 'https://app.formacore.io',
+    });
+    gymFindMany.mockResolvedValue([
+      gym('g1', 'Downtown', 'downtown'),
+      gym('g2', 'Uptown', 'uptown'),
+    ]);
+    gymMemberFindMany
+      .mockResolvedValueOnce([staff('owner@g1', 'Owner')])
+      .mockResolvedValueOnce([staff('owner@g2', 'Owner')]);
+
+    await service.deliverAll('weekly');
+
+    expect(sendReportDigestEmail.mock.calls[0]![2]?.reportsUrl).toBe(
+      'https://downtown.formacore.io/admin/reports',
+    );
+    expect(sendReportDigestEmail.mock.calls[1]![2]?.reportsUrl).toBe(
+      'https://uptown.formacore.io/admin/reports',
+    );
   });
 
   it('adds no prefix for a console genuinely served at the root', async () => {

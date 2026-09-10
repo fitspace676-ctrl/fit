@@ -11,6 +11,7 @@ import {
 } from '@fit/db';
 import { gymSettingsStoredSchema, productVariantsSchema } from '@fit/types';
 import { resolveEmailLocale } from '../mail/email-locale';
+import { buildConsoleUrl } from '../common/console-url';
 import {
   EmailService,
   type DailySummary,
@@ -35,6 +36,7 @@ interface OpsRecipient {
 interface OpsGym {
   id: string;
   name: string;
+  slug: string;
   settings: Prisma.JsonValue;
 }
 
@@ -173,7 +175,6 @@ export class OpsNotificationsService {
   async sweepLowStock(options?: { now?: Date }): Promise<OpsDeliverySummary> {
     const now = options?.now ?? new Date();
     const threshold = env.OPS_LOW_STOCK_THRESHOLD;
-    const productsUrl = buildAdminUrl('products');
 
     return this.runGymSweep(
       'low-stock',
@@ -187,7 +188,9 @@ export class OpsNotificationsService {
           gymName: gym.name,
           threshold,
           products,
-          productsUrl,
+          // Per gym: the CTA opens the gym's own console host, not whichever gym
+          // the recipient's last session happened to select.
+          productsUrl: buildConsoleUrl('products', gym.slug),
           locale: resolveEmailLocale(language),
         };
       },
@@ -204,7 +207,6 @@ export class OpsNotificationsService {
    */
   async sweepDailySummary(options?: { now?: Date }): Promise<OpsDeliverySummary> {
     const now = options?.now ?? new Date();
-    const dashboardUrl = buildAdminUrl('dashboard');
     const threshold = env.OPS_LOW_STOCK_THRESHOLD;
 
     return this.runGymSweep(
@@ -223,7 +225,8 @@ export class OpsNotificationsService {
           gymName: gym.name,
           date,
           currency,
-          dashboardUrl,
+          // Per gym, as above — the summary links into the gym it reports on.
+          dashboardUrl: buildConsoleUrl('dashboard', gym.slug),
           locale: resolveEmailLocale(language),
           ...figures,
         };
@@ -248,7 +251,7 @@ export class OpsNotificationsService {
   ): Promise<OpsDeliverySummary> {
     const gyms = await this.prisma.client.gym.findMany({
       where: { status: GymStatus.ACTIVE },
-      select: { id: true, name: true, settings: true },
+      select: { id: true, name: true, slug: true, settings: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -461,19 +464,4 @@ function zonedDateString(instant: Date, timeZone: string): string {
     month: '2-digit',
     day: '2-digit',
   }).format(instant);
-}
-
-/**
- * A console deep link for the alert's CTA — built from `ADMIN_URL` + `path` when set,
- * otherwise undefined (the email simply renders no link), mirroring T4.10's
- * `buildReportsUrl`.
- *
- * `ADMIN_BASE_PATH` — the prefix the console is served under — is joined on because
- * `ADMIN_URL` is a bare ORIGIN everywhere it is set. Without it the link lands one
- * directory above every console route and 404s, the same regression the owner
- * onboarding link shipped with (see `buildOwnerOnboardingUrl`).
- */
-function buildAdminUrl(path: string): string | undefined {
-  if (!env.ADMIN_URL) return undefined;
-  return `${env.ADMIN_URL.replace(/\/+$/, '')}${env.ADMIN_BASE_PATH}/${path}`;
 }
