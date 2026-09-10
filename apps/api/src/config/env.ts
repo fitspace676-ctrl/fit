@@ -27,6 +27,25 @@ export const envSchema = z.object({
   ADMIN_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().optional(),
 
+  // The path prefix the staff console is SERVED under, which any console deep
+  // link the API builds has to carry. **The default must match
+  // `apps/admin/next.config.mjs`'s**, which is `/admin`: `ADMIN_URL` is a bare
+  // origin everywhere it is set (see `.env.example`), so a link built from it
+  // alone lands one directory above every console route and 404s — which is
+  // exactly what the owner onboarding mail did on the first deploy. A console
+  // genuinely served at the root sets this to `""`, an empty string rather than
+  // nullish, which still wins over the default. Normalised to a leading slash
+  // and no trailing one so the join below is a plain concatenation.
+  ADMIN_BASE_PATH: z
+    .string()
+    .trim()
+    .default('/admin')
+    .transform((value) => {
+      const trimmed = value.replace(/\/+$/, '');
+      if (trimmed === '') return '';
+      return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    }),
+
   // ── Public origins (deep links) ──
   // The API's own public base URL, used to build the staff-invite accept link
   // (`<API_PUBLIC_URL>/auth/accept-invite?token=…`) that lands on this API and
@@ -111,10 +130,11 @@ export const envSchema = z.object({
   // (`<base>?token=…`). It must land on the ADMIN CONSOLE's `/activate` page —
   // where the owner sets a password and their address is verified in one request —
   // not on the member web app, which has no console to hand them on to.
-  // Unset → derived from ADMIN_URL (`<ADMIN_URL>/activate`). Note that ADMIN_URL
-  // is the console's browsable base, so it must already carry the console's
-  // basePath (`/admin`) wherever the console is served behind the tenant proxy;
-  // set this explicitly when it does not.
+  // Unset → derived from ADMIN_URL + ADMIN_BASE_PATH
+  // (`<ADMIN_URL><ADMIN_BASE_PATH>/activate`), which is correct with no extra
+  // config on a standard deployment. Set it explicitly only when the console is
+  // reached at some address the API cannot derive — a custom domain, a proxy
+  // that rewrites the prefix.
   OWNER_ONBOARDING_URL: z.string().url().optional(),
 
   // ── Password reset ──

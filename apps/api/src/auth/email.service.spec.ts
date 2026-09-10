@@ -39,9 +39,16 @@ const cashReceipt: PosReceipt = {
   changeDue: 501,
 };
 
+// `ADMIN_BASE_PATH` carries the schema's default here too: it is a `.default()`
+// rather than an `.optional()`, so the real `env` always has a string and a spec
+// that left it undefined would be testing a state that cannot occur.
 function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
-  Object.assign(mockEnv, { EMAIL_FROM: 'FormaCore <no-reply@fit.app>' }, overrides);
+  Object.assign(
+    mockEnv,
+    { EMAIL_FROM: 'FormaCore <no-reply@fit.app>', ADMIN_BASE_PATH: '/admin' },
+    overrides,
+  );
 }
 
 /** A weekly digest fixture: one money report, one percent report, one empty. */
@@ -230,7 +237,7 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
     configure({
       RESEND_API_KEY: 're_123',
       WEB_URL: 'https://app.fit',
-      ADMIN_URL: 'https://app.fit/admin',
+      ADMIN_URL: 'https://fit-admin.vercel.app',
     });
     const service = new EmailService();
 
@@ -246,14 +253,14 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
     expect(body.subject).toBe('Welcome to FormaCore - finish setting up Downtown');
     // The owner lands on the CONSOLE, where they can set a password — never on the
     // member app's verify route, which would leave a password-less owner stranded.
-    expect(String(body.html)).toContain('https://app.fit/admin/activate?token=tok123');
+    expect(String(body.html)).toContain('https://fit-admin.vercel.app/admin/activate?token=tok123');
     expect(String(body.html)).not.toContain('/member/verify');
     expect(String(body.html)).toContain('Downtown');
-    expect(String(body.text)).toContain('https://app.fit/admin/activate?token=tok123');
+    expect(String(body.text)).toContain('https://fit-admin.vercel.app/admin/activate?token=tok123');
   });
 
   it('throws when Resend returns a non-2xx response', async () => {
-    configure({ RESEND_API_KEY: 're_123', ADMIN_URL: 'https://app.fit/admin' });
+    configure({ RESEND_API_KEY: 're_123', ADMIN_URL: 'https://fit-admin.vercel.app' });
     fetchMock.mockResolvedValue(new Response('rate limited', { status: 429 }));
     const service = new EmailService();
 
@@ -399,20 +406,34 @@ describe('buildOwnerOnboardingUrl', () => {
   it('prefers an explicit OWNER_ONBOARDING_URL', () => {
     configure({
       OWNER_ONBOARDING_URL: 'https://console.fit/activate',
-      ADMIN_URL: 'https://app.fit/admin',
+      ADMIN_URL: 'https://fit-admin.vercel.app',
+      ADMIN_BASE_PATH: '/admin',
       WEB_URL: 'https://app.fit',
     });
     expect(buildOwnerOnboardingUrl('abc')).toBe('https://console.fit/activate?token=abc');
   });
 
-  it('derives <ADMIN_URL>/activate when no explicit base is set', () => {
-    configure({ ADMIN_URL: 'https://app.fit/admin/', WEB_URL: 'https://app.fit' });
-    expect(buildOwnerOnboardingUrl('abc')).toBe('https://app.fit/admin/activate?token=abc');
+  // The regression this function shipped with: ADMIN_URL is a bare ORIGIN, so a
+  // link built from it alone lands one directory above every console route.
+  it('carries the console basePath into the derived link', () => {
+    configure({
+      ADMIN_URL: 'https://fit-admin.vercel.app/',
+      ADMIN_BASE_PATH: '/admin',
+      WEB_URL: 'https://app.fit',
+    });
+    expect(buildOwnerOnboardingUrl('abc')).toBe(
+      'https://fit-admin.vercel.app/admin/activate?token=abc',
+    );
+  });
+
+  it('adds no prefix for a console genuinely served at the root', () => {
+    configure({ ADMIN_URL: 'https://console.fit', ADMIN_BASE_PATH: '' });
+    expect(buildOwnerOnboardingUrl('abc')).toBe('https://console.fit/activate?token=abc');
   });
 
   it('never falls back to the member web app, even when WEB_URL is the only origin set', () => {
-    configure({ WEB_URL: 'https://app.fit' });
-    expect(buildOwnerOnboardingUrl('abc')).toBe('http://localhost:3002/activate?token=abc');
+    configure({ WEB_URL: 'https://app.fit', ADMIN_BASE_PATH: '/admin' });
+    expect(buildOwnerOnboardingUrl('abc')).toBe('http://localhost:3002/admin/activate?token=abc');
   });
 
   it('url-encodes the token', () => {

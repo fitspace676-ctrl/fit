@@ -352,16 +352,17 @@ export function buildPasswordResetUrl(token: string): string {
  * verifying alone leaves them with no credential to sign in with. `/activate`
  * verifies the address and sets the first password in one request.
  *
- * `ADMIN_URL` is taken as the console's *browsable* base, so wherever the console
- * is served under a basePath that URL is expected to include it — the same
- * assumption the ops-alert and report-digest console links already make.
+ * The derived form joins `ADMIN_BASE_PATH` — the prefix the console is served
+ * under — because `ADMIN_URL` is a bare ORIGIN everywhere it is set. It was
+ * first written as `<ADMIN_URL>/activate`, on the assumption that the URL
+ * already carried the prefix; it does not, so the first deployed welcome mail
+ * pointed at `https://…/activate` and 404'd one directory above every console
+ * route. Both halves come from config, so a console at the root (empty base
+ * path) or behind a rewritten prefix is still built correctly.
  */
 export function buildOwnerOnboardingUrl(token: string): string {
-  const base =
-    env.OWNER_ONBOARDING_URL ??
-    (env.ADMIN_URL
-      ? `${env.ADMIN_URL.replace(/\/+$/, '')}/activate`
-      : 'http://localhost:3002/activate');
+  const origin = (env.ADMIN_URL ?? 'http://localhost:3002').replace(/\/+$/, '');
+  const base = env.OWNER_ONBOARDING_URL ?? `${origin}${env.ADMIN_BASE_PATH}/activate`;
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
