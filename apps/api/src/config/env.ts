@@ -54,11 +54,19 @@ export const envSchema = z.object({
   API_PUBLIC_URL: z.string().url().default('http://localhost:3000'),
 
   // ── Multi-tenancy (subdomain resolution) ──
-  // Root domain tenants live under as `<slug>.fit.ge`. The subdomain tenant
-  // middleware strips this suffix off the request `Host` to recover the tenant
-  // slug, so it must match the domain the gym subdomains are actually served on.
-  // Lower-cased + bare (no scheme/port); default matches production.
-  PLATFORM_ROOT_DOMAIN: z.string().trim().toLowerCase().default('fit.ge'),
+  // Root domain tenants live under as `<slug>.<PLATFORM_ROOT_DOMAIN>`. The
+  // subdomain tenant middleware strips this suffix off the request `Host` to
+  // recover the tenant slug, and the console deep links mailed out
+  // (`buildConsoleUrl`) build the same host back up — so it must match the domain
+  // the gym subdomains are actually served on. Lower-cased + bare (no
+  // scheme/port).
+  //
+  // The default is deliberately the DEV value, not production's: `apps/api/.env.local`
+  // sets `localhost` too, and production sets `formacore.io` explicitly on Railway.
+  // A real domain here would be the wrong kind of default — a deployment that
+  // forgot the var would mail token-carrying activate links to a host we do not
+  // own, whereas `<slug>.localhost` is visibly broken and leaks nothing.
+  PLATFORM_ROOT_DOMAIN: z.string().trim().toLowerCase().default('localhost'),
 
   // ── Auth / sessions ──
   // HS256 secret the API signs session JWTs with. Optional so the API still
