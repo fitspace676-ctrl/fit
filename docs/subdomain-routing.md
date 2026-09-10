@@ -164,11 +164,22 @@ option **B** (wildcard, Vercel Pro) is what is live:
 | — (no custom domain)      | `fit-admin`      |
 
 - **Every link the API mails is addressed at the gym it is about** —
-  `https://<slug>.formacore.io/…`, built by `buildConsoleUrl`
-  (`apps/api/src/common/console-url.ts`) over `tenantOrigin`
-  (`packages/utils/src/tenant-host.ts`) from `PLATFORM_ROOT_DOMAIN` and the gym's own
-  slug. So a digest for Downtown opens Downtown's console, not whichever gym the
-  recipient's last session happened to select.
+  `https://<slug>.formacore.io/…`, built in `apps/api/src/common/console-url.ts` over
+  `tenantOrigin` (`packages/utils/src/tenant-host.ts`) from `PLATFORM_ROOT_DOMAIN` and
+  the gym's own slug. Two builders, because the two surfaces sit differently:
+  `buildConsoleUrl` joins `ADMIN_BASE_PATH` (the console is served under `/admin`) and
+  may return nothing, since a digest with no link is merely degraded;
+  `buildMemberUrl` joins no prefix (the member site is at its host's root) and always
+  returns a string, since a verification mail with no link is useless. Neither adds a
+  locale prefix — the web middleware inserts `/<locale>` itself and keeps `?token=`.
+  So a digest for Downtown opens Downtown's console, and a member who signed up at
+  Downtown verifies on Downtown's site, rather than on whichever gym the recipient's
+  last session happened to select.
+- **Password reset is the one that cannot be addressed** — and it is a fact about the
+  request, not an oversight. The browser calls the API's own host directly
+  (`apps/web/lib/auth.ts`), so `SubdomainTenantMiddleware` sees no tenant in the
+  `Host`, and the body carries only an email. It therefore falls back to `WEB_URL`.
+  Addressing it would mean putting the gym in the request contract across three apps.
 - **`WEB_URL` / `ADMIN_URL` are the fallback**, for the cases with no slug to address:
   they are bare origins, and the console's `/admin` prefix comes from
   `ADMIN_BASE_PATH`, never from the URL. Set them to `https://app.formacore.io` — `app`
