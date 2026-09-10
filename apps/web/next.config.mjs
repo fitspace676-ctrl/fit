@@ -60,7 +60,8 @@ function r2RemotePatterns() {
 // model it is served at `<slug>.<root>/admin`. When `ADMIN_ORIGIN` is set (e.g.
 // `https://admin-origin.fit.ge`), proxy `/admin/*` to that deployment — which runs
 // with `ADMIN_BASE_PATH=/admin`, so its routes and assets line up under the prefix.
-// Unset (the default) → no proxy, and `/admin` simply 404s as before.
+// Unset → the fallback below (fit-admin's `*.vercel.app` origin), so the proxy is on
+// by default; set `ADMIN_ORIGIN` only to point it somewhere else.
 const adminOrigin = (
   process.env.ADMIN_ORIGIN ?? 'https://fit-admin-fitspace676-5825s-projects.vercel.app'
 ).replace(/\/+$/, '');
