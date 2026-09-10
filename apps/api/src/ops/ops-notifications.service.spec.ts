@@ -44,6 +44,7 @@ function setup(
     lock?: 'OK' | null;
     threshold?: number;
     adminUrl?: string;
+    adminBasePath?: string;
     lowStockSend?: (email: string) => boolean | Promise<boolean>;
     dailySend?: (email: string) => boolean | Promise<boolean>;
   } = {},
@@ -55,6 +56,10 @@ function setup(
     lock = 'OK',
     threshold = 5,
     adminUrl,
+    // `ADMIN_BASE_PATH` is a `.default()` rather than an `.optional()` in the env
+    // schema, so the real `env` always has a string here — a setup that left it
+    // undefined would be testing a state that cannot occur.
+    adminBasePath = '/admin',
     lowStockSend = () => true,
     dailySend = () => true,
   } = options;
@@ -65,6 +70,7 @@ function setup(
     OPS_DAILY_SUMMARY_ENABLED: dailyEnabled,
     OPS_LOW_STOCK_THRESHOLD: threshold,
     ADMIN_URL: adminUrl,
+    ADMIN_BASE_PATH: adminBasePath,
   });
 
   const gymFindMany =
@@ -223,8 +229,23 @@ describe('OpsNotificationsService.sweepLowStock', () => {
     expect(digest.products[0]!.variants).toEqual([{ label: 'Choc', stock: 0 }]);
   });
 
+  // The link is built from a bare ORIGIN plus the prefix the console is served
+  // under; dropping the prefix lands it one directory above every console route.
   it('passes the ADMIN_URL products link into the digest when set', async () => {
     const s = setup({ adminUrl: 'https://admin.fit/' });
+    s.gymFindMany.mockResolvedValue([gym('g1', 'Downtown')]);
+    s.gymMemberFindMany.mockResolvedValue([staff('owner@g1', 'Owner')]);
+    s.productFindMany.mockResolvedValue([product('Bar', [{ name: 'Choc', stock: 1 }])]);
+
+    await s.service.sweepLowStock();
+
+    expect(s.sendLowStockDigestEmail.mock.calls[0]![1].productsUrl).toBe(
+      'https://admin.fit/admin/products',
+    );
+  });
+
+  it('adds no prefix for a console genuinely served at the root', async () => {
+    const s = setup({ adminUrl: 'https://admin.fit', adminBasePath: '' });
     s.gymFindMany.mockResolvedValue([gym('g1', 'Downtown')]);
     s.gymMemberFindMany.mockResolvedValue([staff('owner@g1', 'Owner')]);
     s.productFindMany.mockResolvedValue([product('Bar', [{ name: 'Choc', stock: 1 }])]);

@@ -39,12 +39,26 @@ function setup(
     lock?: 'OK' | null;
     sendResult?: (email: string) => boolean | Promise<boolean>;
     adminUrl?: string;
+    adminBasePath?: string;
   } = {},
 ) {
-  const { configured = true, lock = 'OK', sendResult = () => true, adminUrl } = options;
+  const {
+    configured = true,
+    lock = 'OK',
+    sendResult = () => true,
+    adminUrl,
+    // `ADMIN_BASE_PATH` is a `.default()` rather than an `.optional()` in the env
+    // schema, so the real `env` always has a string here — a setup that left it
+    // undefined would be testing a state that cannot occur.
+    adminBasePath = '/admin',
+  } = options;
 
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
-  Object.assign(mockEnv, { REPORT_DIGEST_ENABLED: true, ADMIN_URL: adminUrl });
+  Object.assign(mockEnv, {
+    REPORT_DIGEST_ENABLED: true,
+    ADMIN_URL: adminUrl,
+    ADMIN_BASE_PATH: adminBasePath,
+  });
 
   const gymFindMany = vi.fn<(args: unknown) => Promise<Array<{ id: string; name: string }>>>();
   const gymMemberFindMany =
@@ -200,9 +214,27 @@ describe('ReportDeliveryService.deliverAll', () => {
     expect(summary.emailsSent).toBe(1);
   });
 
+  // The link is built from a bare ORIGIN plus the prefix the console is served
+  // under; dropping the prefix lands it one directory above every console route.
   it('passes the ADMIN_URL reports link through to the email when set', async () => {
     const { service, gymFindMany, gymMemberFindMany, sendReportDigestEmail } = setup({
       adminUrl: 'https://admin.fit/',
+    });
+    gymFindMany.mockResolvedValue([gym('g1', 'Downtown')]);
+    gymMemberFindMany.mockResolvedValue([staff('owner@g1', 'Owner')]);
+
+    await service.deliverAll('weekly');
+
+    expect(sendReportDigestEmail.mock.calls[0]![2]).toEqual({
+      reportsUrl: 'https://admin.fit/admin/reports',
+      locale: 'en',
+    });
+  });
+
+  it('adds no prefix for a console genuinely served at the root', async () => {
+    const { service, gymFindMany, gymMemberFindMany, sendReportDigestEmail } = setup({
+      adminUrl: 'https://admin.fit',
+      adminBasePath: '',
     });
     gymFindMany.mockResolvedValue([gym('g1', 'Downtown')]);
     gymMemberFindMany.mockResolvedValue([staff('owner@g1', 'Owner')]);

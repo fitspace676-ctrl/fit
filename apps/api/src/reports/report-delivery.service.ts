@@ -264,7 +264,13 @@ export class ReportDeliveryService {
 /**
  * The admin console's Reports screen URL, for the "View full reports" link — built
  * from `ADMIN_URL` when set, otherwise omitted (the email simply renders no link).
+ *
+ * `ADMIN_BASE_PATH` — the prefix the console is served under — is joined on because
+ * `ADMIN_URL` is a bare ORIGIN everywhere it is set. Without it the link lands one
+ * directory above every console route and 404s, the same regression the owner
+ * onboarding link shipped with (see `buildOwnerOnboardingUrl`).
  */
 function buildReportsUrl(): string | undefined {
-  return env.ADMIN_URL ? `${env.ADMIN_URL.replace(/\/+$/, '')}/reports` : undefined;
+  if (!env.ADMIN_URL) return undefined;
+  return `${env.ADMIN_URL.replace(/\/+$/, '')}${env.ADMIN_BASE_PATH}/reports`;
 }
