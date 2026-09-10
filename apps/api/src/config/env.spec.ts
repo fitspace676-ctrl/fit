@@ -18,6 +18,12 @@ describe('apiEnvSchema', () => {
     expect(env.SENTRY_DSN).toBeUndefined();
   });
 
+  // A deployment that forgets this var must not address tenants — or mail
+  // token-carrying console links — at a domain we do not own.
+  it('defaults the platform root domain to the local dev host, not a real domain', () => {
+    expect(validateEnv(envSchema, { ...validEnv }).PLATFORM_ROOT_DOMAIN).toBe('localhost');
+  });
+
   it('coerces PORT and the Sentry sample rate to numbers', () => {
     const env = validateEnv(envSchema, {
       ...validEnv,
