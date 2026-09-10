@@ -61,8 +61,13 @@ import {
 const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '/admin';
 
 /**
- * Paths reachable without a session — the console's own sign-in, the 403 page,
- * and the impersonation handoff.
+ * Paths reachable without a session — the console's own sign-in, the owner
+ * activation page, the 403 page, and the impersonation handoff.
+ *
+ * `/activate` is public for the same reason `/login` is, only more so: a gym owner
+ * arrives there from their onboarding email holding a single-use token and, very
+ * often, no password at all — the page is where the password comes from, so a
+ * session gate on it would be a door locked from the inside.
  *
  * `/impersonation/start` is public BECAUSE it is what creates the session: a
  * platform operator arrives there holding a single-use code and nothing else, so
@@ -70,7 +75,7 @@ const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '/admin';
  * be in. `/impersonation/exit` is public for the mirror-image reason — it must
  * still work when the impersonated token it is clearing has already expired.
  */
-const PUBLIC_PATHS = ['/login', '/403', '/impersonation'];
+const PUBLIC_PATHS = ['/login', '/activate', '/403', '/impersonation'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));

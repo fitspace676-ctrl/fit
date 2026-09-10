@@ -114,6 +114,33 @@ export const resetPasswordSchema = z.object({
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
 /**
+ * Body for `POST /auth/activate` — the gym owner's onboarding link (T2.x). Carries
+ * the single-use verification token from the onboarding email plus the password
+ * the owner is choosing, held to the same length bounds registration enforces.
+ *
+ * This is the reset schema's shape, deliberately kept as its own contract: the two
+ * endpoints redeem tokens from *different* Redis namespaces and answer differently
+ * (a reset signs you in, an activation does not), so a shared alias would invite
+ * a client to send one where the other is meant.
+ */
+export const activateAccountSchema = z.object({
+  token: z.string().trim().min(1),
+  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+});
+
+export type ActivateAccountInput = z.infer<typeof activateAccountSchema>;
+
+/**
+ * Response of `POST /auth/activate`. Deliberately NOT a {@link TokenPair}: setting
+ * the password does not sign the owner in. The address is echoed back only so the
+ * console can pre-fill the sign-in field it sends them to next — the owner types
+ * the password they just chose, which is what makes the first sign-in a real one.
+ */
+export interface ActivateAccountResponse {
+  email: string;
+}
+
+/**
  * Body for `POST /auth/google`. Carries the Google-issued ID token (a signed
  * JWT) the web / mobile client obtained from Google Sign-In. The API verifies
  * the token against Google's public keys, then issues its own session — so the

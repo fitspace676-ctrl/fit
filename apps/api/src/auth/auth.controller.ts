@@ -13,6 +13,7 @@ import {
 import { z } from 'zod';
 import {
   acceptInviteSchema,
+  activateAccountSchema,
   appleAuthSchema,
   forgotPasswordSchema,
   googleAuthSchema,
@@ -23,6 +24,7 @@ import {
   registerSchema,
   resetPasswordSchema,
   verifyEmailSchema,
+  type ActivateAccountResponse,
   type ForgotPasswordResponse,
   type RegisterGymResponse,
   type RegisterResponse,
@@ -109,6 +111,24 @@ export class AuthController {
   async verify(@Query() query: unknown): Promise<TokenPair> {
     const { token } = parse(verifyEmailSchema, query);
     return this.auth.verifyEmail(token);
+  }
+
+  /**
+   * `POST /auth/activate` — redeem a gym owner's onboarding token: verify the
+   * address and set the first password in one request, then answer with the
+   * address alone. No session: the console sends the owner to its sign-in with
+   * that address pre-filled, and they enter the password they just chose.
+   *
+   * Carries the `authStrict` budget like the other password-setting route — this
+   * one writes a credential from an emailed token, which is the same class of
+   * surface as `POST /auth/reset-password`.
+   */
+  @Post('activate')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit(RATE_LIMITS.authStrict)
+  async activate(@Body() body: unknown): Promise<ActivateAccountResponse> {
+    const input = parse(activateAccountSchema, body);
+    return this.auth.activateAccount(input);
   }
 
   /**

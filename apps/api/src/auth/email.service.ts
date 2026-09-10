@@ -141,12 +141,14 @@ export class EmailService {
 
   /**
    * Send the gym-owner onboarding email after a tenant is provisioned
-   * (`POST /auth/register-gym`). Carries the same single-use verification deep
-   * link plain registration uses — following it verifies the owner's address and
-   * issues their first session — but the copy is framed around the gym they now
-   * own rather than a bare account confirmation. Resolves once the mail is
-   * accepted by Resend (or immediately, having logged the link, when Resend is
-   * unconfigured); rejects when Resend returns an error.
+   * (`POST /auth/register-gym`). Carries the same single-use token plain
+   * registration mints, but pointed at the CONSOLE's `/activate` page rather
+   * than the member app's verify route: an owner provisioned by a SUPER_ADMIN
+   * usually has no password at all, so the link has to end somewhere they can
+   * choose one. The copy is framed around the gym they now own rather than a
+   * bare account confirmation. Resolves once the mail is accepted by Resend (or
+   * immediately, having logged the link, when Resend is unconfigured); rejects
+   * when Resend returns an error.
    */
   async sendOwnerOnboardingEmail(
     to: string,
@@ -155,7 +157,7 @@ export class EmailService {
     name?: string,
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
   ): Promise<void> {
-    const url = buildVerificationUrl(token);
+    const url = buildOwnerOnboardingUrl(token);
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — owner onboarding link for ${to}: ${url}`,
@@ -335,6 +337,31 @@ export function buildPasswordResetUrl(token: string): string {
     (env.WEB_URL
       ? `${env.WEB_URL.replace(/\/+$/, '')}/member/reset-password`
       : 'http://localhost:3001/member/reset-password');
+  return `${base}?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Build the gym-owner onboarding deep link the token is appended to. Prefers an
+ * explicit `OWNER_ONBOARDING_URL`, then the console's `/activate` page, falling
+ * back to a localhost default that is only ever hit (and logged, not sent) in
+ * unconfigured dev / CI environments.
+ *
+ * Deliberately NOT {@link buildVerificationUrl}: that one lands on the member web
+ * app, which is the wrong building for someone who has just been given a gym to
+ * run — and, for an owner provisioned without a password, a dead end, since
+ * verifying alone leaves them with no credential to sign in with. `/activate`
+ * verifies the address and sets the first password in one request.
+ *
+ * `ADMIN_URL` is taken as the console's *browsable* base, so wherever the console
+ * is served under a basePath that URL is expected to include it — the same
+ * assumption the ops-alert and report-digest console links already make.
+ */
+export function buildOwnerOnboardingUrl(token: string): string {
+  const base =
+    env.OWNER_ONBOARDING_URL ??
+    (env.ADMIN_URL
+      ? `${env.ADMIN_URL.replace(/\/+$/, '')}/activate`
+      : 'http://localhost:3002/activate');
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 

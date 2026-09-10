@@ -106,6 +106,17 @@ export const envSchema = z.object({
   // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/member/verify`).
   EMAIL_VERIFICATION_URL: z.string().url().optional(),
 
+  // ── Gym-owner onboarding ──
+  // Base URL the onboarding token is appended to in the owner's welcome mail
+  // (`<base>?token=…`). It must land on the ADMIN CONSOLE's `/activate` page —
+  // where the owner sets a password and their address is verified in one request —
+  // not on the member web app, which has no console to hand them on to.
+  // Unset → derived from ADMIN_URL (`<ADMIN_URL>/activate`). Note that ADMIN_URL
+  // is the console's browsable base, so it must already carry the console's
+  // basePath (`/admin`) wherever the console is served behind the tenant proxy;
+  // set this explicitly when it does not.
+  OWNER_ONBOARDING_URL: z.string().url().optional(),
+
   // ── Password reset ──
   // TTL (seconds) of a one-time password-reset token held in Redis. Shorter than
   // email verification by design — a reset link grants account takeover, so it

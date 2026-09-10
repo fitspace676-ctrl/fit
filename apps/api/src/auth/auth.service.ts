@@ -19,6 +19,8 @@ import {
 } from '@fit/types';
 import { DEFAULT_EMAIL_LOCALE, resolveEmailLocale, type EmailLocale } from '../mail/email-locale';
 import type {
+  ActivateAccountInput,
+  ActivateAccountResponse,
   AppleAuthInput,
   AppleProfile,
   ForgotPasswordInput,
@@ -464,6 +466,65 @@ export class AuthService {
     });
 
     return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
+  }
+
+  /**
+   * Activate a gym owner's account from their onboarding link: redeem the
+   * single-use verification token, set the first password, and stamp
+   * `emailVerifiedAt` — one request, so an owner never lands in the half-state of
+   * a verified address with no credential to sign in with (which is exactly what
+   * `POST /auth/register-gym` leaves behind when the operator console provisions a
+   * gym without a password). Throws `400 TOKEN_INVALID_OR_EXPIRED` for an unknown
+   * / expired token.
+   *
+   * **No session is issued, deliberately.** The owner is sent to the console's
+   * sign-in with their address pre-filled and types the password they have just
+   * chosen: the first sign-in is then a real one, and a link forwarded to the
+   * wrong inbox cannot hand anybody a live console — only the password can.
+   * {@link verifyEmail} keeps its own contract (verify + session), because mobile
+   * and web registration are built on it.
+   *
+   * Every existing session is revoked before returning, mirroring
+   * {@link resetPassword}: this endpoint sets a password without proving knowledge
+   * of the previous one, so anything already signed in on that account must go.
+   * For the owner this is a no-op — the account is minutes old.
+   */
+  async activateAccount(input: ActivateAccountInput): Promise<ActivateAccountResponse> {
+    const key = verifyKey(input.token);
+    const userId = await this.redis.client.get(key);
+    if (!userId) {
+      throw new BadRequestException({
+        message: 'Activation token is invalid or has expired',
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+    }
+
+    // Delete first so a token can't be redeemed twice even if two requests race
+    // (DEL returns the number removed: 0 means another request already won).
+    const removed = await this.redis.client.del(key);
+    if (removed === 0) {
+      throw new BadRequestException({
+        message: 'Activation token is invalid or has expired',
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+    }
+
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+
+    const user = await this.prisma.client.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+      select: { email: true },
+    });
+    // Only stamp on first verification, exactly as `verifyEmail` does, so
+    // re-running the flow could never move an existing timestamp.
+    await this.prisma.client.user.updateMany({
+      where: { id: userId, emailVerifiedAt: null },
+      data: { emailVerifiedAt: new Date() },
+    });
+
+    await this.tokens.revokeAllForUser(userId);
+    return { email: user.email };
   }
 
   /**

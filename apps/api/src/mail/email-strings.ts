@@ -172,10 +172,10 @@ const en: EmailStrings = {
     subject: (gym) => `Welcome to FormaCore - finish setting up ${gym}`,
     eyebrow: 'Welcome aboard',
     heading: (gym) => `${gym} is ready`,
-    preheader: (gym) => `${gym} is set up on FormaCore. Confirm your email to sign in.`,
+    preheader: (gym) => `${gym} is set up on FormaCore. Choose a password to sign in.`,
     body: (gymHtml) =>
-      `${gymHtml} is ready on FormaCore. Confirm your email to finish setting up your gym and sign in to the console.`,
-    button: 'Verify email and get started',
+      `${gymHtml} is ready on FormaCore. Choose a password below - that confirms your email and gives you the console.`,
+    button: 'Set my password',
     expires: 'This link expires in 24 hours.',
     ignore: "If you didn't create this gym, you can safely ignore this email.",
     footer: (gym) =>
@@ -310,10 +310,10 @@ const ka: EmailStrings = {
     subject: (gym) => `კეთილი იყოს თქვენი მობრძანება FormaCore-ზე - დაასრულეთ ${gym}-ის მომზადება`,
     eyebrow: 'კეთილი იყოს თქვენი მობრძანება',
     heading: (gym) => `${gym} მზადაა`,
-    preheader: (gym) => `${gym} FormaCore-ზე შეიქმნა. შესასვლელად დაადასტურეთ ელფოსტა.`,
+    preheader: (gym) => `${gym} FormaCore-ზე შეიქმნა. შესასვლელად აირჩიეთ პაროლი.`,
     body: (gymHtml) =>
-      `${gymHtml} FormaCore-ზე მზადაა. დაადასტურეთ ელფოსტა, რომ დარბაზის მომზადება დაასრულოთ და კონსოლში შეხვიდეთ.`,
-    button: 'დადასტურება და დაწყება',
+      `${gymHtml} FormaCore-ზე მზადაა. ქვემოთ აირჩიეთ პაროლი - ეს ადასტურებს ელფოსტას და კონსოლს გიხსნით.`,
+    button: 'პაროლის დაყენება',
     expires: 'ბმული 24 საათში იწურება.',
     ignore: 'თუ ეს დარბაზი თქვენ არ შეგიქმნიათ, ეს წერილი უბრალოდ დააიგნორეთ.',
     footer: (gym) => `ამ წერილს იღებთ, რადგან ${gym} FormaCore-ზე ამ მისამართით დარეგისტრირდა.`,

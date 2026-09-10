@@ -48,13 +48,21 @@ const styles = stylex.create({
  * root. Redirect uses a full assignment rather than the router: the middleware
  * must re-run against the freshly-set cookie to decide whether this operator may
  * see the target at all.
+ *
+ * A gym owner arrives here straight from `/activate` carrying `?activated=1` and
+ * their address - so the door opens with a green line confirming the password
+ * took, and the email already filled in. It stops there ON PURPOSE: activation
+ * issues no session, and the owner typing the password they have just chosen is
+ * what makes the first sign-in a real one.
  */
 export function StaffLoginForm() {
   const t = useTranslations('auth');
+  const tActivate = useTranslations('admin.activate');
   const searchParams = useSearchParams();
   const from = searchParams.get('from');
+  const activated = searchParams.get('activated') === '1';
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => searchParams.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +119,9 @@ export function StaffLoginForm() {
   return (
     <Form onSubmit={onSubmit}>
       {error ? <Banner tone="error">{error}</Banner> : null}
+      {/* The activation confirmation stands down as soon as anything goes wrong -
+          two banners over one form is a page arguing with itself. */}
+      {activated && !error ? <Banner tone="success">{tActivate('signedInPrompt')}</Banner> : null}
 
       <Field
         label={t('fields.email')}
