@@ -69,6 +69,20 @@
       "title": "Sign in to the console",
       "invitation": "Staff accounts are created by invitation from the console. Ask your gym's administrator for access."
     },
+    "activate": {
+      "title": "Set your password",
+      "subtitle": "Choose a password and your gym is yours to run.",
+      "passwordLabel": "New password",
+      "confirmLabel": "Confirm password",
+      "submit": "Set password",
+      "submitting": "Setting password…",
+      "footer": "This link works once. After that, sign in with your email and the password you just chose.",
+      "mismatch": "The two passwords do not match.",
+      "tooShort": "Use at least {min} characters.",
+      "missingToken": "This activation link is incomplete. Open the link from your welcome email again.",
+      "invalidToken": "This activation link is invalid or has expired. Ask your gym's platform contact for a new one.",
+      "signedInPrompt": "Password set. Sign in to open your console."
+    },
     "common": {
       "brand": "FormaCore",
       "brandTagline": "Management platform",
@@ -2591,7 +2605,8 @@
         "campaigns": "Campaigns",
         "promo": "Promo Codes",
         "audience": "Audience",
-        "templates": "Templates"
+        "templates": "Templates",
+        "banners": "Banners"
       },
       "channels": {
         "email": "Email",
@@ -2868,6 +2883,87 @@
         "segmentNameLabel": "Segment name",
         "segmentNamePlaceholder": "e.g. At-risk members"
       },
+      "banners": {
+        "heading": "Home-screen banners",
+        "subheading": "The carousel at the top of the member app’s home screen, in the order members swipe through it.",
+        "caption": "Home-screen banners",
+        "newBanner": "New banner",
+        "untitled": "Untitled banner",
+        "noLink": "Not tappable",
+        "columns": {
+          "order": "Order",
+          "banner": "Banner",
+          "link": "Destination",
+          "window": "Runs",
+          "status": "Status",
+          "active": "On"
+        },
+        "status": {
+          "draft": "Draft",
+          "off": "Off",
+          "expired": "Expired",
+          "scheduled": "Scheduled",
+          "live": "Live"
+        },
+        "windowAlways": "Always",
+        "windowOpenStart": "Now",
+        "windowOpenEnd": "No end",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "moveUpFor": "Move “{name}” one place earlier",
+        "moveDownFor": "Move “{name}” one place later",
+        "activateFor": "Show “{name}” on the home screen",
+        "deactivateFor": "Hide “{name}” from the home screen",
+        "activated": "Banner switched on.",
+        "deactivated": "Banner switched off.",
+        "edit": "Edit",
+        "editFor": "Edit “{name}”",
+        "delete": "Delete",
+        "deleteFor": "Delete “{name}”",
+        "deleteTitle": "Delete banner",
+        "deleteMessage": "“{name}” will be removed from the home screen and its artwork deleted. This can’t be undone.",
+        "deleted": "Banner deleted.",
+        "cancel": "Cancel",
+        "saving": "Saving…",
+        "created": "Banner created.",
+        "updated": "Banner updated.",
+        "invalid": "Some details are invalid. Please review and try again.",
+        "windowInvalid": "The end date must come after the start date.",
+        "emptyTitle": "No banners yet",
+        "emptyHintWrite": "Add a banner and it appears at the top of the member app’s home screen. Leave it switched off, or give it a date range, until you’re ready.",
+        "emptyHintRead": "Nobody has added a home-screen banner yet.",
+        "addTitle": "New banner",
+        "editTitle": "Edit banner",
+        "addDescription": "Upload the artwork, choose where a tap goes, and decide when it runs.",
+        "editDescription": "Change the artwork, the destination, or when this banner runs.",
+        "addSubmit": "Create banner",
+        "editSubmit": "Save changes",
+        "titleLabel": "Headline",
+        "titleHint": "Optional — drawn over the image in the app. Leave blank for artwork alone.",
+        "titlePlaceholder": "e.g. Summer membership — 20% off",
+        "linkLabel": "Destination",
+        "linkHint": "Optional. An in-app screen — /shop, /classes, /services, /trainers — or a full https:// address. Leave blank and the slide isn’t tappable.",
+        "linkPlaceholder": "/shop",
+        "startsAtLabel": "Starts",
+        "startsAtHint": "Optional — runs from this day. Leave blank to start straight away.",
+        "endsAtLabel": "Ends",
+        "endsAtHint": "Optional — runs to the end of this day. Leave blank to run until switched off.",
+        "activeLabel": "Show on the home screen",
+        "activeHint": "Off keeps the banner here without showing it to members.",
+        "image": {
+          "label": "Artwork",
+          "alt": "Banner artwork",
+          "none": "No artwork yet",
+          "choose": "Choose an image",
+          "replace": "Replace image",
+          "discard": "Discard",
+          "hint": "JPEG, PNG or WebP, up to 5 MB. 1600×800 (2:1) fits the phone’s carousel — anything else is cropped to that shape. A banner with no artwork stays a draft and is never shown to members.",
+          "errorType": "Choose a JPEG, PNG or WebP image.",
+          "errorSize": "That image is larger than 5 MB. Choose a smaller file.",
+          "errorUpload": "Upload failed ({status}). Please try the image again.",
+          "errorNetwork": "Could not upload the artwork. Check your connection and try again."
+        }
+      },
       "errors": {
         "load": "Couldn’t load marketing (HTTP {status}: {message}).",
         "apiUnreachable": "The API is unreachable. Check your connection and try again.",
@@ -2880,7 +2976,8 @@
         "templateNotFound": "That template no longer exists.",
         "segmentNotFound": "That audience segment no longer exists.",
         "promoNotFound": "That promo code no longer exists.",
-        "promoTaken": "A promo code with that code already exists."
+        "promoTaken": "A promo code with that code already exists.",
+        "bannerNotFound": "That banner no longer exists."
       }
     },
     "loyalty": {
@@ -3216,13 +3313,55 @@
     "permissions": {
       "resources": {
         "reviews": "Review moderation",
-        "catalogue": "Shop, services & till",
-        "packages": "Package plans",
+        "catalogue": "Shop & services",
+        "packages": "Plans & packages",
         "loyalty": "Loyalty",
         "reports": "Reports & dashboard",
         "locations": "Branches",
         "gym": "Gym settings & member portal",
-        "audit": "Audit log"
+        "audit": "Audit log",
+        "memberships": "Memberships",
+        "memberRecords": "Member payments & check-ins",
+        "trainerSchedule": "Trainer schedules",
+        "staffAssignments": "Staff roles & branches",
+        "staffSchedules": "Staff schedules",
+        "roles": "Roles & permissions",
+        "classesOwn": "Own classes",
+        "bookings": "Bookings & attendance",
+        "ptSessions": "PT sessions",
+        "ptSessionsOwn": "Own PT sessions",
+        "sales": "Transactions & sales history",
+        "revenue": "Revenue",
+        "pricing": "Product pricing & cost",
+        "inventory": "Inventory",
+        "ptPackages": "PT packages & credits",
+        "locationsManage": "Add & retire branches",
+        "gymSubscription": "FormaCore subscription"
+      },
+      "actions": {
+        "membershipSell": "Sell",
+        "membershipRenew": "Renew",
+        "membershipManage": "Freeze & resume",
+        "membershipCancel": "Cancel",
+        "memberPaymentRead": "Payments",
+        "memberCheckinRead": "Check-ins",
+        "staffAssignRole": "Assign roles",
+        "staffAssignLocation": "Assign branches",
+        "bookingManage": "Book & cancel",
+        "classAttendance": "Attendance",
+        "classWaitlist": "Waitlists",
+        "posAccess": "Open the till",
+        "paymentProcess": "Take payment",
+        "discountApply": "Apply discounts",
+        "paymentRefund": "Refund",
+        "transactionRead": "Transactions",
+        "salesHistoryRead": "Sales history",
+        "inventoryRead": "View stock",
+        "inventoryAdjust": "Adjust stock",
+        "stocktakePerform": "Stocktake",
+        "stockMovementRead": "Movement history",
+        "ptPackageRead": "View credits",
+        "ptPackageSell": "Sell packages"
       }
     }
   },
@@ -3267,9 +3406,7 @@
       "heroSubtitle": "Book classes, check in with a tap, and track every session.",
       "submit": "Sign in",
       "submitting": "Signing in…",
-      "forgotPassword": "Forgot password?",
-      "noAccount": "Don’t have an account?",
-      "registerLink": "Create one"
+      "forgotPassword": "Forgot password?"
     },
     "register": {
       "title": "Create your account",
@@ -3322,7 +3459,7 @@
   },
   "billing": {
     "title": "Billing",
-    "subtitle": "Buy PT credits and review what you have been charged.",
+    "subtitle": "Review your billing history and invoices.",
     "retry": "Try again",
     "credits": {
       "heading": "Buy PT credits",
@@ -3465,7 +3602,11 @@
         "open": "Choose a date",
         "previousMonth": "Previous month",
         "nextMonth": "Next month",
-        "chooseYear": "Choose a year"
+        "chooseYear": "Choose a year",
+        "previousWeek": "Previous week",
+        "nextWeek": "Next week",
+        "today": "Today",
+        "unavailable": "Not available"
       }
     },
     "payment": {
@@ -3575,6 +3716,9 @@
       "location": "Location",
       "room": "Room",
       "capacity": "Capacity",
+      "trainerSheet": {
+        "hint": "Shows this trainer’s details"
+      },
       "status": {
         "canceled": "This class has been canceled.",
         "completed": "This class has already taken place."
@@ -3586,6 +3730,7 @@
       },
       "booking": {
         "book": "Book this class",
+        "bookShort": "Book",
         "joinWaitlist": "Join waitlist",
         "booking": "Booking…",
         "cancel": "Cancel booking",
@@ -3783,7 +3928,7 @@
       "memberId": "ID",
       "daysLeft": "{used} of {total} days left",
       "showQr": "Show check-in QR",
-      "ptCredits": "PT left",
+      "ptCredits": "PT",
       "qrTitle": "Check-in QR",
       "qrSub": "Show this at the front desk",
       "done": "Done",
@@ -3801,6 +3946,7 @@
       "joinWaitlist": "Join waitlist",
       "noBookable": "No classes this week yet",
       "yourTrainer": "Your trainer",
+      "trainers": "Trainers",
       "bookSession": "Book session",
       "forTraining": "For your training",
       "membersGet": "Members −10%",
@@ -3813,12 +3959,16 @@
       "services": "Services",
       "noServices": "No services yet.",
       "viewServices": "All services",
-      "nextSession": "Your next session"
+      "nextSession": "Your next session",
+      "banners": {
+        "slide": "Promotion {index} of {count}"
+      }
     },
     "classes": {
       "title": "Classes",
       "today": "Today",
       "myBookings": "My bookings",
+      "viewLabel": "Classes or my bookings",
       "prevWeek": "Previous week",
       "nextWeek": "Next week",
       "all": "All",
@@ -3981,6 +4131,10 @@
         "freeze": "Freeze",
         "resumeNow": "Resume now",
         "frozenUntil": "Frozen until {date}",
+        "appearance": {
+          "light": "Light",
+          "dark": "Dark"
+        },
         "pt": {
           "sessionsLeftOne": "{count} PT session left",
           "sessionsLeftOther": "{count} PT sessions left",
@@ -4010,18 +4164,41 @@
           "remindersHint": "Before your booked classes"
         },
         "menu": {
+          "accountHeading": "Account details",
+          "activity": "My activity",
+          "activityHint": "Visits and achievements",
           "appearance": "Appearance",
           "appearanceHint": "Follows system",
           "billing": "Billing",
           "billingHint": "PT credits and invoices",
           "heading": "Settings",
           "language": "Language",
+          "manageHeading": "Manage",
           "notifications": "Notifications",
+          "notificationSettings": "Notification settings",
           "notificationsHint": "Reminders & updates",
+          "payments": "Payment history",
+          "profile": "Personal information",
+          "profileHint": "Name and phone",
+          "settingsHint": "Language, account, sign out",
           "trainers": "Trainers",
           "trainersHint": "Browse and book",
           "training": "Personal training",
+          "trainingHeading": "Training",
           "trainingHint": "Packages & PT sessions"
+        },
+        "edit": {
+          "subtitle": "The name and phone number the gym reaches you on.",
+          "name": "Full name",
+          "phoneHint": "Optional. Leave it empty to remove it.",
+          "emailLocked": "Email can’t be changed here. Ask the front desk.",
+          "nameRequired": "Your name can’t be left empty.",
+          "nameTooLong": "A name can be at most {max} characters.",
+          "phoneTooLong": "A phone number can be at most {max} characters.",
+          "noChanges": "Nothing has changed yet.",
+          "loading": "Loading your profile…",
+          "error": "We couldn’t load your profile.",
+          "retry": "Try again"
         },
         "freezeSheet": {
           "title": "Freeze membership",
@@ -4153,6 +4330,28 @@
       "current": "Current",
       "target": "Target"
     },
+    "reviews": {
+      "rate": "Rate this class",
+      "title": "Rate this class",
+      "ratingLabel": "Your rating",
+      "ratingValue": "{rating} out of 5 stars",
+      "ratingEmpty": "No rating chosen yet",
+      "star": "{count, plural, one {# star} other {# stars}}",
+      "ratingHint": "Choose from one to five stars.",
+      "comment": "Your comment (optional)",
+      "commentPlaceholder": "What was the class like?",
+      "commentCount": "{count} / {max}",
+      "commentTooLong": "A comment can be at most {max} characters.",
+      "pickRating": "Pick a star rating first.",
+      "submit": "Post review",
+      "submitting": "Posting…",
+      "posted": "Thanks for the review",
+      "reviewed": "Reviewed",
+      "already": "You’ve already reviewed this class.",
+      "attendedOnly": "Only classes you attended can be reviewed.",
+      "errNotAttended": "You aren’t marked as attended for this class.",
+      "errNotFound": "This class is no longer available."
+    },
     "trainers": {
       "eyebrow": "Meet the team",
       "title": "Trainers",
@@ -4239,10 +4438,33 @@
         "subtitle": "Try a different search.",
         "action": "Clear search"
       },
+      "tabs": {
+        "label": "Products or orders",
+        "products": "Products",
+        "orders": "Orders"
+      },
+      "orders": {
+        "loading": "Loading your orders…",
+        "error": "We couldn’t load your orders. Please try again.",
+        "retry": "Try again",
+        "loadMore": "Load more",
+        "moreItems": "+{count} more",
+        "signedOut": {
+          "title": "Sign in to see your orders",
+          "subtitle": "Your purchase history is tied to your membership."
+        },
+        "empty": {
+          "title": "No orders yet",
+          "subtitle": "Anything you buy at the shop shows up here.",
+          "action": "Browse shop"
+        }
+      },
       "detail": {
         "back": "Shop",
         "added": "Added to cart",
+        "about": "About",
         "options": "Options",
+        "chooseOption": "Choose an option",
         "outOfStock": "Out of stock",
         "quantity": "Quantity",
         "addToCart": "Add to cart",
@@ -4263,6 +4485,7 @@
         "error": "We couldn’t load this order. Please try again.",
         "retry": "Try again",
         "title": "Order placed",
+        "detailTitle": "Order",
         "subtitle": "We’ll let you know when it’s ready at the front desk - usually within 2 hours.",
         "orderLabel": "Order",
         "paidLabel": "Paid",
@@ -4332,7 +4555,23 @@
     "daysLeft": "days left",
     "recentTitle": "Recent check-ins",
     "recentEmpty": "No check-ins yet",
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "scanner": {
+      "title": "Scan a code",
+      "hint": "Point the camera at a QR code.",
+      "note": "A test scanner — the code is shown here and sent nowhere.",
+      "close": "Close the scanner",
+      "permissionTitle": "Camera access",
+      "permissionBody": "The scanner needs your camera. The code stays on this screen — nothing is uploaded.",
+      "permissionAction": "Allow camera",
+      "deniedTitle": "Camera is off",
+      "deniedBody": "Camera access is turned off for this app. Turn it on in Settings to scan.",
+      "deniedAction": "Open settings",
+      "unavailableTitle": "No camera here",
+      "unavailable": "Scanning needs a device camera. Open the app on your phone to use it.",
+      "result": "Scanned code",
+      "rescan": "Scan again"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -4559,6 +4798,7 @@
     },
     "detail": {
       "back": "All trainers",
+      "viewProfile": "View full profile",
       "specialties": "Specialties",
       "locations": "Locations",
       "schedule": {

@@ -160,6 +160,12 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'PromoCode',
   'AudienceSegment',
   'MessageTemplate',
+  // The member app's home-screen carousel. Written and read by the console's
+  // banner CRUD on the scoped client with no `gymId` in any `where` — listed here
+  // is what makes that safe. The PUBLIC listing (`GET /banners?gymId=`) runs on
+  // the unscoped client with an explicit gym, like the trainers/products
+  // listings, so it is unaffected by this entry.
+  'Banner',
   // The member-facing inbox and its per-category mute settings. Produced by the
   // cron digests on the unscoped client (see the block above); listed for the
   // handlers that read them back.

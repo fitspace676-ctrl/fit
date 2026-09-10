@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@fit/config": "workspace:*",
+    "@fit/types": "workspace:*",
     "@types/node": "^22.10.0",
     "prisma": "^6.2.1",
     "tsx": "^4.19.2",

@@ -226,6 +226,13 @@ import type {
   CreatePromoCodeInput,
   UpdatePromoCodeInput,
   TogglePromoCodeInput,
+  Banner,
+  ListBannersResponse,
+  BannerResponse,
+  CreateBannerInput,
+  UpdateBannerInput,
+  ReorderBannersInput,
+  UploadBannerImageInput,
   ListMessageTemplatesResponse,
   MessageTemplateRow,
   CreateMessageTemplateInput,
@@ -3057,6 +3064,95 @@ export async function togglePromoCode(
 /** `DELETE /marketing/promo-codes/:id` — delete a promo code. */
 export async function deletePromoCode(id: string): Promise<void> {
   const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+// ── Home-screen banners (T1.16) ───────────────────────────────────────────────
+//
+// The member app's home carousel, authored here. Unlike the promo-code routes
+// above, every banner endpoint answers with the row WRAPPED (`{ banner }` /
+// `{ banners }`) — see `@fit/types` `banners.ts` — so each helper unwraps to the
+// value its caller actually wants and the console never handles the envelope.
+
+/** `GET /marketing/banners` — every banner, live or not, in carousel order. */
+export async function fetchBanners(): Promise<Banner[]> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return (await unwrap<ListBannersResponse>(res)).banners;
+}
+
+/** `POST /marketing/banners` — create a banner; returns the new row. */
+export async function createBanner(input: CreateBannerInput): Promise<Banner> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<BannerResponse>(res)).banner;
+}
+
+/** `PATCH /marketing/banners/:id` — edit a banner; only the keys sent change. */
+export async function updateBanner(id: string, input: UpdateBannerInput): Promise<Banner> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<BannerResponse>(res)).banner;
+}
+
+/**
+ * `PATCH /marketing/banners/reorder` — each id's `sortOrder` becomes its index in
+ * `ids`, in one transaction. Returns the whole reel in its new order.
+ *
+ * Not `/:id/reorder`: the reel is reordered as a unit, and the API declares this
+ * route before `PATCH /:id` so `reorder` is never read as an id.
+ */
+export async function reorderBanners(input: ReorderBannersInput): Promise<Banner[]> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/reorder`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<ListBannersResponse>(res)).banners;
+}
+
+/**
+ * `POST /marketing/banners/:id/image` — finalise a banner's artwork by its R2
+ * `photoKey`; returns the updated row.
+ *
+ * The same finalise-by-key shape as the gym logo and the portal photograph: the
+ * browser has already `PUT` the bytes to a presigned URL from `POST /uploads`
+ * (with `entity: 'banners'`), and only this step needs a server — it checks the
+ * key belongs to this gym and turns it into a public URL.
+ */
+export async function uploadBannerImage(
+  id: string,
+  input: UploadBannerImageInput,
+): Promise<Banner> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/${encodeURIComponent(id)}/image`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<BannerResponse>(res)).banner;
+}
+
+/** `DELETE /marketing/banners/:id` — remove a banner and free its artwork. */
+export async function deleteBanner(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: await authHeaders(),
     cache: 'no-store',

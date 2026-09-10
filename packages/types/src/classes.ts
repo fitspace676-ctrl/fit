@@ -40,6 +40,21 @@ export const classInstanceCardSchema = z.object({
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime(),
   trainerName: z.string(),
+  /**
+   * The trainer's id, or null when the occurrence (and its template) has none.
+   * The card stays denormalised — `trainerName` is still the string a row
+   * renders — but carrying the id lets a client open the trainer without a
+   * name→trainer lookup it could only ever get wrong for two coaches sharing a
+   * first name.
+   */
+  trainerId: z.string().nullable(),
+  /**
+   * The trainer's photo, or null when they have none / it isn't a URL. Beside
+   * the name for the same reason as {@link classInstanceCardSchema}'s
+   * `imageUrl`: an avatar is one nullable URL per row, where fetching the
+   * trainer for it would cost a round-trip per card.
+   */
+  trainerAvatarUrl: z.string().url().nullable(),
   locationName: z.string(),
   capacity: z.number().int().nonnegative(),
   bookedCount: z.number().int().nonnegative(),

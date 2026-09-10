@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import {
   prisma,
   generateClassInstances,
+  subscriptionInvoiceDescription,
   Role,
   GymMemberStatus,
   InstanceStatus,
@@ -18,6 +19,8 @@ import {
   ClassTypeStatus,
   BookingStatus,
   CheckInMethod,
+  InvoiceStatus,
+  InvoiceType,
   LocationStatus,
   NotificationCategory,
   OrderStatus,
@@ -26,10 +29,30 @@ import {
   PaymentMethod,
   PaymentStatus,
   ProductStatus,
+  ServiceSessionStatus,
+  ServiceStatus,
+  ServiceType,
   SubscriptionInterval,
   SubscriptionStatus,
   TrainerStatus,
 } from '../index';
+// The invoice *reference* rule, imported rather than re-stated.
+//
+// `prisma/invoice-number.ts` warns in as many words against a second copy of it:
+// the rule moved to `@fit/types` so the console's Settings → Invoicing preview and
+// the API's mint site compose a number with ONE function. A seed that hand-rolled
+// `"INV-2026-1000"` would be the third copy and the first one nobody tests — and it
+// would silently stop matching the moment a gym changed its prefix or shape. So
+// `@fit/db` takes a workspace **devDependency** on `@fit/types` (dev, because only
+// this seed script needs it; `index.ts` — what the apps actually consume — does
+// not). No cycle: `@fit/types` depends on `zod` and nothing else, and
+// `packages/utils` already depends on it the same way.
+import {
+  formatInvoiceNumber,
+  gymSettingsStoredSchema,
+  invoiceNumberCarriesYear,
+  type InvoiceNumbering,
+} from '@fit/types';
 
 /**
  * Shared dev password for the seeded login fixtures (`alex@example.com` /
@@ -84,7 +107,7 @@ async function main() {
   });
 
   // OWNER at Downtown, TRAINER at Riverside — proves per-gym roles.
-  await prisma.gymMember.upsert({
+  const alexDowntown = await prisma.gymMember.upsert({
     where: { userId_gymId: { userId: alex.id, gymId: downtown.id } },
     update: { role: Role.OWNER, status: GymMemberStatus.ACTIVE, locationId: downtownMainBranch },
     create: {
@@ -94,9 +117,10 @@ async function main() {
       status: GymMemberStatus.ACTIVE,
       locationId: downtownMainBranch,
     },
+    select: { id: true },
   });
 
-  await prisma.gymMember.upsert({
+  const alexRiverside = await prisma.gymMember.upsert({
     where: { userId_gymId: { userId: alex.id, gymId: riverside.id } },
     update: { role: Role.TRAINER, status: GymMemberStatus.ACTIVE, locationId: riversideMainBranch },
     create: {
@@ -106,7 +130,22 @@ async function main() {
       status: GymMemberStatus.ACTIVE,
       locationId: riversideMainBranch,
     },
+    select: { id: true },
   });
+
+  // Work assignments for the two fixture logins. Every non-MEMBER membership gets
+  // at least one, for the same reason every membership gets a home branch: a fresh
+  // database whose staff are rostered nowhere makes "who works at branch X" answer
+  // nobody at every branch, which is indistinguishable from a broken filter. The
+  // owner covers the whole business, so both downtown branches; alex coaches at
+  // riverside's only branch.
+  await assignBranches(
+    downtown.id,
+    alexDowntown.id,
+    downtownLocationIds.map((_, index) => index),
+    downtownLocationIds,
+  );
+  await assignBranches(riverside.id, alexRiverside.id, [0], riversideLocationIds);
 
   // Mark each gym's owner now that the owning user exists.
   await prisma.gym.update({ where: { id: downtown.id }, data: { ownerId: alex.id } });
@@ -404,47 +443,72 @@ async function main() {
   // to re-run, never deletes.
   await enrichDowntown(downtown.id, downtownLocationIds);
 
-  // A few 1:1 PT sessions this week so the PT Calendar tab opens onto data. Scoped
-  // to the first active trainer + first member of `downtown`; idempotent on
-  // (gymId, trainerId, startsAt). Skipped if the gym has no trainer or member yet.
-  const ptTrainer = await prisma.trainer.findFirst({
-    where: { gymId: downtown.id, status: TrainerStatus.ACTIVE },
-    select: { id: true },
-    orderBy: { name: 'asc' },
-  });
+  // Three home-screen banners for the member app's carousel (T1.16), one of them
+  // deliberately not live — see `ensureBanners`.
+  await ensureBanners(downtown.id);
+
+  // A few 1:1 PT sessions this week so the PT Calendar tab opens onto data.
+  // Idempotent on (gymId, trainerId, startsAt); skipped if the gym has no trainer
+  // or class type yet.
+  //
+  // Since Stage 6 each one names the BRANCH IT RUNS AT — a figure about a place,
+  // so it gets its own column rather than being resolved through the coach's base
+  // branch. That distinction is what this fixture exists to exercise: Sandro K. is
+  // rostered at both sites, so his two sessions sit at different branches, and a
+  // seed that hopped through his home branch would file them both at the flagship.
+  //
+  // The sessions are deliberately 3/2 rather than an even split — a 50/50 fixture
+  // cannot tell a working branch filter from a coincidence.
+  const DEMO_PT_SESSIONS = [
+    { trainer: 'Ana G.', dayOffset: 0, hour: 9, minutes: 60, branch: 0 },
+    { trainer: 'Levan M.', dayOffset: 1, hour: 11, minutes: 45, branch: 1 },
+    { trainer: 'Sandro K.', dayOffset: 2, hour: 14, minutes: 45, branch: 0 },
+    { trainer: 'Sandro K.', dayOffset: 3, hour: 16, minutes: 60, branch: 1 },
+    { trainer: 'Nika B.', dayOffset: 4, hour: 18, minutes: 60, branch: 0 },
+  ] as const;
   // A PT session is a trainer + a workout type (class type) — no member. Attach the
   // first seeded class type so the calendar shows named blocks.
   const ptClassTypeId = classTypeIdByName.values().next().value ?? null;
-  if (ptTrainer && ptClassTypeId) {
-    const ptSessions = [
-      { dayOffset: 0, hour: 9, minutes: 60 },
-      { dayOffset: 2, hour: 14, minutes: 45 },
-      { dayOffset: 4, hour: 18, minutes: 60 },
-    ];
-    for (const pt of ptSessions) {
+  if (ptClassTypeId) {
+    for (const pt of DEMO_PT_SESSIONS) {
+      const trainer = await prisma.trainer.findFirst({
+        where: { gymId: downtown.id, name: pt.trainer, status: TrainerStatus.ACTIVE },
+        select: { id: true },
+      });
+      const locationId = downtownLocationIds[pt.branch] ?? downtownLocationIds[0] ?? null;
+      if (!trainer) {
+        continue;
+      }
       const startsAt = new Date();
       startsAt.setUTCDate(startsAt.getUTCDate() + pt.dayOffset);
       startsAt.setUTCHours(pt.hour, 0, 0, 0);
       const existing = await prisma.ptSession.findFirst({
-        where: { gymId: downtown.id, trainerId: ptTrainer.id, startsAt },
-        select: { id: true, classTypeId: true },
+        where: { gymId: downtown.id, trainerId: trainer.id, startsAt },
+        select: { id: true, classTypeId: true, locationId: true },
       });
       if (!existing) {
         await prisma.ptSession.create({
           data: {
             gymId: downtown.id,
-            trainerId: ptTrainer.id,
+            trainerId: trainer.id,
             classTypeId: ptClassTypeId,
             startsAt,
             endsAt: new Date(startsAt.getTime() + pt.minutes * 60 * 1000),
             status: InstanceStatus.SCHEDULED,
+            locationId,
           },
         });
-      } else if (!existing.classTypeId) {
-        // Backfill a workout type onto a legacy row that predates the member→type change.
+      } else if (!existing.classTypeId || !existing.locationId) {
+        // Backfill a workout type onto a legacy row that predates the member→type
+        // change, and a branch onto one the Stage 6 migration could only put on the
+        // default. Narrowed to rows that have neither, so a session an operator
+        // moved to another branch is never dragged back.
         await prisma.ptSession.update({
           where: { id: existing.id },
-          data: { classTypeId: ptClassTypeId },
+          data: {
+            classTypeId: existing.classTypeId ?? ptClassTypeId,
+            locationId: existing.locationId ?? locationId,
+          },
         });
       }
     }
@@ -493,6 +557,12 @@ async function main() {
   const downtownPackages = await prisma.packagePlan.count({ where: { gymId: downtown.id } });
   const downtownCheckInsToday = await prisma.checkIn.count({
     where: { gymId: downtown.id, checkedInAt: { gte: startOfToday() } },
+  });
+  // Printed as `live/total` because the two numbers are meant to differ: one seeded
+  // banner is parked, so an equal pair means `GET /banners` has stopped filtering.
+  const downtownBanners = await prisma.banner.count({ where: { gymId: downtown.id } });
+  const downtownBannersLive = await prisma.banner.count({
+    where: { gymId: downtown.id, isActive: true },
   });
 
   // Branch roster, marking the default with a `*`. Printed because "exactly one
@@ -563,9 +633,6 @@ async function main() {
   // sits at one branch, so a `(none)` in the refunded column is visible here and
   // nowhere else on this summary.
   //
-  // No invoice line, because the seed mints no invoices at all — `Invoice.locationId`
-  // therefore has no dev coverage, and the branch filter on `/payments/invoices`
-  // cannot be exercised against seeded data.
   const [paymentsByBranch, refundsByBranch] = await Promise.all([
     prisma.payment.groupBy({
       by: ['locationId'],
@@ -591,6 +658,87 @@ async function main() {
     bucket.refunded += row._sum.amount ?? 0;
     revenueByBranch.set(row.locationId, bucket);
   }
+  // Invoices split by the branch the billed member stood at when each was raised.
+  //
+  // A DIFFERENT column from the takings above and it must be read separately: an
+  // invoice is attributed through the MEMBER (`Invoice.locationId`, frozen at issue
+  // time) while a payment is attributed through the ORDER, so the two lines are not
+  // expected to agree and a single "money by branch" row would hide that they are
+  // answering different questions.
+  //
+  // The `(none)` row is the one to look for, and unlike everywhere else on this
+  // summary it is EXPECTED: a seed with no `(none)` line here has lost its
+  // unattributable invoice, and the "not attributable" placeholder on
+  // `/payments/invoices` — plus the promise that such a row stays in the gym-wide
+  // total while dropping out of every per-branch one — has nothing to render
+  // against. A run where the two branches are level, or where one owns everything,
+  // means the roster stopped alternating and the branch filter has quietly become a
+  // no-op.
+  const invoicesByBranch = await prisma.invoice.groupBy({
+    by: ['locationId'],
+    where: { gymId: downtown.id },
+    _count: { _all: true },
+    _sum: { amount: true },
+    orderBy: { locationId: 'asc' },
+  });
+
+  // ── Stage 6: people and scheduling, per branch ──────────────────────────
+  //
+  // Five lines, because Stage 6 introduced two DIFFERENT shapes and a summary that
+  // printed only one of them would hide the distinction the whole stage turns on.
+  //
+  //   * Staff and trainers are counted off `LocationStaff` — the many-to-many work
+  //     roster. These rows OVERLAP: somebody who covers both sites appears under
+  //     both, so the branch counts sum to MORE than the payroll. That is correct
+  //     and is why the line says "assignment(s)" rather than "staff". A per-branch
+  //     HEAD-COUNT is a different query, against `GymMember.locationId`, and is
+  //     already printed as `downtownStaff`.
+  //   * Services are DERIVED — a service carries no branch and is bookable wherever
+  //     its staff member is rostered. Printing the derivation is the only dev
+  //     coverage it has; a run that lands every service at every branch means the
+  //     roster stopped differing and the filter has quietly become a no-op.
+  //   * PT sessions and shifts are counted off their OWN `locationId`, because each
+  //     happens at exactly one place. These PARTITION: they sum to the gym total.
+  //
+  // A `(none)` under shifts is the signature that matters most — it means a shift
+  // whose free-text name resolved to no branch, the residual class the Stage 6
+  // migration deliberately refuses to backfill.
+  const [staffAssignmentsByBranch, ptSessionsByBranch, shiftsByBranch] = await Promise.all([
+    prisma.locationStaff.groupBy({
+      by: ['locationId'],
+      where: { gymId: downtown.id },
+      _count: { _all: true },
+      orderBy: { locationId: 'asc' },
+    }),
+    prisma.ptSession.groupBy({
+      by: ['locationId'],
+      where: { gymId: downtown.id },
+      _count: { _all: true },
+      orderBy: { locationId: 'asc' },
+    }),
+    prisma.shiftSlot.groupBy({
+      by: ['locationId'],
+      where: { gymId: downtown.id },
+      _count: { _all: true },
+      orderBy: { locationId: 'asc' },
+    }),
+  ]);
+  // Coaches and services reached through the roster, one query per branch. Counted
+  // in a loop rather than a `groupBy` because both are RELATION filters — there is
+  // no column to group on, which is the whole point of the derivation and the exact
+  // cost the `Trainer` / `Service` model docs accept in exchange for not carrying a
+  // third copy of the branch.
+  const downtownBranches = branches.filter((b) => b.gymId === downtown.id);
+  const derivedByBranch: Array<{ name: string; trainers: number; services: number }> = [];
+  for (const branch of downtownBranches) {
+    const rostered = { locationAssignments: { some: { locationId: branch.id } } };
+    const [trainers, services] = await Promise.all([
+      prisma.trainer.count({ where: { gymId: downtown.id, staff: { is: rostered } } }),
+      prisma.service.count({ where: { gymId: downtown.id, staff: { is: rostered } } }),
+    ]);
+    derivedByBranch.push({ name: branch.name, trainers, services });
+  }
+
   // Amounts are in the currency's MINOR units (tetri), as everywhere else in the
   // schema; divided only for the printed line.
   const gel = (minor: number): string => (minor / 100).toFixed(2);
@@ -613,7 +761,18 @@ async function main() {
         `${row.locationId ? (branchNameById.get(row.locationId) ?? row.locationId) : '(none)'}: ${row._count._all}`,
     ),
     downtownStaff,
+    // Overlapping by design — a coach rostered at both sites is counted twice, so
+    // these sum to MORE than `downtownStaff`. See the comment above the query.
+    downtownStaffAssignmentsByBranch: staffAssignmentsByBranch.map(
+      (row) =>
+        `${branchNameById.get(row.locationId) ?? row.locationId}: ${row._count._all} assignment(s)`,
+    ),
+    // Derived through the roster, not stored: neither model carries a branch.
+    downtownTrainersAndServicesByBranch: derivedByBranch.map(
+      (row) => `${row.name}: ${row.trainers} coach(es), ${row.services} service(s)`,
+    ),
     downtownProducts,
+    downtownBanners: `${downtownBannersLive}/${downtownBanners} active`,
     downtownStockByBranch: [...stockByBranch.entries()]
       .map(
         ([locationId, { lines, units }]) =>
@@ -626,9 +785,30 @@ async function main() {
           `${locationId ? (branchNameById.get(locationId) ?? locationId) : '(none)'}: ${gel(taken - refunded)} GEL net (${gel(taken)} taken − ${gel(refunded)} refunded)`,
       )
       .sort(),
+    // Billed through the member, not the till — see the comment above the query.
+    // A `(none)` row here is the "not attributable" invoice and is meant to be
+    // present.
+    downtownInvoicesByBranch: invoicesByBranch
+      .map(
+        (row) =>
+          `${row.locationId ? (branchNameById.get(row.locationId) ?? row.locationId) : '(none)'}: ${row._count._all} invoice(s), ${gel(row._sum.amount ?? 0)} GEL billed`,
+      )
+      .sort(),
     downtownPackages,
     downtownCheckInsToday,
     downtownCheckInsTodayByBranch: checkInsByBranch.map(
+      (row) =>
+        `${row.locationId ? (branchNameById.get(row.locationId) ?? row.locationId) : '(none)'}: ${row._count._all}`,
+    ),
+    // Both partition: one session and one shift each happen at exactly one place,
+    // so these sum to the gym total. A `(none)` under shifts is a rota entry whose
+    // typed branch name resolved to nothing — the residual class Stage 6 refuses to
+    // guess at, and the one row on this summary that wants a human.
+    downtownPtSessionsByBranch: ptSessionsByBranch.map(
+      (row) =>
+        `${row.locationId ? (branchNameById.get(row.locationId) ?? row.locationId) : '(none)'}: ${row._count._all}`,
+    ),
+    downtownShiftsByBranch: shiftsByBranch.map(
       (row) =>
         `${row.locationId ? (branchNameById.get(row.locationId) ?? row.locationId) : '(none)'}: ${row._count._all}`,
     ),
@@ -707,8 +887,31 @@ const DEMO_MEMBERS: ReadonlyArray<{ name: string; plan: (typeof DEMO_PLANS)[numb
   { name: 'Vato Lomidze', plan: 'Trial' },
 ];
 
-/** The demo trainers the schedule + trainer index render. */
-const DEMO_TRAINERS = ['Ana G.', 'Levan M.', 'Sandro K.', 'Nika B.'] as const;
+/**
+ * The demo trainers the schedule + trainer index render.
+ *
+ * `base` is the branch the coach is on the books at (their staff row's
+ * `GymMember.locationId`); `branches` is every branch they are ROSTERED at, in
+ * {@link DOWNTOWN_BRANCHES} order — the {@link LocationStaff} rows Stage 6 of
+ * multi-branch replaced `assignedLocationIds` with.
+ *
+ * Deliberately uneven, and deliberately including one coach who covers BOTH sites.
+ * A roster where everybody works everywhere exercises nothing, and a roster where
+ * everybody works at exactly one place hides the whole reason the assignment is a
+ * join table rather than a column: Sandro is the row that proves "who works here"
+ * overlaps between branches while "who is BASED here" still partitions.
+ *
+ * `base` is always one of `branches` — a coach on the books somewhere they are not
+ * rostered would be a contradiction the schema cannot catch, so the seed does not
+ * write one. It matches {@link DEMO_TODAY_CLASSES} too: every demo class runs at a
+ * branch its trainer is actually rostered at.
+ */
+const DEMO_TRAINERS = [
+  { name: 'Ana G.', base: 0, branches: [0] },
+  { name: 'Levan M.', base: 1, branches: [1] },
+  { name: 'Sandro K.', base: 0, branches: [0, 1] },
+  { name: 'Nika B.', base: 1, branches: [1] },
+] as const;
 
 /**
  * One day of a branch's opening hours, in the shape `locationHoursSchema`
@@ -888,6 +1091,42 @@ async function ensureBranches(
 }
 
 /**
+ * Idempotently roster one staff member onto a set of branches — the
+ * {@link LocationStaff} rows Stage 6 of multi-branch introduced to replace
+ * `GymMember.assignedLocationIds`.
+ *
+ * `branches` indexes the gym's branches in spec order. Additive: it creates the
+ * assignments the spec names and never removes one an operator added in the
+ * console, matching the stance the whole seed takes (the till never re-prices, the
+ * stock upsert never clobbers a count). The `@@unique([staffId, locationId])` the
+ * array could never have is what makes `skipDuplicates` enough — a duplicate id in
+ * a `String[]` used to be silently legal and doubled the person in anything counted
+ * off it.
+ *
+ * It deliberately does NOT write `assignedLocationIds`. That column is deprecated
+ * and still read by `staff.service.ts` until the API half of Stage 6 lands; writing
+ * both here would make the seed the first thing in the codebase to assert two
+ * possibly-disagreeing answers, which is precisely the drift the join table exists
+ * to end. A dev database seeded before Stage 6 keeps whatever the array held — the
+ * migration carried every valid entry across.
+ */
+async function assignBranches(
+  gymId: string,
+  staffId: string,
+  branches: readonly number[],
+  locationIds: readonly string[],
+): Promise<void> {
+  const rows = branches
+    .map((index) => locationIds[index])
+    .filter((locationId): locationId is string => Boolean(locationId))
+    .map((locationId) => ({ gymId, staffId, locationId }));
+  if (rows.length === 0) {
+    return;
+  }
+  await prisma.locationStaff.createMany({ data: rows, skipDuplicates: true });
+}
+
+/**
  * The demo classes materialised for *today* so the schedule / alerts / bookings
  * light up. `hour` is local-time start; `capacity` is the occurrence capacity;
  * `booked` is how many confirmed bookings to seed (kept under capacity, one row
@@ -942,10 +1181,155 @@ const DEMO_TODAY_CLASSES = [
  * (userId, gymId) membership unique, so re-running the seed never duplicates them.
  */
 const DEMO_STAFF = [
-  { name: 'Mariam Beridze', email: 'manager@downtown.demo', role: Role.MANAGER },
-  { name: 'Giorgi Nadiradze', email: 'reception@downtown.demo', role: Role.RECEPTIONIST },
-  { name: 'Coach Nia', email: 'coach@downtown.demo', role: Role.TRAINER },
+  // The manager and the receptionist both cover the two sites, which is not a
+  // shortcut: {@link DEMO_TILL_SALES} already has each of them ringing sales at
+  // both branches, and a seed that rostered them at one would contradict its own
+  // takings. The per-branch difference on the Staff page comes from the coaches
+  // instead — see {@link DEMO_TRAINERS} — and from the SHIFTS, where somebody who
+  // covers two branches is still at exactly one door on any given day.
+  {
+    name: 'Mariam Beridze',
+    email: 'manager@downtown.demo',
+    role: Role.MANAGER,
+    base: 0,
+    branches: [0, 1],
+  },
+  {
+    name: 'Giorgi Nadiradze',
+    email: 'reception@downtown.demo',
+    role: Role.RECEPTIONIST,
+    base: 0,
+    branches: [0, 1],
+  },
+  { name: 'Coach Nia', email: 'coach@downtown.demo', role: Role.TRAINER, base: 1, branches: [1] },
 ] as const;
+
+/**
+ * The weekly rota — one {@link ShiftSlot} per row, each at exactly ONE branch.
+ *
+ * This is the fixture that makes Stage 6's central distinction visible in dev.
+ * Mariam and Giorgi are rostered at BOTH branches ({@link LocationStaff}), and
+ * their shifts still name a single site per day: Giorgi is at the flagship on
+ * Monday and at Saburtalo on Tuesday. "Can be rostered here" and "is here on
+ * Tuesday morning" are different questions, and only the second one staffs a door.
+ *
+ * `dayOfWeek` is 0 (Monday) … 6 (Sunday); `branch` indexes
+ * {@link DOWNTOWN_BRANCHES}. Every `branch` is one the staff member is rostered at,
+ * for the same reason {@link DEMO_TRAINERS}'s `base` is: a shift at a branch its
+ * owner does not work at is a contradiction nothing in the schema would catch.
+ *
+ * `location` (the free text this replaced) is never written. Post-Stage-6 that
+ * column means only "a name that resolved to no branch", and a seed inventing one
+ * would manufacture the residual class the migration exists to isolate.
+ */
+const DEMO_SHIFTS: ReadonlyArray<{
+  staff: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  branch: number;
+}> = [
+  // Manager: flagship early in the week, satellite late — one door per day.
+  { staff: 'manager@downtown.demo', dayOfWeek: 0, startTime: '08:00', endTime: '16:00', branch: 0 },
+  { staff: 'manager@downtown.demo', dayOfWeek: 1, startTime: '08:00', endTime: '16:00', branch: 0 },
+  { staff: 'manager@downtown.demo', dayOfWeek: 3, startTime: '10:00', endTime: '18:00', branch: 1 },
+  { staff: 'manager@downtown.demo', dayOfWeek: 4, startTime: '10:00', endTime: '18:00', branch: 1 },
+  // Reception: alternates, so "who is working now" differs by branch AND by day.
+  {
+    staff: 'reception@downtown.demo',
+    dayOfWeek: 0,
+    startTime: '06:00',
+    endTime: '14:00',
+    branch: 0,
+  },
+  {
+    staff: 'reception@downtown.demo',
+    dayOfWeek: 1,
+    startTime: '07:00',
+    endTime: '15:00',
+    branch: 1,
+  },
+  {
+    staff: 'reception@downtown.demo',
+    dayOfWeek: 2,
+    startTime: '06:00',
+    endTime: '14:00',
+    branch: 0,
+  },
+  {
+    staff: 'reception@downtown.demo',
+    dayOfWeek: 3,
+    startTime: '07:00',
+    endTime: '15:00',
+    branch: 1,
+  },
+  {
+    staff: 'reception@downtown.demo',
+    dayOfWeek: 4,
+    startTime: '06:00',
+    endTime: '14:00',
+    branch: 0,
+  },
+  {
+    staff: 'reception@downtown.demo',
+    dayOfWeek: 5,
+    startTime: '09:00',
+    endTime: '17:00',
+    branch: 0,
+  },
+  // Coach Nia is rostered at the satellite only, so every shift is there.
+  { staff: 'coach@downtown.demo', dayOfWeek: 1, startTime: '12:00', endTime: '20:00', branch: 1 },
+  { staff: 'coach@downtown.demo', dayOfWeek: 3, startTime: '12:00', endTime: '20:00', branch: 1 },
+  { staff: 'coach@downtown.demo', dayOfWeek: 5, startTime: '10:00', endTime: '16:00', branch: 1 },
+];
+
+/**
+ * The bookable services catalogue, and the seed's demonstration that a `Service`
+ * needs NO branch of its own.
+ *
+ * `trainer` names a {@link DEMO_TRAINERS} coach — the staff member who delivers it.
+ * Where the service can be booked is DERIVED from that person's
+ * {@link LocationStaff} rows and stored nowhere, which is the whole argument in the
+ * `Service` model doc: a coach who covers both sites offers their service at both,
+ * and a column here would be a second copy of the roster that an operator has to
+ * remember to update twice.
+ *
+ * Chosen so the derivation produces three visibly different answers: Ana works at
+ * the flagship only, Nia at the satellite only, and Sandro at both — so the
+ * services list narrows to two entries under either branch and shows all three
+ * under "All locations". The seed prints exactly that as
+ * `downtownServicesByBranch`, because a derivation with no dev coverage is a
+ * derivation nobody notices breaking.
+ */
+const DEMO_SERVICES: ReadonlyArray<{
+  name: string;
+  trainer: string;
+  priceMinor: number;
+  durationMinutes: number;
+  description: string;
+}> = [
+  {
+    name: '1:1 Strength Coaching',
+    trainer: 'Ana G.',
+    priceMinor: 12000,
+    durationMinutes: 60,
+    description: 'One hour of programmed lifting with a coach.',
+  },
+  {
+    name: 'Boxing Technique Session',
+    trainer: 'Coach Nia',
+    priceMinor: 9000,
+    durationMinutes: 45,
+    description: 'Pads, footwork and combinations, one-to-one.',
+  },
+  {
+    name: 'Mobility Assessment',
+    trainer: 'Sandro K.',
+    priceMinor: 6000,
+    durationMinutes: 30,
+    description: 'A movement screen and a corrective plan.',
+  },
+];
 
 /**
  * One purchasable variant of a demo {@link DEMO_PRODUCTS} product.
@@ -1152,14 +1536,31 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
   // very split the link exists to remove — coaches the schedule can use but the
   // Staff roster has never heard of.
   const trainerIdByName = new Map<string, string>();
-  for (let t = 0; t < DEMO_TRAINERS.length; t++) {
-    const name = DEMO_TRAINERS[t]!;
+  // Staff membership ids by display name, so the services + shifts below can find
+  // the person who delivers/works them. Coaches land here from this loop, the
+  // login fixtures from the DEMO_STAFF loop further down.
+  const staffIdByName = new Map<string, string>();
+  for (const spec of DEMO_TRAINERS) {
+    const name = spec.name;
+    const baseLocationId = locationIds[spec.base] ?? locationIds[0] ?? null;
     const existing = await prisma.trainer.findFirst({
       where: { gymId, name },
-      select: { id: true },
+      select: { id: true, staffId: true },
     });
     if (existing) {
       trainerIdByName.set(name, existing.id);
+      if (existing.staffId) {
+        staffIdByName.set(name, existing.staffId);
+        // Forced on a re-run, like the member upsert: a database seeded before
+        // Stage 6 has every coach on the DEFAULT branch (the migration's guess),
+        // and would otherwise keep a roster nobody split. Deterministic, so a
+        // second run is a no-op write rather than a reshuffle.
+        await prisma.gymMember.update({
+          where: { id: existing.staffId },
+          data: { locationId: baseLocationId },
+        });
+        await assignBranches(gymId, existing.staffId, spec.branches, locationIds);
+      }
       continue;
     }
     const [firstName, ...rest] = name.split(' ');
@@ -1175,12 +1576,16 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
         status: GymMemberStatus.ACTIVE,
         firstName: firstName ?? name,
         lastName: rest.length > 0 ? rest.join(' ') : null,
-        // A coach's home branch is the one they are based at. Spread like the
-        // members so "who works here" differs per branch too.
-        locationId: locationIds[t % locationIds.length] ?? null,
+        // The coach's BASE branch — the single one they are on the books at, and
+        // the column a per-branch head-count partitions on. Where they can be
+        // ROSTERED is the many-valued `LocationStaff` set written just below, and
+        // the two are not the same fact.
+        locationId: baseLocationId,
       },
       select: { id: true },
     });
+    staffIdByName.set(name, staff.id);
+    await assignBranches(gymId, staff.id, spec.branches, locationIds);
     const created = await prisma.trainer.create({
       data: {
         gymId,
@@ -1395,9 +1800,12 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
   // The staff membership ids are kept because the till sales below are attributed
   // to them — `Order.soldById` is a `GymMember`, not a `User`.
   const staffIdByEmail = new Map<string, string>();
-  for (let s = 0; s < DEMO_STAFF.length; s++) {
-    const staff = DEMO_STAFF[s]!;
-    const homeLocationId = locationIds[s % locationIds.length] ?? null;
+  for (const staff of DEMO_STAFF) {
+    // The BASE branch — the one this employee is on the books at, which is what a
+    // per-branch head-count partitions on. Every branch they can be rostered at is
+    // `staff.branches`, written to `LocationStaff` below; a manager who covers both
+    // sites is still based at one.
+    const homeLocationId = locationIds[staff.base] ?? locationIds[0] ?? null;
     const user = await prisma.user.upsert({
       where: { email: staff.email },
       update: { name: staff.name, passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
@@ -1422,6 +1830,8 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
       select: { id: true },
     });
     staffIdByEmail.set(staff.email, membership.id);
+    staffIdByName.set(staff.name, membership.id);
+    await assignBranches(gymId, membership.id, staff.branches, locationIds);
 
     // A staff member with the TRAINER role gets the coach profile the API would
     // have created with them, so the demo gym's schedule can actually be assigned
@@ -1579,8 +1989,123 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
     });
   }
 
+  // ── The weekly rota, one branch per shift ───────────────────────────────
+  //
+  // Guarded on (staffId, dayOfWeek, startTime) — a `ShiftSlot` has no natural
+  // unique column, and that triple is what the staff console's weekly grid treats
+  // as one cell. `locationId` is forced on the guarded path as well, so a database
+  // seeded before Stage 6 (whose shifts carry a free-text name, or nothing) picks
+  // up a real branch instead of staying unresolved forever.
+  for (const shift of DEMO_SHIFTS) {
+    const staffId = staffIdByEmail.get(shift.staff);
+    const locationId = locationIds[shift.branch] ?? locationIds[0] ?? null;
+    if (!staffId) {
+      continue;
+    }
+    const existing = await prisma.shiftSlot.findFirst({
+      where: { gymId, staffId, dayOfWeek: shift.dayOfWeek, startTime: shift.startTime },
+      select: { id: true },
+    });
+    if (existing) {
+      await prisma.shiftSlot.update({
+        where: { id: existing.id },
+        // `locationName` is cleared, not preserved: post-Stage-6 that column means
+        // "a typed name that resolved to no branch", and a row that now has a real
+        // branch must not also carry a stale label.
+        data: { locationId, locationName: null },
+      });
+      continue;
+    }
+    await prisma.shiftSlot.create({
+      data: {
+        gymId,
+        staffId,
+        dayOfWeek: shift.dayOfWeek,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        locationId,
+      },
+    });
+  }
+
+  // ── Services + a few sessions on the PT calendar ────────────────────────
+  //
+  // The service itself carries NO branch — see the `Service` model doc. Where it
+  // can be booked is derived from its staff member's `LocationStaff` rows, so the
+  // only thing the seed has to get right is which coach delivers it.
+  //
+  // Its SESSIONS do carry one: a booked slot happens at exactly one place, and it
+  // is frozen there. Each is placed at a branch its staff member is rostered at.
+  for (let i = 0; i < DEMO_SERVICES.length; i++) {
+    const spec = DEMO_SERVICES[i]!;
+    const staffId = staffIdByName.get(spec.trainer);
+    if (!staffId) {
+      continue;
+    }
+    const service =
+      (await prisma.service.findFirst({
+        where: { gymId, name: spec.name },
+        select: { id: true, staffId: true },
+      })) ??
+      (await prisma.service.create({
+        data: {
+          gymId,
+          type: ServiceType.PERSONAL_TRAINING,
+          name: spec.name,
+          staffId,
+          priceMinor: spec.priceMinor,
+          currency: 'GEL',
+          durationMinutes: spec.durationMinutes,
+          description: spec.description,
+          status: ServiceStatus.ACTIVE,
+        },
+        select: { id: true, staffId: true },
+      }));
+
+    // Two open slots each, on the two days after today, at the branches this
+    // service's coach is rostered at — so the PT calendar narrows under a branch
+    // filter instead of showing the same list twice.
+    const branchIds = await prisma.locationStaff.findMany({
+      where: { gymId, staffId: service.staffId },
+      select: { locationId: true },
+      orderBy: { locationId: 'asc' },
+    });
+    for (let k = 0; k < 2; k++) {
+      const locationId = branchIds[k % Math.max(branchIds.length, 1)]?.locationId ?? null;
+      const startsAt = new Date();
+      startsAt.setUTCDate(startsAt.getUTCDate() + k + 1);
+      startsAt.setUTCHours(10 + i * 2 + k, 0, 0, 0);
+      const existing = await prisma.serviceSession.findFirst({
+        where: { gymId, serviceId: service.id, startsAt },
+        select: { id: true, locationId: true },
+      });
+      if (existing) {
+        if (!existing.locationId) {
+          await prisma.serviceSession.update({ where: { id: existing.id }, data: { locationId } });
+        }
+        continue;
+      }
+      await prisma.serviceSession.create({
+        data: {
+          gymId,
+          serviceId: service.id,
+          staffId: service.staffId,
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + spec.durationMinutes * 60 * 1000),
+          status: ServiceSessionStatus.OPEN,
+          locationId,
+        },
+      });
+    }
+  }
+
   // ── Till sales (POS), attributed to the staff who rang them ─────────────
   await ensureTillSales(gymId, staffIdByEmail, locationIds);
+
+  // ── Invoices, attributed through the member ─────────────────────────────
+  // Last, because every invoice is raised against a member (and most against
+  // their live subscription), so both have to exist first.
+  await ensureInvoices(gymId, memberIds);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1796,6 +2321,385 @@ async function ensureTillSales(
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Invoices                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One demo invoice, as a spec the seed resolves against the members it just wrote.
+ *
+ * `member` indexes {@link DEMO_MEMBERS} — and it is the ONLY thing that decides the
+ * invoice's branch. Deliberately: `Invoice.locationId` is the billed member's home
+ * branch at issue time, the PERSON half of the attribution rule in
+ * `apps/api/src/common/location-filter.util.ts`, and the seed applies that rule
+ * rather than naming a branch of its own. Members alternate between the two
+ * downtown branches by index, so an even `member` lands the invoice at Rustaveli
+ * and an odd one at Saburtalo. The counts are deliberately lopsided (9 / 5) so
+ * choosing a branch in the console visibly changes the roster instead of halving a
+ * tie nobody would notice.
+ *
+ * `member: null` is the unattributable row — see {@link ensureInvoices}.
+ *
+ * `daysAgo` is when the charge was raised; `dueInDays` is set only on a `PENDING`
+ * row, because `Invoice.dueDate` documents itself as meaningful only there (a
+ * settled charge has nothing left to fall due). `fromSubscription` links the row to
+ * the member's live subscription, which is what makes it show up in the member
+ * portal's billing history as well as on the admin board.
+ *
+ * No spec names an `orderId`. That is the shape of the real majority: recurring
+ * billing raises an invoice with no order at all, which is precisely why the branch
+ * comes from the member and never from `Invoice.orderId`.
+ */
+interface SeedInvoice {
+  member: number | null;
+  type: InvoiceType;
+  status: InvoiceStatus;
+  /** In the currency's MINOR units (tetri), as everywhere else. */
+  amount: number;
+  description: string;
+  daysAgo: number;
+  dueInDays?: number;
+  fromSubscription?: boolean;
+}
+
+/**
+ * The demo invoice board.
+ *
+ * Spread across all four {@link InvoiceStatus} values and all six
+ * {@link InvoiceType} values, because `/payments/invoices` filters on type and
+ * badges the status, and a board where every row says `PAID · MEMBERSHIP` exercises
+ * neither. Prices echo {@link DEMO_PLANS} and {@link DEMO_SERVICES} so a membership
+ * charge reconciles against the plan it renewed.
+ *
+ * The membership wordings come from {@link subscriptionInvoiceDescription} — the
+ * same helper the API's enrolment and renewal mint sites use — so the seeded board
+ * reads exactly like a real one rather than approximating it.
+ */
+const DEMO_INVOICES: readonly SeedInvoice[] = [
+  // ── Rustaveli Flagship (even member indices) — 9 rows ──────────────────
+  {
+    member: 0,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PAID,
+    amount: 12000,
+    description: subscriptionInvoiceDescription('Premium', 'MONTH', 'enrolment'),
+    daysAgo: 34,
+    fromSubscription: true,
+  },
+  {
+    member: 0,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PAID,
+    amount: 12000,
+    description: subscriptionInvoiceDescription('Premium', 'MONTH', 'renewal'),
+    daysAgo: 4,
+    fromSubscription: true,
+  },
+  {
+    member: 2,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PAID,
+    amount: 12000,
+    description: subscriptionInvoiceDescription('Premium', 'MONTH', 'renewal'),
+    daysAgo: 6,
+    fromSubscription: true,
+  },
+  {
+    member: 2,
+    type: InvoiceType.PERSONAL_TRAINING,
+    status: InvoiceStatus.PENDING,
+    amount: 25000,
+    description: 'Personal training — 5-session block',
+    daysAgo: 2,
+    dueInDays: 12,
+  },
+  {
+    member: 4,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PAID,
+    amount: 7500,
+    description: subscriptionInvoiceDescription('Standard', 'MONTH', 'renewal'),
+    daysAgo: 9,
+    fromSubscription: true,
+  },
+  {
+    member: 6,
+    type: InvoiceType.CLASS,
+    status: InvoiceStatus.PAID,
+    amount: 18000,
+    description: 'Reformer Pilates — 10-class pass',
+    daysAgo: 13,
+  },
+  {
+    member: 8,
+    type: InvoiceType.PERSONAL_TRAINING,
+    status: InvoiceStatus.REFUNDED,
+    amount: 20000,
+    description: 'Personal training — block cancelled mid-term',
+    daysAgo: 17,
+  },
+  {
+    member: 10,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.FAILED,
+    amount: 4500,
+    description: subscriptionInvoiceDescription('Student', 'MONTH', 'renewal'),
+    daysAgo: 3,
+    fromSubscription: true,
+  },
+  {
+    member: 12,
+    type: InvoiceType.SERVICE,
+    status: InvoiceStatus.PENDING,
+    amount: 6000,
+    description: 'Body-composition assessment',
+    daysAgo: 1,
+    dueInDays: 7,
+  },
+
+  // ── Saburtalo Branch (odd member indices) — 5 rows ─────────────────────
+  {
+    member: 1,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PAID,
+    amount: 12000,
+    description: subscriptionInvoiceDescription('Premium', 'MONTH', 'renewal'),
+    daysAgo: 5,
+    fromSubscription: true,
+  },
+  {
+    member: 3,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PAID,
+    amount: 7500,
+    description: subscriptionInvoiceDescription('Standard', 'MONTH', 'enrolment'),
+    daysAgo: 27,
+    fromSubscription: true,
+  },
+  {
+    member: 5,
+    type: InvoiceType.PRODUCT,
+    status: InvoiceStatus.PAID,
+    amount: 10500,
+    description: 'Whey protein 2 kg + shaker',
+    daysAgo: 8,
+  },
+  {
+    member: 7,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PENDING,
+    amount: 20000,
+    description: subscriptionInvoiceDescription('PT Pack', 'MONTH', 'renewal'),
+    daysAgo: 2,
+    dueInDays: 5,
+    fromSubscription: true,
+  },
+  {
+    member: 9,
+    type: InvoiceType.OTHER,
+    status: InvoiceStatus.PAID,
+    amount: 2500,
+    description: 'Locker rental — quarterly',
+    daysAgo: 11,
+  },
+
+  // ── Not attributable to any branch — 1 row ─────────────────────────────
+  //
+  // A renewal raised against a member who has since been purged. This is the ONE
+  // shape the write path can still produce a NULL `Invoice.locationId` from, and
+  // `invoice.service.spec.ts` names it in as many words: "`memberId: null` is the
+  // recurring-billing edge — an invoice that survived a member purge by SetNull".
+  // The invoice is a financial record and outlives the person; the branch it was
+  // earned at cannot be recovered once there is no member row to read it off.
+  {
+    member: null,
+    type: InvoiceType.MEMBERSHIP,
+    status: InvoiceStatus.PAID,
+    amount: 12000,
+    description: subscriptionInvoiceDescription('Premium', 'MONTH', 'renewal'),
+    daysAgo: 22,
+  },
+];
+
+/**
+ * Idempotently write {@link DEMO_INVOICES}, numbering each one off the same
+ * `invoice_sequences` counter the API mints from.
+ *
+ * ## The number
+ *
+ * Two halves, and they are owned in different places on purpose. The *reference
+ * rule* is `formatInvoiceNumber` in `@fit/types` — imported at the top of this file
+ * rather than restated, which is exactly what `prisma/invoice-number.ts` warns
+ * against doing twice. The *allocation* of `seq` is a database concern, and the
+ * statement below mirrors `InvoiceService.allocateSeq` in
+ * `apps/api/src/billing/invoice.service.ts` — mirrors rather than imports, because
+ * `packages/db` sits UNDER `apps/api` in the dependency graph and cannot reach up
+ * into it (and the service is a Nest provider besides). The honest fix is to lift
+ * that statement down into `@fit/db` beside `invoice-number.ts` and have the API
+ * import it; that is an `apps/api` edit and is left as a follow-up.
+ *
+ * What matters is that the seed CLAIMS its numbers from the counter instead of
+ * inventing them: it reads the gym's Settings → Invoicing (prefix, shape, starting
+ * number, all defaulted exactly as the service defaults them), picks the same
+ * bucket — the fiscal year for a year-bearing shape, the gym-wide bucket `0` for
+ * `prefix-number`, which cannot restart each January without repeating itself — and
+ * advances `lastNumber`. The next REAL invoice therefore starts after the seeded
+ * ones. A seed that wrote `"INV-2026-1000"` by hand and left the counter at zero
+ * would hand the first live charge the very same reference, and
+ * `@@unique([gymId, number])` would reject it — on the money path, in dev, for
+ * whoever got there first.
+ *
+ * ## The branch
+ *
+ * Read off the member, never named by the spec — the same lookup
+ * `InvoiceService.memberBranch` performs, `gymId` pinned in the `where` alongside
+ * `id` for the same reason it is there (a `memberId` resolving across tenants would
+ * copy another gym's branch onto this row). The unattributed invoice is therefore
+ * not a hand-written `null`: it is what that rule RETURNS when there is no member
+ * to bill. No spec asserts a branch, so none of them can disagree with the member.
+ *
+ * ## Idempotence
+ *
+ * Guarded per spec on the tuple `(memberId, type, status, amount, description)`,
+ * which is stable across runs — and which is why this does NOT copy
+ * {@link ensurePayment}, whose guard is a `createdAt` carrying the current
+ * time-of-day and so mints a fresh set every time the seed is re-run at a different
+ * minute (a recorded defect, not a pattern to follow). No two specs share that
+ * tuple. Skipping a spec skips its counter bump too, so a re-run consumes no
+ * numbers: the board is identical on run 2, and the next live invoice gets the same
+ * reference it would have on run 1.
+ */
+async function ensureInvoices(gymId: string, memberIds: readonly string[]): Promise<void> {
+  // Fully defaulted, exactly as `InvoiceService.invoiceSettings` does it: a gym
+  // that has never opened the settings screen has `settings: null`, and the schema
+  // fills every default from that. The seed never writes this blob, so on a fresh
+  // database this is `INV` / `prefix-year-number` / `1000` — but a dev who has
+  // changed it in the console gets numbers in THEIR shape, not a stale guess.
+  const gym = await prisma.gym.findUnique({ where: { id: gymId }, select: { settings: true } });
+  const settings = gymSettingsStoredSchema.parse(gym?.settings ?? {}).invoice;
+  const numbering: InvoiceNumbering = { prefix: settings.prefix, format: settings.format };
+
+  for (const [index, spec] of DEMO_INVOICES.entries()) {
+    // A spec naming a member the seed did not write is skipped outright rather
+    // than falling back to null — that fallback would quietly manufacture extra
+    // unattributed rows and make the `(none)` line on the summary meaningless.
+    if (spec.member !== null && !memberIds[spec.member]) {
+      continue;
+    }
+    const memberId = spec.member === null ? null : memberIds[spec.member]!;
+
+    const existing = await prisma.invoice.findFirst({
+      where: {
+        gymId,
+        memberId,
+        type: spec.type,
+        status: spec.status,
+        amount: spec.amount,
+        description: spec.description,
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      continue;
+    }
+
+    // The attribution, applied rather than declared. `null` here is the rule's
+    // answer for "no member to bill", not a value the spec asked for.
+    const member =
+      memberId === null
+        ? null
+        : await prisma.gymMember.findFirst({
+            where: { id: memberId, gymId },
+            select: { locationId: true },
+          });
+    const locationId = member?.locationId ?? null;
+
+    const subscriptionId =
+      spec.fromSubscription === true && memberId !== null
+        ? ((
+            await prisma.subscription.findFirst({
+              where: { gymId, memberId },
+              select: { id: true },
+              orderBy: { createdAt: 'desc' },
+            })
+          )?.id ?? null)
+        : null;
+
+    // Anchored to a fixed clock hour so a re-seeded board sorts the same way twice
+    // and the rows do not all collapse onto the minute the seed happened to run.
+    const issuedAt = daysAgo(spec.daysAgo);
+    issuedAt.setHours(9 + (index % 9), 0, 0, 0);
+    const dueDate =
+      spec.dueInDays === undefined
+        ? null
+        : (() => {
+            const d = daysAgo(-spec.dueInDays);
+            d.setHours(12, 0, 0, 0);
+            return d;
+          })();
+
+    const year = issuedAt.getUTCFullYear();
+    const bucket = invoiceNumberCarriesYear(numbering) ? year : GYM_WIDE_SEQUENCE_BUCKET;
+    const seq = await claimInvoiceSeq(gymId, bucket, settings.startNumber);
+
+    await prisma.invoice.create({
+      data: {
+        gymId,
+        memberId,
+        subscriptionId,
+        locationId,
+        number: formatInvoiceNumber(year, seq, numbering),
+        year,
+        seq,
+        amount: spec.amount,
+        currency: 'GEL',
+        status: spec.status,
+        type: spec.type,
+        description: spec.description,
+        dueDate,
+        issuedAt,
+        createdAt: issuedAt,
+      },
+    });
+  }
+}
+
+/**
+ * The `invoice_sequences` bucket a year-less run of numbers lives in — zero is not
+ * a fiscal year, so it is free to mean "this gym's one continuous run". Same
+ * constant, same reasoning, as `GYM_WIDE_SEQUENCE_BUCKET` in the API's
+ * `InvoiceService`.
+ */
+const GYM_WIDE_SEQUENCE_BUCKET = 0;
+
+/**
+ * Atomically claim the next `seq` from the `invoice_sequences` counter — the same
+ * `INSERT … ON CONFLICT DO UPDATE … RETURNING` `InvoiceService.allocateSeq` issues,
+ * including the `GREATEST(… + 1, startNumber)` floor so a raised starting number
+ * takes effect on the next invoice rather than next January, and lowering it stays
+ * inert. Parameterised through Prisma's tagged template; raw because Prisma has no
+ * read-old-then-increment-and-return primitive.
+ *
+ * The seed is single-threaded, so the row lock buys it nothing directly. It is
+ * written this way because the number it hands out has to be one the API would
+ * never hand out again — sharing the counter is the whole point.
+ */
+async function claimInvoiceSeq(
+  gymId: string,
+  bucket: number,
+  startNumber: number,
+): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ lastNumber: number }>>`
+    INSERT INTO "invoice_sequences" ("gymId", "year", "lastNumber", "updatedAt")
+    VALUES (${gymId}, ${bucket}, ${startNumber}, now())
+    ON CONFLICT ("gymId", "year")
+    DO UPDATE SET
+      "lastNumber" = GREATEST("invoice_sequences"."lastNumber" + 1, ${startNumber}),
+      "updatedAt" = now()
+    RETURNING "lastNumber"`;
+  return rows[0]?.lastNumber ?? startNumber;
+}
+
 /**
  * Idempotently create one CAPTURED payment (with its backing paid Order) for a
  * member. Guarded by an existing captured payment at the same instant for the gym,
@@ -1855,6 +2759,80 @@ async function ensurePayment(
       updatedAt: paidAt,
     },
   });
+}
+
+/**
+ * Home-screen promotional banners for the member app's carousel (T1.16).
+ *
+ * Idempotent on `(gymId, title)` — a re-run leaves an edited banner alone rather
+ * than resetting it, like every other fixture here.
+ *
+ * FOUR rows, and only three of them reach the app, because the listing's filter is
+ * the part worth exercising in dev: one is parked (`isActive: false`), so a seeded
+ * database that shows four slides means `GET /banners` has stopped honouring the
+ * switch. The three live ones carry a mix of destinations — an in-app deep link, an
+ * absolute URL, and none at all — since a carousel where every slide is tappable
+ * cannot tell a working `linkUrl` from one the client ignores.
+ *
+ * The artwork is picsum rather than R2: the seed runs against a database with no
+ * bucket behind it, and a `null`-image fixture would be filtered straight back out
+ * of the listing. `?seed=` keeps each slide's picture stable across re-runs.
+ */
+async function ensureBanners(gymId: string): Promise<void> {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+
+  const banners = [
+    {
+      title: 'Summer membership — 20% off',
+      imageUrl: 'https://picsum.photos/seed/fit-banner-summer/1200/600',
+      linkUrl: '/shop',
+      sortOrder: 0,
+      isActive: true,
+      // Already running, ending in a fortnight — the ordinary live campaign.
+      startsAt: new Date(now - 7 * day),
+      endsAt: new Date(now + 14 * day),
+    },
+    {
+      title: 'New: reformer pilates',
+      imageUrl: 'https://picsum.photos/seed/fit-banner-pilates/1200/600',
+      linkUrl: 'https://downtown.fit.ge/classes',
+      sortOrder: 1,
+      isActive: true,
+      // Open-ended: no window at all, the state most banners are in.
+      startsAt: null,
+      endsAt: null,
+    },
+    {
+      title: 'Bring a friend this week',
+      imageUrl: 'https://picsum.photos/seed/fit-banner-friend/1200/600',
+      // Not tappable — an announcement, which the app must render without a
+      // destination rather than skipping.
+      linkUrl: null,
+      sortOrder: 2,
+      isActive: true,
+      startsAt: null,
+      endsAt: new Date(now + 5 * day),
+    },
+    {
+      title: 'Black Friday (parked)',
+      imageUrl: 'https://picsum.photos/seed/fit-banner-bf/1200/600',
+      linkUrl: '/shop',
+      sortOrder: 3,
+      isActive: false,
+      startsAt: null,
+      endsAt: null,
+    },
+  ];
+
+  for (const banner of banners) {
+    const existing = await prisma.banner.findFirst({
+      where: { gymId, title: banner.title },
+      select: { id: true },
+    });
+    if (existing) continue;
+    await prisma.banner.create({ data: { gymId, ...banner } });
+  }
 }
 
 main()

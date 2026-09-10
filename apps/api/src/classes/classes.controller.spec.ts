@@ -23,6 +23,8 @@ const DETAIL: GetClassInstanceResponse = {
     startsAt: FROM,
     endsAt: TO,
     trainerName: 'Nino Beridze',
+    trainerId: 'tr-1',
+    trainerAvatarUrl: 'https://pub.example.com/gym-1/trainers/nino.jpg',
     locationName: 'Vake Branch',
     room: 'Studio A',
     capacity: 12,

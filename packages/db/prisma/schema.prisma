@@ -468,6 +468,7 @@ model Gym {
   promoCodes              PromoCode[]
   audienceSegments        AudienceSegment[]
   messageTemplates        MessageTemplate[]
+  banners                 Banner[]
   loyaltyProgram          LoyaltyProgram?
   loyaltyLedger           LoyaltyLedgerEntry[]
   loyaltyRewards          LoyaltyReward[]
@@ -3558,6 +3559,54 @@ model MessageTemplate {
 
   @@index([gymId, createdAt])
   @@map("message_templates")
+}
+
+/// A promotional banner (T1.16) — one slide of the member app's home-screen
+/// carousel, authored entirely from the staff console's Marketing area. Nothing
+/// about a banner is derived: what it shows (`imageUrl`, the optional `title`
+/// overlay), where it sends a tap (`linkUrl` — an absolute URL or an in-app deep
+/// link, `null` for a slide that is not tappable), and where it sits in the reel
+/// (`sortOrder`, ascending) are all set by staff.
+///
+/// Two independent gates decide whether a member sees it, and both must pass:
+/// `isActive` is the manual on/off switch, and the `startsAt`/`endsAt` window is
+/// the scheduled one (either end `null` = unbounded on that side). They are kept
+/// separate rather than collapsed into a status enum because they answer
+/// different questions — "is this campaign live at all" versus "is it running
+/// right now" — and a gym that pulls a running banner off the app expects it back
+/// with its dates intact when they flip the switch again.
+///
+/// `imageUrl` is a public R2 URL finalised by `POST /marketing/banners/:id/image`
+/// (the same presign-then-finalise flow as the gym logo). Its key sits under the
+/// `banners` upload prefix, which is why that prefix is in `SWEEPABLE_ENTITIES`
+/// **and** this column is read by `MediaSweepService.collectReferencedKeys` — an
+/// uploader listed in only the first of those two has its images deleted out from
+/// under it by the nightly sweep.
+model Banner {
+  id        String    @id @default(cuid())
+  gymId     String
+  /// Optional headline drawn over the image; `null` for an image-only slide.
+  title     String?
+  imageUrl  String
+  /// Where a tap goes — an absolute URL or an in-app deep link. `null` is a slide
+  /// that does nothing when tapped, which is a normal state for an announcement.
+  linkUrl   String?
+  /// Position in the carousel, ascending. Ties break on `createdAt` so the order
+  /// is total even before anyone has arranged it.
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  /// Scheduling window; `null` on either end means unbounded there.
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  // Both surfaces read the gym's banners in carousel order — the console's list
+  // and the member app's `GET /banners` — so the index carries the sort.
+  @@index([gymId, sortOrder])
+  @@map("banners")
 }
 
 // ---------------------------------------------------------------------------

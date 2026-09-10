@@ -28,6 +28,7 @@ interface Rows {
   locations?: { photoUrl: string | null }[];
   classTemplates?: { imageUrl: string | null }[];
   services?: { coverUrl: string | null }[];
+  banners?: { imageUrl: string }[];
   gyms?: { settings: unknown }[];
 }
 
@@ -49,6 +50,7 @@ function setup(objects: StoredObject[], rows: Rows = {}) {
       location: { findMany: vi.fn(() => Promise.resolve(rows.locations ?? [])) },
       classTemplate: { findMany: vi.fn(() => Promise.resolve(rows.classTemplates ?? [])) },
       service: { findMany: vi.fn(() => Promise.resolve(rows.services ?? [])) },
+      banner: { findMany: vi.fn(() => Promise.resolve(rows.banners ?? [])) },
       gym: { findMany: vi.fn(() => Promise.resolve(rows.gyms ?? [])) },
     },
   } as unknown as PrismaService;
@@ -98,6 +100,21 @@ describe('MediaSweepService.sweep', () => {
     const summary = await service.sweep(NOW);
 
     expect(deleteObjects).toHaveBeenCalledWith(['gym-1/services/orphan.jpg']);
+    expect(summary).toMatchObject({ referenced: 1, orphaned: 1, deleted: 1 });
+  });
+
+  it('owns the banners prefix: keeps a referenced banner, deletes an orphaned one', async () => {
+    // The pairing this asserts: `banners` is in SWEEPABLE_ENTITIES, so without
+    // `Banner.imageUrl` in `collectReferencedKeys` the live home carousel's
+    // artwork would be deleted on the first nightly run.
+    const { service, deleteObjects } = setup(
+      [object('gym-1/banners/live.jpg'), object('gym-1/banners/orphan.jpg')],
+      { banners: [{ imageUrl: `${PUBLIC_BASE}/gym-1/banners/live.jpg` }] },
+    );
+
+    const summary = await service.sweep(NOW);
+
+    expect(deleteObjects).toHaveBeenCalledWith(['gym-1/banners/orphan.jpg']);
     expect(summary).toMatchObject({ referenced: 1, orphaned: 1, deleted: 1 });
   });
 
