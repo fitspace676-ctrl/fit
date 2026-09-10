@@ -121,7 +121,10 @@ No application code differs between A and B — only the domain/DNS entries.
 
 The member site (`fit-web`) and staff console (`fit-admin`) are **separate Vercel
 projects**, but the console is served under the member subdomain's `/admin` path.
-This is wired with a path proxy + a base path (off by default; flip on via env):
+This is wired with a path proxy + a base path, both **on by default** — the code
+defaults are `ADMIN_BASE_PATH=/admin` (`apps/admin/next.config.mjs`) and an
+`ADMIN_ORIGIN` fallback pointing at `fit-admin`'s `*.vercel.app` origin
+(`apps/web/next.config.mjs`); setting the env vars only overrides those:
 
 1. **Admin deployment** — set `ADMIN_BASE_PATH=/admin` on `fit-admin`, so it serves
    all routes and `_next` assets under `/admin`. Give it a stable origin to proxy to
@@ -134,14 +137,39 @@ This is wired with a path proxy + a base path (off by default; flip on via env):
 3. The shared session cookie (`COOKIE_DOMAIN=.<root>`) means a sign-in on
    `<slug>.<root>` is already visible to the console at `<slug>.<root>/admin`.
 
-Both env vars unset (the default) → no proxy and `fit-admin` serves at the root, so
-existing standalone deployments are unaffected. This needs a live deploy to verify
-end-to-end (cross-project proxy + cookies).
+With both env vars unset the defaults above still give you the proxied layout, so
+`fit-admin` answers under `/admin` on its own `*.vercel.app` host too. To serve the
+console at the root instead, set `ADMIN_BASE_PATH` to the **empty string** on it (what
+`apps/e2e` does) — and the same on the API, which appends the prefix to `ADMIN_URL`
+when it builds console links. This needs a live deploy to verify end-to-end
+(cross-project proxy + cookies).
 
 > Single-host alternative (simplest for a first test): point one host
 > (`manage.<root>` → `fit-admin`, **no** base path / proxy) and let the console read
 > the gym from the shared session cookie. Works for single-gym owners; drop it once
 > the `/admin` proxy is verified.
+
+## How this is actually deployed (2026-09)
+
+`fit.ge` above is only a placeholder. The real root domain is **`formacore.io`**, and
+option **B** (wildcard, Vercel Pro) is what is live:
+
+| Host                      | Vercel project   |
+| ------------------------- | ---------------- |
+| `*.formacore.io`          | `fit-web`        |
+| `formacore.io` (apex)     | `fit-platform`   |
+| `superadmin.formacore.io` | `fit-superadmin` |
+| — (no custom domain)      | `fit-admin`      |
+
+- **Non-tenant links point at `https://app.formacore.io`** — the API's `WEB_URL` /
+  `ADMIN_URL`. `app` is in `RESERVED_SUBDOMAINS` (`packages/types/src/gyms.ts`), so no
+  gym can ever claim it; the wildcard resolves it to `fit-web` like any other slug, and
+  it carries the parent-domain session cookie that a `*.vercel.app` host cannot.
+- **The admin proxy is set explicitly in production**, not left to the code defaults:
+  `ADMIN_BASE_PATH=/admin` on `fit-admin`, and
+  `ADMIN_ORIGIN=https://fit-admin-fitspace676-5825s-projects.vercel.app` on `fit-web`.
+  `fit-admin` has no custom domain — it is reached through the proxy, or directly on
+  that `*.vercel.app` origin for debugging.
 
 ## CORS
 
