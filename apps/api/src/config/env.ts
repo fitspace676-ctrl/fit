@@ -130,7 +130,11 @@ export const envSchema = z.object({
   // Default 24 hours.
   EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(86_400),
   // Base URL the verification token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/member/verify`).
+  // (`<base>?token=…`). Unset → derived by `buildMemberUrl`: the gym's own host
+  // (`https://<slug>.<PLATFORM_ROOT_DOMAIN>/member/verify`) when the flow knows
+  // which gym was joined — a member self-signup does — so verifying returns them
+  // to the site they signed up on, and `<WEB_URL>/member/verify` otherwise (a
+  // bare registration joins no gym).
   EMAIL_VERIFICATION_URL: z.string().url().optional(),
 
   // ── Password reset ──
@@ -139,7 +143,10 @@ export const envSchema = z.object({
   // should live no longer than necessary. Default 1 hour.
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(3_600),
   // Base URL the reset token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/member/reset-password`).
+  // (`<base>?token=…`). Unset → derived by `buildMemberUrl`, same as
+  // EMAIL_VERIFICATION_URL — but in practice always `<WEB_URL>/member/reset-password`:
+  // the browser asks for the reset on the API's own host with the address alone,
+  // so no gym is ever in scope to address the link at.
   PASSWORD_RESET_URL: z.string().url().optional(),
 
   // ── Staff invitations (T4.7) ──
