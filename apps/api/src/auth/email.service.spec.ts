@@ -38,9 +38,16 @@ const cashReceipt: PosReceipt = {
   changeDue: 501,
 };
 
+// `ADMIN_BASE_PATH` carries the schema's default here too: it is a `.default()`
+// rather than an `.optional()`, so the real `env` always has a string and a spec
+// that left it undefined would be testing a state that cannot occur.
 function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
-  Object.assign(mockEnv, { EMAIL_FROM: 'FormaCore <no-reply@fit.app>' }, overrides);
+  Object.assign(
+    mockEnv,
+    { EMAIL_FROM: 'FormaCore <no-reply@fit.app>', ADMIN_BASE_PATH: '/admin' },
+    overrides,
+  );
 }
 
 /** A weekly digest fixture: one money report, one percent report, one empty. */
