@@ -47,7 +47,9 @@ entries below.
 Set the same root domain on the API and all three Next apps:
 
 ```
-# API (apps/api)
+# API (apps/api) — also the base of every tenant link the API mails.
+# Defaults to "localhost", so an unset production deployment builds visibly
+# broken `<slug>.localhost` links rather than leaking tokens to a real domain.
 PLATFORM_ROOT_DOMAIN="fit.ge"
 
 # web / admin / platform
@@ -161,10 +163,20 @@ option **B** (wildcard, Vercel Pro) is what is live:
 | `superadmin.formacore.io` | `fit-superadmin` |
 | — (no custom domain)      | `fit-admin`      |
 
-- **Non-tenant links point at `https://app.formacore.io`** — the API's `WEB_URL` /
-  `ADMIN_URL`. `app` is in `RESERVED_SUBDOMAINS` (`packages/types/src/gyms.ts`), so no
-  gym can ever claim it; the wildcard resolves it to `fit-web` like any other slug, and
-  it carries the parent-domain session cookie that a `*.vercel.app` host cannot.
+- **Every link the API mails is addressed at the gym it is about** —
+  `https://<slug>.formacore.io/…`, built by `buildConsoleUrl`
+  (`apps/api/src/common/console-url.ts`) over `tenantOrigin`
+  (`packages/utils/src/tenant-host.ts`) from `PLATFORM_ROOT_DOMAIN` and the gym's own
+  slug. So a digest for Downtown opens Downtown's console, not whichever gym the
+  recipient's last session happened to select.
+- **`WEB_URL` / `ADMIN_URL` are the fallback**, for the cases with no slug to address:
+  they are bare origins, and the console's `/admin` prefix comes from
+  `ADMIN_BASE_PATH`, never from the URL. Set them to `https://app.formacore.io` — `app`
+  is in `RESERVED_SUBDOMAINS` (`packages/types/src/gyms.ts`), so no gym can ever claim
+  it, the wildcard resolves it to `fit-web` like any other slug, and it carries the
+  parent-domain session cookie that a `*.vercel.app` host cannot. A `*.vercel.app`
+  host here is a **functional** bug, not a cosmetic one: the browser rejects a
+  `domain=.formacore.io` cookie there, so the link can never establish a session.
 - **The admin proxy is set explicitly in production**, not left to the code defaults:
   `ADMIN_BASE_PATH=/admin` on `fit-admin`, and
   `ADMIN_ORIGIN=https://fit-admin-fitspace676-5825s-projects.vercel.app` on `fit-web`.
