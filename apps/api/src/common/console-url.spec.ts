@@ -6,7 +6,7 @@ const { mockEnv } = vi.hoisted(() => {
 });
 vi.mock('../config/env', () => ({ env: mockEnv }));
 
-import { buildConsoleUrl } from './console-url';
+import { buildConsoleUrl, buildMemberUrl } from './console-url';
 
 // `ADMIN_BASE_PATH` and `PLATFORM_ROOT_DOMAIN` both carry the schema's default in
 // the real `env` (they are `.default()`, not `.optional()`), so the base config
@@ -72,5 +72,49 @@ describe('buildConsoleUrl', () => {
     configure({ PLATFORM_ROOT_DOMAIN: '' });
     expect(buildConsoleUrl('reports', 'downtown')).toBeUndefined();
     expect(buildConsoleUrl('reports')).toBeUndefined();
+  });
+});
+
+describe('buildMemberUrl', () => {
+  afterEach(() => configure());
+
+  it("addresses the member's own gym host when a slug is in scope", () => {
+    configure({ WEB_URL: 'https://app.formacore.io' });
+    expect(buildMemberUrl('member/verify', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/verify',
+    );
+  });
+
+  it('joins no base path — the member site is served at its host root', () => {
+    configure({ ADMIN_BASE_PATH: '/admin' });
+    expect(buildMemberUrl('member/reset-password', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/reset-password',
+    );
+  });
+
+  it('falls back to WEB_URL when there is no slug in scope', () => {
+    configure({ WEB_URL: 'https://app.formacore.io/' });
+    expect(buildMemberUrl('member/verify')).toBe('https://app.formacore.io/member/verify');
+    expect(buildMemberUrl('member/verify', null)).toBe('https://app.formacore.io/member/verify');
+  });
+
+  it('falls back to WEB_URL when no root domain is configured', () => {
+    configure({ WEB_URL: 'https://app.formacore.io', PLATFORM_ROOT_DOMAIN: '' });
+    expect(buildMemberUrl('member/verify', 'downtown')).toBe(
+      'https://app.formacore.io/member/verify',
+    );
+  });
+
+  it('still builds a link with neither a tenant host nor WEB_URL', () => {
+    configure({ PLATFORM_ROOT_DOMAIN: '' });
+    expect(buildMemberUrl('member/verify', 'downtown')).toBe('http://localhost:3001/member/verify');
+    expect(buildMemberUrl('member/verify')).toBe('http://localhost:3001/member/verify');
+  });
+
+  it('uses http for a localhost dev root, keeping its port', () => {
+    configure({ PLATFORM_ROOT_DOMAIN: 'localhost:3001' });
+    expect(buildMemberUrl('member/verify', 'downtown')).toBe(
+      'http://downtown.localhost:3001/member/verify',
+    );
   });
 });

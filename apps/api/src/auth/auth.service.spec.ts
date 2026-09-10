@@ -428,6 +428,47 @@ describe('AuthService', () => {
     });
   });
 
+  describe('signupMember — the verification link', () => {
+    const VALID_SIGNUP = {
+      gymId: 'gym-1',
+      name: 'Nino',
+      email: 'nino@example.com',
+      password: 'supersecret',
+      phone: '+995555000111',
+      gender: 'FEMALE',
+      dateOfBirth: '1994-03-02',
+      personalId: '01001000000',
+    } satisfies MemberSignupInput;
+
+    beforeEach(() => ctx.findUnique.mockResolvedValue(null));
+
+    it("hands the joined gym's slug to the mailer, so the link comes back to that gym", async () => {
+      await ctx.service.signupMember(VALID_SIGNUP);
+
+      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith(
+        'nino@example.com',
+        expect.any(String),
+        'Nino',
+        'en',
+        'iron',
+      );
+    });
+
+    it('addresses a second gym at its own slug', async () => {
+      ctx.gymFindFirst.mockResolvedValue({ id: 'gym-2', slug: 'downtown', settings: null });
+
+      await ctx.service.signupMember({ ...VALID_SIGNUP, gymId: 'gym-2' });
+
+      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith(
+        'nino@example.com',
+        expect.any(String),
+        'Nino',
+        'en',
+        'downtown',
+      );
+    });
+  });
+
   describe('signupMember — an address that already has an account', () => {
     // Same complete body the start-date block uses, so these fail on the 409
     // rather than on the intake check that runs before it.

@@ -9,7 +9,7 @@ import {
   type ReportDigestSection,
 } from '@fit/types';
 import { env } from '../config/env';
-import { buildConsoleUrl } from '../common/console-url';
+import { buildConsoleUrl, buildMemberUrl } from '../common/console-url';
 import {
   EMAIL_BRAND,
   escapeHtml,
@@ -102,14 +102,19 @@ export class EmailService {
    * Send the address-verification email containing a single-use deep link.
    * Resolves once the mail is accepted by Resend (or immediately, having logged
    * the link, when Resend is unconfigured); rejects when Resend returns an error.
+   *
+   * `gymSlug` addresses the link at the gym the member signed up to; it is last
+   * and optional so the existing argument order is untouched, and omitting it
+   * falls back to the platform-wide member origin.
    */
   async sendVerificationEmail(
     to: string,
     token: string,
     name?: string,
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+    gymSlug?: string | null,
   ): Promise<void> {
-    const url = buildVerificationUrl(token);
+    const url = buildVerificationUrl(token, gymSlug);
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — verification link for ${to}: ${url}`,
@@ -123,14 +128,20 @@ export class EmailService {
    * Send the password-reset email containing a single-use deep link. Resolves
    * once the mail is accepted by Resend (or immediately, having logged the link,
    * when Resend is unconfigured); rejects when Resend returns an error.
+   *
+   * `gymSlug` takes the same last, optional slot as on
+   * {@link sendVerificationEmail}, but no caller has one to pass: the reset is
+   * requested on the API's own host with the address alone (see
+   * {@link buildPasswordResetUrl}).
    */
   async sendPasswordResetEmail(
     to: string,
     token: string,
     name?: string,
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+    gymSlug?: string | null,
   ): Promise<void> {
-    const url = buildPasswordResetUrl(token);
+    const url = buildPasswordResetUrl(token, gymSlug);
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — password-reset link for ${to}: ${url}`,
@@ -316,33 +327,34 @@ export class EmailService {
 
 /**
  * Build the verification deep link the token is appended to. Prefers an explicit
- * `EMAIL_VERIFICATION_URL`, then the web client's `/member/verify` page (the
- * locale prefix is added by the web middleware), falling back to a localhost
- * default that is only ever hit (and logged, not sent) in unconfigured dev / CI
- * environments.
+ * `EMAIL_VERIFICATION_URL`, then {@link buildMemberUrl}'s `/member/verify` page —
+ * on the gym's own host when the caller knows its slug, on the platform-wide
+ * `WEB_URL` otherwise, and on a localhost default that is only ever hit (and
+ * logged, not sent) in unconfigured dev / CI environments. The locale prefix is
+ * added by the web middleware, not here.
+ *
+ * `gymSlug` is last and optional so the existing argument order is untouched:
+ * only the flows that genuinely have a gym in scope pass it (see
+ * `AuthService.signupMember`), and a bare registration has none.
  */
-export function buildVerificationUrl(token: string): string {
-  const base =
-    env.EMAIL_VERIFICATION_URL ??
-    (env.WEB_URL
-      ? `${env.WEB_URL.replace(/\/+$/, '')}/member/verify`
-      : 'http://localhost:3001/member/verify');
+export function buildVerificationUrl(token: string, gymSlug?: string | null): string {
+  const base = env.EMAIL_VERIFICATION_URL ?? buildMemberUrl('member/verify', gymSlug);
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
 /**
  * Build the password-reset deep link the token is appended to. Prefers an
- * explicit `PASSWORD_RESET_URL`, then the web client's `/member/reset-password`
- * page (the locale prefix is added by the web middleware), falling back to a
- * localhost default that is only ever hit (and logged, not sent) in
- * unconfigured dev / CI environments.
+ * explicit `PASSWORD_RESET_URL`, then {@link buildMemberUrl}'s
+ * `/member/reset-password` page, with the same origin order (and the same
+ * middleware-added locale prefix) as {@link buildVerificationUrl}.
+ *
+ * `gymSlug` is accepted for symmetry, but nothing passes it yet and the link
+ * lands on `WEB_URL` in practice: the browser calls `POST /auth/forgot-password`
+ * on the API's own host, so the subdomain tenant middleware sees no gym, and the
+ * request body is the address alone — there is no gym in scope to address it at.
  */
-export function buildPasswordResetUrl(token: string): string {
-  const base =
-    env.PASSWORD_RESET_URL ??
-    (env.WEB_URL
-      ? `${env.WEB_URL.replace(/\/+$/, '')}/member/reset-password`
-      : 'http://localhost:3001/member/reset-password');
+export function buildPasswordResetUrl(token: string, gymSlug?: string | null): string {
+  const base = env.PASSWORD_RESET_URL ?? buildMemberUrl('member/reset-password', gymSlug);
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 

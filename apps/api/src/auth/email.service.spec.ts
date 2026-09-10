@@ -398,6 +398,21 @@ describe('buildVerificationUrl', () => {
     configure({ EMAIL_VERIFICATION_URL: 'https://m.fit/verify' });
     expect(buildVerificationUrl('a b+c')).toBe('https://m.fit/verify?token=a%20b%2Bc');
   });
+
+  it("lands on the gym's own member host when the signup's slug is known", () => {
+    configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io', WEB_URL: 'https://app.formacore.io' });
+    expect(buildVerificationUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/verify?token=abc',
+    );
+  });
+
+  it('still prefers an explicit EMAIL_VERIFICATION_URL over the tenant host', () => {
+    configure({
+      EMAIL_VERIFICATION_URL: 'https://m.fit/verify',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+    });
+    expect(buildVerificationUrl('abc', 'downtown')).toBe('https://m.fit/verify?token=abc');
+  });
 });
 
 describe('buildOwnerOnboardingUrl', () => {
@@ -480,6 +495,16 @@ describe('buildPasswordResetUrl', () => {
   it('url-encodes the token', () => {
     configure({ PASSWORD_RESET_URL: 'https://m.fit/reset' });
     expect(buildPasswordResetUrl('a b+c')).toBe('https://m.fit/reset?token=a%20b%2Bc');
+  });
+
+  // No caller has a slug to pass — the reset request reaches the API on its own
+  // host carrying the address alone — but the builder takes the same shape as
+  // the verification one, so a flow that ever does gets the tenant host.
+  it("would address a gym's own host, given a slug", () => {
+    configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io', WEB_URL: 'https://app.formacore.io' });
+    expect(buildPasswordResetUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/reset-password?token=abc',
+    );
   });
 });
 
