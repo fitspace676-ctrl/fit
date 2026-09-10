@@ -326,6 +326,9 @@ export class AuthService {
         token,
         input.name,
         locale ?? resolveEmailLocale(gymLanguage),
+        // Verifying lands them back on the gym they just joined, not on
+        // whichever site the platform-wide WEB_URL points at.
+        gym.slug,
       );
     } catch (error) {
       this.logger.error(
