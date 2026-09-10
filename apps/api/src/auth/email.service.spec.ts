@@ -440,6 +440,28 @@ describe('buildOwnerOnboardingUrl', () => {
     configure({ OWNER_ONBOARDING_URL: 'https://console.fit/activate' });
     expect(buildOwnerOnboardingUrl('a b+c')).toBe('https://console.fit/activate?token=a%20b%2Bc');
   });
+
+  it("lands on the new gym's own console host when its slug is known", () => {
+    configure({
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      ADMIN_URL: 'https://app.formacore.io',
+      ADMIN_BASE_PATH: '/admin',
+    });
+    expect(buildOwnerOnboardingUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/admin/activate?token=abc',
+    );
+  });
+
+  it('still prefers an explicit OWNER_ONBOARDING_URL over the tenant host', () => {
+    configure({
+      OWNER_ONBOARDING_URL: 'https://console.fit/activate',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      ADMIN_BASE_PATH: '/admin',
+    });
+    expect(buildOwnerOnboardingUrl('abc', 'downtown')).toBe(
+      'https://console.fit/activate?token=abc',
+    );
+  });
 });
 
 describe('buildPasswordResetUrl', () => {

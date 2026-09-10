@@ -67,7 +67,7 @@ importers:
         version: link:../../packages/utils
       '@sentry/nextjs':
         specifier: ^9
-        version: 9.47.1(@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(next@15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.107.2(@swc/core@1.15.40)(lightningcss@1.32.0)(postcss@8.5.15))
+        version: 9.47.1(@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(next@15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.107.2(@swc/core@1.15.40)(lightningcss@1.32.0)(postcss@8.5.15))
       '@stylexjs/stylex':
         specifier: ^0.18.3
         version: 0.18.3
@@ -76,7 +76,7 @@ importers:
         version: 15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       next-intl:
         specifier: ^3.26.0
-        version: 3.26.5(next@15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
+        version: 3.26.5(next@15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       nextjs-toploader:
         specifier: ^3.9.17
         version: 3.9.17(next@15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -162,6 +162,9 @@ importers:
       '@fit/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@fit/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@nestjs/common':
         specifier: ^11.0.0
         version: 11.1.24(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -310,7 +313,7 @@ importers:
         version: 12.0.1(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       '@sentry/react-native':
         specifier: ^8.13.0
-        version: 8.24.0(@expo/env@2.4.3)(dotenv@17.4.2)(expo@56.0.21)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15))
+        version: 8.24.0(@expo/env@2.4.3)(dotenv@17.4.2)(expo@56.0.21)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0))
       '@tanstack/react-query':
         specifier: ^5.101.0
         version: 5.102.8(react@19.2.3)
@@ -565,7 +568,7 @@ importers:
         version: link:../../packages/utils
       '@sentry/nextjs':
         specifier: ^9
-        version: 9.47.1(@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(next@15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.107.2(@swc/core@1.15.40)(lightningcss@1.32.0)(postcss@8.5.15))
+        version: 9.47.1(@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(next@15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.107.2(@swc/core@1.15.40)(lightningcss@1.32.0)(postcss@8.5.15))
       '@stylexjs/stylex':
         specifier: ^0.18.3
         version: 0.18.3
@@ -577,7 +580,7 @@ importers:
         version: 15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       next-intl:
         specifier: ^3.26.0
-        version: 3.26.5(next@15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
+        version: 3.26.5(next@15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       react:
         specifier: ^19.0.0
         version: 19.2.6
@@ -12250,9 +12253,7 @@ snapshots:
       metro-runtime: 0.84.5
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
@@ -12420,7 +12421,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@sentry/bundler-plugins@10.71.0(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15))':
+  '@sentry/bundler-plugins@10.71.0(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0))':
     dependencies:
       '@babel/core': 7.29.7
       '@sentry/cli': 2.58.6
@@ -12431,7 +12432,7 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       rollup: 4.61.0
-      webpack: 5.107.2(lightningcss@1.32.0)(postcss@8.5.15)
+      webpack: 5.107.2(lightningcss@1.32.0)
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -12553,7 +12554,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@sentry/nextjs@9.47.1(@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(next@15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.107.2(@swc/core@1.15.40)(lightningcss@1.32.0)(postcss@8.5.15))':
+  '@sentry/nextjs@9.47.1(@opentelemetry/context-async-hooks@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@1.30.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(next@15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)(webpack@5.107.2(@swc/core@1.15.40)(lightningcss@1.32.0)(postcss@8.5.15))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/semantic-conventions': 1.41.1
@@ -12693,10 +12694,10 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.41.1
       '@sentry/core': 9.47.1
 
-  '@sentry/react-native@8.24.0(@expo/env@2.4.3)(dotenv@17.4.2)(expo@56.0.21)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15))':
+  '@sentry/react-native@8.24.0(@expo/env@2.4.3)(dotenv@17.4.2)(expo@56.0.21)(react-native@0.85.3(@babel/core@7.29.7)(@react-native/jest-preset@0.85.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.85.3(@babel/core@7.29.7))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0))':
     dependencies:
       '@sentry/browser': 10.71.0
-      '@sentry/bundler-plugins': 10.71.0(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15))
+      '@sentry/bundler-plugins': 10.71.0(rollup@4.61.0)(webpack@5.107.2(lightningcss@1.32.0))
       '@sentry/cli': 3.6.2
       '@sentry/core': 10.71.0
       '@sentry/expo-upload-sourcemaps': 8.24.0(@expo/env@2.4.3)(dotenv@17.4.2)
@@ -16824,7 +16825,7 @@ snapshots:
       pino-http: 10.5.0
       rxjs: 7.8.2
 
-  next-intl@3.26.5(next@15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6):
+  next-intl@3.26.5(next@15.5.18(@opentelemetry/api@1.9.1)(@playwright/test@1.56.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6):
     dependencies:
       '@formatjs/intl-localematcher': 0.5.10
       negotiator: 1.0.0
@@ -18296,16 +18297,15 @@ snapshots:
     optionalDependencies:
       '@swc/core': 1.15.40
 
-  terser-webpack-plugin@5.6.1(lightningcss@1.32.0)(postcss@8.5.15)(webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15)):
+  terser-webpack-plugin@5.6.1(lightningcss@1.32.0)(webpack@5.107.2(lightningcss@1.32.0)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       terser: 5.48.0
-      webpack: 5.107.2(lightningcss@1.32.0)(postcss@8.5.15)
+      webpack: 5.107.2(lightningcss@1.32.0)
     optionalDependencies:
       lightningcss: 1.32.0
-      postcss: 8.5.15
     optional: true
 
   terser-webpack-plugin@5.6.1(postcss@8.5.15)(webpack@5.107.2(postcss@8.5.15)):
@@ -18823,7 +18823,7 @@ snapshots:
       - postcss
       - uglify-js
 
-  webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15):
+  webpack@5.107.2(lightningcss@1.32.0):
     dependencies:
       '@types/estree': 1.0.9
       '@types/json-schema': 7.0.15
@@ -18845,7 +18845,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.3
-      terser-webpack-plugin: 5.6.1(lightningcss@1.32.0)(postcss@8.5.15)(webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15))
+      terser-webpack-plugin: 5.6.1(lightningcss@1.32.0)(webpack@5.107.2(lightningcss@1.32.0))
       watchpack: 2.5.1
       webpack-sources: 3.5.0
     transitivePeerDependencies:

@@ -1561,6 +1561,7 @@ describe('AuthService.registerGym', () => {
       'Downtown Strength',
       'Olivia Owner',
       'en',
+      'downtown',
     );
 
     expect(result).toEqual({

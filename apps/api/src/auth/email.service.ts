@@ -9,6 +9,7 @@ import {
   type ReportDigestSection,
 } from '@fit/types';
 import { env } from '../config/env';
+import { buildConsoleUrl } from '../common/console-url';
 import {
   EMAIL_BRAND,
   escapeHtml,
@@ -149,6 +150,10 @@ export class EmailService {
    * bare account confirmation. Resolves once the mail is accepted by Resend (or
    * immediately, having logged the link, when Resend is unconfigured); rejects
    * when Resend returns an error.
+   *
+   * `gymSlug` addresses the link at the gym's own console host; it is last and
+   * optional so the existing argument order is untouched, and omitting it falls
+   * back to the platform-wide console origin.
    */
   async sendOwnerOnboardingEmail(
     to: string,
@@ -156,8 +161,9 @@ export class EmailService {
     gymName: string,
     name?: string,
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+    gymSlug?: string | null,
   ): Promise<void> {
-    const url = buildOwnerOnboardingUrl(token);
+    const url = buildOwnerOnboardingUrl(token, gymSlug);
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — owner onboarding link for ${to}: ${url}`,
@@ -352,17 +358,22 @@ export function buildPasswordResetUrl(token: string): string {
  * verifying alone leaves them with no credential to sign in with. `/activate`
  * verifies the address and sets the first password in one request.
  *
- * The derived form joins `ADMIN_BASE_PATH` — the prefix the console is served
- * under — because `ADMIN_URL` is a bare ORIGIN everywhere it is set. It was
- * first written as `<ADMIN_URL>/activate`, on the assumption that the URL
- * already carried the prefix; it does not, so the first deployed welcome mail
- * pointed at `https://…/activate` and 404'd one directory above every console
- * route. Both halves come from config, so a console at the root (empty base
- * path) or behind a rewritten prefix is still built correctly.
+ * The derived form is {@link buildConsoleUrl}'s, so it lands on the new owner's
+ * own tenant host — `https://<slug>.<PLATFORM_ROOT_DOMAIN>/admin/activate` —
+ * when the caller knows the gym's slug, and on the platform-wide `ADMIN_URL`
+ * otherwise. Either way it joins `ADMIN_BASE_PATH`, the prefix the console is
+ * served under, because neither origin carries it. This link was first written
+ * as `<ADMIN_URL>/activate`, on the assumption that the URL already did; it does
+ * not, so the first deployed welcome mail pointed at `https://…/activate` and
+ * 404'd one directory above every console route. Both halves come from config,
+ * so a console at the root (empty base path) or behind a rewritten prefix is
+ * still built correctly.
  */
-export function buildOwnerOnboardingUrl(token: string): string {
-  const origin = (env.ADMIN_URL ?? 'http://localhost:3002').replace(/\/+$/, '');
-  const base = env.OWNER_ONBOARDING_URL ?? `${origin}${env.ADMIN_BASE_PATH}/activate`;
+export function buildOwnerOnboardingUrl(token: string, gymSlug?: string | null): string {
+  const base =
+    env.OWNER_ONBOARDING_URL ??
+    buildConsoleUrl('activate', gymSlug) ??
+    `http://localhost:3002${env.ADMIN_BASE_PATH}/activate`;
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 

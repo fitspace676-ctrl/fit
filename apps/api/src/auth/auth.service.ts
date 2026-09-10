@@ -460,6 +460,7 @@ export class AuthService {
         input.gymName,
         input.ownerName,
         locale ?? DEFAULT_EMAIL_LOCALE,
+        input.subdomainSlug,
       );
     } catch (error) {
       this.logger.error(
