@@ -219,6 +219,15 @@ describe('tenantExtension (load-bearing isolation)', () => {
   });
 });
 
+describe('RefreshToken — a gymId that is a pin, not a tenant key', () => {
+  it('stays out of the scoped models, so refresh (with no tenant in scope) keeps working', () => {
+    expect(TENANT_SCOPED_MODELS.has('RefreshToken')).toBe(false);
+    expect(
+      scopeArgs('RefreshToken', 'findUnique', { where: { tokenHash: 'h' } }, undefined),
+    ).toEqual({ where: { tokenHash: 'h' } });
+  });
+});
+
 /**
  * The 2026-08-30 audit: every model carrying a `gymId` scalar in
  * `packages/db/prisma/schema.prisma` measured against the allowlist. Thirteen

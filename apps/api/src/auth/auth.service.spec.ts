@@ -84,9 +84,9 @@ function setup() {
   const rotateRefreshToken = vi.fn<(token: string) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'access2', refreshToken: 'refresh2' }),
   );
-  const userIdForRefreshToken = vi.fn<(token: string) => Promise<string | null>>(() =>
-    Promise.resolve(null),
-  );
+  const sessionForRefreshToken = vi.fn<
+    (token: string) => Promise<{ userId: string; gymId: string | null } | null>
+  >(() => Promise.resolve(null));
   const revokeRefreshToken = vi.fn<(token: string) => Promise<void>>(() => Promise.resolve());
   const revokeAllForUser = vi.fn<(userId: string) => Promise<void>>(() => Promise.resolve());
   const sendVerificationEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
@@ -130,9 +130,9 @@ function setup() {
   );
   // The named-gym suspension check, which looks the slug up on its own. Default
   // to "unknown slug" → nothing to gate, exactly as before the check existed.
-  const gymFindUnique = vi.fn<(args: unknown) => Promise<{ status: string } | null>>(() =>
-    Promise.resolve(null),
-  );
+  const gymFindUnique = vi.fn<
+    (args: unknown) => Promise<{ status?: string; slug?: string } | null>
+  >(() => Promise.resolve(null));
   // Signup's account + membership transaction. The callback is handed a client
   // whose two creates are recorded, so a test can assert what was written.
   const gymMemberCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
@@ -159,7 +159,7 @@ function setup() {
   const tokens = {
     issueTokenPair,
     rotateRefreshToken,
-    userIdForRefreshToken,
+    sessionForRefreshToken,
     revokeRefreshToken,
     revokeAllForUser,
   } as unknown as TokenService;
@@ -179,7 +179,7 @@ function setup() {
     del,
     issueTokenPair,
     rotateRefreshToken,
-    userIdForRefreshToken,
+    sessionForRefreshToken,
     revokeRefreshToken,
     revokeAllForUser,
     sendVerificationEmail,
@@ -1432,7 +1432,7 @@ describe('AuthService', () => {
     });
 
     it('blocks the rotation when the token owner has only suspended gyms', async () => {
-      ctx.userIdForRefreshToken.mockResolvedValue('user-1');
+      ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
       membership(ctx, { hasAny: true, hasActive: false });
 
       const error = await ctx.service
@@ -1446,7 +1446,7 @@ describe('AuthService', () => {
     });
 
     it('rotates when the token owner still has an active gym', async () => {
-      ctx.userIdForRefreshToken.mockResolvedValue('user-1');
+      ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
       membership(ctx, { hasAny: true, hasActive: true });
 
       await ctx.service.refresh({ refreshToken: 'rt-secret' });
@@ -1455,12 +1455,141 @@ describe('AuthService', () => {
     });
 
     it('rotates without a suspension check for an unknown/expired token (lets rotation 401)', async () => {
-      ctx.userIdForRefreshToken.mockResolvedValue(null);
+      ctx.sessionForRefreshToken.mockResolvedValue(null);
 
       await ctx.service.refresh({ refreshToken: 'rt-secret' });
 
       expect(ctx.gymMemberFindFirst).not.toHaveBeenCalled();
       expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', SCOPELESS);
+    });
+
+    describe('the gym a refresh token is pinned to', () => {
+      /** A member of downtown (primary, earliest-joined) and riverside. */
+      function twoGyms(): void {
+        membership(ctx, { hasAny: true, hasActive: true });
+        ctx.gymMemberFindMany.mockResolvedValue([
+          {
+            gymId: 'gym-downtown',
+            role: Role.OWNER,
+            joinedAt: new Date('2026-01-01'),
+            gym: { status: 'ACTIVE', slug: 'downtown' },
+          },
+          {
+            gymId: 'gym-riverside',
+            role: Role.TRAINER,
+            joinedAt: new Date('2026-03-01'),
+            gym: { status: 'ACTIVE', slug: 'riverside' },
+          },
+        ]);
+      }
+
+      const RIVERSIDE = {
+        gymId: 'gym-riverside',
+        gymSlug: 'riverside',
+        role: Role.TRAINER,
+        tokenVersion: 0,
+      };
+      const DOWNTOWN = {
+        gymId: 'gym-downtown',
+        gymSlug: 'downtown',
+        role: Role.OWNER,
+        tokenVersion: 0,
+      };
+
+      it('keeps a session on its pinned, non-primary gym', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' });
+
+        expect(ctx.gymFindUnique).toHaveBeenNthCalledWith(1, {
+          where: { id: 'gym-riverside' },
+          select: { slug: true },
+        });
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', RIVERSIDE);
+      });
+
+      it('ignores the tenant host once the token is pinned', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' }, 'downtown');
+
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', RIVERSIDE);
+      });
+
+      it('401s (and does not fall back to the primary) once the pinned membership is gone', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+        membership(ctx, { hasAny: true, hasActive: true });
+        // Still an active member of downtown — but not of riverside any more.
+        ctx.gymMemberFindMany.mockResolvedValue([
+          {
+            gymId: 'gym-downtown',
+            role: Role.OWNER,
+            joinedAt: new Date('2026-01-01'),
+            gym: { status: 'ACTIVE', slug: 'downtown' },
+          },
+        ]);
+
+        const error = await ctx.service
+          .refresh({ refreshToken: 'rt-secret' })
+          .catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(UnauthorizedException);
+        expect((error as UnauthorizedException).getResponse()).toMatchObject({
+          code: 'REFRESH_TOKEN_INVALID',
+        });
+        expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+      });
+
+      it('401s when the pinned gym no longer exists', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-gone' });
+        ctx.gymFindUnique.mockResolvedValueOnce(null);
+
+        await expect(ctx.service.refresh({ refreshToken: 'rt-secret' })).rejects.toBeInstanceOf(
+          UnauthorizedException,
+        );
+        expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+      });
+
+      it('403s GYM_SUSPENDED when the pinned gym is suspended, even with another live gym', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique
+          .mockResolvedValueOnce({ slug: 'riverside' })
+          .mockResolvedValueOnce({ status: 'SUSPENDED' });
+        twoGyms();
+
+        const error = await ctx.service
+          .refresh({ refreshToken: 'rt-secret' })
+          .catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as ForbiddenException).getResponse()).toMatchObject({
+          code: 'GYM_SUSPENDED',
+        });
+        expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+      });
+
+      it('re-scopes an unpinned (legacy) token to the primary gym', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' });
+
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', DOWNTOWN);
+      });
+
+      it('lets the tenant host choose the gym for an unpinned token', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' }, 'riverside');
+
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', RIVERSIDE);
+      });
     });
   });
 

@@ -7,6 +7,7 @@ import type {
   RegisterResponse,
   TokenPair,
 } from '@fit/types';
+import { env } from '../config/env';
 import { AuthController } from './auth.controller';
 import type { AuthService } from './auth.service';
 
@@ -338,7 +339,19 @@ describe('AuthController', () => {
       const result = await ctx.controller.refresh({ refreshToken: ' rt-secret ' });
 
       expect(result).toEqual({ accessToken: 'a2', refreshToken: 'r2' });
-      expect(ctx.refresh).toHaveBeenCalledWith({ refreshToken: 'rt-secret' });
+      expect(ctx.refresh).toHaveBeenCalledWith({ refreshToken: 'rt-secret' }, null);
+    });
+
+    it('passes the tenant slug named by x-tenant-host through to the service', async () => {
+      await ctx.controller.refresh(
+        { refreshToken: 'rt-secret' },
+        {
+          'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.refresh).toHaveBeenCalledWith({ refreshToken: 'rt-secret' }, 'riverside');
     });
 
     it('rejects a missing refresh token with a 400', async () => {

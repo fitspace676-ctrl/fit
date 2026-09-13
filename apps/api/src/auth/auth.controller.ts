@@ -31,6 +31,11 @@ import {
   type TokenPair,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
+import {
+  resolveTenantSlug,
+  type TenantHeaders,
+} from '../common/middleware/subdomain-tenant.middleware';
+import { env } from '../config/env';
 import { RateLimit, RATE_LIMITS } from '../common/rate-limit/rate-limit.decorator';
 import { parseAcceptLanguage } from '../mail/email-locale';
 import { AuthService } from './auth.service';
@@ -190,12 +195,18 @@ export class AuthController {
     return this.auth.loginWithApple(input);
   }
 
-  /** `POST /auth/refresh` — rotate the refresh token and issue a fresh session. */
+  /**
+   * `POST /auth/refresh` — rotate the refresh token and issue a fresh session.
+   *
+   * The tenant host the call names (`x-tenant-host`, then `Forwarded`,
+   * `x-forwarded-host`, `Host`) only matters for a token not yet pinned to a gym;
+   * a pinned token always stays on its own gym.
+   */
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() body: unknown): Promise<TokenPair> {
+  async refresh(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
     const input = parse(refreshSchema, body);
-    return this.auth.refresh(input);
+    return this.auth.refresh(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
   /** `POST /auth/logout` — revoke the refresh token's family, ending the session. */

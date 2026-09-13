@@ -8,6 +8,11 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
  * `RefreshToken`) and the tenant root (`Gym`, keyed by `id`) keep working
  * unscoped. Add a model here the moment it gains a `gymId` column.
  *
+ * `RefreshToken` is the one deliberate exception to that rule: its nullable
+ * `gymId` (2026-09-13) *pins* a session to the gym it was issued for, and is read
+ * by `POST /auth/refresh` before any tenant is in scope. Scoping it would make
+ * every refresh fail closed.
+ *
  * `AuditLog` carries a `gymId` and is listed so any *scoped*-client access is
  * auto-constrained to the caller's gym. The SuperAdmin console writes/reads it
  * cross-tenant through the unscoped {@link PrismaService} (deliberately, with an

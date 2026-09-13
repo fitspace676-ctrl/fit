@@ -2180,9 +2180,17 @@ model Review {
 /// Rotating refresh-token record for session management. Tokens are persisted
 /// hashed (never plaintext); `familyId` groups a rotation lineage so a reused
 /// (already-rotated) token can be detected and the whole family revoked.
+///
+/// `gymId` pins the session to the gym it was issued for, so a refresh re-scopes
+/// to that gym rather than the user's primary one (and fails, rather than moving
+/// gyms, once that membership is gone). `null` for a platform session and for rows
+/// written before the pin existed. Deliberately a bare scalar, not a relation, and
+/// not in the tenant extension's scoped models: refresh runs before any tenant is
+/// in scope, and a deleted gym is handled by the refresh path refusing the token.
 model RefreshToken {
   id                String    @id @default(cuid())
   userId            String
+  gymId             String?
   tokenHash         String    @unique
   deviceFingerprint String?
   familyId          String
@@ -2193,6 +2201,7 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([gymId])
   @@index([familyId])
   @@map("refresh_tokens")
 }
