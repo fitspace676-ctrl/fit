@@ -63,6 +63,7 @@ import { atLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymMemberIntakeService } from '../gyms/gym-member-intake.service';
+import { findDefaultLocationId } from '../locations/default-location';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { MailerService } from '../mail/mailer.service';
 import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
@@ -1109,11 +1110,7 @@ export class MembersService {
       return location.id;
     }
 
-    const fallback = await this.prisma.client.location.findFirst({
-      where: { isDefault: true },
-      select: { id: true },
-    });
-    return fallback?.id ?? null;
+    return findDefaultLocationId(this.prisma.client);
   }
 
   /** Project a queried membership row to the denormalised wire {@link MemberRow}. */

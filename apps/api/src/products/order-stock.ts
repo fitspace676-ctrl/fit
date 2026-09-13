@@ -1,5 +1,6 @@
 import { StockMovementReason, type Prisma } from '@fit/db';
 import { decodeVariantRef, productVariantsSchema } from '@fit/types';
+import { findDefaultLocationId } from '../locations/default-location';
 
 /**
  * Moving on-hand stock because an **order** did — the one place a sale draws units
@@ -157,11 +158,7 @@ async function resolveSellingBranch(
   if (order?.locationId) {
     return order.locationId;
   }
-  const fallback = await tx.location.findFirst({
-    where: { gymId, isDefault: true },
-    select: { id: true },
-  });
-  return fallback?.id ?? null;
+  return findDefaultLocationId(tx, gymId);
 }
 
 /**

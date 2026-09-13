@@ -33,6 +33,7 @@ import { availableAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
+import { findDefaultLocationId, type DefaultLocationClient } from '../locations/default-location';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
 import { parseBranchCounts } from './order-stock';
 
@@ -78,14 +79,7 @@ interface StockWritingClient {
 }
 
 /** Whichever client is at hand when the gym's default branch has to be resolved. */
-interface DefaultBranchClient {
-  location: {
-    findFirst(args: {
-      where: { isDefault: true };
-      select: { id: true };
-    }): Promise<{ id: string } | null>;
-  };
-}
+type DefaultBranchClient = DefaultLocationClient;
 
 /**
  * The slice of a transaction client the branch fan-out needs — narrow on purpose,
@@ -728,17 +722,14 @@ export class AdminProductsService {
   private async requireOpeningBranch(
     client: DefaultBranchClient = this.prisma.client,
   ): Promise<string> {
-    const location = await client.location.findFirst({
-      where: { isDefault: true },
-      select: { id: true },
-    });
-    if (!location) {
+    const locationId = await findDefaultLocationId(client);
+    if (!locationId) {
       throw new BadRequestException({
         code: 'DEFAULT_LOCATION_REQUIRED',
         message: 'Set a default branch before recording stock — a count has to belong to a shelf.',
       });
     }
-    return location.id;
+    return locationId;
   }
 
   /**

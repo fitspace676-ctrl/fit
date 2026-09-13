@@ -16,6 +16,7 @@ import { atLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { ActivityStreamService } from '../live/activity-stream.service';
+import { findDefaultLocationId } from '../locations/default-location';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 
 /**
@@ -270,11 +271,7 @@ export class CheckInService {
       return location.id;
     }
 
-    const fallback = await this.prisma.client.location.findFirst({
-      where: { isDefault: true },
-      select: { id: true },
-    });
-    return fallback?.id ?? null;
+    return findDefaultLocationId(this.prisma.client);
   }
 
   /**

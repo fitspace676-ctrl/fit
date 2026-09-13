@@ -10,6 +10,7 @@ import {
   type LocationSummary,
 } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { findDefaultLocationId } from './default-location';
 
 /**
  * The columns the public listing selects off `Location`. A deliberately slim
@@ -64,6 +65,16 @@ export class LocationsService {
     });
 
     return { locations: rows.map((row) => this.toSummary(row)) };
+  }
+
+  /**
+   * The id of the gym's default branch, or `null` when it has none — see
+   * {@link findDefaultLocationId}, which callers already holding a scoped client or
+   * a transaction use directly so the read stays inside it. On the base client, so
+   * the gym is constrained by the explicit `gymId`.
+   */
+  async defaultLocation(gymId: string): Promise<string | null> {
+    return findDefaultLocationId(this.prisma.client, gymId);
   }
 
   /**
