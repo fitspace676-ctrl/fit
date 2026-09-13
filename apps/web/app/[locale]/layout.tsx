@@ -11,8 +11,9 @@ import { ThemeProvider } from '@/src/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/src/lib/theme';
 import { AstryxProvider } from '@/src/components/theme/astryx-provider';
 import { PortalThemeScope } from '@/src/components/theme/portal-theme-scope';
-import { getActiveGymPortalSkin } from '@/lib/active-gym';
+import { getActiveGymPortalSkin, getActiveGymPresence } from '@/lib/active-gym';
 import { SentryInit } from '../sentry-init';
+import { GymNotFound } from './_components/gym-not-found';
 import '../globals.css';
 // Astryx component styles (layer `astryx-base`) load AFTER globals.css so the
 // layer is declared last and outranks Tailwind's `tw-base` preflight — see the
@@ -78,10 +79,16 @@ export default async function LocaleLayout({
   // frame later. This layout was already per-request (it reads the theme
   // cookie), so the lookup adds a cached round trip and no rendering mode change.
   // A gym that has chosen no portal colour resolves to no override at all.
-  const [messages, cookieStore, portal] = await Promise.all([
+  //
+  // The same cached lookup also says whether the host names a gym at all. One
+  // that does not (`typo.<root>`) renders "gym not found" in place of every page
+  // — here, because this is the one layout every route on the host shares. A
+  // lookup that merely failed renders the page as before.
+  const [messages, cookieStore, portal, presence] = await Promise.all([
     getMessages(),
     cookies(),
     getActiveGymPortalSkin(),
+    getActiveGymPresence(),
   ]);
 
   // Seed the theme from the cookie so the painted `<html>` class matches the
@@ -106,7 +113,9 @@ export default async function LocaleLayout({
               {/* Inside `AstryxProvider`, never outside it: the compiled theme
                   declares its tokens on that wrapper, so an override above it
                   would be shadowed by the palette it is replacing. */}
-              <PortalThemeScope colors={portal}>{children}</PortalThemeScope>
+              <PortalThemeScope colors={portal}>
+                {presence === 'not-found' ? <GymNotFound /> : children}
+              </PortalThemeScope>
             </AstryxProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

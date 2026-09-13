@@ -96,6 +96,42 @@ export async function getActiveGymId(): Promise<string | null> {
 }
 
 /**
+ * Whether the tenant this request's host names exists, as far as the public
+ * `GET /gyms/by-subdomain/:slug` lookup can tell:
+ *
+ * - `none` — no tenant in scope (apex, `app.<root>`, a preview URL). The portal
+ *   renders generically, as it always has.
+ * - `found` — the slug names an active gym.
+ * - `not-found` — the API answered `404`: there is no such gym at this address.
+ * - `unknown` — anything else (network error, `5xx`). Rendered like `found`, so a
+ *   passing API hiccup never tells a gym's members their gym does not exist.
+ *
+ * Server-only. A `404` is not kept in Next's fetch cache (only `200`s are), so a
+ * gym created a moment after someone hit its address is found on the next visit.
+ */
+export type ActiveGymPresence = 'none' | 'found' | 'not-found' | 'unknown';
+
+export async function getActiveGymPresence(): Promise<ActiveGymPresence> {
+  const slug = await getActiveGymSlug();
+  if (!slug) {
+    return 'none';
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+      next: { revalidate: 300 },
+    });
+    if (response.ok) {
+      return 'found';
+    }
+    return response.status === 404 ? 'not-found' : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
  * The active tenant's public contact details (address / phone / email / website)
  * from the same `GET /gyms/by-subdomain/:slug` lookup, or `null` when there is no
  * tenant in scope, the slug names no active gym, or the gym has filled none of
