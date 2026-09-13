@@ -5,7 +5,13 @@ vi.mock('../../config/env', () => ({ env: mockEnv }));
 
 import { GymStatus, Role } from '@fit/db';
 import type { NextFunction, Request, Response } from 'express';
-import { SubdomainTenantMiddleware, extractTenantSlug } from './subdomain-tenant.middleware';
+import {
+  SubdomainTenantMiddleware,
+  extractTenantSlug,
+  parseForwardedHost,
+  resolveTenantHost,
+  resolveTenantSlug,
+} from './subdomain-tenant.middleware';
 import { tenantStorage, type TenantState } from '../tenant/tenant.context';
 import type { PrismaService } from '../../prisma/prisma.service';
 
@@ -71,8 +77,122 @@ describe('extractTenantSlug', () => {
   });
 });
 
+describe('parseForwardedHost', () => {
+  it('reads host= from a single element', () => {
+    expect(parseForwardedHost('for=192.0.2.60;proto=https;host=acme.fit.ge')).toBe('acme.fit.ge');
+  });
+
+  it('unquotes a quoted value and keeps its port for the slug extractor to strip', () => {
+    expect(parseForwardedHost('for="[2001:db8::1]:4711";host="acme.fit.ge:443"')).toBe(
+      'acme.fit.ge:443',
+    );
+  });
+
+  it('matches the parameter name case-insensitively', () => {
+    expect(parseForwardedHost('For=1.2.3.4;Host=acme.fit.ge')).toBe('acme.fit.ge');
+  });
+
+  it('takes the first hop of a multi-hop header', () => {
+    expect(parseForwardedHost('for=1.2.3.4;host=acme.fit.ge, for=10.0.0.1;host=api.internal')).toBe(
+      'acme.fit.ge',
+    );
+  });
+
+  it('does not split the first element on a comma inside quotes', () => {
+    expect(parseForwardedHost('for="a,b";host=acme.fit.ge, for=10.0.0.1;host=beta.fit.ge')).toBe(
+      'acme.fit.ge',
+    );
+  });
+
+  it('does not borrow host= from a later hop when the first names none', () => {
+    expect(parseForwardedHost('for=1.2.3.4, for=10.0.0.1;host=acme.fit.ge')).toBeUndefined();
+  });
+
+  it('joins a repeated header before reading its first element', () => {
+    expect(parseForwardedHost(['for=1.2.3.4;host=acme.fit.ge', 'host=beta.fit.ge'])).toBe(
+      'acme.fit.ge',
+    );
+  });
+
+  it('returns undefined for a missing header', () => {
+    expect(parseForwardedHost(undefined)).toBeUndefined();
+  });
+});
+
+describe('resolveTenantHost / resolveTenantSlug', () => {
+  const root = 'fit.ge';
+
+  it('prefers x-tenant-host over every other source', () => {
+    const headers = {
+      'x-tenant-host': 'acme.fit.ge',
+      forwarded: 'host=beta.fit.ge',
+      'x-forwarded-host': 'gamma.fit.ge',
+      host: 'delta.fit.ge',
+    };
+    expect(resolveTenantHost(headers, root)).toBe('acme.fit.ge');
+    expect(resolveTenantSlug(headers, root)).toBe('acme');
+  });
+
+  it('reads Forwarded host= ahead of x-forwarded-host and Host (the Railway edge shape)', () => {
+    const headers = {
+      forwarded: 'for=203.0.113.9;host="beta.fit.ge";proto=https',
+      'x-forwarded-host': 'api-production.up.railway.app',
+      host: 'api-production.up.railway.app',
+    };
+    expect(resolveTenantSlug(headers, root)).toBe('beta');
+  });
+
+  it('falls back to x-forwarded-host (first of a list), then Host', () => {
+    expect(resolveTenantSlug({ 'x-forwarded-host': ['gamma.fit.ge', 'x'], host: 'h' }, root)).toBe(
+      'gamma',
+    );
+    expect(resolveTenantSlug({ host: 'delta.fit.ge:3000' }, root)).toBe('delta');
+  });
+
+  it('skips an x-tenant-host under another root and uses the next source', () => {
+    const headers = { 'x-tenant-host': 'acme.example.com', host: 'delta.fit.ge' };
+    expect(resolveTenantHost(headers, root)).toBe('delta.fit.ge');
+  });
+
+  it('skips a reserved-label x-tenant-host and uses the next source', () => {
+    const headers = { 'x-tenant-host': 'app.fit.ge', forwarded: 'host=beta.fit.ge' };
+    expect(resolveTenantSlug(headers, root)).toBe('beta');
+  });
+
+  it('returns null when no source names a tenant', () => {
+    const headers = {
+      'x-tenant-host': 'fit.ge',
+      forwarded: 'host=api.fit.ge',
+      host: 'api-production.up.railway.app',
+    };
+    expect(resolveTenantHost(headers, root)).toBeNull();
+    expect(resolveTenantSlug(headers, root)).toBeNull();
+    expect(resolveTenantSlug({}, root)).toBeNull();
+  });
+});
+
 describe('SubdomainTenantMiddleware', () => {
   afterEach(() => vi.clearAllMocks());
+
+  it('resolves the tenant from x-tenant-host when the host is the API’s own', async () => {
+    const { middleware, findUnique } = setup({ id: 'gym-3', status: GymStatus.ACTIVE });
+
+    const { state } = await run(middleware, {
+      'x-tenant-host': 'acme.fit.ge',
+      host: 'api-production.up.railway.app',
+    });
+
+    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { slug: 'acme' } }));
+    expect(state?.gymId).toBe('gym-3');
+  });
+
+  it('resolves the tenant from an RFC 7239 Forwarded host', async () => {
+    const { middleware, findUnique } = setup({ id: 'gym-4', status: GymStatus.ACTIVE });
+
+    await run(middleware, { forwarded: 'for=1.2.3.4;host=beta.fit.ge', host: 'internal:3000' });
+
+    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { slug: 'beta' } }));
+  });
 
   it('resolves an active tenant subdomain into the tenant store with no JWT present', async () => {
     const { middleware, findUnique } = setup({ id: 'gym-1', status: GymStatus.ACTIVE });
