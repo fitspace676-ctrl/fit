@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, type NestMiddleware } from '@nestjs/
 import { Role } from '@fit/db';
 import type { NextFunction, Request, Response } from 'express';
 import { TokenService } from '../../auth/token.service';
+import { assertSessionMatchesTenantHost } from './assert-tenant-host';
 import { tenantStorage, type TenantState } from './tenant.context';
 
 /** The authenticated identity the middleware attaches to the request. */
@@ -52,6 +53,8 @@ export class TenantMiddleware implements NestMiddleware {
 
     // Throws a 401 on any verification failure — propagated to the exception filter.
     const claims = this.tokens.verifyAccessToken(token);
+    // A session minted for one gym is refused on another gym's host (403).
+    assertSessionMatchesTenantHost(req.headers, claims);
 
     const role = parseRole(claims.role) ?? Role.MEMBER;
     const rawGym = claims.gymId ?? claims.gym;

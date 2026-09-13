@@ -27,6 +27,24 @@ export const envSchema = z.object({
   ADMIN_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().optional(),
 
+  // The path prefix the staff console is SERVED under, which any console deep
+  // link the API builds has to carry. **The default must match
+  // `apps/admin/next.config.mjs`'s**, which is `/admin`: `ADMIN_URL` is a bare
+  // origin everywhere it is set (see `.env.example`), so a link built from it
+  // alone lands one directory above every console route and 404s. A console
+  // genuinely served at the root sets this to `""`, an empty string rather than
+  // nullish, which still wins over the default. Normalised to a leading slash
+  // and no trailing one so the join below is a plain concatenation.
+  ADMIN_BASE_PATH: z
+    .string()
+    .trim()
+    .default('/admin')
+    .transform((value) => {
+      const trimmed = value.replace(/\/+$/, '');
+      if (trimmed === '') return '';
+      return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    }),
+
   // ── Public origins (deep links) ──
   // The API's own public base URL, used to build the staff-invite accept link
   // (`<API_PUBLIC_URL>/auth/accept-invite?token=…`) that lands on this API and
@@ -35,11 +53,19 @@ export const envSchema = z.object({
   API_PUBLIC_URL: z.string().url().default('http://localhost:3000'),
 
   // ── Multi-tenancy (subdomain resolution) ──
-  // Root domain tenants live under as `<slug>.fit.ge`. The subdomain tenant
-  // middleware strips this suffix off the request `Host` to recover the tenant
-  // slug, so it must match the domain the gym subdomains are actually served on.
-  // Lower-cased + bare (no scheme/port); default matches production.
-  PLATFORM_ROOT_DOMAIN: z.string().trim().toLowerCase().default('fit.ge'),
+  // Root domain tenants live under as `<slug>.<PLATFORM_ROOT_DOMAIN>`. The
+  // subdomain tenant middleware strips this suffix off the request `Host` to
+  // recover the tenant slug, and the console deep links mailed out
+  // (`buildConsoleUrl`) build the same host back up — so it must match the domain
+  // the gym subdomains are actually served on. Lower-cased + bare (no
+  // scheme/port).
+  //
+  // The default is deliberately the DEV value, not production's: `apps/api/.env.local`
+  // sets `localhost` too, and production sets `formacore.io` explicitly on Railway.
+  // A real domain here would be the wrong kind of default — a deployment that
+  // forgot the var would mail token-carrying activate links to a host we do not
+  // own, whereas `<slug>.localhost` is visibly broken and leaks nothing.
+  PLATFORM_ROOT_DOMAIN: z.string().trim().toLowerCase().default('localhost'),
 
   // ── Auth / sessions ──
   // HS256 secret the API signs session JWTs with. Optional so the API still
@@ -103,7 +129,11 @@ export const envSchema = z.object({
   // Default 24 hours.
   EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(86_400),
   // Base URL the verification token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/member/verify`).
+  // (`<base>?token=…`). Unset → derived by `buildMemberUrl`: the gym's own host
+  // (`https://<slug>.<PLATFORM_ROOT_DOMAIN>/member/verify`) when the flow knows
+  // which gym was joined — a member self-signup does — so verifying returns them
+  // to the site they signed up on, and `<WEB_URL>/member/verify` otherwise (a
+  // bare registration joins no gym).
   EMAIL_VERIFICATION_URL: z.string().url().optional(),
 
   // ── Password reset ──
@@ -112,7 +142,10 @@ export const envSchema = z.object({
   // should live no longer than necessary. Default 1 hour.
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(3_600),
   // Base URL the reset token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived from WEB_URL (`<WEB_URL>/member/reset-password`).
+  // (`<base>?token=…`). Unset → derived by `buildMemberUrl`, same as
+  // EMAIL_VERIFICATION_URL — but in practice always `<WEB_URL>/member/reset-password`:
+  // the browser asks for the reset on the API's own host with the address alone,
+  // so no gym is ever in scope to address the link at.
   PASSWORD_RESET_URL: z.string().url().optional(),
 
   // ── Staff invitations (T4.7) ──

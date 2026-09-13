@@ -26,7 +26,7 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 vi.mock('argon2', () => ({ hash: argonHash, verify: argonVerify, argon2id: 2 }));
 
 import { AuthService, generateVerificationToken } from './auth.service';
-import { Prisma, Role } from '@fit/db';
+import { GymMemberStatus, Prisma, Role } from '@fit/db';
 import type { AppleProfile, GoogleProfile } from '@fit/types';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
@@ -84,9 +84,9 @@ function setup() {
   const rotateRefreshToken = vi.fn<(token: string) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'access2', refreshToken: 'refresh2' }),
   );
-  const userIdForRefreshToken = vi.fn<(token: string) => Promise<string | null>>(() =>
-    Promise.resolve(null),
-  );
+  const sessionForRefreshToken = vi.fn<
+    (token: string) => Promise<{ userId: string; gymId: string | null } | null>
+  >(() => Promise.resolve(null));
   const revokeRefreshToken = vi.fn<(token: string) => Promise<void>>(() => Promise.resolve());
   const revokeAllForUser = vi.fn<(userId: string) => Promise<void>>(() => Promise.resolve());
   const sendVerificationEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
@@ -102,9 +102,15 @@ function setup() {
     Promise.resolve({ appleId: 'ap-1', email: 'a@b.com', emailVerified: true }),
   );
 
-  // Gym-membership lookups backing the suspension gate. Default to "no
+  // Gym-membership lookups backing the suspension gate — and, on a sign-in that
+  // named a gym it couldn't be given, the membership-status gate. Default to "no
   // memberships" so login/refresh succeed unless a test opts into a membership.
-  const gymMemberFindFirst = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
+  const gymMemberFindFirst = vi.fn<
+    (args: unknown) => Promise<{ id?: string; status?: string } | null>
+  >(() => Promise.resolve(null));
+  // The "are you already a member of this gym?" lookup `signupMember` runs on a
+  // taken address. Default to "no membership" → the plain EMAIL_TAKEN answer.
+  const gymMemberFindUnique = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
     Promise.resolve(null),
   );
   // Membership rows backing the session-scope resolver. Default to "no active
@@ -122,6 +128,11 @@ function setup() {
   const gymFindFirst = vi.fn<(args: unknown) => Promise<GymRow | null>>(() =>
     Promise.resolve({ id: 'gym-1', slug: 'iron', settings: null }),
   );
+  // The named-gym suspension check, which looks the slug up on its own. Default
+  // to "unknown slug" → nothing to gate, exactly as before the check existed.
+  const gymFindUnique = vi.fn<
+    (args: unknown) => Promise<{ status?: string; slug?: string } | null>
+  >(() => Promise.resolve(null));
   // Signup's account + membership transaction. The callback is handed a client
   // whose two creates are recorded, so a test can assert what was written.
   const gymMemberCreate = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
@@ -135,8 +146,12 @@ function setup() {
   const prisma = {
     client: {
       user: { findUnique, create, update, updateMany },
-      gymMember: { findFirst: gymMemberFindFirst, findMany: gymMemberFindMany },
-      gym: { findFirst: gymFindFirst },
+      gymMember: {
+        findFirst: gymMemberFindFirst,
+        findMany: gymMemberFindMany,
+        findUnique: gymMemberFindUnique,
+      },
+      gym: { findFirst: gymFindFirst, findUnique: gymFindUnique },
       $transaction: transaction,
     },
   } as unknown as PrismaService;
@@ -144,7 +159,7 @@ function setup() {
   const tokens = {
     issueTokenPair,
     rotateRefreshToken,
-    userIdForRefreshToken,
+    sessionForRefreshToken,
     revokeRefreshToken,
     revokeAllForUser,
   } as unknown as TokenService;
@@ -164,7 +179,7 @@ function setup() {
     del,
     issueTokenPair,
     rotateRefreshToken,
-    userIdForRefreshToken,
+    sessionForRefreshToken,
     revokeRefreshToken,
     revokeAllForUser,
     sendVerificationEmail,
@@ -173,7 +188,9 @@ function setup() {
     verifyAppleIdToken,
     gymMemberFindFirst,
     gymMemberFindMany,
+    gymMemberFindUnique,
     gymFindFirst,
+    gymFindUnique,
     gymMemberCreate,
   };
 }
@@ -185,7 +202,7 @@ function setup() {
  * token, and it is the second argument every `issueTokenPair` / rotation call
  * now carries.
  */
-const SCOPELESS = { gymId: null, role: Role.MEMBER, tokenVersion: 0 };
+const SCOPELESS = { gymId: null, gymSlug: null, role: Role.MEMBER, tokenVersion: 0 };
 
 /**
  * Make `gymMemberFindFirst` model a specific membership picture: the first call
@@ -199,6 +216,17 @@ function membership(
   ctx.gymMemberFindFirst
     .mockResolvedValueOnce(hasAny ? { id: 'm-1' } : null)
     .mockResolvedValueOnce(hasActive ? { id: 'm-1' } : null);
+}
+
+/**
+ * Queue the *third* `gymMemberFindFirst`: the membership-status lookup
+ * `resolveSessionScope` runs only when a sign-in named a gym it could not be
+ * given. `null` means "no membership in that gym at all" (the silent fallback to
+ * the primary), which is also the default when this isn't called. Call it after
+ * {@link membership}, whose two `Once`s queue in front of it.
+ */
+function requestedMembership(ctx: ReturnType<typeof setup>, status: GymMemberStatus | null): void {
+  ctx.gymMemberFindFirst.mockResolvedValueOnce(status ? { status } : null);
 }
 
 const VALID_REGISTER = { email: 'a@b.com', password: 'supersecret', name: 'Alice' };
@@ -397,6 +425,92 @@ describe('AuthService', () => {
       await expect(
         ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2026-07-02' }),
       ).resolves.toBeDefined();
+    });
+  });
+
+  describe('signupMember — the verification link', () => {
+    const VALID_SIGNUP = {
+      gymId: 'gym-1',
+      name: 'Nino',
+      email: 'nino@example.com',
+      password: 'supersecret',
+      phone: '+995555000111',
+      gender: 'FEMALE',
+      dateOfBirth: '1994-03-02',
+      personalId: '01001000000',
+    } satisfies MemberSignupInput;
+
+    beforeEach(() => ctx.findUnique.mockResolvedValue(null));
+
+    it("hands the joined gym's slug to the mailer, so the link comes back to that gym", async () => {
+      await ctx.service.signupMember(VALID_SIGNUP);
+
+      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith(
+        'nino@example.com',
+        expect.any(String),
+        'Nino',
+        'en',
+        'iron',
+      );
+    });
+
+    it('addresses a second gym at its own slug', async () => {
+      ctx.gymFindFirst.mockResolvedValue({ id: 'gym-2', slug: 'downtown', settings: null });
+
+      await ctx.service.signupMember({ ...VALID_SIGNUP, gymId: 'gym-2' });
+
+      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith(
+        'nino@example.com',
+        expect.any(String),
+        'Nino',
+        'en',
+        'downtown',
+      );
+    });
+  });
+
+  describe('signupMember — an address that already has an account', () => {
+    // Same complete body the start-date block uses, so these fail on the 409
+    // rather than on the intake check that runs before it.
+    const VALID_SIGNUP = {
+      gymId: 'gym-1',
+      name: 'Nino',
+      email: 'nino@example.com',
+      password: 'supersecret',
+      phone: '+995555000111',
+      gender: 'FEMALE',
+      dateOfBirth: '1994-03-02',
+      personalId: '01001000000',
+    } satisfies MemberSignupInput;
+
+    beforeEach(() => {
+      ctx.findUnique.mockResolvedValue({ id: 'user-existing' });
+    });
+
+    it('throws 409 ALREADY_MEMBER when the account already belongs to this gym', async () => {
+      ctx.gymMemberFindUnique.mockResolvedValue({ id: 'gm-1' });
+
+      const error = await ctx.service.signupMember(VALID_SIGNUP).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({ code: 'ALREADY_MEMBER' });
+      // Asked about *this* gym's membership, not any membership anywhere.
+      expect(ctx.gymMemberFindUnique).toHaveBeenCalledWith({
+        where: { userId_gymId: { userId: 'user-existing', gymId: 'gym-1' } },
+        select: { id: true },
+      });
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.gymMemberCreate).not.toHaveBeenCalled();
+    });
+
+    it('still throws 409 EMAIL_TAKEN for an account from another gym', async () => {
+      ctx.gymMemberFindUnique.mockResolvedValue(null);
+
+      const error = await ctx.service.signupMember(VALID_SIGNUP).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({ code: 'EMAIL_TAKEN' });
+      expect(ctx.create).not.toHaveBeenCalled();
     });
   });
 
@@ -736,6 +850,7 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: 'gym-riverside',
+        gymSlug: 'riverside',
         role: Role.TRAINER,
         tokenVersion: 0,
       });
@@ -759,9 +874,117 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: 'gym-downtown',
+        gymSlug: 'downtown',
         role: Role.OWNER,
         tokenVersion: 0,
       });
+    });
+
+    it('throws 403 MEMBERSHIP_NOT_ACTIVE when gymSlug names a gym the user is only INVITED to', async () => {
+      // Invited to riverside, a real member of downtown. Signing in on
+      // `riverside.fit.ge` must say so rather than hand back a downtown session.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      requestedMembership(ctx, GymMemberStatus.INVITED);
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      const error = await ctx.service
+        .login({ ...VALID_LOGIN, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'MEMBERSHIP_NOT_ACTIVE',
+      });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('throws the same 403 for a membership the gym suspended', async () => {
+      // Every non-ACTIVE standing is refused the same way: an explicitly asked-for
+      // gym is never quietly swapped for another one.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      requestedMembership(ctx, GymMemberStatus.SUSPENDED);
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      const error = await ctx.service
+        .login({ ...VALID_LOGIN, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'MEMBERSHIP_NOT_ACTIVE',
+      });
+    });
+
+    it('never runs the membership-status lookup when the slug was honoured', async () => {
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-riverside',
+          role: Role.TRAINER,
+          joinedAt: new Date('2026-03-01'),
+          gym: { status: 'ACTIVE', slug: 'riverside' },
+        },
+      ]);
+
+      await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' });
+
+      // Only the suspension gate's two lookups — the third is the miss path.
+      expect(ctx.gymMemberFindFirst).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws 403 GYM_SUSPENDED when gymSlug names a suspended gym, even with another live one', async () => {
+      // The session-level gate is happy — downtown is live — so only the named
+      // gym's own status can refuse this.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymFindUnique.mockResolvedValue({ status: 'SUSPENDED' });
+
+      const error = await ctx.service
+        .login({ ...VALID_LOGIN, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('lets a sign-in on a live named gym through', async () => {
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymFindUnique.mockResolvedValue({ status: 'ACTIVE' });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-riverside',
+          role: Role.TRAINER,
+          joinedAt: new Date('2026-03-01'),
+          gym: { status: 'ACTIVE', slug: 'riverside' },
+        },
+      ]);
+
+      await expect(
+        ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' }),
+      ).resolves.toMatchObject({ accessToken: 'access' });
     });
 
     it('resolves a platform SUPER_ADMIN (isSuperAdmin flag) to a tenant-less session', async () => {
@@ -782,6 +1005,7 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: null,
+        gymSlug: null,
         role: Role.SUPER_ADMIN,
         tokenVersion: 0,
       });
@@ -902,6 +1126,49 @@ describe('AuthService', () => {
       const error = await ctx.service.loginWithGoogle(VALID).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('binds to the subdomain gym the client signed in on, as password login does', async () => {
+      // "Continue with Google" on `riverside.fit.ge` has to land on riverside;
+      // before the slug was threaded through, it silently landed on downtown.
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' }); // matched by googleId
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+        {
+          gymId: 'gym-riverside',
+          role: Role.TRAINER,
+          joinedAt: new Date('2026-03-01'),
+          gym: { status: 'ACTIVE', slug: 'riverside' },
+        },
+      ]);
+
+      await ctx.service.loginWithGoogle({ ...VALID, gymSlug: 'riverside' });
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9', {
+        gymId: 'gym-riverside',
+        gymSlug: 'riverside',
+        role: Role.TRAINER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('refuses a social sign-in on a suspended gym’s subdomain', async () => {
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' });
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymFindUnique.mockResolvedValue({ status: 'SUSPENDED' });
+
+      const error = await ctx.service
+        .loginWithGoogle({ ...VALID, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
       expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
@@ -1030,6 +1297,51 @@ describe('AuthService', () => {
       expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
+
+    it('binds to the subdomain gym the client signed in on, as password login does', async () => {
+      ctx.verifyAppleIdToken.mockResolvedValue({ appleId: 'ap-9', emailVerified: false });
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' }); // matched by appleId
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+        {
+          gymId: 'gym-riverside',
+          role: Role.TRAINER,
+          joinedAt: new Date('2026-03-01'),
+          gym: { status: 'ACTIVE', slug: 'riverside' },
+        },
+      ]);
+
+      await ctx.service.loginWithApple({ ...VALID, gymSlug: 'riverside' });
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9', {
+        gymId: 'gym-riverside',
+        gymSlug: 'riverside',
+        role: Role.TRAINER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('refuses a social sign-in on a gym the user is only INVITED to', async () => {
+      ctx.verifyAppleIdToken.mockResolvedValue({ appleId: 'ap-9', emailVerified: false });
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' });
+      membership(ctx, { hasAny: true, hasActive: true });
+      requestedMembership(ctx, GymMemberStatus.INVITED);
+
+      const error = await ctx.service
+        .loginWithApple({ ...VALID, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'MEMBERSHIP_NOT_ACTIVE',
+      });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
   });
 
   describe('refresh', () => {
@@ -1041,7 +1353,7 @@ describe('AuthService', () => {
     });
 
     it('blocks the rotation when the token owner has only suspended gyms', async () => {
-      ctx.userIdForRefreshToken.mockResolvedValue('user-1');
+      ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
       membership(ctx, { hasAny: true, hasActive: false });
 
       const error = await ctx.service
@@ -1055,7 +1367,7 @@ describe('AuthService', () => {
     });
 
     it('rotates when the token owner still has an active gym', async () => {
-      ctx.userIdForRefreshToken.mockResolvedValue('user-1');
+      ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
       membership(ctx, { hasAny: true, hasActive: true });
 
       await ctx.service.refresh({ refreshToken: 'rt-secret' });
@@ -1064,12 +1376,141 @@ describe('AuthService', () => {
     });
 
     it('rotates without a suspension check for an unknown/expired token (lets rotation 401)', async () => {
-      ctx.userIdForRefreshToken.mockResolvedValue(null);
+      ctx.sessionForRefreshToken.mockResolvedValue(null);
 
       await ctx.service.refresh({ refreshToken: 'rt-secret' });
 
       expect(ctx.gymMemberFindFirst).not.toHaveBeenCalled();
       expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', SCOPELESS);
+    });
+
+    describe('the gym a refresh token is pinned to', () => {
+      /** A member of downtown (primary, earliest-joined) and riverside. */
+      function twoGyms(): void {
+        membership(ctx, { hasAny: true, hasActive: true });
+        ctx.gymMemberFindMany.mockResolvedValue([
+          {
+            gymId: 'gym-downtown',
+            role: Role.OWNER,
+            joinedAt: new Date('2026-01-01'),
+            gym: { status: 'ACTIVE', slug: 'downtown' },
+          },
+          {
+            gymId: 'gym-riverside',
+            role: Role.TRAINER,
+            joinedAt: new Date('2026-03-01'),
+            gym: { status: 'ACTIVE', slug: 'riverside' },
+          },
+        ]);
+      }
+
+      const RIVERSIDE = {
+        gymId: 'gym-riverside',
+        gymSlug: 'riverside',
+        role: Role.TRAINER,
+        tokenVersion: 0,
+      };
+      const DOWNTOWN = {
+        gymId: 'gym-downtown',
+        gymSlug: 'downtown',
+        role: Role.OWNER,
+        tokenVersion: 0,
+      };
+
+      it('keeps a session on its pinned, non-primary gym', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' });
+
+        expect(ctx.gymFindUnique).toHaveBeenNthCalledWith(1, {
+          where: { id: 'gym-riverside' },
+          select: { slug: true },
+        });
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', RIVERSIDE);
+      });
+
+      it('ignores the tenant host once the token is pinned', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' }, 'downtown');
+
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', RIVERSIDE);
+      });
+
+      it('401s (and does not fall back to the primary) once the pinned membership is gone', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+        membership(ctx, { hasAny: true, hasActive: true });
+        // Still an active member of downtown — but not of riverside any more.
+        ctx.gymMemberFindMany.mockResolvedValue([
+          {
+            gymId: 'gym-downtown',
+            role: Role.OWNER,
+            joinedAt: new Date('2026-01-01'),
+            gym: { status: 'ACTIVE', slug: 'downtown' },
+          },
+        ]);
+
+        const error = await ctx.service
+          .refresh({ refreshToken: 'rt-secret' })
+          .catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(UnauthorizedException);
+        expect((error as UnauthorizedException).getResponse()).toMatchObject({
+          code: 'REFRESH_TOKEN_INVALID',
+        });
+        expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+      });
+
+      it('401s when the pinned gym no longer exists', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-gone' });
+        ctx.gymFindUnique.mockResolvedValueOnce(null);
+
+        await expect(ctx.service.refresh({ refreshToken: 'rt-secret' })).rejects.toBeInstanceOf(
+          UnauthorizedException,
+        );
+        expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+      });
+
+      it('403s GYM_SUSPENDED when the pinned gym is suspended, even with another live gym', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique
+          .mockResolvedValueOnce({ slug: 'riverside' })
+          .mockResolvedValueOnce({ status: 'SUSPENDED' });
+        twoGyms();
+
+        const error = await ctx.service
+          .refresh({ refreshToken: 'rt-secret' })
+          .catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as ForbiddenException).getResponse()).toMatchObject({
+          code: 'GYM_SUSPENDED',
+        });
+        expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+      });
+
+      it('re-scopes an unpinned (legacy) token to the primary gym', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' });
+
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', DOWNTOWN);
+      });
+
+      it('lets the tenant host choose the gym for an unpinned token', async () => {
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: null });
+        twoGyms();
+
+        await ctx.service.refresh({ refreshToken: 'rt-secret' }, 'riverside');
+
+        expect(ctx.rotateRefreshToken).toHaveBeenCalledWith('rt-secret', RIVERSIDE);
+      });
     });
   });
 

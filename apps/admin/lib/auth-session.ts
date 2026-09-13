@@ -83,6 +83,13 @@ export const ROLE_RANK: Record<Role, number> = {
 export interface Session {
   userId: string;
   gymId: string | null;
+  /**
+   * The slug of the gym the session was issued for, when the token names one.
+   * The middleware compares it with the host's slug so a session never opens
+   * another gym's console. Absent on SUPER_ADMIN tokens and on tokens minted
+   * before the API added the claim — both simply skip that comparison.
+   */
+  gymSlug?: string;
   role: Role;
 }
 
@@ -92,6 +99,7 @@ interface AccessClaims {
   type?: string;
   role?: string;
   gymId?: string;
+  gymSlug?: string;
   /** Gym slug claim as minted by `fit token --gym <slug>`; alias for `gymId`. */
   gym?: string;
   exp?: number;
@@ -162,6 +170,9 @@ export function sessionFromClaims(claims: AccessClaims): Session {
   return {
     userId: claims.sub,
     gymId: typeof rawGym === 'string' && rawGym.length > 0 ? rawGym : null,
+    ...(typeof claims.gymSlug === 'string' && claims.gymSlug.length > 0
+      ? { gymSlug: claims.gymSlug }
+      : {}),
     role: parseRole(claims.role) ?? 'MEMBER',
   };
 }

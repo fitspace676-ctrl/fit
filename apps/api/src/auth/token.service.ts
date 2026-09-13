@@ -30,10 +30,24 @@ function base64urlDecode(segment: string): string {
 export interface SessionClaims {
   /** The gym this session is scoped to, or `null` for a platform account. */
   gymId: string | null;
+  /**
+   * That gym's subdomain slug, or `null` alongside a `null` `gymId`. Stamped so a
+   * request can be checked against the tenant host it arrived on without a
+   * database read (see `assertSessionMatchesTenantHost`).
+   */
+  gymSlug: string | null;
   /** The user's role in that gym (or `MEMBER` for a scopeless account). */
   role: Role;
   /** The user's session-invalidation counter at issuance (see `User.tokenVersion`). */
   tokenVersion: number;
+}
+
+/** What a live refresh token says about its session, read without spending it. */
+export interface RefreshTokenSession {
+  /** The user the token belongs to. */
+  userId: string;
+  /** The gym the session is pinned to, or `null` (platform session / legacy row). */
+  gymId: string | null;
 }
 
 /** Claims carried by an access token. */
@@ -48,6 +62,8 @@ export interface AccessTokenClaims {
   tokenVersion: number;
   /** Gym the session is scoped to; omitted entirely for a platform account. */
   gymId?: string;
+  /** Subdomain slug of that gym; omitted alongside `gymId`. */
+  gymSlug?: string;
 }
 
 /**
@@ -72,6 +88,12 @@ export interface VerifiedAccessClaims {
   gymId?: string;
   /** Gym slug claim as minted by `fit token --gym <slug>`; alias for `gymId`. */
   gym?: string;
+  /**
+   * Subdomain slug of the session's gym, stamped by the API alongside `gymId`.
+   * Absent on platform sessions, CLI tokens, and tokens issued before the claim
+   * existed — which is why the host check it feeds treats absence as "no opinion".
+   */
+  gymSlug?: string;
   /** Remaining standard claims (`iat`, `exp`, `iss`, …) passed through verbatim. */
   [claim: string]: unknown;
 }
@@ -106,8 +128,8 @@ export class TokenService {
    * to the supplied {@link SessionClaims}. The `role` + `gymId` (+ `tokenVersion`)
    * claims are what the {@link TenantMiddleware} reads to bind the request to a
    * gym and role — without them every request would resolve to the unscoped
-   * default (`MEMBER`, no gym), which is exactly the gap this closes. `gymId` is
-   * omitted from the payload for a platform account (`gymId: null`).
+   * default (`MEMBER`, no gym), which is exactly the gap this closes. `gymId` and
+   * `gymSlug` are each omitted from the payload when `null` (a platform account).
    */
   signAccessToken(
     userId: string,
@@ -122,6 +144,7 @@ export class TokenService {
       role: claims.role,
       tokenVersion: claims.tokenVersion,
       ...(claims.gymId ? { gymId: claims.gymId } : {}),
+      ...(claims.gymSlug ? { gymSlug: claims.gymSlug } : {}),
       iat: issuedAt,
       exp: issuedAt + env.JWT_ACCESS_TTL,
       iss: env.JWT_ISSUER,
@@ -141,7 +164,7 @@ export class TokenService {
    * impersonation token can be far shorter-lived than a normal session.
    */
   signScopedAccessToken(
-    params: { userId: string; role: Role; gymId: string; ttlSeconds: number },
+    params: { userId: string; role: Role; gymId: string; gymSlug: string; ttlSeconds: number },
     issuedAt: number = Math.floor(Date.now() / 1000),
   ): string {
     const secret = this.requireSecret();
@@ -151,6 +174,7 @@ export class TokenService {
       type: 'access' as const,
       role: params.role,
       gymId: params.gymId,
+      gymSlug: params.gymSlug,
       iat: issuedAt,
       exp: issuedAt + params.ttlSeconds,
       iss: env.JWT_ISSUER,
@@ -230,7 +254,12 @@ export class TokenService {
     deviceFingerprint?: string,
   ): Promise<TokenPair> {
     const accessToken = this.signAccessToken(userId, claims);
-    const refreshToken = await this.persistRefreshToken(userId, randomUUID(), deviceFingerprint);
+    const refreshToken = await this.persistRefreshToken(
+      userId,
+      randomUUID(),
+      claims.gymId,
+      deviceFingerprint,
+    );
     return { accessToken, refreshToken };
   }
 
@@ -285,30 +314,34 @@ export class TokenService {
     }
 
     const accessToken = this.signAccessToken(existing.userId, claims);
+    // The successor is pinned to the gym the new access token is scoped to — the
+    // same gym as its predecessor whenever the refresh honoured the pin.
     const refreshToken = await this.persistRefreshToken(
       existing.userId,
       existing.familyId,
+      claims.gymId,
       deviceFingerprint ?? existing.deviceFingerprint ?? undefined,
     );
     return { accessToken, refreshToken };
   }
 
   /**
-   * Resolve the user id a (still-live) refresh token belongs to, without
-   * spending it — `null` for an unknown, revoked, or expired token. Lets a
-   * caller make a pre-rotation decision keyed on the user (e.g. T2.12's
-   * gym-suspension gate) before {@link rotateRefreshToken} mutates anything; the
-   * single-use rotation rules still apply when the token is actually spent.
+   * Resolve who a (still-live) refresh token belongs to and which gym it is
+   * pinned to, without spending it — `null` for an unknown, revoked, or expired
+   * token. Lets a caller make pre-rotation decisions (T2.12's gym-suspension
+   * gate, re-scoping to the pinned gym) before {@link rotateRefreshToken}
+   * mutates anything; the single-use rotation rules still apply when the token
+   * is actually spent.
    */
-  async userIdForRefreshToken(presentedToken: string): Promise<string | null> {
+  async sessionForRefreshToken(presentedToken: string): Promise<RefreshTokenSession | null> {
     const existing = await this.prisma.client.refreshToken.findUnique({
       where: { tokenHash: hashRefreshToken(presentedToken) },
-      select: { userId: true, revokedAt: true, expiresAt: true },
+      select: { userId: true, gymId: true, revokedAt: true, expiresAt: true },
     });
     if (!existing || existing.revokedAt || existing.expiresAt.getTime() <= Date.now()) {
       return null;
     }
-    return existing.userId;
+    return { userId: existing.userId, gymId: existing.gymId ?? null };
   }
 
   /**
@@ -347,12 +380,14 @@ export class TokenService {
   private async persistRefreshToken(
     userId: string,
     familyId: string,
+    gymId: string | null,
     deviceFingerprint?: string,
   ): Promise<string> {
     const refreshToken = base64url(randomBytes(32));
     await this.prisma.client.refreshToken.create({
       data: {
         userId,
+        gymId,
         tokenHash: hashRefreshToken(refreshToken),
         familyId,
         deviceFingerprint: deviceFingerprint ?? null,
@@ -391,8 +426,10 @@ export function hashRefreshToken(token: string): string {
  * The single `401` every refresh-token failure collapses to — unknown,
  * expired, and reused tokens are indistinguishable to the caller so the
  * endpoint can't be used to probe which tokens exist or have been revoked.
+ * Exported so a refresh refused for a session-level reason (its pinned gym
+ * membership is gone) looks the same as a dead token.
  */
-function invalidRefreshToken(): UnauthorizedException {
+export function invalidRefreshToken(): UnauthorizedException {
   return new UnauthorizedException({
     message: 'Refresh token is invalid or has expired',
     code: 'REFRESH_TOKEN_INVALID',

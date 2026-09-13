@@ -7,6 +7,7 @@
 // subdomain, and returns only VISIBLE reviews plus the live aggregate.
 
 import { publicReviewSchema, type ListTrainerReviewsResponse, type PublicReview } from '@fit/types';
+import { tenantHeaders } from './tenant-headers';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -49,7 +50,7 @@ export async function fetchTrainerReviews({
     `${API_URL}/trainers/${encodeURIComponent(id)}/reviews?${params.toString()}`,
     {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: { ...(await tenantHeaders()), Accept: 'application/json' },
       signal,
     },
   );

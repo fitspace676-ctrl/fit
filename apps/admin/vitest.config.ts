@@ -51,6 +51,8 @@ export default defineConfig({
       // The POS cart store is pure money arithmetic (percentage discounts, totals,
       // change due) — exactly the logic worth pinning down, and DOM-free.
       'stores/**/*.spec.ts',
+      // The auth gate itself — session, refresh and wrong-gym purge.
+      'middleware.spec.ts',
     ],
     exclude: ['node_modules/**', '.next/**'],
   },

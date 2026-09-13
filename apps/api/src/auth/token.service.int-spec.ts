@@ -12,7 +12,7 @@ import { prisma, resetDb, disconnect } from '../test/integration-db';
  * replaying a spent token revokes the *whole* family in the database.
  */
 
-const SCOPE: SessionClaims = { gymId: null, role: Role.MEMBER, tokenVersion: 0 };
+const SCOPE: SessionClaims = { gymId: null, gymSlug: null, role: Role.MEMBER, tokenVersion: 0 };
 
 describe('TokenService rotation (integration)', () => {
   const tokens = new TokenService(new PrismaService());

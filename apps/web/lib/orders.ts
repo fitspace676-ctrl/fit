@@ -15,6 +15,7 @@ import {
   type CreateOrderResponse,
   type OrderSummary,
 } from '@fit/types';
+import { tenantHeaders } from './tenant-headers';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -39,7 +40,11 @@ export async function createOrder({
 }: CreateOrderArgs): Promise<CreateOrderResponse> {
   const response = await fetch(`${API_URL}/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: {
+      ...(await tenantHeaders()),
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
     body: JSON.stringify(body),
     signal,
   });
@@ -80,7 +85,11 @@ export async function fetchOrder({
 }: FetchOrderArgs): Promise<OrderSummary | null> {
   const response = await fetch(`${API_URL}/checkout/${encodeURIComponent(orderId)}`, {
     method: 'GET',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+    headers: {
+      ...(await tenantHeaders()),
+      Accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
     signal,
   });
 

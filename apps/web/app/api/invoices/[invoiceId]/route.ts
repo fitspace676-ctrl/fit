@@ -11,6 +11,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -32,7 +33,11 @@ export async function GET(
   try {
     upstream = await fetch(`${API_URL}/me/invoices/${encodeURIComponent(invoiceId)}/pdf`, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/pdf' },
+      headers: {
+        ...(await tenantHeaders()),
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/pdf',
+      },
       cache: 'no-store',
     });
   } catch {

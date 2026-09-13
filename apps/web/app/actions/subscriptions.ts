@@ -19,6 +19,7 @@ import {
   type UnfreezeSubscriptionResponse,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -43,6 +44,7 @@ async function callFreezeApi(
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
     headers: {
+      ...(await tenantHeaders()),
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),

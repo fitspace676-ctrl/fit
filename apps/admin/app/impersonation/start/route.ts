@@ -19,6 +19,7 @@ import {
   impersonationCookieOptions,
   type ImpersonationMeta,
 } from '@/lib/impersonation';
+import { resolveTenantHost, tenantHostHeaders } from '@/lib/tenant-host';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const res = await fetch(`${API_URL}/auth/impersonation/exchange`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        ...tenantHostHeaders(
+          resolveTenantHost(req.headers.get('x-forwarded-host'), req.headers.get('host')),
+        ),
+        'content-type': 'application/json',
+      },
       body: JSON.stringify({ code }),
       cache: 'no-store',
     });

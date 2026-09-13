@@ -3667,6 +3667,11 @@
       "description": "An unexpected error occurred. You can try again, and if the problem persists please contact support.",
       "reference": "Reference: {id}",
       "tryAgain": "Try again"
+    },
+    "gymNotFound": {
+      "badge": "404",
+      "title": "Gym not found",
+      "description": "There is no gym at this address. Check the link you were given, or ask your gym for its correct address."
     }
   },
   "footer": {

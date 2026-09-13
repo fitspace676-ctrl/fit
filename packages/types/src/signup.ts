@@ -223,6 +223,18 @@ export function memberSignupSchemaFor(intake: GymMemberIntakeSettings) {
  */
 export const EMAIL_TAKEN_CODE = 'EMAIL_TAKEN';
 
+/**
+ * `409` code returned when the email already has an account *and* that account is
+ * already a member of the gym being joined.
+ *
+ * Split out from {@link EMAIL_TAKEN_CODE} because the two ask the buyer for
+ * different things: "you already have an account — sign in and we'll carry on"
+ * versus "you are already a member here — just sign in". Sending the first for
+ * both sends a returning member back through a join wizard that can only fail
+ * again at the same step.
+ */
+export const ALREADY_MEMBER_CODE = 'ALREADY_MEMBER';
+
 // ── Checkout (step 4) ─────────────────────────────────────────────────────
 
 /**

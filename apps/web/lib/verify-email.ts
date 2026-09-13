@@ -7,6 +7,7 @@
 // door right after.
 
 import { env } from './env';
+import { tenantHeaders } from './tenant-headers';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -22,6 +23,7 @@ const API_URL = (env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/
 export async function verifyEmailToken(token: string): Promise<'verified' | 'invalid'> {
   try {
     const response = await fetch(`${API_URL}/auth/verify?token=${encodeURIComponent(token)}`, {
+      headers: await tenantHeaders(),
       cache: 'no-store',
     });
     return response.ok ? 'verified' : 'invalid';

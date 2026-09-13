@@ -6,6 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Banner, Button, Field, Form, spacing } from '@fit/ui-kit';
 import type { TokenPair } from '@fit/types';
+import { browserTenantHeaders } from '@/lib/tenant-host';
+import { loginGymSlug } from './login-gym-slug';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -65,16 +67,16 @@ export function StaffLoginForm() {
       setPending(true);
       setError(null);
 
-      // `<slug>.<root>` → `slug`. A bare host (localhost, an apex preview) has no
-      // tenant label, so the field is omitted and the API picks the primary gym.
-      const [label] = window.location.hostname.split('.');
-      const gymSlug = label && label !== 'localhost' && label !== 'www' ? label : undefined;
+      // `<slug>.<root>` → `slug`. Any host that names no tenant (localhost, the
+      // apex, `app.<root>`, a `*.vercel.app` deployment) omits the field, and the
+      // API picks the primary gym.
+      const gymSlug = loginGymSlug(window.location.host, process.env.NEXT_PUBLIC_ROOT_DOMAIN);
 
       void (async () => {
         try {
           const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, ...(gymSlug ? { gymSlug } : {}) }),
           });
           if (!response.ok) {

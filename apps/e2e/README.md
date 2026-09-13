@@ -33,6 +33,22 @@ portal is tenant-scoped by subdomain, so the suite drives it on
 runs the web server in **dev** mode, whose non-`secure` session cookies survive
 plain HTTP.
 
+`tests/member-tenant-isolation.spec.ts` pins down that a session belongs to the gym
+host it was minted on (see `docs/subdomain-routing.md`), across the seeded
+`downtown` and `riverside` tenants on the same dev server:
+
+- host-only session cookies — a `downtown` sign-in never reaches `riverside`, and a
+  `downtown` token planted there is refused, redirected to sign-in, and cleared;
+- reserved labels (`app`, `www`) render the generic portal, an unknown label renders
+  "gym not found";
+- a silent refresh keeps a `riverside` session on `riverside`, not the member's
+  primary gym;
+- the API contract over HTTP — `x-tenant-host` / `Forwarded` select a public route's
+  tenant, and another gym's host on an authenticated call is `403 TENANT_MISMATCH`.
+
+Its account belongs to both gyms (`provisionMultiGymMember` in `fixtures.ts`), with
+`downtown` joined first so it is the primary gym the refresh must not drift to.
+
 ## How auth works
 
 The admin console has no sign-in page of its own; it trusts an `accessToken`
@@ -65,7 +81,16 @@ they are already running:
 - **member** — the API (port 3000) and the web app (port 3001, in dev mode). The
   browser drives it at `http://downtown.localhost:3001`; override with `E2E_API_URL`
   / `E2E_WEB_HOST`. The member suite writes fixtures straight to the DB, so it needs
-  `DATABASE_URL` in its own environment (defaults to the local `fit` database).
+  `DATABASE_URL` in its own environment (defaults to the local `fit` database). The
+  tenant-isolation spec builds its other hosts (`riverside.localhost`,
+  `app.localhost`, …) on `E2E_WEB_PORT` (default `3001`).
+
+"Already running" means **anything** that answers the probe URL below `400`: a Next
+dev server left on port 3000 answers `/health` with a `307` and is silently taken
+for the API. `E2E_API_URL` only moves the probe and the URL the apps call — the
+boot command still binds port 3000 — so to use another port, start the API there
+yourself first (`NODE_ENV=test`, the same `JWT_SECRET`, `PLATFORM_ROOT_DOMAIN=localhost`,
+`RATE_LIMIT_ENABLED=false`) and let the config reuse it.
 
 The default `test` script is a no-op so the infra-heavy suites stay out of the
 standard `pnpm test` pipeline; CI runs each as a dedicated job.

@@ -12,51 +12,162 @@ Each gym (tenant) is served at `<slug>.<rootDomain>`:
 `superadmin` is in `RESERVED_SUBDOMAINS` (`packages/types/src/gyms.ts`), so no gym
 can ever claim that label and `SubdomainTenantMiddleware` never resolves it to a
 tenant — the operator console gets a host inside the tenant namespace without
-being mistaken for one. Its session cookies are named `ops*` and written
-**host-only**, so they neither read nor overwrite the parent-domain `accessToken`
-the tenant surfaces share.
+being mistaken for one. Its session cookies are named `ops*` so they never
+collide with a tenant session of the same operator.
 
 ### Three cookie scopes, on purpose
 
 | Cookie                                     | Scope                          | Set by                       |
 | ------------------------------------------ | ------------------------------ | ---------------------------- |
-| `accessToken` / `refreshToken`             | parent domain `.<root>`        | web + admin sign-in          |
+| `accessToken` / `refreshToken`             | host-only, one `<slug>.<root>` | web + admin sign-in          |
 | `opsAccessToken` / `opsRefreshToken`       | host-only, `superadmin.<root>` | the operator console         |
 | `impersonationToken` / `impersonationMeta` | host-only, one `<slug>.<root>` | `/admin/impersonation/start` |
 
-The tenant session is shared across a gym's portal and console by design. The
-other two are deliberately not: an operator holding a SUPER_ADMIN session and
-acting as one gym's owner in another tab are three identities that must not
-overwrite each other. `pickSessionToken` (`apps/admin/lib/auth-session.ts`) is
-the one place the precedence lives — impersonation wins where it exists.
+All three are host-only. A gym's portal and its console still share one tenant
+session, because the console is served on the **same host** under `/admin` — not
+because the cookie spans subdomains (it used to; see
+[Session isolation](#session-isolation)). An operator holding a SUPER_ADMIN
+session and acting as one gym's owner in another tab are three identities that
+must not overwrite each other. `pickSessionToken` (`apps/admin/lib/auth-session.ts`)
+is the one place the precedence lives — impersonation wins where it exists.
 
-The active gym is derived from the request **Host**, not hard-coded. Everything is
+The active gym is derived from the request **host**, not hard-coded. Everything is
 domain-agnostic via env, so connecting a real domain (or switching to a wildcard on
 a Vercel Pro upgrade) needs **no code change** — only the env + DNS + Vercel domain
 entries below.
 
 ## How it works (code)
 
-- **API** — `SubdomainTenantMiddleware` (`apps/api/src/common/middleware/subdomain-tenant.middleware.ts`) recovers the slug from `Host` via `extractTenantSlug(host, PLATFORM_ROOT_DOMAIN)` and scopes **public/unauthenticated** requests to that gym. Authenticated requests are scoped by their JWT (`gymId` claim) — the session always wins over the host.
-- **Login binding** — a credentials sign-in on `<slug>.<root>` forwards the slug (`loginSchema.gymSlug`); `AuthService.resolveSessionScope(userId, gymSlug)` binds the issued token to that gym when the user has a membership there, else falls back to their earliest-joined (primary) gym. So an authed request on a subdomain carries the matching `gymId`.
-- **Frontend** — `extractGymSlug(host, rootDomain)` (`@fit/utils`) is the shared helper. `getActiveGymSlug()` (`apps/web/lib/active-gym.ts`, `apps/admin/lib/active-gym.ts`) reads it in Server Components from `next/headers`. `apps/web/lib/auth.ts` reads `window.location.host` at sign-in to set `gymSlug`.
-- **Cookie sharing** — set `COOKIE_DOMAIN` / `NEXT_PUBLIC_COOKIE_DOMAIN` to `.<root>` so the session cookie is shared across subdomains (web sets it, admin reads it).
+- **API** — `SubdomainTenantMiddleware` (`apps/api/src/common/middleware/subdomain-tenant.middleware.ts`) recovers the slug from the tenant host (see [Tenant host resolution](#tenant-host-resolution)) via `extractTenantSlug(host, PLATFORM_ROOT_DOMAIN)` and scopes **public/unauthenticated** requests to that gym. Authenticated requests are scoped by their JWT (`gymId` claim) — the session always wins over the host, and a session used on another gym's host is refused (`403 TENANT_MISMATCH`).
+- **Login binding** — a credentials sign-in on `<slug>.<root>` forwards the slug (`loginSchema.gymSlug`); `AuthService.resolveSessionScope(userId, gymSlug)` binds the issued token to that gym when the user has a membership there, else falls back to their earliest-joined (primary) gym. The token carries both `gymId` and `gymSlug`.
+- **Frontend** — `extractGymSlug(host, rootDomain)` (`@fit/utils`) is the shared helper; `extractGymSlugEdge` / `isTenantMismatch` (`@fit/utils/tenant-host-edge`) are the import-free copies the Edge middlewares use. `getActiveGymSlug()` (`apps/web/lib/active-gym.ts`, `apps/admin/lib/active-gym.ts`) reads the slug in Server Components from `next/headers`. `apps/web/lib/auth.ts` reads `window.location.host` at sign-in to set `gymSlug`.
+- **Tenant header** — every call web/admin make to the API, server-side or from the browser, carries `x-tenant-host` (`lib/tenant-host.ts` / `lib/tenant-headers.ts` in each app).
+
+## Tenant host resolution
+
+The API does not trust `Host` alone, because in production it never sees the
+gym's host there:
+
+- **Server-side calls** from web/admin reach the API at its own Railway host, so
+  `Host` is `api-production-….up.railway.app`.
+- **Railway's edge overwrites `x-forwarded-host`** with that same Railway host on
+  the way in. A `downtown.formacore.io` forwarded by a proxy arrives as the API's
+  own host, and the tenant is lost — this is what produced
+  `500 No tenant in scope` on the guest cart before the change.
+- The edge **does** preserve the client's host in the RFC 7239 `Forwarded`
+  header (`Forwarded: for=…;host=downtown.formacore.io;proto=https`).
+
+So `resolveTenantHost` reads, in order, and takes the **first candidate that names
+a tenant** under `PLATFORM_ROOT_DOMAIN`:
+
+1. `x-tenant-host` — stamped by web/admin with the public host the visitor is on
+   (`x-forwarded-host ?? host` of the incoming request; `window.location.host` in
+   the browser).
+2. `host=` of the **first** element of `Forwarded` (quotes and port stripped).
+3. `x-forwarded-host` (first entry).
+4. `Host`.
+
+A candidate that names no tenant — the bare root, a reserved label like `app`, a
+multi-level or foreign host — is skipped rather than ending the search, so a
+platform-host `x-tenant-host` cannot mask a real one further down. `POST
+/auth/refresh` reads the slug the same way.
+
+**Spoofing.** The header is a _selector_, not a credential. On a public route it
+only picks whose public data is served — data anyone can already read on that
+gym's site. An authenticated request's scope always comes from its JWT; the host
+is only compared against it.
+
+## Session isolation
+
+Before this, the session cookies were written on the parent domain
+(`COOKIE_DOMAIN=.formacore.io`), so a sign-in on `riverside.formacore.io` was sent
+to `downtown.formacore.io` too — one gym's chrome rendered over another gym's
+session. Four layers now keep a session on its own gym:
+
+1. **Host-only cookies.** web and admin write `accessToken` / `refreshToken` with
+   no `Domain` attribute (`apps/web/lib/session-cookies.ts`,
+   `apps/admin/lib/session-cookies.ts`). Nothing needed the sharing: the console
+   is on the same host under `/admin`, the platform signup issues no session, and
+   the operator console and impersonation have their own cookies.
+2. **`gymSlug` claim.** Access tokens carry the slug of the gym they were issued
+   for, beside `gymId` (absent on SUPER_ADMIN/platform sessions).
+3. **`403 TENANT_MISMATCH` at the API.** `assertSessionMatchesTenantHost`
+   (`apps/api/src/common/tenant/assert-tenant-host.ts`), run by `TenantMiddleware`
+   and the cart's `CartIdentityMiddleware`, refuses a token whose `gymSlug`
+   differs from the resolved host slug with `403 { code: "TENANT_MISMATCH" }`.
+   It only fires when **both** sides exist: no tenant host (the Railway host,
+   `app.<root>`, `localhost`, a mobile client) or no `gymSlug` (SUPER_ADMIN, a
+   token issued before the claim) is "nothing to compare", never a mismatch.
+   Impersonation tokens carry the impersonated gym's slug and pass on its host.
+4. **The Next middlewares.** Both compare the verified token's `gymSlug` with the
+   request host's slug:
+   - **web** (`apps/web/middleware.ts`) treats another gym's token as no session:
+     its cookies are cleared on the response, a protected page redirects to this
+     host's `/<locale>/member/login`, a public page renders signed-out. The
+     refresh cookie is not spent on a foreign session.
+   - **admin** (`apps/admin/middleware.ts`) clears the session (or only the
+     impersonation cookies, when that is what carried it) and redirects to
+     `<ADMIN_BASE_PATH>/login?from=…`. When a Server Component meets the API's
+     `403 TENANT_MISMATCH` instead, `lib/api.ts` redirects to
+     `/login?reason=tenant`, and the sign-in page clears the cookies itself. The
+     sign-in pages clear but never redirect, so a cookie the browser refuses to
+     drop cannot loop.
+
+**Refresh stays on its gym.** `RefreshToken.gymId` (migration
+`20260913180000_refresh_token_gym`) records the gym a session was issued for, and
+rotation keeps it. `AuthService.refresh` re-scopes a pinned token to that gym
+only — never to the member's primary gym:
+
+- membership in the pinned gym gone or no longer ACTIVE → `401 REFRESH_TOKEN_INVALID`
+  (sign in again);
+- the pinned gym suspended → `403 GYM_SUSPENDED`;
+- an unpinned row (issued before the pin, or a platform session) → the slug of
+  the refresh request's tenant host, else the primary gym as before.
+
+**Legacy parent-domain cookies are purged.** Browsers still hold
+`Domain=.formacore.io` session cookies from before the change. While
+`COOKIE_DOMAIN` / `NEXT_PUBLIC_COOKIE_DOMAIN` is set, every clear **and** every
+fresh write also expires the `Domain=` copy (raw `Set-Cookie` headers, because
+`res.cookies.set` keys cookies by name and cannot hold both). The env var is no
+longer used to _set_ anything.
+
+## Unknown slug → "gym not found"
+
+A host that names a tenant nobody owns (`typo.formacore.io`, a deleted gym) is
+not rendered as a sign-in form for a gym nobody can join. `getActiveGymPresence()`
+(`apps/web/lib/active-gym.ts`) asks `GET /gyms/by-subdomain/:slug`:
+
+| Presence    | When                                                    | Renders                     |
+| ----------- | ------------------------------------------------------- | --------------------------- |
+| `none`      | no tenant in the host (apex, `app`, `www`, preview URL) | the generic portal          |
+| `found`     | the slug names an active gym                            | the gym's portal            |
+| `not-found` | the lookup answered `404`                               | `GymNotFound` on every page |
+| `unknown`   | network error / `5xx`                                   | the portal, as `found`      |
+
+`GymNotFound` is rendered by the locale layout in place of the page, so every route
+on such a host says the same thing. Because it is a layout render rather than
+Next's `notFound()`, the document's HTTP status is not a `404`. A `404` lookup is
+not kept in Next's fetch cache, so a gym created a moment later is found on the
+next visit.
 
 ## Env
 
 Set the same root domain on the API and all three Next apps:
 
 ```
-# API (apps/api)
+# API (apps/api) — also the base of every tenant link the API mails.
+# Defaults to "localhost", so an unset production deployment builds visibly
+# broken `<slug>.localhost` links rather than leaking tokens to a real domain.
 PLATFORM_ROOT_DOMAIN="fit.ge"
 
 # web / admin / platform
 NEXT_PUBLIC_ROOT_DOMAIN="fit.ge"
-
-# web + admin (prod) — share the session cookie across subdomains
-NEXT_PUBLIC_COOKIE_DOMAIN=".fit.ge"
-COOKIE_DOMAIN=".fit.ge"
 ```
+
+`COOKIE_DOMAIN` / `NEXT_PUBLIC_COOKIE_DOMAIN` are **not** needed for a new
+deployment. They only exist to purge legacy parent-domain cookies (see
+[Session isolation](#session-isolation)); a deployment that never wrote those
+leaves them unset.
 
 ## Local development
 
@@ -66,7 +177,6 @@ edit needed**. Set:
 ```
 PLATFORM_ROOT_DOMAIN="localhost"
 NEXT_PUBLIC_ROOT_DOMAIN="localhost"
-# leave COOKIE_DOMAIN unset locally → host-only cookie
 ```
 
 Then `pnpm dev` and visit:
@@ -78,9 +188,14 @@ Then `pnpm dev` and visit:
 Seed two tenants first: `pnpm db:seed` (or `fit db seed`) creates `downtown` + `riverside`.
 Sign in as `alex@example.com` on `downtown.localhost:3001` → the session binds to the
 `downtown` gym (OWNER); on `riverside.localhost:3001` it binds to `riverside` (TRAINER).
+The two are separate sessions — signing in on one host does not sign you in on the
+other.
 
 > Firefox/Safari don't auto-resolve `*.localhost`; add `127.0.0.1 downtown.localhost`
 > to `/etc/hosts` per slug, or test in Chrome.
+
+The isolation guarantees above are pinned end-to-end by
+`apps/e2e/tests/member-tenant-isolation.spec.ts` (`pnpm --filter @fit/e2e test:e2e:web`).
 
 ## Deployment — Cloudflare DNS + Vercel domains
 
@@ -121,7 +236,10 @@ No application code differs between A and B — only the domain/DNS entries.
 
 The member site (`fit-web`) and staff console (`fit-admin`) are **separate Vercel
 projects**, but the console is served under the member subdomain's `/admin` path.
-This is wired with a path proxy + a base path (off by default; flip on via env):
+This is wired with a path proxy + a base path, both **on by default** — the code
+defaults are `ADMIN_BASE_PATH=/admin` (`apps/admin/next.config.mjs`) and an
+`ADMIN_ORIGIN` fallback pointing at `fit-admin`'s `*.vercel.app` origin
+(`apps/web/next.config.mjs`); setting the env vars only overrides those:
 
 1. **Admin deployment** — set `ADMIN_BASE_PATH=/admin` on `fit-admin`, so it serves
    all routes and `_next` assets under `/admin`. Give it a stable origin to proxy to
@@ -131,17 +249,76 @@ This is wired with a path proxy + a base path (off by default; flip on via env):
    app then proxies `/admin/*` → `${ADMIN_ORIGIN}/admin/*` (`apps/web/next.config.mjs`)
    and skips its own middleware on `/admin` (matcher exclusion), so the console isn't
    locale-prefixed or auth-gated by the member site.
-3. The shared session cookie (`COOKIE_DOMAIN=.<root>`) means a sign-in on
-   `<slug>.<root>` is already visible to the console at `<slug>.<root>/admin`.
+3. The console is on the **same host** as the member site, so the host-only session
+   cookie a sign-in on `<slug>.<root>` writes is already visible to
+   `<slug>.<root>/admin`. The console reads the gym's host from `x-forwarded-host`,
+   which the rewrite sets.
 
-Both env vars unset (the default) → no proxy and `fit-admin` serves at the root, so
-existing standalone deployments are unaffected. This needs a live deploy to verify
-end-to-end (cross-project proxy + cookies).
+With both env vars unset the defaults above still give you the proxied layout, so
+`fit-admin` answers under `/admin` on its own `*.vercel.app` host too. To serve the
+console at the root instead, set `ADMIN_BASE_PATH` to the **empty string** on it (what
+`apps/e2e` does) — and the same on the API, which appends the prefix to `ADMIN_URL`
+when it builds console links. This needs a live deploy to verify end-to-end
+(cross-project proxy + cookies).
 
 > Single-host alternative (simplest for a first test): point one host
 > (`manage.<root>` → `fit-admin`, **no** base path / proxy) and let the console read
-> the gym from the shared session cookie. Works for single-gym owners; drop it once
-> the `/admin` proxy is verified.
+> the gym from its session cookie. Works for single-gym owners; drop it once the
+> `/admin` proxy is verified. A session signed in there is that host's alone.
+
+## How this is actually deployed (2026-09)
+
+`fit.ge` above is only a placeholder. The real root domain is **`formacore.io`**, and
+option **B** (wildcard, Vercel Pro) is what is live:
+
+| Host                      | Vercel project   |
+| ------------------------- | ---------------- |
+| `*.formacore.io`          | `fit-web`        |
+| `formacore.io` (apex)     | `fit-platform`   |
+| `superadmin.formacore.io` | `fit-superadmin` |
+| — (no custom domain)      | `fit-admin`      |
+
+- **Every link the API mails is addressed at the gym it is about** —
+  `https://<slug>.formacore.io/…`, built in `apps/api/src/common/console-url.ts` over
+  `tenantOrigin` (`packages/utils/src/tenant-host.ts`) from `PLATFORM_ROOT_DOMAIN` and
+  the gym's own slug. Two builders, because the two surfaces sit differently:
+  `buildConsoleUrl` joins `ADMIN_BASE_PATH` (the console is served under `/admin`) and
+  may return nothing, since a digest with no link is merely degraded;
+  `buildMemberUrl` joins no prefix (the member site is at its host's root) and always
+  returns a string, since a verification mail with no link is useless. Neither adds a
+  locale prefix — the web middleware inserts `/<locale>` itself and keeps `?token=`.
+  So a digest for Downtown opens Downtown's console, and a member who signed up at
+  Downtown verifies on Downtown's site, rather than on whichever gym the recipient's
+  last session happened to select.
+- **Password reset is the one that cannot be addressed** — and it is a fact about the
+  request, not an oversight. The browser calls the API's own host directly
+  (`apps/web/lib/auth.ts`) without `x-tenant-host`, so `SubdomainTenantMiddleware`
+  sees no tenant, and the body carries only an email. It therefore falls back to
+  `WEB_URL`. Addressing it would mean putting the gym in the request contract across
+  three apps.
+- **`WEB_URL` / `ADMIN_URL` are the fallback**, for the cases with no slug to address:
+  they are bare origins, and the console's `/admin` prefix comes from
+  `ADMIN_BASE_PATH`, never from the URL. Set them to `https://app.formacore.io` — `app`
+  is in `RESERVED_SUBDOMAINS` (`packages/types/src/gyms.ts`), so no gym can ever claim
+  it, and the wildcard resolves it to `fit-web` like any other label. It renders the
+  generic portal (no tenant in scope) and holds a host-only session of its own. Keep
+  it on a host under `formacore.io` rather than a `*.vercel.app` one: the mailed links
+  should stay on the product's domain, where the API's CORS root-domain rule already
+  admits them.
+- **The admin proxy is set explicitly in production**, not left to the code defaults:
+  `ADMIN_BASE_PATH=/admin` on `fit-admin`, and
+  `ADMIN_ORIGIN=https://fit-admin-fitspace676-5825s-projects.vercel.app` on `fit-web`.
+  `fit-admin` has no custom domain — it is reached through the proxy, or directly on
+  that `*.vercel.app` origin for debugging.
+- **`COOKIE_DOMAIN=.formacore.io` / `NEXT_PUBLIC_COOKIE_DOMAIN=.formacore.io` are
+  still set on `fit-web` and `fit-admin`, on purpose.** The code no longer writes a
+  `Domain=` cookie; the value only tells every clear and fresh write which legacy
+  parent-domain copy to expire. Remove both from Vercel once the old cookies can no
+  longer exist — the refresh token's 30-day lifetime after the host-only release is
+  deployed. Removing them earlier leaves those old cookies in browsers, where the
+  middleware still refuses them on any other gym's host but can no longer delete them.
+- **Railway** needs nothing new for tenant resolution: the API reads the host from
+  `x-tenant-host` / `Forwarded`, both of which survive its edge.
 
 ## CORS
 
@@ -149,13 +326,13 @@ The API allows credentialed requests from every tenant subdomain automatically:
 `isOriginAllowed` (`apps/api/src/common/cors/allowed-origin.ts`) permits any Origin
 whose host is `PLATFORM_ROOT_DOMAIN` or a subdomain of it, on top of the explicit
 `WEB_URL` / `ADMIN_URL` / `CORS_ORIGINS` list. So set `PLATFORM_ROOT_DOMAIN` on the
-API (Railway) to the same root domain — no per-gym CORS entry is needed.
+API (Railway) to the same root domain — no per-gym CORS entry is needed. The
+browser's `x-tenant-host` makes a cross-origin call non-simple, so it is
+preflighted; `enableCors` (`apps/api/src/main.ts`) sets no `allowedHeaders`, so the
+preflight reflects the requested headers and admits it. Pin an explicit list there
+and `x-tenant-host` has to be on it.
 
 ## Notes / future work
 
-- Refresh tokens carry no subdomain, so a refresh re-pins to the primary gym; a
-  subdomain session is refreshed from the same subdomain. Threading an explicit gym
-  claim through refresh (per-request authed re-scoping across subdomains without
-  re-login) is a future enhancement.
 - The platform signup form that calls `tenantAdminUrl(slug)` lands in **T3.11**.
 - Per-gym branding/theming by slug lands in **T4.8**.

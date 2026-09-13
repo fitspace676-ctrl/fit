@@ -13,7 +13,12 @@ import { TokenService, hashRefreshToken, type SessionClaims } from './token.serv
 import type { PrismaService } from '../prisma/prisma.service';
 
 /** A representative gym-scoped session, stamped into issued access tokens. */
-const SCOPE: SessionClaims = { gymId: 'gym-1', role: Role.MANAGER, tokenVersion: 0 };
+const SCOPE: SessionClaims = {
+  gymId: 'gym-1',
+  gymSlug: 'downtown',
+  role: Role.MANAGER,
+  tokenVersion: 0,
+};
 
 const FULL_ENV = {
   JWT_SECRET: 'test-secret',
@@ -41,6 +46,7 @@ function nowSeconds(): number {
 interface StoredRefreshToken {
   id: string;
   userId: string;
+  gymId: string | null;
   familyId: string;
   deviceFingerprint: string | null;
   revokedAt: Date | null;
@@ -51,6 +57,7 @@ function storedToken(overrides: Partial<StoredRefreshToken> = {}): StoredRefresh
   return {
     id: 'rt-1',
     userId: 'user-1',
+    gymId: 'gym-1',
     familyId: 'fam-1',
     deviceFingerprint: 'device-xyz',
     revokedAt: null,
@@ -80,7 +87,7 @@ describe('TokenService', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('signAccessToken', () => {
-    it('mints an HS256 JWT with sub/type/role/gymId/tokenVersion claims and a valid signature', () => {
+    it('mints an HS256 JWT with sub/type/role/gymId/gymSlug/tokenVersion claims and a valid signature', () => {
       const { service } = setup();
 
       const token = service.signAccessToken('user-1', SCOPE, 1_000);
@@ -93,6 +100,7 @@ describe('TokenService', () => {
         role: 'MANAGER',
         tokenVersion: 0,
         gymId: 'gym-1',
+        gymSlug: 'downtown',
         iat: 1_000,
         exp: 1_900,
         iss: 'fit',
@@ -104,17 +112,18 @@ describe('TokenService', () => {
       expect(signature).toBe(expected);
     });
 
-    it('omits the gymId claim for a platform account (no active gym)', () => {
+    it('omits the gymId and gymSlug claims for a platform account (no active gym)', () => {
       const { service } = setup();
 
       const token = service.signAccessToken(
         'admin-1',
-        { gymId: null, role: Role.SUPER_ADMIN, tokenVersion: 2 },
+        { gymId: null, gymSlug: null, role: Role.SUPER_ADMIN, tokenVersion: 2 },
         1_000,
       );
       const payload = decodeSegment(token.split('.')[1]!);
 
       expect(payload).not.toHaveProperty('gymId');
+      expect(payload).not.toHaveProperty('gymSlug');
       expect(payload).toMatchObject({ sub: 'admin-1', role: 'SUPER_ADMIN', tokenVersion: 2 });
     });
 
@@ -221,11 +230,26 @@ describe('TokenService', () => {
       const { data } = refreshToken.create.mock.calls[0]![0];
       expect(data.userId).toBe('user-1');
       expect(data.deviceFingerprint).toBe('device-xyz');
+      // Pinned to the gym the session is scoped to.
+      expect(data.gymId).toBe('gym-1');
       // Only the hash is persisted — never the plaintext refresh secret.
       expect(data.tokenHash).toBe(hashRefreshToken(pair.refreshToken));
       expect(data.tokenHash).not.toBe(pair.refreshToken);
       expect(typeof data.familyId).toBe('string');
       expect(data.expiresAt).toBeInstanceOf(Date);
+    });
+
+    it('persists no gym pin for a platform session', async () => {
+      const { service, refreshToken } = setup();
+
+      await service.issueTokenPair('admin-1', {
+        gymId: null,
+        gymSlug: null,
+        role: Role.SUPER_ADMIN,
+        tokenVersion: 0,
+      });
+
+      expect(refreshToken.create.mock.calls[0]![0].data.gymId).toBeNull();
     });
 
     it('throws ServiceUnavailable (and persists nothing) when unconfigured', async () => {
@@ -263,6 +287,8 @@ describe('TokenService', () => {
       const { data } = refreshToken.create.mock.calls[0]![0];
       expect(data.familyId).toBe('fam-1');
       expect(data.userId).toBe('user-1');
+      // The successor carries the pin of the scope it was minted for.
+      expect(data.gymId).toBe('gym-1');
       expect(data.tokenHash).toBe(hashRefreshToken(pair.refreshToken));
 
       // The successor access token carries the re-resolved session scope.
@@ -383,12 +409,18 @@ describe('TokenService', () => {
   });
 
   describe('signScopedAccessToken', () => {
-    it('stamps role + gymId claims and honours the supplied TTL', () => {
+    it('stamps role + gymId + gymSlug claims and honours the supplied TTL', () => {
       const { service } = setup();
       const iat = nowSeconds();
 
       const token = service.signScopedAccessToken(
-        { userId: 'owner-1', role: Role.OWNER, gymId: 'gym-1', ttlSeconds: 600 },
+        {
+          userId: 'owner-1',
+          role: Role.OWNER,
+          gymId: 'gym-1',
+          gymSlug: 'downtown',
+          ttlSeconds: 600,
+        },
         iat,
       );
 
@@ -399,6 +431,7 @@ describe('TokenService', () => {
         type: 'access',
         role: 'OWNER',
         gymId: 'gym-1',
+        gymSlug: 'downtown',
         iss: 'fit',
         iat,
         exp: iat + 600,
@@ -411,6 +444,7 @@ describe('TokenService', () => {
         userId: 'owner-1',
         role: Role.OWNER,
         gymId: 'gym-1',
+        gymSlug: 'downtown',
         ttlSeconds: 600,
       });
 
@@ -428,33 +462,48 @@ describe('TokenService', () => {
           userId: 'u',
           role: Role.OWNER,
           gymId: 'g',
+          gymSlug: 's',
           ttlSeconds: 600,
         }),
       ).toThrow(ServiceUnavailableException);
     });
   });
 
-  describe('userIdForRefreshToken', () => {
-    it('returns the owner of a live token', async () => {
+  describe('sessionForRefreshToken', () => {
+    it('returns the owner and gym pin of a live token', async () => {
       const { service, refreshToken } = setup();
-      refreshToken.findUnique.mockResolvedValue(storedToken({ userId: 'user-7' }));
+      refreshToken.findUnique.mockResolvedValue(
+        storedToken({ userId: 'user-7', gymId: 'gym-riverside' }),
+      );
 
-      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBe('user-7');
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toEqual({
+        userId: 'user-7',
+        gymId: 'gym-riverside',
+      });
       expect(refreshToken.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { tokenHash: hashRefreshToken('rt-secret') } }),
       );
     });
 
+    it('returns a null pin for a legacy / platform row', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken({ gymId: null }));
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toEqual({
+        userId: 'user-1',
+        gymId: null,
+      });
+    });
+
     it('returns null for an unknown token', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(null);
-      await expect(service.userIdForRefreshToken('nope')).resolves.toBeNull();
+      await expect(service.sessionForRefreshToken('nope')).resolves.toBeNull();
     });
 
     it('returns null for a revoked token', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: new Date() }));
-      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBeNull();
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toBeNull();
     });
 
     it('returns null for an expired token', async () => {
@@ -462,13 +511,13 @@ describe('TokenService', () => {
       refreshToken.findUnique.mockResolvedValue(
         storedToken({ expiresAt: new Date(Date.now() - 1_000) }),
       );
-      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBeNull();
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toBeNull();
     });
 
     it('does not spend or mutate the token', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(storedToken());
-      await service.userIdForRefreshToken('rt-secret');
+      await service.sessionForRefreshToken('rt-secret');
       expect(refreshToken.updateMany).not.toHaveBeenCalled();
       expect(refreshToken.create).not.toHaveBeenCalled();
     });

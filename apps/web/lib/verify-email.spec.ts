@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { verifyEmailToken } from './verify-email';
 
+// The verify call names the tenant host it came from, read from the request.
+vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve(new Headers({ host: 'downtown.formacore.io' })),
+}));
+
 describe('verifyEmailToken', () => {
   let fetchMock: ReturnType<typeof vi.fn<(url: string, init?: RequestInit) => Promise<Response>>>;
 
@@ -22,6 +27,7 @@ describe('verifyEmailToken', () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('http://localhost:3000/auth/verify?token=a%20b%2Bc');
     expect(init?.cache).toBe('no-store');
+    expect(new Headers(init?.headers).get('x-tenant-host')).toBe('downtown.formacore.io');
   });
 
   it('resolves "verified" when the API accepts the token', async () => {
