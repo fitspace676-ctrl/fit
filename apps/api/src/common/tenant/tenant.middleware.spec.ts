@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
+
+vi.mock('../../config/env', () => ({ env: { PLATFORM_ROOT_DOMAIN: 'fit.ge' } }));
+
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Role } from '@fit/db';
 import { TenantMiddleware, extractBearerToken, type RequestWithUser } from './tenant.middleware';
 import { tenantStorage, type TenantState } from './tenant.context';
@@ -76,6 +79,35 @@ describe('TenantMiddleware', () => {
       role: Role.MEMBER,
       allowCrossTenant: false,
     });
+  });
+
+  it('403s TENANT_MISMATCH (without opening a store) when the host names another gym', () => {
+    const middleware = makeMiddleware(() => ({
+      sub: 'u-1',
+      role: 'MEMBER',
+      gymId: 'gym-a',
+      gymSlug: 'downtown',
+    }));
+    const req = {
+      headers: { authorization: 'Bearer t', 'x-tenant-host': 'riverside.fit.ge' },
+    } as unknown as RequestWithUser;
+    const next = vi.fn();
+
+    expect(() => middleware.use(req, {} as never, next)).toThrow(ForbiddenException);
+    expect(next).not.toHaveBeenCalled();
+    expect(req.user).toBeUndefined();
+  });
+
+  it('lets the session through on its own gym’s host', () => {
+    const middleware = makeMiddleware(() => ({ sub: 'u-1', gymId: 'gym-a', gymSlug: 'downtown' }));
+    const req = {
+      headers: { authorization: 'Bearer t', host: 'downtown.fit.ge' },
+    } as unknown as RequestWithUser;
+    const next = vi.fn();
+
+    middleware.use(req, {} as never, next);
+
+    expect(next).toHaveBeenCalledOnce();
   });
 
   it('propagates a verification failure (401)', () => {

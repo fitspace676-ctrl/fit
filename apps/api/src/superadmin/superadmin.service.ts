@@ -404,6 +404,9 @@ export class SuperAdminService {
       userId: grant.ownerId,
       role: Role.OWNER,
       gymId: gym.id,
+      // The console redeeming this sits on the gym's own subdomain, so the host
+      // check (TENANT_MISMATCH) agrees with it.
+      gymSlug: gym.slug,
       ttlSeconds: env.JWT_IMPERSONATION_TTL,
     });
 

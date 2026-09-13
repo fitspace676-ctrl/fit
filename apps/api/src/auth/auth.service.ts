@@ -911,7 +911,7 @@ export class AuthService {
     // rotation below rejects it before these placeholder claims are ever signed.
     const scope: SessionClaims = userId
       ? await this.resolveSessionScope(userId)
-      : { gymId: null, role: Role.MEMBER, tokenVersion: 0 };
+      : { gymId: null, gymSlug: null, role: Role.MEMBER, tokenVersion: 0 };
     return this.tokens.rotateRefreshToken(input.refreshToken, scope);
   }
 
@@ -970,16 +970,22 @@ export class AuthService {
     const tokenVersion = user?.tokenVersion ?? 0;
 
     if (user?.isSuperAdmin) {
-      return { gymId: null, role: Role.SUPER_ADMIN, tokenVersion };
+      return { gymId: null, gymSlug: null, role: Role.SUPER_ADMIN, tokenVersion };
     }
 
     const active = memberships.filter((m) => m.gym.status === GymStatus.ACTIVE);
+    const scopeOf = (m: ScopeMembership): SessionClaims => ({
+      gymId: m.gymId,
+      gymSlug: m.gym.slug,
+      role: m.role,
+      tokenVersion,
+    });
 
     // Subdomain-scoped sign-in: bind to the named gym when the user belongs to it.
     if (gymSlug) {
       const onSubdomain = active.find(bySlug(gymSlug));
       if (onSubdomain) {
-        return { gymId: onSubdomain.gymId, role: onSubdomain.role, tokenVersion };
+        return scopeOf(onSubdomain);
       }
       // Asked for a gym and didn't get it. Either the user has no membership
       // there (fall through to the primary, as before) or they have one that
@@ -989,10 +995,10 @@ export class AuthService {
 
     const primary = active.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
     if (primary) {
-      return { gymId: primary.gymId, role: primary.role, tokenVersion };
+      return scopeOf(primary);
     }
 
-    return { gymId: null, role: Role.MEMBER, tokenVersion };
+    return { gymId: null, gymSlug: null, role: Role.MEMBER, tokenVersion };
   }
 
   /**

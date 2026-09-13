@@ -13,7 +13,12 @@ import { TokenService, hashRefreshToken, type SessionClaims } from './token.serv
 import type { PrismaService } from '../prisma/prisma.service';
 
 /** A representative gym-scoped session, stamped into issued access tokens. */
-const SCOPE: SessionClaims = { gymId: 'gym-1', role: Role.MANAGER, tokenVersion: 0 };
+const SCOPE: SessionClaims = {
+  gymId: 'gym-1',
+  gymSlug: 'downtown',
+  role: Role.MANAGER,
+  tokenVersion: 0,
+};
 
 const FULL_ENV = {
   JWT_SECRET: 'test-secret',
@@ -80,7 +85,7 @@ describe('TokenService', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('signAccessToken', () => {
-    it('mints an HS256 JWT with sub/type/role/gymId/tokenVersion claims and a valid signature', () => {
+    it('mints an HS256 JWT with sub/type/role/gymId/gymSlug/tokenVersion claims and a valid signature', () => {
       const { service } = setup();
 
       const token = service.signAccessToken('user-1', SCOPE, 1_000);
@@ -93,6 +98,7 @@ describe('TokenService', () => {
         role: 'MANAGER',
         tokenVersion: 0,
         gymId: 'gym-1',
+        gymSlug: 'downtown',
         iat: 1_000,
         exp: 1_900,
         iss: 'fit',
@@ -104,17 +110,18 @@ describe('TokenService', () => {
       expect(signature).toBe(expected);
     });
 
-    it('omits the gymId claim for a platform account (no active gym)', () => {
+    it('omits the gymId and gymSlug claims for a platform account (no active gym)', () => {
       const { service } = setup();
 
       const token = service.signAccessToken(
         'admin-1',
-        { gymId: null, role: Role.SUPER_ADMIN, tokenVersion: 2 },
+        { gymId: null, gymSlug: null, role: Role.SUPER_ADMIN, tokenVersion: 2 },
         1_000,
       );
       const payload = decodeSegment(token.split('.')[1]!);
 
       expect(payload).not.toHaveProperty('gymId');
+      expect(payload).not.toHaveProperty('gymSlug');
       expect(payload).toMatchObject({ sub: 'admin-1', role: 'SUPER_ADMIN', tokenVersion: 2 });
     });
 
@@ -383,12 +390,18 @@ describe('TokenService', () => {
   });
 
   describe('signScopedAccessToken', () => {
-    it('stamps role + gymId claims and honours the supplied TTL', () => {
+    it('stamps role + gymId + gymSlug claims and honours the supplied TTL', () => {
       const { service } = setup();
       const iat = nowSeconds();
 
       const token = service.signScopedAccessToken(
-        { userId: 'owner-1', role: Role.OWNER, gymId: 'gym-1', ttlSeconds: 600 },
+        {
+          userId: 'owner-1',
+          role: Role.OWNER,
+          gymId: 'gym-1',
+          gymSlug: 'downtown',
+          ttlSeconds: 600,
+        },
         iat,
       );
 
@@ -399,6 +412,7 @@ describe('TokenService', () => {
         type: 'access',
         role: 'OWNER',
         gymId: 'gym-1',
+        gymSlug: 'downtown',
         iss: 'fit',
         iat,
         exp: iat + 600,
@@ -411,6 +425,7 @@ describe('TokenService', () => {
         userId: 'owner-1',
         role: Role.OWNER,
         gymId: 'gym-1',
+        gymSlug: 'downtown',
         ttlSeconds: 600,
       });
 
@@ -428,6 +443,7 @@ describe('TokenService', () => {
           userId: 'u',
           role: Role.OWNER,
           gymId: 'g',
+          gymSlug: 's',
           ttlSeconds: 600,
         }),
       ).toThrow(ServiceUnavailableException);

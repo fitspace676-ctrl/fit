@@ -202,7 +202,7 @@ function setup() {
  * token, and it is the second argument every `issueTokenPair` / rotation call
  * now carries.
  */
-const SCOPELESS = { gymId: null, role: Role.MEMBER, tokenVersion: 0 };
+const SCOPELESS = { gymId: null, gymSlug: null, role: Role.MEMBER, tokenVersion: 0 };
 
 /**
  * Make `gymMemberFindFirst` model a specific membership picture: the first call
@@ -929,6 +929,7 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: 'gym-riverside',
+        gymSlug: 'riverside',
         role: Role.TRAINER,
         tokenVersion: 0,
       });
@@ -952,6 +953,7 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: 'gym-downtown',
+        gymSlug: 'downtown',
         role: Role.OWNER,
         tokenVersion: 0,
       });
@@ -1082,6 +1084,7 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: null,
+        gymSlug: null,
         role: Role.SUPER_ADMIN,
         tokenVersion: 0,
       });
@@ -1230,6 +1233,7 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9', {
         gymId: 'gym-riverside',
+        gymSlug: 'riverside',
         role: Role.TRAINER,
         tokenVersion: 0,
       });
@@ -1396,6 +1400,7 @@ describe('AuthService', () => {
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9', {
         gymId: 'gym-riverside',
+        gymSlug: 'riverside',
         role: Role.TRAINER,
         tokenVersion: 0,
       });

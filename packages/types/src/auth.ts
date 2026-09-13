@@ -113,6 +113,15 @@ export type RefreshInput = z.infer<typeof refreshSchema>;
 export const MEMBERSHIP_NOT_ACTIVE_CODE = 'MEMBERSHIP_NOT_ACTIVE';
 
 /**
+ * `403` code returned when an authenticated request arrives on one gym's
+ * subdomain carrying a session bound to a different gym (the access token's
+ * `gymSlug` claim disagrees with the tenant host). The web and admin servers
+ * answer it by clearing the session and sending the visitor to that host's
+ * sign-in, so they can pick up a session for the gym they are actually on.
+ */
+export const TENANT_MISMATCH_CODE = 'TENANT_MISMATCH';
+
+/**
  * Body for `POST /auth/forgot-password`. Email is normalised the same way
  * registration normalises it so the lookup matches the stored row. The endpoint
  * never reveals whether the address is registered — it always returns the same
