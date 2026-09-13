@@ -19,8 +19,7 @@ import { env } from '../config/env';
  *
  * `ADMIN_BASE_PATH` — the prefix the console is served under — is joined on in
  * both cases, because neither origin carries it. Without it the link lands one
- * directory above every console route and 404s, the regression the owner
- * onboarding link first shipped with (see `buildOwnerOnboardingUrl`).
+ * directory above every console route and 404s.
  */
 export function buildConsoleUrl(path: string, gymSlug?: string | null): string | undefined {
   const origin =

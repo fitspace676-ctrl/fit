@@ -31,8 +31,7 @@ export const envSchema = z.object({
   // link the API builds has to carry. **The default must match
   // `apps/admin/next.config.mjs`'s**, which is `/admin`: `ADMIN_URL` is a bare
   // origin everywhere it is set (see `.env.example`), so a link built from it
-  // alone lands one directory above every console route and 404s — which is
-  // exactly what the owner onboarding mail did on the first deploy. A console
+  // alone lands one directory above every console route and 404s. A console
   // genuinely served at the root sets this to `""`, an empty string rather than
   // nullish, which still wins over the default. Normalised to a leading slash
   // and no trailing one so the join below is a plain concatenation.
