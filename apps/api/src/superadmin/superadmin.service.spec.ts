@@ -490,7 +490,12 @@ describe('SuperAdminService', () => {
         ownerEmail: 'alex@example.com',
       });
       expect(signScopedAccessToken).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'owner-1', role: Role.OWNER, gymId: 'gym-1' }),
+        expect.objectContaining({
+          userId: 'owner-1',
+          role: Role.OWNER,
+          gymId: 'gym-1',
+          gymSlug: 'downtown',
+        }),
       );
       // Single use: the key is deleted as part of redeeming it.
       expect(redisDel).toHaveBeenCalledWith('impersonation:code-1');

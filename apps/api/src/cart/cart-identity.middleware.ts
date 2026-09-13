@@ -2,6 +2,7 @@ import { Injectable, type NestMiddleware } from '@nestjs/common';
 import { Role } from '@fit/db';
 import type { NextFunction, Response } from 'express';
 import { TokenService } from '../auth/token.service';
+import { assertSessionMatchesTenantHost } from '../common/tenant/assert-tenant-host';
 import { tenantStorage, type TenantState } from '../common/tenant/tenant.context';
 import { extractBearerToken, type RequestWithUser } from '../common/tenant/tenant.middleware';
 
@@ -46,6 +47,8 @@ export class CartIdentityMiddleware implements NestMiddleware {
 
     // Throws a 401 on any verification failure — propagated to the exception filter.
     const claims = this.tokens.verifyAccessToken(token);
+    // Same host check as the mandatory JWT middleware: another gym's session is a 403.
+    assertSessionMatchesTenantHost(req.headers, claims);
     const role = parseRole(claims.role) ?? Role.MEMBER;
     const rawGym = claims.gymId ?? claims.gym;
     const gymId = typeof rawGym === 'string' && rawGym.length > 0 ? rawGym : null;

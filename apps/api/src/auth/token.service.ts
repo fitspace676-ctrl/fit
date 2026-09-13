@@ -30,6 +30,12 @@ function base64urlDecode(segment: string): string {
 export interface SessionClaims {
   /** The gym this session is scoped to, or `null` for a platform account. */
   gymId: string | null;
+  /**
+   * That gym's subdomain slug, or `null` alongside a `null` `gymId`. Stamped so a
+   * request can be checked against the tenant host it arrived on without a
+   * database read (see `assertSessionMatchesTenantHost`).
+   */
+  gymSlug: string | null;
   /** The user's role in that gym (or `MEMBER` for a scopeless account). */
   role: Role;
   /** The user's session-invalidation counter at issuance (see `User.tokenVersion`). */
@@ -48,6 +54,8 @@ export interface AccessTokenClaims {
   tokenVersion: number;
   /** Gym the session is scoped to; omitted entirely for a platform account. */
   gymId?: string;
+  /** Subdomain slug of that gym; omitted alongside `gymId`. */
+  gymSlug?: string;
 }
 
 /**
@@ -72,6 +80,12 @@ export interface VerifiedAccessClaims {
   gymId?: string;
   /** Gym slug claim as minted by `fit token --gym <slug>`; alias for `gymId`. */
   gym?: string;
+  /**
+   * Subdomain slug of the session's gym, stamped by the API alongside `gymId`.
+   * Absent on platform sessions, CLI tokens, and tokens issued before the claim
+   * existed — which is why the host check it feeds treats absence as "no opinion".
+   */
+  gymSlug?: string;
   /** Remaining standard claims (`iat`, `exp`, `iss`, …) passed through verbatim. */
   [claim: string]: unknown;
 }
@@ -106,8 +120,8 @@ export class TokenService {
    * to the supplied {@link SessionClaims}. The `role` + `gymId` (+ `tokenVersion`)
    * claims are what the {@link TenantMiddleware} reads to bind the request to a
    * gym and role — without them every request would resolve to the unscoped
-   * default (`MEMBER`, no gym), which is exactly the gap this closes. `gymId` is
-   * omitted from the payload for a platform account (`gymId: null`).
+   * default (`MEMBER`, no gym), which is exactly the gap this closes. `gymId` and
+   * `gymSlug` are each omitted from the payload when `null` (a platform account).
    */
   signAccessToken(
     userId: string,
@@ -122,6 +136,7 @@ export class TokenService {
       role: claims.role,
       tokenVersion: claims.tokenVersion,
       ...(claims.gymId ? { gymId: claims.gymId } : {}),
+      ...(claims.gymSlug ? { gymSlug: claims.gymSlug } : {}),
       iat: issuedAt,
       exp: issuedAt + env.JWT_ACCESS_TTL,
       iss: env.JWT_ISSUER,
@@ -141,7 +156,7 @@ export class TokenService {
    * impersonation token can be far shorter-lived than a normal session.
    */
   signScopedAccessToken(
-    params: { userId: string; role: Role; gymId: string; ttlSeconds: number },
+    params: { userId: string; role: Role; gymId: string; gymSlug: string; ttlSeconds: number },
     issuedAt: number = Math.floor(Date.now() / 1000),
   ): string {
     const secret = this.requireSecret();
@@ -151,6 +166,7 @@ export class TokenService {
       type: 'access' as const,
       role: params.role,
       gymId: params.gymId,
+      gymSlug: params.gymSlug,
       iat: issuedAt,
       exp: issuedAt + params.ttlSeconds,
       iss: env.JWT_ISSUER,
