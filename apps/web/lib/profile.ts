@@ -6,6 +6,7 @@
 
 import { cookies } from 'next/headers';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
+import { tenantHeaders } from './tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -26,7 +27,11 @@ export async function fetchMyProfile({
   }
   try {
     const response = await fetch(`${API_URL}/me/profile`, {
-      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      headers: {
+        ...(await tenantHeaders()),
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
       cache: 'no-store',
       signal,
     });

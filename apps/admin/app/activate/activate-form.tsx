@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Banner, Button, Field, Form, spacing } from '@fit/ui-kit';
 import { PASSWORD_MIN_LENGTH, type ActivateAccountResponse } from '@fit/types';
+import { browserTenantHeaders } from '@/lib/tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -66,7 +67,7 @@ export function ActivateForm() {
         try {
           const response = await fetch(`${API_URL}/auth/activate`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ token, password }),
           });
           if (!response.ok) {

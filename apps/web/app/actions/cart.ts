@@ -11,6 +11,7 @@ import { cookies } from 'next/headers';
 import type { CartView } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { parseCartView } from '@/lib/cart';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -38,6 +39,7 @@ async function cartRequest(
   const response = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
+      ...(await tenantHeaders()),
       Accept: 'application/json',
       Authorization: `Bearer ${t}`,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -90,6 +92,7 @@ export async function checkoutCartAction(
   const response = await fetch(`${API_URL}/cart/checkout`, {
     method: 'POST',
     headers: {
+      ...(await tenantHeaders()),
       Accept: 'application/json',
       Authorization: `Bearer ${t}`,
       'Content-Type': 'application/json',

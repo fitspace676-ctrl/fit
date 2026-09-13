@@ -8,11 +8,7 @@
 // rather than duplicated per app.
 
 import { RESERVED_SUBDOMAINS } from '@fit/types';
-
-/** Strip a trailing `:port` and any `x-forwarded-host` list, then normalise. */
-function normaliseHostname(host: string): string {
-  return host.split(',')[0]!.split(':')[0]!.trim().toLowerCase();
-}
+import { gymSlugFromHost } from './tenant-host-edge';
 
 /**
  * Recover the gym slug from a request `Host`, given the platform root domain.
@@ -31,27 +27,7 @@ export function extractGymSlug(
   host: string | null | undefined,
   rootDomain: string | null | undefined,
 ): string | null {
-  if (!host || !rootDomain) {
-    return null;
-  }
-  const hostname = normaliseHostname(host);
-  const root = normaliseHostname(rootDomain);
-  if (!hostname || !root || hostname === root) {
-    return null;
-  }
-
-  const suffix = `.${root}`;
-  if (!hostname.endsWith(suffix)) {
-    return null;
-  }
-
-  const label = hostname.slice(0, -suffix.length);
-  // Empty (bare root domain), multi-level (`a.b.fit.ge`), or a reserved platform
-  // label is never a tenant.
-  if (!label || label.includes('.') || RESERVED_SUBDOMAINS.includes(label)) {
-    return null;
-  }
-  return label;
+  return gymSlugFromHost(host, rootDomain, RESERVED_SUBDOMAINS);
 }
 
 /**

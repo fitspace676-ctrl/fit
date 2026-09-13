@@ -14,6 +14,7 @@ import {
   type CreditPackSummary,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
+import { tenantHeaders } from './tenant-headers';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -33,7 +34,11 @@ export async function fetchMyCreditPacks({ signal }: { signal?: AbortSignal } = 
 
   const response = await fetch(`${API_URL}/members/me/credit-packs`, {
     method: 'GET',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    headers: {
+      ...(await tenantHeaders()),
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     cache: 'no-store',
     signal,
   });
@@ -71,7 +76,11 @@ export async function fetchCreditPackCatalogue({ signal }: { signal?: AbortSigna
 
   const response = await fetch(`${API_URL}/credit-packs/catalogue`, {
     method: 'GET',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    headers: {
+      ...(await tenantHeaders()),
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     cache: 'no-store',
     signal,
   });

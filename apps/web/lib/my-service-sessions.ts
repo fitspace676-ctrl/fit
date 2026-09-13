@@ -7,6 +7,7 @@
 import { cookies } from 'next/headers';
 import { listMemberServiceSessionsResultSchema, type MemberServiceSession } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
+import { tenantHeaders } from './tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -20,7 +21,11 @@ export async function fetchMyServiceSessions(): Promise<MemberServiceSession[]> 
   if (!token) return [];
   const response = await fetch(`${API_URL}/me/service-sessions`, {
     method: 'GET',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    headers: {
+      ...(await tenantHeaders()),
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     cache: 'no-store',
   });
   if (response.status === 401 || response.status === 403) return [];
