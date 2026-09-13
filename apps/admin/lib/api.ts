@@ -251,11 +251,11 @@ import type {
   ListRedemptionsQuery,
   ListRedemptionsResponse,
 } from '@fit/types';
-import { reportQueryParams } from '@fit/types';
+import { TENANT_MISMATCH_CODE, reportQueryParams } from '@fit/types';
 import { redirect } from 'next/navigation';
 import { pickSessionToken } from './auth-session';
 import { tenantHeaders } from './tenant-headers';
-import { TENANT_MISMATCH_CODE, TENANT_MISMATCH_REASON } from './tenant-host';
+import { TENANT_MISMATCH_REASON } from './tenant-host';
 
 /** Base URL of the @fit/api backend. Defaults to the local dev API. */
 function apiBaseUrl(): string {

@@ -10,8 +10,9 @@ import { TENANT_HOST_HEADER, extractGymSlugEdge, requestHost } from '@fit/utils/
 
 export { isTenantMismatch } from '@fit/utils/tenant-host-edge';
 
-/** The error code the API answers `403` with when a session meets another gym's host. */
-export const TENANT_MISMATCH_CODE = 'TENANT_MISMATCH';
+// The `403` code itself (`TENANT_MISMATCH_CODE`) comes from `@fit/types`, which
+// `lib/api.ts` imports; it is not re-exported here because this module is in the
+// Edge middleware bundle, where that barrel does not belong.
 
 /**
  * `?reason=` value on `/login` meaning "your session belongs to another gym".
