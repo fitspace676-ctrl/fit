@@ -12,6 +12,7 @@ import {
   type ClassInstanceCard,
   type ClassInstanceDetail,
 } from '@fit/types';
+import { browserTenantHeaders } from './tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -49,7 +50,7 @@ export async function fetchClassInstances({
 
   const response = await fetch(`${API_URL}/class-instances?${params.toString()}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { ...browserTenantHeaders(), Accept: 'application/json' },
     signal,
   });
 
@@ -90,7 +91,7 @@ export async function fetchClassInstance({
     `${API_URL}/class-instances/${encodeURIComponent(id)}?${params.toString()}`,
     {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: { ...browserTenantHeaders(), Accept: 'application/json' },
       signal,
     },
   );

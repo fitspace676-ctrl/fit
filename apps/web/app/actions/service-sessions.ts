@@ -7,6 +7,7 @@
 import { cookies } from 'next/headers';
 import { bookServiceSessionResultSchema, type BookServiceSessionResult } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -21,7 +22,11 @@ export async function bookServiceSessionAction(
   }
   const response = await fetch(`${API_URL}/me/service-sessions/${encodeURIComponent(id)}/book`, {
     method: 'POST',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+    headers: {
+      ...(await tenantHeaders()),
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     cache: 'no-store',
   });
   const body = (await response.json().catch(() => null)) as unknown;

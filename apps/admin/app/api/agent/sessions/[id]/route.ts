@@ -6,6 +6,7 @@
 
 import { cookies } from 'next/headers';
 import { pickSessionToken } from '@/lib/auth-session';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,7 +46,7 @@ export async function GET(_req: Request, { params }: Ctx): Promise<Response> {
   if (!t) return unauthorized();
   const { id } = await params;
   const res = await fetch(`${apiBaseUrl()}/agent/sessions/${encodeURIComponent(id)}`, {
-    headers: { authorization: `Bearer ${t}` },
+    headers: { ...(await tenantHeaders()), authorization: `Bearer ${t}` },
     cache: 'no-store',
   });
   return relay(res);
@@ -59,7 +60,11 @@ export async function PUT(req: Request, { params }: Ctx): Promise<Response> {
   const body = await req.text();
   const res = await fetch(`${apiBaseUrl()}/agent/sessions/${encodeURIComponent(id)}`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${t}` },
+    headers: {
+      ...(await tenantHeaders()),
+      'content-type': 'application/json',
+      authorization: `Bearer ${t}`,
+    },
     body,
     cache: 'no-store',
   });
@@ -73,7 +78,7 @@ export async function DELETE(_req: Request, { params }: Ctx): Promise<Response> 
   const { id } = await params;
   const res = await fetch(`${apiBaseUrl()}/agent/sessions/${encodeURIComponent(id)}`, {
     method: 'DELETE',
-    headers: { authorization: `Bearer ${t}` },
+    headers: { ...(await tenantHeaders()), authorization: `Bearer ${t}` },
     cache: 'no-store',
   });
   return new Response(null, { status: res.status === 204 ? 204 : res.status });

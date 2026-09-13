@@ -9,6 +9,7 @@
 import { cookies } from 'next/headers';
 import { pickSessionToken } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 export const runtime = 'nodejs';
 // The stream must flush incrementally; never statically cache or buffer it.
@@ -35,7 +36,11 @@ export async function POST(request: Request): Promise<Response> {
   const body = await request.text();
   const upstream = await fetch(`${apiBaseUrl()}/agent/chat`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    headers: {
+      ...(await tenantHeaders()),
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
     body,
   });
 

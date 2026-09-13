@@ -6,6 +6,7 @@
 // which is server-only (it reads the session cookie).
 
 import { listServiceSlotsResultSchema, type ServiceSlot } from '@fit/types';
+import { browserTenantHeaders } from './tenant-host';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -29,7 +30,7 @@ export async function fetchServiceSlots({
   const params = new URLSearchParams({ gymId, serviceId, from, to });
   const response = await fetch(`${API_URL}/service-sessions?${params.toString()}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { ...browserTenantHeaders(), Accept: 'application/json' },
     cache: 'no-store',
     signal,
   });

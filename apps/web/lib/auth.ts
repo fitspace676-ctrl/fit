@@ -8,6 +8,7 @@
 // token therefore never lives anywhere client JS can read it.
 
 import { extractGymSlug } from '@fit/utils';
+import { browserTenantHeaders } from './tenant-host';
 
 /**
  * The headers every account request carries. `Accept-Language` is the interface
@@ -17,9 +18,11 @@ import { extractGymSlug } from '@fit/utils';
  */
 function accountHeaders(): Record<string, string> {
   const lang = typeof document !== 'undefined' ? document.documentElement.lang : '';
-  return lang
-    ? { 'Content-Type': 'application/json', 'Accept-Language': lang }
-    : { 'Content-Type': 'application/json' };
+  return {
+    'Content-Type': 'application/json',
+    ...browserTenantHeaders(),
+    ...(lang ? { 'Accept-Language': lang } : {}),
+  };
 }
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
@@ -60,7 +63,7 @@ export interface TokenPair {
 export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/google`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken }),
   });
 
@@ -85,7 +88,7 @@ export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
 export async function loginWithApple(idToken: string, name?: string): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/apple`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify(name ? { idToken, name } : { idToken }),
   });
 
@@ -142,7 +145,7 @@ export async function loginWithCredentials(
   const gymSlug = currentGymSlug();
   const response = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
       email,
       password,
@@ -193,7 +196,7 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
 export async function resetPassword(token: string, password: string): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/reset-password`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, password }),
   });
 

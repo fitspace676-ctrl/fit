@@ -7,6 +7,7 @@
 // final payment step, not the browse).
 
 import { locationSummarySchema, type LocationSummary } from '@fit/types';
+import { tenantHeaders } from './tenant-headers';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -31,7 +32,7 @@ export async function fetchLocations({
 
   const response = await fetch(`${API_URL}/locations?${params.toString()}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { ...(await tenantHeaders()), Accept: 'application/json' },
     signal,
   });
 

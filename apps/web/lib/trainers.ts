@@ -11,6 +11,7 @@ import {
   type TrainerCard,
   type TrainerDetail,
 } from '@fit/types';
+import { browserTenantHeaders } from './tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -32,7 +33,7 @@ export async function fetchTrainers({ gymId, signal }: FetchTrainersArgs): Promi
 
   const response = await fetch(`${API_URL}/trainers?${params.toString()}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { ...browserTenantHeaders(), Accept: 'application/json' },
     signal,
   });
 
@@ -72,7 +73,7 @@ export async function fetchTrainer({
     `${API_URL}/trainers/${encodeURIComponent(id)}?${params.toString()}`,
     {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: { ...browserTenantHeaders(), Accept: 'application/json' },
       signal,
     },
   );

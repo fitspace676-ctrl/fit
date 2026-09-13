@@ -15,6 +15,7 @@ import {
   type TokenPair,
 } from '@fit/types';
 import { storeTokens } from './auth';
+import { browserTenantHeaders } from './tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -75,7 +76,7 @@ export async function fetchSignupCatalogue({
   if (locationId) params.set('locationId', locationId);
 
   const response = await fetch(`${API_URL}/catalogue?${params.toString()}`, {
-    headers: { Accept: 'application/json' },
+    headers: { ...browserTenantHeaders(), Accept: 'application/json' },
     signal,
   });
   if (!response.ok) {
@@ -99,6 +100,7 @@ export async function signupMember(input: MemberSignupInput): Promise<TokenPair>
     method: 'POST',
     // The interface language, so the verification email matches the screen.
     headers: {
+      ...browserTenantHeaders(),
       'Content-Type': 'application/json',
       ...(typeof document !== 'undefined' && document.documentElement.lang
         ? { 'Accept-Language': document.documentElement.lang }

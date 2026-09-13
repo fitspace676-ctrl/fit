@@ -7,6 +7,7 @@
 
 import { cookies } from 'next/headers';
 import { pickSessionToken } from '@/lib/auth-session';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,7 @@ export async function GET(): Promise<Response> {
     });
   }
   const res = await fetch(`${apiBaseUrl()}/agent/sessions`, {
-    headers: { authorization: `Bearer ${token}` },
+    headers: { ...(await tenantHeaders()), authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
   return new Response(res.body, {

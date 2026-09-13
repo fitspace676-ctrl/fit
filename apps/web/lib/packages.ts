@@ -8,6 +8,7 @@
 // the browse).
 
 import { packageSummarySchema, type PackageSummary } from '@fit/types';
+import { browserTenantHeaders } from './tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -39,7 +40,7 @@ export async function fetchPackages({
 
   const response = await fetch(`${API_URL}/packages?${params.toString()}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { ...browserTenantHeaders(), Accept: 'application/json' },
     signal,
   });
 

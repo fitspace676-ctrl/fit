@@ -15,6 +15,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { tenantHeaders } from '@/lib/tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const response = await fetch(`${API_URL}/checkout`, {
     method: 'POST',
     headers: {
+      ...(await tenantHeaders()),
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',

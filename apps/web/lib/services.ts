@@ -6,6 +6,7 @@
 // active subdomain.
 
 import { serviceCardSchema, type ServiceCard } from '@fit/types';
+import { browserTenantHeaders } from './tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -24,7 +25,7 @@ export async function fetchServices({ gymId, signal }: FetchServicesArgs): Promi
   const params = new URLSearchParams({ gymId });
   const response = await fetch(`${API_URL}/services?${params.toString()}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { ...browserTenantHeaders(), Accept: 'application/json' },
     signal,
     cache: 'no-store',
   });
