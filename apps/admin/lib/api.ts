@@ -255,7 +255,10 @@ import type {
   ListRedemptionsResponse,
 } from '@fit/types';
 import { reportQueryParams } from '@fit/types';
+import { redirect } from 'next/navigation';
 import { pickSessionToken } from './auth-session';
+import { tenantHeaders } from './tenant-headers';
+import { TENANT_MISMATCH_CODE, TENANT_MISMATCH_REASON } from './tenant-host';
 
 /** Base URL of the @fit/api backend. Defaults to the local dev API. */
 function apiBaseUrl(): string {
@@ -274,6 +277,10 @@ async function authHeaders(): Promise<Record<string, string>> {
   const token = pickSessionToken((name) => jar.get(name)?.value);
   return {
     ...(token ? { authorization: `Bearer ${token.value}` } : {}),
+    // The gym whose host this console is served on. The API is reached at its
+    // own host, so this is the only way it can tell a session from one gym is
+    // being used on another's (`403 TENANT_MISMATCH`, handled in `unwrap`).
+    ...(await tenantHeaders()),
     // The interface language the reader is using, so anything the API writes
     // in words (report names, column headings, "No plan") comes back in it.
     'accept-language': await requestLanguage(),
@@ -311,6 +318,14 @@ async function unwrap<T>(res: Response): Promise<T> {
     code = body.code ?? body.message ?? code;
   } catch {
     // Non-JSON error body — keep the synthetic code.
+  }
+  // The session belongs to a different gym than the host it was used on. No
+  // screen can recover from that, so every caller gets the same answer: back to
+  // the sign-in, whose middleware clears the stale cookies on this `reason`.
+  // `middleware.ts` catches the same mismatch before a page renders; this is the
+  // backstop for when only the API could tell.
+  if (res.status === 403 && code === TENANT_MISMATCH_CODE) {
+    redirect(`/login?reason=${TENANT_MISMATCH_REASON}`);
   }
   throw new ApiError(res.status, code);
 }

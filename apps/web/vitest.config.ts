@@ -43,7 +43,14 @@ export default defineConfig({
     environment: 'node',
     environmentMatchGlobs: [['src/**/*.test.tsx', 'jsdom']],
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.spec.ts', 'lib/**/*.spec.ts', 'app/**/*.spec.ts', 'src/**/*.test.tsx'],
+    include: [
+      'src/**/*.spec.ts',
+      'lib/**/*.spec.ts',
+      'app/**/*.spec.ts',
+      'src/**/*.test.tsx',
+      // The auth gate itself — session, refresh and wrong-gym purge.
+      'middleware.spec.ts',
+    ],
     exclude: ['node_modules/**', '.next/**'],
   },
 });

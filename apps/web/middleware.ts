@@ -1,7 +1,9 @@
 import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isTenantMismatch } from '@fit/utils/tenant-host-edge';
 import { ACCESS_TOKEN_COOKIE, verifyAccessToken, type Session } from '@/lib/auth-session';
+import { clearSessionCookies } from '@/lib/session-cookies';
 import {
   REFRESH_TOKEN_COOKIE,
   isNavigationRequest,
@@ -9,6 +11,7 @@ import {
   setSessionCookies,
   type RefreshedTokens,
 } from '@/lib/session-refresh';
+import { requestGymSlug, resolveTenantHost } from '@/lib/tenant-host';
 import { isLocale } from '@fit/i18n';
 import type { Locale } from '@fit/i18n';
 import { routing } from '@/src/i18n/routing';
@@ -23,6 +26,16 @@ import { routing } from '@/src/i18n/routing';
  * protected route is redirected to `/<locale>/login?from=<original path>` so
  * the user lands back where they were after signing in. Verification is the
  * HS256 check the API uses — when `JWT_SECRET` is unset the gate fails closed.
+ *
+ * **A session only counts on its own gym's host.** A token carrying a `gymSlug`
+ * that differs from the slug this request's host names is treated as no session
+ * at all, and its cookies are cleared on the way out — so a protected page
+ * bounces to this host's sign-in, and a public one renders signed-out. The
+ * cookies are host-only now, so this is mostly the purge of parent-domain
+ * sessions set before that change; it is also what stops a session minted for
+ * one gym from ever rendering another gym's portal. Clearing instead of
+ * redirecting on public paths is deliberate: the sign-in page is one of them,
+ * and a cookie the browser refuses to drop must not turn it into a loop.
  */
 
 const handleI18nRouting = createMiddleware(routing);
@@ -83,15 +96,34 @@ function loginPath(locale: Locale): string {
   return `/${locale}${MEMBER_BASE_PATH}/login`;
 }
 
-/** Attach any freshly-refreshed cookies to an outgoing response before returning it. */
-function withRefreshed(res: NextResponse, refreshed: RefreshedTokens | null): NextResponse {
-  if (refreshed) setSessionCookies(res, refreshed);
+/** What this request did to the session cookies, to be written onto the response. */
+interface SessionOutcome {
+  /** A pair minted from the refresh cookie on this request. */
+  refreshed: RefreshedTokens | null;
+  /** The cookies hold another gym's session and must be cleared. */
+  purge: boolean;
+}
+
+/**
+ * Write the session outcome onto an outgoing response before returning it.
+ * Always the LAST thing done to a response: both branches append raw legacy
+ * `Set-Cookie` headers that a later `res.cookies.set` would drop.
+ */
+function finish(res: NextResponse, outcome: SessionOutcome): NextResponse {
+  if (outcome.purge) {
+    clearSessionCookies(res);
+  } else if (outcome.refreshed) {
+    setSessionCookies(res, outcome.refreshed);
+  }
   return res;
 }
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname, search } = req.nextUrl;
   const { locale, rest } = splitLocale(pathname);
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  const host = req.headers.get('host');
+  const hostGymSlug = requestGymSlug(forwardedHost, host);
 
   // Resolve the session from the access-token cookie. If it's missing/expired,
   // silently mint a fresh one from the refresh cookie — but only on a genuine
@@ -100,14 +132,27 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const secret = process.env.JWT_SECRET;
   const token = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   let session = token && secret ? await verifyAccessToken(token, secret) : null;
-  let refreshed: RefreshedTokens | null = null;
-  if (!session && secret && isNavigationRequest(req)) {
+  const outcome: SessionOutcome = { refreshed: null, purge: false };
+
+  // Another gym's session: not a session here. Its refresh token would only mint
+  // another token for that same gym, so there is no point spending it either.
+  if (session && isTenantMismatch(session.gymSlug, hostGymSlug)) {
+    session = null;
+    outcome.purge = true;
+  }
+
+  if (!session && !outcome.purge && secret && isNavigationRequest(req)) {
     const refreshToken = req.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
     if (refreshToken) {
-      const pair = await refreshTokens(refreshToken);
+      const pair = await refreshTokens(refreshToken, resolveTenantHost(forwardedHost, host));
       if (pair) {
-        session = await verifyAccessToken(pair.accessToken, secret);
-        if (session) refreshed = pair;
+        const renewed = await verifyAccessToken(pair.accessToken, secret);
+        if (renewed && isTenantMismatch(renewed.gymSlug, hostGymSlug)) {
+          outcome.purge = true;
+        } else if (renewed) {
+          session = renewed;
+          outcome.refreshed = pair;
+        }
       }
     }
   }
@@ -125,12 +170,12 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     const target = req.nextUrl.clone();
     target.search = '';
     target.pathname = session ? dashboardPath(session, locale) : loginPath(locale);
-    return withRefreshed(NextResponse.redirect(target), refreshed);
+    return finish(NextResponse.redirect(target), outcome);
   }
 
   // Public routes render without a session (but still carry a refreshed cookie).
   if (isPublicPath(rest)) {
-    return withRefreshed(handleI18nRouting(req), refreshed);
+    return finish(handleI18nRouting(req), outcome);
   }
 
   if (!session) {
@@ -138,10 +183,10 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     loginUrl.pathname = loginPath(locale);
     loginUrl.search = '';
     loginUrl.searchParams.set('from', `${pathname}${search}`);
-    return NextResponse.redirect(loginUrl);
+    return finish(NextResponse.redirect(loginUrl), outcome);
   }
 
-  return withRefreshed(handleI18nRouting(req), refreshed);
+  return finish(handleI18nRouting(req), outcome);
 }
 
 export const config = {
