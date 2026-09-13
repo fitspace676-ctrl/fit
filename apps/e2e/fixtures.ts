@@ -41,15 +41,29 @@ export async function disconnectFixtures(): Promise<void> {
 /** The gym the member portal is driven against — seeded by `pnpm db:seed`. */
 const GYM_SLUG = 'downtown';
 
-/** Resolve the seeded `downtown` gym's id, or fail loudly if the seed is absent. */
-async function downtownGymId(): Promise<string> {
-  const gym = await prisma.gym.findUnique({ where: { slug: GYM_SLUG }, select: { id: true } });
+/**
+ * The seed's shared dev password and its argon2id hash (`DEV_PASSWORD_HASH` in
+ * `packages/db/prisma/seed.ts`), so a fixture account can sign in without going
+ * through registration — and without an argon2 dependency here.
+ */
+export const DEV_PASSWORD = 'Test1234!';
+const DEV_PASSWORD_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$jCGqxpstwpznNArLCpqm2A$nrUjuzLd6+rpCm7GP/sDQoVxyVI3e2/OoLtieTHsBq8';
+
+/** Resolve a seeded gym's id by slug, or fail loudly if the seed is absent. */
+export async function gymIdBySlug(slug: string): Promise<string> {
+  const gym = await prisma.gym.findUnique({ where: { slug }, select: { id: true } });
   if (!gym) {
     throw new Error(
-      `Fixture setup: gym "${GYM_SLUG}" not found. Run \`pnpm db:migrate && pnpm db:seed\` first.`,
+      `Fixture setup: gym "${slug}" not found. Run \`pnpm db:migrate && pnpm db:seed\` first.`,
     );
   }
   return gym.id;
+}
+
+/** Resolve the seeded `downtown` gym's id. */
+function downtownGymId(): Promise<string> {
+  return gymIdBySlug(GYM_SLUG);
 }
 
 /** `n` days from now, preserving the current time-of-day. */
@@ -199,4 +213,62 @@ export async function provisionMember(email: string, gymId: string): Promise<voi
       },
     });
   }
+}
+
+/**
+ * A signed-in-able member of several gyms at once, for the tenant-isolation E2E:
+ * a verified account (the seed's dev password) with an ACTIVE `MEMBER` row in
+ * each of `gymSlugs`. `joinedAt` is staggered in list order, so the FIRST slug is
+ * the account's primary gym (the one `resolveSessionScope` falls back to) and
+ * every later one is a gym a session only lands on because it was asked for.
+ * Idempotent.
+ */
+export async function provisionMultiGymMember(email: string, gymSlugs: string[]): Promise<void> {
+  const user = await prisma.user.upsert({
+    where: { email },
+    update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+    create: {
+      email,
+      name: `E2E Tenant Member`,
+      passwordHash: DEV_PASSWORD_HASH,
+      emailVerifiedAt: new Date(),
+    },
+  });
+
+  const now = Date.now();
+  for (const [index, slug] of gymSlugs.entries()) {
+    const gymId = await gymIdBySlug(slug);
+    // A day apart, oldest first — the order is the whole point of the fixture.
+    const joinedAt = new Date(now - (gymSlugs.length - index) * 24 * 60 * 60 * 1000);
+    await prisma.gymMember.upsert({
+      where: { userId_gymId: { userId: user.id, gymId } },
+      update: { status: 'ACTIVE', role: 'MEMBER', joinedAt },
+      create: { userId: user.id, gymId, role: 'MEMBER', status: 'ACTIVE', joinedAt },
+    });
+  }
+}
+
+/**
+ * One sellable product in the gym `gymSlug`, returned with the cart variant
+ * reference (`<productId>:base`, see `encodeVariantRef` in `@fit/types`) the cart
+ * API adds it by. The cart resolves variants inside the request's tenant only, so
+ * the same reference is a hit on its own gym's host and a `404` on any other.
+ */
+export async function seedTenantProduct(
+  gymSlug: string,
+  runId: number,
+): Promise<{ gymId: string; productId: string; variantRef: string }> {
+  const gymId = await gymIdBySlug(gymSlug);
+  const product = await prisma.product.create({
+    data: {
+      gymId,
+      name: `E2E Tenant Product ${gymSlug} ${runId}`,
+      description: 'Tenant-isolation E2E fixture.',
+      priceAmount: 1000,
+      currency: 'GEL',
+      status: 'ACTIVE',
+      variants: [],
+    },
+  });
+  return { gymId, productId: product.id, variantRef: `${product.id}:base` };
 }

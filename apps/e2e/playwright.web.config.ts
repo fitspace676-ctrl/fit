@@ -40,10 +40,12 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: './tests',
-  // Only the member suite — the admin suite is the sibling config.
-  testMatch: /member-booking-checkout\.spec\.ts/,
-  // Steps are interdependent (register → sign in → book → shop), so they run in
-  // order and stop on the first failure.
+  // Only the member suites — the admin suite is the sibling config. The tenant
+  // isolation suite also drives `riverside.localhost`, `app.localhost` and an
+  // unknown label on the same port, and calls the API directly.
+  testMatch: /member-(booking-checkout|tenant-isolation)\.spec\.ts/,
+  // Booking steps are interdependent (register → sign in → book → shop), so they
+  // run in order and stop on the first failure.
   fullyParallel: false,
   workers: 1,
   forbidOnly: isCI,
