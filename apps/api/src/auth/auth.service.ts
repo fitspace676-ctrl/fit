@@ -43,7 +43,7 @@ import { RedisService } from '../redis/redis.service';
 import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
-import { TokenService, type SessionClaims } from './token.service';
+import { TokenService, invalidRefreshToken, type SessionClaims } from './token.service';
 import { syncTrainerProfile, type TrainerSyncClient } from '../staff/trainer-profile-sync';
 
 /** Redis key namespace for one-time email-verification tokens. */
@@ -839,18 +839,50 @@ export class AuthService {
    * suspension takes effect on the member's next refresh (their short-lived
    * access token expires shortly after). The presented token is left untouched
    * when blocked — reactivating the gym lets the same token refresh again.
+   *
+   * The session stays on the gym it was issued for. A refresh token pinned to a
+   * gym re-resolves scope *within that gym* — never the user's primary one — so a
+   * member signed in on `riverside` is still on riverside after a refresh. When
+   * that is no longer possible the refresh is refused: the gym suspended is
+   * `403 GYM_SUSPENDED` (as before), the membership gone or no longer active, or
+   * the gym deleted, is the ordinary `401 REFRESH_TOKEN_INVALID`, sending the
+   * client back to sign in. An unpinned token (a platform session, or one issued
+   * before the pin existed) keeps the old behaviour, with `tenantSlug` — the
+   * tenant host the refresh arrived on — choosing among the user's gyms the way
+   * a subdomain sign-in does.
    */
-  async refresh(input: RefreshInput): Promise<TokenPair> {
-    const userId = await this.tokens.userIdForRefreshToken(input.refreshToken);
-    if (userId) {
-      await this.assertGymAccessNotSuspended(userId);
+  async refresh(input: RefreshInput, tenantSlug?: string | null): Promise<TokenPair> {
+    const session = await this.tokens.sessionForRefreshToken(input.refreshToken);
+    if (!session) {
+      // Unknown / revoked / expired: the rotation rejects it (running reuse
+      // detection on a revoked one) before these placeholder claims are signed.
+      return this.tokens.rotateRefreshToken(input.refreshToken, {
+        gymId: null,
+        gymSlug: null,
+        role: Role.MEMBER,
+        tokenVersion: 0,
+      });
     }
+
     // Re-resolve scope so a role change or gym suspension since the last refresh
-    // takes effect now. For an unknown/expired token `userId` is null and the
-    // rotation below rejects it before these placeholder claims are ever signed.
-    const scope: SessionClaims = userId
-      ? await this.resolveSessionScope(userId)
-      : { gymId: null, gymSlug: null, role: Role.MEMBER, tokenVersion: 0 };
+    // takes effect now.
+    const { userId, gymId: pinnedGymId } = session;
+    if (pinnedGymId) {
+      const pinned = await this.prisma.client.gym.findUnique({
+        where: { id: pinnedGymId },
+        select: { slug: true },
+      });
+      if (!pinned) {
+        throw invalidRefreshToken();
+      }
+      await this.assertGymAccessNotSuspended(userId, pinned.slug);
+      const scope = await this.resolveSessionScope(userId, pinned.slug, { pinned: true });
+      return this.tokens.rotateRefreshToken(input.refreshToken, scope);
+    }
+
+    const gymSlug = tenantSlug ?? undefined;
+    await this.assertGymAccessNotSuspended(userId, gymSlug);
+    const scope = await this.resolveSessionScope(userId, gymSlug);
     return this.tokens.rotateRefreshToken(input.refreshToken, scope);
   }
 
@@ -885,11 +917,16 @@ export class AuthService {
    *
    * Re-resolved on every refresh, so a role change or gym suspension takes effect
    * within one access-token lifetime rather than only at the next full login.
-   * (Refresh carries no subdomain, so it re-pins to the primary gym; a subdomain
-   * session is therefore refreshed from the same subdomain — acceptable until an
-   * explicit gym claim is threaded through refresh.)
+   * A refresh passes the slug of the gym its token is pinned to with
+   * `pinned: true`, which turns "not a member there" from a silent fallback to
+   * the primary gym into `401 REFRESH_TOKEN_INVALID`: a session must never
+   * change gyms on its own.
    */
-  private async resolveSessionScope(userId: string, gymSlug?: string): Promise<SessionClaims> {
+  private async resolveSessionScope(
+    userId: string,
+    gymSlug?: string,
+    options: { pinned?: boolean } = {},
+  ): Promise<SessionClaims> {
     const [user, memberships] = await Promise.all([
       this.prisma.client.user.findUnique({
         where: { id: userId },
@@ -925,6 +962,11 @@ export class AuthService {
       const onSubdomain = active.find(bySlug(gymSlug));
       if (onSubdomain) {
         return scopeOf(onSubdomain);
+      }
+      if (options.pinned) {
+        // The session's own gym, and the user is no longer an active member of
+        // it (or the gym is not active). Refuse rather than move gyms.
+        throw invalidRefreshToken();
       }
       // Asked for a gym and didn't get it. Either the user has no membership
       // there (fall through to the primary, as before) or they have one that

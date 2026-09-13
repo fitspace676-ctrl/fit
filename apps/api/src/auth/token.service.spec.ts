@@ -46,6 +46,7 @@ function nowSeconds(): number {
 interface StoredRefreshToken {
   id: string;
   userId: string;
+  gymId: string | null;
   familyId: string;
   deviceFingerprint: string | null;
   revokedAt: Date | null;
@@ -56,6 +57,7 @@ function storedToken(overrides: Partial<StoredRefreshToken> = {}): StoredRefresh
   return {
     id: 'rt-1',
     userId: 'user-1',
+    gymId: 'gym-1',
     familyId: 'fam-1',
     deviceFingerprint: 'device-xyz',
     revokedAt: null,
@@ -228,11 +230,26 @@ describe('TokenService', () => {
       const { data } = refreshToken.create.mock.calls[0]![0];
       expect(data.userId).toBe('user-1');
       expect(data.deviceFingerprint).toBe('device-xyz');
+      // Pinned to the gym the session is scoped to.
+      expect(data.gymId).toBe('gym-1');
       // Only the hash is persisted — never the plaintext refresh secret.
       expect(data.tokenHash).toBe(hashRefreshToken(pair.refreshToken));
       expect(data.tokenHash).not.toBe(pair.refreshToken);
       expect(typeof data.familyId).toBe('string');
       expect(data.expiresAt).toBeInstanceOf(Date);
+    });
+
+    it('persists no gym pin for a platform session', async () => {
+      const { service, refreshToken } = setup();
+
+      await service.issueTokenPair('admin-1', {
+        gymId: null,
+        gymSlug: null,
+        role: Role.SUPER_ADMIN,
+        tokenVersion: 0,
+      });
+
+      expect(refreshToken.create.mock.calls[0]![0].data.gymId).toBeNull();
     });
 
     it('throws ServiceUnavailable (and persists nothing) when unconfigured', async () => {
@@ -270,6 +287,8 @@ describe('TokenService', () => {
       const { data } = refreshToken.create.mock.calls[0]![0];
       expect(data.familyId).toBe('fam-1');
       expect(data.userId).toBe('user-1');
+      // The successor carries the pin of the scope it was minted for.
+      expect(data.gymId).toBe('gym-1');
       expect(data.tokenHash).toBe(hashRefreshToken(pair.refreshToken));
 
       // The successor access token carries the re-resolved session scope.
@@ -450,27 +469,41 @@ describe('TokenService', () => {
     });
   });
 
-  describe('userIdForRefreshToken', () => {
-    it('returns the owner of a live token', async () => {
+  describe('sessionForRefreshToken', () => {
+    it('returns the owner and gym pin of a live token', async () => {
       const { service, refreshToken } = setup();
-      refreshToken.findUnique.mockResolvedValue(storedToken({ userId: 'user-7' }));
+      refreshToken.findUnique.mockResolvedValue(
+        storedToken({ userId: 'user-7', gymId: 'gym-riverside' }),
+      );
 
-      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBe('user-7');
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toEqual({
+        userId: 'user-7',
+        gymId: 'gym-riverside',
+      });
       expect(refreshToken.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({ where: { tokenHash: hashRefreshToken('rt-secret') } }),
       );
     });
 
+    it('returns a null pin for a legacy / platform row', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findUnique.mockResolvedValue(storedToken({ gymId: null }));
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toEqual({
+        userId: 'user-1',
+        gymId: null,
+      });
+    });
+
     it('returns null for an unknown token', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(null);
-      await expect(service.userIdForRefreshToken('nope')).resolves.toBeNull();
+      await expect(service.sessionForRefreshToken('nope')).resolves.toBeNull();
     });
 
     it('returns null for a revoked token', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: new Date() }));
-      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBeNull();
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toBeNull();
     });
 
     it('returns null for an expired token', async () => {
@@ -478,13 +511,13 @@ describe('TokenService', () => {
       refreshToken.findUnique.mockResolvedValue(
         storedToken({ expiresAt: new Date(Date.now() - 1_000) }),
       );
-      await expect(service.userIdForRefreshToken('rt-secret')).resolves.toBeNull();
+      await expect(service.sessionForRefreshToken('rt-secret')).resolves.toBeNull();
     });
 
     it('does not spend or mutate the token', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(storedToken());
-      await service.userIdForRefreshToken('rt-secret');
+      await service.sessionForRefreshToken('rt-secret');
       expect(refreshToken.updateMany).not.toHaveBeenCalled();
       expect(refreshToken.create).not.toHaveBeenCalled();
     });
