@@ -12,15 +12,13 @@
 
 import type { NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { REFRESH_TOKEN_COOKIE, sessionCookieOptions } from '@/lib/session-cookies';
+import { tenantHostHeaders } from '@/lib/tenant-host';
 
-/** Cookie holding the rotating refresh token (httpOnly; shared with the web app). */
-export const REFRESH_TOKEN_COOKIE = 'refreshToken';
+export { REFRESH_TOKEN_COOKIE };
 
 /** Base URL of the @fit/api backend. */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
-
-/** Parent cookie domain (shared across tenant subdomains + apps); host-only in dev. */
-const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN ?? process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
 
 /** Refresh-cookie lifetime (seconds) — matches the API's 30-day refresh TTL. */
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30;
@@ -44,7 +42,6 @@ export interface SessionCookie {
     secure: boolean;
     path: string;
     maxAge: number;
-    domain?: string;
   };
 }
 
@@ -71,12 +68,19 @@ export function isNavigationRequest(req: NextRequest): boolean {
   return req.headers.get('sec-fetch-dest') === 'document';
 }
 
-/** Exchange a refresh token for a fresh pair via `POST /auth/refresh`, or `null`. */
-export async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | null> {
+/**
+ * Exchange a refresh token for a fresh pair via `POST /auth/refresh`, or `null`.
+ * `tenantHost` is the public host the refresh happens on, so the API can keep a
+ * token that predates its gym pin on this gym rather than the primary one.
+ */
+export async function refreshTokens(
+  refreshToken: string,
+  tenantHost?: string | null,
+): Promise<RefreshedTokens | null> {
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...tenantHostHeaders(tenantHost) },
       body: JSON.stringify({ refreshToken }),
     });
     if (!res.ok) return null;
@@ -106,25 +110,22 @@ function accessTokenMaxAge(token: string): number {
   return DEFAULT_ACCESS_MAX_AGE;
 }
 
-/** The two httpOnly cookie descriptors that carry a refreshed session forward. */
+/**
+ * The two httpOnly cookie descriptors that carry a refreshed session forward —
+ * host-only (see `lib/session-cookies.ts`). The caller appends the legacy
+ * parent-domain clear after setting them.
+ */
 export function sessionCookies(pair: RefreshedTokens): SessionCookie[] {
-  const base = {
-    httpOnly: true as const,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
-  };
   return [
     {
       name: ACCESS_TOKEN_COOKIE,
       value: pair.accessToken,
-      options: { ...base, maxAge: accessTokenMaxAge(pair.accessToken) },
+      options: sessionCookieOptions(accessTokenMaxAge(pair.accessToken)),
     },
     {
       name: REFRESH_TOKEN_COOKIE,
       value: pair.refreshToken,
-      options: { ...base, maxAge: REFRESH_MAX_AGE },
+      options: sessionCookieOptions(REFRESH_MAX_AGE),
     },
   ];
 }

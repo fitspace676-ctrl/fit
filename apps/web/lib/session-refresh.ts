@@ -13,15 +13,17 @@
 
 import type { NextRequest, NextResponse } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import {
+  REFRESH_TOKEN_COOKIE,
+  appendLegacySessionClear,
+  sessionCookieOptions,
+} from '@/lib/session-cookies';
+import { tenantHostHeaders } from '@/lib/tenant-host';
 
-/** Cookie holding the rotating refresh token (httpOnly; never exposed to JS). */
-export const REFRESH_TOKEN_COOKIE = 'refreshToken';
+export { REFRESH_TOKEN_COOKIE };
 
 /** Base URL of the @fit/api backend. */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
-
-/** Parent cookie domain (shared across tenant subdomains); host-only in dev. */
-const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN ?? process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
 
 /** Refresh-cookie lifetime (seconds) — matches the API's 30-day refresh TTL. */
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30;
@@ -57,12 +59,19 @@ export function isNavigationRequest(req: NextRequest): boolean {
  * Exchange a refresh token for a fresh pair via `POST /auth/refresh`. Returns the
  * new pair, or `null` on any failure (unknown/expired/rotated token, network) so
  * the caller falls back to the login redirect.
+ *
+ * `tenantHost` is the public host the refresh happens on. The API pins a
+ * refresh token to the gym it was issued for, and falls back to this host's gym
+ * for a token that predates the pin — never to the member's primary gym.
  */
-export async function refreshTokens(refreshToken: string): Promise<RefreshedTokens | null> {
+export async function refreshTokens(
+  refreshToken: string,
+  tenantHost?: string | null,
+): Promise<RefreshedTokens | null> {
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...tenantHostHeaders(tenantHost) },
       body: JSON.stringify({ refreshToken }),
     });
     if (!res.ok) return null;
@@ -95,18 +104,15 @@ function accessTokenMaxAge(token: string): number {
 /**
  * Persist a refreshed pair onto the outgoing response as the same httpOnly
  * cookies the sign-in route sets, so the browser carries the new session forward.
+ * Host-only, and the legacy parent-domain copy is expired alongside — see
+ * `lib/session-cookies.ts`. Call it last on the response.
  */
 export function setSessionCookies(res: NextResponse, pair: RefreshedTokens): void {
-  const base = {
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
-  };
-  res.cookies.set(ACCESS_TOKEN_COOKIE, pair.accessToken, {
-    ...base,
-    maxAge: accessTokenMaxAge(pair.accessToken),
-  });
-  res.cookies.set(REFRESH_TOKEN_COOKIE, pair.refreshToken, { ...base, maxAge: REFRESH_MAX_AGE });
+  res.cookies.set(
+    ACCESS_TOKEN_COOKIE,
+    pair.accessToken,
+    sessionCookieOptions(accessTokenMaxAge(pair.accessToken)),
+  );
+  res.cookies.set(REFRESH_TOKEN_COOKIE, pair.refreshToken, sessionCookieOptions(REFRESH_MAX_AGE));
+  appendLegacySessionClear(res);
 }

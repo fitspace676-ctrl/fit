@@ -7,37 +7,26 @@
 // session for the `useSession()` hook, which can no longer read the httpOnly
 // cookie itself.
 
+//
+// The cookies are HOST-ONLY: a session signed in on one gym's subdomain is not
+// sent to any other gym's. See `lib/session-cookies.ts` for why, and for the
+// legacy parent-domain copy every write and clear here also expires.
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
-
-/** Cookie holding the rotating refresh token (httpOnly; never exposed to JS). */
-const REFRESH_TOKEN_COOKIE = 'refreshToken';
-
-/**
- * Parent domain for the cookies (e.g. `.fit.ge`) so the session is shared across
- * tenant subdomains and cleared everywhere on sign-out. Unset in local dev — the
- * cookies stay host-only on `localhost`.
- */
-const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN ?? process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
+import {
+  REFRESH_TOKEN_COOKIE,
+  appendLegacySessionClear,
+  clearSessionCookies,
+  sessionCookieOptions,
+} from '@/lib/session-cookies';
 
 /** Refresh-cookie lifetime (seconds) — matches the API's 30-day refresh TTL. */
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30;
 
 /** Access-cookie lifetime when the token carries no `exp` (seconds). */
 const DEFAULT_ACCESS_MAX_AGE = 60 * 60;
-
-/** Shared httpOnly cookie options; `secure` only outside local dev. */
-function cookieOptions(maxAge: number) {
-  return {
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge,
-    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
-  };
-}
 
 /** Seconds until the access token's `exp`, or the fallback lifetime. */
 function accessTokenMaxAge(token: string): number {
@@ -74,15 +63,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const res = new NextResponse(null, { status: 204 });
-  res.cookies.set(ACCESS_TOKEN_COOKIE, accessToken, cookieOptions(accessTokenMaxAge(accessToken)));
-  res.cookies.set(REFRESH_TOKEN_COOKIE, refreshToken, cookieOptions(REFRESH_MAX_AGE));
+  res.cookies.set(
+    ACCESS_TOKEN_COOKIE,
+    accessToken,
+    sessionCookieOptions(accessTokenMaxAge(accessToken)),
+  );
+  res.cookies.set(REFRESH_TOKEN_COOKIE, refreshToken, sessionCookieOptions(REFRESH_MAX_AGE));
+  // A parent-domain session from before the switch would otherwise sit beside
+  // the new one under the same names, and the browser sends both.
+  appendLegacySessionClear(res);
   return res;
 }
 
 /** `DELETE /api/session` — clear the session cookies (sign-out). */
 export function DELETE(): NextResponse {
   const res = new NextResponse(null, { status: 204 });
-  res.cookies.set(ACCESS_TOKEN_COOKIE, '', cookieOptions(0));
-  res.cookies.set(REFRESH_TOKEN_COOKIE, '', cookieOptions(0));
+  clearSessionCookies(res);
   return res;
 }

@@ -5,51 +5,33 @@
 // (`GET`, for the client `useSession()` hook, which can't read an httpOnly
 // cookie) and *clear* it (`DELETE`, sign-out).
 //
-// An operator who signs in on the member site instead still arrives with the
-// cookie already set on the shared parent domain by the web app's identical
-// `POST /api/session` — the two write the same cookies with the same options, so
+// An operator who signs in on the member site instead lands on the same host —
+// the console is served under that gym's `/admin` — so the cookie the web app's
+// identical `POST /api/session` writes is the one this app reads. Both write the
+// same host-only cookies with the same options (`lib/session-cookies.ts`), so
 // either entry point produces one session that both apps accept.
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
-import { IMPERSONATION_COOKIES, impersonationCookieOptions } from '@/lib/impersonation';
 import { getServerSession } from '@/lib/session';
 import { refreshTokens, sessionCookies } from '@/lib/session-refresh';
 import { renewSession } from '@/lib/session-renewal';
 import { verifyAccessToken } from '@/lib/auth-session';
-
-/** Cookie holding the rotating refresh token (httpOnly; never exposed to JS). */
-const REFRESH_TOKEN_COOKIE = 'refreshToken';
-
-/**
- * Parent domain for the cookies (e.g. `.fit.ge`) so sign-out clears the session
- * across every tenant subdomain. Unset in local dev.
- */
-const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN ?? process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
+import {
+  REFRESH_TOKEN_COOKIE,
+  appendLegacySessionClear,
+  clearImpersonationCookies,
+  clearSessionCookies,
+  sessionCookieOptions,
+} from '@/lib/session-cookies';
+import { resolveTenantHost } from '@/lib/tenant-host';
 
 /** Refresh-cookie lifetime (seconds) — mirrors the web app's. */
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 30;
 
 /** Access-cookie lifetime when the token carries no `exp` (seconds). */
 const DEFAULT_ACCESS_MAX_AGE = 60 * 60;
-
-/** Shared httpOnly cookie options; `secure` only outside local dev. */
-function setOptions(maxAge: number) {
-  return {
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge,
-    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
-  };
-}
-
-/** httpOnly cookie-clear options; `secure` only outside local dev. */
-function clearOptions() {
-  return setOptions(0);
-}
 
 /**
  * Seconds until the access token's `exp`, or the fallback lifetime. The token is
@@ -100,12 +82,22 @@ function accessTokenMaxAge(token: string): number {
  * rather than leaving that to a navigation.
  */
 export async function GET(): Promise<NextResponse> {
-  const [current, cookieStore] = await Promise.all([getServerSession(), cookies()]);
+  const [current, cookieStore, requestHeaders] = await Promise.all([
+    getServerSession(),
+    cookies(),
+    headers(),
+  ]);
   const secret = process.env.JWT_SECRET;
+  // The renewal happens on this gym's host, like the middleware's: the API keeps a
+  // token that predates its gym pin on this gym rather than the primary one.
+  const tenantHost = resolveTenantHost(
+    requestHeaders.get('x-forwarded-host'),
+    requestHeaders.get('host'),
+  );
   const { user, recoverable, refreshed } = await renewSession({
     current,
     refreshToken: cookieStore.get(REFRESH_TOKEN_COOKIE)?.value ?? null,
-    refresh: refreshTokens,
+    refresh: (token) => refreshTokens(token, tenantHost),
     verify: (token) => (secret ? verifyAccessToken(token, secret) : Promise.resolve(null)),
   });
 
@@ -114,6 +106,8 @@ export async function GET(): Promise<NextResponse> {
     for (const cookie of sessionCookies(refreshed)) {
       res.cookies.set(cookie.name, cookie.value, cookie.options);
     }
+    // Last, as in the middleware: a later `cookies.set` would drop the raw clear.
+    appendLegacySessionClear(res);
   }
   return res;
 }
@@ -143,26 +137,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const res = new NextResponse(null, { status: 204 });
-  res.cookies.set(ACCESS_TOKEN_COOKIE, accessToken, setOptions(accessTokenMaxAge(accessToken)));
-  res.cookies.set(REFRESH_TOKEN_COOKIE, refreshToken, setOptions(REFRESH_MAX_AGE));
+  res.cookies.set(
+    ACCESS_TOKEN_COOKIE,
+    accessToken,
+    sessionCookieOptions(accessTokenMaxAge(accessToken)),
+  );
+  res.cookies.set(REFRESH_TOKEN_COOKIE, refreshToken, sessionCookieOptions(REFRESH_MAX_AGE));
+  // A parent-domain session from before the switch would otherwise sit beside
+  // the new one under the same names, and the browser sends both.
+  appendLegacySessionClear(res);
   return res;
 }
 
 /**
  * `DELETE /api/session` — clear the session cookies (sign-out).
  *
- * The impersonation cookies go too. They are written host-only with their own
- * options, so the parent-domain clears above do not reach them — and a "sign
- * out" that left an operator still acting as the gym's owner would be a sign-out
- * in name only. Signing out is the blunter sibling of `/impersonation/exit`,
- * which drops only the impersonation and puts back the session underneath.
+ * The impersonation cookies go too — a "sign out" that left an operator still
+ * acting as the gym's owner would be a sign-out in name only. Signing out is the
+ * blunter sibling of `/impersonation/exit`, which drops only the impersonation
+ * and puts back the session underneath. They are cleared FIRST: the session
+ * clear appends raw legacy `Set-Cookie` headers that a later `cookies.set` would
+ * wipe.
  */
 export function DELETE(): NextResponse {
   const res = new NextResponse(null, { status: 204 });
-  res.cookies.set(ACCESS_TOKEN_COOKIE, '', clearOptions());
-  res.cookies.set(REFRESH_TOKEN_COOKIE, '', clearOptions());
-  for (const name of IMPERSONATION_COOKIES) {
-    res.cookies.set(name, '', impersonationCookieOptions(0));
-  }
+  clearImpersonationCookies(res);
+  clearSessionCookies(res);
   return res;
 }

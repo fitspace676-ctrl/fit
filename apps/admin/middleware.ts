@@ -8,12 +8,23 @@ import {
   verifyAccessToken,
 } from '@/lib/auth-session';
 import {
+  appendLegacySessionClear,
+  clearImpersonationCookies,
+  clearSessionCookies,
+} from '@/lib/session-cookies';
+import {
   REFRESH_TOKEN_COOKIE,
   isNavigationRequest,
   refreshTokens,
   sessionCookies,
   type RefreshedTokens,
 } from '@/lib/session-refresh';
+import {
+  TENANT_MISMATCH_REASON,
+  isTenantMismatch,
+  requestGymSlug,
+  resolveTenantHost,
+} from '@/lib/tenant-host';
 
 /**
  * Admin auth + role gate.
@@ -27,6 +38,14 @@ import {
  * Verification is the same HS256 check the API uses. When `JWT_SECRET` is unset
  * (e.g. an unconfigured preview) tokens can't be trusted, so the gate fails
  * closed and only the public routes below render.
+ *
+ * **A session only counts on its own gym's host.** A token whose `gymSlug`
+ * differs from the slug the request's host names is sent to this host's sign-in
+ * with its cookies cleared — the impersonation cookies when that is what carried
+ * it, the session cookies otherwise. The sign-in page itself clears the same way
+ * (on a verified mismatch, or when `lib/api.ts` sent the operator there after the
+ * API refused a session with `403 TENANT_MISMATCH`) but never redirects, so a
+ * cookie the browser will not drop cannot loop it.
  *
  * The console owns its **own sign-in** at `/admin/login` (inside this app's
  * basePath), so an unauthenticated request is bounced there. The member site's
@@ -84,24 +103,68 @@ function redirectTo(req: NextRequest, path: string): NextResponse {
   return NextResponse.redirect(new URL(path, origin));
 }
 
-/** Attach a refreshed session's cookies to an outgoing response before returning it. */
+/**
+ * Attach a refreshed session's cookies to an outgoing response before returning
+ * it — always last, since the legacy clear it appends would be dropped by a
+ * later `res.cookies.set`.
+ */
 function withRefreshed(res: NextResponse, refreshed: RefreshedTokens | null): NextResponse {
   if (refreshed) {
     for (const cookie of sessionCookies(refreshed)) {
       res.cookies.set(cookie.name, cookie.value, cookie.options);
     }
+    appendLegacySessionClear(res);
+  }
+  return res;
+}
+
+/** The console's sign-in, coming back to the requested console path afterwards. */
+function toSignIn(req: NextRequest): NextResponse {
+  const { pathname, search } = req.nextUrl;
+  const from = `${BASE_PATH}${pathname}${search}`;
+  return redirectTo(req, `${BASE_PATH}/login?from=${encodeURIComponent(from)}`);
+}
+
+/**
+ * The sign-in page renders as-is, but first drops a session that belongs to
+ * another gym: one whose verified token names a different gym than this host,
+ * or any session at all when `?reason=tenant` says the API already refused it.
+ * The impersonation cookies are cleared before the session ones — see
+ * `clearSessionCookies`.
+ */
+async function signInPage(
+  req: NextRequest,
+  secret: string | undefined,
+  hostGymSlug: string | null,
+): Promise<NextResponse> {
+  const res = NextResponse.next();
+  const token = pickSessionToken((name) => req.cookies.get(name)?.value);
+  const session = token && secret ? await verifyAccessToken(token.value, secret) : null;
+  const wrongGym =
+    req.nextUrl.searchParams.get('reason') === TENANT_MISMATCH_REASON ||
+    (session !== null && isTenantMismatch(session.gymSlug, hostGymSlug));
+  if (wrongGym) {
+    clearImpersonationCookies(res);
+    clearSessionCookies(res);
   }
   return res;
 }
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
-  const { pathname, search } = req.nextUrl;
+  const { pathname } = req.nextUrl;
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  const host = req.headers.get('host');
+  const hostGymSlug = requestGymSlug(forwardedHost, host);
+  const secret = process.env.JWT_SECRET;
+
+  if (pathname === '/login') {
+    return signInPage(req, secret, hostGymSlug);
+  }
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
   const token = pickSessionToken((name) => req.cookies.get(name)?.value);
-  const secret = process.env.JWT_SECRET;
   let session = token && secret ? await verifyAccessToken(token.value, secret) : null;
 
   // An impersonated session that no longer verifies is OVER — expired, or the
@@ -120,14 +183,36 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   // Impersonated sessions are excluded by construction: they are issued without
   // a refresh token, so there is nothing here to renew them with, and that is
   // deliberate — an impersonation is meant to run out.
+  // 0. Another gym's session → this host's sign-in, without it. An impersonation
+  //    is dropped on its own, leaving whatever session the operator had beneath.
+  if (session && isTenantMismatch(session.gymSlug, hostGymSlug)) {
+    const res = toSignIn(req);
+    if (token?.impersonated) {
+      clearImpersonationCookies(res);
+    } else {
+      clearSessionCookies(res);
+    }
+    return res;
+  }
+
   let refreshed: RefreshedTokens | null = null;
   if (!session && secret && isNavigationRequest(req)) {
     const refreshToken = req.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
     if (refreshToken) {
-      const pair = await refreshTokens(refreshToken);
+      const pair = await refreshTokens(refreshToken, resolveTenantHost(forwardedHost, host));
       if (pair) {
-        session = await verifyAccessToken(pair.accessToken, secret);
-        if (session) refreshed = pair;
+        const renewed = await verifyAccessToken(pair.accessToken, secret);
+        // A refresh can only renew the gym the token was issued for; if that is
+        // not this host's gym, the renewed session is as wrong as the old one.
+        if (renewed && isTenantMismatch(renewed.gymSlug, hostGymSlug)) {
+          const res = toSignIn(req);
+          clearSessionCookies(res);
+          return res;
+        }
+        if (renewed) {
+          session = renewed;
+          refreshed = pair;
+        }
       }
     }
   }
@@ -137,8 +222,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   //    to the *member* site's `/login`; each surface now owns its own door, so an
   //    operator who bookmarked the console stays inside it to sign in.
   if (!session) {
-    const from = `${BASE_PATH}${pathname}${search}`;
-    return redirectTo(req, `${BASE_PATH}/login?from=${encodeURIComponent(from)}`);
+    return toSignIn(req);
   }
 
   // 2. Authenticated but not staff → forbidden (an in-app page, so basePath-prefixed).
