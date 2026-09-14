@@ -6,11 +6,11 @@ import { Icon } from '@/components/ui/icon';
 import { useTheme } from '@/components/theme/theme-provider';
 import type { Theme } from '@/lib/theme';
 
-// The sign-in door's light/dark switch - the same two-up segmented control the
-// member door renders, restated here because it sits ON THE PHOTO: the panel is
-// dark in both modes, so the track carries its own white-alpha border and dark
-// fill instead of the theme's control tokens, which would go white in light
-// mode and punch a hole in the picture.
+// The light/dark switch every console door carries (sign-in, owner activation) -
+// the same two-up segmented control the member door renders, restated here
+// because it sits ON THE PHOTO: the panel is dark in both modes, so the track
+// carries its own white-alpha border and dark fill instead of the theme's control
+// tokens, which would go white in light mode and punch a hole in the picture.
 
 const MODES: readonly {
   key: Theme;
@@ -62,7 +62,7 @@ const styles = stylex.create({
 });
 
 /** The photo-panel segmented control that flips the console between light and dark. */
-export function LoginThemeToggle() {
+export function DoorThemeToggle() {
   const { theme, setTheme } = useTheme();
   const t = useTranslations('admin.common');
 

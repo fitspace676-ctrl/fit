@@ -69,6 +69,21 @@
       "title": "Sign in to the console",
       "invitation": "Staff accounts are created by invitation from the console. Ask your gym's administrator for access."
     },
+    "activate": {
+      "title": "Set your password",
+      "subtitle": "Choose a password and your gym is yours to run.",
+      "passwordLabel": "New password",
+      "confirmLabel": "Confirm password",
+      "submit": "Set password",
+      "submitting": "Setting password…",
+      "footer": "This link works once. After that, sign in with your email and the password you just chose.",
+      "mismatch": "The two passwords do not match.",
+      "tooShort": "Use at least {min} characters.",
+      "missingToken": "This activation link is incomplete. Open the link from your welcome email again.",
+      "invalidToken": "This activation link is invalid or has expired. Ask your gym's platform contact for a new one.",
+      "wrongGym": "This activation link belongs to a different gym. Open it exactly as it arrived in your welcome email.",
+      "signedInPrompt": "Password set. Sign in to open your console."
+    },
     "common": {
       "brand": "FormaCore",
       "brandTagline": "Management platform",
