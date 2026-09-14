@@ -15,18 +15,19 @@
  * The operator session's cookies — deliberately NOT `accessToken` /
  * `refreshToken`.
  *
- * Those names belong to the tenant surfaces, which set them on the PARENT domain
- * (`COOKIE_DOMAIN=.formacore.io`) so one sign-in covers `<slug>.formacore.io` and
- * its `/admin`. This console lives on `superadmin.formacore.io`, inside that same
- * parent — so writing `accessToken` here would overwrite the operator's own
- * tenant sessions, and, once one-click impersonation lands, an impersonated gym
- * session would overwrite the operator's SUPER_ADMIN one and log them out of the
- * console they launched it from.
+ * Those names belong to the tenant surfaces (web + admin sign-in on one
+ * `<slug>.formacore.io`). Every session cookie on the platform is now host-only,
+ * and this one is too — no `domain` attribute (see `lib/session-refresh.ts`) and
+ * no `COOKIE_DOMAIN` to set one — so no other surface can write a session for
+ * `superadmin.formacore.io`.
  *
- * Separate names, written host-only (no `domain` attribute — see
- * `lib/session-refresh.ts`), keep the two identities independent: the operator
- * can hold a SUPER_ADMIN session here and a gym session in another tab at once,
- * and signing out of either leaves the other alone.
+ * The separate names still matter. Browsers may hold `Domain=.formacore.io`
+ * `accessToken` / `refreshToken` copies from before the tenant cookies went
+ * host-only (#331); a parent-domain cookie is sent here too, and under `ops*` it
+ * is simply never read. They also keep the identities independent: the operator
+ * can hold a SUPER_ADMIN session here, a gym session on `<slug>.<root>` and an
+ * impersonation of that gym at once, and ending one leaves the others alone.
+ * History and the full cookie table: `apps/superadmin/README.md`.
  */
 export const ACCESS_TOKEN_COOKIE = 'opsAccessToken';
 
