@@ -22,6 +22,7 @@ import type {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { GymLocaleService } from '../gyms/gym-locale.service';
+import { assertOwnedMedia } from '../storage/media-ownership';
 
 /** The staff columns a service row and the picker both need. */
 const STAFF_SELECT = {
@@ -173,6 +174,7 @@ export class AdminServicesService {
   }
 
   async createService(input: CreateServiceData): Promise<ServiceResponse> {
+    assertOwnedMedia(this.tenant.gymId, [input.coverUrl]);
     const staff = await this.requireStaff(input.staffId, input.type);
     if (input.categoryId !== null) await this.requireCategory(input.categoryId);
     const { currency, language } = await this.locale.get();
@@ -200,6 +202,7 @@ export class AdminServicesService {
 
   async updateService(id: string, input: UpdateServiceData): Promise<ServiceResponse> {
     const existing = await this.requireService(id);
+    assertOwnedMedia(this.tenant.gymId, [input.coverUrl], [existing.coverUrl]);
     const staff = input.staffId ? await this.requireStaff(input.staffId, existing.type) : null;
     if (input.categoryId) await this.requireCategory(input.categoryId);
 

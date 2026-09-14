@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { TrainerStatus } from '@fit/db';
 import {
   weeklyAvailabilitySchema,
@@ -176,7 +176,7 @@ const updateInput = (over?: Partial<UpdateTrainerData>): UpdateTrainerData => ({
   name: 'Giorgi Maisuradze',
   headline: 'Head coach',
   bio: 'Updated bio.',
-  photoUrl: 'https://cdn.example.com/g.jpg',
+  photoUrl: 'https://cdn.example.com/gym-1/trainers/g.jpg',
   specialties: ['Strength', 'Mobility'],
   ...over,
 });
@@ -349,7 +349,7 @@ describe('AdminTrainersService', () => {
       expect(data).toMatchObject({
         name: 'Giorgi Maisuradze',
         headline: 'Head coach',
-        photoUrl: 'https://cdn.example.com/g.jpg',
+        photoUrl: 'https://cdn.example.com/gym-1/trainers/g.jpg',
         specialties: ['Strength', 'Mobility'],
       });
       expect(data).not.toHaveProperty('status');
@@ -361,6 +361,21 @@ describe('AdminTrainersService', () => {
       await expect(service.updateTrainer('missing', updateInput())).rejects.toBeInstanceOf(
         NotFoundException,
       );
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it("rejects another gym's photo URL with a 400 without writing", async () => {
+      const { service, update } = setup({ findFirst: row() });
+
+      await expect(
+        service.updateTrainer(
+          't-1',
+          updateInput({ photoUrl: 'https://cdn.example.com/gym-2/trainers/g.jpg' }),
+        ),
+      ).rejects.toMatchObject({
+        constructor: BadRequestException,
+        response: { code: 'MEDIA_NOT_OWNED' },
+      });
       expect(update).not.toHaveBeenCalled();
     });
   });
