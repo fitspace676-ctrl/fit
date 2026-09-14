@@ -26,19 +26,38 @@ the gate fails closed. Server Components re-resolve the session with
 
 ### Why `ops*` cookies, host-only
 
-The tenant surfaces set `accessToken` / `refreshToken` on the **parent** domain
-(`COOKIE_DOMAIN=.formacore.io`) so one sign-in covers `<slug>.formacore.io` and
-its `/admin`. This console sits inside that same parent. Writing those names here
-would overwrite the operator's own tenant sessions — and once one-click
-impersonation lands, an impersonated gym session would overwrite the SUPER_ADMIN
-session that launched it.
+Every session cookie on the platform is host-only (see
+[Three cookie scopes](../../docs/subdomain-routing.md#three-cookie-scopes-on-purpose)):
 
-So the operator session uses **different names** (`opsAccessToken`,
-`opsRefreshToken`) written **host-only** (no `domain` attribute). The two
-identities stay independent: an operator can hold a console session and a gym
-session in separate tabs, and signing out of either leaves the other alone. This
-is also why the console needs a sign-in of its own — no other surface can mint a
-session for this host.
+| Cookie                                     | Host                             | Written by                                                      |
+| ------------------------------------------ | -------------------------------- | --------------------------------------------------------------- |
+| `accessToken` / `refreshToken`             | one `<slug>.<root>`              | web + admin sign-in (`apps/{web,admin}/lib/session-cookies.ts`) |
+| `impersonationToken` / `impersonationMeta` | the impersonated `<slug>.<root>` | `apps/admin/app/impersonation/start/route.ts`                   |
+| `opsAccessToken` / `opsRefreshToken`       | `superadmin.<root>`              | this console (`lib/session-refresh.ts`)                         |
+
+The operator session is written with no `domain` attribute, and `lib/env.ts` has
+no `COOKIE_DOMAIN` to configure one. No other surface can mint or overwrite a
+session for this host — which is why the console has a sign-in of its own.
+
+The separate names still earn their keep:
+
+- **Legacy parent-domain cookies.** Browsers can still hold
+  `Domain=.formacore.io` `accessToken` / `refreshToken` copies from before the
+  tenant cookies went host-only (#331). A parent-domain cookie is sent to
+  `superadmin.formacore.io` too; under the same name it would arrive beside the
+  console's own, under `ops*` it is simply never read.
+- **Independent identities.** An operator can hold a console session here, a gym
+  session on `<slug>.<root>`, and an impersonation of that gym at once, and end
+  any one without touching the others. Impersonation starts on the gym's host
+  (`<slug>.<root>/admin/impersonation/start?code=…`); Exit
+  (`apps/admin/app/impersonation/exit/route.ts`) deletes only the impersonation
+  cookies there and redirects to `superadmin.<root>` (`SUPERADMIN_URL` overrides
+  it locally).
+
+> History: the `ops*` names date from when the tenant surfaces wrote
+> `accessToken` on the parent domain (`COOKIE_DOMAIN=.formacore.io`), where the
+> same names here would have overwritten the operator's tenant sessions and an
+> impersonation would have overwritten the SUPER_ADMIN one.
 
 ## Layout
 
