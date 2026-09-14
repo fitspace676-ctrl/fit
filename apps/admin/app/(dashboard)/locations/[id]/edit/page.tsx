@@ -69,7 +69,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Edit location - FormaCore Admin',
+  title: 'Edit location',
 };
 
 // Reflects the staff session and writes live location state — never cached.

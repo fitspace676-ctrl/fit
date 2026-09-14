@@ -10,7 +10,7 @@ vi.mock('./env', () => ({
   env: { NEXT_PUBLIC_ROOT_DOMAIN: 'formacore.io', NEXT_PUBLIC_API_URL: 'https://api.test' },
 }));
 
-const { getActiveGymPresence } = await import('./active-gym');
+const { getActiveGymBrand, getActiveGymPresence } = await import('./active-gym');
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -50,6 +50,69 @@ describe('getActiveGymPresence', () => {
   it('is none on a host that names no tenant, without calling the API', async () => {
     host.value = 'app.formacore.io';
     await expect(getActiveGymPresence()).resolves.toBe('none');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('getActiveGymBrand', () => {
+  const gym = (overrides: Record<string, unknown> = {}) =>
+    new Response(
+      JSON.stringify({
+        gymId: 'g1',
+        name: 'Downtown Strength',
+        brand: {
+          name: 'Downtown Strength',
+          logoUrl: 'https://media.test/g1/brand/logo.png',
+          primaryColor: '#111111',
+          secondaryColor: '#222222',
+        },
+        portal: { loginImageUrl: null, logoUrl: null, primaryColor: '#ff5500' },
+        ...overrides,
+      }),
+      { status: 200 },
+    );
+
+  it("names the host's gym, with its mark and the colour it chose", async () => {
+    fetchMock.mockResolvedValue(gym());
+    await expect(getActiveGymBrand()).resolves.toEqual({
+      name: 'Downtown Strength',
+      logoUrl: 'https://media.test/g1/brand/logo.png',
+      themeColor: '#ff5500',
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.test/gyms/by-subdomain/downtown');
+  });
+
+  it('prefers the portal logo, and tints nothing when the portal only inherits the brand colour', async () => {
+    fetchMock.mockResolvedValue(
+      gym({
+        portal: {
+          loginImageUrl: null,
+          logoUrl: 'https://media.test/portal.png',
+          primaryColor: '#111111',
+        },
+      }),
+    );
+    await expect(getActiveGymBrand()).resolves.toEqual({
+      name: 'Downtown Strength',
+      logoUrl: 'https://media.test/portal.png',
+      themeColor: null,
+    });
+  });
+
+  it('is null for an unknown slug, without throwing', async () => {
+    host.value = 'typo.formacore.io';
+    fetchMock.mockResolvedValue(new Response('{"code":"GYM_NOT_FOUND"}', { status: 404 }));
+    await expect(getActiveGymBrand()).resolves.toBeNull();
+  });
+
+  it('is null when the API is unreachable', async () => {
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    await expect(getActiveGymBrand()).resolves.toBeNull();
+  });
+
+  it('is null on a host that names no tenant, without calling the API', async () => {
+    host.value = 'app.formacore.io';
+    await expect(getActiveGymBrand()).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

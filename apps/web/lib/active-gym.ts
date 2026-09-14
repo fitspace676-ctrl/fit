@@ -294,3 +294,71 @@ export async function getActiveGymPortalSkin(): Promise<ActiveGymPortalSkin | nu
     return null;
   }
 }
+
+/** A six-digit hex colour — the only shape a `<meta name="theme-color">` gets. */
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * What the browser shows of the active tenant outside the page itself: the name
+ * in the tab and on a share card, the mark used as its favicon, and the colour
+ * the browser chrome is tinted with.
+ */
+export interface ActiveGymBrand {
+  name: string;
+  /** `memberPortal.logoUrl ?? brand.logoUrl`, or `null` for the bundled FormaCore icon. */
+  logoUrl: string | null;
+  /**
+   * The portal colour the gym actually chose, or `null` when it chose none — the
+   * same distinction {@link getActiveGymPortalSkin} draws, so the tab is never
+   * tinted a colour the page itself is not wearing.
+   */
+  themeColor: string | null;
+}
+
+/**
+ * The active tenant's {@link ActiveGymBrand}, or `null` when there is no tenant in
+ * scope, the slug names no active gym, or the lookup fails — every one of which
+ * the page's metadata answers with plain FormaCore. Server-only, from the same
+ * cached `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}. Never
+ * throws: metadata that failed to resolve must not take the page down with it.
+ */
+export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
+  const slug = await getActiveGymSlug();
+  if (!slug) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+      next: { revalidate: 300 },
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as {
+      name?: unknown;
+      portal?: GymPortalTheme | null;
+      brand?: GymPublicBrand | null;
+    };
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) {
+      return null;
+    }
+    const portal = body.portal ?? null;
+    const brand = body.brand ?? null;
+    const logoUrl =
+      typeof portal?.logoUrl === 'string'
+        ? portal.logoUrl
+        : typeof brand?.logoUrl === 'string'
+          ? brand.logoUrl
+          : null;
+    const chosen =
+      portal && typeof portal.primaryColor === 'string'
+        ? chosenPortalColors(portal, brand).primaryColor
+        : null;
+    return { name, logoUrl, themeColor: chosen && HEX_COLOR.test(chosen) ? chosen : null };
+  } catch {
+    return null;
+  }
+}

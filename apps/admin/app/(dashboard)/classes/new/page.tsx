@@ -9,7 +9,7 @@ import { ClassTemplateForm } from '../class-template-form';
 import { loadRelationOptions } from '../options';
 
 export const metadata: Metadata = {
-  title: 'New class - FormaCore Admin',
+  title: 'New class',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.

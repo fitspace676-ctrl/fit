@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
@@ -11,7 +11,8 @@ import { ThemeProvider } from '@/src/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/src/lib/theme';
 import { AstryxProvider } from '@/src/components/theme/astryx-provider';
 import { PortalThemeScope } from '@/src/components/theme/portal-theme-scope';
-import { getActiveGymPortalSkin, getActiveGymPresence } from '@/lib/active-gym';
+import { getActiveGymBrand, getActiveGymPortalSkin, getActiveGymPresence } from '@/lib/active-gym';
+import { gymMetadata, gymViewport } from '@/lib/gym-metadata';
 import { SentryInit } from '../sentry-init';
 import { GymNotFound } from './_components/gym-not-found';
 import '../globals.css';
@@ -50,10 +51,19 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: 'FormaCore - Web',
-  description: 'FormaCore web application.',
-};
+/**
+ * The tab, favicon and share card name the gym this host serves, and fall back
+ * to FormaCore where none is in scope (apex, `app.<root>`, a preview URL, an
+ * unknown slug). Per request, like the layout itself: the tenant is the Host.
+ * The lookup is the same cached one the layout body makes.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return gymMetadata(await getActiveGymBrand());
+}
+
+export async function generateViewport(): Promise<Viewport> {
+  return gymViewport(await getActiveGymBrand());
+}
 
 /** Pre-render every supported locale at build time. */
 export function generateStaticParams() {

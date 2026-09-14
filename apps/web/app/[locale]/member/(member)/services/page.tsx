@@ -22,7 +22,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Services - FormaCore',
+  title: 'Services',
   description: 'Personal sessions and other services the gym offers.',
 };
 

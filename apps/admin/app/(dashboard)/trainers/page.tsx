@@ -15,7 +15,7 @@ import { Icon } from '@/components/ui';
 import { TrainersRoster } from './trainers-roster';
 
 export const metadata: Metadata = {
-  title: 'Trainers - FormaCore Admin',
+  title: 'Trainers',
   description:
     'The gym trainer roster: KPIs, specialty filter, search, and a card per coach with live rating, classes this week and next class.',
 };

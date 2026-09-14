@@ -6,8 +6,8 @@ import { ButtonLink } from '@/src/components/ui/button-link';
 import { verifyEmailToken } from '@/lib/verify-email';
 
 export const metadata: Metadata = {
-  title: 'Verify email - FormaCore',
-  description: 'Confirm your email address for your FormaCore account.',
+  title: 'Verify email',
+  description: 'Confirm your email address for your account.',
 };
 
 /** Redeems a single-use token against the API on every hit — never cache it. */

@@ -103,7 +103,7 @@ export async function generateMetadata({
   const { id } = await params;
   const trainer = await loadTrainer(id);
   return {
-    title: trainer ? `${trainer.name} - FormaCore` : 'Trainer - FormaCore',
+    title: trainer ? trainer.name : 'Trainer',
     description: trainer?.headline || 'Meet the trainer and see their schedule.',
   };
 }

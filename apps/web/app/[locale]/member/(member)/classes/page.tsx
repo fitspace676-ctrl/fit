@@ -57,7 +57,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Classes - FormaCore',
+  title: 'Classes',
   description: 'Browse the class schedule and book your next session.',
 };
 

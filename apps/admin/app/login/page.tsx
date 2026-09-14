@@ -8,8 +8,7 @@ import { StaffLoginForm } from './staff-login-form';
 import { LoginThemeToggle } from './theme-toggle';
 
 export const metadata: Metadata = {
-  title: 'Staff sign in - FormaCore',
-  description: 'Sign in to the FormaCore staff console.',
+  title: 'Staff sign in',
 };
 
 /**

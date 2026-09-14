@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui';
 import { MemberPortalForm } from './member-portal-form';
 
 export const metadata: Metadata = {
-  title: 'Member portal - FormaCore Admin',
+  title: 'Member portal',
   description: 'Choose the colours and the sign-in photograph your members see.',
 };
 
