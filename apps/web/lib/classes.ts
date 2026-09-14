@@ -1,9 +1,10 @@
 // @fit/web — class-discovery API helpers.
 //
 // Thin wrappers over the public `@fit/api` class endpoints used by the classes
-// page (T3.4). Unlike the auth helpers these are unauthenticated reads: the
-// `GET /class-instances` listing is `@Public()`, scoped by an explicit `gymId`
-// the page resolves from the active subdomain.
+// page (T3.4). The `GET /class-instances` listing is `@Public()`, scoped by an
+// explicit `gymId` the page resolves from the active subdomain; a signed-in
+// member's session is forwarded so it narrows to their home branch
+// (`lib/portal-listing.ts`). The detail read stays an unauthenticated fetch.
 
 import {
   classInstanceCardSchema,
@@ -12,6 +13,7 @@ import {
   type ClassInstanceCard,
   type ClassInstanceDetail,
 } from '@fit/types';
+import { fetchPortalListing } from './fetch-portal-listing';
 import { browserTenantHeaders } from './tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
@@ -31,10 +33,11 @@ export interface FetchClassInstancesArgs {
 }
 
 /**
- * Fetch the class occurrences for one gym in the `[from, to)` window. Returns
- * the parsed, validated cards (a malformed payload throws rather than reaching
- * the calendar). The caller passes an `AbortSignal` so navigating to another
- * week cancels the previous request instead of racing it.
+ * Fetch the class occurrences for one gym in the `[from, to)` window — a
+ * signed-in member's home branch only. Returns the parsed, validated cards (a
+ * malformed payload throws rather than reaching the calendar). The caller passes
+ * an `AbortSignal` so navigating to another week settles the previous request
+ * instead of racing it.
  */
 export async function fetchClassInstances({
   gymId,
@@ -43,24 +46,16 @@ export async function fetchClassInstances({
   view,
   signal,
 }: FetchClassInstancesArgs): Promise<ClassInstanceCard[]> {
-  const params = new URLSearchParams({ gymId, from, to });
+  const query: Record<string, string> = { gymId, from, to };
   if (view) {
-    params.set('view', view);
+    query.view = view;
   }
 
-  const response = await fetch(`${API_URL}/class-instances?${params.toString()}`, {
-    method: 'GET',
-    headers: { ...browserTenantHeaders(), Accept: 'application/json' },
+  const body = (await fetchPortalListing('class-instances', query, {
     signal,
-  });
-
-  if (!response.ok) {
-    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(detail?.message ?? `Failed to load classes (${response.status})`);
-  }
-
-  const body = (await response.json()) as { instances?: unknown };
-  return classInstanceCardSchema.array().parse(body.instances ?? []);
+    label: 'classes',
+  })) as { instances?: unknown } | null;
+  return classInstanceCardSchema.array().parse(body?.instances ?? []);
 }
 
 /** Arguments for {@link fetchClassInstance}. */
