@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { encodeVariantRef } from '@fit/types';
-import type { TenantContext } from '../common/tenant/tenant.context';
+import { TenantContext } from '../common/tenant/tenant.context';
 import type { PrismaService } from '../prisma/prisma.service';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import type { GymLocaleService } from '../gyms/gym-locale.service';
@@ -137,6 +137,26 @@ function setup(config: {
 }
 
 const VARIANT = encodeVariantRef('p1', 0);
+
+// A guest on a host that names no gym (app.<root>, the API's own host): the
+// subdomain middleware opens no tenant store. This used to be a 500 INTERNAL_ERROR.
+describe('CartService with no gym in scope', () => {
+  it('answers 404 TENANT_REQUIRED', async () => {
+    const prisma = { client: {} } as unknown as PrismaService;
+    const locale = { get: vi.fn() } as unknown as GymLocaleService;
+    const service = new CartService(
+      prisma,
+      new TenantContext(),
+      new PromoRedemptionService(prisma),
+      locale,
+    );
+
+    const error = await service.getCart('guest-session').catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toMatchObject({ code: 'TENANT_REQUIRED' });
+  });
+});
 
 describe('CartService.addItem', () => {
   it('rejects a quantity beyond stock with INSUFFICIENT_STOCK (422)', async () => {

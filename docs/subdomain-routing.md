@@ -150,6 +150,22 @@ Next's `notFound()`, the document's HTTP status is not a `404`. A `404` lookup i
 not kept in Next's fetch cache, so a gym created a moment later is found on the
 next visit.
 
+### At the API: `TENANT_REQUIRED`
+
+A public or optional-auth route that needs a gym — the guest cart is the one that
+showed it — can be called on a host that names none: `app.<root>`, the API's own
+Railway host with no `x-tenant-host`, a slug nobody owns. `SubdomainTenantMiddleware`
+lets such a request through with no tenant, and the handler's `TenantContext.gymId`
+read refuses it with a client error instead of the `500 INTERNAL_ERROR` it used to be:
+
+| Situation                                         | Answer                            |
+| ------------------------------------------------- | --------------------------------- |
+| no tenant store (public route, host names no gym) | `404 { code: "TENANT_REQUIRED" }` |
+| a session or cross-tenant request with no gym     | `403 { code: "TENANT_REQUIRED" }` |
+
+The `403` is what `TenantGuard` already answered on guarded routes; the code is
+`TENANT_REQUIRED_CODE` in `packages/types/src/auth.ts`.
+
 ## Env
 
 Set the same root domain on the API and all three Next apps:
@@ -290,12 +306,26 @@ option **B** (wildcard, Vercel Pro) is what is live:
   So a digest for Downtown opens Downtown's console, and a member who signed up at
   Downtown verifies on Downtown's site, rather than on whichever gym the recipient's
   last session happened to select.
-- **Password reset is the one that cannot be addressed** — and it is a fact about the
-  request, not an oversight. The browser calls the API's own host directly
-  (`apps/web/lib/auth.ts`) without `x-tenant-host`, so `SubdomainTenantMiddleware`
-  sees no tenant, and the body carries only an email. It therefore falls back to
-  `WEB_URL`. Addressing it would mean putting the gym in the request contract across
-  three apps.
+- **Token links put the gym's host ahead of the env override.** `EMAIL_VERIFICATION_URL`
+  and `PASSWORD_RESET_URL` are set on Railway to `https://app.formacore.io/member/…`;
+  while they won over the slug, every gym's verification mail opened the generic
+  portal. `memberLinkBase` (`apps/api/src/auth/email.service.ts`) now reads: the gym's
+  own host when a slug is known → the env override → `WEB_URL` → localhost. The
+  overrides only ever cover flows that name no gym.
+- **Password reset is addressed at the host it was asked for on.** The web form sends
+  `x-tenant-host` (`accountHeaders` in `apps/web/lib/auth.ts`), and
+  `POST /auth/forgot-password` resolves the slug like `POST /auth/refresh`. The link
+  goes to that gym only when the account holds a membership there — the host is
+  caller-chosen, and must not steer a stranger's token to a site of the caller's
+  choosing. The mobile app, `app.<root>`, and a gym the account does not belong to
+  get the override. The staff console's "forgot password?" opens the same host's
+  `/member/forgot-password`; the reset signs them in and `postLoginPath` sends staff
+  to `/admin`.
+- **Staff-invite redirects land on the inviting gym.** The mailed link still points at
+  the API (`GET /auth/accept-invite`); its 302 now goes to
+  `https://<slug>.<root>/member/{register,login}?inviteToken=…`, so the session the
+  invite ends in is created on the host it belongs to. Only an unknown token — which
+  names no gym — goes to `WEB_URL`.
 - **`WEB_URL` / `ADMIN_URL` are the fallback**, for the cases with no slug to address:
   they are bare origins, and the console's `/admin` prefix comes from
   `ADMIN_BASE_PATH`, never from the URL. Set them to `https://app.formacore.io` — `app`

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@fit/db';
+import { TENANT_REQUIRED_CODE } from '@fit/types';
 import type { Request } from 'express';
 import { ALLOW_CROSS_TENANT_KEY } from '../decorators/allow-cross-tenant.decorator';
 import { TenantContext } from './tenant.context';
@@ -69,7 +70,7 @@ export class TenantGuard implements CanActivate {
     if (state.gymId === null) {
       throw new ForbiddenException({
         message: 'No tenant is associated with this request',
-        code: 'TENANT_REQUIRED',
+        code: TENANT_REQUIRED_CODE,
       });
     }
 

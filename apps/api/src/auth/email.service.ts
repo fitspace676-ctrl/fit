@@ -8,6 +8,7 @@ import {
   type ReportDigest,
   type ReportDigestSection,
 } from '@fit/types';
+import { tenantOrigin } from '@fit/utils';
 import { env } from '../config/env';
 import { buildMemberUrl } from '../common/console-url';
 import {
@@ -130,9 +131,8 @@ export class EmailService {
    * when Resend is unconfigured); rejects when Resend returns an error.
    *
    * `gymSlug` takes the same last, optional slot as on
-   * {@link sendVerificationEmail}, but no caller has one to pass: the reset is
-   * requested on the API's own host with the address alone (see
-   * {@link buildPasswordResetUrl}).
+   * {@link sendVerificationEmail}: the gym whose site the reset was asked for on,
+   * when the account belongs to it (see `AuthService.requestPasswordReset`).
    */
   async sendPasswordResetEmail(
     to: string,
@@ -319,35 +319,50 @@ export class EmailService {
 }
 
 /**
- * Build the verification deep link the token is appended to. Prefers an explicit
- * `EMAIL_VERIFICATION_URL`, then {@link buildMemberUrl}'s `/member/verify` page —
- * on the gym's own host when the caller knows its slug, on the platform-wide
- * `WEB_URL` otherwise, and on a localhost default that is only ever hit (and
- * logged, not sent) in unconfigured dev / CI environments. The locale prefix is
- * added by the web middleware, not here.
+ * The page a member-site token link opens, in this order:
+ *
+ * 1. the gym's own host (`https://<slug>.<PLATFORM_ROOT_DOMAIN>/<path>`), whenever
+ *    the flow knows the gym — **ahead of** the explicit env `override`, which is
+ *    one platform-wide URL. Production sets it to `app.<root>`, and while it won
+ *    every gym's members were sent to the generic portal instead of their site;
+ * 2. the `override`, for a flow with no gym in scope;
+ * 3. {@link buildMemberUrl}'s `WEB_URL`, then its localhost default.
+ */
+function memberLinkBase(
+  path: string,
+  override: string | undefined,
+  gymSlug: string | null | undefined,
+): string {
+  return tenantOrigin(gymSlug, env.PLATFORM_ROOT_DOMAIN)
+    ? buildMemberUrl(path, gymSlug)
+    : (override ?? buildMemberUrl(path));
+}
+
+/**
+ * Build the verification deep link the token is appended to: the `/member/verify`
+ * page, addressed per {@link memberLinkBase} with `EMAIL_VERIFICATION_URL` as the
+ * gym-less override. The locale prefix is added by the web middleware, not here.
  *
  * `gymSlug` is last and optional so the existing argument order is untouched:
  * only the flows that genuinely have a gym in scope pass it (see
  * `AuthService.signupMember`), and a bare registration has none.
  */
 export function buildVerificationUrl(token: string, gymSlug?: string | null): string {
-  const base = env.EMAIL_VERIFICATION_URL ?? buildMemberUrl('member/verify', gymSlug);
+  const base = memberLinkBase('member/verify', env.EMAIL_VERIFICATION_URL, gymSlug);
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
 /**
- * Build the password-reset deep link the token is appended to. Prefers an
- * explicit `PASSWORD_RESET_URL`, then {@link buildMemberUrl}'s
- * `/member/reset-password` page, with the same origin order (and the same
- * middleware-added locale prefix) as {@link buildVerificationUrl}.
+ * Build the password-reset deep link the token is appended to: the
+ * `/member/reset-password` page, addressed per {@link memberLinkBase} with
+ * `PASSWORD_RESET_URL` as the gym-less override.
  *
- * `gymSlug` is accepted for symmetry, but nothing passes it yet and the link
- * lands on `WEB_URL` in practice: the browser calls `POST /auth/forgot-password`
- * on the API's own host, so the subdomain tenant middleware sees no gym, and the
- * request body is the address alone — there is no gym in scope to address it at.
+ * `gymSlug` is the gym whose site the reset was asked for on (its
+ * `x-tenant-host`), passed only when the account belongs to that gym. The mobile
+ * app and `app.<root>` name none, and land on the override.
  */
 export function buildPasswordResetUrl(token: string, gymSlug?: string | null): string {
-  const base = env.PASSWORD_RESET_URL ?? buildMemberUrl('member/reset-password', gymSlug);
+  const base = memberLinkBase('member/reset-password', env.PASSWORD_RESET_URL, gymSlug);
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 

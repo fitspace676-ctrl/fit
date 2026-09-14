@@ -396,11 +396,21 @@ describe('buildVerificationUrl', () => {
     );
   });
 
-  it('still prefers an explicit EMAIL_VERIFICATION_URL over the tenant host', () => {
+  // Production sets EMAIL_VERIFICATION_URL to app.formacore.io; while it won, every
+  // gym's signup verified on the generic portal instead of its own site.
+  it('puts the tenant host ahead of an explicit EMAIL_VERIFICATION_URL', () => {
     configure({
-      EMAIL_VERIFICATION_URL: 'https://m.fit/verify',
+      EMAIL_VERIFICATION_URL: 'https://app.formacore.io/member/verify',
       PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      WEB_URL: 'https://app.formacore.io',
     });
+    expect(buildVerificationUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/verify?token=abc',
+    );
+  });
+
+  it('keeps the explicit EMAIL_VERIFICATION_URL for a slug with no root domain to host it', () => {
+    configure({ EMAIL_VERIFICATION_URL: 'https://m.fit/verify', PLATFORM_ROOT_DOMAIN: '' });
     expect(buildVerificationUrl('abc', 'downtown')).toBe('https://m.fit/verify?token=abc');
   });
 });
@@ -423,13 +433,31 @@ describe('buildPasswordResetUrl', () => {
     expect(buildPasswordResetUrl('a b+c')).toBe('https://m.fit/reset?token=a%20b%2Bc');
   });
 
-  // No caller has a slug to pass — the reset request reaches the API on its own
-  // host carrying the address alone — but the builder takes the same shape as
-  // the verification one, so a flow that ever does gets the tenant host.
-  it("would address a gym's own host, given a slug", () => {
+  it("addresses the gym's own host when the reset was asked for there", () => {
     configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io', WEB_URL: 'https://app.formacore.io' });
     expect(buildPasswordResetUrl('abc', 'downtown')).toBe(
       'https://downtown.formacore.io/member/reset-password?token=abc',
+    );
+  });
+
+  it('puts the tenant host ahead of an explicit PASSWORD_RESET_URL', () => {
+    configure({
+      PASSWORD_RESET_URL: 'https://app.formacore.io/member/reset-password',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+    });
+    expect(buildPasswordResetUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/reset-password?token=abc',
+    );
+  });
+
+  it('uses the explicit PASSWORD_RESET_URL when no gym is named', () => {
+    configure({
+      PASSWORD_RESET_URL: 'https://app.formacore.io/member/reset-password',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      WEB_URL: 'https://web.fit',
+    });
+    expect(buildPasswordResetUrl('abc', null)).toBe(
+      'https://app.formacore.io/member/reset-password?token=abc',
     );
   });
 });
