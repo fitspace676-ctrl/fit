@@ -57,7 +57,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Dashboard - FormaCore Admin',
+  title: 'Dashboard',
 };
 
 // The overview reflects live tenant state and the staff session token, so the

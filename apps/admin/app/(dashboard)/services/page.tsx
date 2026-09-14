@@ -19,7 +19,7 @@ import { ServicesPager } from './services-pager';
 import { ServiceDrawer } from './service-drawer';
 
 export const metadata: Metadata = {
-  title: 'Services - FormaCore Admin',
+  title: 'Services',
   description:
     'The gym’s services: personal sessions filed under its own categories, who delivers them and what they cost.',
 };

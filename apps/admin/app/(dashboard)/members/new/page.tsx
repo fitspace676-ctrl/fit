@@ -11,7 +11,7 @@ import { Icon } from '@/components/ui';
 import { MemberForm } from '../member-form';
 
 export const metadata: Metadata = {
-  title: 'New member - FormaCore Admin',
+  title: 'New member',
 };
 
 // Reflects the staff session and writes live tenant state — never cached.

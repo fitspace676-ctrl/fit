@@ -164,7 +164,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Location - FormaCore Admin',
+  title: 'Location',
 };
 
 // The detail reflects live location state and the staff session token, so it must

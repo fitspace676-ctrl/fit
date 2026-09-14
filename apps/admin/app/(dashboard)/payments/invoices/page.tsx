@@ -14,7 +14,7 @@ import { InvoiceFilters } from './invoice-filters';
 import { InvoicesTable } from './invoices-table';
 
 export const metadata: Metadata = {
-  title: 'Payments · Invoices - FormaCore Admin',
+  title: 'Payments · Invoices',
   description:
     'The gym’s invoices - raised automatically for subscriptions and shop orders, or by hand against a member. Search, filter, download a PDF, or email one to the member.',
 };

@@ -11,7 +11,7 @@ import { formatPrice } from '../../../shop/format-price';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Sale - FormaCore Admin',
+  title: 'Sale',
   description: 'One sale in full: its lines, settlement, refunds and status history.',
 };
 

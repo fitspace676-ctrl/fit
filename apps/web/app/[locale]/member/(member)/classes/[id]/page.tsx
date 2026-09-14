@@ -85,7 +85,7 @@ export async function generateMetadata({
   const loaded = await loadInstance(id);
   const instance = loaded?.instance ?? null;
   return {
-    title: instance ? `${instance.title} - FormaCore` : 'Class - FormaCore',
+    title: instance ? instance.title : 'Class',
     description: instance?.description || 'See the class details and book your spot.',
   };
 }

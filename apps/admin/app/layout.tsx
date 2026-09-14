@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { JetBrains_Mono, Noto_Sans_Georgian } from 'next/font/google';
@@ -16,6 +16,8 @@ import { TopLoader } from '@/components/top-loader';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/lib/theme';
 import { AstryxProvider } from '@/components/theme/astryx-provider';
+import { getActiveGymBrand } from '@/lib/active-gym';
+import { gymMetadata, gymViewport } from '@/lib/gym-metadata';
 
 /**
  * The one UI family — Noto Sans Georgian, body AND display (`font-sans` and
@@ -44,10 +46,18 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: 'FormaCore - Admin',
-  description: 'FormaCore admin console.',
-};
+/**
+ * The tab and favicon name the gym this console manages (`<slug>.<root>/admin`),
+ * and fall back to FormaCore where no gym is in scope. Per request: the layout
+ * already reads the theme cookie, so this changes no rendering mode.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return gymMetadata(await getActiveGymBrand());
+}
+
+export async function generateViewport(): Promise<Viewport> {
+  return gymViewport(await getActiveGymBrand());
+}
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Seed the theme from the cookie so the painted `<html>` class matches the
