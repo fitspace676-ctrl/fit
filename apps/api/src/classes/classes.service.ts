@@ -122,6 +122,16 @@ export class ClassesService {
         // member checking the schedule on arrival is looking for.
         startsAt: { lt: to },
         endsAt: { gt: from },
+        // A branch matches the occurrence's own assignment or, for a generated
+        // occurrence that carries none, its template's — the admin schedule's rule.
+        ...(query.locationId
+          ? {
+              OR: [
+                { locationId: query.locationId },
+                { template: { locationId: query.locationId } },
+              ],
+            }
+          : {}),
       },
       select: CARD_SELECT,
       orderBy: { startsAt: 'asc' },

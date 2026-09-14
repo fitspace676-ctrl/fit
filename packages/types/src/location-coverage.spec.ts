@@ -50,15 +50,7 @@ const LOCATION_PENDING: Record<string, string> = {
     'GET /marketing/campaigns — Stage 7 exclusivity; Campaign has no column yet',
   listAutomationRulesQuerySchema:
     'GET /automation/rules — Stage 7 exclusivity; AutomationRule has no column yet',
-  listClassInstancesQuerySchema:
-    'public GET /class-instances — ClassInstance.locationId exists, schedule mixes branches',
   listServiceSlotsQuerySchema: 'public GET /service-sessions — ServiceSession.locationId exists',
-  listProductsQuerySchema:
-    'public GET /products — ignores Product.locationId (Stage 7 branch-exclusive products)',
-  listServicesQuerySchema:
-    'public GET /services — the admin twin narrows via staffAtLocation; this one does not',
-  listTrainersQuerySchema:
-    'public GET /trainers — the admin twin narrows via staffAtLocation; this one does not',
 };
 
 const COVERED_NAME = /^(list\w*|dashboard\w*|report\w*)QuerySchema$/;

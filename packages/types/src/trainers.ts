@@ -42,6 +42,12 @@ export type TrainerCard = z.infer<typeof trainerCardSchema>;
  */
 export const listTrainersQuerySchema = z.object({
   gymId: z.string().min(1),
+  /**
+   * Narrow to trainers rostered at one branch of this gym. Omitted, a signed-in
+   * member sees their home branch's coaches and a visitor every branch's; a branch
+   * that is not an active one of `gymId` is a `404`.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `GET /trainers` query — {@link listTrainersQuerySchema}. */

@@ -6,6 +6,7 @@ import type {
   ServiceCard,
   ServiceSchedule,
 } from '@fit/types';
+import { staffAtLocation } from '../common/location-filter.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** The columns a portal card needs. */
@@ -45,7 +46,13 @@ export class ServicesService {
 
   async listServices(query: ListServicesQuery): Promise<ListServicesResponse> {
     const rows = await this.prisma.client.service.findMany({
-      where: { gymId: query.gymId, status: ServiceStatus.ACTIVE },
+      // A branch offers the services of the staff rostered there — the same
+      // roster hop as the admin twin, so a coach at two branches shows at both.
+      where: {
+        gymId: query.gymId,
+        status: ServiceStatus.ACTIVE,
+        ...staffAtLocation(query.locationId),
+      },
       select: CARD_SELECT,
       orderBy: [{ type: 'asc' }, { name: 'asc' }],
     });

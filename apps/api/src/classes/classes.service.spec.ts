@@ -99,6 +99,27 @@ describe('ClassesService', () => {
       to: '2026-06-08T00:00:00.000Z',
     };
 
+    it("narrows to a branch by the occurrence's own branch or its template's", async () => {
+      const { service, findMany } = setup(null, []);
+
+      await service.listInstances({ ...window, locationId: 'loc-1' });
+
+      expect(findMany.mock.calls[0]![0]).toMatchObject({
+        where: {
+          gymId: 'gym-1',
+          OR: [{ locationId: 'loc-1' }, { template: { locationId: 'loc-1' } }],
+        },
+      });
+    });
+
+    it('adds no branch predicate when no branch is resolved', async () => {
+      const { service, findMany } = setup(null, []);
+
+      await service.listInstances(window);
+
+      expect(findMany.mock.calls[0]![0].where).not.toHaveProperty('OR');
+    });
+
     it('scopes to the gym, hides non-SCHEDULED occurrences, and orders by start', async () => {
       const { service, findMany } = setup(null, []);
 

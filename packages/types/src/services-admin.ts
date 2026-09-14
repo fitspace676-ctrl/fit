@@ -224,6 +224,12 @@ export interface ListServiceStaffResponse {
  */
 export const listServicesQuerySchema = z.object({
   gymId: z.string().min(1),
+  /**
+   * Narrow to services whose staff member is rostered at one branch of this gym.
+   * Omitted, a signed-in member sees their home branch's and a visitor every
+   * branch's; a branch that is not an active one of `gymId` is a `404`.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 export type ListServicesQuery = z.infer<typeof listServicesQuerySchema>;

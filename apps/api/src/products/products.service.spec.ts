@@ -49,6 +49,28 @@ describe('ProductsService', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('listProducts', () => {
+    it("narrows a branch to its exclusives plus gym-wide products, not another branch's", async () => {
+      const { service, findMany } = setup();
+
+      await service.listProducts({ gymId: 'gym-1', locationId: 'loc-1' });
+
+      expect(findMany.mock.calls[0]![0]).toMatchObject({
+        where: {
+          gymId: 'gym-1',
+          status: ProductStatus.ACTIVE,
+          AND: { OR: [{ locationId: null }, { locationId: 'loc-1' }] },
+        },
+      });
+    });
+
+    it('adds no branch predicate when no branch is resolved', async () => {
+      const { service, findMany } = setup();
+
+      await service.listProducts({ gymId: 'gym-1' });
+
+      expect(findMany.mock.calls[0]![0].where).not.toHaveProperty('AND');
+    });
+
     it('scopes the query to the gym and only ACTIVE products, ordered by name', async () => {
       const { service, findMany } = setup();
 

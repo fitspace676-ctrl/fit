@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -15,6 +16,7 @@ import {
   type ListTrainersResponse,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
+import { PortalBranchService } from '../common/portal-branch.service';
 import { TrainersService } from './trainers.service';
 
 /**
@@ -30,23 +32,32 @@ import { TrainersService } from './trainers.service';
  */
 @Controller('trainers')
 export class TrainersController {
-  constructor(private readonly trainers: TrainersService) {}
+  constructor(
+    private readonly trainers: TrainersService,
+    private readonly portalBranch: PortalBranchService,
+  ) {}
 
   /**
-   * `GET /trainers?gymId=<id>` — list the gym's trainers. The query is validated
-   * up front (a bad/missing `gymId` is a `400` with per-field details) so the
-   * service only ever sees a well-formed request. An empty `trainers` array is a
-   * normal `200`.
+   * `GET /trainers?gymId=<id>[&locationId=<id>]` — list the gym's trainers at the
+   * caller's branch. The query is validated up front (a bad/missing `gymId` is a
+   * `400` with per-field details) so the service only ever sees a well-formed
+   * request. The branch is the explicit `locationId`, else a signed-in member's
+   * home branch, else every branch ({@link PortalBranchService}); a `locationId`
+   * outside the gym is a `404`. An empty `trainers` array is a normal `200`.
    */
   @Get()
   @HttpCode(HttpStatus.OK)
   @Public()
-  async list(@Query() query: unknown): Promise<ListTrainersResponse> {
+  async list(
+    @Query() query: unknown,
+    @Headers('authorization') authorization?: string,
+  ): Promise<ListTrainersResponse> {
     const result = listTrainersQuerySchema.safeParse(query);
     if (!result.success) {
       throw new BadRequestException(formatIssues(result.error));
     }
-    return this.trainers.listTrainers(result.data);
+    const locationId = await this.portalBranch.resolve({ ...result.data, authorization });
+    return this.trainers.listTrainers({ ...result.data, locationId });
   }
 
   /**

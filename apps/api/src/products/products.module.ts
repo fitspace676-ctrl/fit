@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PortalBranchModule } from '../common/portal-branch.module';
 import { GymsModule } from '../gyms/gyms.module';
 import { AdminProductCategoriesController } from './admin-product-categories.controller';
 import { AdminProductCategoriesService } from './admin-product-categories.service';
@@ -26,8 +27,9 @@ import { ProductsService } from './products.service';
  */
 @Module({
   // `GymsModule` for `GymLocaleService`: a new product is priced in the gym's own
-  // configured currency rather than a hardcoded default.
-  imports: [GymsModule],
+  // configured currency rather than a hardcoded default. `PortalBranchModule` for
+  // the branch the public listing narrows to.
+  imports: [GymsModule, PortalBranchModule],
   controllers: [AdminProductCategoriesController, AdminProductsController, ProductsController],
   providers: [
     AdminProductCategoriesService,

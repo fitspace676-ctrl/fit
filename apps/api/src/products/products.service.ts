@@ -7,6 +7,7 @@ import {
   type ProductSummary,
   type ProductVariantSummary,
 } from '@fit/types';
+import { availableAtLocation } from '../common/location-filter.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -56,7 +57,13 @@ export class ProductsService {
    */
   async listProducts(query: ListProductsQuery): Promise<ListProductsResponse> {
     const rows = await this.prisma.client.product.findMany({
-      where: { gymId: query.gymId, status: ProductStatus.ACTIVE },
+      // A branch shows its own exclusives plus every gym-wide product — the Stage 7
+      // availability rule, never plain equality on `locationId`.
+      where: {
+        gymId: query.gymId,
+        status: ProductStatus.ACTIVE,
+        ...availableAtLocation(query.locationId),
+      },
       select: PRODUCT_SELECT,
       orderBy: { name: 'asc' },
     });

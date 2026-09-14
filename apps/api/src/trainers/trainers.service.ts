@@ -14,6 +14,7 @@ import type {
   TrainerCard,
   TrainerScheduleEntry,
 } from '@fit/types';
+import { staffAtLocation } from '../common/location-filter.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** The columns a public trainer card needs, plus the studios their classes run in. */
@@ -49,7 +50,13 @@ export class TrainersService {
 
   async listTrainers(query: ListTrainersQuery): Promise<ListTrainersResponse> {
     const rows = await this.prisma.client.trainer.findMany({
-      where: { gymId: query.gymId, status: TrainerStatus.ACTIVE },
+      // Coaches rostered at the branch, through their staff record — the admin
+      // roster's hop. An orphan profile (no staff row) reaches no branch.
+      where: {
+        gymId: query.gymId,
+        status: TrainerStatus.ACTIVE,
+        ...staffAtLocation(query.locationId),
+      },
       select: CARD_SELECT,
       orderBy: { name: 'asc' },
     });

@@ -143,6 +143,12 @@ export const listClassInstancesQuerySchema = z
     from: z.string().datetime(),
     to: z.string().datetime(),
     view: classCalendarViewSchema.optional(),
+    /**
+     * Narrow the schedule to one branch of this gym. Omitted, a signed-in member
+     * sees their home branch's classes and a visitor every branch's; a branch that
+     * is not an active one of `gymId` is a `404`.
+     */
+    locationId: z.string().min(1).optional(),
   })
   .refine((q) => new Date(q.from).getTime() <= new Date(q.to).getTime(), {
     message: 'from must be on or before to',

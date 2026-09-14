@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { firstValueFrom, of } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@fit/types';
 import { ClassesController } from './classes.controller';
 import type { ClassesService } from './classes.service';
+import type { PortalBranchService } from '../common/portal-branch.service';
 import type { OccupancyStreamService } from '../live/occupancy-stream.service';
 
 const FROM = '2026-06-01T00:00:00.000Z';
@@ -58,11 +59,14 @@ function setup() {
     of(OCCUPANCY),
   );
   const occupancy = { stream } as unknown as OccupancyStreamService;
+  const resolve = vi.fn<PortalBranchService['resolve']>(() => Promise.resolve(undefined));
+  const portalBranch = { resolve } as unknown as PortalBranchService;
   return {
-    controller: new ClassesController(classes, occupancy),
+    controller: new ClassesController(classes, occupancy, portalBranch),
     listInstances,
     getInstance,
     stream,
+    resolve,
   };
 }
 
@@ -74,6 +78,49 @@ describe('ClassesController', () => {
   });
 
   afterEach(() => vi.clearAllMocks());
+
+  describe('GET /class-instances — branch', () => {
+    const window = { gymId: 'gym-1', from: FROM, to: TO };
+
+    it('narrows a signed-in member to the branch resolved from their session', async () => {
+      ctx.resolve.mockResolvedValueOnce('loc-home');
+
+      await ctx.controller.list(window, 'Bearer tok');
+
+      expect(ctx.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ gymId: 'gym-1', authorization: 'Bearer tok' }),
+      );
+      expect(ctx.listInstances).toHaveBeenCalledWith({ ...window, locationId: 'loc-home' });
+    });
+
+    it('lists every branch for an anonymous visitor', async () => {
+      await ctx.controller.list(window);
+
+      expect(ctx.listInstances.mock.calls[0]).toEqual([{ ...window, locationId: undefined }]);
+    });
+
+    it('hands a same-gym override to the resolver and lists that branch', async () => {
+      ctx.resolve.mockResolvedValueOnce('loc-2');
+
+      await ctx.controller.list({ ...window, locationId: 'loc-2' });
+
+      expect(ctx.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ gymId: 'gym-1', locationId: 'loc-2' }),
+      );
+      expect(ctx.listInstances).toHaveBeenCalledWith({ ...window, locationId: 'loc-2' });
+    });
+
+    it("404s another gym's branch without listing anything", async () => {
+      ctx.resolve.mockRejectedValueOnce(new NotFoundException());
+
+      const error = await ctx.controller
+        .list({ ...window, locationId: 'loc-other-gym' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(ctx.listInstances).not.toHaveBeenCalled();
+    });
+  });
 
   describe('GET /class-instances', () => {
     it('parses the query and delegates the validated window to the service', async () => {

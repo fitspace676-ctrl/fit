@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   type MessageEvent,
@@ -20,6 +21,7 @@ import {
   type ListClassInstancesResponse,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
+import { PortalBranchService } from '../common/portal-branch.service';
 import { OccupancyStreamService } from '../live/occupancy-stream.service';
 import { ClassesService } from './classes.service';
 
@@ -46,6 +48,7 @@ export class ClassesController {
   constructor(
     private readonly classes: ClassesService,
     private readonly occupancy: OccupancyStreamService,
+    private readonly portalBranch: PortalBranchService,
   ) {}
 
   /**
@@ -90,17 +93,24 @@ export class ClassesController {
    * list the gym's class occurrences overlapping `[from, to)`. The query is
    * validated up front (a bad/missing `gymId`, a non-ISO bound, or an inverted
    * range is a `400` with per-field details) so the service only ever sees a
-   * well-formed window. An empty `instances` array is a normal `200`.
+   * well-formed window. The branch is the explicit `locationId`, else a signed-in
+   * member's home branch, else every branch ({@link PortalBranchService}); a
+   * `locationId` outside the gym is a `404`. An empty `instances` array is a
+   * normal `200`.
    */
   @Get()
   @HttpCode(HttpStatus.OK)
   @Public()
-  async list(@Query() query: unknown): Promise<ListClassInstancesResponse> {
+  async list(
+    @Query() query: unknown,
+    @Headers('authorization') authorization?: string,
+  ): Promise<ListClassInstancesResponse> {
     const result = listClassInstancesQuerySchema.safeParse(query);
     if (!result.success) {
       throw new BadRequestException(formatIssues(result.error));
     }
-    return this.classes.listInstances(result.data);
+    const locationId = await this.portalBranch.resolve({ ...result.data, authorization });
+    return this.classes.listInstances({ ...result.data, locationId });
   }
 
   /**
