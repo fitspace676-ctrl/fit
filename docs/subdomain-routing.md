@@ -266,6 +266,32 @@ when it builds console links. This needs a live deploy to verify end-to-end
 > the gym from its session cookie. Works for single-gym owners; drop it once the
 > `/admin` proxy is verified. A session signed in there is that host's alone.
 
+## A new gym's flow (operator → owner → member)
+
+What happens between "the operator creates a gym" and "its first member signs in",
+and which host each step is on:
+
+1. **Provision** — the operator console's form (`apps/superadmin/components/new-gym-form.tsx`)
+   calls `POST /admin/gyms`, which is `AuthService.registerGym`: gym + owner account +
+   `OWNER` membership, no password and no session. The owner is mailed
+   `buildOwnerOnboardingUrl` → `https://<slug>.<root>/admin/activate?token=…`.
+2. **Activate** — that page (`apps/admin/app/activate`) posts `POST /auth/activate` with
+   the page's host as `x-tenant-host`; a link opened on another gym's console is
+   `403 TENANT_MISMATCH` before the token is spent. It verifies the address and sets
+   the password, then sends the owner to `/admin/login?email=…&activated=1`.
+3. **Sign in** — the console sign-in takes the gym from the subdomain, so the session's
+   `gymSlug` is this gym's and its host-only cookies live on `<slug>.<root>` alone.
+4. **Member signup** — the join wizard on `<slug>.<root>` calls `POST /auth/signup`
+   (account + `MEMBER` membership); the verification mail is `buildVerificationUrl` →
+   `https://<slug>.<root>/member/verify?token=…`, unless `EMAIL_VERIFICATION_URL`
+   overrides it. After verifying, the member signs in on the same host.
+
+`apps/e2e/tests/new-gym-flow.spec.ts` (`pnpm --filter @fit/e2e test:e2e:new-gym`; in CI
+it runs after the member suite in **E2E · member booking + checkout**) drives exactly this on `<slug>.localhost`, reading the mailed links
+out of the API's log, and then checks the new gym against `downtown`: the owner's
+session is refused on downtown's console and by the API on downtown's host, and
+neither roster shows the other gym's people.
+
 ## How this is actually deployed (2026-09)
 
 `fit.ge` above is only a placeholder. The real root domain is **`formacore.io`**, and
