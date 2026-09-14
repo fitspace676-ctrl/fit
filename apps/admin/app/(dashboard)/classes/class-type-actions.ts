@@ -62,6 +62,7 @@ export async function getClassTypeAction(id: string): Promise<ActionResult<Class
         priceMinor: type.priceMinor,
         includedPlanIds: type.includedPlanIds,
         status: type.status,
+        locationId: type.locationId,
       },
     };
   } catch (error) {

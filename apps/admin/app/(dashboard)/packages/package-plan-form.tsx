@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   MAX_PACKAGE_FEATURES,
   type PackageBillingInterval,
@@ -10,6 +11,7 @@ import {
 } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import { useGymCurrency } from '@/components/gym-currency';
+import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import { BILLING_INTERVALS, inputToMinor, minorToInput } from './format';
 import { createPackagePlanAction, updatePackagePlanAction } from './actions';
 
@@ -35,6 +37,8 @@ type Initial = {
   sessionCount: number | null;
   features: string[];
   popular: boolean;
+  /** The one branch the package is sold at; `null` (or omitted) is every branch. */
+  locationId?: string | null;
 };
 
 type Props =
@@ -79,6 +83,8 @@ export function PackagePlanForm(props: Props) {
         popular: false,
       };
 
+  const tCommon = useTranslations('admin.common');
+  const branch = useBranchExclusivity(props.mode, initial.locationId);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [price, setPrice] = useState(initial.priceAmount ? minorToInput(initial.priceAmount) : '');
@@ -126,6 +132,7 @@ export function PackagePlanForm(props: Props) {
       sessionCount: parsedSessions,
       features: cleanedFeatures,
       popular,
+      locationId: branch.locationId,
     };
 
     startTransition(async () => {
@@ -296,6 +303,32 @@ export function PackagePlanForm(props: Props) {
         />
         Mark as “Most popular”
       </label>
+
+      {branch.visible ? (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="plan-branch" className={LABEL_CLASS}>
+            {tCommon('branchExclusive')}
+          </label>
+          <select
+            id="plan-branch"
+            name="locationId"
+            value={branch.value}
+            onChange={(event) => branch.setValue(event.target.value)}
+            className={FIELD_CLASS}
+          >
+            <option value="">{tCommon('allBranchesOption')}</option>
+            {branch.unlistedId ? (
+              <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
+            ) : null}
+            {branch.locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-ink-400">{tCommon('branchExclusiveHint')}</p>
+        </div>
+      ) : null}
 
       {!isEdit ? (
         <div className="flex flex-col gap-1">

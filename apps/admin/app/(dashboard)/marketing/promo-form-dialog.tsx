@@ -13,6 +13,7 @@ import type {
 } from '@fit/types';
 import { Button, Drawer, Field, SelectField, TextareaField } from '@fit/ui-kit';
 import { Icon, useToast } from '@/components/ui';
+import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import { createPromoAction, updatePromoAction } from './actions';
 import { majorToMinor, minorToMajor } from './marketing-meta';
 
@@ -126,6 +127,8 @@ export function PromoFormDialog({
   onClose: () => void;
 }) {
   const t = useTranslations('admin.marketing');
+  const tCommon = useTranslations('admin.common');
+  const branch = useBranchExclusivity(mode, seed?.locationId);
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -178,6 +181,7 @@ export function PromoFormDialog({
       expiryDate,
       oncePerMember: form.oncePerMember,
       status: form.status,
+      locationId: branch.locationId,
     } satisfies CreatePromoCodeInput & UpdatePromoCodeInput;
 
     startTransition(async () => {
@@ -357,6 +361,29 @@ export function PromoFormDialog({
               { value: 'inactive', label: t('promo.statusInactive') },
             ]}
           />
+          {branch.visible ? (
+            <SelectField
+              label={tCommon('branchExclusive')}
+              hint={tCommon('branchExclusiveHint')}
+              value={branch.value}
+              onChange={(e) => branch.setValue(e.target.value)}
+              options={[
+                { value: '', label: tCommon('allBranchesOption') },
+                ...(branch.unlistedId
+                  ? [
+                      {
+                        value: branch.unlistedId,
+                        label: seed?.locationName ?? tCommon('branchExclusiveUnlisted'),
+                      },
+                    ]
+                  : []),
+                ...branch.locations.map((location) => ({
+                  value: location.id,
+                  label: location.name,
+                })),
+              ]}
+            />
+          ) : null}
         </div>
       </div>
     </Drawer>

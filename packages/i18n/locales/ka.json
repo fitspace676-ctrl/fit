@@ -109,7 +109,11 @@
         "ka": "ქართული",
         "en": "English"
       },
-      "notSplitByBranch": "ფილიალებად არ იყოფა"
+      "notSplitByBranch": "ფილიალებად არ იყოფა",
+      "branchExclusive": "ფილიალი",
+      "branchExclusiveHint": "ცარიელი = ყველა ფილიალზე",
+      "allBranchesOption": "ყველა ფილიალი",
+      "branchExclusiveUnlisted": "სხვა ფილიალი"
     },
     "profile": {
       "title": "პროფილი",

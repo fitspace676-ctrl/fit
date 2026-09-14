@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import {
   MAX_PRODUCT_CATEGORY_NAME,
@@ -15,6 +16,7 @@ import {
 } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import { useGymCurrency } from '@/components/gym-currency';
+import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import { inputToMinor, minorToInput } from './format-price';
 import {
   createProductAction,
@@ -449,6 +451,8 @@ type Initial = {
   /** Per-product reorder cushion; `null` uses the shared default. */
   lowStockThreshold: number | null;
   categoryId: string | null;
+  /** The one branch the product is sold at; `null` (or omitted) is every branch. */
+  locationId?: string | null;
 };
 
 /**
@@ -534,6 +538,8 @@ export function ProductForm(props: Props) {
         categoryId: null,
       };
 
+  const tCommon = useTranslations('admin.common');
+  const branch = useBranchExclusivity(props.mode, initial.locationId);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [price, setPrice] = useState(initial.priceAmount ? minorToInput(initial.priceAmount) : '');
@@ -719,6 +725,7 @@ export function ProductForm(props: Props) {
       stock: cleanedVariants.length > 0 || stock.trim() === '' ? null : Number(stock.trim()),
       lowStockThreshold: threshold.trim() === '' ? null : Number(threshold.trim()),
       categoryId: categoryId === '' ? null : categoryId,
+      locationId: branch.locationId,
     };
 
     startTransition(async () => {
@@ -1119,6 +1126,32 @@ export function ProductForm(props: Props) {
           </p>
         ) : null}
       </div>
+
+      {branch.visible ? (
+        <div {...stylex.props(styles.fieldGroup)}>
+          <label htmlFor="product-branch" {...stylex.props(styles.label)}>
+            {tCommon('branchExclusive')}
+          </label>
+          <select
+            id="product-branch"
+            name="locationId"
+            value={branch.value}
+            onChange={(event) => branch.setValue(event.target.value)}
+            {...stylex.props(styles.input)}
+          >
+            <option value="">{tCommon('allBranchesOption')}</option>
+            {branch.unlistedId ? (
+              <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
+            ) : null}
+            {branch.locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+          </select>
+          <p {...stylex.props(styles.marginHint)}>{tCommon('branchExclusiveHint')}</p>
+        </div>
+      ) : null}
 
       {!isEdit ? (
         <div {...stylex.props(styles.fieldGroup)}>

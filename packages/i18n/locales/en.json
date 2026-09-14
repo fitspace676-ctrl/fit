@@ -109,7 +109,11 @@
         "ka": "ქართული",
         "en": "English"
       },
-      "notSplitByBranch": "Not split by branch"
+      "notSplitByBranch": "Not split by branch",
+      "branchExclusive": "Branch",
+      "branchExclusiveHint": "Empty = available at every branch",
+      "allBranchesOption": "All branches",
+      "branchExclusiveUnlisted": "Another branch"
     },
     "profile": {
       "title": "Profile",
