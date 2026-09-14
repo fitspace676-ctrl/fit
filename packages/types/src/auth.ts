@@ -122,6 +122,15 @@ export const MEMBERSHIP_NOT_ACTIVE_CODE = 'MEMBERSHIP_NOT_ACTIVE';
 export const TENANT_MISMATCH_CODE = 'TENANT_MISMATCH';
 
 /**
+ * Code returned when a gym-scoped route runs with no gym in scope. `404` for a
+ * public request whose host names no active gym — `app.<root>`, the API's own
+ * host, a slug nobody owns — since that gym's resource simply is not there; `403`
+ * for a session bound to no gym (a platform account). Before it existed the
+ * public case surfaced as an opaque `500 INTERNAL_ERROR`.
+ */
+export const TENANT_REQUIRED_CODE = 'TENANT_REQUIRED';
+
+/**
  * Body for `POST /auth/forgot-password`. Email is normalised the same way
  * registration normalises it so the lookup matches the stored row. The endpoint
  * never reveals whether the address is registered — it always returns the same

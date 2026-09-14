@@ -32,6 +32,7 @@ interface Invite {
   email: string;
   role: Role;
   gymId: string;
+  gym: { slug: string };
   expiresAt: Date;
   usedAt: Date | null;
 }
@@ -102,6 +103,7 @@ const liveInvite = (over?: Partial<Invite>): Invite => ({
   email: 'invitee@example.com',
   role: Role.MANAGER,
   gymId: 'gym-1',
+  gym: { slug: 'downtown' },
   expiresAt: new Date(Date.now() + 1_000_000),
   usedAt: null,
   ...over,
@@ -141,6 +143,33 @@ describe('AuthService — staff invites (T4.7)', () => {
       const { service } = setup({ invite: liveInvite({ usedAt: new Date() }) });
       const { url } = await service.acceptInvite('tok-123');
       expect(url).toContain('inviteError=invalid');
+    });
+
+    describe('with a platform root domain', () => {
+      afterEach(() => {
+        delete mockEnv.PLATFORM_ROOT_DOMAIN;
+      });
+
+      it("redirects to the inviting gym's own host, not WEB_URL", async () => {
+        mockEnv.PLATFORM_ROOT_DOMAIN = 'formacore.io';
+        const { service } = setup({ invite: liveInvite(), userExists: false });
+        const { url } = await service.acceptInvite('tok-123');
+        expect(url).toBe('https://downtown.formacore.io/member/register?inviteToken=tok-123');
+      });
+
+      it("sends a spent invite to that gym's login", async () => {
+        mockEnv.PLATFORM_ROOT_DOMAIN = 'formacore.io';
+        const { service } = setup({ invite: liveInvite({ usedAt: new Date() }) });
+        const { url } = await service.acceptInvite('tok-123');
+        expect(url).toBe('https://downtown.formacore.io/member/login?inviteError=invalid');
+      });
+
+      it('falls back to WEB_URL for an unknown token, which names no gym', async () => {
+        mockEnv.PLATFORM_ROOT_DOMAIN = 'formacore.io';
+        const { service } = setup({ invite: null });
+        const { url } = await service.acceptInvite('nope');
+        expect(url).toBe('https://app.example.com/member/login?inviteError=invalid');
+      });
     });
   });
 

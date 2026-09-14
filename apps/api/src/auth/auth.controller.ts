@@ -164,16 +164,27 @@ export class AuthController {
     return this.auth.login(input);
   }
 
-  /** `POST /auth/forgot-password` — mint a reset token and email the reset link. */
+  /**
+   * `POST /auth/forgot-password` — mint a reset token and email the reset link.
+   *
+   * The tenant host the call names is read the same way as on `POST /auth/refresh`;
+   * the service addresses the link at that gym's own site when the account
+   * belongs to it.
+   */
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @RateLimit(RATE_LIMITS.authStrict)
   async forgotPassword(
     @Body() body: unknown,
     @Headers('accept-language') acceptLanguage?: string,
+    @Headers() headers: TenantHeaders = {},
   ): Promise<ForgotPasswordResponse> {
     const input = parse(forgotPasswordSchema, body);
-    return this.auth.requestPasswordReset(input, parseAcceptLanguage(acceptLanguage));
+    return this.auth.requestPasswordReset(
+      input,
+      parseAcceptLanguage(acceptLanguage),
+      resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN),
+    );
   }
 
   /** `POST /auth/reset-password` — consume a reset token, set the new password, and issue a session. */

@@ -40,6 +40,7 @@ import type {
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
+import { buildMemberUrl } from '../common/console-url';
 import { assertStartDateWithinPolicy } from '../gyms/start-date-policy.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -605,10 +606,15 @@ export class AuthService {
    * to enumerate registered emails. Delivery is best-effort for the same reason
    * registration's is — the token already exists, so a transient mail failure is
    * logged rather than surfaced (which would itself leak that the email exists).
+   *
+   * `gymSlug` is the gym whose site the reset was asked for on; the link is
+   * addressed there only when the account belongs to it (see
+   * {@link resetLinkGymSlug}), and at the platform-wide reset page otherwise.
    */
   async requestPasswordReset(
     input: ForgotPasswordInput,
     locale: EmailLocale | null = null,
+    gymSlug: string | null = null,
   ): Promise<ForgotPasswordResponse> {
     const user = await this.prisma.client.user.findUnique({
       where: { email: input.email },
@@ -625,6 +631,7 @@ export class AuthService {
           token,
           user.name ?? undefined,
           locale ?? DEFAULT_EMAIL_LOCALE,
+          await this.resetLinkGymSlug(user.id, gymSlug),
         );
       } catch (error) {
         this.logger.error(
@@ -636,6 +643,23 @@ export class AuthService {
     }
 
     return { message: 'If an account exists for that address, a reset link has been sent' };
+  }
+
+  /**
+   * The gym a reset link may be addressed at: the slug the request's host named,
+   * but only when the account holds a membership there, in any status. The host
+   * is a caller-chosen selector — without the check, anyone could have a
+   * stranger's single-use token mailed to a gym site of their own choosing.
+   */
+  private async resetLinkGymSlug(userId: string, gymSlug: string | null): Promise<string | null> {
+    if (!gymSlug) {
+      return null;
+    }
+    const membership = await this.prisma.client.gymMember.findFirst({
+      where: { userId, gym: { slug: gymSlug } },
+      select: { id: true },
+    });
+    return membership ? gymSlug : null;
   }
 
   /**
@@ -1163,23 +1187,29 @@ export class AuthService {
    * `inviteError` flag so the client can show a clear "this invitation is no
    * longer valid" message rather than an error page. The token is never spent
    * here — only redirected — so following the link is always safe to retry.
+   *
+   * Every redirect lands on the inviting gym's own host, where the staff session
+   * the flow ends in belongs; only an unknown token, which names no gym, falls
+   * back to `WEB_URL`.
    */
   async acceptInvite(token: string): Promise<{ url: string }> {
     const invite = await this.prisma.client.staffInvite.findUnique({
       where: { token },
-      select: { email: true, usedAt: true, expiresAt: true },
+      select: { email: true, usedAt: true, expiresAt: true, gym: { select: { slug: true } } },
     });
 
     if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
-      return { url: buildInviteRedirectUrl('/member/login', { inviteError: 'invalid' }) };
+      return {
+        url: buildInviteRedirectUrl('member/login', { inviteError: 'invalid' }, invite?.gym.slug),
+      };
     }
 
     const existing = await this.prisma.client.user.findUnique({
       where: { email: invite.email },
       select: { id: true },
     });
-    const path = existing ? '/member/login' : '/member/register';
-    return { url: buildInviteRedirectUrl(path, { inviteToken: token }) };
+    const path = existing ? 'member/login' : 'member/register';
+    return { url: buildInviteRedirectUrl(path, { inviteToken: token }, invite.gym.slug) };
   }
 
   /**
@@ -1257,17 +1287,20 @@ export class AuthService {
 }
 
 /**
- * Build a web-client deep link for the staff-invite accept flow (T4.7). Targets
- * the web app (`WEB_URL`, falling back to the dev default the email links use) at
- * `path` with the given query params — e.g. `/member/register?inviteToken=…`. The
- * path carries the member portal's `/member` base but no locale prefix; the web
- * app's i18n middleware adds the default locale on redirect, preserving the query
- * string.
+ * Build a web-client deep link for the staff-invite accept flow (T4.7): the member
+ * site's `path` with the given query params — e.g. `member/register?inviteToken=…`
+ * — addressed by {@link buildMemberUrl}, so on the inviting gym's own host when
+ * `gymSlug` is known and on `WEB_URL` (then the dev default) otherwise. The path
+ * carries the member portal's `/member` base but no locale prefix; the web app's
+ * i18n middleware adds the default locale on redirect, preserving the query string.
  */
-function buildInviteRedirectUrl(path: string, params: Record<string, string>): string {
-  const base = env.WEB_URL ? env.WEB_URL.replace(/\/+$/, '') : 'http://localhost:3001';
+function buildInviteRedirectUrl(
+  path: string,
+  params: Record<string, string>,
+  gymSlug?: string | null,
+): string {
   const qs = new URLSearchParams(params).toString();
-  return `${base}${path}?${qs}`;
+  return `${buildMemberUrl(path, gymSlug)}?${qs}`;
 }
 
 /**

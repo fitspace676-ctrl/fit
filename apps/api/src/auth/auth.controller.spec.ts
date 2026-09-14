@@ -269,13 +269,22 @@ describe('AuthController', () => {
       expect(result).toEqual({
         message: 'If an account exists for that address, a reset link has been sent',
       });
-      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, null);
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, null, null);
     });
 
     it('sends the reset mail in the language the visitor was reading', async () => {
       await ctx.controller.forgotPassword({ email: 'a@b.com' }, 'ka');
 
-      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, 'ka');
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, 'ka', null);
+    });
+
+    it('passes the tenant slug named by x-tenant-host through to the service', async () => {
+      await ctx.controller.forgotPassword({ email: 'a@b.com' }, undefined, {
+        'x-tenant-host': `downtown.${env.PLATFORM_ROOT_DOMAIN}`,
+        host: 'api-production.up.railway.app',
+      });
+
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, null, 'downtown');
     });
 
     it('rejects a malformed email with a 400', async () => {

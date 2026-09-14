@@ -575,7 +575,49 @@ describe('AuthService', () => {
       expect(ttl).toBe(3_600);
 
       const emailedToken = key.slice('password-reset:'.length);
-      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith('a@b.com', emailedToken, 'Sam', 'en');
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        emailedToken,
+        'Sam',
+        'en',
+        null,
+      );
+    });
+
+    it("addresses the link at the host's gym when the account belongs to it", async () => {
+      ctx.findUnique.mockResolvedValue({ id: 'user-1', name: 'Sam' });
+      ctx.gymMemberFindFirst.mockResolvedValue({ id: 'gm-1' });
+
+      await ctx.service.requestPasswordReset({ email: 'a@b.com' }, 'ka', 'downtown');
+
+      expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
+        where: { userId: 'user-1', gym: { slug: 'downtown' } },
+        select: { id: true },
+      });
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        expect.any(String),
+        'Sam',
+        'ka',
+        'downtown',
+      );
+    });
+
+    // The host is caller-chosen: it must not be able to steer a stranger's token
+    // to a gym site the account has nothing to do with.
+    it("ignores the host's gym when the account holds no membership there", async () => {
+      ctx.findUnique.mockResolvedValue({ id: 'user-1', name: 'Sam' });
+      ctx.gymMemberFindFirst.mockResolvedValue(null);
+
+      await ctx.service.requestPasswordReset({ email: 'a@b.com' }, null, 'evil');
+
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        expect.any(String),
+        'Sam',
+        'en',
+        null,
+      );
     });
 
     it('returns the same generic message without minting a token when no account exists', async () => {
