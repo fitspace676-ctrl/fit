@@ -28,6 +28,7 @@ import {
   type ForgotPasswordResponse,
   type RegisterGymResponse,
   type RegisterResponse,
+  type ResetPasswordResponse,
   type TokenPair,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
@@ -187,13 +188,23 @@ export class AuthController {
     );
   }
 
-  /** `POST /auth/reset-password` — consume a reset token, set the new password, and issue a session. */
+  /**
+   * `POST /auth/reset-password` — consume a reset token, set the new password, and
+   * issue a session when the host allows one.
+   *
+   * The tenant host is read the same way as on `POST /auth/refresh`: on a gym host
+   * the session binds to that gym, or none is issued; a tenant-less host gets the
+   * account's primary gym.
+   */
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @RateLimit(RATE_LIMITS.authStrict)
-  async resetPassword(@Body() body: unknown): Promise<TokenPair> {
+  async resetPassword(
+    @Body() body: unknown,
+    @Headers() headers: TenantHeaders = {},
+  ): Promise<ResetPasswordResponse> {
     const input = parse(resetPasswordSchema, body);
-    return this.auth.resetPassword(input);
+    return this.auth.resetPassword(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
   /** `POST /auth/google` — verify a Google ID token and issue a session. */

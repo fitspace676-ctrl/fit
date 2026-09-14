@@ -10,10 +10,11 @@ import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
  * Set-a-new-password form reached from the emailed reset link
  * (`/member/reset-password?token=…`). It reads the single-use `token` from the query
  * string and, on submit, posts it with the chosen password to the API. A
- * successful reset revokes every existing session and issues a fresh session
- * (persisted as httpOnly cookies by {@link resetPassword}), so the user walks
- * away signed in — we send them to the post-login destination, mirroring the
- * login form. A missing/blank token means a malformed or stale link, so we show
+ * successful reset revokes every existing session and, when the account is an
+ * active member of this host's gym, issues a fresh session bound to it (persisted
+ * as httpOnly cookies by {@link resetPassword}) — we send them to the post-login
+ * destination, mirroring the login form. Without one they land on sign-in with a
+ * "password updated" notice. A missing/blank token means a malformed or stale link, so we show
  * the recoverable error and never render the form.
  *
  * FormaCore redesign: rebuilt on the shared auth controls — the password field,
@@ -42,8 +43,12 @@ export function ResetPasswordForm() {
     setPending(true);
     setError(null);
     resetPassword(token, password)
-      .then(async () => {
-        const destination = await postLoginPath(null, locale);
+      .then(async (result) => {
+        // No session on a gym the account is not an active member of: the password
+        // is changed, so send them to sign in rather than onto another gym.
+        const destination = result.sessionIssued
+          ? await postLoginPath(null, locale)
+          : `/${locale}/member/login?reset=done`;
         router.replace(destination);
       })
       .catch((err: unknown) => {

@@ -5,6 +5,7 @@ import type {
   ForgotPasswordResponse,
   RegisterGymResponse,
   RegisterResponse,
+  ResetPasswordResponse,
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
@@ -26,9 +27,9 @@ function setup() {
       message: 'If an account exists for that address, a reset link has been sent',
     }),
   );
-  const resetPassword = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
-    Promise.resolve({ accessToken: 'arp', refreshToken: 'rrp' }),
-  );
+  const resetPassword = vi.fn<
+    (input: unknown, tenantSlug?: string | null) => Promise<ResetPasswordResponse>
+  >(() => Promise.resolve({ accessToken: 'arp', refreshToken: 'rrp', sessionIssued: true }));
   const activateAccount = vi.fn<(input: unknown) => Promise<ActivateAccountResponse>>(() =>
     Promise.resolve({ email: 'owner@example.com' }),
   );
@@ -302,11 +303,26 @@ describe('AuthController', () => {
         password: 'brand-new-secret',
       });
 
-      expect(result).toEqual({ accessToken: 'arp', refreshToken: 'rrp' });
-      expect(ctx.resetPassword).toHaveBeenCalledWith({
-        token: 'reset-tok',
-        password: 'brand-new-secret',
-      });
+      expect(result).toEqual({ accessToken: 'arp', refreshToken: 'rrp', sessionIssued: true });
+      expect(ctx.resetPassword).toHaveBeenCalledWith(
+        { token: 'reset-tok', password: 'brand-new-secret' },
+        null,
+      );
+    });
+
+    it('passes the tenant slug named by x-tenant-host through to the service', async () => {
+      await ctx.controller.resetPassword(
+        { token: 'reset-tok', password: 'brand-new-secret' },
+        {
+          'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.resetPassword).toHaveBeenCalledWith(
+        { token: 'reset-tok', password: 'brand-new-secret' },
+        'riverside',
+      );
     });
 
     it('rejects a too-short password with a 400', async () => {

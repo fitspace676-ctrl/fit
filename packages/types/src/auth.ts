@@ -277,3 +277,18 @@ export interface TokenPair {
   accessToken: string;
   refreshToken: string;
 }
+
+/**
+ * Response of `POST /auth/reset-password`. The password is always written; whether
+ * the reset also signs the caller in depends on the host it was completed on.
+ *
+ * - `sessionIssued: true` — a fresh {@link TokenPair}: on a gym host, bound to that
+ *   gym (the caller holds an active membership there); on a tenant-less host
+ *   (`app.<root>`, the mobile app), bound to the account's primary gym.
+ * - `sessionIssued: false` — completed on a gym host the account holds no active
+ *   membership in. No session is minted rather than one on some other gym; the
+ *   client sends the user to sign in with the new password.
+ */
+export type ResetPasswordResponse =
+  | (TokenPair & { sessionIssued: true })
+  | { ok: true; sessionIssued: false };
