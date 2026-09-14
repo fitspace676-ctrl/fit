@@ -150,6 +150,7 @@ import type {
   UpdateStaffScheduleInput,
   WorkingNowResponse,
   SetLocationStatusResponse,
+  MakeDefaultLocationResponse,
   SetMemberStatusResponse,
   SendMemberEmailInput,
   SendMemberEmailResponse,
@@ -673,6 +674,19 @@ export async function reactivateLocation(id: string): Promise<SetLocationStatusR
     cache: 'no-store',
   });
   return unwrap<SetLocationStatusResponse>(res);
+}
+
+/** `POST /admin/locations/:id/make-default` — make this branch the gym's default. */
+export async function makeDefaultLocation(id: string): Promise<MakeDefaultLocationResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/locations/${encodeURIComponent(id)}/make-default`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<MakeDefaultLocationResponse>(res);
 }
 
 // ── Products (T4.6) ───────────────────────────────────────────────────────────

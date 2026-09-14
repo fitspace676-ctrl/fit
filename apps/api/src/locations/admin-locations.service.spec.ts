@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
-import { LocationStatus } from '@fit/db';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { LocationStatus, Prisma } from '@fit/db';
 import {
+  LOCATION_IS_DEFAULT_CODE,
+  LOCATION_NOT_ACTIVE_CODE,
   locationHoursSchema,
   type CreateLocationData,
   type ListAdminLocationsQuery,
@@ -28,6 +30,7 @@ interface LocationRecord {
   amenities: string[];
   hours: unknown;
   status: LocationStatus;
+  isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +55,7 @@ const row = (over?: Partial<LocationRecord>): LocationRecord => ({
   amenities: ['Sauna', 'Parking'],
   hours: HOURS,
   status: LocationStatus.ACTIVE,
+  isDefault: false,
   createdAt: new Date('2026-02-01T00:00:00.000Z'),
   updatedAt: new Date('2026-02-02T00:00:00.000Z'),
   ...over,
@@ -142,6 +146,7 @@ describe('AdminLocationsService', () => {
             amenities: ['Sauna', 'Parking'],
             hours: HOURS,
             status: 'ACTIVE',
+            isDefault: false,
             createdAt: '2026-02-01T00:00:00.000Z',
           },
         ],
@@ -206,6 +211,7 @@ describe('AdminLocationsService', () => {
         photoUrl: null,
         amenities: ['Sauna', 'Parking'],
         status: 'ACTIVE',
+        isDefault: false,
         createdAt: '2026-02-01T00:00:00.000Z',
         hours: HOURS,
         updatedAt: '2026-02-02T00:00:00.000Z',
@@ -297,6 +303,195 @@ describe('AdminLocationsService', () => {
 
       await expect(service.deactivateLocation('missing')).rejects.toBeInstanceOf(NotFoundException);
       expect(update).not.toHaveBeenCalled();
+    });
+
+    it('refuses to deactivate the active default branch with 409 LOCATION_IS_DEFAULT', async () => {
+      const { service, update } = setup({ findFirst: row({ isDefault: true }) });
+
+      const error = await service.deactivateLocation('l-1').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: LOCATION_IS_DEFAULT_CODE,
+      });
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('still reactivates the default branch', async () => {
+      const { service, update } = setup({
+        findFirst: row({ isDefault: true, status: LocationStatus.INACTIVE }),
+      });
+
+      await service.reactivateLocation('l-1');
+
+      expect(update.mock.calls[0]?.[0]?.data).toMatchObject({ status: LocationStatus.ACTIVE });
+    });
+  });
+
+  describe('makeDefaultLocation', () => {
+    interface StoredLocation {
+      id: string;
+      gymId: string;
+      status: LocationStatus;
+      isDefault: boolean;
+    }
+    interface ScopedWhere {
+      id?: string;
+      gymId?: string;
+      isDefault?: boolean;
+    }
+
+    /**
+     * Two gyms' branches in one table, behind a client that honours the `where`
+     * it is given — so a query that forgot to name its gym would visibly reach
+     * the other one. The partial unique index is modelled too: a statement that
+     * leaves a gym with two defaults throws the P2002 Postgres would.
+     */
+    function twoGyms(tenantGymId = 'gym-1') {
+      const rows: StoredLocation[] = [
+        { id: 'a-old', gymId: 'gym-1', status: LocationStatus.ACTIVE, isDefault: true },
+        { id: 'a-new', gymId: 'gym-1', status: LocationStatus.ACTIVE, isDefault: false },
+        { id: 'a-off', gymId: 'gym-1', status: LocationStatus.INACTIVE, isDefault: false },
+        { id: 'b-main', gymId: 'gym-2', status: LocationStatus.ACTIVE, isDefault: true },
+        { id: 'b-side', gymId: 'gym-2', status: LocationStatus.ACTIVE, isDefault: false },
+      ];
+      const matches = (location: StoredLocation, where: ScopedWhere) =>
+        (where.id === undefined || location.id === where.id) &&
+        (where.gymId === undefined || location.gymId === where.gymId) &&
+        (where.isDefault === undefined || location.isDefault === where.isDefault);
+      const writes: string[] = [];
+
+      const tx = {
+        location: {
+          findFirst: vi.fn(({ where }: { where: ScopedWhere }) =>
+            Promise.resolve(rows.find((location) => matches(location, where)) ?? null),
+          ),
+          updateMany: vi.fn(
+            ({ where, data }: { where: ScopedWhere; data: { isDefault: boolean } }) => {
+              const hit = rows.filter((location) => matches(location, where));
+              for (const location of hit) {
+                location.isDefault = data.isDefault;
+                writes.push(`${location.id}=${String(data.isDefault)}`);
+              }
+              const gyms = new Set(rows.map((location) => location.gymId));
+              for (const gym of gyms) {
+                if (rows.filter((l) => l.gymId === gym && l.isDefault).length > 1) {
+                  throw new Prisma.PrismaClientKnownRequestError('unique', {
+                    code: 'P2002',
+                    clientVersion: 'test',
+                  });
+                }
+              }
+              return Promise.resolve({ count: hit.length });
+            },
+          ),
+        },
+      };
+      const client = {
+        $transaction: vi.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
+        location: {
+          // The detail re-read after the write.
+          findFirst: vi.fn(({ where }: { where: ScopedWhere }) => {
+            const found = rows.find((location) => matches(location, where));
+            return Promise.resolve(
+              found
+                ? row({ id: found.id, status: found.status, isDefault: found.isDefault })
+                : null,
+            );
+          }),
+        },
+      };
+      const prisma = { client } as unknown as TenantPrismaService;
+      const tenant = { gymId: tenantGymId } as unknown as TenantContext;
+      const media = {} as unknown as MediaCleanupService;
+      return { service: new AdminLocationsService(prisma, tenant, media), rows, writes, tx };
+    }
+
+    const defaultsOf = (rows: StoredLocation[]) =>
+      rows.filter((location) => location.isDefault).map((location) => location.id);
+
+    it('moves the flag, clearing the old default before setting the new one', async () => {
+      const { service, rows, writes } = twoGyms();
+
+      const result = await service.makeDefaultLocation('a-new');
+
+      expect(result).toMatchObject({ id: 'a-new', isDefault: true });
+      expect(writes).toEqual(['a-old=false', 'a-new=true']);
+      expect(defaultsOf(rows)).toEqual(['a-new', 'b-main']);
+    });
+
+    it("names the caller's gym in every where, leaving the other gym's default alone", async () => {
+      const { service, rows, tx } = twoGyms();
+
+      await service.makeDefaultLocation('a-new');
+
+      for (const [args] of tx.location.updateMany.mock.calls) {
+        expect(args.where.gymId).toBe('gym-1');
+      }
+      expect(tx.location.findFirst.mock.calls[0]?.[0]?.where).toMatchObject({ gymId: 'gym-1' });
+      expect(rows.find((location) => location.id === 'b-main')?.isDefault).toBe(true);
+    });
+
+    it("is a 404 for another gym's branch, and writes nothing in either gym", async () => {
+      const { service, rows, tx } = twoGyms('gym-1');
+
+      const error = await service.makeDefaultLocation('b-side').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(NotFoundException);
+      expect(tx.location.updateMany).not.toHaveBeenCalled();
+      expect(defaultsOf(rows)).toEqual(['a-old', 'b-main']);
+    });
+
+    it('works the same from the other gym', async () => {
+      const { service, rows } = twoGyms('gym-2');
+
+      await service.makeDefaultLocation('b-side');
+      const foreign = await service.makeDefaultLocation('a-new').catch((e: unknown) => e);
+
+      expect(foreign).toBeInstanceOf(NotFoundException);
+      expect(defaultsOf(rows)).toEqual(['a-old', 'b-side']);
+    });
+
+    it('refuses an inactive branch with 409 LOCATION_NOT_ACTIVE', async () => {
+      const { service, rows, tx } = twoGyms();
+
+      const error = await service.makeDefaultLocation('a-off').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: LOCATION_NOT_ACTIVE_CODE,
+      });
+      expect(tx.location.updateMany).not.toHaveBeenCalled();
+      expect(defaultsOf(rows)).toEqual(['a-old', 'b-main']);
+    });
+
+    it('is a no-op on the branch that already is the default', async () => {
+      const { service, tx } = twoGyms();
+
+      const result = await service.makeDefaultLocation('a-old');
+
+      expect(result.isDefault).toBe(true);
+      expect(tx.location.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('turns a concurrent move that trips the unique index into a 409', async () => {
+      const { service, rows, tx } = twoGyms();
+      // Another operator's transaction committed a different default between
+      // this one's clear and its set.
+      tx.location.updateMany.mockImplementationOnce(() => {
+        const other = rows.find((location) => location.id === 'a-old');
+        if (other) other.isDefault = false;
+        const racer = rows.find((location) => location.id === 'a-off');
+        if (racer) racer.isDefault = true;
+        return Promise.resolve({ count: 1 });
+      });
+
+      const error = await service.makeDefaultLocation('a-new').catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'LOCATION_DEFAULT_CONFLICT',
+      });
     });
   });
 });

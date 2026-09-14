@@ -9,7 +9,7 @@ import type { AdminLocationRow, LocationStatus } from '@fit/types';
 import { Badge, Card, CountUp, FilterChips, type BadgeTone, type FilterChip } from '@fit/ui-kit';
 import { Icon, useToast, type IconName } from '@/components/ui';
 import { formatDayHours, hoursForDate, isOpenAt } from './format-hours';
-import { setLocationActiveAction } from './actions';
+import { makeDefaultLocationAction, setLocationActiveAction } from './actions';
 
 const styles = stylex.create({
   page: {
@@ -277,6 +277,10 @@ const styles = stylex.create({
     position: 'absolute',
     left: '0.75rem',
     top: '0.75rem',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.375rem',
   },
   badgeInner: {
     display: 'inline-flex',
@@ -359,7 +363,14 @@ const styles = stylex.create({
       ':hover': 'var(--color-background-muted)',
     },
     color: 'var(--color-text-secondary)',
-    cursor: 'pointer',
+    cursor: {
+      default: 'pointer',
+      ':disabled': 'not-allowed',
+    },
+    opacity: {
+      default: 1,
+      ':disabled': 0.5,
+    },
   },
   menuItemIcon: {
     width: '1rem',
@@ -608,6 +619,21 @@ export function LocationsBoard({
     });
   }
 
+  function makeDefault(location: AdminLocationRow): void {
+    setMenuFor(null);
+    setBusyId(location.id);
+    startTransition(async () => {
+      const result = await makeDefaultLocationAction(location.id);
+      setBusyId(null);
+      if (result.ok) {
+        toast(t('toast.madeDefault', { name: location.name }), { tone: 'success', icon: 'check' });
+        router.refresh();
+      } else {
+        toast(result.error || t('toast.actionFailed'), { tone: 'danger', icon: 'info' });
+      }
+    });
+  }
+
   const noMatch = locations.length > 0 && visible.length === 0;
 
   return (
@@ -733,6 +759,7 @@ export function LocationsBoard({
                         </span>
                       }
                     />
+                    {location.isDefault ? <Badge tone="accent" label={t('card.default')} /> : null}
                   </div>
 
                   {canWrite || canManage ? (
@@ -777,10 +804,29 @@ export function LocationsBoard({
                                   {t('rowMenu.edit')}
                                 </Link>
                               ) : null}
+                              {canWrite && !location.isDefault && location.status === 'ACTIVE' ? (
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => makeDefault(location)}
+                                  {...stylex.props(styles.menuItem)}
+                                >
+                                  <Icon name="pin" {...stylex.props(styles.menuItemIcon)} />
+                                  {t('rowMenu.makeDefault')}
+                                </button>
+                              ) : null}
                               {canManage ? (
                                 <button
                                   type="button"
                                   role="menuitem"
+                                  // The API refuses to switch the default branch off;
+                                  // say why here instead of offering a click that fails.
+                                  disabled={location.isDefault && location.status === 'ACTIVE'}
+                                  title={
+                                    location.isDefault && location.status === 'ACTIVE'
+                                      ? t('rowMenu.defaultCannotDeactivate')
+                                      : undefined
+                                  }
                                   onClick={() => setActive(location, location.status !== 'ACTIVE')}
                                   {...stylex.props(styles.menuItem)}
                                 >

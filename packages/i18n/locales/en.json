@@ -1932,14 +1932,17 @@
         "todayClosed": "Closed today",
         "noAmenities": "No amenities listed",
         "noAddress": "No address set",
-        "viewCta": "View branch"
+        "viewCta": "View branch",
+        "default": "Default branch"
       },
       "rowMenu": {
         "open": "Actions for {name}",
         "view": "View details",
         "edit": "Edit details",
         "activate": "Set as active",
-        "deactivate": "Set as inactive"
+        "deactivate": "Set as inactive",
+        "makeDefault": "Make default branch",
+        "defaultCannotDeactivate": "The default branch cannot be deactivated. Make another branch the default first."
       },
       "empty": {
         "emptyTitle": "No locations yet",
@@ -1950,7 +1953,8 @@
       "toast": {
         "activated": "{name} is now active.",
         "deactivated": "{name} is now inactive.",
-        "actionFailed": "That didn’t work. Please try again."
+        "actionFailed": "That didn’t work. Please try again.",
+        "madeDefault": "{name} is now the default branch."
       },
       "errors": {
         "loadLocations": "Could not load locations ({status}): {message}",

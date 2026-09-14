@@ -206,6 +206,12 @@ export interface AdminLocationRow {
   amenities: string[];
   hours: LocationHours;
   status: LocationStatus;
+  /**
+   * Whether this is the gym's DEFAULT branch (`Location.isDefault`) — exactly one
+   * per gym. It cannot be deactivated ({@link LOCATION_IS_DEFAULT_CODE}); the flag
+   * moves to another branch through `POST /admin/locations/:id/make-default`.
+   */
+  isDefault: boolean;
   createdAt: string;
 }
 
@@ -311,6 +317,27 @@ export type UpdateLocationResponse = AdminLocationDetail;
  * the location detail with the new `status` (`INACTIVE` / `ACTIVE`).
  */
 export type SetLocationStatusResponse = AdminLocationDetail;
+
+/**
+ * `409` code for deactivating the gym's default branch. The default is where an
+ * unattributed arrival, a new member's home branch and an order with no till fall
+ * back to, so switching it off would silently re-route all of those — another
+ * branch has to be made the default first.
+ */
+export const LOCATION_IS_DEFAULT_CODE = 'LOCATION_IS_DEFAULT';
+
+/**
+ * `409` code for making an `INACTIVE` branch the default. The default is the
+ * fallback for new rows, and a fallback nobody can see on the public listing is
+ * not one; reactivate the branch first.
+ */
+export const LOCATION_NOT_ACTIVE_CODE = 'LOCATION_NOT_ACTIVE';
+
+/**
+ * Successful `POST /admin/locations/:id/make-default` response — the location
+ * detail, now with `isDefault: true`. Idempotent on the branch that already is.
+ */
+export type MakeDefaultLocationResponse = AdminLocationDetail;
 
 // ---------------------------------------------------------------------------
 // Branch exclusivity — the Stage 7 catalogue contract, shared by six modules

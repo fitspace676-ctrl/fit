@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { LocationStatus } from '@fit/types';
 import { Button } from '@fit/ui-kit';
-import { setLocationActiveAction } from '../actions';
+import { makeDefaultLocationAction, setLocationActiveAction } from '../actions';
+
+const DEFAULT_CANNOT_DEACTIVATE =
+  'The default branch cannot be deactivated. Make another branch the default first.';
 
 const styles = stylex.create({
   wrap: {
@@ -39,6 +42,13 @@ const styles = stylex.create({
     textDecoration: 'none',
     color: 'var(--color-text-primary)',
   },
+  hint: {
+    margin: 0,
+    maxWidth: '20rem',
+    textAlign: 'right',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
   error: {
     margin: 0,
     borderRadius: 'var(--radius-inner)',
@@ -61,12 +71,15 @@ const styles = stylex.create({
 export function LocationActions({
   locationId,
   status,
+  isDefault,
   canWrite,
   canManage,
 }: {
   locationId: string;
   status: LocationStatus;
-  /** `LocationWrite` — the edit link. */
+  /** The gym's default branch — it cannot be deactivated, only replaced. */
+  isDefault: boolean;
+  /** `LocationWrite` — the edit link and "Make default". */
   canWrite: boolean;
   /** `LocationManage` — the activate / deactivate button. */
   canManage: boolean;
@@ -76,11 +89,13 @@ export function LocationActions({
   const [error, setError] = useState<string | null>(null);
 
   const isInactive = status === 'INACTIVE';
+  // The API refuses this with 409 LOCATION_IS_DEFAULT; the button says so up front.
+  const deactivateBlocked = isDefault && !isInactive;
 
-  function toggle(): void {
+  function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>): void {
     setError(null);
     startTransition(async () => {
-      const result = await setLocationActiveAction(locationId, isInactive);
+      const result = await action();
       if (result.ok) {
         router.refresh();
       } else {
@@ -97,16 +112,29 @@ export function LocationActions({
             Edit
           </Link>
         ) : null}
+        {canWrite && !isDefault && !isInactive ? (
+          <Button
+            variant="secondary"
+            size="inline"
+            onClick={() => run(() => makeDefaultLocationAction(locationId))}
+            disabled={pending}
+            label="Make default"
+          />
+        ) : null}
         {canManage ? (
           <Button
             variant={isInactive ? 'primary' : 'secondary'}
             size="inline"
-            onClick={toggle}
-            disabled={pending}
+            onClick={() => run(() => setLocationActiveAction(locationId, isInactive))}
+            disabled={pending || deactivateBlocked}
+            title={deactivateBlocked ? DEFAULT_CANNOT_DEACTIVATE : undefined}
             label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
           />
         ) : null}
       </div>
+      {canManage && deactivateBlocked ? (
+        <p {...stylex.props(styles.hint)}>{DEFAULT_CANNOT_DEACTIVATE}</p>
+      ) : null}
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>
           {error}
