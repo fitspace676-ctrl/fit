@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { AdminServicesService, personalTrainingName } from './admin-services.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -258,6 +263,26 @@ describe('AdminServicesService.createService', () => {
     expect(serviceCreate.mock.calls[0]?.[0]?.data).toMatchObject({
       coverUrl: 'https://cdn/gym-1/services/pt.jpg',
     });
+  });
+
+  it("rejects another gym's cover URL with a 400 without writing", async () => {
+    const { service, serviceCreate } = setup();
+
+    await expect(
+      service.createService({
+        type: 'PERSONAL_TRAINING',
+        staffId: 'gm-1',
+        priceMinor: 5000,
+        durationMinutes: 60,
+        description: '',
+        categoryId: null,
+        coverUrl: 'https://cdn/gym-2/services/pt.jpg',
+      }),
+    ).rejects.toMatchObject({
+      constructor: BadRequestException,
+      response: { code: 'MEDIA_NOT_OWNED' },
+    });
+    expect(serviceCreate).not.toHaveBeenCalled();
   });
 });
 

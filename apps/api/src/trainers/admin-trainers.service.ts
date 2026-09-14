@@ -34,6 +34,7 @@ import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
+import { assertOwnedMedia } from '../storage/media-ownership';
 import { mirrorAvailabilityToShifts } from './trainer-shift-mirror';
 
 /** Milliseconds in a day — the window arithmetic for the show-up rate. */
@@ -210,6 +211,7 @@ export class AdminTrainersService {
    */
   async createTrainer(input: CreateTrainerData): Promise<CreateTrainerResponse> {
     const gymId = this.tenant.gymId;
+    assertOwnedMedia(gymId, [input.photoUrl]);
     const { firstName, lastName } = splitDisplayName(input.name);
 
     const id = await this.prisma.client.$transaction(async (tx) => {
@@ -274,6 +276,7 @@ export class AdminTrainersService {
    */
   async updateTrainer(id: string, input: UpdateTrainerData): Promise<UpdateTrainerResponse> {
     const existing = await this.requireTrainer(id);
+    assertOwnedMedia(this.tenant.gymId, [input.photoUrl], [existing.photoUrl]);
     const { firstName, lastName } = splitDisplayName(input.name);
 
     await this.prisma.client.$transaction(async (tx) => {

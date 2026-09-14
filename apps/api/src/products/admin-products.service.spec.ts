@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ProductStatus } from '@fit/db';
 import {
   productVariantsSchema,
@@ -58,7 +58,10 @@ const row = (over?: Partial<ProductRecord>): ProductRecord => ({
   priceAmount: 2999,
   costAmount: null,
   currency: 'USD',
-  images: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
+  images: [
+    'https://cdn.example.com/gym-1/products/a.jpg',
+    'https://cdn.example.com/gym-1/products/b.jpg',
+  ],
   variants: VARIANTS,
   stock: null,
   lowStockThreshold: null,
@@ -143,7 +146,7 @@ const createInput = (over?: Partial<CreateProductData>): CreateProductData => ({
   description: 'A soft cotton training tee.',
   priceAmount: 2999,
   costAmount: null,
-  images: ['https://cdn.example.com/a.jpg'],
+  images: ['https://cdn.example.com/gym-1/products/a.jpg'],
   variants: VARIANTS,
   stock: null,
   lowStockThreshold: null,
@@ -157,7 +160,7 @@ const updateInput = (over?: Partial<UpdateProductData>): UpdateProductData => ({
   description: 'Updated copy.',
   priceAmount: 3499,
   costAmount: null,
-  images: ['https://cdn.example.com/c.jpg'],
+  images: ['https://cdn.example.com/gym-1/products/c.jpg'],
   variants: VARIANTS,
   stock: null,
   lowStockThreshold: null,
@@ -182,7 +185,7 @@ describe('AdminProductsService', () => {
             priceAmount: 2999,
             costAmount: null,
             currency: 'USD',
-            imageUrl: 'https://cdn.example.com/a.jpg',
+            imageUrl: 'https://cdn.example.com/gym-1/products/a.jpg',
             variantCount: 2,
             totalStock: 14,
             lowestStock: 4,
@@ -388,7 +391,7 @@ describe('AdminProductsService', () => {
         priceAmount: 2999,
         costAmount: null,
         currency: 'USD',
-        imageUrl: 'https://cdn.example.com/a.jpg',
+        imageUrl: 'https://cdn.example.com/gym-1/products/a.jpg',
         variantCount: 2,
         totalStock: 14,
         lowestStock: 4,
@@ -398,7 +401,10 @@ describe('AdminProductsService', () => {
         category: null,
         createdAt: '2026-02-01T00:00:00.000Z',
         description: 'A soft cotton training tee.',
-        images: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
+        images: [
+          'https://cdn.example.com/gym-1/products/a.jpg',
+          'https://cdn.example.com/gym-1/products/b.jpg',
+        ],
         variants: VARIANTS,
         updatedAt: '2026-02-02T00:00:00.000Z',
       });
@@ -433,7 +439,7 @@ describe('AdminProductsService', () => {
         // Stamped from the gym's own locale, not from the request body.
         currency: 'GEL',
         status: 'INACTIVE',
-        images: ['https://cdn.example.com/a.jpg'],
+        images: ['https://cdn.example.com/gym-1/products/a.jpg'],
         variants: VARIANTS,
       });
     });
@@ -568,7 +574,7 @@ describe('AdminProductsService', () => {
         name: 'Branded Tee',
         description: 'Updated copy.',
         priceAmount: 3499,
-        images: ['https://cdn.example.com/c.jpg'],
+        images: ['https://cdn.example.com/gym-1/products/c.jpg'],
         variants: VARIANTS,
       });
       expect(data).not.toHaveProperty('status');
@@ -583,6 +589,25 @@ describe('AdminProductsService', () => {
         NotFoundException,
       );
       expect(update).not.toHaveBeenCalled();
+    });
+
+    it("rejects another gym's image URL with a 400, keeping the images already stored", async () => {
+      const { service, update } = setup({ findFirst: row() });
+      const stored = row().images;
+
+      await expect(
+        service.updateProduct(
+          'p-1',
+          updateInput({ images: [...stored, 'https://cdn.example.com/gym-2/products/x.jpg'] }),
+        ),
+      ).rejects.toMatchObject({
+        constructor: BadRequestException,
+        response: { code: 'MEDIA_NOT_OWNED' },
+      });
+      expect(update).not.toHaveBeenCalled();
+
+      await service.updateProduct('p-1', updateInput({ images: stored }));
+      expect(update).toHaveBeenCalledTimes(1);
     });
 
     it('carries variant counts over from the row instead of taking the form’s copy', async () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LocationStatus } from '@fit/db';
 import {
   locationHoursSchema,
@@ -116,7 +116,7 @@ const updateInput = (over?: Partial<UpdateLocationData>): UpdateLocationData => 
   name: 'Downtown Branch',
   address: '15 Agmashenebeli Ave',
   phone: null,
-  photoUrl: 'https://cdn.example.com/l.jpg',
+  photoUrl: 'https://cdn.example.com/gym-1/locations/l.jpg',
   amenities: ['Sauna', 'Pool'],
   hours: HOURS,
   ...over,
@@ -242,6 +242,20 @@ describe('AdminLocationsService', () => {
         hours: HOURS,
       });
     });
+
+    it("rejects another gym's photo URL with a 400 without writing", async () => {
+      const { service, create } = setup();
+
+      await expect(
+        service.createLocation(
+          createInput({ photoUrl: 'https://cdn.example.com/gym-2/locations/l.jpg' }),
+        ),
+      ).rejects.toMatchObject({
+        constructor: BadRequestException,
+        response: { code: 'MEDIA_NOT_OWNED' },
+      });
+      expect(create).not.toHaveBeenCalled();
+    });
   });
 
   describe('updateLocation', () => {
@@ -255,7 +269,7 @@ describe('AdminLocationsService', () => {
       expect(data).toMatchObject({
         name: 'Downtown Branch',
         address: '15 Agmashenebeli Ave',
-        photoUrl: 'https://cdn.example.com/l.jpg',
+        photoUrl: 'https://cdn.example.com/gym-1/locations/l.jpg',
         amenities: ['Sauna', 'Pool'],
         hours: HOURS,
       });
