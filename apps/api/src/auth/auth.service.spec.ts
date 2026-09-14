@@ -667,6 +667,128 @@ describe('AuthService', () => {
     });
   });
 
+  describe('activateAccount', () => {
+    const VALID_ACTIVATE = { token: 'onboard-tok', password: 'brand-new-secret' };
+
+    beforeEach(() => {
+      // `activateAccount` reads the address back off the update so the console can
+      // pre-fill sign-in; the shared stub answers with an id only.
+      ctx.update.mockResolvedValue({ email: 'owner@example.com' } as unknown as { id: string });
+    });
+
+    it('consumes the verify token, sets the first password, stamps verification, and answers with the address', async () => {
+      ctx.get.mockResolvedValue('owner-1');
+
+      const result = await ctx.service.activateAccount(VALID_ACTIVATE);
+
+      // Redeemed from the SAME namespace registerGym writes to, so the onboarding
+      // link in the owner's mail is the token this consumes.
+      expect(ctx.get).toHaveBeenCalledWith('email-verify:onboard-tok');
+      expect(ctx.del).toHaveBeenCalledWith('email-verify:onboard-tok');
+      expect(argonHash).toHaveBeenCalledWith(
+        'brand-new-secret',
+        expect.objectContaining({ type: 2 }),
+      );
+
+      const update = ctx.update.mock.calls[0]![0] as {
+        where: { id: string };
+        data: { passwordHash: string };
+        select: unknown;
+      };
+      expect(update.where).toEqual({ id: 'owner-1' });
+      expect(update.data.passwordHash).toBe('argon2-hash');
+      expect(update.select).toEqual({ email: true });
+
+      const stamp = ctx.updateMany.mock.calls[0]![0] as {
+        where: unknown;
+        data: { emailVerifiedAt: unknown };
+      };
+      expect(stamp.where).toEqual({ id: 'owner-1', emailVerifiedAt: null });
+      expect(stamp.data.emailVerifiedAt).toBeInstanceOf(Date);
+
+      expect(result).toEqual({ email: 'owner@example.com' });
+    });
+
+    it('issues NO session — the owner signs in with the password they just chose', async () => {
+      ctx.get.mockResolvedValue('owner-1');
+
+      await ctx.service.activateAccount(VALID_ACTIVATE);
+
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+      // A password set from an emailed token cuts anything already signed in,
+      // exactly as a reset does.
+      expect(ctx.revokeAllForUser).toHaveBeenCalledWith('owner-1');
+    });
+
+    it('throws 400 TOKEN_INVALID_OR_EXPIRED for an unknown / expired token', async () => {
+      ctx.get.mockResolvedValue(null);
+
+      const error = await ctx.service.activateAccount(VALID_ACTIVATE).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+      expect(ctx.del).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a token already consumed by a racing request (DEL returns 0)', async () => {
+      ctx.get.mockResolvedValue('owner-1');
+      ctx.del.mockResolvedValue(0);
+
+      const error = await ctx.service.activateAccount(VALID_ACTIVATE).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(argonHash).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
+      expect(ctx.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('refuses a second activation with the same link — the token is gone after the first', async () => {
+      ctx.get.mockResolvedValueOnce('owner-1').mockResolvedValueOnce(null);
+
+      await ctx.service.activateAccount(VALID_ACTIVATE);
+      const error = await ctx.service.activateAccount(VALID_ACTIVATE).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+      expect(ctx.update).toHaveBeenCalledTimes(1);
+    });
+
+    it("activates on the owner's own gym host", async () => {
+      ctx.get.mockResolvedValue('owner-1');
+      ctx.gymMemberFindFirst.mockResolvedValue({ id: 'membership-1' });
+
+      const result = await ctx.service.activateAccount(VALID_ACTIVATE, 'downtown');
+
+      expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
+        where: { userId: 'owner-1', gym: { slug: 'downtown' } },
+        select: { id: true },
+      });
+      expect(result).toEqual({ email: 'owner@example.com' });
+    });
+
+    it("refuses 403 TENANT_MISMATCH on another gym's host, without spending the token", async () => {
+      ctx.get.mockResolvedValue('owner-1');
+      ctx.gymMemberFindFirst.mockResolvedValue(null);
+
+      const error = await ctx.service
+        .activateAccount(VALID_ACTIVATE, 'riverside')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'TENANT_MISMATCH',
+      });
+      expect(ctx.del).not.toHaveBeenCalled();
+      expect(argonHash).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('login', () => {
     const VALID_LOGIN = { email: 'a@b.com', password: 'supersecret' };
     const verifiedUser: StoredUser = {
@@ -1657,6 +1779,8 @@ describe('AuthService.registerGym', () => {
       'Downtown Strength',
       'Olivia Owner',
       'en',
+      // The slug addresses the link at the new gym's own console host.
+      'downtown',
     );
 
     expect(result).toEqual({
