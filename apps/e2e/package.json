@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo '[@fit/e2e] test: e2e runs via `test:e2e` (needs the stack + a browser) — skipped in the default pipeline'",
     "test:e2e": "playwright test",
-    "test:e2e:web": "playwright test --config playwright.web.config.ts",
+    "test:e2e:web": "playwright test --config playwright.web.config.ts && playwright test --config playwright.new-gym.config.ts",
+    "test:e2e:new-gym": "playwright test --config playwright.new-gym.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
