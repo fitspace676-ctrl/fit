@@ -16,7 +16,7 @@ import { Icon } from '@/components/ui';
 import { PosBoard } from '@/components/pos/pos-board';
 
 export const metadata: Metadata = {
-  title: 'Point of sale - FormaCore Admin',
+  title: 'Point of sale',
   description:
     'The gym’s in-person point of sale: search products, build a cart with quantity and discounts, and attach the sale to a member by name, phone, or QR scan.',
 };

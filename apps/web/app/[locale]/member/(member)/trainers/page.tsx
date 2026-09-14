@@ -43,7 +43,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Trainers - FormaCore',
+  title: 'Trainers',
   description: 'Meet the trainers and find the right coach for you.',
 };
 

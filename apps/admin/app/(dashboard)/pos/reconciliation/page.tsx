@@ -17,7 +17,7 @@ import { CashCountForm } from './cash-count-form';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Cash reconciliation - FormaCore Admin',
+  title: 'Cash reconciliation',
   description:
     "The gym's end-of-day cash reconciliation: the day's takings grouped by settlement method, with the expected cash drawer to balance against the count.",
 };

@@ -17,7 +17,7 @@ import { formatPrice } from '../format-price';
 import { StockAdjuster } from '../low-stock/stock-adjuster';
 
 export const metadata: Metadata = {
-  title: 'Inventory - FormaCore Admin',
+  title: 'Inventory',
   description:
     'What the gym stocks and how much of each: every product’s on-hand count, its status against the reorder threshold, and the value sitting on the shelf.',
 };

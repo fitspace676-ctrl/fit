@@ -137,6 +137,18 @@ export const envSchema = z.object({
   // for the gym-less case (a bare registration).
   EMAIL_VERIFICATION_URL: z.string().url().optional(),
 
+  // ── Gym-owner onboarding ──
+  // Base URL the onboarding token is appended to in the owner's welcome mail
+  // (`<base>?token=…`). It must land on the ADMIN CONSOLE's `/activate` page —
+  // where the owner sets a password and their address is verified in one request —
+  // not on the member web app, which has no console to hand them on to.
+  // Unset → derived by `buildConsoleUrl`: the new gym's own console host
+  // (`https://<slug>.<PLATFORM_ROOT_DOMAIN><ADMIN_BASE_PATH>/activate`), falling
+  // back to `<ADMIN_URL><ADMIN_BASE_PATH>/activate` when there is no root domain
+  // configured. Production leaves this unset — a fixed base would send every gym's
+  // owner to one host, where the activation is refused as the wrong gym.
+  OWNER_ONBOARDING_URL: z.string().url().optional(),
+
   // ── Password reset ──
   // TTL (seconds) of a one-time password-reset token held in Redis. Shorter than
   // email verification by design — a reset link grants account takeover, so it

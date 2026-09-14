@@ -19,7 +19,7 @@ import { TrainerActions } from './trainer-actions';
 import { TrainerTabs } from './trainer-tabs';
 
 export const metadata: Metadata = {
-  title: 'Trainer - FormaCore Admin',
+  title: 'Trainer',
 };
 
 // The detail reflects live trainer state and the staff session token, so it must

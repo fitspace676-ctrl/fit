@@ -8,7 +8,7 @@ import { CredentialsLoginForm } from './credentials-login-form';
 import { GoogleSignInButton } from './google-sign-in-button';
 
 export const metadata: Metadata = {
-  title: 'Sign in - FormaCore',
+  title: 'Sign in',
   description: 'Sign in to your account, or join the gym.',
 };
 

@@ -28,7 +28,7 @@ import { AutomationView } from './automation-view';
 import { TemplatesView } from './templates-view';
 
 export const metadata: Metadata = {
-  title: 'Automation - FormaCore Admin',
+  title: 'Automation',
   description: 'Automated "when X happens, do Y" rules that engage members and streamline ops.',
 };
 

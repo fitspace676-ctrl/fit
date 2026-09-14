@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import type {
+  ActivateAccountResponse,
   ForgotPasswordResponse,
   RegisterGymResponse,
   RegisterResponse,
@@ -28,6 +29,9 @@ function setup() {
   const resetPassword = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'arp', refreshToken: 'rrp' }),
   );
+  const activateAccount = vi.fn<(input: unknown) => Promise<ActivateAccountResponse>>(() =>
+    Promise.resolve({ email: 'owner@example.com' }),
+  );
   const loginWithGoogle = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
     Promise.resolve({ accessToken: 'ag', refreshToken: 'rg' }),
   );
@@ -52,6 +56,7 @@ function setup() {
     login,
     requestPasswordReset,
     resetPassword,
+    activateAccount,
     loginWithGoogle,
     loginWithApple,
     refresh,
@@ -65,6 +70,7 @@ function setup() {
     login,
     requestPasswordReset,
     resetPassword,
+    activateAccount,
     loginWithGoogle,
     loginWithApple,
     refresh,
@@ -188,6 +194,55 @@ describe('AuthController', () => {
     it('rejects a missing token with a 400', async () => {
       await expect(ctx.controller.verify({})).rejects.toBeInstanceOf(BadRequestException);
       expect(ctx.verifyEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /auth/activate', () => {
+    it('parses the token + password and delegates to the service', async () => {
+      const result = await ctx.controller.activate({
+        token: ' onboard-tok ',
+        password: 'brand-new-secret',
+      });
+
+      // The address alone comes back — activation deliberately issues no session.
+      expect(result).toEqual({ email: 'owner@example.com' });
+      expect(ctx.activateAccount).toHaveBeenCalledWith(
+        { token: 'onboard-tok', password: 'brand-new-secret' },
+        null,
+      );
+    });
+
+    it('passes the tenant slug named by x-tenant-host through to the service', async () => {
+      await ctx.controller.activate(
+        { token: 'onboard-tok', password: 'brand-new-secret' },
+        {
+          'x-tenant-host': `downtown.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.activateAccount).toHaveBeenCalledWith(
+        { token: 'onboard-tok', password: 'brand-new-secret' },
+        'downtown',
+      );
+    });
+
+    it('holds the password to the registration policy, rejecting a short one with a 400', async () => {
+      const error = await ctx.controller
+        .activate({ token: 'onboard-tok', password: 'short' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      const details = (error as BadRequestException).getResponse() as { message: string[] };
+      expect(details.message.join(' ')).toMatch(/password/);
+      expect(ctx.activateAccount).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing token with a 400', async () => {
+      await expect(
+        ctx.controller.activate({ password: 'brand-new-secret' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.activateAccount).not.toHaveBeenCalled();
     });
   });
 

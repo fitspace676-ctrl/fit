@@ -10,7 +10,7 @@ import { HomeCta } from '../home-cta';
 import { createNumberFormat } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Order confirmed - FormaCore',
+  title: 'Order confirmed',
   description: 'Your membership purchase is confirmed.',
 };
 

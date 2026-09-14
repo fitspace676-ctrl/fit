@@ -25,7 +25,7 @@ import { createDateTimeFormat, createNumberFormat, defaultLocale } from '@fit/i1
 type T = Awaited<ReturnType<typeof getTranslations>>;
 
 export const metadata: Metadata = {
-  title: 'Member - FormaCore Admin',
+  title: 'Member',
 };
 
 // The detail reflects live member state and the staff session token, so it must

@@ -10,7 +10,7 @@ import {
 } from '@fit/types';
 import { tenantOrigin } from '@fit/utils';
 import { env } from '../config/env';
-import { buildMemberUrl } from '../common/console-url';
+import { buildConsoleUrl, buildMemberUrl } from '../common/console-url';
 import {
   EMAIL_BRAND,
   escapeHtml,
@@ -153,12 +153,17 @@ export class EmailService {
 
   /**
    * Send the gym-owner onboarding email after a tenant is provisioned
-   * (`POST /auth/register-gym`). Carries the same single-use verification deep
-   * link plain registration uses — following it verifies the owner's address and
-   * issues their first session — but the copy is framed around the gym they now
-   * own rather than a bare account confirmation. Resolves once the mail is
-   * accepted by Resend (or immediately, having logged the link, when Resend is
-   * unconfigured); rejects when Resend returns an error.
+   * (`POST /auth/register-gym`). Carries the same single-use token plain
+   * registration mints, but pointed at the CONSOLE's `/activate` page rather
+   * than the member app's verify route: an owner provisioned by a SUPER_ADMIN
+   * usually has no password at all, so the link has to end somewhere they can
+   * choose one. The copy is framed around the gym they now own rather than a
+   * bare account confirmation. Resolves once the mail is accepted by Resend (or
+   * immediately, having logged the link, when Resend is unconfigured); rejects
+   * when Resend returns an error.
+   *
+   * `gymSlug` addresses the link at the new gym's own console host; it is last
+   * and optional so the existing argument order is untouched.
    */
   async sendOwnerOnboardingEmail(
     to: string,
@@ -166,8 +171,9 @@ export class EmailService {
     gymName: string,
     name?: string,
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+    gymSlug?: string | null,
   ): Promise<void> {
-    const url = buildVerificationUrl(token);
+    const url = buildOwnerOnboardingUrl(token, gymSlug);
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — owner onboarding link for ${to}: ${url}`,
@@ -363,6 +369,27 @@ export function buildVerificationUrl(token: string, gymSlug?: string | null): st
  */
 export function buildPasswordResetUrl(token: string, gymSlug?: string | null): string {
   const base = memberLinkBase('member/reset-password', env.PASSWORD_RESET_URL, gymSlug);
+  return `${base}?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Build the gym-owner onboarding deep link the token is appended to. Prefers an
+ * explicit `OWNER_ONBOARDING_URL`, then {@link buildConsoleUrl}'s `/activate`
+ * page — on the new gym's own console host (`https://<slug>.<root>/admin/activate`)
+ * when the slug is known, on `ADMIN_URL` otherwise — and finally a localhost
+ * default that is only ever hit (and logged, not sent) in unconfigured dev / CI.
+ *
+ * Deliberately NOT {@link buildVerificationUrl}: that one lands on the member web
+ * app, which is the wrong building for someone who has just been given a gym to
+ * run — and, for an owner provisioned without a password, a dead end, since
+ * verifying alone leaves them with no credential to sign in with. `/activate`
+ * verifies the address and sets the first password in one request.
+ */
+export function buildOwnerOnboardingUrl(token: string, gymSlug?: string | null): string {
+  const base =
+    env.OWNER_ONBOARDING_URL ??
+    buildConsoleUrl('activate', gymSlug) ??
+    `http://localhost:3002${env.ADMIN_BASE_PATH}/activate`;
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
