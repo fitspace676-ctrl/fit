@@ -166,6 +166,32 @@ read refuses it with a client error instead of the `500 INTERNAL_ERROR` it used 
 The `403` is what `TenantGuard` already answered on guarded routes; the code is
 `TENANT_REQUIRED_CODE` in `packages/types/src/auth.ts`.
 
+It sits beside `TENANT_MISMATCH` and answers a different question: `TENANT_MISMATCH`
+is a session on **another** gym's host (both sides known, and they differ);
+`TENANT_REQUIRED` is a request with **no** gym at all. Neither is a `500`, and
+neither falls back to some default gym.
+
+## Branding per gym
+
+A gym's member site and console name themselves after the gym, not the product.
+Both root layouts (`apps/web/app/[locale]/layout.tsx`, `apps/admin/app/layout.tsx`)
+build `generateMetadata` / `generateViewport` per request from the public
+`GET /gyms/by-subdomain/:slug` lookup they already make (`getActiveGymBrand` in each
+app's `lib/active-gym.ts`), through `gymMetadata` / `gymViewport` in
+`apps/{web,admin}/lib/gym-metadata.ts`:
+
+| Field             | Member site (`<slug>.<root>`)                       | Console (`<slug>.<root>/admin`)                                     |
+| ----------------- | --------------------------------------------------- | ------------------------------------------------------------------- |
+| title             | `Downtown Strength`, pages `%s · Downtown Strength` | `Downtown Strength — Staff console`, pages `%s · Downtown Strength` |
+| icon / Open Graph | the gym's logo, else `public/icon.png`              | the gym's logo, else `adminPath('/icon.png')`                       |
+| `theme-color`     | the gym's colour, else none                         | the gym's colour, else none                                         |
+
+With no gym in scope — apex, `app.<root>`, a preview URL, an unknown slug, or a failed
+lookup — both read plain **FormaCore**. Page titles carry only their own name; the
+template adds the gym's. The icon lives in `public/`, not `app/icon.png`, because Next
+would emit a file-based icon ahead of the gym's logo; the console prefixes it with
+`adminPath`, since Next does not apply `basePath` to a metadata URL.
+
 ## Env
 
 Set the same root domain on the API and all three Next apps:
@@ -206,6 +232,16 @@ Sign in as `alex@example.com` on `downtown.localhost:3001` → the session binds
 `downtown` gym (OWNER); on `riverside.localhost:3001` it binds to `riverside` (TRAINER).
 The two are separate sessions — signing in on one host does not sign you in on the
 other.
+
+**Seeding is local-only.** `seed.ts` and `seed-mobile-smoke.ts` write well-known
+fixture accounts (`alex@example.com`, `sam@example.com`, `superadmin@fit.local`, all
+on the shared dev password), so both call `exitIfUnsafeSeedTarget`
+(`packages/db/prisma/seed-guard.ts`) before any query. It exits non-zero when
+`NODE_ENV=production` or `DATABASE_URL` names a non-local host — anything dotted, such
+as `*.railway.internal` or `*.proxy.rlwy.net`; `localhost`, a bare compose service
+name and a Unix socket pass, so CI's seeds are unaffected. `ALLOW_SEED_PRODUCTION=1`
+overrides it, loudly. None of the fixture accounts should ever exist in production: on
+a real tenant host they would be a known password into a real gym.
 
 > Firefox/Safari don't auto-resolve `*.localhost`; add `127.0.0.1 downtown.localhost`
 > to `/etc/hosts` per slug, or test in Chrome.
@@ -308,6 +344,48 @@ out of the API's log, and then checks the new gym against `downtown`: the owner'
 session is refused on downtown's console and by the API on downtown's host, and
 neither roster shows the other gym's people.
 
+## Owner activation
+
+A provisioned owner has an account and an `OWNER` membership but no password, so the
+welcome mail's link has to end in a credential, not just a verified address:
+
+1. **Provision** — `POST /admin/gyms` (operator console) and `POST /auth/register-gym`
+   (marketing signup) both go through `AuthService.registerGym(…, subdomainSlug)`. It
+   stores a verification token in Redis for `EMAIL_VERIFICATION_TTL` (default 24h) and
+   mails `buildOwnerOnboardingUrl(token, slug)` (`apps/api/src/auth/email.service.ts`).
+2. **Link** — `OWNER_ONBOARDING_URL` if set, else `buildConsoleUrl('activate', slug)` →
+   `https://<slug>.<root>/admin/activate?token=…`, else the `ADMIN_URL` console, else
+   `localhost:3002`. The override is optional and unset on Railway; unlike the member
+   links below it wins over the slug, so setting it sends every gym's owner to one host.
+3. **Activate** — `/activate` is public in `apps/admin/middleware.ts`. The form posts
+   `POST /auth/activate { token, password }` with `x-tenant-host`
+   (`AuthController.activate` → `AuthService.activateAccount`). If the host names a gym
+   the account has no membership in, the answer is `403 TENANT_MISMATCH` **before** the
+   token is spent; with no tenant host there is nothing to compare. Otherwise the token
+   is deleted (single-use, delete-wins), the password set, `emailVerifiedAt` stamped,
+   and every existing session revoked. An unknown or used token is
+   `400 TOKEN_INVALID_OR_EXPIRED`.
+4. **Sign in** — the API returns `{ email }` and **no session**; the form redirects to
+   `/admin/login?email=…&activated=1`. The owner's first sign-in is a real one on this
+   host, so the session carries this gym's `gymSlug` and its cookies are host-only. A
+   link forwarded to the wrong inbox yields no console, only a chance to set a password.
+
+## Mail link precedence
+
+Which host each mailed link lands on, first match wins. The reasons are under
+[How this is actually deployed](#how-this-is-actually-deployed-2026-09).
+
+| Link                                | Builder                   | Precedence                                                                                                               |
+| ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `/member/verify?token=`             | `buildVerificationUrl`    | gym host (slug known) → `EMAIL_VERIFICATION_URL` → `WEB_URL` → localhost                                                 |
+| `/member/reset-password?token=`     | `buildPasswordResetUrl`   | gym host (the `x-tenant-host` gym, only if the account is a member there) → `PASSWORD_RESET_URL` → `WEB_URL` → localhost |
+| `/admin/activate?token=`            | `buildOwnerOnboardingUrl` | `OWNER_ONBOARDING_URL` → gym console → `ADMIN_URL` console → `localhost:3002`                                            |
+| `API_PUBLIC_URL/auth/accept-invite` | `buildInviteAcceptUrl`    | 302 → `https://<slug>.<root>/member/{register,login}?inviteToken=…`; an unknown token → `WEB_URL`                        |
+| digests, ops notifications          | `buildConsoleUrl`         | gym console → `ADMIN_URL` console → no link                                                                              |
+
+The member links resolve through `memberLinkBase` (`email.service.ts`), the console
+links through `apps/api/src/common/console-url.ts`.
+
 ## How this is actually deployed (2026-09)
 
 `fit.ge` above is only a placeholder. The real root domain is **`formacore.io`**, and
@@ -337,7 +415,11 @@ option **B** (wildcard, Vercel Pro) is what is live:
   while they won over the slug, every gym's verification mail opened the generic
   portal. `memberLinkBase` (`apps/api/src/auth/email.service.ts`) now reads: the gym's
   own host when a slug is known → the env override → `WEB_URL` → localhost. The
-  overrides only ever cover flows that name no gym.
+  overrides only ever cover flows that name no gym — the mobile app, `app.<root>`, a
+  reset asked for on a gym the account does not belong to. They are harmless left as
+  they are; removing them is optional and has to be done in the Railway dashboard (the
+  CLI can set a variable but not delete one), after which those flows fall to
+  `WEB_URL`, which is the same `app.formacore.io`.
 - **Password reset is addressed at the host it was asked for on.** The web form sends
   `x-tenant-host` (`accountHeaders` in `apps/web/lib/auth.ts`), and
   `POST /auth/forgot-password` resolves the slug like `POST /auth/refresh`. The link
@@ -399,4 +481,5 @@ and `x-tenant-host` has to be on it.
 ## Notes / future work
 
 - The platform signup form that calls `tenantAdminUrl(slug)` lands in **T3.11**.
-- Per-gym branding/theming by slug lands in **T4.8**.
+- Per-gym document branding (title, icon, `theme-color`) is in — see
+  [Branding per gym](#branding-per-gym) (#333, part of **T4.8**).
