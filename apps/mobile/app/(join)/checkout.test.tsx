@@ -786,7 +786,7 @@ describe('the a11y contract', () => {
     const view = renderScreen(<JoinCheckoutScreen />, { locale: 'ka' });
     await waitFor(() => view.getByTestId('join-location-loc_1'), WAIT);
     // `checkout.locations.title` in `ka`.
-    expect(headerTexts(view.getAllByRole('header'))).toEqual(['აირჩიეთ ლოკაცია']);
+    expect(headerTexts(view.getAllByRole('header'))).toEqual(['აირჩიეთ ფილიალი']);
   });
 });
 
