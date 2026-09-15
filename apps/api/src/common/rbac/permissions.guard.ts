@@ -16,6 +16,7 @@ import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { TenantContext, type TenantState } from '../tenant/tenant.context';
 import {
+  recordRequestAccess,
   REQUEST_ACCESS_RESOLVER,
   sharedRequestAccessResolver,
   type RequestAccess,
@@ -109,9 +110,7 @@ export class PermissionsGuard implements CanActivate {
     );
     if (requiredPermissions && requiredPermissions.length > 0) {
       const access = await this.resolveAccess(state);
-      const hasAll = requiredPermissions.every((permission) =>
-        access.grants.includes(permission),
-      );
+      const hasAll = requiredPermissions.every((permission) => access.grants.includes(permission));
       if (!hasAll) {
         throw new ForbiddenException({
           message: 'You do not have permission to perform this action',
@@ -119,6 +118,9 @@ export class PermissionsGuard implements CanActivate {
         });
       }
       this.enforceBranchScope(context, access, requiredPermissions);
+      // Kept for the handlers whose answer depends on the scope itself rather than
+      // on a branch id — the reports that stay gym-wide under every filter.
+      recordRequestAccess(context.switchToHttp().getRequest<object>(), access);
       return true;
     }
 
@@ -270,9 +272,7 @@ function requestedLocationIds(request: Request): string[] {
     request.params?.locationId,
     (request.body as Record<string, unknown> | undefined)?.locationId,
   ];
-  return carriers.filter(
-    (value): value is string => typeof value === 'string' && value.length > 0,
-  );
+  return carriers.filter((value): value is string => typeof value === 'string' && value.length > 0);
 }
 
 /**

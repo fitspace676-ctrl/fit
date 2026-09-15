@@ -24,6 +24,7 @@
 // `branch-scope-note.tsx` against `admin.common.notSplitByBranch`.
 
 import { GYM_WIDE_REPORT_KEYS, type ReportKey, type ReportMetric } from '@fit/types';
+import type { BranchAccess } from '@/lib/active-location';
 
 /**
  * The catalogue reports that stay GYM-WIDE however a branch filter is set.
@@ -44,6 +45,26 @@ import { GYM_WIDE_REPORT_KEYS, type ReportKey, type ReportMetric } from '@fit/ty
  * That is the only way a key comes off: the data gains a real branch first.
  */
 export const GYM_WIDE_REPORTS: ReadonlySet<ReportKey> = new Set<ReportKey>(GYM_WIDE_REPORT_KEYS);
+
+/**
+ * The catalogue entries this operator may open: every one for a gym-wide role, and
+ * none of {@link GYM_WIDE_REPORTS} for a role restricted to its assigned branches.
+ *
+ * Such a person has no gym-wide view — the same reason "All locations" is not a
+ * choice they are offered — and these reports cannot be narrowed to a branch. The
+ * API already drops them from the catalogue and `403`s a preview or export; this
+ * keeps the page from rendering a card or a `?report=` it would only fail on. A
+ * pasted `?report=audit-log` then falls back to the first offered report, like any
+ * other key the catalogue does not carry.
+ */
+export function reportsWithinBranchAccess<T extends { key: ReportKey }>(
+  reports: readonly T[],
+  access: Pick<BranchAccess, 'canSelectAll'>,
+): T[] {
+  return access.canSelectAll
+    ? [...reports]
+    : reports.filter((report) => !GYM_WIDE_REPORTS.has(report.key));
+}
 
 /**
  * Reports that ARE branch-aware but carry individual columns that are not, keyed

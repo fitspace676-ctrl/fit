@@ -6,6 +6,7 @@ import { PermissionsGuard } from './permissions.guard';
 import {
   clearRequestAccessResolver,
   registerRequestAccessResolver,
+  requestAccessOf,
   type RequestAccess,
   type RequestAccessResolver,
 } from './request-access';
@@ -79,7 +80,10 @@ function defaultsResolver(branches: readonly string[] = ['loc-1']): RequestAcces
 }
 
 /** Build a guard whose reflector returns per-key metadata for the route. */
-function makeGuard(meta: Meta, access: RequestAccessResolver = defaultsResolver()): PermissionsGuard {
+function makeGuard(
+  meta: Meta,
+  access: RequestAccessResolver = defaultsResolver(),
+): PermissionsGuard {
   const reflector = {
     getAllAndOverride: vi.fn((key: string) => {
       switch (key) {
@@ -131,9 +135,9 @@ describe('PermissionsGuard (global deny-by-default)', () => {
 
     it('treats an empty @RequirePermissions list as no policy → 403', async () => {
       const guard = makeGuard({ permissions: [] });
-      await expect(
-        tenantStorage.run(state(), () => guard.canActivate(ctx)),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(tenantStorage.run(state(), () => guard.canActivate(ctx))).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('throws 401 for an undeclared route when no tenant was established', async () => {
@@ -315,6 +319,27 @@ describe('PermissionsGuard (global deny-by-default)', () => {
         guard.canActivate(contextFor(req)),
       );
       expect(req.query.locationId).toBe('loc-c');
+    });
+
+    // Handlers whose answer depends on the scope itself (a gym-wide report) read
+    // the SAME resolution the guard decided on, rather than resolving again.
+    it('records the resolved access on the request it admitted', async () => {
+      const restricted = request();
+      await tenantStorage.run(state({ role: Role.RECEPTIONIST }), () =>
+        makeGuard({ permissions: [Permission.MemberRead] }, assigned(['loc-b'])).canActivate(
+          contextFor(restricted),
+        ),
+      );
+      expect(requestAccessOf(restricted)).toMatchObject({
+        branchScope: 'assigned',
+        allowedLocationIds: ['loc-b'],
+      });
+
+      const wholeGym = request();
+      await tenantStorage.run(state({ role: Role.OWNER }), () =>
+        makeGuard({ permissions: [Permission.ReportView] }).canActivate(contextFor(wholeGym)),
+      );
+      expect(requestAccessOf(wholeGym)?.branchScope).toBe('all');
     });
 
     it('403s a branch the caller does not hold, in the query', async () => {

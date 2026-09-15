@@ -6,23 +6,28 @@ import {
   HttpStatus,
   Param,
   Headers,
+  ForbiddenException,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import {
+  isGymWideReport,
   Permission,
   reportExportQuerySchema,
   reportKeySchema,
   reportQuerySchema,
   reportWindowSlug,
   type ReportCatalogResponse,
+  type ReportKey,
   type ReportResult,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
+import { requestAccessOf } from '../common/rbac/request-access';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { ReportsService } from './reports.service';
 import { parseAcceptLanguage } from '../mail/email-locale';
@@ -56,18 +61,32 @@ export class ReportsController {
    * later contributor to make it hide the reports that cannot be filtered. Whether
    * a card is shown in single-branch mode is the console's call (Stage 1 hides
    * `revenue-by-location` there); the catalogue itself stays the same list.
+   *
+   * What it DOES depend on is who is asking. A caller whose role is restricted to
+   * its assigned branches never gets the gym-wide reports (`GYM_WIDE_REPORT_KEYS`)
+   * — see {@link assertReportInScope} — so they are dropped from the list too,
+   * `?all=true` included: the settings form saves the stored toggles, not this
+   * list, so a hidden toggle keeps its value.
    */
   @Get()
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.ReportView)
-  catalog(
+  async catalog(
+    @Req() req: Request,
     @Headers('accept-language') acceptLanguage?: string,
     @Query('all') all?: string,
   ): Promise<ReportCatalogResponse> {
     // `?all=true` is the settings screen asking for the reports it has hidden too.
-    return this.reports.catalog(parseAcceptLanguage(acceptLanguage), {
+    const catalog = await this.reports.catalog(parseAcceptLanguage(acceptLanguage), {
       includeHidden: all === 'true',
     });
+    if (seesWholeGym(req)) {
+      return catalog;
+    }
+    return {
+      ...catalog,
+      reports: catalog.reports.filter((report) => !isGymWideReport(report.key)),
+    };
   }
 
   /**
@@ -88,12 +107,15 @@ export class ReportsController {
    * {@link Permission.ReportExport}, because a bookmarked download link and a
    * scheduled export are both expected to keep working after a gym tidies its
    * hub. Do not add a settings check to this handler.
+   *
+   * A gym-wide report is a `403` for a branch-restricted caller — {@link assertReportInScope}.
    */
   @Get(':report/export')
   @RequirePermissions(Permission.ReportExport)
   async export(
     @Param('report') report: string,
     @Query() query: unknown,
+    @Req() req: Request,
     @Res() res: Response,
     @Headers('accept-language') acceptLanguage?: string,
   ): Promise<void> {
@@ -101,6 +123,7 @@ export class ReportsController {
     // (a script, a scheduled export) gets the gym's own.
     const lang = parseAcceptLanguage(acceptLanguage);
     const key = parse(reportKeySchema, report);
+    assertReportInScope(key, req);
     const params = parse(reportExportQuerySchema, query);
     const filename = `report-${key}-${reportWindowSlug(params)}.${params.format}`;
 
@@ -139,6 +162,8 @@ export class ReportsController {
    * {@link Permission.ReportView}, because a bookmarked preview link is expected
    * to keep working after a gym tidies its hub. Do not add a settings check to
    * this handler.
+   *
+   * A gym-wide report is a `403` for a branch-restricted caller — {@link assertReportInScope}.
    */
   @Get(':report')
   @HttpCode(HttpStatus.OK)
@@ -146,14 +171,44 @@ export class ReportsController {
   async run(
     @Param('report') report: string,
     @Query() query: unknown,
+    @Req() req: Request,
     @Headers('accept-language') acceptLanguage?: string,
   ): Promise<ReportResult> {
     const key = parse(reportKeySchema, report);
+    assertReportInScope(key, req);
     return this.reports.runReport(
       key,
       parse(reportQuerySchema, query),
       parseAcceptLanguage(acceptLanguage),
     );
+  }
+}
+
+/**
+ * Whether the caller's role reaches the whole gym (`branchScope: 'all'`).
+ *
+ * Read from the answer `PermissionsGuard` resolved for this request. No recorded
+ * answer is NOT gym-wide: it fails closed, like every other scope decision.
+ */
+function seesWholeGym(req: Request): boolean {
+  return requestAccessOf(req)?.branchScope === 'all';
+}
+
+/**
+ * Refuse a gym-wide report to a branch-restricted caller.
+ *
+ * The guard's clamp cannot do this on its own: it forces a branch onto the query,
+ * and a `GYM_WIDE_REPORT_KEYS` report ignores the branch by construction — so the
+ * clamped request would still answer with every branch's rows. Such a person has no
+ * gym-wide view, for the same reason "All locations" is not a choice they are
+ * offered, so the report is theirs to see only when its data can be narrowed.
+ */
+function assertReportInScope(key: ReportKey, req: Request): void {
+  if (isGymWideReport(key) && !seesWholeGym(req)) {
+    throw new ForbiddenException({
+      message: 'This report covers the whole gym and your access is limited to your branches',
+      code: 'BRANCH_FORBIDDEN',
+    });
   }
 }
 

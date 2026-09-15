@@ -138,3 +138,26 @@ const shared: RequestAccessResolver = {
 export function sharedRequestAccessResolver(): RequestAccessResolver {
   return shared;
 }
+
+/**
+ * The answer the guard resolved, kept per request for the handlers that need more
+ * than the clamp — a WeakMap rather than a property on the request, so nothing has
+ * to augment Express's type and the entry goes when the request does.
+ */
+const recorded = new WeakMap<object, RequestAccess>();
+
+/** Remember `access` as `request`'s resolved answer. Called by the guard. */
+export function recordRequestAccess(request: object, access: RequestAccess): void {
+  recorded.set(request, access);
+}
+
+/**
+ * The access the guard resolved for `request`, or `undefined` when it resolved none
+ * (a public route, a `@Roles` route, a request that never passed the guard).
+ *
+ * A caller must treat `undefined` as the RESTRICTED answer, never as gym-wide: the
+ * absence of a recorded scope is not evidence the caller has no restriction.
+ */
+export function requestAccessOf(request: object): RequestAccess | undefined {
+  return recorded.get(request);
+}

@@ -12,8 +12,9 @@ import {
   type ReportQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { getActiveLocationId } from '@/lib/active-location-server';
+import { getActiveLocationId, getBranchAccess } from '@/lib/active-location-server';
 import { ApiError, fetchReport, fetchReportCatalog } from '@/lib/api';
+import { reportsWithinBranchAccess } from './branch-scope';
 import { ReportsView } from './reports-view';
 import { chrome } from './report-chrome';
 
@@ -132,7 +133,11 @@ async function ReportsBody({
 }) {
   const t = await getTranslations('admin.reports');
   try {
-    const catalog = await fetchReportCatalog();
+    const [fetched, access] = await Promise.all([fetchReportCatalog(), getBranchAccess()]);
+    // A branch-restricted operator is never offered a gym-wide report (the API
+    // refuses them too), so a `?report=` naming one falls back below like any
+    // key the catalogue does not carry.
+    const catalog = { ...fetched, reports: reportsWithinBranchAccess(fetched.reports, access) };
 
     // The default has to come from the FILTERED catalogue, not from
     // `DEFAULT_REPORT_KEY`: that constant is `REPORT_KEYS[0]`, and a gym that

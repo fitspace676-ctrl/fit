@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { GYM_WIDE_REPORT_KEYS, REPORT_KEYS, REPORT_METRIC_DEFINITIONS } from '@fit/types';
+import {
+  GYM_WIDE_REPORT_KEYS,
+  REPORT_CATALOG,
+  REPORT_KEYS,
+  REPORT_METRIC_DEFINITIONS,
+} from '@fit/types';
 import {
   GYM_WIDE_DRILLDOWNS,
   GYM_WIDE_REPORTS,
   gymWideColumnKeys,
   gymWideSectionColumnKeys,
+  reportsWithinBranchAccess,
 } from './branch-scope';
 
 describe('branch scope', () => {
@@ -13,6 +19,25 @@ describe('branch scope', () => {
   // filtering.
   it('marks exactly the reports the API leaves gym-wide', () => {
     expect([...GYM_WIDE_REPORTS].sort()).toEqual([...GYM_WIDE_REPORT_KEYS].sort());
+  });
+
+  // A branch-restricted operator has no gym-wide view, so the reports that cannot
+  // be narrowed are not offered to them at all.
+  it('drops the gym-wide reports from a restricted catalogue only', () => {
+    const catalogue = REPORT_CATALOG;
+    const restricted = reportsWithinBranchAccess(catalogue, { canSelectAll: false });
+    const keys = restricted.map((report) => report.key);
+    for (const key of GYM_WIDE_REPORT_KEYS) {
+      expect(keys).not.toContain(key);
+    }
+    // Everything else stays: only a key on the gym-wide list is dropped (not every
+    // gym-wide key is offered in the catalogue, so count what is, not the list).
+    expect(restricted).toHaveLength(
+      catalogue.filter(
+        (report) => !(GYM_WIDE_REPORT_KEYS as readonly string[]).includes(report.key),
+      ).length,
+    );
+    expect(reportsWithinBranchAccess(catalogue, { canSelectAll: true })).toEqual(catalogue);
   });
 
   it('holds only real catalogue keys', () => {
