@@ -5,8 +5,7 @@ import { DoorFrame } from '@/components/door-frame';
 import { ActivateForm } from './activate-form';
 
 export const metadata: Metadata = {
-  title: 'Set your password - FormaCore',
-  description: 'Finish setting up your gym on FormaCore.',
+  title: 'Set your password',
   // Nothing here should ever be indexed: the page is only meaningful with a
   // single-use token in the query, and a crawler following one would burn it.
   robots: { index: false, follow: false },

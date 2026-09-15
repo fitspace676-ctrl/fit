@@ -7,6 +7,9 @@ boots only the apps it drives:
 
 - `playwright.config.ts` — the admin console (default `test:e2e`).
 - `playwright.web.config.ts` — the member portal (`test:e2e:web`).
+- `playwright.new-gym.config.ts` — a new gym's first day, console and site together
+  (`test:e2e:new-gym`). `test:e2e:web` runs it straight after the member portal
+  suite, so CI's member E2E job covers both.
 
 ## What it covers
 
@@ -49,6 +52,21 @@ host it was minted on (see `docs/subdomain-routing.md`), across the seeded
 Its account belongs to both gyms (`provisionMultiGymMember` in `fixtures.ts`), with
 `downtown` joined first so it is the primary gym the refresh must not drift to.
 
+`tests/new-gym-flow.spec.ts` follows a gym that did not exist when the suite
+started, on its own `<slug>.localhost` host:
+
+**Operator provisions (`POST /admin/gyms`) → owner opens the mailed activation link →
+sets a password → signs in to the console → member signs up → opens the mailed
+verification link → signs in to the portal → nothing of either reaches `downtown`.**
+
+It boots all three apps in their production shape: the console under `/admin`, reached
+through the member site's `ADMIN_ORIGIN` proxy. There is no mailbox — with
+`RESEND_API_KEY` unset the API logs every mail's link instead of sending it, so the
+config writes the API's output to `.logs/api.log` and `mail-log.ts` reads each link
+back from there. That tests the link the API really built (the gym's host included)
+without adding a test-only route to the API. For the same reason its API server is
+never reused: a server started elsewhere logs somewhere else.
+
 ## How auth works
 
 The admin console has no sign-in page of its own; it trusts an `accessToken`
@@ -69,7 +87,8 @@ pnpm db:migrate && pnpm db:seed
 pnpm --filter @fit/e2e exec playwright install chromium
 
 pnpm --filter @fit/e2e test:e2e        # admin suite, headless
-pnpm --filter @fit/e2e test:e2e:web    # member portal suite, headless
+pnpm --filter @fit/e2e test:e2e:web    # member portal suite, then the new-gym flow
+pnpm --filter @fit/e2e test:e2e:new-gym  # new gym only: console + site, headless
 pnpm --filter @fit/e2e test:e2e:ui     # interactive UI mode (admin config)
 ```
 

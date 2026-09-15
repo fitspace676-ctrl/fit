@@ -13,6 +13,7 @@ import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar
 import { CONSOLE_PATHNAME_HEADER } from '@/lib/console-pathname';
 import { branchAccess, consoleCan, permittedLocations } from '@/lib/console-permissions';
 import { getConsolePermissions } from '@/lib/permissions-server';
+import { getServerSession } from '@/lib/session';
 import { routeGuardForPath } from '@/lib/route-guards';
 import {
   ACTIVE_LOCATION_COOKIE,
@@ -54,13 +55,15 @@ import { fetchCheckInStats, fetchGymSettings } from '@/lib/api';
  * redirect below from looping back into this gate.
  */
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const [gymSlug, cookieStore, headerStore, permissions] = await Promise.all([
+  const [gymSlug, cookieStore, headerStore, permissions, session] = await Promise.all([
     getActiveGymSlug(),
     cookies(),
     headers(),
     // Resolves the session itself, and is memoised for the render pass — so every
     // page below that asks shares this one round trip and this one answer.
     getConsolePermissions(),
+    // What the shell hands the sidebar; `getConsolePermissions` read the same one.
+    getServerSession(),
   ]);
 
   // ---------------------------------------------------------------------------
@@ -169,6 +172,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             system={system}
             locations={locations}
             sidebarCollapsed={sidebarCollapsed}
+            // The verified session — the same one `getConsolePermissions` resolved.
+            session={session}
             // Into the shell's own banner slot, not above it: the shell is exactly
             // one viewport tall, so a bar stacked on top of it is a bar's worth of
             // document scroll. See the `banner` prop's note in `admin-shell.tsx`.

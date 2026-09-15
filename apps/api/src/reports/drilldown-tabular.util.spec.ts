@@ -13,7 +13,7 @@ function drilldown(sections: ReportDrilldown['sections']): ReportDrilldown {
     to: '2026-08-31',
     currency: 'GEL',
     kpis: [
-      { id: 'gross-sales', label: 'Gross sales', value: 724_300, unit: 'money' },
+      { id: 'net-sales', label: 'Net sales', value: 724_300, unit: 'money' },
       { id: 'sale-count', label: 'Sales', value: 84, unit: 'count' },
       { id: 'attendance', label: 'Attendance', value: 92.5, unit: 'percent' },
     ],
@@ -29,7 +29,7 @@ describe('drilldownTables', () => {
     expect(summary!.rows).toEqual([
       // 724_300 minor units → 7243.00 major. A currency and a count cannot share a
       // typed column, so the unit rides beside the number instead of inside it.
-      { metric: 'Gross sales', value: 7_243, unit: 'GEL' },
+      { metric: 'Net sales', value: 7_243, unit: 'GEL' },
       { metric: 'Sales', value: 84, unit: 'count' },
       { metric: 'Attendance', value: 92.5, unit: '%' },
     ]);

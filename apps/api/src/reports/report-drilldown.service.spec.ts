@@ -251,7 +251,6 @@ describe('ReportDrilldownService', () => {
       expect(saleDay?.value).toBe(10_000);
       expect(refundDay?.value).toBe(-4_000);
       expect(result.kpis).toEqual([
-        { id: 'gross-sales', label: 'Gross sales', value: 10_000, unit: 'money' },
         { id: 'refunds', label: 'Refunds', value: 4_000, unit: 'money' },
         { id: 'net-sales', label: 'Net sales', value: 6_000, unit: 'money' },
         { id: 'sale-count', label: 'Sales', value: 1, unit: 'count' },
@@ -585,8 +584,8 @@ describe('ReportDrilldownService', () => {
       const result = await service.run('pos', MAY_WINDOW);
 
       const kpis = Object.fromEntries(result.kpis.map((k) => [k.id, k.value]));
-      expect(kpis['gross-sales']).toBe(15000);
-      expect(kpis['net-sales']).toBe(14000); // 15000 - 1000 refunded
+      expect(kpis['gross-sales']).toBeUndefined();
+      expect(kpis['net-sales']).toBe(14000); // 15000 gross - 1000 refunded
       expect(kpis['transactions']).toBe(2);
 
       const byMethod = result.sections.find(

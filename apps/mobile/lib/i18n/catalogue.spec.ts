@@ -83,8 +83,13 @@ describe('the member slice', () => {
     // (`member.home.banners` / `.trainers`), the profile's appearance and menu
     // blocks (`member.profile.mobile.appearance` / `.menu`) and
     // `billing.subtitle` all landed on the phone in one sweep.
-    expect(enKeys).toHaveLength(1125);
-    expect(kaKeys).toHaveLength(1125);
+    //
+    // 2026-09-15, merging main (#329): 1125 → 1116. A service no longer has a
+    // schedule, so `services.card.showSchedule` / `.hideSchedule` and the whole
+    // `services.schedule.*` block left the catalogue with the card disclosure
+    // that read them; main's own member-facing additions make up the rest.
+    expect(enKeys).toHaveLength(1116);
+    expect(kaKeys).toHaveLength(1116);
   });
 });
 

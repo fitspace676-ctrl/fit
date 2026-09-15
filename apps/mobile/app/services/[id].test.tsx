@@ -93,7 +93,7 @@ const SERVICE: ServiceCard = {
   currency: 'GEL',
   durationMinutes: 60,
   coverUrl: null,
-  schedule: null,
+  category: null,
   staff: { id: 'st_1', name: 'Nino Beridze', photoUrl: null },
 };
 
@@ -169,7 +169,7 @@ describe('the service', () => {
     expect(view.getByText('One to one, sixty minutes.')).toBeTruthy();
     expect(view.getByText('With Nino Beridze · 60 min')).toBeTruthy();
     expect(view.getByText('GEL 120.00')).toBeTruthy();
-    expect(view.getByText('Personal training')).toBeTruthy();
+    expect(view.getByText('Personal session')).toBeTruthy();
   });
 
   it('shows skeletons first', () => {
@@ -222,7 +222,7 @@ describe('the service', () => {
     const view = renderApp(<ServiceDetailScreen />);
     await view.findByTestId('service-hero');
     expect(headerTexts(view.getAllByRole('header'))).toEqual([
-      'Personal training - Nino Beridze',
+      'Personal session - Nino Beridze',
       'Pick a free slot',
     ]);
   });
@@ -309,7 +309,7 @@ describe('booking — the auth-soft boundary', () => {
     fireEvent.press(view.getByTestId('slot-ss_1'));
 
     await view.findByTestId('booking-sheet');
-    expect(view.getAllByText('Personal training - Nino Beridze').length).toBeGreaterThan(0);
+    expect(view.getAllByText('Personal session - Nino Beridze').length).toBeGreaterThan(0);
     expect(
       view.getByText(
         'Booking issues an invoice for the session price. Pay at the front desk before the session.',

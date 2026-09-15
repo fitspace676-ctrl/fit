@@ -25,7 +25,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Reports - FormaCore Admin',
+  title: 'Reports',
 };
 
 // The hub reflects live tenant state + the staff session token, so this page must

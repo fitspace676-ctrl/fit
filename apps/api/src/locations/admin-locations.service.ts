@@ -20,6 +20,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
+import { assertOwnedMedia } from '../storage/media-ownership';
 
 /**
  * The columns the roster/detail queries select off `Location`. Every field is the
@@ -118,6 +119,7 @@ export class AdminLocationsService {
    * the new location's detail (`201`).
    */
   async createLocation(input: CreateLocationData): Promise<CreateLocationResponse> {
+    assertOwnedMedia(this.tenant.gymId, [input.photoUrl]);
     const row = await this.prisma.client.location.create({
       data: {
         gymId: this.tenant.gymId,
@@ -142,6 +144,7 @@ export class AdminLocationsService {
    */
   async updateLocation(id: string, input: UpdateLocationData): Promise<UpdateLocationResponse> {
     const existing = await this.requireLocation(id);
+    assertOwnedMedia(this.tenant.gymId, [input.photoUrl], [existing.photoUrl]);
     await this.prisma.client.location.update({
       where: { id },
       data: {

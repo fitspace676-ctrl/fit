@@ -5,6 +5,7 @@ import type {
   ForgotPasswordResponse,
   RegisterGymResponse,
   RegisterResponse,
+  ResetPasswordResponse,
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
@@ -26,9 +27,9 @@ function setup() {
       message: 'If an account exists for that address, a reset link has been sent',
     }),
   );
-  const resetPassword = vi.fn<(input: unknown) => Promise<TokenPair>>(() =>
-    Promise.resolve({ accessToken: 'arp', refreshToken: 'rrp' }),
-  );
+  const resetPassword = vi.fn<
+    (input: unknown, tenantSlug?: string | null) => Promise<ResetPasswordResponse>
+  >(() => Promise.resolve({ accessToken: 'arp', refreshToken: 'rrp', sessionIssued: true }));
   const activateAccount = vi.fn<(input: unknown) => Promise<ActivateAccountResponse>>(() =>
     Promise.resolve({ email: 'owner@example.com' }),
   );
@@ -206,10 +207,25 @@ describe('AuthController', () => {
 
       // The address alone comes back — activation deliberately issues no session.
       expect(result).toEqual({ email: 'owner@example.com' });
-      expect(ctx.activateAccount).toHaveBeenCalledWith({
-        token: 'onboard-tok',
-        password: 'brand-new-secret',
-      });
+      expect(ctx.activateAccount).toHaveBeenCalledWith(
+        { token: 'onboard-tok', password: 'brand-new-secret' },
+        null,
+      );
+    });
+
+    it('passes the tenant slug named by x-tenant-host through to the service', async () => {
+      await ctx.controller.activate(
+        { token: 'onboard-tok', password: 'brand-new-secret' },
+        {
+          'x-tenant-host': `downtown.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.activateAccount).toHaveBeenCalledWith(
+        { token: 'onboard-tok', password: 'brand-new-secret' },
+        'downtown',
+      );
     });
 
     it('holds the password to the registration policy, rejecting a short one with a 400', async () => {
@@ -254,13 +270,22 @@ describe('AuthController', () => {
       expect(result).toEqual({
         message: 'If an account exists for that address, a reset link has been sent',
       });
-      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, null);
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, null, null);
     });
 
     it('sends the reset mail in the language the visitor was reading', async () => {
       await ctx.controller.forgotPassword({ email: 'a@b.com' }, 'ka');
 
-      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, 'ka');
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, 'ka', null);
+    });
+
+    it('passes the tenant slug named by x-tenant-host through to the service', async () => {
+      await ctx.controller.forgotPassword({ email: 'a@b.com' }, undefined, {
+        'x-tenant-host': `downtown.${env.PLATFORM_ROOT_DOMAIN}`,
+        host: 'api-production.up.railway.app',
+      });
+
+      expect(ctx.requestPasswordReset).toHaveBeenCalledWith({ email: 'a@b.com' }, null, 'downtown');
     });
 
     it('rejects a malformed email with a 400', async () => {
@@ -278,11 +303,26 @@ describe('AuthController', () => {
         password: 'brand-new-secret',
       });
 
-      expect(result).toEqual({ accessToken: 'arp', refreshToken: 'rrp' });
-      expect(ctx.resetPassword).toHaveBeenCalledWith({
-        token: 'reset-tok',
-        password: 'brand-new-secret',
-      });
+      expect(result).toEqual({ accessToken: 'arp', refreshToken: 'rrp', sessionIssued: true });
+      expect(ctx.resetPassword).toHaveBeenCalledWith(
+        { token: 'reset-tok', password: 'brand-new-secret' },
+        null,
+      );
+    });
+
+    it('passes the tenant slug named by x-tenant-host through to the service', async () => {
+      await ctx.controller.resetPassword(
+        { token: 'reset-tok', password: 'brand-new-secret' },
+        {
+          'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.resetPassword).toHaveBeenCalledWith(
+        { token: 'reset-tok', password: 'brand-new-secret' },
+        'riverside',
+      );
     });
 
     it('rejects a too-short password with a 400', async () => {
@@ -308,6 +348,42 @@ describe('AuthController', () => {
       expect(ctx.loginWithGoogle).toHaveBeenCalledWith({ idToken: 'google-id-token' });
     });
 
+    it('names the gym from x-tenant-host when the body carries no gymSlug', async () => {
+      await ctx.controller.google(
+        { idToken: 'google-id-token' },
+        {
+          'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.loginWithGoogle).toHaveBeenCalledWith({
+        idToken: 'google-id-token',
+        gymSlug: 'riverside',
+      });
+    });
+
+    it('keeps the gymSlug the body names over the host', async () => {
+      await ctx.controller.google(
+        { idToken: 'google-id-token', gymSlug: 'downtown' },
+        { 'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}` },
+      );
+
+      expect(ctx.loginWithGoogle).toHaveBeenCalledWith({
+        idToken: 'google-id-token',
+        gymSlug: 'downtown',
+      });
+    });
+
+    it('names no gym when neither the body nor the host does', async () => {
+      await ctx.controller.google(
+        { idToken: 'google-id-token' },
+        { host: 'api-production.up.railway.app' },
+      );
+
+      expect(ctx.loginWithGoogle).toHaveBeenCalledWith({ idToken: 'google-id-token' });
+    });
+
     it('rejects a missing id token with a 400', async () => {
       await expect(ctx.controller.google({})).rejects.toBeInstanceOf(BadRequestException);
       expect(ctx.loginWithGoogle).not.toHaveBeenCalled();
@@ -326,6 +402,21 @@ describe('AuthController', () => {
       await ctx.controller.apple({ idToken: 'apple-id-token' });
 
       expect(ctx.loginWithApple).toHaveBeenCalledWith({ idToken: 'apple-id-token' });
+    });
+
+    it('names the gym from x-tenant-host when the body carries no gymSlug', async () => {
+      await ctx.controller.apple(
+        { idToken: 'apple-id-token' },
+        {
+          'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.loginWithApple).toHaveBeenCalledWith({
+        idToken: 'apple-id-token',
+        gymSlug: 'riverside',
+      });
     });
 
     it('rejects a missing id token with a 400', async () => {

@@ -24,7 +24,7 @@ import {
 } from './week';
 
 export const metadata: Metadata = {
-  title: 'Schedule - FormaCore Admin',
+  title: 'Schedule',
   description:
     'The gym’s weekly class calendar: day columns of class occurrences with occupancy, trainer, and branch, scoped to the console’s active branch, filtered by trainer, and paged a week at a time.',
 };

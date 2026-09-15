@@ -28,6 +28,7 @@ import {
   type ForgotPasswordResponse,
   type RegisterGymResponse,
   type RegisterResponse,
+  type ResetPasswordResponse,
   type TokenPair,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
@@ -39,6 +40,22 @@ import { env } from '../config/env';
 import { RateLimit, RATE_LIMITS } from '../common/rate-limit/rate-limit.decorator';
 import { parseAcceptLanguage } from '../mail/email-locale';
 import { AuthService } from './auth.service';
+
+/**
+ * A social sign-in's input with the gym filled in from the tenant host when the
+ * body names none. The body wins when it does; either way the slug is only a
+ * selector — the service still needs a membership in that gym.
+ */
+function withHostGymSlug<TInput extends { gymSlug?: string }>(
+  input: TInput,
+  headers: TenantHeaders,
+): TInput {
+  if (input.gymSlug) {
+    return input;
+  }
+  const gymSlug = resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN);
+  return gymSlug ? { ...input, gymSlug } : input;
+}
 
 /**
  * Auth endpoints for email/password registration + verification.
@@ -127,13 +144,19 @@ export class AuthController {
    * Carries the `authStrict` budget like the other password-setting route — this
    * one writes a credential from an emailed token, which is the same class of
    * surface as `POST /auth/reset-password`.
+   *
+   * The tenant host (`x-tenant-host` from the console) is passed through so the
+   * service can refuse a link opened on another gym's console.
    */
   @Post('activate')
   @HttpCode(HttpStatus.OK)
   @RateLimit(RATE_LIMITS.authStrict)
-  async activate(@Body() body: unknown): Promise<ActivateAccountResponse> {
+  async activate(
+    @Body() body: unknown,
+    @Headers() headers: TenantHeaders = {},
+  ): Promise<ActivateAccountResponse> {
     const input = parse(activateAccountSchema, body);
-    return this.auth.activateAccount(input);
+    return this.auth.activateAccount(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
   /**
@@ -158,41 +181,68 @@ export class AuthController {
     return this.auth.login(input);
   }
 
-  /** `POST /auth/forgot-password` — mint a reset token and email the reset link. */
+  /**
+   * `POST /auth/forgot-password` — mint a reset token and email the reset link.
+   *
+   * The tenant host the call names is read the same way as on `POST /auth/refresh`;
+   * the service addresses the link at that gym's own site when the account
+   * belongs to it.
+   */
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @RateLimit(RATE_LIMITS.authStrict)
   async forgotPassword(
     @Body() body: unknown,
     @Headers('accept-language') acceptLanguage?: string,
+    @Headers() headers: TenantHeaders = {},
   ): Promise<ForgotPasswordResponse> {
     const input = parse(forgotPasswordSchema, body);
-    return this.auth.requestPasswordReset(input, parseAcceptLanguage(acceptLanguage));
+    return this.auth.requestPasswordReset(
+      input,
+      parseAcceptLanguage(acceptLanguage),
+      resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN),
+    );
   }
 
-  /** `POST /auth/reset-password` — consume a reset token, set the new password, and issue a session. */
+  /**
+   * `POST /auth/reset-password` — consume a reset token, set the new password, and
+   * issue a session when the host allows one.
+   *
+   * The tenant host is read the same way as on `POST /auth/refresh`: on a gym host
+   * the session binds to that gym, or none is issued; a tenant-less host gets the
+   * account's primary gym.
+   */
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @RateLimit(RATE_LIMITS.authStrict)
-  async resetPassword(@Body() body: unknown): Promise<TokenPair> {
+  async resetPassword(
+    @Body() body: unknown,
+    @Headers() headers: TenantHeaders = {},
+  ): Promise<ResetPasswordResponse> {
     const input = parse(resetPasswordSchema, body);
-    return this.auth.resetPassword(input);
+    return this.auth.resetPassword(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
-  /** `POST /auth/google` — verify a Google ID token and issue a session. */
+  /**
+   * `POST /auth/google` — verify a Google ID token and issue a session.
+   *
+   * The gym is the body's `gymSlug`, else the tenant host the call names (read
+   * the same way as on `POST /auth/refresh`), so a client that only sends
+   * `x-tenant-host` still signs in on the gym whose site it is on.
+   */
   @Post('google')
   @HttpCode(HttpStatus.OK)
-  async google(@Body() body: unknown): Promise<TokenPair> {
+  async google(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
     const input = parse(googleAuthSchema, body);
-    return this.auth.loginWithGoogle(input);
+    return this.auth.loginWithGoogle(withHostGymSlug(input, headers));
   }
 
-  /** `POST /auth/apple` — verify an Apple ID token and issue a session. */
+  /** `POST /auth/apple` — verify an Apple ID token and issue a session; the gym as on Google. */
   @Post('apple')
   @HttpCode(HttpStatus.OK)
-  async apple(@Body() body: unknown): Promise<TokenPair> {
+  async apple(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
     const input = parse(appleAuthSchema, body);
-    return this.auth.loginWithApple(input);
+    return this.auth.loginWithApple(withHostGymSlug(input, headers));
   }
 
   /**

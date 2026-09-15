@@ -20,7 +20,7 @@ import { AddProductDrawer } from './add-product-drawer';
 import { CategoriesDrawer } from './categories-drawer';
 
 export const metadata: Metadata = {
-  title: 'Shop - FormaCore Admin',
+  title: 'Shop',
   description:
     'The gym’s retail catalog: a product grid with stock badges and low-stock surfacing. Search, filter by status, sort, open a product, or add one with an image gallery and variants.',
 };

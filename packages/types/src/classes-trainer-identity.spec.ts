@@ -11,6 +11,7 @@ import { classInstanceCardSchema } from './classes';
 const card = () => ({
   id: 'ci-1',
   title: 'Morning Flow',
+  description: '',
   startsAt: '2026-06-01T09:00:00.000Z',
   endsAt: '2026-06-01T10:00:00.000Z',
   trainerName: 'Nino Beridze',

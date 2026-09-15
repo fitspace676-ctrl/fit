@@ -1,5 +1,4 @@
-// `/services` — the catalogue, its type filter, and the schedule that expands
-// under a card.
+// `/services` — the catalogue and its type filter.
 import { onlineManager } from '@tanstack/react-query';
 import { fireEvent } from '@testing-library/react-native';
 import type { ServiceCard } from '@fit/types';
@@ -53,10 +52,7 @@ const PT: ServiceCard = {
   currency: 'GEL',
   durationMinutes: 60,
   coverUrl: null,
-  // A PT service whose slots come from the trainer's own calendar has NO
-  // recurrence — the common case, and the one that must not render an empty
-  // table.
-  schedule: null,
+  category: null,
   staff: { id: 'st_1', name: 'Nino Beridze', photoUrl: null },
 };
 
@@ -69,13 +65,7 @@ const CUSTOM: ServiceCard = {
   currency: 'GEL',
   durationMinutes: 45,
   coverUrl: null,
-  schedule: {
-    freq: 'WEEKLY',
-    weekdays: ['TU', 'TH'],
-    startDate: '2026-08-01',
-    startTime: '11:00',
-    until: null,
-  },
+  category: null,
   staff: { id: 'st_2', name: 'Ana Gvazava', photoUrl: null },
 };
 
@@ -121,7 +111,7 @@ describe('the state machine', () => {
     await view.findByTestId('services-list');
     // NOT the stored `name` ("PT — Nino Beridze"), which is generated: the
     // catalogue carries `services.ptTitle` for exactly this.
-    expect(view.getByText('Personal training - Nino Beridze')).toBeTruthy();
+    expect(view.getByText('Personal session - Nino Beridze')).toBeTruthy();
     expect(view.getByText('Sports massage')).toBeTruthy();
     expect(view.getByText('With Nino Beridze · 60 min')).toBeTruthy();
     expect(view.getByText('GEL 120.00')).toBeTruthy();
@@ -179,11 +169,11 @@ describe('the type filter', () => {
     await view.findByTestId('services-list');
 
     fireEvent.press(view.getByTestId('services-filter-CUSTOM'));
-    expect(view.queryByText('Personal training - Nino Beridze')).toBeNull();
+    expect(view.queryByText('Personal session - Nino Beridze')).toBeNull();
     expect(view.getByText('Sports massage')).toBeTruthy();
 
     fireEvent.press(view.getByTestId('services-filter-ALL'));
-    expect(view.getByText('Personal training - Nino Beridze')).toBeTruthy();
+    expect(view.getByText('Personal session - Nino Beridze')).toBeTruthy();
   });
 
   it('says so with ONE bare sentence when a type has nothing — no reset action', async () => {
@@ -201,43 +191,12 @@ describe('the type filter', () => {
   });
 });
 
-describe('the schedule panel', () => {
-  it('opens one card at a time, and closing is the same control', async () => {
+describe('the card', () => {
+  it('has no schedule disclosure — a service has no schedule, its slots are picked on booking', async () => {
     const view = renderScreen(<ServicesScreen />);
     await view.findByTestId('services-list');
-
-    expect(view.queryByTestId('service-schedule-svc_massage')).toBeNull();
-    fireEvent.press(view.getByTestId('service-schedule-toggle-svc_massage'));
-    expect(view.getByTestId('service-schedule-svc_massage')).toBeTruthy();
-
-    // Opening a second closes the first — a list of expanded tables is a list
-    // nobody can scan.
-    fireEvent.press(view.getByTestId('service-schedule-toggle-svc_pt'));
-    expect(view.queryByTestId('service-schedule-svc_massage')).toBeNull();
-    expect(view.getByTestId('service-schedule-svc_pt')).toBeTruthy();
-
-    fireEvent.press(view.getByTestId('service-schedule-toggle-svc_pt'));
-    expect(view.queryByTestId('service-schedule-svc_pt')).toBeNull();
-  });
-
-  it('says "by appointment" for a PT service with no recurrence', async () => {
-    const view = renderScreen(<ServicesScreen />);
-    await view.findByTestId('services-list');
-    fireEvent.press(view.getByTestId('service-schedule-toggle-svc_pt'));
-    expect(
-      view.getByText(
-        'Sessions are booked one by one with the trainer - ask at the front desk or message the gym.',
-      ),
-    ).toBeTruthy();
-  });
-
-  it('summarises a recurrence and lists the dates it next falls on', async () => {
-    const view = renderScreen(<ServicesScreen />);
-    await view.findByTestId('services-list');
-    fireEvent.press(view.getByTestId('service-schedule-toggle-svc_massage'));
-    expect(view.getByTestId('service-schedule-summary').props.children).toBe(
-      'Every Tue, Thu · 11:00',
-    );
+    expect(view.queryByTestId('service-schedule-toggle-svc_massage')).toBeNull();
+    expect(view.queryByTestId('service-schedule-toggle-svc_pt')).toBeNull();
   });
 });
 
@@ -247,7 +206,7 @@ describe('the a11y contract', () => {
     await view.findByTestId('services-list');
     expect(headerTexts(view.getAllByRole('header'))).toEqual([
       'Services',
-      'Personal training - Nino Beridze',
+      'Personal session - Nino Beridze',
       'Sports massage',
     ]);
   });

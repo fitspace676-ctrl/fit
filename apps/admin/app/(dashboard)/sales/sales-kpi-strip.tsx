@@ -1,7 +1,8 @@
 'use client';
 
-// The Sales tab's four numbers, in one container — `overview/metric-strip.tsx`'s
-// treatment, at four cells instead of nine.
+// The Sales tab's three numbers, in one container - `overview/metric-strip.tsx`'s
+// treatment, at three cells instead of nine. Gross sales used to lead the strip;
+// the owner had it removed (2026-09-02) - net sales is the figure the tab is about.
 //
 // The hairlines are the 1px grid gap showing the container's border colour
 // through, with each cell painting over it with the surface colour. That is
@@ -32,8 +33,8 @@ const styles = stylex.create({
     gap: '1px',
     backgroundColor: 'var(--color-border)',
     gridTemplateColumns: {
-      default: 'repeat(2, minmax(0, 1fr))',
-      '@media (min-width: 768px)': 'repeat(4, minmax(0, 1fr))',
+      default: 'repeat(1, minmax(0, 1fr))',
+      '@media (min-width: 768px)': 'repeat(3, minmax(0, 1fr))',
     },
   },
   cell: {
@@ -71,7 +72,6 @@ const styles = stylex.create({
 
 /** The tiles, in reading order. `hint` marks the one that needs a qualifier. */
 const TILES = [
-  { key: 'grossSales', hint: false },
   { key: 'netSales', hint: false },
   { key: 'refunded', hint: true },
   { key: 'avgSale', hint: false },

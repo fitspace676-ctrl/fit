@@ -23,6 +23,7 @@ import { AppShell } from '@astryxdesign/core/AppShell';
 import { SkipLink, ToastProvider } from '@/components/ui';
 import { AgentChat } from './agent/agent-chat';
 import { Sidebar } from './sidebar';
+import type { Session } from '@/lib/auth-session';
 import { TopBar } from './top-bar';
 
 /**
@@ -92,12 +93,15 @@ export function AdminShell({
   system,
   locations,
   sidebarCollapsed = false,
+  session = null,
   banner = null,
   children,
 }: {
   gymSlug: string | null;
   system: ShellSystemState;
   locations: ShellLocation[];
+  /** The server-verified session, seeding the sidebar's first paint. */
+  session?: Session | null;
   /** Sidebar collapse choice, seeded from its cookie by the console layout. */
   sidebarCollapsed?: boolean;
   /**
@@ -123,7 +127,14 @@ export function AdminShell({
         variant="wash"
         contentPadding={0}
         banner={banner}
-        sideNav={<Sidebar gymSlug={gymSlug} system={system} defaultCollapsed={sidebarCollapsed} />}
+        sideNav={
+          <Sidebar
+            gymSlug={gymSlug}
+            system={system}
+            defaultCollapsed={sidebarCollapsed}
+            initialSession={session}
+          />
+        }
         mobileNav={{ hasToggle: false, breakpoint: 'md' }}
       >
         <div id="main-content" {...stylex.props(styles.content)}>

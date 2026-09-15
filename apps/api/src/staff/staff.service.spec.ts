@@ -107,10 +107,12 @@ function setup(overrides?: {
     (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
       Promise.resolve({ id: 'gm-new' }),
   );
+  // The mirrored shift rows a profile edit rewrites - except for a coach, whose
+  // week is written on `Trainer.availability` instead.
   const shiftSlotCreateMany = vi.fn((_args: { data?: Record<string, unknown>[] }) =>
     Promise.resolve({ count: 0 }),
   );
-  const shiftSlotDeleteMany = vi.fn(() => Promise.resolve({ count: 0 }));
+  const shiftSlotDeleteMany = vi.fn((_args: unknown) => Promise.resolve({ count: 0 }));
 
   const client: Record<string, unknown> = {
     gymMember: {
@@ -144,11 +146,11 @@ function setup(overrides?: {
       createMany: locationStaffCreateMany,
     },
     shiftSlot: { createMany: shiftSlotCreateMany, deleteMany: shiftSlotDeleteMany },
-    // The write paths run inside one transaction; the mock hands the callback the
-    // same client, so an assertion on `locationStaff.createMany` proves the
-    // assignment landed in the SAME transaction as the member write beside it.
-    $transaction: vi.fn((fn: (tx: unknown) => unknown) => Promise.resolve(fn(client))),
   };
+  // The write paths run inside one transaction; the mock hands the callback the
+  // same client, so an assertion on `locationStaff.createMany` proves the
+  // assignment landed in the SAME transaction as the member write beside it.
+  client.$transaction = <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(client);
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = {
@@ -655,6 +657,33 @@ describe('StaffService', () => {
         service.updateStaffProfile('gm-1', { assignedLocationIds: ['loc-1'] }),
       ).rejects.toMatchObject({ response: { code: 'INSUFFICIENT_PERMISSION' } });
       expect(gymMemberUpdate).not.toHaveBeenCalled();
+    });
+
+    it('ignores a sent working week for a coach, whose hours come from availability', async () => {
+      const { service, shiftSlotDeleteMany } = setup({
+        staffFindFirst: row({ role: Role.TRAINER }),
+      });
+
+      await service.updateStaffProfile('gm-1', {
+        workingHours: [{ dayOfWeek: 0, startTime: '09:00', endTime: '17:00' }],
+      });
+
+      // A coach's hours have exactly one writer - `Trainer.availability`, which
+      // mirrors onto these rows. Accepting them here would be the second.
+      expect(shiftSlotDeleteMany).not.toHaveBeenCalled();
+    });
+
+    it('still replaces the week for a non-coach', async () => {
+      const { service, shiftSlotDeleteMany, shiftSlotCreateMany } = setup({
+        staffFindFirst: row({ role: Role.RECEPTIONIST }),
+      });
+
+      await service.updateStaffProfile('gm-1', {
+        workingHours: [{ dayOfWeek: 0, startTime: '09:00', endTime: '17:00' }],
+      });
+
+      expect(shiftSlotDeleteMany).toHaveBeenCalledWith({ where: { staffId: 'gm-1' } });
+      expect(shiftSlotCreateMany).toHaveBeenCalled();
     });
   });
 

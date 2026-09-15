@@ -39,6 +39,7 @@ import {
 import { Badge } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useConsolePermissions } from '@/components/console-permissions';
+import type { Session } from '@/lib/auth-session';
 import { isNavItemActive, NAV_GROUPS, visibleNavItems } from '@/lib/nav';
 import { SIDEBAR_COLLAPSED_COOKIE, SIDEBAR_COLLAPSED_VALUE } from '@/lib/sidebar-collapse';
 import type { ShellSystemState } from './admin-shell';
@@ -290,6 +291,12 @@ export interface SidebarProps {
   system: ShellSystemState;
   /** Collapsed state seeded from the cookie on the server (no first-paint jump). */
   defaultCollapsed?: boolean;
+  /**
+   * The server-verified session. The nav no longer reads it — visibility comes
+   * from the permission set the dashboard layout resolves on the server, which
+   * already paints on the first frame — but the shell still hands it over.
+   */
+  initialSession?: Session | null;
 }
 
 export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {

@@ -11,7 +11,7 @@ import { Icon } from '@/components/ui';
 import { MemberForm } from '../../member-form';
 
 export const metadata: Metadata = {
-  title: 'Edit member - FormaCore Admin',
+  title: 'Edit member',
 };
 
 // Reflects the staff session and writes live member state — never cached.

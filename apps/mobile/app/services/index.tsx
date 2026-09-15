@@ -21,10 +21,6 @@
 // doing: `trainers.filters.noMatch` is a {title, subtitle, action} block;
 // `services.filters.noMatch` is ONE bare sentence with no action. Rendered as
 // written, not harmonised.
-//
-// ---------------------------------------------------------------------------
-// ONE SCHEDULE PANEL OPEN AT A TIME (`openId`), because a list of eight
-// expanded tables is a list nobody can scan — web's own accordion rule.
 // ===========================================================================
 
 import { useCallback, useMemo, useState } from 'react';
@@ -70,7 +66,6 @@ export default function ServicesScreen() {
   const catalogue = useQuery(servicesQueryOptions(gym.gymId));
 
   const [filter, setFilter] = useState<TypeFilter>('ALL');
-  const [openId, setOpenId] = useState<string | null>(null);
 
   const services = useMemo<readonly ServiceCard[]>(
     () => catalogue.data?.services ?? [],
@@ -201,10 +196,6 @@ export default function ServicesScreen() {
                   <ServiceCardBlock
                     key={service.id}
                     service={service}
-                    expanded={openId === service.id}
-                    onToggle={() => {
-                      setOpenId((current) => (current === service.id ? null : service.id));
-                    }}
                     onOpen={() => {
                       router.push(`/services/${service.id}`);
                     }}

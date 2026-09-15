@@ -59,6 +59,7 @@ import type {
   ListAdminLocationsResponse,
   ListAdminTrainersQuery,
   ListAdminTrainersResponse,
+  ListTrainerClientsResponse,
   ListMembersQuery,
   ListMembersResponse,
   ListAdminProductsQuery,
@@ -85,6 +86,9 @@ import type {
   ListAdminServicesQuery,
   ListAdminServicesResponse,
   ListServiceStaffResponse,
+  ListServiceCategoriesResponse,
+  CreateServiceCategoryData,
+  ServiceCategory,
   ServiceResponse,
   UpdateServiceData,
   ListAdminPackagePlansQuery,
@@ -575,6 +579,18 @@ export async function fetchTrainerAvailability(
 }
 
 /**
+ * `GET /admin/trainers/:id/clients` — the coach's personal-training clients,
+ * folded from their booked and completed service sessions.
+ */
+export async function fetchTrainerClients(id: string): Promise<ListTrainerClientsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}/clients`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListTrainerClientsResponse>(res);
+}
+
+/**
  * `PUT /admin/trainers/:id/availability` — replace the trainer's weekly hours
  * (T5.11). The whole week is sent as one document (a PUT, not a per-day PATCH);
  * the API re-validates it and returns the stored, canonicalised week.
@@ -923,13 +939,14 @@ export async function reactivateProduct(id: string): Promise<SetProductStatusRes
 
 // ── Service sessions (PT calendar slots, stage 2) ─────────────────────────────
 
-/** `GET /admin/service-sessions?from&to&staffId?&serviceId?` — the PT calendar's slots. */
+/** `GET /admin/service-sessions?from&to&staffId?&serviceId?&categoryId?` — the PT calendar's slots. */
 export async function fetchAdminServiceSessions(
   query: ListAdminServiceSessionsQuery,
 ): Promise<AdminServiceSessionsResponse> {
   const params = new URLSearchParams({ from: query.from, to: query.to });
   if (query.staffId) params.set('staffId', query.staffId);
   if (query.serviceId) params.set('serviceId', query.serviceId);
+  if (query.categoryId) params.set('categoryId', query.categoryId);
   const res = await fetch(`${apiBaseUrl()}/admin/service-sessions?${params.toString()}`, {
     headers: await authHeaders(),
     cache: 'no-store',
@@ -993,6 +1010,38 @@ export async function fetchServiceStaff(): Promise<ListServiceStaffResponse> {
     cache: 'no-store',
   });
   return unwrap<ListServiceStaffResponse>(res);
+}
+
+/** `GET /admin/services/categories` — the gym's service categories. */
+export async function fetchServiceCategories(): Promise<ListServiceCategoriesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services/categories`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListServiceCategoriesResponse>(res);
+}
+
+/** `POST /admin/services/categories` — make a category. */
+export async function createServiceCategory(
+  input: CreateServiceCategoryData,
+): Promise<ServiceCategory> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services/categories`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<ServiceCategory>(res);
+}
+
+/** `DELETE /admin/services/categories/:id` — remove an unused category. */
+export async function deleteServiceCategory(id: string): Promise<{ id: string }> {
+  const res = await fetch(`${apiBaseUrl()}/admin/services/categories/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<{ id: string }>(res);
 }
 
 /** `POST /admin/services` — create a service. */

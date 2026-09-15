@@ -26,6 +26,7 @@ const messages = {
       tooShort: 'Use at least {min} characters.',
       missingToken: 'This activation link is incomplete.',
       invalidToken: 'This activation link is invalid or has expired.',
+      wrongGym: 'This activation link belongs to a different gym.',
     },
   },
   auth: {
@@ -78,6 +79,8 @@ describe('ActivateForm', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/auth\/activate$/);
+    // The page's own host goes along, so the API can hold the link to its gym.
+    expect((init.headers as Record<string, string>)['x-tenant-host']).toBe(window.location.host);
     expect(JSON.parse(init.body as string)).toEqual({
       token: 'onboard-tok',
       password: 'brand-new-secret',
@@ -120,6 +123,22 @@ describe('ActivateForm', () => {
 
     expect(
       await screen.findByText('This activation link is invalid or has expired.'),
+    ).toBeInTheDocument();
+    expect(navigationMock.replace).not.toHaveBeenCalled();
+  });
+
+  it("says so when the link is opened on another gym's console", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ code: 'TENANT_MISMATCH', message: 'nope' }), {
+        status: 403,
+      }),
+    );
+    renderForm();
+
+    await submit('brand-new-secret');
+
+    expect(
+      await screen.findByText('This activation link belongs to a different gym.'),
     ).toBeInTheDocument();
     expect(navigationMock.replace).not.toHaveBeenCalled();
   });

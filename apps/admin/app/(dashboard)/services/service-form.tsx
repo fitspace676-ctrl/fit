@@ -4,14 +4,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import {
-  RECURRENCE_WEEKDAYS,
-  type AdminServiceRow,
-  type RecurrenceFreq,
-  type RecurrenceWeekday,
-  type ServiceStaffOption,
-  type ServiceType,
-} from '@fit/types';
+import type { AdminServiceRow, ServiceCategory, ServiceStaffOption, ServiceType } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import {
   createServiceAction,
@@ -22,9 +15,6 @@ import {
 /** The image types the cover accepts — mirrors the class cover's rules. */
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-/** The repeat options, in the order the segment shows them. Labels come from `admin.services.form.freq`. */
-const FREQS: ReadonlyArray<RecurrenceFreq> = ['ONCE', 'DAILY', 'WEEKLY'];
 
 const styles = stylex.create({
   form: { display: 'flex', flexDirection: 'column', gap: '1.25rem' },
@@ -44,41 +34,6 @@ const styles = stylex.create({
   },
   textarea: { minHeight: '5rem', paddingBlock: '0.625rem' },
   row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' },
-  segment: { display: 'flex', gap: '0.375rem' },
-  segmentItem: {
-    flex: 1,
-    height: '2.5rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    color: 'var(--color-text-primary)',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  segmentActive: {
-    backgroundColor: 'var(--color-accent)',
-    borderColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  chips: { display: 'flex', flexWrap: 'wrap', gap: '0.375rem' },
-  chip: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-    height: '2.25rem',
-    paddingInline: '0.75rem',
-    borderRadius: '999px',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  chipActive: { backgroundColor: 'var(--color-accent-muted)', borderColor: 'var(--color-accent)' },
   error: { fontSize: '0.8125rem', color: 'var(--color-error)' },
   section: {
     display: 'flex',
@@ -120,18 +75,20 @@ const minorToInput = (minor: number): string => (minor / 100).toFixed(2);
 
 type Props = {
   staff: ServiceStaffOption[];
+  /** The gym's categories, for the picker; made in the drawer's category step. */
+  categories: ServiceCategory[];
   onSuccess: () => void;
   onCancel: () => void;
 } & ({ mode: 'create'; type: ServiceType } | { mode: 'edit'; service: AdminServiceRow });
 
 /**
  * The service form body. Its shape follows the type: a personal-training service
- * has no name (generated from the trainer) and no schedule, and can only be
- * assigned to a trainer; a custom service has both and any staff member.
+ * has no name (generated from the trainer) and can only be assigned to a
+ * trainer; a custom service is named by staff and can go to any staff member.
+ * Neither carries a schedule: slots are opened on the PT calendar.
  */
 export function ServiceForm(props: Props) {
   const t = useTranslations('admin.services');
-  const schedule = useTranslations('admin.services.schedule');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const type: ServiceType = props.mode === 'create' ? props.type : props.service.type;
@@ -142,31 +99,15 @@ export function ServiceForm(props: Props) {
   const [price, setPrice] = useState(existing ? minorToInput(existing.priceMinor) : '');
   const [duration, setDuration] = useState(String(existing?.durationMinutes ?? 60));
   const [description, setDescription] = useState(existing?.description ?? '');
-  const [freq, setFreq] = useState<RecurrenceFreq>(existing?.schedule?.freq ?? 'WEEKLY');
-  const [weekdays, setWeekdays] = useState<RecurrenceWeekday[]>(existing?.schedule?.weekdays ?? []);
-  const [startDate, setStartDate] = useState(existing?.schedule?.startDate ?? '');
-  const [startTime, setStartTime] = useState(existing?.schedule?.startTime ?? '18:00');
-  const [until, setUntil] = useState(existing?.schedule?.until ?? '');
+  const [categoryId, setCategoryId] = useState(existing?.category?.id ?? '');
   const [coverUrl, setCoverUrl] = useState<string | null>(existing?.coverUrl ?? null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // A custom service always runs on a schedule; a PT one may leave it empty and
-  // take its slots from the trainer's PT calendar instead.
-  const scheduleRequired = type === 'CUSTOM';
-
   const staffOptions =
     type === 'PERSONAL_TRAINING' ? props.staff.filter((s) => s.isTrainer) : props.staff;
-
-  function toggleWeekday(day: RecurrenceWeekday): void {
-    setWeekdays((current) =>
-      current.includes(day)
-        ? current.filter((d) => d !== day)
-        : RECURRENCE_WEEKDAYS.filter((d) => d === day || current.includes(d)),
-    );
-  }
 
   /**
    * Upload the chosen cover to R2 via a presigned PUT (same flow as the class
@@ -232,30 +173,17 @@ export function ServiceForm(props: Props) {
       durationMinutes: Number(duration),
       description,
       coverUrl,
+      categoryId: categoryId || null,
     };
-    const scheduleFields = {
-      freq,
-      weekdays: freq === 'WEEKLY' ? weekdays : [],
-      startDate,
-      startTime,
-      until: freq === 'ONCE' ? null : until || null,
-    };
-    // An empty start date on a PT service means "no schedule", not an invalid one.
-    const ptSchedule = startDate === '' ? null : scheduleFields;
-
     startTransition(async () => {
       const result =
         props.mode === 'edit'
           ? await updateServiceAction(props.service.id, {
               ...profile,
-              ...(type === 'CUSTOM'
-                ? { name, schedule: scheduleFields }
-                : { schedule: ptSchedule }),
+              ...(type === 'CUSTOM' ? { name } : {}),
             })
           : await createServiceAction(
-              type === 'CUSTOM'
-                ? { type, name, schedule: scheduleFields, ...profile }
-                : { type, schedule: ptSchedule, ...profile },
+              type === 'CUSTOM' ? { type, name, ...profile } : { type, ...profile },
             );
       if (result.ok) {
         props.onSuccess();
@@ -306,6 +234,29 @@ export function ServiceForm(props: Props) {
         </select>
         {type === 'PERSONAL_TRAINING' && staffOptions.length === 0 ? (
           <p {...stylex.props(styles.hint)}>{t('form.noTrainers')}</p>
+        ) : null}
+      </div>
+
+      <div {...stylex.props(styles.field)}>
+        <label htmlFor="service-category" {...stylex.props(styles.label)}>
+          {t('form.category')}{' '}
+          <span {...stylex.props(styles.labelOptional)}>{t('form.optional')}</span>
+        </label>
+        <select
+          id="service-category"
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          {...stylex.props(styles.input)}
+        >
+          <option value="">{t('form.noCategory')}</option>
+          {props.categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+        {props.categories.length === 0 ? (
+          <p {...stylex.props(styles.hint)}>{t('form.noCategoriesHint')}</p>
         ) : null}
       </div>
 
@@ -409,108 +360,6 @@ export function ServiceForm(props: Props) {
             {uploadError}
           </p>
         ) : null}
-      </div>
-
-      <div {...stylex.props(styles.section)}>
-        <div {...stylex.props(styles.field)}>
-          <span {...stylex.props(styles.sectionTitle)}>
-            {t('form.schedule')}
-            {scheduleRequired ? null : (
-              <>
-                {' '}
-                <span {...stylex.props(styles.labelOptional)}>{t('form.optional')}</span>
-              </>
-            )}
-          </span>
-          {scheduleRequired ? null : (
-            <p {...stylex.props(styles.hint)}>{t('form.scheduleOptionalHint')}</p>
-          )}
-        </div>
-        <>
-          <div {...stylex.props(styles.field)}>
-            <span {...stylex.props(styles.label)}>{t('form.repeats')}</span>
-            <div role="radiogroup" aria-label={t('form.repeats')} {...stylex.props(styles.segment)}>
-              {FREQS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={freq === option}
-                  onClick={() => setFreq(option)}
-                  {...stylex.props(styles.segmentItem, freq === option && styles.segmentActive)}
-                >
-                  {t(`form.freq.${option}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {freq === 'WEEKLY' ? (
-            <div {...stylex.props(styles.field)}>
-              <span {...stylex.props(styles.label)}>{t('form.on')}</span>
-              <div {...stylex.props(styles.chips)}>
-                {RECURRENCE_WEEKDAYS.map((day) => (
-                  <label
-                    key={day}
-                    {...stylex.props(styles.chip, weekdays.includes(day) && styles.chipActive)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={weekdays.includes(day)}
-                      onChange={() => toggleWeekday(day)}
-                      aria-label={schedule(`weekday.${day}`)}
-                    />
-                    {schedule(`weekday.${day}`)}
-                  </label>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          <div {...stylex.props(styles.row)}>
-            <div {...stylex.props(styles.field)}>
-              <label htmlFor="service-start-date" {...stylex.props(styles.label)}>
-                {freq === 'ONCE' ? t('form.date') : t('form.startsOn')}
-              </label>
-              <input
-                id="service-start-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required={scheduleRequired}
-                {...stylex.props(styles.input)}
-              />
-            </div>
-            <div {...stylex.props(styles.field)}>
-              <label htmlFor="service-start-time" {...stylex.props(styles.label)}>
-                {t('form.time')}
-              </label>
-              <input
-                id="service-start-time"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                required={scheduleRequired}
-                {...stylex.props(styles.input)}
-              />
-            </div>
-          </div>
-
-          {freq !== 'ONCE' ? (
-            <div {...stylex.props(styles.field)}>
-              <label htmlFor="service-until" {...stylex.props(styles.label)}>
-                {t('form.until')}
-              </label>
-              <input
-                id="service-until"
-                type="date"
-                value={until}
-                onChange={(e) => setUntil(e.target.value)}
-                {...stylex.props(styles.input)}
-              />
-            </div>
-          ) : null}
-        </>
       </div>
 
       {error ? (

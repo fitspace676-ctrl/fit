@@ -16,7 +16,7 @@ import { Icon } from '@/components/ui';
 import { StaffConsole } from './staff-console';
 
 export const metadata: Metadata = {
-  title: 'Staff - FormaCore Admin',
+  title: 'Staff',
   description: 'Invite staff, assign roles, and manage your gym’s team.',
 };
 

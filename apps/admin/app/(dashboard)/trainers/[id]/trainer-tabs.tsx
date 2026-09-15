@@ -5,7 +5,7 @@ import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { AdminTrainerDetail, WeeklyAvailability } from '@fit/types';
+import type { AdminTrainerDetail, TrainerClientRow, WeeklyAvailability } from '@fit/types';
 import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
 import { formatClassDateTime } from '../format';
@@ -106,21 +106,6 @@ const styles = stylex.create({
     letterSpacing: '0.15em',
     color: 'var(--color-text-secondary)',
   },
-  sectionLabelRow: {
-    margin: 0,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.15em',
-    color: 'var(--color-text-secondary)',
-  },
-  labelIcon: {
-    width: '0.875rem',
-    height: '0.875rem',
-  },
   bioText: {
     margin: 0,
     whiteSpace: 'pre-line',
@@ -151,44 +136,6 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     fontWeight: 500,
     color: 'var(--color-text-secondary)',
-  },
-  certList: {
-    listStyle: 'none',
-    margin: 0,
-    padding: 0,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  certItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    paddingBlock: '0.625rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--color-border)',
-    ':first-child': {
-      borderTopWidth: 0,
-    },
-  },
-  certIconTile: {
-    display: 'grid',
-    height: '2rem',
-    width: '2rem',
-    flexShrink: 0,
-    placeItems: 'center',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-text-accent)',
-  },
-  certIcon: {
-    width: '1rem',
-    height: '1rem',
-  },
-  certText: {
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
   },
   weekCard: {
     display: 'flex',
@@ -338,6 +285,53 @@ const styles = stylex.create({
       ':hover': 'var(--color-text-primary)',
     },
   },
+  clientList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    margin: 0,
+    padding: 0,
+    listStyle: 'none',
+  },
+  clientRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    borderRadius: 'var(--radius-element)',
+    paddingInline: '0.75rem',
+    paddingBlock: '0.625rem',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-background-muted)',
+    },
+  },
+  clientMain: {
+    display: 'flex',
+    minWidth: 0,
+    flexDirection: 'column',
+    gap: '0.125rem',
+  },
+  clientName: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-primary)',
+      ':hover': 'var(--color-text-accent)',
+    },
+  },
+  clientMeta: {
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
+  clientWhen: {
+    fontSize: '0.8125rem',
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 /** One "This week" row in the Overview side card. */
@@ -360,11 +354,14 @@ function WeekRow({ label, value }: { label: string; value: number }) {
 export function TrainerTabs({
   trainer,
   availability,
+  clients,
   canEditAvailability,
   timeZone,
 }: {
   trainer: AdminTrainerDetail;
   availability: WeeklyAvailability;
+  /** The coach's PT clients, folded from their service sessions. */
+  clients: TrainerClientRow[];
   /** Whether the staff session holds `TrainerScheduleManage` (the Availability tab edits). */
   canEditAvailability: boolean;
   /** The gym's IANA zone — the next-class time is read on it. */
@@ -404,7 +401,9 @@ export function TrainerTabs({
         {active === 'Schedule' && (
           <SchedulePanel trainer={trainer} t={t} locale={locale} timeZone={timeZone} />
         )}
-        {active === 'Clients' && <ClientsPanel t={t} />}
+        {active === 'Clients' && (
+          <ClientsPanel clients={clients} t={t} locale={locale} timeZone={timeZone} />
+        )}
         {active === 'Reviews' && <ReviewsPanel trainer={trainer} t={t} />}
         {active === 'Availability' && (
           <AvailabilityPanel
@@ -418,7 +417,16 @@ export function TrainerTabs({
   );
 }
 
-/** Overview — the About card plus the "This week" side card. */
+/**
+ * Overview - the About card plus the "This week" side card.
+ *
+ * There is no Certifications block. There used to be, and it printed
+ * `trainer.specialties` a second time as "Certified - {tag}" under a heading the
+ * schema has no column for; an empty roster then read "this gym tracks
+ * specialties, not formal certificates", explaining an absence the UI had
+ * invented. Specialties are listed once, above, which is the whole of what is
+ * actually recorded.
+ */
 function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
   return (
     <div {...stylex.props(styles.overviewGrid)}>
@@ -444,27 +452,6 @@ function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
             </div>
           ) : (
             <p {...stylex.props(styles.mutedText)}>{t('tabs.noSpecialties')}</p>
-          )}
-        </div>
-
-        <div {...stylex.props(styles.block)}>
-          <h3 {...stylex.props(styles.sectionLabelRow)}>
-            <Icon name="award" {...stylex.props(styles.labelIcon)} />
-            {t('tabs.certifications')}
-          </h3>
-          {trainer.specialties.length > 0 ? (
-            <ul {...stylex.props(styles.certList)}>
-              {trainer.specialties.map((tag) => (
-                <li key={tag} {...stylex.props(styles.certItem)}>
-                  <span {...stylex.props(styles.certIconTile)}>
-                    <Icon name="award" {...stylex.props(styles.certIcon)} />
-                  </span>
-                  <span {...stylex.props(styles.certText)}>{t('tabs.certified', { tag })}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p {...stylex.props(styles.mutedText)}>{t('tabs.noCertifications')}</p>
           )}
         </div>
       </Card>
@@ -526,17 +513,74 @@ function SchedulePanel({
 }
 
 /**
- * Clients — the schema has no personal-training relationship, so this states that
- * honestly rather than fabricating a client list or count.
+ * Clients - the members this coach actually trains one-to-one.
+ *
+ * This used to be a fixed card reading "this gym doesn't model one-to-one PT
+ * relationships". That was true when it was written and stopped being true when
+ * services landed: a `ServiceSession` names the coach's staff record, the member
+ * who booked it and the invoice it raised. The card stayed, so a coach with a
+ * full PT week still read as having no clients - the worst kind of empty state,
+ * one that is confidently wrong.
+ *
+ * The rows are ordered by the API with live relationships first, so the list is
+ * read top-down as "who am I seeing next" rather than as an archive.
  */
-function ClientsPanel({ t }: { t: T }) {
+function ClientsPanel({
+  clients,
+  t,
+  locale,
+  timeZone,
+}: {
+  clients: TrainerClientRow[];
+  t: T;
+  locale: string;
+  timeZone: string;
+}) {
+  if (clients.length === 0) {
+    return (
+      <Card padding="none" xstyle={styles.emptyCard}>
+        <span {...stylex.props(styles.emptyIcon)}>
+          <Icon name="users" {...stylex.props(styles.emptyIconSvg)} />
+        </span>
+        <p {...stylex.props(styles.emptyTitle)}>{t('clients.emptyTitle')}</p>
+        <p {...stylex.props(styles.emptyBody)}>{t('clients.emptyBody')}</p>
+      </Card>
+    );
+  }
+
   return (
-    <Card padding="none" xstyle={styles.emptyCard}>
-      <span {...stylex.props(styles.emptyIcon)}>
-        <Icon name="users" {...stylex.props(styles.emptyIconSvg)} />
-      </span>
-      <p {...stylex.props(styles.emptyTitle)}>{t('tabs.clientsTitle')}</p>
-      <p {...stylex.props(styles.emptyBody)}>{t('tabs.clientsBody')}</p>
+    <Card padding="none" xstyle={styles.panelCard}>
+      <h3 {...stylex.props(styles.sectionLabel)}>
+        {t('clients.heading', { count: clients.length })}
+      </h3>
+      <ul {...stylex.props(styles.clientList)}>
+        {clients.map((client) => (
+          <li key={client.memberId} {...stylex.props(styles.clientRow)}>
+            <div {...stylex.props(styles.clientMain)}>
+              <Link href={`/members/${client.memberId}`} {...stylex.props(styles.clientName)}>
+                {client.name}
+              </Link>
+              <span {...stylex.props(styles.clientMeta)}>
+                {t('clients.sessionCount', {
+                  count: client.sessionCount,
+                  completed: client.completedCount,
+                })}
+              </span>
+            </div>
+            <span {...stylex.props(styles.clientWhen)}>
+              {client.nextSessionAt
+                ? t('clients.next', {
+                    when: formatClassDateTime(client.nextSessionAt, locale, timeZone),
+                  })
+                : client.lastSessionAt
+                  ? t('clients.last', {
+                      when: formatClassDateTime(client.lastSessionAt, locale, timeZone),
+                    })
+                  : t('clients.noSessions')}
+            </span>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

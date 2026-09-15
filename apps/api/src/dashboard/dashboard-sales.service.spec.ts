@@ -97,7 +97,6 @@ describe('DashboardSalesService.get — KPIs', () => {
     const result = await service.get(ALL);
 
     expect(result.kpis).toEqual({
-      grossSales: 16_000,
       netSales: 14_000,
       refunded: 2_000,
       avgSale: 7_000,
@@ -109,7 +108,7 @@ describe('DashboardSalesService.get — KPIs', () => {
 
     const result = await service.get(ALL);
 
-    expect(result.kpis).toEqual({ grossSales: 0, netSales: 0, refunded: 0, avgSale: 0 });
+    expect(result.kpis).toEqual({ netSales: 0, refunded: 0, avgSale: 0 });
     expect(result.byPaymentMethod).toEqual([]);
     expect(result.topSellers).toEqual([]);
     // The series stay dense: a window with no sales is 30 real zeroes, not [].
@@ -141,21 +140,18 @@ describe('DashboardSalesService.get — product type', () => {
 
   it('classifies an order that minted a credit pack as a session pack', async () => {
     const { service } = setup({ payments: MIXED });
-    expect((await service.get({ ...ALL, productType: 'session-packs' })).kpis.grossSales).toBe(
-      3_000,
-    );
+    // No refunds in the fixture, so net sales is the filtered gross.
+    expect((await service.get({ ...ALL, productType: 'session-packs' })).kpis.netSales).toBe(3_000);
   });
 
   it('classifies a plan order with no credit pack as a membership', async () => {
     const { service } = setup({ payments: MIXED });
-    expect((await service.get({ ...ALL, productType: 'memberships' })).kpis.grossSales).toBe(
-      10_000,
-    );
+    expect((await service.get({ ...ALL, productType: 'memberships' })).kpis.netSales).toBe(10_000);
   });
 
   it('classifies everything else as retail', async () => {
     const { service } = setup({ payments: MIXED });
-    expect((await service.get({ ...ALL, productType: 'retail' })).kpis.grossSales).toBe(500);
+    expect((await service.get({ ...ALL, productType: 'retail' })).kpis.netSales).toBe(500);
   });
 
   // The filter is tab-wide: it must narrow every output, not just the KPIs.

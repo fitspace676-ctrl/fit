@@ -15,11 +15,14 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  createServiceCategorySchema,
   createServiceSchema,
   listAdminServicesQuerySchema,
   updateServiceSchema,
   type ListAdminServicesResponse,
+  type ListServiceCategoriesResponse,
   type ListServiceStaffResponse,
+  type ServiceCategory,
   type ServiceResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -30,8 +33,9 @@ import { AdminServicesService } from './admin-services.service';
 /**
  * Staff-console Services catalogue API (`/admin/services`). Gated like the Shop:
  * `ProductRead` to list, `ProductWrite` to change. The service runs on the
- * tenant-scoped Prisma client, so no handler passes a `gymId`. `staff` is declared
- * before `:id` so it is not swallowed by the parameter route.
+ * tenant-scoped Prisma client, so no handler passes a `gymId`. `staff` and
+ * `categories` are declared before `:id` so they are not swallowed by the
+ * parameter route.
  */
 @Controller('admin/services')
 @UseGuards(TenantGuard, PermissionsGuard)
@@ -50,6 +54,31 @@ export class AdminServicesController {
   @RequirePermissions(Permission.ProductRead)
   async staff(): Promise<ListServiceStaffResponse> {
     return this.services.listStaffOptions();
+  }
+
+  /** `GET /admin/services/categories` - the gym's categories, with how many services each files. */
+  @Get('categories')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductRead)
+  async categories(): Promise<ListServiceCategoriesResponse> {
+    return this.services.listCategories();
+  }
+
+  /** `POST /admin/services/categories` - make a category. A duplicate name is `409`. */
+  @Post('categories')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.ProductWrite)
+  async createCategory(@Body() body: unknown): Promise<ServiceCategory> {
+    return this.services.createCategory(parse(createServiceCategorySchema, body));
+  }
+
+  /** `DELETE /admin/services/categories/:id` - remove an unused category; one in use is `409`. */
+  @Delete('categories/:id')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductWrite)
+  async removeCategory(@Param('id') id: string): Promise<{ id: string }> {
+    await this.services.deleteCategory(id);
+    return { id };
   }
 
   @Get(':id')

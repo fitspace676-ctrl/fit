@@ -53,6 +53,10 @@ import {
   invoiceNumberCarriesYear,
   type InvoiceNumbering,
 } from '@fit/types';
+import { exitIfUnsafeSeedTarget } from './seed-guard';
+
+// Never write these public fixtures into a production database.
+exitIfUnsafeSeedTarget('seed');
 
 /**
  * Shared dev password for the seeded login fixtures (`alex@example.com` /

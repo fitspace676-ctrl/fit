@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { loginWithGoogle } from '@/lib/auth';
+import { loginWithGoogle, signInErrorKey } from '@/lib/auth';
 
 /** URL of the Google Identity Services client library. */
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
@@ -75,7 +75,8 @@ export function GoogleSignInButton() {
         .catch((err: unknown) => {
           if (cancelled) return;
           setStatus('error');
-          setError(err instanceof Error ? err.message : t('genericError'));
+          const key = signInErrorKey(err);
+          setError(key ? t(key) : err instanceof Error ? err.message : t('genericError'));
         });
     };
 

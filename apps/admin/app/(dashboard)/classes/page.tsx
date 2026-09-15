@@ -19,7 +19,7 @@ import { AddClassTypeDrawer } from './add-class-type-drawer';
 import { loadRelationOptions } from './options';
 
 export const metadata: Metadata = {
-  title: 'Class Types - FormaCore Admin',
+  title: 'Class Types',
   description:
     'The gym’s reusable class types: search, filter, sort, or add a new kind of class (Boxing, CrossFit) with capacity, duration, pricing, and a colour - the catalogue the schedule places occurrences of.',
 };

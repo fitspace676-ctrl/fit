@@ -9,8 +9,8 @@ import {
 } from '@fit/types';
 import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchAdminServices } from '@/lib/api';
 import { getActiveLocationId } from '@/lib/active-location-server';
+import { ApiError, fetchAdminServices, fetchServiceCategories } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { ServicesSummary } from './services-summary';
 import { ServicesStatusTabs } from './services-status-tabs';
@@ -20,9 +20,9 @@ import { ServicesPager } from './services-pager';
 import { ServiceDrawer } from './service-drawer';
 
 export const metadata: Metadata = {
-  title: 'Services - FormaCore Admin',
+  title: 'Services',
   description:
-    'The gym’s services: personal training and custom services, who delivers them and what they cost.',
+    'The gym’s services: personal sessions filed under its own categories, who delivers them and what they cost.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -125,6 +125,10 @@ export default async function ServicesPage({
 
   let summary = null;
   let content;
+  // The filter bar's category options; a failed fetch leaves the bar with search only.
+  const categories = await fetchServiceCategories()
+    .then((res) => res.data)
+    .catch(() => []);
   try {
     const result = await fetchAdminServices({ ...query, locationId });
     summary = <ServicesSummary summary={result.summary} />;
@@ -163,7 +167,11 @@ export default async function ServicesPage({
 
       {summary}
       <ServicesStatusTabs status={query.status} />
-      <ServicesFilters search={query.search ?? ''} type={query.type ?? ''} />
+      <ServicesFilters
+        search={query.search ?? ''}
+        categoryId={query.categoryId ?? ''}
+        categories={categories}
+      />
       {content}
     </div>
   );

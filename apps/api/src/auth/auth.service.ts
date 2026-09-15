@@ -13,6 +13,8 @@ import {
   ALREADY_MEMBER_CODE,
   EMAIL_TAKEN_CODE,
   MEMBERSHIP_NOT_ACTIVE_CODE,
+  NOT_A_MEMBER_CODE,
+  TENANT_MISMATCH_CODE,
   gymPublicMemberIntake,
   gymPublicStartDatePolicy,
   gymPublicTimezone,
@@ -36,9 +38,11 @@ import type {
   RegisterInput,
   RegisterResponse,
   ResetPasswordInput,
+  ResetPasswordResponse,
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
+import { buildMemberUrl } from '../common/console-url';
 import { assertStartDateWithinPolicy } from '../gyms/start-date-policy.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -46,6 +50,7 @@ import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
 import { TokenService, invalidRefreshToken, type SessionClaims } from './token.service';
+import { syncTrainerProfile, type TrainerSyncClient } from '../staff/trainer-profile-sync';
 
 /** Redis key namespace for one-time email-verification tokens. */
 const VERIFY_KEY_PREFIX = 'email-verify:';
@@ -367,11 +372,10 @@ export class AuthService {
    * `TenantMiddleware`), and `GymMember` is a tenant-scoped model that would fail
    * closed under the tenant Prisma extension with no gym in scope.
    *
-   * No session is issued. The owner receives an onboarding email whose link runs
-   * the standard {@link verifyEmail} flow — verifying the address and issuing the
-   * first session — mirroring how plain registration defers the session to
-   * verification. A supplied `password` is set on the new account; when omitted
-   * the owner sets one later through the reset flow.
+   * No session is issued. The owner receives an onboarding email whose link lands
+   * on the new gym's own console (`https://<slug>.<root>/admin/activate`), where
+   * {@link activateAccount} verifies the address and sets the first password in
+   * one request. A supplied `password` is set on the new account up front.
    */
   async registerGym(
     input: RegisterGymInput,
@@ -536,8 +540,17 @@ export class AuthService {
    * {@link resetPassword}: this endpoint sets a password without proving knowledge
    * of the previous one, so anything already signed in on that account must go.
    * For the owner this is a no-op — the account is minutes old.
+   *
+   * `tenantSlug` is the gym the request's host names (`<slug>.<root>/admin/activate`).
+   * When there is one, the account must belong to that gym, or the request is
+   * refused with `403 TENANT_MISMATCH` *before* the token is spent — a Downtown
+   * link opened on Riverside's console must not set a password from Riverside's
+   * door. No tenant host (localhost, the console's own deployment) → no check.
    */
-  async activateAccount(input: ActivateAccountInput): Promise<ActivateAccountResponse> {
+  async activateAccount(
+    input: ActivateAccountInput,
+    tenantSlug?: string | null,
+  ): Promise<ActivateAccountResponse> {
     const key = verifyKey(input.token);
     const userId = await this.redis.client.get(key);
     if (!userId) {
@@ -545,6 +558,19 @@ export class AuthService {
         message: 'Activation token is invalid or has expired',
         code: 'TOKEN_INVALID_OR_EXPIRED',
       });
+    }
+
+    if (tenantSlug) {
+      const membership = await this.prisma.client.gymMember.findFirst({
+        where: { userId, gym: { slug: tenantSlug } },
+        select: { id: true },
+      });
+      if (!membership) {
+        throw new ForbiddenException({
+          message: 'Activation link belongs to a different gym',
+          code: TENANT_MISMATCH_CODE,
+        });
+      }
     }
 
     // Delete first so a token can't be redeemed twice even if two requests race
@@ -582,10 +608,15 @@ export class AuthService {
    * to enumerate registered emails. Delivery is best-effort for the same reason
    * registration's is — the token already exists, so a transient mail failure is
    * logged rather than surfaced (which would itself leak that the email exists).
+   *
+   * `gymSlug` is the gym whose site the reset was asked for on; the link is
+   * addressed there only when the account belongs to it (see
+   * {@link resetLinkGymSlug}), and at the platform-wide reset page otherwise.
    */
   async requestPasswordReset(
     input: ForgotPasswordInput,
     locale: EmailLocale | null = null,
+    gymSlug: string | null = null,
   ): Promise<ForgotPasswordResponse> {
     const user = await this.prisma.client.user.findUnique({
       where: { email: input.email },
@@ -602,6 +633,7 @@ export class AuthService {
           token,
           user.name ?? undefined,
           locale ?? DEFAULT_EMAIL_LOCALE,
+          await this.resetLinkGymSlug(user.id, gymSlug),
         );
       } catch (error) {
         this.logger.error(
@@ -616,6 +648,23 @@ export class AuthService {
   }
 
   /**
+   * The gym a reset link may be addressed at: the slug the request's host named,
+   * but only when the account holds a membership there, in any status. The host
+   * is a caller-chosen selector — without the check, anyone could have a
+   * stranger's single-use token mailed to a gym site of their own choosing.
+   */
+  private async resetLinkGymSlug(userId: string, gymSlug: string | null): Promise<string | null> {
+    if (!gymSlug) {
+      return null;
+    }
+    const membership = await this.prisma.client.gymMember.findFirst({
+      where: { userId, gym: { slug: gymSlug } },
+      select: { id: true },
+    });
+    return membership ? gymSlug : null;
+  }
+
+  /**
    * Complete a password reset: resolve the single-use token to a user, set the
    * new argon2 password hash, delete the token (single-use), and issue a fresh
    * session. Throws `400 TOKEN_INVALID_OR_EXPIRED` for an unknown / expired token.
@@ -626,8 +675,19 @@ export class AuthService {
    * every existing session is revoked before the new one is issued, so a reset
    * cuts any session an attacker may hold — the whole point of resetting a
    * possibly-compromised password.
+   *
+   * The session is scoped by `tenantSlug`, the host the reset was completed on.
+   * On a gym host it binds to *that* gym, and only when the account holds an
+   * active membership in it (in an active gym); otherwise the password still
+   * changes but no session is issued (`sessionIssued: false`) — never one on the
+   * primary gym, which would put a `riverside` visitor on `downtown`. Scope is
+   * resolved after the write, so an unusable membership cannot leave the
+   * password unchanged. A tenant-less host keeps the primary-gym fallback.
    */
-  async resetPassword(input: ResetPasswordInput): Promise<TokenPair> {
+  async resetPassword(
+    input: ResetPasswordInput,
+    tenantSlug?: string | null,
+  ): Promise<ResetPasswordResponse> {
     const key = resetKey(input.token);
     const userId = await this.redis.client.get(key);
     if (!userId) {
@@ -665,7 +725,38 @@ export class AuthService {
     // logs out all other devices (including an attacker's) but the caller — who
     // just proved inbox control — walks away signed in.
     await this.tokens.revokeAllForUser(userId);
-    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
+
+    const scope = tenantSlug
+      ? await this.resetHostScope(userId, tenantSlug)
+      : await this.resolveSessionScope(userId);
+    if (!scope) {
+      return { ok: true, sessionIssued: false };
+    }
+    return { ...(await this.tokens.issueTokenPair(userId, scope)), sessionIssued: true };
+  }
+
+  /**
+   * The session a reset completed on `gymSlug`'s host may carry: that gym's scope
+   * when the account is an active member of it (and the gym is active), else
+   * `null`. Checked up front so {@link resolveSessionScope} is never left to fall
+   * back to the primary gym or to refuse an invited / suspended membership; the
+   * final slug comparison also turns away a platform super-admin, whose scope is
+   * tenant-less and does not belong on a gym host.
+   */
+  private async resetHostScope(userId: string, gymSlug: string): Promise<SessionClaims | null> {
+    const membership = await this.prisma.client.gymMember.findFirst({
+      where: {
+        userId,
+        status: GymMemberStatus.ACTIVE,
+        gym: { slug: gymSlug, status: GymStatus.ACTIVE },
+      },
+      select: { id: true },
+    });
+    if (!membership) {
+      return null;
+    }
+    const scope = await this.resolveSessionScope(userId, gymSlug);
+    return scope.gymSlug === gymSlug ? scope : null;
   }
 
   /**
@@ -713,7 +804,7 @@ export class AuthService {
 
     return this.tokens.issueTokenPair(
       user.id,
-      await this.resolveSessionScope(user.id, input.gymSlug),
+      await this.resolveSessionScope(user.id, input.gymSlug, { signIn: true }),
     );
   }
 
@@ -747,7 +838,7 @@ export class AuthService {
     await this.assertGymAccessNotSuspended(userId, input.gymSlug);
     return this.tokens.issueTokenPair(
       userId,
-      await this.resolveSessionScope(userId, input.gymSlug),
+      await this.resolveSessionScope(userId, input.gymSlug, { signIn: true }),
     );
   }
 
@@ -821,7 +912,7 @@ export class AuthService {
     await this.assertGymAccessNotSuspended(userId, input.gymSlug);
     return this.tokens.issueTokenPair(
       userId,
-      await this.resolveSessionScope(userId, input.gymSlug),
+      await this.resolveSessionScope(userId, input.gymSlug, { signIn: true }),
     );
   }
 
@@ -963,12 +1054,12 @@ export class AuthService {
    *     subdomain) and the user has an active membership in that active gym, the
    *     session binds to *that* gym — so a multi-gym user lands on the tenant they
    *     actually signed in on, not their earliest-joined one. The slug is only a
-   *     selector among the user's own memberships: a slug they don't belong to at
-   *     all is ignored and the primary fallback applies, so it can never widen
-   *     scope. A slug they *do* belong to but whose membership is not `ACTIVE`
-   *     (invited, suspended) is refused with `403 MEMBERSHIP_NOT_ACTIVE` instead —
-   *     silently signing them into a different gym than the one they asked for is
-   *     the confusing failure that gate exists to prevent.
+   *     selector among the user's own memberships, so it can never widen scope. A
+   *     slug they *do* belong to but whose membership is not `ACTIVE` (invited,
+   *     suspended) is refused with `403 MEMBERSHIP_NOT_ACTIVE`; on a sign-in
+   *     (`signIn: true`) a slug they don't belong to at all is refused with
+   *     `403 NOT_A_MEMBER` — silently signing them into a different gym than the
+   *     one they asked for is the failure both gates exist to prevent.
    *   • Otherwise the session binds to the user's "home" gym: the earliest-joined
    *     active membership in an active gym. A user who belongs to several gyms
    *     lands on one per session; switching tenants is done by signing in on the
@@ -986,7 +1077,7 @@ export class AuthService {
   private async resolveSessionScope(
     userId: string,
     gymSlug?: string,
-    options: { pinned?: boolean } = {},
+    options: { pinned?: boolean; signIn?: boolean } = {},
   ): Promise<SessionClaims> {
     const [user, memberships] = await Promise.all([
       this.prisma.client.user.findUnique({
@@ -1029,10 +1120,10 @@ export class AuthService {
         // it (or the gym is not active). Refuse rather than move gyms.
         throw invalidRefreshToken();
       }
-      // Asked for a gym and didn't get it. Either the user has no membership
-      // there (fall through to the primary, as before) or they have one that
-      // isn't usable — which this refuses rather than papering over.
-      await this.assertRequestedMembershipActive(userId, gymSlug);
+      // Asked for a gym and didn't get it. A membership there that isn't usable
+      // is refused; so, on a sign-in, is no membership there at all — handing
+      // back a session for another gym is how gyms got mixed on one host.
+      await this.assertRequestedMembershipActive(userId, gymSlug, options);
     }
 
     const primary = active.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
@@ -1044,25 +1135,37 @@ export class AuthService {
   }
 
   /**
-   * Refuse a session on a gym the caller explicitly asked for but whose
-   * membership is not `ACTIVE` — `403 MEMBERSHIP_NOT_ACTIVE`.
+   * Refuse a session on a gym the caller explicitly asked for but cannot have:
+   * a membership that is not `ACTIVE` — `403 MEMBERSHIP_NOT_ACTIVE` — or, on a
+   * sign-in, no membership there at all — `403 NOT_A_MEMBER`.
    *
    * Only reached when {@link resolveSessionScope} could not honour a `gymSlug`,
    * so it costs one extra query on the miss path and none on the common one. A
-   * user with no membership in the named gym at all resolves to `null` here and
-   * keeps the long-standing silent fallback to their primary gym: an unknown or
-   * someone-else's slug is noise, whereas *their own* invited / suspended
-   * membership is a real answer the client can act on.
+   * sign-in with no membership in the named gym used to fall back to the primary
+   * gym, which put another gym's session on this gym's host; now it is refused.
+   * Anything else that passes an unpinned slug (a refresh token minted before
+   * tokens were pinned) keeps that fallback.
    *
    * Note this asks only about the membership row. A gym that is itself suspended
    * is caught earlier by {@link assertGymAccessNotSuspended}, which reports the
    * tenant-level `GYM_SUSPENDED` rather than blaming the member's standing.
    */
-  private async assertRequestedMembershipActive(userId: string, gymSlug: string): Promise<void> {
+  private async assertRequestedMembershipActive(
+    userId: string,
+    gymSlug: string,
+    { signIn = false }: { signIn?: boolean } = {},
+  ): Promise<void> {
     const membership = await this.prisma.client.gymMember.findFirst({
       where: { userId, gym: { slug: gymSlug } },
       select: { status: true },
     });
+
+    if (!membership && signIn) {
+      throw new ForbiddenException({
+        message: 'This account is not a member of this gym',
+        code: NOT_A_MEMBER_CODE,
+      });
+    }
 
     if (membership && membership.status !== GymMemberStatus.ACTIVE) {
       throw new ForbiddenException({
@@ -1140,23 +1243,29 @@ export class AuthService {
    * `inviteError` flag so the client can show a clear "this invitation is no
    * longer valid" message rather than an error page. The token is never spent
    * here — only redirected — so following the link is always safe to retry.
+   *
+   * Every redirect lands on the inviting gym's own host, where the staff session
+   * the flow ends in belongs; only an unknown token, which names no gym, falls
+   * back to `WEB_URL`.
    */
   async acceptInvite(token: string): Promise<{ url: string }> {
     const invite = await this.prisma.client.staffInvite.findUnique({
       where: { token },
-      select: { email: true, usedAt: true, expiresAt: true },
+      select: { email: true, usedAt: true, expiresAt: true, gym: { select: { slug: true } } },
     });
 
     if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
-      return { url: buildInviteRedirectUrl('/member/login', { inviteError: 'invalid' }) };
+      return {
+        url: buildInviteRedirectUrl('member/login', { inviteError: 'invalid' }, invite?.gym.slug),
+      };
     }
 
     const existing = await this.prisma.client.user.findUnique({
       where: { email: invite.email },
       select: { id: true },
     });
-    const path = existing ? '/member/login' : '/member/register';
-    return { url: buildInviteRedirectUrl(path, { inviteToken: token }) };
+    const path = existing ? 'member/login' : 'member/register';
+    return { url: buildInviteRedirectUrl(path, { inviteToken: token }, invite.gym.slug) };
   }
 
   /**
@@ -1199,7 +1308,7 @@ export class AuthService {
         if (claimed.count === 0) {
           return;
         }
-        await tx.gymMember.upsert({
+        const member = await tx.gymMember.upsert({
           where: { userId_gymId: { userId, gymId: invite.gymId } },
           create: {
             userId,
@@ -1208,6 +1317,17 @@ export class AuthService {
             status: GymMemberStatus.ACTIVE,
           },
           update: { role: invite.role, status: GymMemberStatus.ACTIVE },
+          select: { id: true },
+        });
+
+        // An invited TRAINER used to get the role, a login and a Staff roster
+        // row - and no coach profile at all, so they were missing from the
+        // Trainers roster and from every class's trainer picker. The role-change
+        // path has always closed that gap; this one never did.
+        await syncTrainerProfile(tx as unknown as TrainerSyncClient, {
+          gymId: invite.gymId,
+          memberId: member.id,
+          role: invite.role,
         });
       });
 
@@ -1223,17 +1343,20 @@ export class AuthService {
 }
 
 /**
- * Build a web-client deep link for the staff-invite accept flow (T4.7). Targets
- * the web app (`WEB_URL`, falling back to the dev default the email links use) at
- * `path` with the given query params — e.g. `/member/register?inviteToken=…`. The
- * path carries the member portal's `/member` base but no locale prefix; the web
- * app's i18n middleware adds the default locale on redirect, preserving the query
- * string.
+ * Build a web-client deep link for the staff-invite accept flow (T4.7): the member
+ * site's `path` with the given query params — e.g. `member/register?inviteToken=…`
+ * — addressed by {@link buildMemberUrl}, so on the inviting gym's own host when
+ * `gymSlug` is known and on `WEB_URL` (then the dev default) otherwise. The path
+ * carries the member portal's `/member` base but no locale prefix; the web app's
+ * i18n middleware adds the default locale on redirect, preserving the query string.
  */
-function buildInviteRedirectUrl(path: string, params: Record<string, string>): string {
-  const base = env.WEB_URL ? env.WEB_URL.replace(/\/+$/, '') : 'http://localhost:3001';
+function buildInviteRedirectUrl(
+  path: string,
+  params: Record<string, string>,
+  gymSlug?: string | null,
+): string {
   const qs = new URLSearchParams(params).toString();
-  return `${base}${path}?${qs}`;
+  return `${buildMemberUrl(path, gymSlug)}?${qs}`;
 }
 
 /**

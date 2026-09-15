@@ -60,8 +60,8 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
  * than the user's earliest-joined "primary" one. It is held only to loose
  * DNS-label shape (the real authority is whether the user actually has a
  * membership in the named gym); a slug the user doesn't belong to at all is
- * ignored and the session falls back to the primary gym, so a crafted value can
- * never escalate scope. The full {@link gymSlugSchema} lives in `./gyms`, but is
+ * refused with `403 NOT_A_MEMBER` ({@link NOT_A_MEMBER_CODE}), so a crafted value
+ * can never escalate scope — nor land a session for another gym on this one. The full {@link gymSlugSchema} lives in `./gyms`, but is
  * re-derived loosely here to avoid an import cycle.
  *
  * Shared by every flow that mints a session on a subdomain — password login and
@@ -104,13 +104,23 @@ export type RefreshInput = z.infer<typeof refreshSchema>;
  * sign-in) they *do* hold a membership in, but that membership is not `ACTIVE` —
  * invited-but-not-yet-joined, or suspended by the gym.
  *
- * Distinct from a slug the user has no membership in at all, which stays a silent
- * fallback to the primary gym ({@link sessionGymSlugSchema}): asking for a gym you
- * belong to and being quietly signed into a *different* one is the failure this
- * code exists to make visible. The client turns it into "your membership here
- * isn't active yet" rather than a mysterious wrong-tenant session.
+ * Distinct from a gym the user has no membership in at all
+ * ({@link NOT_A_MEMBER_CODE}): asking for a gym you belong to and being quietly
+ * signed into a *different* one is the failure this code exists to make visible.
+ * The client turns it into "your membership here isn't active yet" rather than a
+ * mysterious wrong-tenant session.
  */
 export const MEMBERSHIP_NOT_ACTIVE_CODE = 'MEMBERSHIP_NOT_ACTIVE';
+
+/**
+ * `403` code returned when a sign-in names a gym (password, Google or Apple on a
+ * tenant subdomain) the account holds no membership in. It used to be signed
+ * into its primary gym instead — a session the gym's own site then threw away as
+ * foreign. Only after the credentials or the provider token check out, so it
+ * tells nobody anything about an address they cannot sign in as. The same code
+ * the member routes already answer a non-member with.
+ */
+export const NOT_A_MEMBER_CODE = 'NOT_A_MEMBER';
 
 /**
  * `403` code returned when an authenticated request arrives on one gym's
@@ -120,6 +130,15 @@ export const MEMBERSHIP_NOT_ACTIVE_CODE = 'MEMBERSHIP_NOT_ACTIVE';
  * sign-in, so they can pick up a session for the gym they are actually on.
  */
 export const TENANT_MISMATCH_CODE = 'TENANT_MISMATCH';
+
+/**
+ * Code returned when a gym-scoped route runs with no gym in scope. `404` for a
+ * public request whose host names no active gym — `app.<root>`, the API's own
+ * host, a slug nobody owns — since that gym's resource simply is not there; `403`
+ * for a session bound to no gym (a platform account). Before it existed the
+ * public case surfaced as an opaque `500 INTERNAL_ERROR`.
+ */
+export const TENANT_REQUIRED_CODE = 'TENANT_REQUIRED';
 
 /**
  * Body for `POST /auth/forgot-password`. Email is normalised the same way
@@ -268,3 +287,18 @@ export interface TokenPair {
   accessToken: string;
   refreshToken: string;
 }
+
+/**
+ * Response of `POST /auth/reset-password`. The password is always written; whether
+ * the reset also signs the caller in depends on the host it was completed on.
+ *
+ * - `sessionIssued: true` — a fresh {@link TokenPair}: on a gym host, bound to that
+ *   gym (the caller holds an active membership there); on a tenant-less host
+ *   (`app.<root>`, the mobile app), bound to the account's primary gym.
+ * - `sessionIssued: false` — completed on a gym host the account holds no active
+ *   membership in. No session is minted rather than one on some other gym; the
+ *   client sends the user to sign in with the new password.
+ */
+export type ResetPasswordResponse =
+  | (TokenPair & { sessionIssued: true })
+  | { ok: true; sessionIssued: false };

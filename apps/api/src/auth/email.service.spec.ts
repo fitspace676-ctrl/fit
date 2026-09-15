@@ -237,7 +237,7 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
     configure({
       RESEND_API_KEY: 're_123',
       WEB_URL: 'https://app.fit',
-      ADMIN_URL: 'https://fit-admin.vercel.app',
+      ADMIN_URL: 'https://app.fit',
     });
     const service = new EmailService();
 
@@ -253,14 +253,45 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
     expect(body.subject).toBe('Welcome to FormaCore - finish setting up Downtown');
     // The owner lands on the CONSOLE, where they can set a password — never on the
     // member app's verify route, which would leave a password-less owner stranded.
-    expect(String(body.html)).toContain('https://fit-admin.vercel.app/admin/activate?token=tok123');
+    expect(String(body.html)).toContain('https://app.fit/admin/activate?token=tok123');
     expect(String(body.html)).not.toContain('/member/verify');
     expect(String(body.html)).toContain('Downtown');
-    expect(String(body.text)).toContain('https://fit-admin.vercel.app/admin/activate?token=tok123');
+    expect(String(body.text)).toContain('https://app.fit/admin/activate?token=tok123');
+  });
+
+  it("addresses the activate link at the new gym's own console host", async () => {
+    configure({
+      RESEND_API_KEY: 're_123',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      ADMIN_URL: 'https://fit-admin.vercel.app',
+      WEB_URL: 'https://app.formacore.io',
+    });
+    const service = new EmailService();
+
+    await service.sendOwnerOnboardingEmail(
+      'owner@example.com',
+      'tok123',
+      'Downtown',
+      'Olivia',
+      'en',
+      'downtown',
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
+    expect(String(body.html)).toContain(
+      'https://downtown.formacore.io/admin/activate?token=tok123',
+    );
+    // Not the platform-wide console or the member site (the logo may still be
+    // served from WEB_URL; only the link is addressed per gym).
+    expect(String(body.html)).not.toContain('fit-admin.vercel.app');
+    expect(String(body.html)).not.toContain('/member/verify');
+    expect(String(body.text)).toContain(
+      'https://downtown.formacore.io/admin/activate?token=tok123',
+    );
   });
 
   it('throws when Resend returns a non-2xx response', async () => {
-    configure({ RESEND_API_KEY: 're_123', ADMIN_URL: 'https://fit-admin.vercel.app' });
+    configure({ RESEND_API_KEY: 're_123', ADMIN_URL: 'https://app.fit' });
     fetchMock.mockResolvedValue(new Response('rate limited', { status: 429 }));
     const service = new EmailService();
 
@@ -406,11 +437,21 @@ describe('buildVerificationUrl', () => {
     );
   });
 
-  it('still prefers an explicit EMAIL_VERIFICATION_URL over the tenant host', () => {
+  // Production sets EMAIL_VERIFICATION_URL to app.formacore.io; while it won, every
+  // gym's signup verified on the generic portal instead of its own site.
+  it('puts the tenant host ahead of an explicit EMAIL_VERIFICATION_URL', () => {
     configure({
-      EMAIL_VERIFICATION_URL: 'https://m.fit/verify',
+      EMAIL_VERIFICATION_URL: 'https://app.formacore.io/member/verify',
       PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      WEB_URL: 'https://app.formacore.io',
     });
+    expect(buildVerificationUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/verify?token=abc',
+    );
+  });
+
+  it('keeps the explicit EMAIL_VERIFICATION_URL for a slug with no root domain to host it', () => {
+    configure({ EMAIL_VERIFICATION_URL: 'https://m.fit/verify', PLATFORM_ROOT_DOMAIN: '' });
     expect(buildVerificationUrl('abc', 'downtown')).toBe('https://m.fit/verify?token=abc');
   });
 });
@@ -421,61 +462,39 @@ describe('buildOwnerOnboardingUrl', () => {
   it('prefers an explicit OWNER_ONBOARDING_URL', () => {
     configure({
       OWNER_ONBOARDING_URL: 'https://console.fit/activate',
-      ADMIN_URL: 'https://fit-admin.vercel.app',
-      ADMIN_BASE_PATH: '/admin',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      ADMIN_URL: 'https://app.fit',
       WEB_URL: 'https://app.fit',
     });
-    expect(buildOwnerOnboardingUrl('abc')).toBe('https://console.fit/activate?token=abc');
-  });
-
-  // The regression this function shipped with: ADMIN_URL is a bare ORIGIN, so a
-  // link built from it alone lands one directory above every console route.
-  it('carries the console basePath into the derived link', () => {
-    configure({
-      ADMIN_URL: 'https://fit-admin.vercel.app/',
-      ADMIN_BASE_PATH: '/admin',
-      WEB_URL: 'https://app.fit',
-    });
-    expect(buildOwnerOnboardingUrl('abc')).toBe(
-      'https://fit-admin.vercel.app/admin/activate?token=abc',
+    expect(buildOwnerOnboardingUrl('abc', 'downtown')).toBe(
+      'https://console.fit/activate?token=abc',
     );
   });
 
-  it('adds no prefix for a console genuinely served at the root', () => {
-    configure({ ADMIN_URL: 'https://console.fit', ADMIN_BASE_PATH: '' });
-    expect(buildOwnerOnboardingUrl('abc')).toBe('https://console.fit/activate?token=abc');
-  });
-
-  it('never falls back to the member web app, even when WEB_URL is the only origin set', () => {
-    configure({ WEB_URL: 'https://app.fit', ADMIN_BASE_PATH: '/admin' });
-    expect(buildOwnerOnboardingUrl('abc')).toBe('http://localhost:3002/admin/activate?token=abc');
-  });
-
-  it('url-encodes the token', () => {
-    configure({ OWNER_ONBOARDING_URL: 'https://console.fit/activate' });
-    expect(buildOwnerOnboardingUrl('a b+c')).toBe('https://console.fit/activate?token=a%20b%2Bc');
-  });
-
-  it("lands on the new gym's own console host when its slug is known", () => {
+  it("lands on the gym's own console host when the slug is known", () => {
     configure({
       PLATFORM_ROOT_DOMAIN: 'formacore.io',
-      ADMIN_URL: 'https://app.formacore.io',
-      ADMIN_BASE_PATH: '/admin',
+      ADMIN_URL: 'https://fit-admin.vercel.app',
+      WEB_URL: 'https://app.formacore.io',
     });
     expect(buildOwnerOnboardingUrl('abc', 'downtown')).toBe(
       'https://downtown.formacore.io/admin/activate?token=abc',
     );
   });
 
-  it('still prefers an explicit OWNER_ONBOARDING_URL over the tenant host', () => {
-    configure({
-      OWNER_ONBOARDING_URL: 'https://console.fit/activate',
-      PLATFORM_ROOT_DOMAIN: 'formacore.io',
-      ADMIN_BASE_PATH: '/admin',
-    });
-    expect(buildOwnerOnboardingUrl('abc', 'downtown')).toBe(
-      'https://console.fit/activate?token=abc',
-    );
+  it('derives <ADMIN_URL><ADMIN_BASE_PATH>/activate when there is no slug to address', () => {
+    configure({ ADMIN_URL: 'https://app.fit/', WEB_URL: 'https://app.fit' });
+    expect(buildOwnerOnboardingUrl('abc')).toBe('https://app.fit/admin/activate?token=abc');
+  });
+
+  it('never falls back to the member web app, even when WEB_URL is the only origin set', () => {
+    configure({ WEB_URL: 'https://app.fit' });
+    expect(buildOwnerOnboardingUrl('abc')).toBe('http://localhost:3002/admin/activate?token=abc');
+  });
+
+  it('url-encodes the token', () => {
+    configure({ OWNER_ONBOARDING_URL: 'https://console.fit/activate' });
+    expect(buildOwnerOnboardingUrl('a b+c')).toBe('https://console.fit/activate?token=a%20b%2Bc');
   });
 });
 
@@ -497,13 +516,31 @@ describe('buildPasswordResetUrl', () => {
     expect(buildPasswordResetUrl('a b+c')).toBe('https://m.fit/reset?token=a%20b%2Bc');
   });
 
-  // No caller has a slug to pass — the reset request reaches the API on its own
-  // host carrying the address alone — but the builder takes the same shape as
-  // the verification one, so a flow that ever does gets the tenant host.
-  it("would address a gym's own host, given a slug", () => {
+  it("addresses the gym's own host when the reset was asked for there", () => {
     configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io', WEB_URL: 'https://app.formacore.io' });
     expect(buildPasswordResetUrl('abc', 'downtown')).toBe(
       'https://downtown.formacore.io/member/reset-password?token=abc',
+    );
+  });
+
+  it('puts the tenant host ahead of an explicit PASSWORD_RESET_URL', () => {
+    configure({
+      PASSWORD_RESET_URL: 'https://app.formacore.io/member/reset-password',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+    });
+    expect(buildPasswordResetUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/member/reset-password?token=abc',
+    );
+  });
+
+  it('uses the explicit PASSWORD_RESET_URL when no gym is named', () => {
+    configure({
+      PASSWORD_RESET_URL: 'https://app.formacore.io/member/reset-password',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      WEB_URL: 'https://web.fit',
+    });
+    expect(buildPasswordResetUrl('abc', null)).toBe(
+      'https://app.formacore.io/member/reset-password?token=abc',
     );
   });
 });

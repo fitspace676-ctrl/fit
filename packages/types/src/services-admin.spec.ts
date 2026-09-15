@@ -1,40 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createServiceCategorySchema,
   createServiceSchema,
   listAdminServicesQuerySchema,
-  serviceScheduleSchema,
   updateServiceSchema,
 } from './services-admin';
 
-const schedule = {
-  freq: 'WEEKLY',
-  weekdays: ['MO', 'WE'],
-  startDate: '2026-09-01',
-  startTime: '18:00',
-};
-
-describe('serviceScheduleSchema', () => {
-  it('accepts a weekly schedule with weekdays', () => {
-    expect(serviceScheduleSchema.parse(schedule)).toEqual({ ...schedule, until: null });
-  });
-
-  it('rejects a weekly schedule with no weekdays', () => {
-    const result = serviceScheduleSchema.safeParse({ ...schedule, weekdays: [] });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects an "until" before the start date', () => {
-    const result = serviceScheduleSchema.safeParse({ ...schedule, until: '2026-08-01' });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects a malformed time', () => {
-    expect(serviceScheduleSchema.safeParse({ ...schedule, startTime: '6pm' }).success).toBe(false);
-  });
-});
-
 describe('createServiceSchema', () => {
-  it('accepts a personal-training service without a name or schedule', () => {
+  it('accepts a personal-training service without a name', () => {
     const parsed = createServiceSchema.parse({
       type: 'PERSONAL_TRAINING',
       staffId: 'gm-1',
@@ -44,10 +17,17 @@ describe('createServiceSchema', () => {
       type: 'PERSONAL_TRAINING',
       durationMinutes: 60,
       description: '',
+      categoryId: null,
     });
   });
 
-  it('requires a name and a schedule for a custom service', () => {
+  it('carries the category id, and reads an empty one as none', () => {
+    const base = { type: 'PERSONAL_TRAINING', staffId: 'gm-1', priceMinor: 5000 };
+    expect(createServiceSchema.parse({ ...base, categoryId: 'cat-1' }).categoryId).toBe('cat-1');
+    expect(createServiceSchema.parse({ ...base, categoryId: '' }).categoryId).toBeNull();
+  });
+
+  it('requires a name for a custom service', () => {
     expect(
       createServiceSchema.safeParse({ type: 'CUSTOM', staffId: 'gm-1', priceMinor: 5000 }).success,
     ).toBe(false);
@@ -57,9 +37,20 @@ describe('createServiceSchema', () => {
         name: 'Massage',
         staffId: 'gm-1',
         priceMinor: 5000,
-        schedule,
       }).success,
     ).toBe(true);
+  });
+
+  // The recurrence section was removed on 2026-09-02: a service no longer
+  // carries a schedule, and a client still sending one is not an error.
+  it('ignores a schedule a stale client still sends', () => {
+    const parsed = createServiceSchema.parse({
+      type: 'PERSONAL_TRAINING',
+      staffId: 'gm-1',
+      priceMinor: 5000,
+      schedule: { freq: 'WEEKLY' },
+    });
+    expect('schedule' in parsed).toBe(false);
   });
 
   it('bounds duration to 15–480 minutes', () => {
@@ -92,5 +83,13 @@ describe('listAdminServicesQuerySchema', () => {
       page: 3,
       limit: 5,
     });
+  });
+});
+
+describe('createServiceCategorySchema', () => {
+  it('trims the name and bounds it to 60 characters', () => {
+    expect(createServiceCategorySchema.parse({ name: '  Boxing ' })).toEqual({ name: 'Boxing' });
+    expect(createServiceCategorySchema.safeParse({ name: '' }).success).toBe(false);
+    expect(createServiceCategorySchema.safeParse({ name: 'x'.repeat(61) }).success).toBe(false);
   });
 });

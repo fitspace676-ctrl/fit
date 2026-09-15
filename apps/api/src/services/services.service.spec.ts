@@ -5,19 +5,13 @@ import { ServicesService } from './services.service';
 const row = {
   id: 's-1',
   type: 'PERSONAL_TRAINING',
-  name: 'Personal training - Nino Beridze',
+  name: 'Personal session - Nino Beridze',
   description: '',
   priceMinor: 5000,
   currency: 'GEL',
   durationMinutes: 60,
   coverUrl: null,
-  schedule: {
-    freq: 'WEEKLY',
-    weekdays: ['MO', 'WE'],
-    startDate: '2026-09-01',
-    startTime: '18:00',
-    until: null,
-  },
+  category: { name: 'Boxing' },
   staff: {
     id: 'gm-1',
     firstName: 'Nino',
@@ -41,7 +35,7 @@ describe('ServicesService.listServices', () => {
     expect(result.services[0]).toMatchObject({
       id: 's-1',
       type: 'PERSONAL_TRAINING',
-      schedule: { freq: 'WEEKLY', weekdays: ['MO', 'WE'] },
+      category: 'Boxing',
       staff: { id: 'gm-1', name: 'Nino Beridze', photoUrl: 'https://cdn/nino.jpg' },
     });
   });

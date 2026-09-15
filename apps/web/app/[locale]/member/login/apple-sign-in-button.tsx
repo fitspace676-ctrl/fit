@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import { loginWithApple } from '@/lib/auth';
+import { loginWithApple, signInErrorKey } from '@/lib/auth';
 import { Icon } from '@/src/components/ui';
 
 /** URL of the Sign in with Apple JS client library. */
@@ -125,7 +125,8 @@ export function AppleSignInButton() {
       .then(() => setStatus('success'))
       .catch((err: unknown) => {
         setStatus('error');
-        setError(err instanceof Error ? err.message : t('genericError'));
+        const key = signInErrorKey(err);
+        setError(key ? t(key) : err instanceof Error ? err.message : t('genericError'));
       });
   };
 

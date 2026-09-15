@@ -4,7 +4,11 @@ import { type FormEvent, useCallback, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Banner, Button, Field, Form, spacing } from '@fit/ui-kit';
-import { PASSWORD_MIN_LENGTH, type ActivateAccountResponse } from '@fit/types';
+import {
+  PASSWORD_MIN_LENGTH,
+  TENANT_MISMATCH_CODE,
+  type ActivateAccountResponse,
+} from '@fit/types';
 import { browserTenantHeaders } from '@/lib/tenant-host';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
@@ -67,6 +71,8 @@ export function ActivateForm() {
         try {
           const response = await fetch(`${API_URL}/auth/activate`, {
             method: 'POST',
+            // The page's host names the gym, so the API can refuse a link opened
+            // on another gym's console before the token is spent.
             headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ token, password }),
           });
@@ -78,7 +84,9 @@ export function ActivateForm() {
             throw new Error(
               detail?.code === 'TOKEN_INVALID_OR_EXPIRED'
                 ? t('invalidToken')
-                : (detail?.message ?? tAuth('genericError')),
+                : detail?.code === TENANT_MISMATCH_CODE
+                  ? t('wrongGym')
+                  : (detail?.message ?? tAuth('genericError')),
             );
           }
 

@@ -575,7 +575,49 @@ describe('AuthService', () => {
       expect(ttl).toBe(3_600);
 
       const emailedToken = key.slice('password-reset:'.length);
-      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith('a@b.com', emailedToken, 'Sam', 'en');
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        emailedToken,
+        'Sam',
+        'en',
+        null,
+      );
+    });
+
+    it("addresses the link at the host's gym when the account belongs to it", async () => {
+      ctx.findUnique.mockResolvedValue({ id: 'user-1', name: 'Sam' });
+      ctx.gymMemberFindFirst.mockResolvedValue({ id: 'gm-1' });
+
+      await ctx.service.requestPasswordReset({ email: 'a@b.com' }, 'ka', 'downtown');
+
+      expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
+        where: { userId: 'user-1', gym: { slug: 'downtown' } },
+        select: { id: true },
+      });
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        expect.any(String),
+        'Sam',
+        'ka',
+        'downtown',
+      );
+    });
+
+    // The host is caller-chosen: it must not be able to steer a stranger's token
+    // to a gym site the account has nothing to do with.
+    it("ignores the host's gym when the account holds no membership there", async () => {
+      ctx.findUnique.mockResolvedValue({ id: 'user-1', name: 'Sam' });
+      ctx.gymMemberFindFirst.mockResolvedValue(null);
+
+      await ctx.service.requestPasswordReset({ email: 'a@b.com' }, null, 'evil');
+
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        expect.any(String),
+        'Sam',
+        'en',
+        null,
+      );
     });
 
     it('returns the same generic message without minting a token when no account exists', async () => {
@@ -635,7 +677,96 @@ describe('AuthService', () => {
       // All existing sessions are cut, then a fresh one is issued.
       expect(ctx.revokeAllForUser).toHaveBeenCalledWith('user-1');
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', SCOPELESS);
-      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+      expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh', sessionIssued: true });
+    });
+
+    /** A member of both gyms, downtown the earlier-joined (primary) one. */
+    const TWO_GYMS = [
+      {
+        gymId: 'gym-downtown',
+        role: Role.MEMBER,
+        joinedAt: new Date('2026-01-01'),
+        gym: { status: 'ACTIVE', slug: 'downtown' },
+      },
+      {
+        gymId: 'gym-riverside',
+        role: Role.TRAINER,
+        joinedAt: new Date('2026-03-01'),
+        gym: { status: 'ACTIVE', slug: 'riverside' },
+      },
+    ];
+
+    it("binds the session to the host's gym, not the primary, for a member there", async () => {
+      ctx.get.mockResolvedValue('user-1');
+      ctx.gymMemberFindFirst.mockResolvedValueOnce({ id: 'gm-riverside' });
+      ctx.gymMemberFindMany.mockResolvedValue(TWO_GYMS);
+
+      const result = await ctx.service.resetPassword(VALID_RESET, 'riverside');
+
+      expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-1',
+          status: GymMemberStatus.ACTIVE,
+          gym: { slug: 'riverside', status: 'ACTIVE' },
+        },
+        select: { id: true },
+      });
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+        gymId: 'gym-riverside',
+        gymSlug: 'riverside',
+        role: Role.TRAINER,
+        tokenVersion: 0,
+      });
+      expect(result).toEqual({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        sessionIssued: true,
+      });
+    });
+
+    it('changes the password but issues no session on a gym the account is not active in', async () => {
+      ctx.get.mockResolvedValue('user-1');
+      // No active membership on riverside (none at all, or invited / suspended).
+      ctx.gymMemberFindFirst.mockResolvedValueOnce(null);
+      ctx.gymMemberFindMany.mockResolvedValue(TWO_GYMS.slice(0, 1));
+
+      const result = await ctx.service.resetPassword(VALID_RESET, 'riverside');
+
+      expect(ctx.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { passwordHash: 'argon2-hash' },
+      });
+      expect(ctx.revokeAllForUser).toHaveBeenCalledWith('user-1');
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: true, sessionIssued: false });
+    });
+
+    it('issues no session to a super-admin on a gym host', async () => {
+      ctx.get.mockResolvedValue('user-1');
+      ctx.findUnique.mockResolvedValue({ id: 'user-1', tokenVersion: 0, isSuperAdmin: true });
+      ctx.gymMemberFindFirst.mockResolvedValueOnce({ id: 'gm-riverside' });
+      ctx.gymMemberFindMany.mockResolvedValue(TWO_GYMS);
+
+      const result = await ctx.service.resetPassword(VALID_RESET, 'riverside');
+
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+      expect(result).toEqual({ ok: true, sessionIssued: false });
+    });
+
+    it('keeps the primary-gym session on a tenant-less host', async () => {
+      ctx.get.mockResolvedValue('user-1');
+      ctx.gymMemberFindMany.mockResolvedValue(TWO_GYMS);
+
+      const result = await ctx.service.resetPassword(VALID_RESET, null);
+
+      expect(ctx.gymMemberFindFirst).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+        gymId: 'gym-downtown',
+        gymSlug: 'downtown',
+        role: Role.MEMBER,
+        tokenVersion: 0,
+      });
+      expect(result).toMatchObject({ sessionIssued: true });
     });
 
     it('throws 400 TOKEN_INVALID_OR_EXPIRED for an unknown / expired token', async () => {
@@ -743,6 +874,49 @@ describe('AuthService', () => {
       expect(argonHash).not.toHaveBeenCalled();
       expect(ctx.update).not.toHaveBeenCalled();
       expect(ctx.revokeAllForUser).not.toHaveBeenCalled();
+    });
+
+    it('refuses a second activation with the same link — the token is gone after the first', async () => {
+      ctx.get.mockResolvedValueOnce('owner-1').mockResolvedValueOnce(null);
+
+      await ctx.service.activateAccount(VALID_ACTIVATE);
+      const error = await ctx.service.activateAccount(VALID_ACTIVATE).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'TOKEN_INVALID_OR_EXPIRED',
+      });
+      expect(ctx.update).toHaveBeenCalledTimes(1);
+    });
+
+    it("activates on the owner's own gym host", async () => {
+      ctx.get.mockResolvedValue('owner-1');
+      ctx.gymMemberFindFirst.mockResolvedValue({ id: 'membership-1' });
+
+      const result = await ctx.service.activateAccount(VALID_ACTIVATE, 'downtown');
+
+      expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
+        where: { userId: 'owner-1', gym: { slug: 'downtown' } },
+        select: { id: true },
+      });
+      expect(result).toEqual({ email: 'owner@example.com' });
+    });
+
+    it("refuses 403 TENANT_MISMATCH on another gym's host, without spending the token", async () => {
+      ctx.get.mockResolvedValue('owner-1');
+      ctx.gymMemberFindFirst.mockResolvedValue(null);
+
+      const error = await ctx.service
+        .activateAccount(VALID_ACTIVATE, 'riverside')
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'TENANT_MISMATCH',
+      });
+      expect(ctx.del).not.toHaveBeenCalled();
+      expect(argonHash).not.toHaveBeenCalled();
+      expect(ctx.update).not.toHaveBeenCalled();
     });
   });
 
@@ -935,10 +1109,13 @@ describe('AuthService', () => {
       });
     });
 
-    it('falls back to the primary gym when gymSlug names a gym the user is not a member of', async () => {
+    it('throws 403 NOT_A_MEMBER when gymSlug names a gym the user is not a member of', async () => {
+      // A downtown member signing in on riverside's host. This used to hand back a
+      // downtown session, which riverside's site then threw away as foreign.
       ctx.findUnique.mockResolvedValue(verifiedUser);
       argonVerify.mockResolvedValue(true);
       membership(ctx, { hasAny: true, hasActive: true });
+      requestedMembership(ctx, null);
       ctx.gymMemberFindMany.mockResolvedValue([
         {
           gymId: 'gym-downtown',
@@ -948,13 +1125,76 @@ describe('AuthService', () => {
         },
       ]);
 
-      // `someone-elses-gym` isn't among the user's memberships → primary wins.
-      await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'someone-elses-gym' });
+      const error = await ctx.service
+        .login({ ...VALID_LOGIN, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'NOT_A_MEMBER',
+      });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('throws the same 403 for an account with no gym at all', async () => {
+      // Tenant-less on a gym host is no use to that gym's site either.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: false, hasActive: false });
+
+      const error = await ctx.service
+        .login({ ...VALID_LOGIN, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'NOT_A_MEMBER',
+      });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('still gives a sign-in that names no gym the primary gym', async () => {
+      // The mobile app and `app.<root>` send no slug.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-riverside',
+          role: Role.MEMBER,
+          joinedAt: new Date('2026-03-01'),
+          gym: { status: 'ACTIVE', slug: 'riverside' },
+        },
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      await ctx.service.login(VALID_LOGIN);
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: 'gym-downtown',
         gymSlug: 'downtown',
         role: Role.OWNER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('keeps a platform SUPER_ADMIN tenant-less when it signs in on a gym host', async () => {
+      // Pinned down so the membership gate never turns an operator away from a
+      // gym host: the flag still wins before any gym is looked at.
+      ctx.findUnique.mockResolvedValue({ ...verifiedUser, isSuperAdmin: true });
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: false, hasActive: false });
+
+      await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' });
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+        gymId: null,
+        gymSlug: null,
+        role: Role.SUPER_ADMIN,
         tokenVersion: 0,
       });
     });
@@ -1235,6 +1475,52 @@ describe('AuthService', () => {
         gymId: 'gym-riverside',
         gymSlug: 'riverside',
         role: Role.TRAINER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('refuses a Google sign-in on a gym the account is not a member of', async () => {
+      // A downtown member pressing "Continue with Google" on riverside's site
+      // used to be signed into downtown.
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' }); // matched by googleId
+      membership(ctx, { hasAny: true, hasActive: true });
+      requestedMembership(ctx, null);
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.MEMBER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      const error = await ctx.service
+        .loginWithGoogle({ ...VALID, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'NOT_A_MEMBER' });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('still gives a Google sign-in that names no gym the primary gym', async () => {
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' });
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.MEMBER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      await ctx.service.loginWithGoogle(VALID);
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9', {
+        gymId: 'gym-downtown',
+        gymSlug: 'downtown',
+        role: Role.MEMBER,
         tokenVersion: 0,
       });
     });
@@ -1736,6 +2022,7 @@ describe('AuthService.registerGym', () => {
       'Downtown Strength',
       'Olivia Owner',
       'en',
+      // The slug addresses the link at the new gym's own console host.
       'downtown',
     );
 

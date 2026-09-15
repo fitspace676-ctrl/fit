@@ -31,8 +31,7 @@ export const envSchema = z.object({
   // link the API builds has to carry. **The default must match
   // `apps/admin/next.config.mjs`'s**, which is `/admin`: `ADMIN_URL` is a bare
   // origin everywhere it is set (see `.env.example`), so a link built from it
-  // alone lands one directory above every console route and 404s — which is
-  // exactly what the owner onboarding mail did on the first deploy. A console
+  // alone lands one directory above every console route and 404s. A console
   // genuinely served at the root sets this to `""`, an empty string rather than
   // nullish, which still wins over the default. Normalised to a leading slash
   // and no trailing one so the join below is a plain concatenation.
@@ -130,11 +129,12 @@ export const envSchema = z.object({
   // Default 24 hours.
   EMAIL_VERIFICATION_TTL: z.coerce.number().int().positive().default(86_400),
   // Base URL the verification token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived by `buildMemberUrl`: the gym's own host
-  // (`https://<slug>.<PLATFORM_ROOT_DOMAIN>/member/verify`) when the flow knows
-  // which gym was joined — a member self-signup does — so verifying returns them
-  // to the site they signed up on, and `<WEB_URL>/member/verify` otherwise (a
-  // bare registration joins no gym).
+  // (`<base>?token=…`) — for a flow that knows no gym. When the flow knows which
+  // gym was joined (a member self-signup does), the link goes to that gym's own
+  // host, `https://<slug>.<PLATFORM_ROOT_DOMAIN>/member/verify`, and this is
+  // ignored: one platform-wide URL cannot be every gym's site, and letting it win
+  // sent each gym's members to the generic portal. Unset → `<WEB_URL>/member/verify`
+  // for the gym-less case (a bare registration).
   EMAIL_VERIFICATION_URL: z.string().url().optional(),
 
   // ── Gym-owner onboarding ──
@@ -144,11 +144,9 @@ export const envSchema = z.object({
   // not on the member web app, which has no console to hand them on to.
   // Unset → derived by `buildConsoleUrl`: the new gym's own console host
   // (`https://<slug>.<PLATFORM_ROOT_DOMAIN><ADMIN_BASE_PATH>/activate`), falling
-  // back to `<ADMIN_URL><ADMIN_BASE_PATH>/activate` when there is no slug in
-  // scope or no root domain configured. Either is correct with no extra config
-  // on a standard deployment. Set it explicitly only when the console is
-  // reached at some address the API cannot derive — a custom domain, a proxy
-  // that rewrites the prefix.
+  // back to `<ADMIN_URL><ADMIN_BASE_PATH>/activate` when there is no root domain
+  // configured. Production leaves this unset — a fixed base would send every gym's
+  // owner to one host, where the activation is refused as the wrong gym.
   OWNER_ONBOARDING_URL: z.string().url().optional(),
 
   // ── Password reset ──
@@ -157,10 +155,11 @@ export const envSchema = z.object({
   // should live no longer than necessary. Default 1 hour.
   PASSWORD_RESET_TTL: z.coerce.number().int().positive().default(3_600),
   // Base URL the reset token is appended to in the email deep link
-  // (`<base>?token=…`). Unset → derived by `buildMemberUrl`, same as
-  // EMAIL_VERIFICATION_URL — but in practice always `<WEB_URL>/member/reset-password`:
-  // the browser asks for the reset on the API's own host with the address alone,
-  // so no gym is ever in scope to address the link at.
+  // (`<base>?token=…`) — for a request that names no gym. A reset asked for on a
+  // gym's site (its `x-tenant-host`) by an account belonging to that gym goes to
+  // `https://<slug>.<PLATFORM_ROOT_DOMAIN>/member/reset-password` and ignores this,
+  // same as EMAIL_VERIFICATION_URL. Unset → `<WEB_URL>/member/reset-password` for
+  // the rest: the mobile app, `app.<root>`, an account the host's gym doesn't hold.
   PASSWORD_RESET_URL: z.string().url().optional(),
 
   // ── Staff invitations (T4.7) ──

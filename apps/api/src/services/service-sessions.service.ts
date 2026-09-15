@@ -92,6 +92,7 @@ export class ServiceSessionsService {
         // one a filter and not the other and a branch-filtered calendar is
         // assembled from two populations.
         ...atLocation(query.locationId),
+        ...(query.categoryId ? { service: { categoryId: query.categoryId } } : {}),
         startsAt: { gte: new Date(query.from), lt: new Date(query.to) },
       },
       select: SESSION_SELECT,

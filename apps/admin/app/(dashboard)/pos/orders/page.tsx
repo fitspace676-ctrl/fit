@@ -20,7 +20,7 @@ import { OrdersFilters } from './orders-filters';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Sales log - FormaCore Admin',
+  title: 'Sales log',
   description:
     'Every sale the till and the online shop have recorded: what was sold, how it was paid for, what was refunded, and when.',
 };

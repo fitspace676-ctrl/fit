@@ -36,6 +36,7 @@ import { GymLocaleService } from '../gyms/gym-locale.service';
 import { findDefaultLocationId, type DefaultLocationClient } from '../locations/default-location';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
 import { parseBranchCounts } from './order-stock';
+import { assertOwnedMedia } from '../storage/media-ownership';
 
 /**
  * The columns the roster/detail queries select off `Product`. Every field is the
@@ -638,6 +639,7 @@ export class AdminProductsService {
    * and is unaffected.
    */
   async createProduct(input: CreateProductData): Promise<CreateProductResponse> {
+    assertOwnedMedia(this.tenant.gymId, input.images);
     await this.requireCategory(input.categoryId);
     const currency = (await this.locale.get()).currency;
     // A product tracks stock one way or the other, never both: once it has
@@ -1056,6 +1058,9 @@ export class AdminProductsService {
         throw new NotFoundException({ message: 'Product not found', code: 'PRODUCT_NOT_FOUND' });
       }
       previousImages = current.images;
+      // Checked against the stored gallery, so images already on the product
+      // pass through unchanged; throwing here rolls the transaction back.
+      assertOwnedMedia(this.tenant.gymId, input.images, current.images);
 
       // Positions are addressed by slot everywhere (a variant has no id of its
       // own — see `StockMovement.variantIndex`), so counts carry over by index.

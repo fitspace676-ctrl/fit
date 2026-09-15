@@ -14,7 +14,7 @@ import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
 export const metadata: Metadata = {
-  title: 'Settings - FormaCore Admin',
+  title: 'Settings',
   description: 'Configure your gym’s brand, locale, business hours, and operating policies.',
 };
 

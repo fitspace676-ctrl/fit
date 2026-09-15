@@ -7,10 +7,11 @@ import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { Layout } from '@astryxdesign/core/Layout';
 import { LayoutContent } from '@astryxdesign/core/Layout';
-import type { AdminServiceRow, ServiceStaffOption, ServiceType } from '@fit/types';
+import type { AdminServiceRow, ServiceCategory, ServiceStaffOption, ServiceType } from '@fit/types';
 import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
-import { fetchServiceStaffAction } from './actions';
+import { fetchServiceCategoriesAction, fetchServiceStaffAction } from './actions';
+import { CategoryPanel } from './category-panel';
 import { ServiceForm } from './service-form';
 
 const styles = stylex.create({
@@ -56,30 +57,41 @@ const styles = stylex.create({
   loading: { fontSize: '0.875rem', color: 'var(--color-text-secondary)' },
 });
 
-/** The New / Edit service drawer. Create asks for the type first; edit opens straight on the form. */
+/**
+ * What the create drawer's first step opens onto: the personal-session form, or
+ * the category panel. "Custom service" used to be the second choice; the owner
+ * replaced it with categories on 2026-09-02 - one kind of service, filed under
+ * the gym's own names.
+ */
+type Step = ServiceType | 'CATEGORY';
+
+/** The New / Edit service drawer. Create asks what to make first; edit opens straight on the form. */
 export function ServiceDrawer(
   props: { mode: 'create' } | { mode: 'edit'; service: AdminServiceRow; trigger: React.ReactNode },
 ) {
   const t = useTranslations('admin.services');
   const drawer = useSlideDrawer();
-  const [type, setType] = useState<ServiceType | null>(
-    props.mode === 'edit' ? props.service.type : null,
-  );
+  const [type, setType] = useState<Step | null>(props.mode === 'edit' ? props.service.type : null);
   const [staff, setStaff] = useState<ServiceStaffOption[] | null>(null);
+  const [categories, setCategories] = useState<ServiceCategory[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!drawer.isOpen || staff !== null) return;
+    if (!drawer.isOpen || (staff !== null && categories !== null)) return;
     let cancelled = false;
-    void fetchServiceStaffAction().then((result) => {
-      if (cancelled) return;
-      if (result.ok) setStaff(result.data);
-      else setLoadError(result.error);
-    });
+    void Promise.all([fetchServiceStaffAction(), fetchServiceCategoriesAction()]).then(
+      ([staffResult, categoryResult]) => {
+        if (cancelled) return;
+        if (staffResult.ok) setStaff(staffResult.data);
+        else setLoadError(staffResult.error);
+        if (categoryResult.ok) setCategories(categoryResult.data);
+        else setLoadError(categoryResult.error);
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [drawer.isOpen, staff]);
+  }, [drawer.isOpen, staff, categories]);
 
   // Closing without picking a type (Escape, backdrop, the X) skips both the
   // Cancel handler and the create-success handler, so without this the type
@@ -134,10 +146,10 @@ export function ServiceDrawer(
           content={
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
               {loadError ? <p role="alert">{loadError}</p> : null}
-              {staff === null && !loadError ? (
+              {(staff === null || categories === null) && !loadError ? (
                 <p {...stylex.props(styles.loading)}>{t('drawer.loadingStaff')}</p>
               ) : null}
-              {staff !== null && type === null ? (
+              {staff !== null && categories !== null && type === null ? (
                 <div {...stylex.props(styles.typeGrid)}>
                   <button
                     type="button"
@@ -149,21 +161,30 @@ export function ServiceDrawer(
                   </button>
                   <button
                     type="button"
-                    onClick={() => setType('CUSTOM')}
+                    onClick={() => setType('CATEGORY')}
                     {...stylex.props(styles.typeCard)}
                   >
-                    <span {...stylex.props(styles.typeTitle)}>{t('drawer.customTitle')}</span>
-                    <span {...stylex.props(styles.typeHint)}>{t('drawer.customHint')}</span>
+                    <span {...stylex.props(styles.typeTitle)}>{t('drawer.categoryTitle')}</span>
+                    <span {...stylex.props(styles.typeHint)}>{t('drawer.categoryHint')}</span>
                   </button>
                 </div>
               ) : null}
-              {staff !== null && type !== null ? (
+              {staff !== null && categories !== null && type === 'CATEGORY' ? (
+                <CategoryPanel
+                  key={drawer.contentKey}
+                  categories={categories}
+                  onChanged={setCategories}
+                  onBack={() => setType(null)}
+                />
+              ) : null}
+              {staff !== null && categories !== null && type !== null && type !== 'CATEGORY' ? (
                 props.mode === 'edit' ? (
                   <ServiceForm
                     key={drawer.contentKey}
                     mode="edit"
                     service={props.service}
                     staff={staff}
+                    categories={categories}
                     onSuccess={drawer.requestClose}
                     onCancel={drawer.requestClose}
                   />
@@ -173,6 +194,7 @@ export function ServiceDrawer(
                     mode="create"
                     type={type}
                     staff={staff}
+                    categories={categories}
                     onSuccess={() => {
                       drawer.requestClose();
                       setType(null);

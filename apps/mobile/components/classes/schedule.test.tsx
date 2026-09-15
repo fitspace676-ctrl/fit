@@ -48,6 +48,7 @@ function card(
   return {
     id: over.id ?? `c-${String(startsAt.getTime())}`,
     title: over.title ?? 'Spin Express',
+    description: over.description ?? '',
     startsAt: startsAt.toISOString(),
     endsAt: over.endsAt ?? new Date(startsAt.getTime() + 45 * 60_000).toISOString(),
     trainerName: over.trainerName ?? 'Sandro K.',

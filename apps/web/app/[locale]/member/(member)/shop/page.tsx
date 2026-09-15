@@ -9,7 +9,7 @@ import { ButtonLink } from '@/src/components/ui/kit';
 import { ShopScreen } from '@/src/components/shop/ShopScreen';
 
 export const metadata: Metadata = {
-  title: 'Shop - FormaCore',
+  title: 'Shop',
   description: 'Browse gear, supplements, and essentials from your gym.',
 };
 

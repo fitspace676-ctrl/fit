@@ -58,6 +58,8 @@ export interface ReportStrings {
     card: string;
     bankTransfer: string;
     memberAccount: string;
+    /** Every payment method the till does not name outright (member account today). */
+    other: string;
     unattributed: string;
     unassigned: string;
     noPlan: string;
@@ -107,6 +109,8 @@ export interface ReportStrings {
     sessionStatuses: Record<string, string>;
     /** A credit pack: active, used up, expired. */
     creditPackStatuses: Record<string, string>;
+    /** What a trainer-activity line is: a group class booking or a PT session. */
+    activityTypes: { class: string; pt: string };
     yes: string;
     no: string;
     /** Staff roles, by `Role`. */
@@ -158,6 +162,7 @@ const EN: ReportStrings = {
     card: 'Card',
     bankTransfer: 'Bank transfer',
     memberAccount: 'Member account',
+    other: 'Other',
     unattributed: 'Unattributed',
     unassigned: 'Unassigned',
     noPlan: 'No plan',
@@ -191,7 +196,7 @@ const EN: ReportStrings = {
     categoryMembership: 'Membership',
     categorySessionPack: 'Session pack',
     categoryOneTimePlan: 'One-time plan',
-    categoryPersonalTraining: 'Personal training',
+    categoryPersonalTraining: 'Personal session',
     categoryService: 'Service',
     categoryUncategorised: 'Uncategorised',
     membershipStatuses: {
@@ -223,7 +228,7 @@ const EN: ReportStrings = {
     },
     invoiceTypes: {
       MEMBERSHIP: 'Membership',
-      PERSONAL_TRAINING: 'Personal training',
+      PERSONAL_TRAINING: 'Personal session',
       CLASS: 'Class',
       PRODUCT: 'Product',
       SERVICE: 'Service',
@@ -262,6 +267,7 @@ const EN: ReportStrings = {
       CANCELLED: 'Cancelled',
     },
     creditPackStatuses: { active: 'Active', usedUp: 'Used up', expired: 'Expired' },
+    activityTypes: { class: 'Class', pt: 'PT session' },
     yes: 'Yes',
     no: 'No',
     roles: {
@@ -328,7 +334,7 @@ const KA: ReportStrings = {
     'plan-performance': {
       name: 'გეგმებისა და სერვისების შედეგები',
       description:
-        'რა გაიყიდა - წევრობები, სესიების პაკეტები, პერსონალური ვარჯიშები, სხვა სერვისები და პროდუქტები - რამდენი, რა თანხად, თითოეულის წილი პერიოდის გაყიდვებში და რომელ ფილიალში.',
+        'რა გაიყიდა - წევრობები, სესიების პაკეტები, პერსონალური სესიები, სხვა სერვისები და პროდუქტები - რამდენი, რა თანხად, თითოეულის წილი პერიოდის გაყიდვებში და რომელ ფილიალში.',
       columns: {
         item: 'გეგმა / სერვისი',
         category: 'კატეგორია',
@@ -410,7 +416,7 @@ const KA: ReportStrings = {
     'daily-reconciliation': {
       name: 'დღიური შედარება',
       description:
-        'ყოველი დღის შემოსავალი და როგორ შეგროვდა - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, წევრის ანგარიში - გაცემული დაბრუნებების, გაყიდვების რაოდენობისა და ჯამის უკან მდგომი ჩეკების გვერდით.',
+        'ყოველი დღის შემოსავალი და როგორ შეგროვდა - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, სხვა მეთოდი - გაცემული დაბრუნებების, გაყიდვების რაოდენობისა და ჯამის უკან მდგომი ჩეკების გვერდით.',
       columns: {
         date: KA_COMMON.date,
         total: 'სულ გაყიდვები',
@@ -418,7 +424,7 @@ const KA: ReportStrings = {
         card: 'ბარათი / სალარო',
         online: 'ონლაინ',
         bankTransfer: 'საბანკო გადარიცხვა',
-        memberAccount: 'წევრის ანგარიში',
+        other: 'სხვა გადახდის მეთოდები',
         refunds: 'დაბრუნებები',
         transactions: 'ტრანზაქციები',
         references: 'ტრანზაქციების ნომრები',
@@ -548,7 +554,7 @@ const KA: ReportStrings = {
     'revenue-by-payment-method': {
       name: 'შემოსავალი გადახდის მეთოდით',
       description:
-        'როგორ შეგროვდა შემოსავალი - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, წევრის ანგარიში - ფილიალების მიხედვით, დაბრუნებების გამოკლებით, თითოეული მეთოდის წილით.',
+        'როგორ შეგროვდა შემოსავალი - ნაღდი, ბარათი სალაროსთან, ონლაინ, საბანკო გადარიცხვა, სხვა მეთოდი - ფილიალების მიხედვით, დაბრუნებების გამოკლებით, თითოეული მეთოდის წილით.',
       columns: {
         method: 'გადახდის მეთოდი',
         payments: 'გადახდები',
@@ -741,9 +747,9 @@ const KA: ReportStrings = {
       },
     },
     'pt-sessions': {
-      name: 'პერსონალური ვარჯიშები',
+      name: 'პერსონალური სესიები',
       description:
-        'ყველა პერსონალური ვარჯიში ამ პერიოდში, თითო მწკრივი: წევრის მიერ დაჯავშნილი სლოტი (მისი ინვოისით) და მწვრთნელის კალენდრის საკუთარი სესიები. არცერთი კრედიტების პაკეტს არ უკავშირდება, ამიტომ პაკეტის სვეტი ჯერ არ არის.',
+        'ყველა პერსონალური სესია ამ პერიოდში, თითო მწკრივი: წევრის მიერ დაჯავშნილი სლოტი (მისი ინვოისით) და მწვრთნელის კალენდრის საკუთარი სესიები. არცერთი კრედიტების პაკეტს არ უკავშირდება, ამიტომ პაკეტის სვეტი ჯერ არ არის.',
       columns: {
         date: KA_COMMON.date,
         time: KA_COMMON.time,
@@ -770,10 +776,40 @@ const KA: ReportStrings = {
         status: KA_COMMON.status,
       },
     },
+    'trainer-activity': {
+      name: 'მწვრთნელების აქტივობა',
+      description:
+        'რა გააკეთა თითოეულმა მწვრთნელმა პერიოდში: ჩატარებული კლასები და PT სესიები, რამდენი სხვადასხვა წევრი გაწვრთნა და როგორ დასრულდა კლასების ჯავშნები - დაესწრო, გაუქმდა, არ მოვიდა. ფილიალის სვეტში მისი კლასების ფილიალებია; PT სესიას ფილიალი არ აქვს.',
+      columns: {
+        trainer: KA_COMMON.trainer,
+        location: KA_COMMON.location,
+        classes: 'ჩატარებული კლასები',
+        ptSessions: 'ჩატარებული PT სესიები',
+        membersTrained: 'გაწვრთნილი წევრები',
+        attended: 'კლასზე დასწრება',
+        cancellations: 'გაუქმებები',
+        noShows: 'არ მოვიდა',
+      },
+    },
+    'trainer-activity-detail': {
+      name: 'მწვრთნელების აქტივობის დეტალები',
+      description:
+        'პერიოდის ყველა კლასის ჯავშანი და PT სესია, თითო სტრიქონად, თავისი მწვრთნელის ქვეშ: როდის, რა ტიპის, რომელი კლასი ან სესია, რომელი წევრი, სად და როგორ დასრულდა.',
+      columns: {
+        date: KA_COMMON.date,
+        time: KA_COMMON.time,
+        trainer: KA_COMMON.trainer,
+        type: 'ტიპი',
+        session: 'კლასი / სესია',
+        member: KA_COMMON.member,
+        location: KA_COMMON.location,
+        status: KA_COMMON.status,
+      },
+    },
     'trainer-performance': {
       name: 'მწვრთნელების შედეგები',
       description:
-        'ჩატარებული სესიები მწვრთნელების მიხედვით - ჯგუფური კლასები და პერსონალური ვარჯიშები - და რამდენად ივსებოდა მათი კლასები.',
+        'ჩატარებული სესიები მწვრთნელების მიხედვით - ჯგუფური კლასები და პერსონალური სესიები - და რამდენად ივსებოდა მათი კლასები.',
       columns: {
         trainer: KA_COMMON.trainer,
         classes: 'კლასები',
@@ -796,7 +832,7 @@ const KA: ReportStrings = {
     'trainer-sales': {
       name: 'მწვრთნელების გაყიდვები',
       description:
-        'პერსონალური ვარჯიშების გაყიდვები მწვრთნელისა და ფილიალის მიხედვით: გაყიდული სესიების პაკეტები (მიეკუთვნება იმ თანამშრომელს, ვინც გაყიდა - პაკეტი მწვრთნელს არ უკავშირდება) და ჩატარებული PT სესიები (მიეკუთვნება მწვრთნელს, ვინც ატარებს, თითოეულის ინვოისით), და მათი ღირებულება.',
+        'პერსონალური სესიების გაყიდვები მწვრთნელისა და ფილიალის მიხედვით: გაყიდული სესიების პაკეტები (მიეკუთვნება იმ თანამშრომელს, ვინც გაყიდა - პაკეტი მწვრთნელს არ უკავშირდება) და ჩატარებული PT სესიები (მიეკუთვნება მწვრთნელს, ვინც ატარებს, თითოეულის ინვოისით), და მათი ღირებულება.',
       columns: {
         trainer: KA_COMMON.trainer,
         packagesSold: 'გაყიდული PT პაკეტი',
@@ -808,7 +844,7 @@ const KA: ReportStrings = {
     'trainer-sales-detail': {
       name: 'მწვრთნელების გაყიდვების დეტალები',
       description:
-        'ყველა პერსონალური ვარჯიშის გაყიდვა ამ პერიოდში, თითო მწკრივი: რომელ მწვრთნელს მიეკუთვნება, წევრი, პაკეტი ან სესია, რამდენ სესიას შეიცავს, თანხა, როდის და სად.',
+        'ყველა პერსონალური სესიის გაყიდვა ამ პერიოდში, თითო მწკრივი: რომელ მწვრთნელს მიეკუთვნება, წევრი, პაკეტი ან სესია, რამდენ სესიას შეიცავს, თანხა, როდის და სად.',
       columns: {
         date: 'შეძენის თარიღი',
         trainer: KA_COMMON.trainer,
@@ -888,7 +924,6 @@ const KA: ReportStrings = {
     },
   },
   kpis: {
-    'gross-sales': 'მთლიანი გაყიდვები',
     refunds: 'დაბრუნებები',
     'net-sales': 'წმინდა გაყიდვები',
     'sale-count': 'გაყიდვები',
@@ -1021,6 +1056,7 @@ const KA: ReportStrings = {
     card: 'ბარათი',
     bankTransfer: 'საბანკო გადარიცხვა',
     memberAccount: 'წევრის ანგარიში',
+    other: 'სხვა',
     unattributed: 'მიუკუთვნებელი',
     unassigned: 'მიუნიჭებელი',
     noPlan: 'გეგმის გარეშე',
@@ -1054,7 +1090,7 @@ const KA: ReportStrings = {
     categoryMembership: 'წევრობა',
     categorySessionPack: 'სესიების პაკეტი',
     categoryOneTimePlan: 'ერთჯერადი გეგმა',
-    categoryPersonalTraining: 'პერსონალური ვარჯიში',
+    categoryPersonalTraining: 'პერსონალური სესია',
     categoryService: 'სერვისი',
     categoryUncategorised: 'კატეგორიის გარეშე',
     membershipStatuses: {
@@ -1086,7 +1122,7 @@ const KA: ReportStrings = {
     },
     invoiceTypes: {
       MEMBERSHIP: 'წევრობა',
-      PERSONAL_TRAINING: 'პერსონალური ვარჯიში',
+      PERSONAL_TRAINING: 'პერსონალური სესია',
       CLASS: 'კლასი',
       PRODUCT: 'პროდუქტი',
       SERVICE: 'სერვისი',
@@ -1125,6 +1161,7 @@ const KA: ReportStrings = {
       CANCELLED: 'გაუქმებული',
     },
     creditPackStatuses: { active: 'აქტიური', usedUp: 'ამოწურული', expired: 'ვადაგასული' },
+    activityTypes: { class: 'კლასი', pt: 'PT სესია' },
     yes: 'დიახ',
     no: 'არა',
     roles: {

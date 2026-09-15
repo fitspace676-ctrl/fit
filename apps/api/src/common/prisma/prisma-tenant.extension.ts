@@ -185,6 +185,7 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'TimeOffRequest',
   'ShiftSlot',
   'Service',
+  'ServiceCategory',
   'ServiceSession',
   // Which branches a staff member works at — the join table Stage 6 of
   // multi-branch introduced to replace `GymMember.assignedLocationIds`. It

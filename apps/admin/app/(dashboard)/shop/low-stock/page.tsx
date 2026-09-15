@@ -17,7 +17,7 @@ import { ThresholdPicker } from './threshold-picker';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Inventory · Low stock - FormaCore Admin',
+  title: 'Inventory · Low stock',
   description:
     'The gym’s inventory alerts: every active product carrying a variant at or below the reorder threshold, most urgent first, with a one-tap stock adjustment so staff can restock before a line sells out.',
 };

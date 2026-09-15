@@ -11,7 +11,7 @@ import { PlanActions } from './plan-actions';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Subscription plan - FormaCore Admin',
+  title: 'Subscription plan',
 };
 
 // The detail reflects live plan state and the staff session token, so it must

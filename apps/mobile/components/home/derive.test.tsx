@@ -24,6 +24,7 @@ function instance(overrides: Partial<ClassInstanceCard> = {}): ClassInstanceCard
   return {
     id: 'ci',
     title: 'Spin',
+    description: '',
     startsAt: new Date(NOW.getTime() + HOUR).toISOString(),
     endsAt: new Date(NOW.getTime() + 2 * HOUR).toISOString(),
     trainerName: 'Nino',

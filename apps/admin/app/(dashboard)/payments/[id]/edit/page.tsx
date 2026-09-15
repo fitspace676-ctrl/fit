@@ -9,7 +9,7 @@ import { SubscriptionPlanForm } from '../../subscription-plan-form';
 import { fetchPlanClassTypeOptions } from '../../class-type-options';
 
 export const metadata: Metadata = {
-  title: 'Edit subscription plan - FormaCore Admin',
+  title: 'Edit subscription plan',
 };
 
 // Reflects the staff session and writes live plan state — never cached.

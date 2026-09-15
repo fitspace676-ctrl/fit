@@ -14,7 +14,7 @@ import { StockPanel } from './stock-panel';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 export const metadata: Metadata = {
-  title: 'Product - FormaCore Admin',
+  title: 'Product',
 };
 
 // The detail reflects live product state and the staff session token, so it must

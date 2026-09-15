@@ -18,7 +18,7 @@ const EMPTY: DashboardSalesResponse = {
   granularity: 'daily',
   productType: 'all',
   currency: 'GEL',
-  kpis: { grossSales: 0, netSales: 0, refunded: 0, avgSale: 0 },
+  kpis: { netSales: 0, refunded: 0, avgSale: 0 },
   revenueOverTime: [],
   salesVsRefunds: [],
   byPaymentMethod: [],

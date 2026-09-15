@@ -29,7 +29,7 @@ import {
   zonedRelativeDay,
 } from '@/src/components/classes/date-utils';
 
-export const metadata: Metadata = { title: 'Home - FormaCore' };
+export const metadata: Metadata = { title: 'Home' };
 
 /** This is the signed-in member's own dashboard — always render per request. */
 export const dynamic = 'force-dynamic';

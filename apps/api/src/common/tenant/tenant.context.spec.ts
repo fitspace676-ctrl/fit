@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { InternalServerErrorException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Role } from '@fit/db';
 import { TenantContext, tenantStorage, type TenantState } from './tenant.context';
+
+function catchError(read: () => unknown): unknown {
+  try {
+    read();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
 
 function state(overrides: Partial<TenantState> = {}): TenantState {
   return {
@@ -31,13 +40,21 @@ describe('TenantContext', () => {
     expect(ctx.role).toBeUndefined();
   });
 
-  it('throws when gymId is read outside a tenant scope', () => {
-    expect(() => ctx.gymId).toThrow(InternalServerErrorException);
+  // A public route on a host naming no gym (app.<root>, the API's own host): the
+  // guest cart used to answer this with a 500 INTERNAL_ERROR.
+  it('404s TENANT_REQUIRED when gymId is read outside a tenant scope', () => {
+    const error = catchError(() => ctx.gymId);
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toMatchObject({ code: 'TENANT_REQUIRED' });
   });
 
-  it('throws when gymId is read on a cross-tenant (null gym) request', () => {
+  it('403s TENANT_REQUIRED when gymId is read on a request bound to no gym', () => {
     tenantStorage.run(state({ gymId: null }), () => {
-      expect(() => ctx.gymId).toThrow(InternalServerErrorException);
+      const error = catchError(() => ctx.gymId);
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'TENANT_REQUIRED',
+      });
     });
   });
 });

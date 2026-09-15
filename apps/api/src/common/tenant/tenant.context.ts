@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@fit/db';
+import { TENANT_REQUIRED_CODE } from '@fit/types';
 
 /**
  * The per-request tenant identity established by {@link TenantMiddleware} and
@@ -56,14 +57,28 @@ export class TenantContext {
   }
 
   /**
-   * The tenant id for the current request. Throws when there is no tenant in
-   * scope (a coding error: a tenant-scoped handler ran without the middleware)
-   * or when the request is cross-tenant and therefore has no single gym.
+   * The tenant id for the current request. Throws `TENANT_REQUIRED` when there is
+   * none, as a client error rather than a `500`:
+   *
+   * - **no store** → `404`. Authenticated routes always open one (or `401`
+   *   first), so this is a public / optional-auth route — the guest cart — on a
+   *   host that names no active gym: `app.<root>`, the API's own host, a typo.
+   * - **a store with no gym** → `403`, the answer {@link TenantGuard} gives: a
+   *   session bound to no gym, or a cross-tenant request with no single gym.
    */
   get gymId(): string {
     const state = this.current;
-    if (!state || state.gymId === null) {
-      throw new InternalServerErrorException('No tenant in scope for this request');
+    if (!state) {
+      throw new NotFoundException({
+        message: 'No gym is associated with this host',
+        code: TENANT_REQUIRED_CODE,
+      });
+    }
+    if (state.gymId === null) {
+      throw new ForbiddenException({
+        message: 'No tenant is associated with this request',
+        code: TENANT_REQUIRED_CODE,
+      });
     }
     return state.gymId;
   }

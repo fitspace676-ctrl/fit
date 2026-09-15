@@ -208,6 +208,7 @@ function classInstance(overrides: Partial<ClassInstanceCard> = {}): ClassInstanc
   return {
     id: 'ci_1',
     title: 'Morning Spin',
+    description: '',
     startsAt: new Date(Date.now() + 2 * 3_600_000).toISOString(),
     endsAt: new Date(Date.now() + 2 * 3_600_000 + 45 * 60_000).toISOString(),
     trainerName: 'Nino Beridze',

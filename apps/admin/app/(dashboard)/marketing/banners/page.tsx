@@ -16,7 +16,7 @@ import { MarketingTabs } from '../marketing-tabs';
 import { BannersView } from './banners-view';
 
 export const metadata: Metadata = {
-  title: 'Banners - FormaCore Admin',
+  title: 'Banners',
   description: 'Author the promotional carousel on the member app’s home screen.',
 };
 

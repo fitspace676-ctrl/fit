@@ -6,6 +6,7 @@ import {
   type GetAdminTrainerResponse,
   type GetTrainerAvailabilityResponse,
   type ListAdminTrainersResponse,
+  type ListTrainerClientsResponse,
   type SetTrainerAvailabilityData,
   type SetTrainerAvailabilityResponse,
 } from '@fit/types';
@@ -60,6 +61,9 @@ function setup() {
   const setAvailability = vi.fn<
     (id: string, input: SetTrainerAvailabilityData) => Promise<SetTrainerAvailabilityResponse>
   >(() => Promise.resolve(emptyWeek()));
+  const listClients = vi.fn<() => Promise<ListTrainerClientsResponse>>(() =>
+    Promise.resolve({ clients: [], totalSessions: 0 }),
+  );
   const service = {
     listTrainers,
     getTrainer,
@@ -67,6 +71,7 @@ function setup() {
     updateTrainer,
     getAvailability,
     setAvailability,
+    listClients,
   } as unknown as AdminTrainersService;
   return {
     controller: new AdminTrainersController(service),
@@ -76,6 +81,7 @@ function setup() {
     updateTrainer,
     getAvailability,
     setAvailability,
+    listClients,
   };
 }
 
@@ -221,6 +227,15 @@ describe('AdminTrainersController', () => {
 
       expect(error).toBeInstanceOf(BadRequestException);
       expect(ctx.setAvailability).not.toHaveBeenCalled();
+    });
+  });
+  describe('GET /admin/trainers/:id/clients', () => {
+    it('delegates to the service with the path id', async () => {
+      ctx = setup();
+
+      await ctx.controller.listClients('t-1');
+
+      expect(ctx.listClients).toHaveBeenCalledWith('t-1');
     });
   });
 });

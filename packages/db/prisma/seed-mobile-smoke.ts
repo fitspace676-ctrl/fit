@@ -10,6 +10,10 @@
 // run on top of an already-seeded database.
 
 import { prisma } from '../index';
+import { exitIfUnsafeSeedTarget } from './seed-guard';
+
+// Never write these public fixtures into a production database.
+exitIfUnsafeSeedTarget('seed-mobile-smoke');
 
 const SMOKE_PRODUCT_NAME = 'Smoke Test Water Bottle';
 

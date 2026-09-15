@@ -63,7 +63,7 @@ const styles = stylex.create({
 });
 
 export const metadata: Metadata = {
-  title: 'Book a session - FormaCore',
+  title: 'Book a session',
   description: 'Pick a free slot and book your session.',
 };
 

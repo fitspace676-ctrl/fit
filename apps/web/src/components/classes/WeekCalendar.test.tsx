@@ -45,6 +45,7 @@ function card(over: Partial<ClassInstanceCard> = {}): ClassInstanceCard {
     category: 'Yoga',
     color: '#22c55e',
     imageUrl: null,
+    description: '',
     ...over,
   };
 }

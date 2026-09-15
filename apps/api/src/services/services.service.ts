@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, ServiceStatus } from '@fit/db';
-import type {
-  ListServicesQuery,
-  ListServicesResponse,
-  ServiceCard,
-  ServiceSchedule,
-} from '@fit/types';
+import type { ListServicesQuery, ListServicesResponse, ServiceCard } from '@fit/types';
 import { staffAtLocation } from '../common/location-filter.util';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -19,7 +14,7 @@ const CARD_SELECT = {
   currency: true,
   durationMinutes: true,
   coverUrl: true,
-  schedule: true,
+  category: { select: { name: true } },
   staff: {
     select: {
       id: true,
@@ -71,7 +66,7 @@ function toCard(row: CardRecord): ServiceCard {
     currency: row.currency,
     durationMinutes: row.durationMinutes,
     coverUrl: row.coverUrl,
-    schedule: (row.schedule as ServiceSchedule | null) ?? null,
+    category: row.category?.name ?? null,
     staff: {
       id: row.staff.id,
       name: scoped || row.staff.user.name || 'Staff member',

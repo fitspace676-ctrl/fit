@@ -31,6 +31,15 @@ const styles = stylex.create({
   factIcon: { width: '1rem', height: '1rem', color: 'var(--color-text-secondary)', flexShrink: 0 },
   price: { fontFamily: 'var(--font-family-code)', fontWeight: 700 },
   hint: { margin: 0, fontSize: '0.8125rem', color: 'var(--color-text-secondary)' },
+  // The service in its own words, as on its booking page: what the member is
+  // about to book, read here where they decide.
+  description: {
+    margin: 0,
+    whiteSpace: 'pre-line',
+    fontSize: '0.875rem',
+    lineHeight: 1.7,
+    color: 'var(--color-text-secondary)',
+  },
   done: { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
   invoice: {
     display: 'flex',
@@ -204,6 +213,9 @@ export function SlotBookingModal({
     >
       <div {...stylex.props(styles.done)}>
         {facts}
+        {service.description ? (
+          <p {...stylex.props(styles.description)}>{service.description}</p>
+        ) : null}
         <p {...stylex.props(styles.hint)}>{t('invoiceHint')}</p>
         {phase.error ? <Banner tone="error">{phase.error}</Banner> : null}
       </div>

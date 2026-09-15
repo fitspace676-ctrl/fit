@@ -1,30 +1,22 @@
-// One service in the catalogue, with a schedule that expands under it.
+// One service in the catalogue.
 //
 // Ported from `apps/web/src/components/services/ServiceCard.tsx`. Copy family:
 // the top-level `services` namespace (D10 — there is no `member.services`).
 //
-// TWO THINGS THAT LOOK LIKE STYLE AND ARE NOT:
+// The "when it runs" disclosure that used to expand under the card is gone, as it
+// is on web: a service has no schedule, its slots are opened one by one and picked
+// on the booking screen.
 //
-//   1. The card is NOT one big pressable. It carries two controls — the
-//      schedule disclosure and "Book a session" — and a card that is itself a
-//      button containing two buttons gives a screen-reader user three stops
-//      that do different things and no way to tell which is which. The same
-//      rule `PersonRow` states in its own header.
-//
-//   2. The schedule disclosure states its own next action IN ITS LABEL —
-//      "When it runs" / "Hide dates", which the catalogue carries as two
-//      separate strings for exactly this. `Button` takes no
-//      `accessibilityState`, so the label IS the state here; the panel appearing
-//      directly beneath a control whose label just changed is what a screen
-//      reader announces. (An `expanded` state on `Button` is a `ui-mobile`
-//      change and is flagged in C3b's report rather than forked locally.)
+// The card is NOT one big pressable. It carries a "Book a session" control, and a
+// card that is itself a button containing a button gives a screen-reader user two
+// stops that do different things and no way to tell which is which. The same rule
+// `PersonRow` states in its own header.
 
 import { View } from 'react-native';
 import type { ServiceCard as ServiceCardModel } from '@fit/types';
 import { Avatar, Button, Heading, Money, Pill, Surface, Text, spacing } from '@fit/ui-mobile';
 
 import { formatMoney } from './money';
-import { ServiceScheduleBlock } from './service-schedule';
 import { trainerInitials } from '../trainers/trainer-filters';
 import { useI18n } from '../../providers/I18nProvider';
 
@@ -33,12 +25,7 @@ const CARD_AVATAR = 48;
 
 export interface ServiceCardBlockProps {
   service: ServiceCardModel;
-  /** Is this card's schedule panel open? At most one per screen — see the list. */
-  expanded: boolean;
-  onToggle: () => void;
   onOpen: () => void;
-  /** `YYYY-MM-DD` in the device's calendar. Injected so tests can pin it. */
-  today?: string;
 }
 
 /**
@@ -58,13 +45,7 @@ export function serviceTitle(
   return service.type === 'PERSONAL_TRAINING' ? ptTitle(service.staff.name) : service.name;
 }
 
-export function ServiceCardBlock({
-  service,
-  expanded,
-  onToggle,
-  onOpen,
-  today,
-}: ServiceCardBlockProps) {
+export function ServiceCardBlock({ service, onOpen }: ServiceCardBlockProps) {
   const { t, locale } = useI18n();
 
   const title = serviceTitle(service, (staff) => t('services.ptTitle', { staff }));
@@ -119,23 +100,6 @@ export function ServiceCardBlock({
             {t('services.card.perSession')}
           </Text>
         </View>
-
-        <Button
-          label={expanded ? t('services.card.hideSchedule') : t('services.card.showSchedule')}
-          variant="secondary"
-          size="md"
-          icon="clock"
-          onPress={onToggle}
-          testID={`service-schedule-toggle-${service.id}`}
-        />
-
-        {expanded ? (
-          <ServiceScheduleBlock
-            schedule={service.schedule}
-            {...(today !== undefined ? { today } : {})}
-            testID={`service-schedule-${service.id}`}
-          />
-        ) : null}
 
         <Button
           label={t('services.card.bookSession')}

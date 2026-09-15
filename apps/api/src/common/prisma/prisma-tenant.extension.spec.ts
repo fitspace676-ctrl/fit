@@ -388,3 +388,12 @@ describe('out-of-request callers of the newly scoped models', () => {
     ).toBe(args);
   });
 });
+
+describe('RefreshToken — a gymId that is a pin, not a tenant key', () => {
+  it('stays out of the scoped models, so refresh (with no tenant in scope) keeps working', () => {
+    expect(TENANT_SCOPED_MODELS.has('RefreshToken')).toBe(false);
+    expect(
+      scopeArgs('RefreshToken', 'findUnique', { where: { tokenHash: 'h' } }, undefined),
+    ).toEqual({ where: { tokenHash: 'h' } });
+  });
+});

@@ -10,14 +10,14 @@ import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 /** The selectable invoice types and their human labels, in display order. */
 export const INVOICE_TYPES: ReadonlyArray<{ value: InvoiceType; label: string }> = [
   { value: 'MEMBERSHIP', label: 'Membership' },
-  { value: 'PERSONAL_TRAINING', label: 'Personal training' },
+  { value: 'PERSONAL_TRAINING', label: 'Personal session' },
   { value: 'CLASS', label: 'Class' },
   { value: 'PRODUCT', label: 'Product' },
   { value: 'SERVICE', label: 'Service' },
   { value: 'OTHER', label: 'Other' },
 ];
 
-/** The human label for an invoice type, e.g. `Personal training`. */
+/** The human label for an invoice type, e.g. `Personal session`. */
 export function invoiceTypeLabel(type: InvoiceType): string {
   return INVOICE_TYPES.find((entry) => entry.value === type)?.label ?? type;
 }
