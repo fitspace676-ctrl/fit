@@ -7,6 +7,7 @@
 // **httpOnly** cookies the Next.js middleware / `getServerSession()` read. The
 // token therefore never lives anywhere client JS can read it.
 
+import type { ResetPasswordResponse } from '@fit/types';
 import { extractGymSlug } from '@fit/utils';
 import { browserTenantHeaders } from './tenant-host';
 
@@ -188,12 +189,17 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
 
 /**
  * Complete a password reset. POSTs the emailed `token` plus the new `password`
- * to `POST /auth/reset-password`; the API sets the new password, revokes all
- * existing sessions, and issues a fresh {@link TokenPair}, which we persist
- * before returning (the caller walks away signed in). Throws with the API's
- * error message on a non-2xx response.
+ * to `POST /auth/reset-password`, naming this page's host in `x-tenant-host`; the
+ * API sets the new password and revokes all existing sessions. On a gym host it
+ * issues a session bound to that gym only when the account is an active member
+ * there — `sessionIssued: false` otherwise, and the caller sends the user to sign
+ * in. An issued {@link TokenPair} is persisted before returning. Throws with the
+ * API's error message on a non-2xx response.
  */
-export async function resetPassword(token: string, password: string): Promise<TokenPair> {
+export async function resetPassword(
+  token: string,
+  password: string,
+): Promise<ResetPasswordResponse> {
   const response = await fetch(`${API_URL}/auth/reset-password`, {
     method: 'POST',
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
@@ -205,9 +211,11 @@ export async function resetPassword(token: string, password: string): Promise<To
     throw new Error(detail?.message ?? `Password reset failed (${response.status})`);
   }
 
-  const tokens = (await response.json()) as TokenPair;
-  await storeTokens(tokens);
-  return tokens;
+  const result = (await response.json()) as ResetPasswordResponse;
+  if (result.sessionIssued) {
+    await storeTokens({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+  }
+  return result;
 }
 
 /**

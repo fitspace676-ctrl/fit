@@ -59,6 +59,9 @@ export function CredentialsLoginForm() {
   // redeems the invite onto it. `inviteError` flags an invalid / expired link.
   const inviteToken = searchParams.get('inviteToken') ?? undefined;
   const inviteError = searchParams.get('inviteError');
+  // Set by the reset form when the new password was saved but no session could be
+  // issued on this gym (`sessionIssued: false`).
+  const resetDone = searchParams.get('reset') === 'done';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -83,6 +86,7 @@ export function CredentialsLoginForm() {
   return (
     <Form onSubmit={onSubmit}>
       {error ? <Banner tone="error">{error}</Banner> : null}
+      {resetDone && !error ? <Banner tone="success">{t('reset.done')}</Banner> : null}
 
       <Field
         label={t('fields.email')}

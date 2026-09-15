@@ -429,6 +429,14 @@ option **B** (wildcard, Vercel Pro) is what is live:
   get the override. The staff console's "forgot password?" opens the same host's
   `/member/forgot-password`; the reset signs them in and `postLoginPath` sends staff
   to `/admin`.
+- **A reset's session stays on the host it was completed on.** `POST /auth/reset-password`
+  reads the tenant host like `POST /auth/refresh`. The password is written (and every
+  session revoked) first; then, on `<slug>.<root>`, the new session binds to that gym
+  only when the account is an active member of it (gym active too). Otherwise no session
+  is issued — `{ ok: true, sessionIssued: false }` (`ResetPasswordResponse` in
+  `packages/types/src/auth.ts`) — and the web form sends them to
+  `/member/login?reset=done`, never onto their primary gym. A tenant-less host
+  (`app.<root>`, the mobile app) keeps the primary-gym session.
 - **Staff-invite redirects land on the inviting gym.** The mailed link still points at
   the API (`GET /auth/accept-invite`); its 302 now goes to
   `https://<slug>.<root>/member/{register,login}?inviteToken=…`, so the session the

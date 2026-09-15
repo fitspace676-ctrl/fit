@@ -37,6 +37,7 @@ import type {
   RegisterInput,
   RegisterResponse,
   ResetPasswordInput,
+  ResetPasswordResponse,
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
@@ -673,8 +674,19 @@ export class AuthService {
    * every existing session is revoked before the new one is issued, so a reset
    * cuts any session an attacker may hold — the whole point of resetting a
    * possibly-compromised password.
+   *
+   * The session is scoped by `tenantSlug`, the host the reset was completed on.
+   * On a gym host it binds to *that* gym, and only when the account holds an
+   * active membership in it (in an active gym); otherwise the password still
+   * changes but no session is issued (`sessionIssued: false`) — never one on the
+   * primary gym, which would put a `riverside` visitor on `downtown`. Scope is
+   * resolved after the write, so an unusable membership cannot leave the
+   * password unchanged. A tenant-less host keeps the primary-gym fallback.
    */
-  async resetPassword(input: ResetPasswordInput): Promise<TokenPair> {
+  async resetPassword(
+    input: ResetPasswordInput,
+    tenantSlug?: string | null,
+  ): Promise<ResetPasswordResponse> {
     const key = resetKey(input.token);
     const userId = await this.redis.client.get(key);
     if (!userId) {
@@ -712,7 +724,38 @@ export class AuthService {
     // logs out all other devices (including an attacker's) but the caller — who
     // just proved inbox control — walks away signed in.
     await this.tokens.revokeAllForUser(userId);
-    return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId));
+
+    const scope = tenantSlug
+      ? await this.resetHostScope(userId, tenantSlug)
+      : await this.resolveSessionScope(userId);
+    if (!scope) {
+      return { ok: true, sessionIssued: false };
+    }
+    return { ...(await this.tokens.issueTokenPair(userId, scope)), sessionIssued: true };
+  }
+
+  /**
+   * The session a reset completed on `gymSlug`'s host may carry: that gym's scope
+   * when the account is an active member of it (and the gym is active), else
+   * `null`. Checked up front so {@link resolveSessionScope} is never left to fall
+   * back to the primary gym or to refuse an invited / suspended membership; the
+   * final slug comparison also turns away a platform super-admin, whose scope is
+   * tenant-less and does not belong on a gym host.
+   */
+  private async resetHostScope(userId: string, gymSlug: string): Promise<SessionClaims | null> {
+    const membership = await this.prisma.client.gymMember.findFirst({
+      where: {
+        userId,
+        status: GymMemberStatus.ACTIVE,
+        gym: { slug: gymSlug, status: GymStatus.ACTIVE },
+      },
+      select: { id: true },
+    });
+    if (!membership) {
+      return null;
+    }
+    const scope = await this.resolveSessionScope(userId, gymSlug);
+    return scope.gymSlug === gymSlug ? scope : null;
   }
 
   /**
