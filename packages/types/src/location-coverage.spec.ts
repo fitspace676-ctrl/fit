@@ -37,17 +37,20 @@ const LOCATION_EXEMPT: Record<string, string> = {
     'a Review has no branch; the moderation queue is per trainer, by path',
   listPublicBannersQuerySchema:
     'Banner has no branch column and no roadmap stage gives it one; one gym-wide carousel',
+  listCampaignsQuerySchema:
+    'Campaign has no branch column on purpose (D5): a campaign is sent to people, not offered at a branch — a branch predicate belongs in the audience criteria, a separate change',
+  listAutomationRulesQuerySchema:
+    'AutomationRule has no branch column on purpose (D5): its reach is the entity scan, and a branch predicate there is targeting work, not a list filter',
 };
 
-// PENDING: needs the filter, tracked. Each of these lists rows that do reach a
-// branch, so today it fails open. They are here only to keep the suite green while
-// the gaps are open — close one by adding `locationId` and deleting its line.
-const LOCATION_PENDING: Record<string, string> = {
-  listCampaignsQuerySchema:
-    'GET /marketing/campaigns — Stage 7 exclusivity; Campaign has no column yet',
-  listAutomationRulesQuerySchema:
-    'GET /automation/rules — Stage 7 exclusivity; AutomationRule has no column yet',
-};
+// PENDING: needs the filter, tracked. A schema listed here lists rows that do reach
+// a branch, so today it fails open; the entry only keeps the suite green while the
+// gap is open — close one by adding `locationId` and deleting its line.
+//
+// Empty since the multi-branch roadmap closed: every list query now takes a branch
+// or has a reasoned place on LOCATION_EXEMPT. Keep the list, so the next gap is
+// recorded here rather than excused on the exempt list.
+const LOCATION_PENDING: Record<string, string> = {};
 
 const COVERED_NAME = /^(list\w*|dashboard\w*|report\w*)QuerySchema$/;
 
