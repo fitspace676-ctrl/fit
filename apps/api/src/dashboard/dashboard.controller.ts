@@ -160,10 +160,10 @@ export class DashboardController {
    *
    * The granularity scopes the WHOLE response, which is why the tab is one round
    * trip: a partial refresh could leave two cards describing different windows.
-   * `locationId` narrows every class and seat figure to one branch; only
-   * `ptSessionsOverTime` stays gym-wide, because `PtSession` has no branch until
-   * Stage 6. The Zod schema `.catch`es an unknown value to the default rather than
-   * raising a 400.
+   * `locationId` narrows every figure to one branch, `ptSessionsOverTime` included:
+   * `PtSession.locationId` exists since Stage 6 and {@link DashboardClassesService}
+   * filters on it. The Zod schema `.catch`es an unknown value to the default rather
+   * than raising a 400.
    */
   @Get('classes')
   @HttpCode(HttpStatus.OK)
