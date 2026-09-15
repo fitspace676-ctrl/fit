@@ -1,6 +1,10 @@
 # Restore the report branch filter onto the 43-report catalogue
 
-**Status: OPEN. `feat/multi-branch-location-filter` must not merge until this closes.**
+**Status: CLOSED (2026-09-15).** Landed in `22b4bfd5` (catalogue), `1d30d5c7`
+(drill-downs), `182728e1` (Reports screens) and `69036ff5` (branch-restricted
+operators). The merge blocker this file recorded is gone. The outcome is under
+[How it closed](#how-it-closed); everything above that heading is the record of
+the problem as it stood.
 
 ## What happened
 
@@ -18,11 +22,11 @@ Merging `main` here put 43 conflict hunks in `reports.service.ts` alone, in meth
 `#325` had largely rewritten. The merge took **main's** version of the reporting
 cluster wholesale, which is why this file exists.
 
-## What is currently broken
+## What was broken
 
-`ReportQuery.locationId` still parses, still rides the URL, and both export routes
-still forward it. **The service ignores it.** So a console pinned to one branch
-shows, and downloads, gym-wide figures — with no caveat saying so. That is worse
+`ReportQuery.locationId` still parsed, still rode the URL, and both export routes
+still forwarded it. **The service ignored it.** So a console pinned to one branch
+showed, and downloaded, gym-wide figures — with no caveat saying so. That is worse
 than an unfiltered report, because it reads as an answer about the branch.
 
 ## What was removed, and where it is
@@ -40,7 +44,7 @@ Everything below is preserved verbatim at tag `backup/pre-main-merge` (commit
 
 ## What survived the merge
 
-Do not rebuild these — they are already in place:
+These were already in place and were not rebuilt:
 
 - `locationId` on `reportQuerySchema` / `reportExportQuerySchema`, and on
   `reportDrilldownQuerySchema` through it (`packages/types/src/reports.ts`).
@@ -52,7 +56,7 @@ Do not rebuild these — they are already in place:
 - `atLocation` / `memberAtLocation` and the exemption register in
   `apps/api/src/common/location-filter.util.ts`.
 
-## The work
+## The work, as planned
 
 Re-decide the attribution for each report in the **new** catalogue and apply it.
 The five attributions, and the rule that decides between them, are unchanged:
@@ -86,3 +90,52 @@ Two rules govern the edges, and they matter more than the list:
    not filtering — an empty table reads as "this branch had no activity".
 
 Reports new in `#325` have no prior decision on record and need one made.
+
+## How it closed
+
+**The catalogue it closed against is 41 keys** (`REPORT_KEYS` in
+`packages/types/src/reports.ts`), not the 43 this file was opened for.
+`ReportsService.computeRows` resolves the branch once — `isGymWideReport(key) ?
+undefined : requested` — so a gym-wide report never receives it, and an edit inside
+its method cannot start filtering it on a proxy by accident.
+
+Coaching-backed was widened to **delivery-backed** on the way: the new catalogue has
+reports about shifts, stock movements and PT sales, and all of them follow the same
+rule — the branch where the hour, the shift or the movement happened.
+
+| Attribution     | Read                                                                                                                      | Reports                                                                                                                                                                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Order-backed    | `Order` / `Payment` / `Refund.locationId`                                                                                 | `sales-summary`, `sales-by-payment-method`, `plan-performance`, `sales-by-staff`, `refunds-detail`, `pos-transaction-log`, `sales-transactions`, `daily-reconciliation`, `revenue-by-channel`, `revenue-by-location`, `revenue-by-payment-method`, `refunds-accounting`, `product-sales`, `product-sales-detail` |
+| Both, apart     | takings on `Payment` / `Refund`; MRR through `Subscription.member`                                                        | `revenue-summary` — the two rules in separate columns, never added together                                                                                                                                                                                                                                      |
+| Member-backed   | `GymMember.locationId`; `Subscription` / `CreditPack` through `member`; `Invoice.locationId` frozen at issue              | `membership-movement`, `retention-and-churn`, `members-at-risk`, `expiring-memberships`, `member-roster`, `upcoming-occasions`, `projected-revenue`, `credit-usage`, `outstanding-invoices`                                                                                                                      |
+| Visit-backed    | `CheckIn.locationId`                                                                                                      | `member-check-in-log`                                                                                                                                                                                                                                                                                            |
+| Class-backed    | `ClassInstance.locationId`, directly or through the booking's instance                                                    | `attendance-by-class`, `class-utilization`, `waitlist-demand`, `class-cancellations`, `no-show-rate`                                                                                                                                                                                                             |
+| Delivery-backed | `PtSession` / `ServiceSession` / `ClassInstance` / `ShiftSlot` / `StockMovement.locationId`; `ProductStock` for the shelf | `pt-sessions`, `trainer-activity`, `trainer-activity-detail`, `trainer-performance`, `trainer-sales`, `trainer-sales-detail`, `staff-schedule`, `stock-movements`, `stock-inventory`                                                                                                                             |
+| Gym-wide        | —                                                                                                                         | `discounts-and-promotions`, `audit-log` (`GYM_WIDE_REPORT_KEYS`)                                                                                                                                                                                                                                                 |
+
+15 + 9 + 1 + 5 + 9 + 2 = 41.
+
+**Trainer-performance is no longer the counter-example of rule 1.** Stage 6 gave
+`PtSession` a branch, so both halves of its row take the same equality and the
+ranking is one population again. `trainer-sales` does read two models — the package
+sale off its `Order`, the booked session off its `ServiceSession` — but each line is
+one sale and is attributed on its own row. Nothing adds the two.
+
+**The gym-wide set has one list, shared by both sides.** `GYM_WIDE_REPORT_KEYS` in
+`@fit/types` is what the service reads to withhold the branch, what
+`apps/admin/app/(dashboard)/reports/branch-scope.ts` re-exports as `GYM_WIDE_REPORTS`
+for the "not split by branch" chip, and what the specs pin to exactly
+`['discounts-and-promotions', 'audit-log']`.
+
+**Drill-downs (`1d30d5c7`).** All eight metrics narrow again — `GYM_WIDE_DRILLDOWNS`
+is empty. `staff`'s `rating` column is the one blind column
+(`GYM_WIDE_DRILLDOWN_COLUMNS`): a `Review` has no branch.
+
+**Screens (`182728e1`).** The catalogue and drill-down pages send the active branch
+and mark the two gym-wide reports while a branch is selected.
+
+**Branch-restricted operators (`69036ff5`).** A role with `branchScope: 'assigned'`
+has no gym-wide view, and these two reports cannot be narrowed. So the API drops them
+from that operator's catalogue and answers a preview or export with
+`403 BRANCH_FORBIDDEN` (`reports.controller.ts`), and the console hides the cards
+(`reportsWithinBranchAccess`).

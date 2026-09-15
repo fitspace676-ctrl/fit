@@ -208,6 +208,23 @@
  * | `AuditLog` | an entry names an actor and a polymorphic target id, never a place — and most of it is the platform operator acting on the gym as a whole. The `audit-log` report is gym-wide for this reason (`GYM_WIDE_REPORT_KEYS` in `@fit/types`, beside `discounts-and-promotions` for the `PromoRedemption` row above) | — |
  * | `Trainer.availability` | a weekly JSON document with no branch dimension at all. The ROSTER filters (through {@link staffAtLocation}); the availability inside a filtered row is still the coach's whole week, so a utilisation rate under a branch filter would divide one branch's delivered minutes by every branch's availability | — |
  *
+ * At the level of endpoints and reports, those rows are exactly what is left of the
+ * roadmap's exemption register, and the two must stay in step:
+ *
+ * | Surface | Behaviour | Model row above |
+ * |---|---|---|
+ * | Reports `discounts-and-promotions` | gym-wide (`GYM_WIDE_REPORT_KEYS`) | `PromoRedemption` |
+ * | Reports `audit-log` | gym-wide (`GYM_WIDE_REPORT_KEYS`) | `AuditLog` |
+ * | Drill-down `staff` — `rating` column | never narrows | `Review` |
+ * | `GET /dashboard/staff` — `utilizationRate` (KPI and per trainer) | `null` under a branch filter | `Trainer.availability` |
+ * | `GET /admin/reports` (catalogue) | takes no branch — which reports exist does not change with it | — |
+ *
+ * Everything the register used to hold beyond that now filters: `GET /dashboard/staff`
+ * (its other five reads), `ptSessionsOverTime` and the `pt-sessions` /
+ * `trainer-performance` reports since Stage 6, and `GET /admin/class-types` since
+ * Stage 7. `Campaign` and `AutomationRule` lists take no branch by decision, argued
+ * in the Stage 7 section above.
+ *
  * `ClassType` left that table in Stage 7 — see {@link availableAtLocation}, which
  * is what makes its branch param safe to reintroduce after Stage 1 removed it.
  *

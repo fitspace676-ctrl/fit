@@ -5,11 +5,11 @@ PR #327-ის (`feat/multi-branch-location-filter`) production-ზე გაშ
 აღწერილია [`ROLLBACK.md`](../../ROLLBACK.md)-ში; ეს დოკუმენტი მხოლოდ ამ release-ის
 სპეციფიკას ამატებს.
 
-> **მოკლედ:** merge-ამდე ხელით `pg_dump` (CI snapshot prod-ზე არ ეშვება — §6.1).
-> merge-ის შემდეგ Railway API container-ის startup-ზე 8 migration გაედება (წამები —
-> prod-ის ცხრილები პატარაა). შემდეგ §4-ის SQL, smoke და stock-take. `downtown`-ზე
-> default ფილიალი **Rustaveli Branch** გახდება, თუმცა მისი რეალური data **Main
-> Floor**-ზეა — ეს merge-ამდე უნდა გადაწყდეს (§2.3).
+> **მოკლედ:** merge-ამდე ხელით `pg_dump` (CI snapshot prod-ზე არ ეშვება — §6.1) და
+> §7-ის GO/NO-GO. merge-ის შემდეგ Railway API container-ის startup-ზე 9 migration
+> გაედება (წამები — prod-ის ცხრილები პატარაა). შემდეგ §4-ის SQL და smoke.
+> `downtown`-ზე default ფილიალი **Rustaveli Branch** გახდება და ასე რჩება (§2.3 —
+> გადაწყდა); stock-take და roster review optional-ია (§3).
 
 ქვემოთ prod-ის ყველა ციფრი read-only query-ებიდანაა, 2026-09-15, migration-ამდე.
 
@@ -19,18 +19,20 @@ PR #327-ის (`feat/multi-branch-location-filter`) production-ზე გაშ
 
 ### 1.1 რა არის prod-ზე
 
-`prisma migrate status` prod-ის წინააღმდეგ (2026-09-15) — **8 pending**:
+`prisma migrate status` prod-ის წინააღმდეგ (2026-09-15) — **9 pending** (9-ე
+status-ის შემდეგ დაემატა, `1cbcda86`):
 
-| #   | migration                                          | წყარო                  |
-| --- | -------------------------------------------------- | ---------------------- |
-| 1   | `20260830120000_location_default_branch_backfill`  | #327                   |
-| 2   | `20260830130000_gym_member_home_branch`            | #327                   |
-| 3   | `20260831120000_check_in_location_branch`          | #327                   |
-| 4   | `20260831130000_product_stock_per_branch`          | #327                   |
-| 5   | `20260831140000_money_location_branch`             | #327                   |
-| 6   | `20260901120000_people_scheduling_location_branch` | #327                   |
-| 7   | `20260901130000_catalogue_location_exclusivity`    | #327                   |
-| 8   | `20260909195523_home_banners`                      | #327 (main-ზე არ არის) |
+| #   | migration                                                  | წყარო                  |
+| --- | ---------------------------------------------------------- | ---------------------- |
+| 1   | `20260830120000_location_default_branch_backfill`          | #327                   |
+| 2   | `20260830130000_gym_member_home_branch`                    | #327                   |
+| 3   | `20260831120000_check_in_location_branch`                  | #327                   |
+| 4   | `20260831130000_product_stock_per_branch`                  | #327                   |
+| 5   | `20260831140000_money_location_branch`                     | #327                   |
+| 6   | `20260901120000_people_scheduling_location_branch`         | #327                   |
+| 7   | `20260901130000_catalogue_location_exclusivity`            | #327                   |
+| 8   | `20260909195523_home_banners`                              | #327 (main-ზე არ არის) |
+| 9   | `20260915120000_class_template_check_in_location_not_null` | #327 (ბოლო)            |
 
 main-იდან მოსული `20260831120000_payment_method_bank_transfer`,
 `20260902160000_service_schedule_removed`, `20260902180000_service_categories` და
@@ -46,7 +48,7 @@ local ფაილებს ემთხვევა (შემოწმებ�
 
 **Lock და ხანგრძლივობა.** prod-ზე ყველა შეხებული ცხრილი 400 kB-ზე ნაკლებია
 (`refresh_tokens` 121 row, `class_instances` 170, `gym_members` 74, დანარჩენი 50-ზე
-ნაკლები), ასე რომ 8-ვე migration ერთად წამებს სჭირდება. `CONCURRENTLY` არსად არ
+ნაკლები), ასე რომ 9-ვე migration ერთად წამებს სჭირდება. `CONCURRENTLY` არსად არ
 არის. `ALTER TABLE` / `ADD CONSTRAINT` `ACCESS EXCLUSIVE` lock-ს იღებს, მაგრამ ამ
 ზომაზე — მილიწამებით.
 
@@ -60,11 +62,47 @@ local ფაილებს ემთხვევა (შემოწმებ�
 | 6   | ახალი `location_staff`; `pt_sessions` / `service_sessions` / `shift_slots.locationId`; trainers-ის index swap                           | `assignedLocationIds` → `location_staff`; ფილიალის არმქონე live staff → default; PT/service session → default; `shift_slots` — მხოლოდ ტექსტის ზუსტი ემთხვევით, **default-ზე არა** | კი                                                                | R6       |
 | 7   | 6 exclusivity სვეტი (`subscription_plans`, `package_plans`, `products`, `class_types`, `promo_codes`, `loyalty_rewards`) + 4 index swap | **backfill არ არის** — NULL = ყველა ფილიალი                                                                                                                                       | კი                                                                | R7       |
 | 8   | ახალი `banners` ცხრილი                                                                                                                  | —                                                                                                                                                                                 | არა                                                               | R8       |
+| 9   | `class_templates.locationId` და `check_ins.locationId` → `NOT NULL`; ორივე FK `SET NULL` → `RESTRICT`                                   | default-ის election ხელახლა (მხოლოდ default-ის არმქონე gym-ზე); ფილიალის არმქონე gym-ს NULL row-ებით — `Main`; late NULL → default, non-zero-ზე `NOTICE`                          | კი (`NOT EXISTS`, `IS NULL`, `IF EXISTS`)                         | R9       |
 
-**Forward-compatibility** (ძველი API ახალ schema-ზე, deploy-ის ფანჯარაში): ყველა ახალი
-სვეტი nullable-ია, `assignedLocationIds` არ იშლება, წაშლილი index-ები მხოლოდ prefix-ებია.
-ერთადერთი რეალური ნაკლი: ფანჯარაში ძველი API-ს POS sale `products.stock`-ს აკლებს,
-`product_stock`-ს — არა. ეს §4.3-ის drift query-ში გამოჩნდება.
+**Migration 9 დეტალურად.** Statement-ების რიგი განზრახაა: (1) default-ის election
+იმავე წესით, რომ migration 1-ში (ყველაზე ძველი ACTIVE, INACTIVE მხოლოდ მაშინ, როცა
+სხვა არაფერი აქვს) — gym-ს, რომ default უკვე აქვს, არ ეხება; (2) ფილიალის არმქონე gym,
+რომ NULL template ან check-in აქვს, `Main`-ს იღებს; (3) late backfill — ძველი build-ის
+ჩაწერილი NULL-ები default-ზე, და თუ რამე შეიცვალა, deploy-ის log-ში
+`late NULL backfill onto the default branch: % class_templates, % check_ins`;
+(4) `SET NOT NULL`; (5) FK-ები `RESTRICT`-ზე: row-ების ქონე ფილიალის `DELETE` FK
+error-ს იძლევა (ფილიალი INACTIVE-ზე გადაედება, არ იშლება), gym-ის `DELETE` cascade-ით
+ისევ გადის. Prod-ზე ორივე სვეტზე NULL 0-ია (§2.2), ასე რომ (3) არაფერს უნდა ეხებოდეს.
+
+**Forward-compatibility** (ძველი API ახალ schema-ზე, deploy-ის ფანჯარაში): migration
+1–8-ის ყველა ახალი სვეტი nullable-ია, `assignedLocationIds` არ იშლება, წაშლილი
+index-ები მხოლოდ prefix-ებია. ორი რეალური ნაკლი:
+
+- ფანჯარაში ძველი API-ს POS sale `products.stock`-ს აკლებს, `product_stock`-ს — არა.
+  ეს §4.3-ის drift query-ში გამოჩნდება.
+- **Check-in ფანჯარაში fail-დება.** prod-ის API (`0a4d3ac9`) `check_ins`-ს
+  `locationId`-ის გარეშე ქმნის (main-ის `apps/api/src/check-in/check-in.service.ts`).
+  Migration 9-ის `SET NOT NULL`-ის შემდეგ, ახალი container-ის healthcheck-ამდე
+  (timeout 300 s), ძველ API-ზე ყოველი check-in NOT NULL violation-ით (500) fail-დება.
+  Front desk-ს უთხარით, ამ წუთებზე check-in-ი ხელახლა სცადონ. Class template-ის create
+  main-ზეც ფილიალს მოითხოვს — ის არ ფუჭდება.
+
+### 1.3 ლოკალური idempotency check (2026-09-15)
+
+D2 thread-ის ლოკალური გაშვება, DB-ზე, სადაც main-ის migration-ები
+(`20260913180000_refresh_token_gym` ჩათვლით) უკვე applied იყო — prod-ის ფორმა. ეს
+შედეგები thread-ის ანგარიშიდანაა; ამ runbook-ის განახლებისას ხელახლა არ გაეშვა.
+
+| შემოწმება                                                               | შედეგი                          |
+| ----------------------------------------------------------------------- | ------------------------------- |
+| Out-of-order: ძველი timestamp-ის pending-ები `20260913180000`-ის შემდეგ | `migrate deploy` ყველას გაატარა |
+| Election, როცა gym-ის ყველაზე ძველი ფილიალი INACTIVE-ია                 | INACTIVE **არ** აირჩა           |
+| სხვა gym-ის ფილიალზე მიმავალი `check_ins.locationId`                    | gym-ის default-ზე გადავიდა      |
+| NULL `locationId` backfill-ის ცხრილებზე                                 | 0                               |
+| `product_stock`-ის ჯამი                                                 | = `products.stock`              |
+| მეორე `migrate deploy`                                                  | no-op                           |
+| RESTRICT (migration 9): row-ების ქონე ფილიალის `DELETE`                 | FK error                        |
+| RESTRICT (migration 9): gym-ის `DELETE`                                 | cascade გადის                   |
 
 ---
 
@@ -79,7 +117,8 @@ local ფაილებს ემთხვევა (შემოწმებ�
 | `riverside` |                  0 |                  0 |          0 |       1 |         0 |      0 |
 | `tornike`   |                  0 |                  0 |          0 |       0 |         0 |      0 |
 
-- 2+ ფილიალი მხოლოდ **`downtown`**-ს აქვს — ერთადერთი gym, სადაც stock-take საჭიროა.
+- 2+ ფილიალი მხოლოდ **`downtown`**-ს აქვს — ერთადერთი gym, სადაც stock-take-ს აზრი
+  აქვს (optional, §3).
 - `demo`, `riverside`, `tornike`-ს ფილიალი არ აქვთ → migration 1 თითოეულს `Main`-ს
   შექმნის (3 ახალი `locations` row).
 - `product_stock` და `location_staff` prod-ზე ჯერ **არ არსებობენ**.
@@ -127,23 +166,66 @@ unit და 11 თანამშრომლის roster.
 `/locations`-ზე «make default» (`POST /admin/locations/:id/make-default`) deploy-ის
 შემდეგ flag-ს გადაიტანს, **მაგრამ backfill-ით ჩაწერილ row-ებს არ გადაიტანს**, და
 migration-ის შემდეგ backfilled row-ები Rustaveli-ს ორიგინალური row-ებისგან (მაგ. 4
-class template) აღარ გამოირჩევიან. ამიტომ merge-ამდე ერთ-ერთი:
+class template) აღარ გამოირჩევიან.
 
-- **(a)** მიიღეთ, როგორცაა — deploy-ის შემდეგ stock-take და roster review (§3).
-- **(b)** merge-ამდე შეცვალეთ migration 1-ის election `downtown`-ის Main Floor-ზე
-  (კოდის ცვლილება — ამ runbook-ის scope-ის გარეთაა).
+**გადაწყვეტილება (2026-09-15): Rustaveli Branch default-ად რჩება.** `downtown` demo
+gym-ია. Main Floor და Studio A seed-ის ძველი ოთახის სახელებია: ახალ seed-ში
+(`DOWNTOWN_BRANCHES`, `packages/db/prisma/seed.ts`) ისინი `legacyName`-ებია, და default
+ფილიალი Rustaveli-ა (Rustaveli Flagship). Election-ი არ იცვლება, transfer SQL deploy-ზე
+**არ** სრულდება. Stock-take და roster review optional-ია (§3).
+
+#### Optional: თუ მოგვიანებით სხვა ფილიალი გახდება default
+
+**Write-ია, gym owner-ის ნებართვით, deploy-ისგან დამოუკიდებლად.** ძველი default-ის
+**ყველა** row-ს გადაიტანს — backfilled-ებსაც და ორიგინალებსაც (ისინი არ გამოირჩევიან),
+staff-ის base branch-ის ჩათვლით. ყოველი `UPDATE` მხოლოდ იმ row-ს ეხება, რომლის gym-ს
+`new` ფილიალი ACTIVE-ია — სხვა gym-ის id-ზე 0 row.
+
+```bash
+railway run --service "Pod Database" -- sh -c \
+  'psql "$DATABASE_PUBLIC_URL" -X -v old=<ძველი-default-id> -v new=<ახალი-id> -f transfer.sql'
+```
+
+```sql
+-- transfer.sql
+BEGIN;
+UPDATE orders t           SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE payments t         SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE refunds t          SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE invoices t         SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE check_ins t        SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE gym_members t      SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE class_templates t  SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE class_instances t  SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE pt_sessions t      SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE service_sessions t SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+UPDATE stock_movements t  SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old';
+-- product_stock: (productId, locationId) unique-ია. გადაედება მხოლოდ new-ზე row-ის
+-- არმქონე product-ი; დანარჩენ product-ებზე — recount (§3).
+UPDATE product_stock t    SET "locationId" = n.id FROM locations n WHERE n.id = :'new' AND n."gymId" = t."gymId" AND n.status = 'ACTIVE' AND t."locationId" = :'old'
+  AND NOT EXISTS (SELECT 1 FROM product_stock x WHERE x."productId" = t."productId" AND x."locationId" = n.id);
+COMMIT;
+```
+
+მერე: `/locations` → ახალი ფილიალი → «make default». SQL **არ** ეხება: `location_staff`
+(roster-ი — admin → Staff), `shift_slots` (rota — ხელით), და exclusivity სვეტებს
+(`products`, `subscription_plans`, …) — იქ `locationId` «მხოლოდ ამ ფილიალზე»-ს ნიშნავს,
+და გადატანა item-ს ფილიალს შეუცვლებდა.
 
 ---
 
 ## 3. Stock-take პროცედურა
+
+> **Optional.** `downtown` demo gym-ია — stock-take deploy-ის ბლოკერი არ არის. სანამ
+> არ გაკეთდა, ქვემოთ «რა ხდება»-ში აღწერილი ქცევა მოსალოდნელია.
 
 **ვინ:** gym-ის OWNER ან MANAGER (`inventoryAdjust` permission; ორივე role default-ზე
 `branchScope: 'all'`-ია). prod-ზე საჭიროა მხოლოდ **`downtown`**-ზე — 4 tracked product,
 ყველა variant-ის გარეშე: Coca Cola 500, ბაკურიანის წყალი 500, ენერჯი დრინქი 500,
 ზურგჩანთა 55.
 
-**როდის:** deploy-ის შემდეგ, Main Floor-ზე და Studio A-ზე **პირველ გაყიდვამდე** (ან
-default-ის გარდა ყველა ფილიალზე, თუ §2.3-ზე (b) აირჩიეთ).
+**როდის (თუ კეთდება):** deploy-ის შემდეგ, Main Floor-ზე და Studio A-ზე პირველ
+გაყიდვამდე.
 
 **რა ხდება, სანამ stock-take არ გაკეთდა:**
 
@@ -168,7 +250,8 @@ Refund non-default ფილიალზე `upsert`-ს აკეთებს �
 
 API: `POST /admin/products/:id/stock`, body `{ locationId, reason: 'RECOUNT', setTo }`.
 
-**Roster review (იმავე დღეს):** RECEPTIONIST-ს და TRAINER-ს default-ზე
+**Roster review (optional — მიღებული):** 9 TRAINER-ის default ფილიალზე დარჩენა
+მიღებულია; გადანაწილება — როცა gym-ი ამას მოითხოვს. RECEPTIONIST-ს და TRAINER-ს default-ზე
 `branchScope: 'assigned'` აქვთ. Deploy-ის შემდეგ `downtown`-ის 9 TRAINER-ი მხოლოდ
 default ფილიალზე იქნება roster-ში, და Main Floor / Studio A-ზე `403 BRANCH_FORBIDDEN`
 მიიღებს; RECEPTIONIST-ი — მხოლოდ Main Floor-ზე. თანამშრომლების ფილიალები admin →
@@ -189,7 +272,7 @@ railway run --service "Pod Database" -- sh -c \
 ### 4.1 Migration-ები
 
 ```sql
--- 8 row, ყველა finished_at-ით
+-- 9 row, ყველა finished_at-ით
 SELECT migration_name, finished_at
 FROM _prisma_migrations
 WHERE migration_name IN (
@@ -200,13 +283,20 @@ WHERE migration_name IN (
   '20260831140000_money_location_branch',
   '20260901120000_people_scheduling_location_branch',
   '20260901130000_catalogue_location_exclusivity',
-  '20260909195523_home_banners'
+  '20260909195523_home_banners',
+  '20260915120000_class_template_check_in_location_not_null'
 )
 ORDER BY migration_name;
 
 -- მოსალოდნელი: 0
 SELECT count(*) FROM _prisma_migrations
 WHERE finished_at IS NULL AND rolled_back_at IS NULL;
+
+-- migration 9: მოსალოდნელი 2 row, is_nullable = NO, confdeltype = r (RESTRICT)
+SELECT c.table_name, c.is_nullable, k.confdeltype
+FROM information_schema.columns c
+JOIN pg_constraint k ON k.conname = c.table_name || '_locationId_fkey'
+WHERE c.table_name IN ('class_templates', 'check_ins') AND c.column_name = 'locationId';
 ```
 
 ### 4.2 Default ფილიალი
@@ -294,8 +384,9 @@ Migration-ის backfill `UPDATE`-ები idempotent-ია (`IS NULL` guard)
 გაშვება უსაფრთხოა. **ეს write-ია — gym owner-ის ნებართვით:**
 
 ```sql
+-- check_ins / class_templates აქ არ არის: migration 9-ის შემდეგ NOT NULL-ია, და
+-- ფანჯარის NULL-ები migration 9-ის late backfill-მა უკვე გადაიტანა.
 BEGIN;
-UPDATE check_ins c       SET "locationId" = d.id FROM locations d WHERE d."gymId" = c."gymId" AND d."isDefault" AND c."locationId" IS NULL;
 UPDATE gym_members m     SET "locationId" = d.id FROM locations d WHERE d."gymId" = m."gymId" AND d."isDefault" AND m."locationId" IS NULL;
 UPDATE orders o          SET "locationId" = d.id FROM locations d WHERE d."gymId" = o."gymId" AND d."isDefault" AND o."locationId" IS NULL;
 UPDATE class_instances i SET "locationId" = d.id FROM locations d WHERE d."gymId" = i."gymId" AND d."isDefault" AND i."locationId" IS NULL;
@@ -333,7 +424,7 @@ multi-branch ინფორმაციას. prod-ის ამჟამი�
 deployment-ზე ტოვებს. `_prisma_migrations`-ში failed row დარჩება, და ყოველი შემდეგი
 deploy P3009-ზე შეჩერდება. Failed ფაილი შეიძლება ნაწილობრივ applied იყოს:
 
-- migration 3, 4, 6, 7 re-runnable-ია — გასწორეთ მიზეზი, მერე
+- migration 3, 4, 6, 7, 9 re-runnable-ია — გასწორეთ მიზეზი, მერე
   `prisma migrate resolve --rolled-back <name>` და redeploy;
 - migration 1, 2, 5, 8-ზე `ADD COLUMN` / `CREATE INDEX` / `CREATE TABLE` guard-ის
   გარეშეა — resolve-ამდე ხელით წაშალეთ, რაც უკვე შეიქმნა (§5.2-ის შესაბამისი block).
@@ -346,6 +437,17 @@ deploy P3009-ზე შეჩერდება. Failed ფაილი შე�
 
 ```sql
 BEGIN;
+
+-- R9 class_template / check_in NOT NULL. იკარგება: არაფერი — სვეტები nullable-ზე, FK-ები
+-- SET NULL-ზე ბრუნდებიან. check_ins-ის FK-ს R3 ისევ წაშლს.
+ALTER TABLE class_templates DROP CONSTRAINT IF EXISTS "class_templates_locationId_fkey";
+ALTER TABLE check_ins       DROP CONSTRAINT IF EXISTS "check_ins_locationId_fkey";
+ALTER TABLE class_templates ALTER COLUMN "locationId" DROP NOT NULL;
+ALTER TABLE check_ins       ALTER COLUMN "locationId" DROP NOT NULL;
+ALTER TABLE class_templates ADD CONSTRAINT "class_templates_locationId_fkey"
+  FOREIGN KEY ("locationId") REFERENCES locations(id) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE check_ins ADD CONSTRAINT "check_ins_locationId_fkey"
+  FOREIGN KEY ("locationId") REFERENCES locations(id) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- R8 home_banners. იკარგება: banner-ები.
 DROP TABLE IF EXISTS banners;
@@ -418,7 +520,8 @@ DELETE FROM _prisma_migrations WHERE migration_name IN (
   '20260831140000_money_location_branch',
   '20260901120000_people_scheduling_location_branch',
   '20260901130000_catalogue_location_exclusivity',
-  '20260909195523_home_banners'
+  '20260909195523_home_banners',
+  '20260915120000_class_template_check_in_location_not_null'
 );
 
 COMMIT;
@@ -427,7 +530,7 @@ COMMIT;
 `stock_movements.orderId`-ის repair (prod-ზე 0 row) უკან არ ბრუნდება.
 
 Down SQL-ის შემდეგ: API — **ძველი** deployment (`railway redeploy <id>`), Vercel —
-ძველი admin/web promote, და `pnpm db:status` 8 pending-ს უნდა აჩვენს.
+ძველი admin/web promote, და `pnpm db:status` 9 pending-ს უნდა აჩვენს.
 
 ---
 
@@ -435,20 +538,29 @@ Down SQL-ის შემდეგ: API — **ძველი** deployment (`rai
 
 ### 6.1 Merge-ამდე
 
-1. §2.3-ის checkpoint გადაწყვეტილია.
-2. **ხელით snapshot.** `.github/workflows/deploy.yml` prod-ზე **skip-დება**: ბოლო
-   run-ებზე (მაგ. `34946261200`, 2026-09-15) guard-ი success-ია, და snapshot / migrate /
-   deploy job-ები skipped — deploy secrets არ არის. ანუ CI snapshot არ ხდება. prod
-   Postgres 18.6-ია, local `pg_dump` 17.9 — ძველი client 18-ის server-ს არ დამპს:
+1. §2.3 — გადაწყდა: Rustaveli Branch default-ად რჩება, transfer SQL არ სრულდება.
+2. **BACKUP — merge-ამდე, ხელით.** `.github/workflows/deploy.yml` prod-ზე
+   **skip-დება**: ბოლო run-ებზე (მაგ. `34946261200`, 2026-09-15) guard-ი success-ია, და
+   snapshot / migrate / deploy job-ები skipped — deploy secrets არ არის. ანუ CI snapshot
+   არ ხდება. prod Postgres 18.6-ია, local `pg_dump` 17.9 — ძველი client 18-ის server-ს
+   არ დამპს, ასე რომ `postgresql@18`-ის client-ი საჭიროა. `PATH` მხოლოდ ამ ბრძანებებს
+   ეხება (prefix-ით, `export`-ის გარეშე). Connection string-ი `railway run`-ის შიგნით
+   რჩება — `DATABASE_URL` / `DATABASE_PUBLIC_URL`-ს ნუ `echo`-ავთ და ფაილზე ნუ წერთ:
 
    ```bash
    brew install postgresql@18
+   mkdir -p ~/fit-backups
+   export TS=$(date +%Y%m%d-%H%M%S)
    railway run --service "Pod Database" -- sh -c \
-     '/opt/homebrew/opt/postgresql@18/bin/pg_dump "$DATABASE_PUBLIC_URL" -Fc -f fit-pre-327.dump'
-   ls -lh fit-pre-327.dump   # repo-ს გარეთ შეინახეთ
+     'PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH" pg_dump "$DATABASE_PUBLIC_URL" -Fc -f "$HOME/fit-backups/prod-$TS.dump"'
+   ls -lh ~/fit-backups/prod-$TS.dump
+   PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH" pg_restore --list ~/fit-backups/prod-$TS.dump | head -20
    ```
 
-3. Pending-ის სია ისევ 8-ია:
+   ფაილი repo-ს გარეთაა (`~/fit-backups/`). `pg_restore --list` შეცდომის გარეშე უნდა
+   გაიდეს და `TABLE DATA` ჩანაწერებს უნდა აჩვენს. ფაილის სახელი და ზომა §7-ში ჩაწერეთ.
+
+3. Pending-ის სია 9-ია (§1.1):
 
    ```bash
    railway run --service "Pod Database" -- sh -c \
@@ -474,7 +586,10 @@ Down SQL-ის შემდეგ: API — **ძველი** deployment (`rai
    - `STOCK-TAKE REQUIRED — gym "…"` (downtown-ის სახელით);
    - `location_staff: gym downtown has 11 employee(s) rostered onto "Rustaveli Branch" only …`.
 
-   `check_ins` / `stock_movements` repair-ის NOTICE-ები **არ** უნდა ჩანდნენ.
+   `check_ins` / `stock_movements` repair-ის NOTICE-ები **არ** უნდა ჩანდნენ. Migration
+   9-ის `late NULL backfill onto the default branch: …`-ც არ უნდა ჩანდეს; თუ ჩანს —
+   ძველი API ფანჯარაში NULL-ებს წერდა, და migration-მა ისინი default-ზე გადაიტანა (ბაგი
+   არ არის, ციფრი ჩაწერეთ).
 
 ### 6.3 Smoke (downtown, OWNER-ის login)
 
@@ -494,6 +609,27 @@ Down SQL-ის შემდეგ: API — **ძველი** deployment (`rai
 
 ### 6.4 Deploy-ის შემდეგ
 
-1. **Stock-take** (§3) — Main Floor-ზე და Studio A-ზე პირველ sale-ამდე.
-2. **Roster review** (§3) — staff-ის ფილიალები, `shift_slots`-ის ფილიალი.
-3. §4.3-ის drift query stock-take-ის შემდეგ ისევ — 0 row.
+1. **Stock-take** (§3) — optional; თუ კეთდება, Main Floor-ზე და Studio A-ზე პირველ
+   sale-ამდე.
+2. **Roster review** (§3) — optional; staff-ის ფილიალები, `shift_slots`-ის ფილიალი.
+3. §4.3-ის drift query ისევ (stock-take-ის შემდეგაც, თუ კეთდა) — 0 row.
+
+---
+
+## 7. GO / NO-GO (merge-ამდე)
+
+ყოველი ჩანაწერი «კი» უნდა იყოს. ერთი «არა» → NO-GO, merge არ ხდება.
+
+- [ ] **CI მწვანე** PR #327-ზე: `gh pr checks 327` — ყველა `pass`.
+- [ ] **PR MERGEABLE:** `gh pr view 327 --json mergeable,mergeStateStatus` →
+      `"mergeable": "MERGEABLE"`.
+- [ ] **Backup:** `~/fit-backups/prod-<timestamp>.dump` არსებობს, ზომა 0-ზე მეტია, და
+      `pg_restore --list` შეცდომის გარეშე გადის (§6.1 ნაბიჯი 2). ფაილი: `________`,
+      ზომა: `________`.
+- [ ] **Pending migration-ები:** prod-ზე `prisma migrate status` ზუსტად §1.1-ის 9-ს
+      აჩვენს, failed / unfinished row 0 (§6.1 ნაბიჯი 3, §4.1-ის მეორე query).
+- [ ] **Rollback მზადაა:** prod-ის ამჟამინდელი API deployment-ის id ჩაწერილია (§5.1:
+      `railway deployment list --service api --json`), §5.2-ის down SQL და dump-ის
+      restore (`ROLLBACK.md` §5) ხელმისაწვდომია, ვინ რას აკეთებს — ცნობილია.
+- [ ] **დრო:** ყველაზე ნაკლები დატვირტვის საათები (§6.1 ნაბიჯი 4) — ფანჯარაში POS stock
+      drift და check-in-ის 500-ები (§1.2).

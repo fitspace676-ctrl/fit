@@ -1,8 +1,8 @@
 # Multi-Branch (Location) — Roadmap
 
-> **Status:** roadmap / architecture. Each stage below gets its own task-by-task plan doc before it is implemented. This document is the shared contract those plans are written against.
+> **Status:** implemented; this document is now the record. Stages 0–8 are in code on `feat/multi-branch-location-filter` (PR #327). The architecture below is kept as it was argued; each stage section says what landed, when, and where the code departed from the plan.
 >
-> **For agentic workers:** do not implement from this file. Implement from the per-stage plan it links to.
+> **Deploy:** `docs/runbooks/multi-branch-deploy.md`.
 
 **Goal:** Make the admin console's top-bar location switcher real. Selecting a branch filters every page to that branch; selecting "All locations" shows every branch's data together.
 
@@ -75,19 +75,32 @@ On change the switcher writes the cookie, then `router.replace` (preserving othe
 
 **The `'all'` sentinel is unified.** `top-bar.tsx` keeps `'all'`; `schedule-board.tsx`'s `''` and the API's `undefined` are normalised through `locationFilter()` at exactly one boundary. `apps/admin/lib/api.ts:566` already drops empty strings, so no query string ever carries `locationId=all`.
 
-### 2. Null attribution — backfill, do not special-case
+### 2. Null attribution — backfill, then decide per column
 
-Every existing `locationId` is nullable and most rows are null. Filtering would silently drop them and per-branch totals would not reconcile with the gym total.
+Every existing `locationId` was nullable and most rows were null. Filtering would silently drop them and per-branch totals would not reconcile with the gym total.
 
-Chosen policy: **backfill to a default branch, then require a branch on write.** Standard expand/contract:
+The plan was a standard expand/contract: elect a default branch per gym, backfill every NULL onto it, require a branch on write, and tighten every column to `NOT NULL`. The expand half landed as planned:
 
-1. `Location` gains `isDefault Boolean @default(false)`, one per gym.
+1. `Location` gained `isDefault Boolean @default(false)`, at most one per gym (partial unique `locations_gymId_default_key`).
 2. Migration elects a default per gym (oldest `ACTIVE`; creates a `"Main"` branch for a gym that has none).
-3. Every nullable `locationId` on existing rows is backfilled to that default.
-4. Write paths start requiring a branch, so no new nulls appear.
-5. Columns are tightened to `NOT NULL` in a follow-up migration, once the write paths have shipped.
+3. Existing NULLs were backfilled onto that default, stage by stage, each in its own migration.
 
-Consequence: filtering is plain equality, no `OR locationId IS NULL` anywhere, and `reports.service.ts`'s `NO_LOCATION_LABEL` bucket (`apps/api/src/reports/reports.service.ts:771`) becomes a safety net rather than a routine outcome. `dashboard.service.ts:253-257`, which folds unattributed check-ins into `areas[0]`, is deleted — it exists only to paper over the nulls.
+**The contract half was narrowed, not completed.** Only two columns became `NOT NULL`: `ClassTemplate.locationId` and `CheckIn.locationId`, in migration `20260915120000_class_template_check_in_location_not_null` (`1cbcda86`, 2026-09-15). Both write paths already required a branch — a template is created with one, and `CheckInService.recordCheckIn` resolves an unstated branch to the gym's default. The migration re-runs the default election and a late backfill first (with a `NOTICE` if it touches anything), so a NULL written by an older build cannot fail the `SET NOT NULL`. It also switches both foreign keys from `SET NULL` to `RESTRICT`: a branch with a schedule or with arrivals is retired to `INACTIVE`, never deleted, and deleting a whole gym still cascades.
+
+**Everywhere else a NULL is permanent and means something**, so tightening would be wrong rather than late:
+
+| Column                         | A NULL means                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Order` / `Payment` / `Refund` | a sale with no desk behind it — a member-app purchase, a credit pack (`credit-packs.service.ts` writes `locationId: null`), a delivery                 |
+| `Invoice`                      | stamped from the member at issue; NULL when the member had no home branch (purged, or their branch retired)                                            |
+| `PtSession` / `ServiceSession` | no branch given and an ambiguous roster — the coach is not assigned to exactly one branch (`pt-sessions.service.ts`), so nothing honest to default to  |
+| `ShiftSlot`                    | a shift is a plan; free text that named no branch of this gym was never defaulted (Stage 6)                                                            |
+| `StockMovement`                | kept nullable with the rest (listed in the `NOT NULL` migration's header)                                                                              |
+| `ClassInstance`                | historical rows were backfilled; every occurrence a template materialises carries the template's branch (`1188fe08`); the column itself stays nullable |
+| `GymMember`                    | un-homed — a self-signup at a gym with no default branch, or a home branch deleted (`onDelete: SetNull`)                                               |
+| `Lead`                         | backfilled in Stage 0, but no module in `apps/api` writes leads, so there is no write path to require a branch on                                      |
+
+Consequence for filtering, unchanged from the plan: plain equality, no `OR locationId IS NULL` anywhere. A NULL row is absent from every branch-filtered read and present in the gym-wide one, and no caller folds it into a named branch. `dashboard.service.ts`'s `areas[0]` fold-in was deleted in Stage 3.
 
 ### 3. Enforcement — explicit, not ambient
 
@@ -100,7 +113,7 @@ Location stays an **explicit query parameter**, following the one existing imple
 Two consequences to accept:
 
 - Every list endpoint needs the param added by hand. Mechanical, but ~30 sites.
-- A forgotten endpoint fails _open_ (shows all branches), not closed. Stage plans therefore carry an explicit endpoint checklist, and a lint-style test asserts every `list*QuerySchema` in `packages/types` either has `locationId` or is on a documented exemption list.
+- A forgotten endpoint fails _open_ (shows all branches), not closed. Stage plans therefore carry an explicit endpoint checklist, and `packages/types/src/location-coverage.spec.ts` (`8d34fb13`) asserts every `list*` / `dashboard*` / `report*` `QuerySchema` in `packages/types` either has `locationId` or sits on `LOCATION_EXEMPT` with a reason. Both of its lists fail when an entry goes stale. `LOCATION_PENDING` is empty.
 
 ### 4. Indexing
 
@@ -146,25 +159,30 @@ When a branch is selected, every create form defaults its location to it. In "Al
 
 Each is independently shippable and leaves the console coherent.
 
-### Stage 0 — Default branch + backfill _(no user-visible change)_
+### Stage 0 — Default branch + backfill — **DONE (2026-08-31)**
 
-Foundation everything else assumes.
+Foundation everything else assumes. Landed in `c2da85b5` as planned:
 
 - `Location.isDefault Boolean @default(false)` + partial unique per gym.
-- Migration: elect a default per gym; create `"Main"` for gyms with none.
-- Backfill existing nulls on `ClassTemplate`, `ClassInstance`, `Order`, `Lead`.
-- `LocationsService.defaultLocation(gymId)` helper.
-- Seed (`packages/db/prisma/seed.ts:526`) reworked: today's `['Main Floor', 'Studio A']` are rooms, not branches, and carry no address/hours/phone. Replace with two realistic branches so multi-branch behaviour is actually exercised in dev.
+- Migration `20260830120000_location_default_branch_backfill`: elect a default per gym; create `"Main"` for gyms with none; backfill existing nulls on `ClassTemplate`, `ClassInstance`, `Order`, `Lead`.
+- Seed reworked: `DOWNTOWN_BRANCHES` in `packages/db/prisma/seed.ts` turns the old rooms into real branches with address, phone and hours — `Main Floor` → **Rustaveli Flagship** (the default), `Studio A` → **Saburtalo Branch** (each entry keeps the old name as `legacyName`). Demo classes, members' payments and till sales are spread across the branches.
 
-**Risk:** `apps/e2e/tests/admin-core-flows.spec.ts:127` selects a location by index and its comment hardcodes "two locations"; `member-booking-checkout.spec.ts:171` relies on pickup defaulting to the first location. Both need updating with the seed.
+What came later, and why:
 
-### Stage 1 — The switcher becomes real
+- **The default is resolved in one place** (`449909a5`, 2026-09-13): `findDefaultLocationId` in `apps/api/src/locations/default-location.ts`, fronted by `LocationsService.defaultLocation(gymId)`. Check-in, members, products and order stock each used to re-query it.
+- **The default cannot be switched off (D3, `feeaf737`, 2026-09-14).** Deactivating the gym's ACTIVE default is refused with `409 LOCATION_IS_DEFAULT` — every "no branch given" path resolves to it. Moving it is an explicit act: `POST /admin/locations/:id/make-default`, for an ACTIVE branch only (`409 LOCATION_NOT_ACTIVE`); a concurrent switch loses with `409 LOCATION_DEFAULT_CONFLICT` rather than a `500`. It moves the flag, not the rows already attributed to the old default.
 
-Wires the filter end to end against the data that _already_ carries a branch. After this stage the switcher visibly works on a meaningful subset, and the plumbing every later stage plugs into exists.
+**Risk (recorded before implementation):** `apps/e2e/tests/admin-core-flows.spec.ts:127` selects a location by index and its comment hardcodes "two locations"; `member-booking-checkout.spec.ts:171` relies on pickup defaulting to the first location. Both need updating with the seed.
+
+### Stage 1 — The switcher becomes real — **DONE (2026-08-31)**
+
+Wires the filter end to end against the data that _already_ carries a branch. Landed in `c2da85b5` as designed in §1: `apps/admin/lib/active-location.ts` (cookie as the ambient source, `?locationId=` as the override, read by pages through `getActiveLocationId(searchParams)`), the `useActiveLocation` provider in `apps/admin/components/active-location.tsx`, and `top-bar.tsx` off `localStorage`, covered by `top-bar.test.tsx`. Since Stage 8 the switcher offers "All locations" only to an operator who may select it (`canSelectAll`).
+
+Scope as planned:
 
 - `lib/active-location.ts`, `ActiveLocationProvider`, cookie + URL + `router.refresh()`.
 - `top-bar.tsx` rewritten off `localStorage`.
-- `locationId` added to: `listOrdersQuerySchema`, `cashReconciliationQuerySchema`, `reportQuerySchema`, `reportExportQuerySchema`, `reportDrilldownQuerySchema`, all six `dashboard*QuerySchema`, `listAdminClassTemplatesQuerySchema`. **Not** `listAdminClassTypesQuerySchema` — see the exemption register.
+- `locationId` added to: `listOrdersQuerySchema`, `cashReconciliationQuerySchema`, `reportQuerySchema`, `reportExportQuerySchema`, `reportDrilldownQuerySchema`, all six `dashboard*QuerySchema`, `listAdminClassTemplatesQuerySchema`. **Not** `listAdminClassTypesQuerySchema` — its param was removed here and came back in Stage 7, through `availableAtLocation`.
 - Pages wired: `/`, `/classes`, `/classes/schedule` (page-local control removed), `/pos/orders`, `/pos/reconciliation`, `/reports`, `/reports/[metric]` + both export routes.
 - Pages that cannot filter yet render an explicit "not split by branch" note rather than lying.
 - `revenue-by-location-card.tsx` becomes redundant when a single branch is selected — hidden in that mode, kept for "All locations".
@@ -220,36 +238,61 @@ Confirmed as real by the gym owner: each branch holds its own stock.
 
 **Bug fixed in passing:** `listLowStock` ignored `Product.lowStockThreshold` entirely and applied one flat number. The cushion is now a three-rung chain — branch → product → gym default — resolved in one place.
 
-### Stage 5 — Money attribution
+### Stage 5 — Money attribution — **DONE (2026-08-31)**
 
-- Denormalised `locationId` on `Payment`, `Refund`, `Invoice`; `Subscription.locationId` for the branch a membership belongs to.
-- Revenue/sales dashboards and reports filter on the scalar, not through `order`.
+Migration `20260831140000_money_location_branch` (`c2da85b5`).
+
+- `Payment`, `Refund` and `Invoice` gained a denormalised `locationId`: payments and refunds stamped from their order, invoices from the member's home branch at issue, with no fallback to the default. Revenue and sales dashboards and reports read the scalar through `atLocation`, served by `(gymId, locationId, createdAt)`, instead of a relation filter through `order`.
 - `/payments/invoices` filtered.
-- **Web + mobile:** `apps/mobile` accepts `locationId` but never passes it (`apps/mobile/lib/checkout.ts:31`), so every mobile purchase at a multi-branch gym is currently unattributed. Fixed here.
+- **`Subscription` got no column. The plan said it would, and that was reversed.** The gym owner was asked directly whether a member who transfers branches takes their recurring revenue with them, and said yes. So MRR, the projection, renewals and retention follow the person live through `memberAtLocation`, while money already taken stays frozen on `Invoice.locationId` where it was earned. The argument is written out in `apps/api/src/common/location-filter.util.ts` ("Two rules coexist on purpose"), so nobody "completes" it by freezing `Subscription`.
+- **Mobile.** The file this stage named (`apps/mobile/lib/checkout.ts`) no longer exists. The member app came under version control in `9d3e127d` with `apps/mobile/lib/api/checkout.ts` (`PICKUP` requires a `locationId`) and a location step in the join wizard (`components/checkout/join-state.ts`, `app/(join)/checkout.tsx`), which sends the chosen branch and picks it automatically when the gym has only one.
 
-### Stage 6 — People and scheduling
+### Stage 6 — People and scheduling — **DONE (2026-09-01)**
 
-- `Trainer.locationId`, `Service.locationId`, `PtSession.locationId`.
-- `ShiftSlot.location` (free text) replaced with a real FK.
-- `/staff`, `/trainers`, `/services`, `/classes/pt-calendar` filtered; "who's working now" per branch.
-- `GymMember.assignedLocationIds` (a loose `String[]` with no FK integrity) replaced by a `LocationStaff` join table.
+Migration `20260901120000_people_scheduling_location_branch` (`d505a6ed`). Split along one line: **a person can work at several branches; anything that actually happens takes exactly one.**
 
-### Stage 7 — Catalogue and marketing exclusivity
+- `PtSession`, `ServiceSession` and `ShiftSlot` gained `locationId` — events at a place, read with `atLocation`. `ShiftSlot.location` (free text) became a real FK: text that resolved to a live branch of the same gym moved into it, and the rest survives as `locationName` (`@map("location")`) — never defaulted.
+- `LocationStaff` replaced `GymMember.assignedLocationIds` as the roster (`assignedAtLocation` / `staffAtLocation`). **The array is not dropped yet.** It is a deprecated shadow: both write paths set it in the same transaction as the roster, and nothing reads it (`staff.service.ts`), so the previous API image keeps working through the deploy window. Dropping it is a follow-up migration.
+- **`Trainer` and `Service` got no column. The plan said they would.** A trainer is one-to-one with a staff `GymMember` that already carries a base branch and a roster; a third copy would be the answer nobody updates. A service is offered wherever its coach works. Both are derived through the roster.
+- A new staff member is based (`GymMember.locationId`) at their single assigned branch, or at the gym's default when they have several or none (`5c803744`, 2026-09-15). A PT session with no explicit branch takes the coach's single roster branch, or stays NULL (§2).
+- `/staff`, `/trainers`, `/services`, `/classes/pt-calendar` filtered. `GET /dashboard/staff` narrows five of its six reads and returns `utilizationRate: null` under a branch filter (see the register); `ptSessionsOverTime` narrows.
 
-Lower value, listed for completeness. Plans, packages, products, campaigns, promo codes, automation rules and segments gain an optional `locationId` meaning _branch-exclusive_; `null` keeps meaning _available at every branch_. Not a filter so much as a scoping capability.
+### Stage 7 — Catalogue exclusivity — **DONE (2026-09-01)**
 
-### Stage 8 — Access control _(needs a decision before planning)_
+Migration `20260901130000_catalogue_location_exclusivity` (`1202c683`).
 
-"Branches are separate" implies a receptionist at branch A should not see branch B. That is not implemented and not implied by anything above: authorization today is strictly **tenant × role** (`packages/types/src/permissions.ts`), and `location:read` / `location:write` gate _managing the branch catalogue_, not _whose data you may see_.
+- Six models gained an optional `locationId` meaning _branch-exclusive_, with `null` meaning _available at every branch_: `SubscriptionPlan`, `PackagePlan`, `Product`, `ClassType`, `PromoCode`, `LoyaltyReward`. No backfill and no `NOT NULL`, ever — the nullability is the feature. Filtered with `availableAtLocation` (NULL or this branch), never `atLocation`, which would empty the catalogue. `GET /admin/class-types` got its branch param back this way.
+- **Forms** (`03d1b728`, 2026-09-14): the subscription plan, PT package, product, class type and promo code forms share `apps/admin/hooks/use-branch-exclusivity.ts`. A new item always starts on every branch, whatever the header switcher shows — seeding it with the active branch would make every new plan exclusive to whichever branch the operator happened to be looking at. An edit shows what is stored, including a branch outside the operator's scope.
+- The promo code roster narrows to the codes a branch honours (`82c135e5`, 2026-09-15).
+- **`Campaign`, `AudienceSegment`, `MessageTemplate` and `AutomationRule` got no column (D5).** A campaign is not offered at a branch, it is sent to people, and the audience criteria have no branch dimension. A column would narrow the list an operator browses while the blast still went to the whole gym. The honest fix is a branch predicate inside the audience criteria and the automation executor's entity scan, through `memberAtLocation` — targeting, and a separate change. `listCampaignsQuerySchema` and `listAutomationRulesQuerySchema` sit on `LOCATION_EXEMPT` with that reason. `ProductCategory` was refused too: a taxonomy label, not a thing sold.
 
-Making the filter a **permission boundary** rather than a **convenience** requires: a staff→location membership, a new `TenantState` field, and a guard — and it changes the switcher's meaning (a restricted user must not be offered "All locations"). **Open question: is the filter a convenience or a security boundary?** Left unanswered deliberately; it does not block Stages 0–7.
+### Stage 8 — Access control — **DONE (2026-09-02; reports 2026-09-15)**
+
+**Decision: the filter is a security boundary, not a convenience.**
+
+- Each staff role carries `branchScope: 'all' | 'assigned'` in the gym's role-permission settings (`packages/types/src/role-permissions.ts`, `9cd572ad`). `OWNER` and `SUPER_ADMIN` resolve to every permission and `all` whatever the stored settings say, so no settings blob can lock the owner out. An unrecognised role fails closed: no grants, `assigned`.
+- The server enforces it in `PermissionsGuard.enforceBranchScope` (`apps/api/src/common/rbac/permissions.guard.ts`), which runs on every route, before pipes. For an `assigned` role: a branch named in the query, the route params or the body must be one the caller is rostered at (`403 BRANCH_FORBIDDEN`); a request that names none is forced onto their branch rather than falling through to gym-wide; a caller rostered nowhere is refused (`403 BRANCH_SCOPE_UNASSIGNED`). Self-service routes are untouched.
+- The console does not offer a restricted operator "All locations" (`canSelectAll`).
+- **Gym-wide reports** (`69036ff5`): a restricted operator has no gym-wide view and these reports cannot be narrowed, so they are dropped from that operator's catalogue, a preview or export is `403 BRANCH_FORBIDDEN`, and the console hides the cards.
+- **Stated limit.** The guard clamps the branch _dimension_ of a request; it does not make per-record reads branch-aware. `GET /members/:id` names no branch and is not narrowed — that is a per-resource job.
+
+### Public portal and loose ends (D7) — **DONE (2026-09-14 – 2026-09-15)**
+
+- **Portal listings narrow to the member's home branch** (`f3b7a28b`). `GET /products`, `/class-instances`, `/services` and `/trainers` resolve their branch through `resolvePortalBranch` (`apps/api/src/common/portal-branch.service.ts`): an explicit `?locationId=` must be an ACTIVE branch of the same gym, else `404 LOCATION_NOT_FOUND` — one answer for unknown, inactive and another gym's, so a probe learns nothing. Otherwise a signed-in live `MEMBER` sees their home branch (every branch if they have none, or it is inactive); staff and anonymous visitors see every branch. A token that does not verify, or belongs to another gym, counts as anonymous rather than a `401`.
+- The public service slots take the same resolution (`6418c44d`).
+- `apps/web` forwards the member's session on those reads (`50a022a6`, `apps/web/lib/fetch-portal-listing.ts`), so a server-rendered page sees the member.
+- **Self-signup files a home branch (D1, `2135d745`):** the ACTIVE branch the body names (else `400 LOCATION_NOT_FOUND`), otherwise the gym's default, otherwise NULL.
+- The activity feed and loyalty redemptions narrow to one branch (`14a7c09a`).
+- **Class template regeneration** stamps the template's branch on every occurrence it creates, and moves the attached future occurrences when the template changes branch; detached occurrences keep theirs, because their seats were booked there (`1188fe08`).
+- The reports branch filter was restored onto the new catalogue — `docs/superpowers/plans/2026-09-02-restore-report-branch-filter.md`, CLOSED.
+- `NOT NULL` on `ClassTemplate` and `CheckIn` (`1cbcda86`) — see §2.
 
 ---
 
 ## Cross-cutting
 
 - **i18n:** `admin.common.locationLabel` and `admin.common.allLocations` already exist in both `en.json` and `ka.json` (`:86-87`). New strings follow the existing `admin.locations.*` block; every key lands in both files.
-- **Georgian terminology is inconsistent** — `ka.json` uses both _ლოკაცია_ and _ფილიალი_. Settle on **ფილიალი** for the branch-as-business-unit and sweep the existing keys.
+- **Georgian terminology — settled on ფილიალი** (`89ff963b`, 2026-09-15). `ka.json` no longer uses _ლოკაცია_. The word survives only outside the copy: a test fixture and a doc comment in `packages/ui-mobile`, and a comment in `apps/mobile/app/(tabs)/shop/cart.tsx`.
 - **Tests:** the switcher has **zero** coverage today (`admin-shell.test.tsx:10` mocks `TopBar` out). Stage 1 adds `top-bar.test.tsx` and unit tests for `resolveActiveLocation`.
 - **Cross-tenant leak — FIXED (2026-08-31), before Stage 3 as planned.** `TENANT_SCOPED_MODELS` was missing 13 models carrying `gymId`. 12 were added (52 of 53 now listed); it closed **three real leaks** of the same shape as the `Refund` bug the file already recorded: `reports.service.ts:1379` and `:1905` (both `ptSession.findMany` filtered on the time window **alone**, so trainer utilisation and the PT-hours roll-up summed every gym), `me-goals.service.ts:57` (`memberId` alone) and `credit-packs.service.ts:338` (which pack to draw a seat credit from, by `memberId` + status alone).
 
@@ -257,32 +300,42 @@ Making the filter a **permission boundary** rather than a **convenience** requir
 
   Watch item recorded during the fix: `reports/report-delivery.service.ts` is the one timer-driven job running against a _scoped_ service. It already opens its own `tenantStorage.run({ gymId })` per gym — which was incidental before and is now load-bearing.
 
-- **`/packages/*` is an orphan route** — reachable by URL, absent from `NAV_ITEMS`. Confirm intent before spending effort on it.
+- **`/packages/*` is an orphan route** — reachable by URL, absent from `NAV_ITEMS`. **Decision (D6): out of scope for multi-branch, left as it is.** It is capability-gated (`apps/admin/lib/route-guards.ts`, `Permission.PackageRead`), and its form carries branch exclusivity like the other Stage 7 catalogues.
 
 ---
 
 ## Exemption register
 
-Stages 1, 2 and 3 are implemented. These are the endpoints that accept a branch and do **not**
+All stages are implemented. These are the surfaces that accept a branch and do **not**
 narrow by it, or that were deliberately never given the param. Each is a decision,
 not an omission — re-adding a filter here without first landing the schema change
 named in the last column reintroduces a wrong number.
 
-The shared `where` fragments live in `apps/api/src/common/location-filter.util.ts`
-(`atLocation` for models that own the column, `orderAtLocation` for `Payment` /
-`Refund` through their order). That module's header carries the same table at the
-level of models rather than endpoints; keep the two in step.
+The shared `where` fragments live in `apps/api/src/common/location-filter.util.ts`:
+`atLocation` for a column the row owns, `memberAtLocation` for the person hop,
+`availableAtLocation` for the Stage 7 catalogue, and `assignedAtLocation` /
+`staffAtLocation` for the roster. (`orderAtLocation` went in Stage 5, when `Payment`
+and `Refund` gained their own column.) That module's header carries the same table at
+the level of models, with this one mirrored beneath it; keep the two in step.
 
-| Surface                                         | Behaviour                    | Why                                                                                                                                                                                                                                                                                                           | Unblocked by                     |
-| ----------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `GET /admin/class-types`                        | param **removed**            | A `ClassType` is gym-wide catalogue with no location column. Its only path is `instances: { some: { locationId } }` — "has occurred at", not "belongs to". That hides a freshly created type from _every_ branch until first scheduled, and pins a type scheduled once at branch B to branch B forever        | Stage 7 (`ClassType.locationId`) |
-| `GET /admin/reports` (catalogue)                | takes no param, deliberately | Which reports _exist_ does not change with the branch. An inert param invites someone to later make it hide the un-filterable ones                                                                                                                                                                            | —                                |
-| `GET /dashboard/staff`                          | accepts, applies to nothing  | Now _technically_ filterable via `GymMember.locationId` and deliberately not: on a staff row that column is a backfill artefact pointing the whole payroll at the default branch. Work assignment is `assignedLocationIds`. `utilizationRate` would also still divide branch minutes by gym-wide availability | Stage 6 (`LocationStaff`)        |
-| `GET /dashboard/classes` — `ptSessionsOverTime` | gym-wide                     | `PtSession` has no location column. Standalone series, so nothing on the tab blends PT with a class figure                                                                                                                                                                                                    | Stage 6                          |
-| Reports: pt-sessions                            | gym-wide                     | `PtSession` has no branch                                                                                                                                                                                                                                                                                     | Stage 6                          |
-| Reports: discounts-and-promotions               | gym-wide                     | `PromoRedemption.memberId` is null **by design** for an anonymous walk-in, so the member hop would drop exactly the walk-in promotions the report exists to price                                                                                                                                             | Stage 7                          |
-| Reports: trainer-performance                    | gym-wide                     | Mixed scope: `ClassInstance` could filter, `PtSession` could not, and the ranking _adds_ the two columns — half a filter would order the table from two populations                                                                                                                                           | Stage 6                          |
-| Drill-down `staff` — `rating` column            | never narrows                | A `Review` is written about a trainer and carries no branch. An average rating is a property of the person, not a quantity produced at a branch                                                                                                                                                               | —                                |
+| Surface                                                          | Behaviour                                                            | Why                                                                                                                                                                                                                           | Unblocked by                                                  |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `GET /admin/reports` (catalogue)                                 | takes no param, deliberately                                         | Which reports _exist_ does not change with the branch. An inert param invites someone to later make it hide the un-filterable ones                                                                                            | —                                                             |
+| Reports: `discounts-and-promotions`                              | gym-wide (`GYM_WIDE_REPORT_KEYS`)                                    | `PromoRedemption` has no branch, its `orderId` is a relation-less scalar, and `memberId` is null **by design** for an anonymous walk-in — the member hop would drop exactly the walk-in promotions the report exists to price | a Stage 5-shaped attribution column, stamped at the till      |
+| Reports: `audit-log`                                             | gym-wide (`GYM_WIDE_REPORT_KEYS`)                                    | An entry names an actor and a polymorphic target id, never a place; most of it is the platform operator acting on the gym as a whole                                                                                          | —                                                             |
+| Both reports above, for a branch-restricted operator             | absent from the catalogue; preview and export `403 BRANCH_FORBIDDEN` | That operator has no gym-wide view, and these reports cannot be narrowed to a branch (`69036ff5`)                                                                                                                             | —                                                             |
+| Drill-down `staff` — `rating` column                             | never narrows                                                        | A `Review` is written about a trainer and carries no branch. An average rating is a property of the person, not a quantity produced at a branch                                                                               | —                                                             |
+| `GET /dashboard/staff` — `utilizationRate` (KPI and per trainer) | `null` under a branch filter                                         | The denominator is `Trainer.availability`, a weekly document with no branch dimension. The numerator would narrow and the denominator could not — one branch's minutes over every branch's availability                       | —                                                             |
+| `GET /marketing/campaigns`, `GET /automation/rules`              | take no param, deliberately (D5)                                     | A campaign or rule is not offered at a branch; it reaches people. A list filter would look like targeting without being it (Stage 7)                                                                                          | a branch predicate in the audience criteria and executor scan |
+
+**Left the register — these filter now:**
+
+| Surface                                         | Since                                                             | How                                                                                                                                                         |
+| ----------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /dashboard/staff` (its other five reads)   | Stage 6, `d505a6ed`                                               | `ClassInstance` / `PtSession` / `ShiftSlot` by column; `Trainer` / `TimeOffRequest` through the roster                                                      |
+| `GET /dashboard/classes` — `ptSessionsOverTime` | Stage 6, `d505a6ed` (controller docblock corrected in `a77c6d27`) | `PtSession.locationId`                                                                                                                                      |
+| `GET /admin/class-types`                        | Stage 7, `1202c683`                                               | `availableAtLocation` — a gym-wide type stays visible at every branch. The `/classes` console page does not send the branch yet (see the annotations below) |
+| Reports: `pt-sessions`, `trainer-performance`   | Stage 6; re-applied on the new catalogue in `22b4bfd5`            | `PtSession` / `ServiceSession` / `ClassInstance` equality — one population per ranking                                                                      |
 
 ### Two visible behaviour changes — both resolved by Stage 2
 
@@ -295,17 +348,19 @@ Recorded because the console was built against them and then had to be un-built:
 
 No dashboard response schema has a field for this and none echoes `locationId` back, so the console carries the wording. Overloading an existing `null` was rejected — `null` on `utilizationRate` already means "no denominator". Nothing is zeroed to make a card look filtered.
 
-Stage 2 retired two of the five outright, because they became false rather than merely stale:
+Each was retired the moment it became false rather than merely stale. Where they stand now:
 
-- ~~Members tab~~ — retired; every figure on it now narrows.
-- ~~Revenue tab~~ — retired; recurring, MRR, the projection and outstanding all follow the member.
-- **Overview:** "Occupancy and check-ins are gym-wide." _(was "Occupancy, check-ins, members and subscriptions are gym-wide.")_
-- **Staff tab:** "Not split by branch — trainers, PT sessions and shifts have no branch yet"
-- **Classes tab:** "PT sessions are gym-wide."
+- ~~Members tab~~ — retired in Stage 2; every figure on it narrows.
+- ~~Revenue tab~~ — retired in Stage 2; recurring, MRR, the projection and outstanding all follow the member.
+- ~~Overview~~ — retired in Stage 3; occupancy and check-ins narrow.
+- ~~Classes tab~~ — retired in Stage 6; the PT series narrows.
+- **Staff tab** — the one dashboard note left (`BranchScope = 'staff'` in `apps/admin/app/(dashboard)/segments/branch-scope-note.tsx`), cut in Stage 6 from the whole tab to one figure: "Utilization is not split by branch — a trainer's availability covers their whole week, at every branch" (`admin.dashboard.branchScope.staff`). Shown only while a branch is selected.
 
-Report-side, three reports still carry the generic `admin.common.notSplitByBranch` chip: `discounts-and-promotions`, `pt-sessions`, `trainer-performance`. `GYM_WIDE_DRILLDOWNS` is now empty — every drill-down narrows.
+Report-side, **two** reports carry the `admin.common.notSplitByBranch` chip — the `GYM_WIDE_REPORT_KEYS` pair, `discounts-and-promotions` and `audit-log`. `pt-sessions` and `trainer-performance` lost theirs in Stage 6. `GYM_WIDE_REPORT_COLUMNS` and `GYM_WIDE_DRILLDOWNS` are empty; the one blind drill-down column, `staff-performance` → `rating`, is marked through `GYM_WIDE_DRILLDOWN_COLUMNS`.
+
+**One console gap, found while writing this record.** The `/classes` page (class types) still calls `fetchClassTypes(query)` without the branch and shows "Class types are a gym-wide catalogue — not split by branch." (`admin.classTypes.branchScope`) while a branch is selected. The note is true of that page, but its reasoning comment (`apps/admin/app/(dashboard)/classes/page.tsx`, "THE TYPE CATALOGUE IS DELIBERATELY NOT FILTERED BY BRANCH") predates Stage 7: the API has filtered class types through `availableAtLocation` since `1202c683`. Wiring the page is a console follow-up. The header comment of `segments/branch-scope-note.tsx` also still describes the pre-Stage-2 gaps.
 
 ### Surfaced by Stage 0, not caused by it
 
-- **Public `GET /locations` now returns empty hours.** `LocationsService.toHours` (`apps/api/src/locations/locations.service.ts:78`) flattens stored `hours` to `day → string` and **drops every non-string value**. The admin write stores the structured `{closed, open, close}` shape, which the reworked seed now also writes — so every day is dropped and the public card gets `{}`. The old empty `{}` hid this; the public summary and the admin record genuinely disagree on the shape. Needs an owner on the `apps/api` side.
-- **`ensurePayment` in the seed is not idempotent across runs** — it guards on `createdAt: paidAt` where `paidAt` keeps the current time-of-day, so a re-run minutes later mints fresh membership orders. Pre-existing; the branch split stays balanced either way.
+- **Public `GET /locations` returned empty hours — FIXED (`4fa24c1b`, 2026-08-31).** `LocationsService.toHours` (`apps/api/src/locations/locations.service.ts`) used to keep only values that were already strings, so every structured `{closed, open, close}` day the admin write stores was dropped and the public card got `{}`. It now projects the structured week onto the public `day → display string` map, Monday first; a day never set stays absent rather than being filled from the form's defaults.
+- **`ensurePayment` in the seed is not idempotent across runs** — it still guards on `createdAt: paidAt`, and `paidAt` comes from `daysAgo()`, which keeps the current time-of-day, so a re-run minutes later mints fresh membership orders. **Pre-existing, left:** the seed is local-only (`4be5f51c` refuses a production database) and the branch split stays balanced either way.
