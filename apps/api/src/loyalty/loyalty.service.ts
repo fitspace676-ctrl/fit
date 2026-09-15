@@ -28,7 +28,7 @@ import {
   type UpdateLoyaltyProgramInput,
   type UpdateLoyaltyRewardInput,
 } from '@fit/types';
-import { availableAtLocation } from '../common/location-filter.util';
+import { availableAtLocation, memberAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -387,6 +387,11 @@ export class LoyaltyService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.type ? { rewardType: query.type } : {}),
       ...(query.memberId ? { memberId: query.memberId } : {}),
+      // A redemption is about a PERSON — whose points were spent — so it follows the
+      // member's home branch, live. An un-homed member's redemptions drop out of every
+      // branch and stay in the gym-wide list. The tenant extension still pins `gymId`,
+      // so another gym's branch id matches no member here and returns an empty page.
+      ...memberAtLocation(query.locationId),
     };
 
     const [rows, total] = await Promise.all([

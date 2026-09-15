@@ -10,6 +10,8 @@ interface QueryArgs {
     gymId?: unknown;
     role?: unknown;
     status?: unknown;
+    locationId?: unknown;
+    member?: { locationId?: unknown };
     joinedAt?: { gte?: Date; lt?: Date };
     createdAt?: { gte?: Date; lt?: Date };
     checkedInAt?: { gte?: Date; lt?: Date };
@@ -295,4 +297,112 @@ describe('ActivityService', () => {
       expect(result).toEqual({ data: [], total: 0, page: 1, limit: 20 });
     });
   });
+
+  describe('listActivity — branch filter', () => {
+    it('adds no branch predicate to any source when locationId is absent', async () => {
+      const { service, gymMember, booking, checkIn, payment, subscription } = setup();
+
+      await service.listActivity(query());
+
+      for (const model of [gymMember, booking, checkIn, payment, subscription]) {
+        for (const fn of [model.findMany, model.count]) {
+          const where = fn.mock.calls[0]?.[0]?.where;
+          expect(where).not.toHaveProperty('locationId');
+          expect(where).not.toHaveProperty('member');
+        }
+      }
+    });
+
+    it('narrows place events by their own branch and person events by home branch', async () => {
+      const { service, gymMember, booking, checkIn, payment, subscription } = setup();
+
+      await service.listActivity(query({ locationId: 'loc-a' }));
+
+      // PLACE: the door walked through, the till the money was taken at.
+      for (const fn of [checkIn.findMany, checkIn.count]) {
+        expect(fn.mock.calls[0]?.[0]?.where).toMatchObject({ gymId: 'gym-1', locationId: 'loc-a' });
+      }
+      for (const fn of [payment.findMany, payment.count]) {
+        expect(fn.mock.calls[0]?.[0]?.where).toMatchObject({
+          status: 'CAPTURED',
+          locationId: 'loc-a',
+        });
+      }
+      // PERSON: the member row's own home branch, or the member behind the event.
+      for (const fn of [gymMember.findMany, gymMember.count]) {
+        expect(fn.mock.calls[0]?.[0]?.where).toMatchObject({ role: 'MEMBER', locationId: 'loc-a' });
+      }
+      for (const model of [booking, subscription]) {
+        for (const fn of [model.findMany, model.count]) {
+          const where = fn.mock.calls[0]?.[0]?.where;
+          expect(where).toMatchObject({ member: { locationId: 'loc-a' } });
+          expect(where).not.toHaveProperty('locationId');
+        }
+      }
+    });
+
+    it('keeps the date window alongside the branch predicate', async () => {
+      const { service, booking } = setup();
+
+      await service.listActivity(
+        query({ type: 'booking', from: '2026-02-01', locationId: 'loc-a' }),
+      );
+
+      const where = booking.findMany.mock.calls[0]?.[0]?.where;
+      expect(where?.createdAt?.gte).toEqual(new Date('2026-02-01T00:00:00.000Z'));
+      expect(where?.member).toEqual({ locationId: 'loc-a' });
+    });
+
+    it('returns nothing for another gym’s branch id — the tenant scope still applies', async () => {
+      // A fake that behaves like the tenant extension: only gym-1 rows are visible,
+      // then the branch predicate is applied to what is left.
+      const branchOf = (row: Tagged) => row.locationId ?? row.member?.locationId;
+      const visible = (rows: Tagged[], where: QueryArgs['where']) =>
+        rows.filter((row) => {
+          if (row.gymId !== 'gym-1') return false;
+          const wanted = where?.locationId ?? where?.member?.locationId;
+          return wanted === undefined || branchOf(row) === wanted;
+        });
+      const own: Tagged = { gymId: 'gym-1', locationId: 'loc-a' };
+      const foreign: Tagged = { gymId: 'gym-2', locationId: 'loc-other' };
+      const { service, gymMember, booking, checkIn, payment, subscription } = setup();
+      const wire = (
+        model: typeof booking,
+        mine: Record<string, unknown>,
+        theirs: Record<string, unknown>,
+      ) => {
+        const rows = [
+          { ...mine, ...own },
+          { ...theirs, ...foreign },
+        ] as Tagged[];
+        model.findMany.mockImplementation((args) => Promise.resolve(visible(rows, args.where)));
+        model.count.mockImplementation((args) => Promise.resolve(visible(rows, args.where).length));
+      };
+      wire(gymMember, signupRow(), signupRow({ id: 'gm-2' }));
+      wire(booking, bookingRow(), bookingRow({ id: 'bk-2' }));
+      wire(checkIn, checkinRow(), checkinRow({ id: 'ci-2' }));
+      wire(payment, saleRow(), saleRow({ id: 'pay-2' }));
+      wire(subscription, subscriptionRow(), subscriptionRow({ id: 'sub-2' }));
+
+      const foreignPage = await service.listActivity(query({ locationId: 'loc-other' }));
+      expect(foreignPage).toEqual({ data: [], total: 0, page: 1, limit: 20 });
+
+      const ownPage = await service.listActivity(query({ locationId: 'loc-a' }));
+      expect(ownPage.total).toBe(5);
+      expect(ownPage.data.map((e) => e.id).sort()).toEqual([
+        'booking:bk-1',
+        'checkin:ci-1',
+        'sale:pay-1',
+        'signup:gm-1',
+        'subscription:sub-1',
+      ]);
+    });
+  });
 });
+
+/** A fake row tagged with the tenant + branch facts the tenant-scope test filters on. */
+interface Tagged {
+  gymId?: string;
+  locationId?: string;
+  member?: { locationId?: string };
+}

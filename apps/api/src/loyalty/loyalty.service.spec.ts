@@ -335,6 +335,50 @@ describe('LoyaltyService.listRedemptions', () => {
     const where = findMany.mock.calls[0]![0].where as Record<string, unknown>;
     expect(where.status).toBe('fulfilled');
   });
+
+  it('adds no branch predicate when locationId is absent', async () => {
+    const findMany = vi.fn((_a: AnyArgs) => Promise.resolve([]));
+    const count = vi.fn((_a: AnyArgs) => Promise.resolve(0));
+    const { service } = setup({ loyaltyRedemption: { findMany, count } });
+    await service.listRedemptions({ page: 1, limit: 20 });
+    expect(findMany.mock.calls[0]![0].where).toEqual({});
+    expect(count.mock.calls[0]![0].where).toEqual({});
+  });
+
+  it("narrows to the member's home branch, on the page and the total alike", async () => {
+    const findMany = vi.fn((_a: AnyArgs) => Promise.resolve([]));
+    const count = vi.fn((_a: AnyArgs) => Promise.resolve(0));
+    const { service } = setup({ loyaltyRedemption: { findMany, count } });
+    await service.listRedemptions({ page: 1, limit: 20, status: 'fulfilled', locationId: 'loc-a' });
+    const expected = { status: 'fulfilled', member: { locationId: 'loc-a' } };
+    expect(findMany.mock.calls[0]![0].where).toEqual(expected);
+    expect(count.mock.calls[0]![0].where).toEqual(expected);
+  });
+
+  it("returns nothing for another gym's branch id — the tenant scope still applies", async () => {
+    // Behaves like the tenant extension: only gym-1 rows are visible, then the
+    // member's home branch is matched against what is left.
+    const rows = [
+      { ...redemptionRecord(), gymId: 'gym-1', homeBranch: 'loc-a' },
+      { ...redemptionRecord({ id: 'redemption-2' }), gymId: 'gym-2', homeBranch: 'loc-other' },
+    ];
+    const visible = (where: AnyArgs['where']) => {
+      const wanted = (where?.member as { locationId?: string } | undefined)?.locationId;
+      return rows.filter(
+        (r) => r.gymId === 'gym-1' && (wanted === undefined || r.homeBranch === wanted),
+      );
+    };
+    const findMany = vi.fn((a: AnyArgs) => Promise.resolve(visible(a.where)));
+    const count = vi.fn((a: AnyArgs) => Promise.resolve(visible(a.where).length));
+    const { service } = setup({ loyaltyRedemption: { findMany, count } });
+
+    const foreign = await service.listRedemptions({ page: 1, limit: 20, locationId: 'loc-other' });
+    expect(foreign).toEqual({ data: [], total: 0, page: 1, limit: 20 });
+
+    const own = await service.listRedemptions({ page: 1, limit: 20, locationId: 'loc-a' });
+    expect(own.total).toBe(1);
+    expect(own.data.map((r) => r.id)).toEqual(['redemption-1']);
+  });
 });
 
 describe('LoyaltyService.cancelRedemption', () => {

@@ -53,11 +53,16 @@ export class ActivityController {
   ) {}
 
   /**
-   * `GET /admin/activity?page&limit&type&from&to` — one filtered, server-paginated
-   * page of the gym's merged activity stream, newest first. The query is validated
-   * up front (a bad page/limit/type/date is a `400` with per-field detail) so the
-   * service only sees a well-formed, defaulted request. An empty page is a normal
-   * `200`.
+   * `GET /admin/activity?page&limit&type&from&to&locationId` — one filtered,
+   * server-paginated page of the gym's merged activity stream, newest first. The
+   * query is validated up front (a bad page/limit/type/date is a `400` with per-field
+   * detail) so the service only sees a well-formed, defaulted request. An empty page
+   * is a normal `200` — including for a `locationId` from another gym, which the
+   * tenant scope leaves matching nothing. A branch-restricted operator's `locationId`
+   * is enforced by {@link PermissionsGuard} before this runs.
+   *
+   * The SSE `stream` below is NOT branch-filtered: it fans out the whole gym's live
+   * events, as before.
    */
   @Get()
   @HttpCode(HttpStatus.OK)

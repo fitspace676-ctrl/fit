@@ -43,9 +43,6 @@ const LOCATION_EXEMPT: Record<string, string> = {
 // branch, so today it fails open. They are here only to keep the suite green while
 // the gaps are open — close one by adding `locationId` and deleting its line.
 const LOCATION_PENDING: Record<string, string> = {
-  listActivityQuerySchema:
-    'GET /admin/activity — members, bookings, check-ins, payments, subscriptions all reach a branch',
-  listRedemptionsQuerySchema: "GET /loyalty/redemptions — attributable by the member's home branch",
   listCampaignsQuerySchema:
     'GET /marketing/campaigns — Stage 7 exclusivity; Campaign has no column yet',
   listAutomationRulesQuerySchema:

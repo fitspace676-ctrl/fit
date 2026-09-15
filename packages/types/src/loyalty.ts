@@ -279,6 +279,8 @@ export const listRedemptionsQuerySchema = z.object({
   status: loyaltyRedemptionStatusSchema.optional(),
   type: loyaltyRewardTypeSchema.optional(),
   memberId: z.string().min(1).optional(),
+  /** Narrow to members whose home branch is this one; omitted means every branch. */
+  locationId: z.string().min(1).optional(),
 });
 
 export type ListRedemptionsQuery = z.infer<typeof listRedemptionsQuerySchema>;
