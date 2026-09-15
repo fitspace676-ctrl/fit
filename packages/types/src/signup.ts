@@ -149,6 +149,12 @@ export const memberSignupSchema = z.object({
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
     .optional(),
+  /**
+   * The member's home branch. Must be an ACTIVE branch of `gymId` — anything else
+   * is a `400 LOCATION_NOT_FOUND`. Omitted, the API files them under the gym's
+   * default branch, so a client that never asks still lands the member somewhere.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `POST /auth/signup` body — {@link memberSignupSchema}. */
