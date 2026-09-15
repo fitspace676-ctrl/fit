@@ -277,7 +277,9 @@ async function main() {
   const CLASS_TITLE = 'Morning HIIT';
   // The default branch: this template predates the demo enrichment and is the one
   // the member-portal fixtures reference, so it runs at the gym's flagship.
-  const hiitLocationId = downtownLocationIds[0] ?? null;
+  // `ensureBranches` always returns at least one id, and `ClassTemplate.locationId`
+  // is NOT NULL, so there is no branch-less fallback to offer.
+  const hiitLocationId = downtownLocationIds[0]!;
   const existingTemplate = await prisma.classTemplate.findFirst({
     where: { gymId: downtown.id, title: CLASS_TITLE },
   });
@@ -530,9 +532,9 @@ async function main() {
   // unattributed makes every direct read of `ClassInstance.locationId` — occupancy,
   // per-branch class counts — look empty in dev. Narrowed to rows that have no
   // branch of their own, so an occurrence explicitly moved to another branch is
-  // never dragged back to its template's.
+  // never dragged back to its template's. Every template has a branch
+  // (`ClassTemplate.locationId` is NOT NULL), so all of them are read.
   const locatedTemplates = await prisma.classTemplate.findMany({
-    where: { locationId: { not: null } },
     select: { id: true, locationId: true },
   });
   for (const template of locatedTemplates) {
@@ -1700,7 +1702,7 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
     const trainerId = trainerIdByName.get(cls.trainer) ?? null;
     // Each demo class runs at the branch its spec names, so filtering the schedule
     // to one branch halves the timetable instead of leaving it unchanged.
-    const locationId = locationIds[cls.branch] ?? locationIds[0] ?? null;
+    const locationId = locationIds[cls.branch] ?? locationIds[0]!;
 
     let template = await prisma.classTemplate.findFirst({
       where: { gymId, title: cls.title },
@@ -1795,7 +1797,7 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
         gymMemberId: memberId,
         method: idx % 3 === 0 ? CheckInMethod.QR : CheckInMethod.MANUAL,
         checkedInAt: todayAt(7 + idx, (idx * 13) % 60),
-        locationId: locationIds[idx % locationIds.length] ?? null,
+        locationId: locationIds[idx % locationIds.length]!,
       })),
     });
   }

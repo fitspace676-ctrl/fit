@@ -111,9 +111,17 @@ export async function seedMemberCatalogue(runId: number): Promise<MemberCatalogu
     },
   });
 
+  // `ClassTemplate.locationId` is NOT NULL: the fixture class runs at the gym's
+  // default branch, which the seed guarantees.
+  const defaultLocation = await prisma.location.findFirstOrThrow({
+    where: { gymId, isDefault: true },
+    select: { id: true },
+  });
+
   const template = await prisma.classTemplate.create({
     data: {
       gymId,
+      locationId: defaultLocation.id,
       title: `E2E Booking Class ${runId}`,
       description: 'Fixture class for the member booking E2E.',
       category: 'Conditioning',

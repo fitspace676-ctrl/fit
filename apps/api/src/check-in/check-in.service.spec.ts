@@ -19,9 +19,9 @@ function member() {
 }
 
 /**
- * A queried check-in as every read/write selects it. `location` is nullable
- * because a retired branch leaves the arrival in place with its name gone
- * (`onDelete: SetNull`), and a test pins exactly that.
+ * A queried check-in as every read/write selects it. `location` is typed nullable
+ * only so a test can pin that `toRow` degrades to a null name rather than throwing;
+ * the column is NOT NULL with `onDelete: Restrict`, so a real row always has one.
  */
 interface CheckInRecordFixture {
   id: string;
@@ -185,6 +185,17 @@ describe('CheckInService.recordCheckIn — the branch walked into', () => {
     expect(checkIn.create).not.toHaveBeenCalled();
   });
 
+  it('400s when no branch is named and the gym has no default, without recording', async () => {
+    const { service, checkIn, location } = setup();
+    // `CheckIn.locationId` is NOT NULL — there is no unattributed arrival to fall back to.
+    location.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.recordCheckIn({ gymMemberId: 'gm-1', method: 'MANUAL' }),
+    ).rejects.toMatchObject({ response: { code: 'DEFAULT_LOCATION_REQUIRED' } });
+    expect(checkIn.create).not.toHaveBeenCalled();
+  });
+
   it("carries the branch's name on the created row", async () => {
     const { service } = setup();
 
@@ -193,9 +204,9 @@ describe('CheckInService.recordCheckIn — the branch walked into', () => {
     expect(result.checkIn.locationName).toBe('Vake');
   });
 
-  it('renders a deleted branch as a null name rather than dropping the arrival', async () => {
+  it('renders a missing branch as a null name rather than dropping the arrival', async () => {
     const { service, checkIn } = setup();
-    // `onDelete: SetNull` — retiring a branch keeps its footfall history.
+    // Defensive only: the FK is `Restrict`, so a branch with arrivals is never deleted.
     checkIn.create.mockResolvedValueOnce({ ...createdCheckIn(), location: null });
 
     const result = await service.recordCheckIn({ gymMemberId: 'gm-1', method: 'MANUAL' });

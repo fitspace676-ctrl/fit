@@ -969,20 +969,26 @@ model CheckIn {
   /// column could hold ids no location answers to, first repaired any orphaned or
   /// cross-tenant id by nulling it into that same backfill.
   ///
-  /// Still nullable, on the same expand/contract terms as {@link GymMember.locationId}:
-  /// it is tightened to NOT NULL only once every check-in write path (reception QR,
-  /// manual lookup, and whatever turnstile integration follows) requires a branch.
+  /// NOT NULL since 20260915120000_class_template_check_in_location_not_null — the
+  /// contract step of the expand/contract Stage 3 began. It could be tightened
+  /// because the one write path, `CheckInService.recordCheckIn`, never writes null:
+  /// an unstated branch resolves to the gym's default. The migration re-runs the
+  /// default-branch backfill first, so a row written by an older build between the
+  /// two deploys cannot fail the `SET NOT NULL`.
   ///
-  /// `SetNull` on delete, never cascade: closing a branch keeps its footfall
-  /// history. The visits still happened, and the year-on-year comparison that
-  /// justifies the closure is made of exactly these rows — deleting them with the
-  /// branch would erase the evidence for the decision.
-  locationId  String?
+  /// `Restrict` on delete, never cascade and no longer `SetNull` (which a required
+  /// column cannot take): a branch that still has arrivals cannot be hard-deleted.
+  /// The visits still happened, and the year-on-year comparison that justifies a
+  /// closure is made of exactly these rows. Nothing in the API hard-deletes a
+  /// branch — retiring one sets it INACTIVE — so the guard costs no existing flow.
+  /// Deleting a whole {@link Gym} still cascades: its check-ins go by their own
+  /// `gymId` cascade in the same statement, before the RESTRICT check runs.
+  locationId  String
 
   gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
   member   GymMember @relation(fields: [gymMemberId], references: [id], onDelete: Cascade)
   /// The branch this arrival happened at — see {@link CheckIn.locationId}.
-  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  location Location  @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   // The all-branches reception feed and stats: "today's arrivals for this gym".
   // Kept, NOT replaced by the composite below — `(gymId, checkedInAt)` is not a
@@ -1892,9 +1898,10 @@ model CreditPack {
 /// optional `validUntil` (null = open-ended). `capacity` is the default seat
 /// count per occurrence (an instance may override it via `capacityOverride`);
 /// `durationMinutes` fixes each occurrence's length, so an instance's `endsAt`
-/// is `startsAt + durationMinutes`. `trainerId`/`locationId` are the default
-/// trainer/branch — nullable, and set to null if the referenced trainer/location
-/// is removed, so the template survives; `room` is free-text sub-location within
+/// is `startsAt + durationMinutes`. `trainerId` is the default trainer — nullable,
+/// and set to null if the trainer is removed, so the template survives.
+/// `locationId` is the branch the class runs at and is required (see the field);
+/// `room` is free-text sub-location within
 /// the branch. `color` is the calendar display colour. One gym can have many
 /// templates; `gymId` is the isolating tenant key the scoped Prisma client
 /// constrains every query to. The 500-char ceiling on `rrule` is enforced at the
@@ -1907,7 +1914,18 @@ model ClassTemplate {
   description     String              @default("")
   category        String              @default("")
   trainerId       String?
-  locationId      String?
+  /// The branch this class runs at. NOT NULL since
+  /// 20260915120000_class_template_check_in_location_not_null — the contract step
+  /// of the expand/contract Stage 0 began with its default-branch backfill. The
+  /// migration re-runs that backfill before `SET NOT NULL`, so a template written
+  /// without a branch by an older build cannot fail the deploy.
+  ///
+  /// `Restrict` on delete, no longer `SetNull` (which a required column cannot
+  /// take): a branch that still has a schedule cannot be hard-deleted, only
+  /// retired to INACTIVE — which is all the API ever does. Deleting a whole
+  /// {@link Gym} still cascades: its templates go by their own `gymId` cascade in
+  /// the same statement, before the RESTRICT check runs.
+  locationId      String
   room            String?
   capacity        Int
   durationMinutes Int
@@ -1938,7 +1956,7 @@ model ClassTemplate {
 
   gym       Gym             @relation(fields: [gymId], references: [id], onDelete: Cascade)
   trainer   Trainer?        @relation(fields: [trainerId], references: [id], onDelete: SetNull)
-  location  Location?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  location  Location        @relation(fields: [locationId], references: [id], onDelete: Restrict)
   instances ClassInstance[]
 
   @@index([gymId])

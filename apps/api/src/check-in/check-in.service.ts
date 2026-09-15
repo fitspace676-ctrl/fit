@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CheckInMethod, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import type {
   ActivityEvent,
@@ -252,14 +252,15 @@ export class CheckInService {
    * The default branch is a stated approximation; the member's home branch would be
    * a wrong fact.
    *
-   * A gym with no default branch yields `null` — the same deliberate degradation
-   * `resolveHomeBranch` makes. Every gym is given one by the Stage 0 migration, so
-   * this only happens if an operator has since cleared the flag, and a
-   * half-configured branch list must not be the reason a front desk cannot check
-   * anybody in. The arrival is recorded unattributed and the `NO_LOCATION_LABEL`
-   * safety net in reports catches it.
+   * A gym with no default branch is refused with `400 DEFAULT_LOCATION_REQUIRED`,
+   * the same code the stock count uses. It used to degrade to an unattributed
+   * arrival, but `CheckIn.locationId` is NOT NULL since
+   * 20260915120000_class_template_check_in_location_not_null, so there is no
+   * unattributed arrival left to record. Every gym is given a default by the Stage 0
+   * migration, so this only happens if an operator has since cleared the flag — and
+   * the desk can still check the member in by naming a branch.
    */
-  private async resolveArrivalBranch(locationId: string | undefined): Promise<string | null> {
+  private async resolveArrivalBranch(locationId: string | undefined): Promise<string> {
     if (locationId) {
       const location = await this.prisma.client.location.findFirst({
         where: { id: locationId },
@@ -271,7 +272,14 @@ export class CheckInService {
       return location.id;
     }
 
-    return findDefaultLocationId(this.prisma.client);
+    const defaultLocationId = await findDefaultLocationId(this.prisma.client);
+    if (!defaultLocationId) {
+      throw new BadRequestException({
+        code: 'DEFAULT_LOCATION_REQUIRED',
+        message: 'Set a default branch, or name the branch this arrival is at.',
+      });
+    }
+    return defaultLocationId;
   }
 
   /**
