@@ -3088,9 +3088,17 @@ export async function deleteCampaign(id: string): Promise<void> {
   }
 }
 
-/** `GET /marketing/promo-codes` — every promo code, newest first. */
-export async function fetchPromoCodes(): Promise<ListPromoCodesResponse> {
-  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes`, {
+/**
+ * `GET /marketing/promo-codes?locationId=` — every promo code, newest first; given
+ * a branch, only the codes redeemable there (its own plus the gym-wide ones).
+ */
+export async function fetchPromoCodes(
+  params: { locationId?: string } = {},
+): Promise<ListPromoCodesResponse> {
+  const qs = new URLSearchParams();
+  if (params.locationId) qs.set('locationId', params.locationId);
+  const query = qs.toString();
+  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes${query ? `?${query}` : ''}`, {
     headers: await authHeaders(),
     cache: 'no-store',
   });

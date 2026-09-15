@@ -91,6 +91,24 @@ describe('MarketingController', () => {
     expect(fns.redeemPromoCode).toHaveBeenCalledWith({ code: 'SAVE10', amount: 5000 });
   });
 
+  it('passes a branch through to the promo list, and nothing without one', async () => {
+    const { controller, fns } = setup();
+    await controller.listPromoCodes({ locationId: 'loc-1' });
+    await controller.listPromoCodes({});
+    await controller.listPromoCodes(undefined);
+    expect(fns.listPromoCodes).toHaveBeenNthCalledWith(1, { locationId: 'loc-1' });
+    expect(fns.listPromoCodes).toHaveBeenNthCalledWith(2, {});
+    expect(fns.listPromoCodes).toHaveBeenNthCalledWith(3, {});
+  });
+
+  it('rejects a malformed promo list query with 400', async () => {
+    const { controller, fns } = setup();
+    await expect(controller.listPromoCodes({ locationId: '' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(fns.listPromoCodes).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid campaign list query with 400', async () => {
     const { controller } = setup();
     await expect(controller.listCampaigns({ status: 'bogus' })).rejects.toBeInstanceOf(

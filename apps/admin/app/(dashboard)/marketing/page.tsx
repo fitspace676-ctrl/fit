@@ -10,6 +10,7 @@ import {
   type ListCampaignsQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import {
   ApiError,
   fetchCampaigns,
@@ -118,7 +119,11 @@ export default async function MarketingPage({
   let content;
   if (tab === 'promo') {
     try {
-      const promoCodes = await fetchPromoCodes();
+      // The top-bar branch (cookie or `?locationId=`), validated against the gym's
+      // live branches; `undefined` is every branch. Narrows to the codes that
+      // branch's till honours — its own plus the gym-wide ones.
+      const locationId = await getActiveLocationId(raw);
+      const promoCodes = await fetchPromoCodes({ locationId });
       content = <PromoCodesView promoCodes={promoCodes.data} canManage={canManage} />;
     } catch (error) {
       content = errorCard(loadError(error));

@@ -314,6 +314,19 @@ export interface PromoCodeRow {
   updatedAt: string;
 }
 
+/**
+ * Query for `GET /marketing/promo-codes`. `locationId` narrows the roster to the
+ * codes REDEEMABLE at that branch — its own exclusive codes plus every gym-wide
+ * (`null`) one — so a branch operator sees exactly what their till honours. Omit it
+ * for every code in the gym.
+ */
+export const listPromoCodesQuerySchema = z.object({
+  locationId: z.string().trim().min(1).optional(),
+});
+
+/** Validated `GET /marketing/promo-codes` query — {@link listPromoCodesQuerySchema}. */
+export type ListPromoCodesQuery = z.infer<typeof listPromoCodesQuerySchema>;
+
 /** Response of `GET /marketing/promo-codes` — every code, newest first. */
 export interface ListPromoCodesResponse {
   data: PromoCodeRow[];

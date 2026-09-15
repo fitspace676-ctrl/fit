@@ -19,6 +19,7 @@ import {
   type ListCampaignsQuery,
   type ListCampaignsResponse,
   type ListMessageTemplatesResponse,
+  type ListPromoCodesQuery,
   type ListPromoCodesResponse,
   type MarketingCatalogResponse,
   type MarketingRef,
@@ -43,6 +44,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { availableAtLocation } from '../common/location-filter.util';
 
 /** Milliseconds in a day, for the last-visit recency windows. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -225,9 +227,15 @@ export class MarketingService {
   // Promo codes
   // -------------------------------------------------------------------------
 
-  /** Every promo code, newest first. */
-  async listPromoCodes(): Promise<ListPromoCodesResponse> {
+  /**
+   * Every promo code, newest first — or, given a branch, the codes redeemable
+   * there. {@link availableAtLocation}, NOT `atLocation`: a NULL
+   * `PromoCode.locationId` means "honoured at every branch", so plain equality
+   * would hide the gym-wide codes — nearly all of them — from every branch's view.
+   */
+  async listPromoCodes(query: ListPromoCodesQuery = {}): Promise<ListPromoCodesResponse> {
     const rows = await this.prisma.client.promoCode.findMany({
+      where: { ...availableAtLocation(query.locationId) },
       orderBy: { createdAt: 'desc' },
       include: PROMO_BRANCH_INCLUDE,
     });
