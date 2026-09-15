@@ -3,16 +3,16 @@
 // "Some of this is still gym-wide" — the caveat a dashboard tab carries while a
 // single branch is selected.
 //
-// WHY THE CONSOLE CARRIES THE WORDING. Several figures on these tabs cannot be
-// narrowed to a branch yet: `GymMember` and `Subscription` have no location,
-// `CheckIn.locationId` is never written, `PtSession` has no column, and a
-// subscription `Invoice` reaches an order — and therefore a branch — only when
-// it has one, which the recurring majority does not. The API accepts
-// `locationId` on those endpoints and deliberately applies it to nothing (the
-// roadmap's exemption register lists each one and what unblocks it). No
-// dashboard response schema has a field saying so and none echoes `locationId`
-// back, so there is nothing to render off — the strings live here, written
-// against the same call-site comments in the API.
+// WHY THE CONSOLE CARRIES THE WORDING. One figure left on these tabs cannot be
+// narrowed to a branch: the Staff tab's `utilizationRate`, whose denominator is
+// `Trainer.availability` — a weekly document with no branch dimension (the
+// "what still has no path to a branch" table in the API's
+// `common/location-filter.util.ts`). Everything the earlier stages disclaimed
+// now filters: members and subscriptions through the member's home branch,
+// check-ins and PT sessions through their own `locationId`. No dashboard
+// response schema has a field saying a figure is gym-wide and none echoes
+// `locationId` back, so there is nothing to render off — the string lives here,
+// written against the same call-site comment in the API.
 //
 // Nothing is zeroed or hidden to make a card look filtered. The rule this note
 // exists to keep is simply: never present a gym-wide figure as a branch figure

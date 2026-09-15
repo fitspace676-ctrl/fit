@@ -3393,9 +3393,6 @@
       "untitled": "Untitled chat",
       "dropHere": "Drop files to attach"
     },
-    "classTypes": {
-      "branchScope": "Class types are a gym-wide catalogue — not split by branch."
-    },
     "permissions": {
       "resources": {
         "reviews": "Review moderation",
