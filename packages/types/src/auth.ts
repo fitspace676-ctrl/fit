@@ -60,8 +60,8 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
  * than the user's earliest-joined "primary" one. It is held only to loose
  * DNS-label shape (the real authority is whether the user actually has a
  * membership in the named gym); a slug the user doesn't belong to at all is
- * ignored and the session falls back to the primary gym, so a crafted value can
- * never escalate scope. The full {@link gymSlugSchema} lives in `./gyms`, but is
+ * refused with `403 NOT_A_MEMBER` ({@link NOT_A_MEMBER_CODE}), so a crafted value
+ * can never escalate scope — nor land a session for another gym on this one. The full {@link gymSlugSchema} lives in `./gyms`, but is
  * re-derived loosely here to avoid an import cycle.
  *
  * Shared by every flow that mints a session on a subdomain — password login and
@@ -104,13 +104,23 @@ export type RefreshInput = z.infer<typeof refreshSchema>;
  * sign-in) they *do* hold a membership in, but that membership is not `ACTIVE` —
  * invited-but-not-yet-joined, or suspended by the gym.
  *
- * Distinct from a slug the user has no membership in at all, which stays a silent
- * fallback to the primary gym ({@link sessionGymSlugSchema}): asking for a gym you
- * belong to and being quietly signed into a *different* one is the failure this
- * code exists to make visible. The client turns it into "your membership here
- * isn't active yet" rather than a mysterious wrong-tenant session.
+ * Distinct from a gym the user has no membership in at all
+ * ({@link NOT_A_MEMBER_CODE}): asking for a gym you belong to and being quietly
+ * signed into a *different* one is the failure this code exists to make visible.
+ * The client turns it into "your membership here isn't active yet" rather than a
+ * mysterious wrong-tenant session.
  */
 export const MEMBERSHIP_NOT_ACTIVE_CODE = 'MEMBERSHIP_NOT_ACTIVE';
+
+/**
+ * `403` code returned when a sign-in names a gym (password, Google or Apple on a
+ * tenant subdomain) the account holds no membership in. It used to be signed
+ * into its primary gym instead — a session the gym's own site then threw away as
+ * foreign. Only after the credentials or the provider token check out, so it
+ * tells nobody anything about an address they cannot sign in as. The same code
+ * the member routes already answer a non-member with.
+ */
+export const NOT_A_MEMBER_CODE = 'NOT_A_MEMBER';
 
 /**
  * `403` code returned when an authenticated request arrives on one gym's

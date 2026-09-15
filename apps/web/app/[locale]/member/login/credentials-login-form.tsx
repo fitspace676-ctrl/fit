@@ -4,7 +4,7 @@ import { type FormEvent, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loginWithCredentials, postLoginPath } from '@/lib/auth';
+import { loginWithCredentials, postLoginPath, signInErrorKey } from '@/lib/auth';
 import { Link } from '@/src/i18n/navigation';
 import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
 
@@ -79,7 +79,8 @@ export function CredentialsLoginForm() {
       })
       .catch((err: unknown) => {
         setPending(false);
-        setError(err instanceof Error ? err.message : t('genericError'));
+        const key = signInErrorKey(err);
+        setError(key ? t(key) : err instanceof Error ? err.message : t('genericError'));
       });
   };
 
