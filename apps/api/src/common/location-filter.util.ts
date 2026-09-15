@@ -205,6 +205,7 @@
  * |---|---|---|
  * | `Review` | written about a trainer; a rating is a property of the person, not a quantity produced at a branch | — |
  * | `PromoRedemption` | `orderId` is a relation-less scalar — nothing to join through, and half the ledger has no order at all. Stage 7 pointedly did NOT fix this: a redemption needs an ATTRIBUTION column (NULL = unattributable, stamped from the till at write time, Stage 5's pattern), which is the exact opposite of the exclusivity semantics this stage introduced. Attributing it through `PromoCode.locationId` instead would be wrong twice over — a gym-wide code redeemed at one branch would vanish from that branch's figures | a Stage 5-shaped follow-up |
+ * | `AuditLog` | an entry names an actor and a polymorphic target id, never a place — and most of it is the platform operator acting on the gym as a whole. The `audit-log` report is gym-wide for this reason (`GYM_WIDE_REPORT_KEYS` in `@fit/types`, beside `discounts-and-promotions` for the `PromoRedemption` row above) | — |
  * | `Trainer.availability` | a weekly JSON document with no branch dimension at all. The ROSTER filters (through {@link staffAtLocation}); the availability inside a filtered row is still the coach's whole week, so a utilisation rate under a branch filter would divide one branch's delivered minutes by every branch's availability | — |
  *
  * `ClassType` left that table in Stage 7 — see {@link availableAtLocation}, which

@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BookingStatus } from '@fit/db';
-import { OFFERED_REPORT_KEYS, REPORT_KEYS } from '@fit/types';
+import { BookingStatus, Role } from '@fit/db';
+import {
+  GYM_WIDE_REPORT_KEYS,
+  isGymWideReport,
+  OFFERED_REPORT_KEYS,
+  REPORT_KEYS,
+} from '@fit/types';
 import { ReportsService } from './reports.service';
+import { scopeArgs } from '../common/prisma/prisma-tenant.extension';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { GymLocaleService } from '../gyms/gym-locale.service';
@@ -42,6 +48,7 @@ function setup() {
   const auditLogFindMany = vi.fn().mockResolvedValue([]);
   const locationFindMany = vi.fn().mockResolvedValue([]);
   const trainerFindMany = vi.fn().mockResolvedValue([]);
+  const productStockFindMany = vi.fn().mockResolvedValue([]);
   const gymFindFirst = vi.fn(() => Promise.resolve(gymRow));
 
   const client = {
@@ -65,6 +72,7 @@ function setup() {
     auditLog: { findMany: auditLogFindMany },
     location: { findMany: locationFindMany },
     trainer: { findMany: trainerFindMany },
+    productStock: { findMany: productStockFindMany },
     gym: { findFirst: gymFindFirst },
   };
   const prisma = { client } as unknown as TenantPrismaService;
@@ -103,6 +111,7 @@ function setup() {
     auditLogFindMany,
     locationFindMany,
     trainerFindMany,
+    productStockFindMany,
     gymFindFirst,
   };
 }
@@ -2857,27 +2866,509 @@ describe('ReportsService', () => {
     });
   });
 
-  /*
-   * WHERE THE BRANCH-FILTER SUITE WENT — and what has to come back.
-   *
-   * A `describe('branch filter')` block stood here: ~380 lines pinning WHICH of the
-   * catalogue's reports narrow to one branch, and — the half that mattered more —
-   * that the ones which cannot do not silently pretend to. It was removed when main
-   * (#325) rewrote this service around the 43-report catalogue and the
-   * today/7d/mtd/custom windows: every case named a `'30d'` range that no longer
-   * exists, against report methods that largely no longer exist either.
-   *
-   * It is NOT obsolete, only stale. `ReportQuery.locationId` still parses, still
-   * rides the URL, and both export routes still carry it — the service is simply
-   * ignoring it again, so a branch-scoped console currently downloads gym-wide
-   * figures. That is a regression this branch must not merge with.
-   *
-   * The suite, and the `atLocation` / `memberAtLocation` threading it pinned, are
-   * preserved verbatim at tag `backup/pre-main-merge` (commit 9cd572a). Restoring
-   * them means re-deciding the attribution per report against the NEW catalogue —
-   * order-backed, class-backed, member-backed, visit-backed or coaching-backed —
-   * which is the work this note exists to keep from being forgotten.
+  /**
+   * The branch filter. Two things are pinned here, and the second matters more:
+   * WHICH column each report narrows on, and that the reports which cannot answer
+   * "which branch" do not quietly pretend to. A report filtering on a proxy returns
+   * an empty table that reads as "this branch had no activity" — worse than an
+   * honestly gym-wide figure with a caveat beside it.
    */
+  describe('branch filter', () => {
+    const BRANCH = 'loc-probe';
+
+    /** The `where` the nth call to a stubbed delegate was issued with. */
+    const whereOf = (mock: { mock: { calls: unknown[][] } }, call = 0) =>
+      (mock.mock.calls[call]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
+
+    /** Every `where` any delegate of the stub client was called with. */
+    const allWheres = (mocks: Record<string, unknown>): unknown[] =>
+      Object.values(mocks).flatMap((value) =>
+        typeof value === 'function' && 'mock' in value
+          ? (value as { mock: { calls: unknown[][] } }).mock.calls.map(
+              (call) => (call[0] as { where?: unknown } | undefined)?.where,
+            )
+          : [],
+      );
+
+    /** Whether `needle` is a value (or, with `asKey`, a key) anywhere in `value`. */
+    const mentions = (value: unknown, needle: string, asKey = false): boolean =>
+      value !== null && typeof value === 'object'
+        ? Object.entries(value).some(
+            ([key, inner]) => (asKey && key === needle) || mentions(inner, needle, asKey),
+          )
+        : !asKey && value === needle;
+
+    /** A stub client with enough rows that every report reaches every read it makes. */
+    const primed = () => {
+      const mocks = setup();
+      mocks.paymentGroupBy.mockResolvedValue([]);
+      // stock-inventory reads a branch's shelf only once it has products to look up.
+      mocks.productFindMany.mockResolvedValue([
+        {
+          id: 'prod-1',
+          name: 'Towel',
+          costAmount: null,
+          priceAmount: 1_000,
+          stock: 4,
+          lowStockThreshold: null,
+          category: null,
+          variants: [],
+        },
+      ]);
+      return mocks;
+    };
+
+    const BRANCH_AWARE = REPORT_KEYS.filter((key) => !isGymWideReport(key));
+
+    // Exhaustive over the catalogue, retired reports included — a retired report
+    // still answers a bookmarked link, so it must not answer it gym-wide either.
+    it.each(BRANCH_AWARE)('%s narrows to the selected branch', async (key) => {
+      const { service, ...mocks } = primed();
+
+      await service.runReport(key, { range: 'mtd', locationId: BRANCH });
+
+      expect(allWheres(mocks).some((where) => mentions(where, BRANCH))).toBe(true);
+    });
+
+    // Not `locationId: undefined`: the key is absent, so "all branches" issues
+    // exactly the query it issued before the feature existed.
+    it.each(BRANCH_AWARE)('%s adds no branch predicate for all branches', async (key) => {
+      const { service, ...mocks } = primed();
+
+      await service.runReport(key, { range: 'mtd' });
+
+      for (const where of allWheres(mocks)) {
+        expect(mentions(where, 'locationId', true)).toBe(false);
+      }
+    });
+
+    it.each([...GYM_WIDE_REPORT_KEYS])(
+      '%s stays gym-wide: the branch never reaches a query',
+      async (key) => {
+        const { service, ...mocks } = primed();
+
+        await service.runReport(key, { range: 'mtd', locationId: BRANCH });
+
+        for (const where of allWheres(mocks)) {
+          expect(mentions(where, BRANCH)).toBe(false);
+          // Nor a proxy for it: no member hop, no order hop.
+          expect(mentions(where, 'member', true)).toBe(false);
+          expect(mentions(where, 'order', true)).toBe(false);
+        }
+      },
+    );
+
+    // A key comes off this list only when the data gains a real branch. Pinned so
+    // that is a deliberate, reviewed change rather than a quiet one.
+    it('leaves exactly two reports gym-wide', () => {
+      expect([...GYM_WIDE_REPORT_KEYS]).toEqual(['discounts-and-promotions', 'audit-log']);
+    });
+
+    it('reads payments and refunds on their own column, never through the order', async () => {
+      const { service, paymentFindMany, refundFindMany, paymentGroupBy } = primed();
+
+      await service.runReport('sales-summary', { range: 'mtd', locationId: BRANCH });
+      await service.runReport('revenue-by-channel', { range: 'mtd', locationId: BRANCH });
+
+      for (const where of [
+        whereOf(paymentFindMany),
+        whereOf(refundFindMany),
+        whereOf(paymentGroupBy),
+      ]) {
+        expect(where.locationId).toBe(BRANCH);
+        expect(where).not.toHaveProperty('order');
+      }
+    });
+
+    it('scopes order-backed reports on the order’s own column', async () => {
+      const { service, orderFindMany } = primed();
+      const keys = [
+        'plan-performance',
+        'sales-by-staff',
+        'pos-transaction-log',
+        'sales-transactions',
+        'product-sales',
+        'trainer-sales',
+      ] as const;
+
+      for (const key of keys) {
+        await service.runReport(key, { range: 'mtd', locationId: BRANCH });
+      }
+
+      keys.forEach((_key, call) => {
+        expect(whereOf(orderFindMany, call).locationId).toBe(BRANCH);
+      });
+    });
+
+    it('scopes class reports through the instance, bookings included', async () => {
+      const { service, classInstanceFindMany, bookingFindMany } = primed();
+
+      await service.runReport('class-utilization', { range: 'mtd', locationId: BRANCH });
+      await service.runReport('no-show-rate', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(classInstanceFindMany).locationId).toBe(BRANCH);
+      // A booking reaches a branch only through the session it holds a seat on.
+      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: BRANCH });
+      expect(whereOf(bookingFindMany)).not.toHaveProperty('member');
+    });
+
+    it('narrows member-backed reports by the member’s home branch', async () => {
+      const { service, gymMemberFindMany, subscriptionFindMany, creditPackFindMany } = primed();
+
+      await service.runReport('membership-movement', { range: 'mtd', locationId: BRANCH });
+      await service.runReport('projected-revenue', { range: 'mtd', locationId: BRANCH });
+      await service.runReport('credit-usage', { range: 'mtd', locationId: BRANCH });
+
+      // `GymMember` owns the column; a subscription and a credit pack reach it
+      // through `member`, live — a transferring member's recurring base follows them.
+      expect(whereOf(gymMemberFindMany).locationId).toBe(BRANCH);
+      // Both halves of membership movement, or `netChange` subtracts across two
+      // populations.
+      expect(whereOf(subscriptionFindMany, 0).member).toEqual({ locationId: BRANCH });
+      expect(whereOf(subscriptionFindMany, 1).member).toEqual({ locationId: BRANCH });
+      expect(whereOf(subscriptionFindMany, 1)).not.toHaveProperty('locationId');
+      expect(whereOf(creditPackFindMany).member).toEqual({ locationId: BRANCH });
+    });
+
+    // Roadmap Stage 3: in these two reports a check-in is a predicate about the
+    // PERSON, not a row being listed. Filtering it would turn a member who trains at
+    // the other site into a churn risk.
+    it('never narrows the check-ins read about a member', async () => {
+      const { service, gymMemberFindMany } = primed();
+
+      await service.runReport('members-at-risk', { range: 'mtd', locationId: BRANCH });
+      await service.runReport('member-roster', { range: 'mtd', locationId: BRANCH });
+
+      for (const call of [0, 1]) {
+        const args = gymMemberFindMany.mock.calls[call]![0] as {
+          where: Record<string, unknown>;
+          select: { checkIns: unknown; _count: unknown };
+        };
+        expect(args.where.locationId).toBe(BRANCH);
+        expect(mentions(args.select.checkIns, BRANCH)).toBe(false);
+        expect(mentions(args.select._count, BRANCH)).toBe(false);
+      }
+    });
+
+    // The log narrows by the door the visitor came through — never the member hop,
+    // which would print a log whose own location column names another branch.
+    it('narrows the check-in log by the branch the visit happened at', async () => {
+      const { service, checkInFindMany } = primed();
+
+      await service.runReport('member-check-in-log', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(checkInFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(checkInFindMany)).not.toHaveProperty('member');
+      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
+    });
+
+    it('narrows cancellations by the class, not the check-ins it matches against', async () => {
+      const { service, bookingFindMany, checkInFindMany } = primed();
+
+      await service.runReport('class-cancellations', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: BRANCH });
+      expect(whereOf(checkInFindMany)).not.toHaveProperty('locationId');
+    });
+
+    // Stage 6 gave `PtSession` a branch. This report was the worked example of why
+    // half a filter is worse than none: the ranking ADDS the two columns.
+    it('filters BOTH halves of trainer performance, or neither', async () => {
+      const { service, classInstanceFindMany, ptSessionFindMany } = primed();
+
+      await service.runReport('trainer-performance', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(classInstanceFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(ptSessionFindMany).locationId).toBe(BRANCH);
+    });
+
+    it('narrows every PT source on where the hour was delivered, not the coach roster', async () => {
+      const { service, classInstanceFindMany, ptSessionFindMany, serviceSessionFindMany } =
+        primed();
+
+      await service.runReport('pt-sessions', { range: 'mtd', locationId: BRANCH });
+      await service.runReport('trainer-activity', { range: 'mtd', locationId: BRANCH });
+
+      const reads = [
+        whereOf(serviceSessionFindMany, 0),
+        whereOf(ptSessionFindMany, 0),
+        whereOf(classInstanceFindMany, 0),
+        whereOf(ptSessionFindMany, 1),
+        whereOf(serviceSessionFindMany, 1),
+      ];
+      for (const where of reads) {
+        expect(where.locationId).toBe(BRANCH);
+        // A coach based elsewhere who covered a session here belongs in this
+        // branch's table; filtering by roster would drop their work from it.
+        expect(where).not.toHaveProperty('trainer');
+        expect(where).not.toHaveProperty('staff');
+      }
+    });
+
+    it('prints the branch each PT hour was delivered at', async () => {
+      const { service, serviceSessionFindMany, ptSessionFindMany } = primed();
+      serviceSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-09-10T08:00:00.000Z'),
+          endsAt: new Date('2026-09-10T09:00:00.000Z'),
+          status: 'BOOKED',
+          member: null,
+          staff: { firstName: 'Ana', lastName: 'K', user: null },
+          service: { name: 'PT' },
+          invoice: null,
+          location: { name: 'Vake' },
+        },
+      ]);
+      ptSessionFindMany.mockResolvedValue([
+        {
+          startsAt: new Date('2026-09-10T10:00:00.000Z'),
+          endsAt: new Date('2026-09-10T11:00:00.000Z'),
+          status: 'SCHEDULED',
+          trainer: { name: 'Gio' },
+          // `SetNull`: a session whose branch was deleted keeps its row.
+          location: null,
+        },
+      ]);
+
+      const result = await service.runReport('pt-sessions', { range: 'mtd' });
+
+      expect(result.rows.map((row) => row.location)).toEqual(['Vake', '']);
+    });
+
+    it('narrows the shift schedule and the stock ledger by where they happened', async () => {
+      const { service, shiftSlotFindMany, stockMovementFindMany } = primed();
+
+      await service.runReport('staff-schedule', { range: 'mtd', locationId: BRANCH });
+      await service.runReport('stock-movements', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(shiftSlotFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(shiftSlotFindMany).staff).toEqual({ deletedAt: null });
+      expect(whereOf(stockMovementFindMany).locationId).toBe(BRANCH);
+    });
+
+    // The set mixes subscription invoices (no order) with sales, so one rule has to
+    // cover every row: the invoice's own frozen branch — never the order, and never
+    // the live member hop, which would drag a transferred member's closed debts along.
+    it('narrows outstanding invoices on the invoice’s own branch', async () => {
+      const { service, invoiceFindMany } = primed();
+
+      await service.runReport('outstanding-invoices', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(invoiceFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(invoiceFindMany)).not.toHaveProperty('order');
+      expect(whereOf(invoiceFindMany)).not.toHaveProperty('member');
+      // Still "issued in the window, or still owed".
+      expect(whereOf(invoiceFindMany).OR).toHaveLength(2);
+    });
+
+    it('keeps revenue-summary’s two rules in two columns', async () => {
+      const { service, paymentFindMany, subscriptionFindMany } = primed();
+      subscriptionFindMany.mockResolvedValue([
+        {
+          memberId: 'member-1',
+          priceAmount: 6_000,
+          interval: 'MONTH',
+          status: 'ACTIVE',
+          createdAt: new Date('2020-01-01T00:00:00.000Z'),
+          canceledAt: null,
+          updatedAt: new Date('2020-01-01T00:00:00.000Z'),
+        },
+      ]);
+
+      const result = await service.runReport('revenue-summary', {
+        range: '7d',
+        locationId: BRANCH,
+      });
+
+      // The flow: the till the money went into.
+      expect(whereOf(paymentFindMany).locationId).toBe(BRANCH);
+      // The stock: the member's home branch, live. Give `Subscription` a column to
+      // "finish" the denormalisation and this line fails — correctly.
+      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: BRANCH });
+      expect(whereOf(subscriptionFindMany)).not.toHaveProperty('locationId');
+      expect(result.rows.at(-1)!.mrr).toBe(6_000);
+    });
+
+    it('degrades revenue-by-location to the selected branch’s single row', async () => {
+      const { service, paymentFindMany } = primed();
+      paymentFindMany.mockResolvedValue([
+        { amount: 10_000, refundedAmount: 1_000, location: { name: 'Vake' } },
+      ]);
+
+      const result = await service.runReport('revenue-by-location', {
+        range: 'mtd',
+        locationId: BRANCH,
+      });
+
+      expect(whereOf(paymentFindMany).locationId).toBe(BRANCH);
+      expect(result.rows).toEqual([
+        { location: 'Vake', orders: 1, gross: 10_000, refunded: 1_000, net: 9_000 },
+      ]);
+    });
+
+    describe('stock-inventory', () => {
+      const catalogue = [
+        {
+          id: 'prod-1',
+          name: 'Shaker',
+          costAmount: 1_000,
+          priceAmount: 1_500,
+          stock: null,
+          lowStockThreshold: 5,
+          category: null,
+          variants: [
+            { name: '500ml', sku: 'SHK-500', priceAmount: 1_500, stock: 40 },
+            { name: '750ml', sku: 'SHK-750', priceAmount: null, stock: 40 },
+          ],
+        },
+        {
+          id: 'prod-2',
+          name: 'Towel',
+          costAmount: 500,
+          priceAmount: 2_000,
+          stock: 30,
+          lowStockThreshold: null,
+          category: null,
+          variants: [],
+        },
+      ];
+
+      it('reads the branch’s own shelf and cushion, and "not tracked" where nothing was counted', async () => {
+        const { service, productFindMany, productStockFindMany } = setup();
+        productFindMany.mockResolvedValue(catalogue);
+        // Vake counted the 500ml (its row predates the 750ml) with a cushion of its
+        // own, and has no row for the towel at all.
+        productStockFindMany.mockResolvedValue([
+          { productId: 'prod-1', stock: null, variants: [2], lowStockThreshold: 2 },
+        ]);
+
+        const result = await service.runReport('stock-inventory', {
+          range: 'mtd',
+          locationId: BRANCH,
+        });
+
+        expect(whereOf(productStockFindMany)).toEqual({
+          locationId: BRANCH,
+          productId: { in: ['prod-1', 'prod-2'] },
+        });
+        expect(
+          result.rows.map((row) => [
+            row.variant || row.product,
+            row.stock,
+            row.threshold,
+            row.status,
+          ]),
+        ).toEqual([
+          ['500ml', 2, 2, 'Low stock'],
+          // A slot the branch row has not grown to is a real, counted zero.
+          ['750ml', 0, 2, 'Out of stock'],
+          // No row is not a zero anybody counted.
+          ['Towel', null, null, 'Not tracked'],
+        ]);
+      });
+
+      it('reads the gym roll-up, and no shelf, with no branch', async () => {
+        const { service, productFindMany, productStockFindMany } = setup();
+        productFindMany.mockResolvedValue(catalogue);
+
+        const result = await service.runReport('stock-inventory', { range: 'mtd' });
+
+        expect(productStockFindMany).not.toHaveBeenCalled();
+        expect(result.rows.map((row) => row.stock)).toEqual([40, 40, 30]);
+      });
+    });
+
+    // A CSV that disagrees with the screen it was downloaded from is worse than no
+    // filter. Both formats reach `computeReport` by their own path.
+    it('applies the same filter to the CSV and XLSX exports as to the preview', async () => {
+      const { service, orderFindMany } = primed();
+
+      for await (const _chunk of service.streamReportCsv('pos-transaction-log', {
+        range: 'mtd',
+        locationId: BRANCH,
+      })) {
+        // drained so the generator issues its query
+      }
+      await service.buildReportXlsx('pos-transaction-log', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(orderFindMany, 0).locationId).toBe(BRANCH);
+      expect(whereOf(orderFindMany, 1).locationId).toBe(BRANCH);
+    });
+
+    /**
+     * Gym isolation. A branch filter narrows INSIDE the tenant, never around it: a
+     * branch id from another gym must meet only this gym's rows and match none.
+     *
+     * The stub delegates here run the REAL `scopeArgs` — the rewrite the tenant
+     * extension applies to every scoped query in production — and then match rows
+     * on every scalar equality left in the `where`, so what is asserted is the
+     * query the database would actually receive.
+     */
+    describe('another gym’s branch id', () => {
+      const scopedTo =
+        (model: string, rows: Array<Record<string, unknown>>) =>
+        (args: { where?: Record<string, unknown> }) => {
+          const scoped = scopeArgs(model, 'findMany', args, {
+            userId: 'user-1',
+            gymId: 'gym-1',
+            role: Role.OWNER,
+            allowCrossTenant: false,
+          }) as { where: Record<string, unknown> };
+          return Promise.resolve(
+            rows.filter((row) =>
+              Object.entries(scoped.where).every(
+                ([key, value]) => typeof value !== 'string' || row[key] === value,
+              ),
+            ),
+          );
+        };
+
+      const order = (gymId: string, locationId: string) => ({
+        id: `order-${gymId}`,
+        gymId,
+        locationId,
+        createdAt: new Date('2026-09-10T09:00:00.000Z'),
+        total: 1_000,
+        status: 'PAID',
+        customerName: 'Walk-in',
+        packageId: null,
+        member: null,
+        location: { name: locationId },
+        items: [],
+        payment: null,
+        soldBy: null,
+      });
+      const visit = (gymId: string, locationId: string) => ({
+        gymId,
+        locationId,
+        checkedInAt: new Date('2026-09-10T09:00:00.000Z'),
+        method: 'QR',
+        member: null,
+      });
+
+      it('returns nothing for another gym’s branch, and never that gym’s rows', async () => {
+        const { service, orderFindMany, checkInFindMany } = setup();
+        orderFindMany.mockImplementation(
+          scopedTo('Order', [order('gym-1', 'loc-mine'), order('gym-2', 'loc-theirs')]),
+        );
+        checkInFindMany.mockImplementation(
+          scopedTo('CheckIn', [visit('gym-1', 'loc-mine'), visit('gym-2', 'loc-theirs')]),
+        );
+
+        for (const key of ['sales-transactions', 'member-check-in-log'] as const) {
+          const theirs = await service.runReport(key, { range: 'mtd', locationId: 'loc-theirs' });
+          expect(theirs.rows).toEqual([]);
+
+          const mine = await service.runReport(key, { range: 'mtd', locationId: 'loc-mine' });
+          expect(mine.rows).toHaveLength(1);
+
+          // "All branches" is still this gym only.
+          const all = await service.runReport(key, { range: 'mtd' });
+          expect(all.rows).toHaveLength(1);
+        }
+      });
+    });
+  });
 
   describe('serialization', () => {
     it('streams CSV with a header row then formatted, escaped data rows', async () => {

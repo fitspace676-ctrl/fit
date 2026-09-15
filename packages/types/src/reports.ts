@@ -354,6 +354,32 @@ export function isOfferedReport(key: ReportKey): key is OfferedReportKey {
   return (OFFERED_REPORT_KEYS as readonly ReportKey[]).includes(key);
 }
 
+/**
+ * The reports a branch filter does NOT narrow. The data behind them cannot answer
+ * "which branch", so the API ignores `locationId` for them rather than filter on a
+ * proxy, and the console marks them "not split by branch" while a branch is
+ * selected. One list for both sides, so the service and the caveat cannot drift.
+ *
+ *   - `discounts-and-promotions` - `PromoRedemption` has no branch, its `orderId`
+ *     is a relation-less scalar, and `memberId` is null by design for a walk-in:
+ *     a member hop would drop exactly the walk-in promotions the report prices.
+ *     Needs a Stage 5-shaped attribution column stamped at the till.
+ *   - `audit-log` - an entry names an actor and a polymorphic target id, never a
+ *     place, and most of it is the platform operator acting on the gym as a whole.
+ *
+ * A key comes off this list only when the DATA gains an honest branch, never
+ * because filtering was convenient.
+ */
+export const GYM_WIDE_REPORT_KEYS = [
+  'discounts-and-promotions',
+  'audit-log',
+] as const satisfies readonly ReportKey[];
+
+/** Whether `key` stays gym-wide under a branch filter - {@link GYM_WIDE_REPORT_KEYS}. */
+export function isGymWideReport(key: ReportKey): boolean {
+  return (GYM_WIDE_REPORT_KEYS as readonly ReportKey[]).includes(key);
+}
+
 /** The file formats a report can be exported as. */
 export const reportFormatSchema = z.enum(['csv', 'xlsx']);
 export type ReportFormat = z.infer<typeof reportFormatSchema>;
@@ -842,7 +868,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'products',
     name: 'Stock & inventory',
     description:
-      'Current stock of every product and variant, its unit cost and stock value, the low-stock threshold, and a status against it (in stock, low stock, out of stock, not tracked). Stock is held per product, not per branch.',
+      'Current stock of every product and variant, its unit cost and stock value, the low-stock threshold, and a status against it (in stock, low stock, out of stock, not tracked). With a branch selected, the counts are for that branch alone.',
     columns: [
       { key: 'product', label: 'Product', type: 'text' },
       { key: 'variant', label: 'Variant', type: 'text' },
@@ -985,7 +1011,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'staff',
     name: 'Trainer activity',
     description:
-      'What each trainer did in the window: classes run, PT sessions delivered, how many different members they trained, and how their class bookings ended - attended, cancelled, no-show. The location column lists the branches their classes ran at; a PT session carries no branch.',
+      'What each trainer did in the window: classes run, PT sessions delivered, how many different members they trained, and how their class bookings ended - attended, cancelled, no-show. The location column lists the branches the work was delivered at.',
     columns: [
       { key: 'trainer', label: 'Trainer', type: 'text' },
       { key: 'location', label: 'Location', type: 'text' },
@@ -1077,7 +1103,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'staff',
     name: 'Staff schedule',
     description:
-      "Scheduled working time: the weekly shift pattern projected onto every day of the window it falls on. A shift's location is the text the rota holds, not a branch record.",
+      "Scheduled working time: the weekly shift pattern projected onto every day of the window it falls on. The location is the shift's branch, or the rota's own text where it names no branch.",
     columns: [
       { key: 'staff', label: 'Staff member', type: 'text' },
       { key: 'role', label: 'Role', type: 'text' },
