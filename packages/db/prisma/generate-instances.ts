@@ -254,6 +254,7 @@ export async function generateClassInstances(
       startTime: true,
       validFrom: true,
       validUntil: true,
+      locationId: true,
       // A start time is a wall clock, so it only resolves to an instant against
       // the gym's own zone. Selected per template rather than looked up per gym:
       // the pass is system-wide and the blob is small.
@@ -297,6 +298,7 @@ export async function generateClassInstances(
       .map((startsAt) => ({
         gymId: template.gymId,
         templateId: template.id,
+        locationId: template.locationId,
         startsAt,
         endsAt: new Date(startsAt.getTime() + template.durationMinutes * 60 * 1000),
         status: InstanceStatus.SCHEDULED,

@@ -606,6 +606,74 @@ describe('AdminClassTemplatesService', () => {
       expect(instanceCreateMany).not.toHaveBeenCalled();
       expect(instanceDeleteMany).not.toHaveBeenCalled();
     });
+
+    it("stamps the template's branch on every occurrence it creates", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+
+      const { service, instanceCreateMany } = setup({ findFirst: row(), instances: [] });
+
+      await service.updateClassTemplate('ct-1', { ...regenInput(), locationId: 'loc-vake' });
+
+      const created = instanceCreateMany.mock.calls[0]?.[0]?.data as Array<Record<string, unknown>>;
+      expect(created).toHaveLength(4);
+      // On the row, not only reachable through the template: the read side's
+      // `OR template.locationId` is for historical rows, not for new ones.
+      expect(created.every((r) => r.locationId === 'loc-vake')).toBe(true);
+    });
+
+    it('moves kept future occurrences with a template that changed branch', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+
+      const instance = (id: string, iso: string, extra: Record<string, unknown>) =>
+        ({
+          id,
+          startsAt: at(iso),
+          endsAt: new Date(`${iso}T01:00:00.000Z`),
+          status: InstanceStatus.SCHEDULED,
+          bookedCount: 0,
+          detachedAt: null,
+          ...extra,
+        }) as InstanceRecord;
+
+      const { service, instanceUpdateMany } = setup({
+        findFirst: row(),
+        instances: [
+          instance('stamped', '2026-06-08', { locationId: 'loc-old' }),
+          instance('legacy', '2026-06-15', { locationId: null }),
+          instance('already', '2026-06-22', { locationId: 'loc-vake' }),
+          // Detached earlier: it left the rule, and its seat was booked at the old branch.
+          instance('detached', '2026-06-29', {
+            locationId: 'loc-old',
+            detachedAt: new Date('2026-06-01T00:00:00.000Z'),
+          }),
+        ],
+      });
+
+      await service.updateClassTemplate('ct-1', { ...regenInput(), locationId: 'loc-vake' });
+
+      // Otherwise a stamped row would sit at the old branch on its own column and
+      // at the new one through the template — shown at both.
+      expect(instanceUpdateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['stamped', 'legacy'] } },
+        data: { locationId: 'loc-vake' },
+      });
+    });
+
+    it('stamps a newly created template’s branch on its first occurrences', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+
+      const { service, instanceCreateMany } = setup();
+
+      await service.createClassTemplate(createInput());
+
+      const created = instanceCreateMany.mock.calls[0]?.[0]?.data as Array<Record<string, unknown>>;
+      expect(created.length).toBeGreaterThan(0);
+      // `create` resolves `row()`, whose branch is `loc-1`.
+      expect(created.every((r) => r.locationId === 'loc-1')).toBe(true);
+    });
   });
 
   describe('pauseClassTemplate / resumeClassTemplate', () => {

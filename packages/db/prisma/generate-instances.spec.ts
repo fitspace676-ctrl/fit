@@ -31,6 +31,8 @@ interface TemplateRow {
   startTime: string;
   validFrom: Date;
   validUntil: Date | null;
+  /** The template's branch, which every occurrence it materialises carries. */
+  locationId?: string | null;
   /** The gym's settings blob, which carries the zone `startTime` is read against. */
   gym?: { settings: unknown } | null;
 }
@@ -38,6 +40,7 @@ interface TemplateRow {
 type CreatedRow = {
   gymId: string;
   templateId: string;
+  locationId?: string | null;
   startsAt: Date;
   endsAt: Date;
   status: InstanceStatus;
@@ -231,6 +234,27 @@ describe('generateClassInstances', () => {
     expect(first.status).toBe(InstanceStatus.SCHEDULED);
     expect(first.startsAt).toEqual(utc(2026, 6, 8));
     expect(first.endsAt).toEqual(utc(2026, 6, 8, 1)); // +60 min
+  });
+
+  it("stamps the template's branch on every occurrence it materialises", async () => {
+    const { prisma, created } = makePrisma([
+      {
+        id: 't1',
+        gymId: 'g1',
+        rrule: 'FREQ=WEEKLY;BYDAY=MO',
+        durationMinutes: 60,
+        startTime: '00:00',
+        gym: { settings: { locale: { timezone: 'UTC' } } },
+        validFrom: now,
+        validUntil: null,
+        locationId: 'loc-vake',
+      },
+    ]);
+
+    await generateClassInstances(prisma, { now });
+
+    expect(created).toHaveLength(4);
+    expect(created.every((row) => row.locationId === 'loc-vake')).toBe(true);
   });
 
   it('defaults to a 4-week horizon', async () => {
