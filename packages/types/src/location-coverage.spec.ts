@@ -47,7 +47,6 @@ const LOCATION_PENDING: Record<string, string> = {
     'GET /marketing/campaigns — Stage 7 exclusivity; Campaign has no column yet',
   listAutomationRulesQuerySchema:
     'GET /automation/rules — Stage 7 exclusivity; AutomationRule has no column yet',
-  listServiceSlotsQuerySchema: 'public GET /service-sessions — ServiceSession.locationId exists',
 };
 
 const COVERED_NAME = /^(list\w*|dashboard\w*|report\w*)QuerySchema$/;

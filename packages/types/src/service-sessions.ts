@@ -126,6 +126,12 @@ export const listServiceSlotsQuerySchema = windowRefine(
   z.object({
     gymId: z.string().min(1),
     serviceId: z.string().min(1).optional(),
+    /**
+     * Show one branch's slots. Omitted, a signed-in member sees their home branch's
+     * and a visitor every branch's; a branch that is not an active one of `gymId`
+     * is a `404`.
+     */
+    locationId: z.string().min(1).optional(),
     ...windowFields,
   }),
 );

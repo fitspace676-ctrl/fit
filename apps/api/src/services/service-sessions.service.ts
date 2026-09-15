@@ -191,7 +191,12 @@ export class ServiceSessionsService {
 
   // ── Public (portal) ──────────────────────────────────────────────────────
 
-  /** The OPEN, still-future slots of a gym (optionally one service) in `[from, to)`. */
+  /**
+   * The OPEN, still-future slots of a gym (optionally one service, optionally one
+   * branch) in `[from, to)`. `locationId` is the branch the controller already
+   * resolved and checked against `gymId`; a slot with no branch shows only when
+   * none is asked for.
+   */
   async listOpenSlots(query: ListServiceSlotsQuery): Promise<ListServiceSlotsResponse> {
     const from = new Date(Math.max(new Date(query.from).getTime(), Date.now()));
     const rows = await this.base.client.serviceSession.findMany({
@@ -199,6 +204,7 @@ export class ServiceSessionsService {
         gymId: query.gymId,
         status: ServiceSessionStatus.OPEN,
         ...(query.serviceId ? { serviceId: query.serviceId } : {}),
+        ...atLocation(query.locationId),
         service: { status: ServiceStatus.ACTIVE },
         startsAt: { gte: from, lt: new Date(query.to) },
       },

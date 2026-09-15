@@ -257,3 +257,28 @@ describe('ServiceSessionsService.book', () => {
     });
   });
 });
+
+describe('ServiceSessionsService.listOpenSlots', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  const window = { from: '2099-01-01T00:00:00.000Z', to: '2099-01-08T00:00:00.000Z' };
+
+  it('narrows to the branch the controller resolved, inside the gym', async () => {
+    const { svc, sessionFindMany } = setup();
+
+    await svc.listOpenSlots({ gymId: 'gym-1', locationId: 'loc-1', ...window });
+
+    expect(sessionFindMany.mock.calls[0]?.[0]).toMatchObject({
+      where: { gymId: 'gym-1', status: 'OPEN', locationId: 'loc-1' },
+    });
+  });
+
+  it('adds no branch predicate when no branch is resolved', async () => {
+    const { svc, sessionFindMany } = setup();
+
+    const result = await svc.listOpenSlots({ gymId: 'gym-1', ...window });
+
+    expect(sessionFindMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('locationId');
+    expect(result.slots).toHaveLength(1);
+  });
+});
