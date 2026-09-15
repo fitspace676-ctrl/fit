@@ -7,7 +7,11 @@
 // **httpOnly** cookies the Next.js middleware / `getServerSession()` read. The
 // token therefore never lives anywhere client JS can read it.
 
-import type { ResetPasswordResponse } from '@fit/types';
+import {
+  MEMBERSHIP_NOT_ACTIVE_CODE,
+  NOT_A_MEMBER_CODE,
+  type ResetPasswordResponse,
+} from '@fit/types';
 import { extractGymSlug } from '@fit/utils';
 import { browserTenantHeaders } from './tenant-host';
 
@@ -56,21 +60,70 @@ export interface TokenPair {
 }
 
 /**
+ * A refused sign-in. `code` is the API's machine-readable reason
+ * (`NOT_A_MEMBER`, `MEMBERSHIP_NOT_ACTIVE`, `GYM_SUSPENDED`, …) so the screen can
+ * say it in the visitor's language; `message` stays the API's own text.
+ */
+export class SignInError extends Error {
+  readonly code: string | undefined;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'SignInError';
+    this.code = code;
+  }
+}
+
+/** The {@link SignInError} a non-2xx sign-in response describes. */
+async function signInError(response: Response, fallback: string): Promise<SignInError> {
+  const detail = (await response.json().catch(() => null)) as {
+    message?: string;
+    code?: string;
+  } | null;
+  return new SignInError(detail?.message ?? `${fallback} (${response.status})`, detail?.code);
+}
+
+/** The `auth` message keys a sign-in refusal has its own copy for. */
+export type SignInErrorKey =
+  | 'login.errors.notAMember'
+  | 'login.errors.membershipNotActive'
+  | 'login.errors.gymSuspended';
+
+/**
+ * The localized message key for a refused sign-in, or `null` when the refusal
+ * has no copy of its own (the caller shows the API's message instead).
+ */
+export function signInErrorKey(error: unknown): SignInErrorKey | null {
+  if (!(error instanceof SignInError)) return null;
+  switch (error.code) {
+    case NOT_A_MEMBER_CODE:
+      return 'login.errors.notAMember';
+    case MEMBERSHIP_NOT_ACTIVE_CODE:
+      return 'login.errors.membershipNotActive';
+    case 'GYM_SUSPENDED':
+      return 'login.errors.gymSuspended';
+    default:
+      return null;
+  }
+}
+
+/**
  * Exchange a Google ID token (from Google Identity Services) for a Fit session.
- * POSTs to `POST /auth/google`; the API verifies the Google token and issues its
- * own {@link TokenPair}, which we persist before returning. Throws with the API's
- * error message on a non-2xx response.
+ * POSTs to `POST /auth/google` with this page's gym, as the credentials sign-in
+ * does, so the session binds to the gym whose site this is; the API verifies the
+ * Google token and issues its own {@link TokenPair}, which we persist before
+ * returning. Throws a {@link SignInError} on a non-2xx response.
  */
 export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
+  const gymSlug = currentGymSlug();
   const response = await fetch(`${API_URL}/auth/google`, {
     method: 'POST',
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken }),
+    body: JSON.stringify({ idToken, ...(gymSlug ? { gymSlug } : {}) }),
   });
 
   if (!response.ok) {
-    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(detail?.message ?? `Google sign-in failed (${response.status})`);
+    throw await signInError(response, 'Google sign-in failed');
   }
 
   const tokens = (await response.json()) as TokenPair;
@@ -83,19 +136,20 @@ export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
  * POSTs to `POST /auth/apple`; the API verifies the Apple token and issues its
  * own {@link TokenPair}, which we persist before returning. `name` is forwarded
  * only on the first authorization (Apple omits it from the token and on returning
- * sign-ins), and the API uses it solely when creating a new account. Throws with
- * the API's error message on a non-2xx response.
+ * sign-ins), and the API uses it solely when creating a new account. This page's
+ * gym goes with it, as on Google. Throws a {@link SignInError} on a non-2xx
+ * response.
  */
 export async function loginWithApple(idToken: string, name?: string): Promise<TokenPair> {
+  const gymSlug = currentGymSlug();
   const response = await fetch(`${API_URL}/auth/apple`, {
     method: 'POST',
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify(name ? { idToken, name } : { idToken }),
+    body: JSON.stringify({ idToken, ...(name ? { name } : {}), ...(gymSlug ? { gymSlug } : {}) }),
   });
 
   if (!response.ok) {
-    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(detail?.message ?? `Apple sign-in failed (${response.status})`);
+    throw await signInError(response, 'Apple sign-in failed');
   }
 
   const tokens = (await response.json()) as TokenPair;
@@ -156,8 +210,7 @@ export async function loginWithCredentials(
   });
 
   if (!response.ok) {
-    const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(detail?.message ?? `Sign-in failed (${response.status})`);
+    throw await signInError(response, 'Sign-in failed');
   }
 
   const tokens = (await response.json()) as TokenPair;

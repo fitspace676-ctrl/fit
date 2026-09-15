@@ -3305,7 +3305,12 @@
       "submitting": "Signing in…",
       "forgotPassword": "Forgot password?",
       "noAccount": "Don’t have an account?",
-      "registerLink": "Create one"
+      "registerLink": "Create one",
+      "errors": {
+        "notAMember": "This account isn’t a member of this gym. Join the gym to sign in here.",
+        "membershipNotActive": "Your membership at this gym isn’t active yet. Ask the gym to activate it.",
+        "gymSuspended": "This gym is temporarily unavailable."
+      }
     },
     "register": {
       "title": "Create your account",

@@ -348,6 +348,42 @@ describe('AuthController', () => {
       expect(ctx.loginWithGoogle).toHaveBeenCalledWith({ idToken: 'google-id-token' });
     });
 
+    it('names the gym from x-tenant-host when the body carries no gymSlug', async () => {
+      await ctx.controller.google(
+        { idToken: 'google-id-token' },
+        {
+          'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.loginWithGoogle).toHaveBeenCalledWith({
+        idToken: 'google-id-token',
+        gymSlug: 'riverside',
+      });
+    });
+
+    it('keeps the gymSlug the body names over the host', async () => {
+      await ctx.controller.google(
+        { idToken: 'google-id-token', gymSlug: 'downtown' },
+        { 'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}` },
+      );
+
+      expect(ctx.loginWithGoogle).toHaveBeenCalledWith({
+        idToken: 'google-id-token',
+        gymSlug: 'downtown',
+      });
+    });
+
+    it('names no gym when neither the body nor the host does', async () => {
+      await ctx.controller.google(
+        { idToken: 'google-id-token' },
+        { host: 'api-production.up.railway.app' },
+      );
+
+      expect(ctx.loginWithGoogle).toHaveBeenCalledWith({ idToken: 'google-id-token' });
+    });
+
     it('rejects a missing id token with a 400', async () => {
       await expect(ctx.controller.google({})).rejects.toBeInstanceOf(BadRequestException);
       expect(ctx.loginWithGoogle).not.toHaveBeenCalled();
@@ -366,6 +402,21 @@ describe('AuthController', () => {
       await ctx.controller.apple({ idToken: 'apple-id-token' });
 
       expect(ctx.loginWithApple).toHaveBeenCalledWith({ idToken: 'apple-id-token' });
+    });
+
+    it('names the gym from x-tenant-host when the body carries no gymSlug', async () => {
+      await ctx.controller.apple(
+        { idToken: 'apple-id-token' },
+        {
+          'x-tenant-host': `riverside.${env.PLATFORM_ROOT_DOMAIN}`,
+          host: 'api-production.up.railway.app',
+        },
+      );
+
+      expect(ctx.loginWithApple).toHaveBeenCalledWith({
+        idToken: 'apple-id-token',
+        gymSlug: 'riverside',
+      });
     });
 
     it('rejects a missing id token with a 400', async () => {

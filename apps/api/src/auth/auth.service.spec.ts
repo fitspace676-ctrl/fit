@@ -1109,10 +1109,13 @@ describe('AuthService', () => {
       });
     });
 
-    it('falls back to the primary gym when gymSlug names a gym the user is not a member of', async () => {
+    it('throws 403 NOT_A_MEMBER when gymSlug names a gym the user is not a member of', async () => {
+      // A downtown member signing in on riverside's host. This used to hand back a
+      // downtown session, which riverside's site then threw away as foreign.
       ctx.findUnique.mockResolvedValue(verifiedUser);
       argonVerify.mockResolvedValue(true);
       membership(ctx, { hasAny: true, hasActive: true });
+      requestedMembership(ctx, null);
       ctx.gymMemberFindMany.mockResolvedValue([
         {
           gymId: 'gym-downtown',
@@ -1122,13 +1125,76 @@ describe('AuthService', () => {
         },
       ]);
 
-      // `someone-elses-gym` isn't among the user's memberships → primary wins.
-      await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'someone-elses-gym' });
+      const error = await ctx.service
+        .login({ ...VALID_LOGIN, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'NOT_A_MEMBER',
+      });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('throws the same 403 for an account with no gym at all', async () => {
+      // Tenant-less on a gym host is no use to that gym's site either.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: false, hasActive: false });
+
+      const error = await ctx.service
+        .login({ ...VALID_LOGIN, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        code: 'NOT_A_MEMBER',
+      });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('still gives a sign-in that names no gym the primary gym', async () => {
+      // The mobile app and `app.<root>` send no slug.
+      ctx.findUnique.mockResolvedValue(verifiedUser);
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-riverside',
+          role: Role.MEMBER,
+          joinedAt: new Date('2026-03-01'),
+          gym: { status: 'ACTIVE', slug: 'riverside' },
+        },
+        {
+          gymId: 'gym-downtown',
+          role: Role.OWNER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      await ctx.service.login(VALID_LOGIN);
 
       expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
         gymId: 'gym-downtown',
         gymSlug: 'downtown',
         role: Role.OWNER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('keeps a platform SUPER_ADMIN tenant-less when it signs in on a gym host', async () => {
+      // Pinned down so the membership gate never turns an operator away from a
+      // gym host: the flag still wins before any gym is looked at.
+      ctx.findUnique.mockResolvedValue({ ...verifiedUser, isSuperAdmin: true });
+      argonVerify.mockResolvedValue(true);
+      membership(ctx, { hasAny: false, hasActive: false });
+
+      await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' });
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+        gymId: null,
+        gymSlug: null,
+        role: Role.SUPER_ADMIN,
         tokenVersion: 0,
       });
     });
@@ -1409,6 +1475,52 @@ describe('AuthService', () => {
         gymId: 'gym-riverside',
         gymSlug: 'riverside',
         role: Role.TRAINER,
+        tokenVersion: 0,
+      });
+    });
+
+    it('refuses a Google sign-in on a gym the account is not a member of', async () => {
+      // A downtown member pressing "Continue with Google" on riverside's site
+      // used to be signed into downtown.
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' }); // matched by googleId
+      membership(ctx, { hasAny: true, hasActive: true });
+      requestedMembership(ctx, null);
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.MEMBER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      const error = await ctx.service
+        .loginWithGoogle({ ...VALID, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'NOT_A_MEMBER' });
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('still gives a Google sign-in that names no gym the primary gym', async () => {
+      ctx.findUnique.mockResolvedValueOnce({ id: 'user-9' });
+      membership(ctx, { hasAny: true, hasActive: true });
+      ctx.gymMemberFindMany.mockResolvedValue([
+        {
+          gymId: 'gym-downtown',
+          role: Role.MEMBER,
+          joinedAt: new Date('2026-01-01'),
+          gym: { status: 'ACTIVE', slug: 'downtown' },
+        },
+      ]);
+
+      await ctx.service.loginWithGoogle(VALID);
+
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-9', {
+        gymId: 'gym-downtown',
+        gymSlug: 'downtown',
+        role: Role.MEMBER,
         tokenVersion: 0,
       });
     });

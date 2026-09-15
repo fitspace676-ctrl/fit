@@ -13,6 +13,7 @@ import {
   ALREADY_MEMBER_CODE,
   EMAIL_TAKEN_CODE,
   MEMBERSHIP_NOT_ACTIVE_CODE,
+  NOT_A_MEMBER_CODE,
   TENANT_MISMATCH_CODE,
   gymPublicMemberIntake,
   gymPublicStartDatePolicy,
@@ -803,7 +804,7 @@ export class AuthService {
 
     return this.tokens.issueTokenPair(
       user.id,
-      await this.resolveSessionScope(user.id, input.gymSlug),
+      await this.resolveSessionScope(user.id, input.gymSlug, { signIn: true }),
     );
   }
 
@@ -837,7 +838,7 @@ export class AuthService {
     await this.assertGymAccessNotSuspended(userId, input.gymSlug);
     return this.tokens.issueTokenPair(
       userId,
-      await this.resolveSessionScope(userId, input.gymSlug),
+      await this.resolveSessionScope(userId, input.gymSlug, { signIn: true }),
     );
   }
 
@@ -911,7 +912,7 @@ export class AuthService {
     await this.assertGymAccessNotSuspended(userId, input.gymSlug);
     return this.tokens.issueTokenPair(
       userId,
-      await this.resolveSessionScope(userId, input.gymSlug),
+      await this.resolveSessionScope(userId, input.gymSlug, { signIn: true }),
     );
   }
 
@@ -1053,12 +1054,12 @@ export class AuthService {
    *     subdomain) and the user has an active membership in that active gym, the
    *     session binds to *that* gym — so a multi-gym user lands on the tenant they
    *     actually signed in on, not their earliest-joined one. The slug is only a
-   *     selector among the user's own memberships: a slug they don't belong to at
-   *     all is ignored and the primary fallback applies, so it can never widen
-   *     scope. A slug they *do* belong to but whose membership is not `ACTIVE`
-   *     (invited, suspended) is refused with `403 MEMBERSHIP_NOT_ACTIVE` instead —
-   *     silently signing them into a different gym than the one they asked for is
-   *     the confusing failure that gate exists to prevent.
+   *     selector among the user's own memberships, so it can never widen scope. A
+   *     slug they *do* belong to but whose membership is not `ACTIVE` (invited,
+   *     suspended) is refused with `403 MEMBERSHIP_NOT_ACTIVE`; on a sign-in
+   *     (`signIn: true`) a slug they don't belong to at all is refused with
+   *     `403 NOT_A_MEMBER` — silently signing them into a different gym than the
+   *     one they asked for is the failure both gates exist to prevent.
    *   • Otherwise the session binds to the user's "home" gym: the earliest-joined
    *     active membership in an active gym. A user who belongs to several gyms
    *     lands on one per session; switching tenants is done by signing in on the
@@ -1076,7 +1077,7 @@ export class AuthService {
   private async resolveSessionScope(
     userId: string,
     gymSlug?: string,
-    options: { pinned?: boolean } = {},
+    options: { pinned?: boolean; signIn?: boolean } = {},
   ): Promise<SessionClaims> {
     const [user, memberships] = await Promise.all([
       this.prisma.client.user.findUnique({
@@ -1119,10 +1120,10 @@ export class AuthService {
         // it (or the gym is not active). Refuse rather than move gyms.
         throw invalidRefreshToken();
       }
-      // Asked for a gym and didn't get it. Either the user has no membership
-      // there (fall through to the primary, as before) or they have one that
-      // isn't usable — which this refuses rather than papering over.
-      await this.assertRequestedMembershipActive(userId, gymSlug);
+      // Asked for a gym and didn't get it. A membership there that isn't usable
+      // is refused; so, on a sign-in, is no membership there at all — handing
+      // back a session for another gym is how gyms got mixed on one host.
+      await this.assertRequestedMembershipActive(userId, gymSlug, options);
     }
 
     const primary = active.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime())[0];
@@ -1134,25 +1135,37 @@ export class AuthService {
   }
 
   /**
-   * Refuse a session on a gym the caller explicitly asked for but whose
-   * membership is not `ACTIVE` — `403 MEMBERSHIP_NOT_ACTIVE`.
+   * Refuse a session on a gym the caller explicitly asked for but cannot have:
+   * a membership that is not `ACTIVE` — `403 MEMBERSHIP_NOT_ACTIVE` — or, on a
+   * sign-in, no membership there at all — `403 NOT_A_MEMBER`.
    *
    * Only reached when {@link resolveSessionScope} could not honour a `gymSlug`,
    * so it costs one extra query on the miss path and none on the common one. A
-   * user with no membership in the named gym at all resolves to `null` here and
-   * keeps the long-standing silent fallback to their primary gym: an unknown or
-   * someone-else's slug is noise, whereas *their own* invited / suspended
-   * membership is a real answer the client can act on.
+   * sign-in with no membership in the named gym used to fall back to the primary
+   * gym, which put another gym's session on this gym's host; now it is refused.
+   * Anything else that passes an unpinned slug (a refresh token minted before
+   * tokens were pinned) keeps that fallback.
    *
    * Note this asks only about the membership row. A gym that is itself suspended
    * is caught earlier by {@link assertGymAccessNotSuspended}, which reports the
    * tenant-level `GYM_SUSPENDED` rather than blaming the member's standing.
    */
-  private async assertRequestedMembershipActive(userId: string, gymSlug: string): Promise<void> {
+  private async assertRequestedMembershipActive(
+    userId: string,
+    gymSlug: string,
+    { signIn = false }: { signIn?: boolean } = {},
+  ): Promise<void> {
     const membership = await this.prisma.client.gymMember.findFirst({
       where: { userId, gym: { slug: gymSlug } },
       select: { status: true },
     });
+
+    if (!membership && signIn) {
+      throw new ForbiddenException({
+        message: 'This account is not a member of this gym',
+        code: NOT_A_MEMBER_CODE,
+      });
+    }
 
     if (membership && membership.status !== GymMemberStatus.ACTIVE) {
       throw new ForbiddenException({

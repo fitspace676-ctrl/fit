@@ -42,6 +42,22 @@ import { parseAcceptLanguage } from '../mail/email-locale';
 import { AuthService } from './auth.service';
 
 /**
+ * A social sign-in's input with the gym filled in from the tenant host when the
+ * body names none. The body wins when it does; either way the slug is only a
+ * selector — the service still needs a membership in that gym.
+ */
+function withHostGymSlug<TInput extends { gymSlug?: string }>(
+  input: TInput,
+  headers: TenantHeaders,
+): TInput {
+  if (input.gymSlug) {
+    return input;
+  }
+  const gymSlug = resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN);
+  return gymSlug ? { ...input, gymSlug } : input;
+}
+
+/**
  * Auth endpoints for email/password registration + verification.
  *
  * Bodies / queries are validated against the shared `@fit/types` Zod schemas by
@@ -207,20 +223,26 @@ export class AuthController {
     return this.auth.resetPassword(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
-  /** `POST /auth/google` — verify a Google ID token and issue a session. */
+  /**
+   * `POST /auth/google` — verify a Google ID token and issue a session.
+   *
+   * The gym is the body's `gymSlug`, else the tenant host the call names (read
+   * the same way as on `POST /auth/refresh`), so a client that only sends
+   * `x-tenant-host` still signs in on the gym whose site it is on.
+   */
   @Post('google')
   @HttpCode(HttpStatus.OK)
-  async google(@Body() body: unknown): Promise<TokenPair> {
+  async google(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
     const input = parse(googleAuthSchema, body);
-    return this.auth.loginWithGoogle(input);
+    return this.auth.loginWithGoogle(withHostGymSlug(input, headers));
   }
 
-  /** `POST /auth/apple` — verify an Apple ID token and issue a session. */
+  /** `POST /auth/apple` — verify an Apple ID token and issue a session; the gym as on Google. */
   @Post('apple')
   @HttpCode(HttpStatus.OK)
-  async apple(@Body() body: unknown): Promise<TokenPair> {
+  async apple(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
     const input = parse(appleAuthSchema, body);
-    return this.auth.loginWithApple(input);
+    return this.auth.loginWithApple(withHostGymSlug(input, headers));
   }
 
   /**
