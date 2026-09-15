@@ -62,6 +62,8 @@ import type {
 import { Icon, type IconName } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import { chrome } from './report-chrome';
+import { BranchScopeNote } from './branch-scope-note';
+import { GYM_WIDE_REPORTS } from './branch-scope';
 import { ReportRangeControl } from './report-range-control';
 
 type T = ReturnType<typeof useTranslations>;
@@ -911,6 +913,11 @@ function ReportPreview({
             {' · '}
             {t('columnCount', { count: preview.columns.length })}
           </p>
+          {/* Only with a branch selected: in "All locations" every report is
+              gym-wide, and saying so there would train people to ignore it. */}
+          {reportQuery.locationId !== undefined && GYM_WIDE_REPORTS.has(preview.key) ? (
+            <BranchScopeNote />
+          ) : null}
         </div>
         {canExport ? (
           <div {...stylex.props(styles.downloads)}>

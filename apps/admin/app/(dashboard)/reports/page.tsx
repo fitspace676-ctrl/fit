@@ -12,6 +12,7 @@ import {
   type ReportQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchReport, fetchReportCatalog } from '@/lib/api';
 import { ReportsView } from './reports-view';
 import { chrome } from './report-chrome';
@@ -56,21 +57,34 @@ export const dynamic = 'force-dynamic';
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ report?: string; range?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    report?: string;
+    range?: string;
+    from?: string;
+    to?: string;
+    locationId?: string;
+  }>;
 }) {
   const t = await getTranslations('admin.reports');
   const session = await getServerSession();
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
   const canExport = session !== null && roleHasPermission(session.role, Permission.ReportExport);
 
-  const { report: rawReport, range, from, to } = await searchParams;
+  const params = await searchParams;
+  const { report: rawReport, range, from, to } = params;
+  // The branch every figure below is scoped to: `?locationId=` when the link
+  // carried one, else the top bar's cookie, else every branch - clamped to the
+  // operator's own branches. Resolved ONCE and carried inside the query, so the
+  // preview, its caveat and both download links describe the same branch.
+  const locationId = await getActiveLocationId(params);
   // The window is validated as a whole: a `custom` range missing a day, or with
   // its days out of order, falls back to the default rather than reaching the
   // API as a 400 the screen would have to explain.
   const parsedQuery = reportQuerySchema.safeParse({ range, from, to });
-  const query: ReportQuery = parsedQuery.success
-    ? parsedQuery.data
-    : { range: DEFAULT_REPORT_RANGE };
+  const query: ReportQuery = {
+    ...(parsedQuery.success ? parsedQuery.data : { range: DEFAULT_REPORT_RANGE }),
+    locationId,
+  };
   // An unrecognised (or absent) `?report=` falls back to the catalogue's first
   // *offered* report rather than to nothing, so the screen always opens on a real
   // preview and the index always has a marked row when the gym offers any reports

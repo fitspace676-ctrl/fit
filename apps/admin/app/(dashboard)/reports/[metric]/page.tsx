@@ -12,6 +12,7 @@ import {
   type ReportMetric,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchReportDrilldown } from '@/lib/api';
 import { DrilldownView } from './drilldown-view';
 import { chrome } from '../report-chrome';
@@ -37,7 +38,7 @@ export default async function ReportDrilldownPage({
   searchParams,
 }: {
   params: Promise<{ metric: string }>;
-  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; locationId?: string }>;
 }) {
   const { metric: rawMetric } = await params;
   const parsedMetric = reportMetricSchema.safeParse(rawMetric);
@@ -51,7 +52,12 @@ export default async function ReportDrilldownPage({
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
   const canExport = session !== null && roleHasPermission(session.role, Permission.ReportExport);
 
-  const { range, from, to } = await searchParams;
+  const search = await searchParams;
+  const { range, from, to } = search;
+  // A drill-down link is what staff paste to each other, so the branch rides in
+  // the URL when it is there and falls back to the top bar's cookie when it is
+  // not - the same resolution the export route beside this page performs.
+  const locationId = await getActiveLocationId(search);
   // Validated as a whole, so a half-written custom range falls back rather
   // than reaching the API as a 400 — same rule as the Reports hub.
   const parsedQuery = reportDrilldownQuerySchema.safeParse({ range, from, to });
@@ -64,8 +70,10 @@ export default async function ReportDrilldownPage({
   }
 
   try {
-    const drilldown = await fetchReportDrilldown(metric, query);
-    return <DrilldownView drilldown={drilldown} canExport={canExport} />;
+    const drilldown = await fetchReportDrilldown(metric, { ...query, locationId });
+    // The same value the fetch used, so the caveats and the download links
+    // describe the branch actually on screen.
+    return <DrilldownView drilldown={drilldown} canExport={canExport} locationId={locationId} />;
   } catch (error) {
     const message =
       error instanceof ApiError

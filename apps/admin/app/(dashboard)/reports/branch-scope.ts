@@ -23,40 +23,27 @@
 // read them to decide what to say. StyleX-free, i18n-free — the wording lives in
 // `branch-scope-note.tsx` against `admin.common.notSplitByBranch`.
 
-import type { ReportKey, ReportMetric } from '@fit/types';
+import { GYM_WIDE_REPORT_KEYS, type ReportKey, type ReportMetric } from '@fit/types';
 
 /**
- * The catalogue reports that stay GYM-WIDE however a branch filter is set — 3 of
- * the 27. The API accepts `locationId` for all of them and applies it to none of
- * these, so with a branch selected the rows on screen are still every branch's.
+ * The catalogue reports that stay GYM-WIDE however a branch filter is set.
  *
- * Stage 2 emptied most of this list and Stage 3 took one more off it. What is left
- * is blocked on data that genuinely does not exist yet:
+ * NOT a copy any more: the list lives in `@fit/types` (`GYM_WIDE_REPORT_KEYS`) and
+ * the API service reads the same constant to decide which reports never receive
+ * the branch, so the caveat on screen and the query behind it cannot disagree.
+ * The reasons are recorded beside the constant; today they are:
  *
- *   • `discounts-and-promotions` — `PromoRedemption.memberId` is null by design
- *     for an anonymous walk-in, so the member hop would drop exactly the walk-in
- *     promotions the report exists to price. Stage 7.
- *   • `pt-sessions` — `PtSession` has no branch. Stage 6.
- *   • `trainer-performance` — mixed scope: `ClassInstance` could filter and
- *     `PtSession` could not, and the ranking ADDS the two columns, so half a
- *     filter would order the table from two populations. Stage 6.
+ *   - `discounts-and-promotions` - a redemption has no branch, no order relation,
+ *     and no member for a walk-in, so neither hop is honest.
+ *   - `audit-log` - an entry names an actor and a target id, never a place.
  *
- * `member-check-in-log` LEFT this set in Stage 3, and how it left is the part
- * worth keeping. Its old entry said the column existed but nothing wrote it, so
- * filtering returned an empty log reading as "nobody came here"; that entry also
- * recorded the shortcut it had refused — attributing a VISIT to the visitor's home
- * branch, which would print a log whose own `location` column named a different
- * branch from the one filtered on. Stage 3 fixed the report by fixing the DATA:
- * `CheckIn.locationId` is a real FK, reception writes it, and the filter reads the
- * branch the member walked into. The refused shortcut is still refused. That is
- * the only way a key comes off this list — the migration lands first, and the
- * report answers the question it was actually asked.
+ * Everything else narrows, including the three reports this set used to hold:
+ * `pt-sessions` and `trainer-performance` left it when Stage 6 gave `PtSession` a
+ * branch (both halves of trainer performance now take the same equality, so the
+ * ranking is one population again), and `member-check-in-log` left in Stage 3.
+ * That is the only way a key comes off: the data gains a real branch first.
  */
-export const GYM_WIDE_REPORTS: ReadonlySet<ReportKey> = new Set<ReportKey>([
-  'discounts-and-promotions',
-  'pt-sessions',
-  'trainer-performance',
-]);
+export const GYM_WIDE_REPORTS: ReadonlySet<ReportKey> = new Set<ReportKey>(GYM_WIDE_REPORT_KEYS);
 
 /**
  * Reports that ARE branch-aware but carry individual columns that are not, keyed
