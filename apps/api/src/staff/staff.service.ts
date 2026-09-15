@@ -33,6 +33,7 @@ import { syncTrainerProfile, type TrainerSyncClient } from './trainer-profile-sy
 import { assertPermission } from '../common/rbac/assert-permission';
 import { isPlaceholderEmail, placeholderEmail } from '../common/directory-identity';
 import { assignedAtLocation } from '../common/location-filter.util';
+import { findDefaultLocationId } from '../locations/default-location';
 
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
 const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
@@ -300,6 +301,15 @@ export class StaffService {
         select: { id: true },
       });
 
+      // The BASE branch (`GymMember.locationId`), which partitions the payroll —
+      // not the roster, which overlaps. A person assigned to exactly one branch is
+      // based there; anyone else (several branches, or none yet) falls back to the
+      // gym's default, the same place a new member's home branch lands. Checked
+      // against the live branches above, so a single id is already this gym's.
+      const assigned = [...new Set(input.assignedLocationIds)];
+      const baseLocationId =
+        assigned.length === 1 ? assigned[0] : await findDefaultLocationId(tx, gymId);
+
       const member = await tx.gymMember.create({
         data: {
           gymId,
@@ -308,6 +318,7 @@ export class StaffService {
           status: input.status as GymMemberStatus,
           firstName: input.firstName.trim(),
           lastName: input.lastName.trim() || null,
+          locationId: baseLocationId,
           // The deprecated shadow, written in the same transaction as the join
           // table it shadows — see {@link writeLocationAssignments}.
           assignedLocationIds: input.assignedLocationIds,

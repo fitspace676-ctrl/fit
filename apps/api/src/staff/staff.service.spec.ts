@@ -62,6 +62,8 @@ function setup(overrides?: {
   trainerFindFirst?: { id: string } | null;
   /** The ids of the gym's live branches, for the write paths' pre-flight check. */
   locations?: string[];
+  /** The gym's default branch id (`Location.isDefault`), or `null` when it has none. */
+  defaultLocation?: string | null;
   /** The caller's own role (an OWNER unless a test says otherwise). */
   callerRole?: Role;
 }) {
@@ -97,6 +99,15 @@ function setup(overrides?: {
   // The gym's live branches, and the join table the assignments are written to.
   const locationFindMany = vi.fn(() =>
     Promise.resolve((overrides?.locations ?? []).map((id) => ({ id }))),
+  );
+  const locationFindFirst = vi.fn((_args: { where?: Record<string, unknown> }) =>
+    Promise.resolve(
+      overrides?.defaultLocation === undefined
+        ? { id: 'loc-default' }
+        : overrides.defaultLocation === null
+          ? null
+          : { id: overrides.defaultLocation },
+    ),
   );
   const locationStaffDeleteMany = vi.fn(() => Promise.resolve({ count: 0 }));
   const locationStaffCreateMany = vi.fn((_args: { data?: Record<string, unknown>[] }) =>
@@ -140,7 +151,7 @@ function setup(overrides?: {
       update: trainerUpdate,
       updateMany: trainerUpdateMany,
     },
-    location: { findMany: locationFindMany },
+    location: { findMany: locationFindMany, findFirst: locationFindFirst },
     locationStaff: {
       deleteMany: locationStaffDeleteMany,
       createMany: locationStaffCreateMany,
@@ -165,6 +176,7 @@ function setup(overrides?: {
   return {
     service: new StaffService(prisma, tenant, email, tokens),
     locationFindMany,
+    locationFindFirst,
     gymMemberFindMany,
     locationStaffDeleteMany,
     locationStaffCreateMany,
@@ -380,6 +392,58 @@ describe('StaffService', () => {
         }),
       ).rejects.toBeInstanceOf(UnprocessableEntityException);
       expect(rota.shiftSlotCreateMany).not.toHaveBeenCalled();
+    });
+
+    it('bases a single-branch hire at that branch, without reading the default', async () => {
+      const { service, gymMemberCreate, locationFindFirst } = setup({ locations: ['loc-1'] });
+
+      await service.createStaff(createInput);
+
+      expect(gymMemberCreate.mock.calls[0]?.[0]?.data?.locationId).toBe('loc-1');
+      expect(locationFindFirst).not.toHaveBeenCalled();
+    });
+
+    it("bases a hire on several branches, or none, at the gym's default branch", async () => {
+      const several = setup({ locations: ['loc-1', 'loc-2'] });
+      await several.service.createStaff({
+        ...createInput,
+        assignedLocationIds: ['loc-1', 'loc-2'],
+      });
+      expect(several.gymMemberCreate.mock.calls[0]?.[0]?.data?.locationId).toBe('loc-default');
+      expect(several.locationFindFirst).toHaveBeenCalledWith({
+        where: { gymId: 'gym-1', isDefault: true },
+        select: { id: true },
+      });
+
+      const none = setup({ locations: ['loc-1'] });
+      await none.service.createStaff({ ...createInput, assignedLocationIds: [], workingHours: [] });
+      expect(none.gymMemberCreate.mock.calls[0]?.[0]?.data?.locationId).toBe('loc-default');
+
+      // A duplicated single id is still one branch, not "several".
+      const doubled = setup({ locations: ['loc-1'] });
+      await doubled.service.createStaff({
+        ...createInput,
+        assignedLocationIds: ['loc-1', 'loc-1'],
+      });
+      expect(doubled.gymMemberCreate.mock.calls[0]?.[0]?.data?.locationId).toBe('loc-1');
+    });
+
+    it('leaves the base branch null when the gym has no default branch', async () => {
+      const { service, gymMemberCreate } = setup({ locations: ['loc-1'], defaultLocation: null });
+
+      await service.createStaff({ ...createInput, assignedLocationIds: [], workingHours: [] });
+
+      expect(gymMemberCreate.mock.calls[0]?.[0]?.data?.locationId).toBeNull();
+    });
+
+    it("never bases a hire at another gym's branch", async () => {
+      const { service, gymMemberCreate } = setup({ locations: ['loc-1'] });
+
+      // A lone foreign id would otherwise be the "exactly one branch" case.
+      await expect(
+        service.createStaff({ ...createInput, assignedLocationIds: ['loc-other-gym'] }),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      expect(gymMemberCreate).not.toHaveBeenCalled();
     });
 
     it('replaces both sources on an edit, and leaves them alone when the field is absent', async () => {
