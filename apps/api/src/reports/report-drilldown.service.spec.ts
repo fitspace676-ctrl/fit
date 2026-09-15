@@ -724,4 +724,149 @@ describe('ReportDrilldownService', () => {
       expect(resolved).toBeNull();
     });
   });
+  /**
+   * The branch filter. Every metric narrows, each by the attribution its rows can
+   * answer for, and "all branches" must leave every read's plan untouched.
+   */
+  describe('branch filter', () => {
+    const BRANCH = 'loc-1';
+
+    /** The `where` the nth call to a stubbed delegate was issued with. */
+    const whereOf = (mock: { mock: { calls: unknown[][] } }, call = 0) =>
+      (mock.mock.calls[call]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
+
+    /** Every `where` any delegate of the stub client was called with. */
+    const allWheres = (mocks: Record<string, unknown>): unknown[] =>
+      Object.values(mocks).flatMap((value) =>
+        typeof value === 'function' && 'mock' in value
+          ? (value as { mock: { calls: unknown[][] } }).mock.calls.map(
+              (call) => (call[0] as { where?: unknown } | undefined)?.where,
+            )
+          : [],
+      );
+
+    /** Whether `needle` is a value (or, with `asKey`, a key) anywhere in `value`. */
+    const mentions = (value: unknown, needle: string, asKey = false): boolean =>
+      value !== null && typeof value === 'object'
+        ? Object.entries(value).some(
+            ([key, inner]) => (asKey && key === needle) || mentions(inner, needle, asKey),
+          )
+        : !asKey && value === needle;
+
+    it.each([...REPORT_METRICS])('%s narrows to the selected branch', async (metric) => {
+      const { service, ...mocks } = setup();
+
+      await service.run(metric, { range: 'mtd', locationId: BRANCH });
+
+      expect(allWheres(mocks).some((where) => mentions(where, BRANCH))).toBe(true);
+    });
+
+    // Not `locationId: undefined`, which Prisma reads as a real predicate on some
+    // shapes: the key is absent, so the gym-wide roll-up is the query it always was.
+    it.each([...REPORT_METRICS])(
+      '%s sends no branch predicate for all branches',
+      async (metric) => {
+        const { service, ...mocks } = setup();
+
+        await service.run(metric, { range: 'mtd' });
+
+        for (const where of allWheres(mocks)) {
+          expect(mentions(where, 'locationId', true)).toBe(false);
+          expect(mentions(where, 'member', true)).toBe(false);
+        }
+      },
+    );
+
+    it('scopes the money metrics on each row’s own branch column', async () => {
+      const { service, paymentFindMany, refundFindMany, orderFindMany } = setup();
+
+      await service.run('revenue', { range: 'mtd', locationId: BRANCH });
+      await service.run('pos', { range: 'mtd', locationId: BRANCH });
+      await service.run('sales', { range: 'mtd', locationId: BRANCH });
+
+      for (const call of [0, 1, 2]) {
+        expect(whereOf(paymentFindMany, call).locationId).toBe(BRANCH);
+        expect(whereOf(paymentFindMany, call)).not.toHaveProperty('order');
+      }
+      expect(whereOf(refundFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(refundFindMany)).not.toHaveProperty('order');
+      expect(whereOf(orderFindMany).locationId).toBe(BRANCH);
+    });
+
+    it('scopes the class metrics through the instance, on both sides', async () => {
+      const { service, classInstanceFindMany, bookingFindMany } = setup();
+
+      await service.run('classes', { range: 'mtd', locationId: BRANCH });
+
+      // Instances and bookings from the SAME population, or seat counts stop
+      // reconciling with session counts in the same table.
+      expect(whereOf(classInstanceFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: BRANCH });
+    });
+
+    it('narrows a trainer’s delivery but not their rating', async () => {
+      const { service, classInstanceFindMany, bookingFindMany, reviewFindMany } = setup();
+
+      await service.run('staff', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(classInstanceFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(bookingFindMany).classInstance).toMatchObject({ locationId: BRANCH });
+      // A review is written about a TRAINER and carries no branch.
+      expect(mentions(whereOf(reviewFindMany), BRANCH)).toBe(false);
+    });
+
+    it('narrows members and loyalty by the home branch, on every read', async () => {
+      const {
+        service,
+        gymMemberFindMany,
+        gymMemberCount,
+        subscriptionFindMany,
+        loyaltyLedgerEntryFindMany,
+        loyaltyRedemptionFindMany,
+      } = setup();
+
+      await service.run('members', { range: 'mtd', locationId: BRANCH });
+      await service.run('loyalty', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(gymMemberFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(gymMemberCount).locationId).toBe(BRANCH);
+      expect(whereOf(subscriptionFindMany).member).toEqual({ locationId: BRANCH });
+      expect(whereOf(loyaltyLedgerEntryFindMany).member).toEqual({ locationId: BRANCH });
+      expect(whereOf(loyaltyRedemptionFindMany).member).toEqual({ locationId: BRANCH });
+    });
+
+    // A check-in is an event at a PLACE: the door the visitor came through, never
+    // their home branch.
+    it('narrows attendance by the branch each arrival walked into', async () => {
+      const { service, checkInFindMany } = setup();
+
+      await service.run('attendance', { range: 'mtd', locationId: BRANCH });
+
+      expect(whereOf(checkInFindMany).locationId).toBe(BRANCH);
+      expect(whereOf(checkInFindMany)).not.toHaveProperty('member');
+      // The tenant pin survives beside the branch: a branch id from another gym
+      // can only ever meet this gym's rows, and so matches none.
+      expect(whereOf(checkInFindMany).gymId).toBe('gym-1');
+    });
+
+    // The export and the pinned-section routes both go through `compute`, so a file
+    // or a widget cannot show a different branch from the screen.
+    it('carries the branch into a resolved section and a CSV export', async () => {
+      const { service, checkInFindMany } = setup();
+
+      await service.resolveSection('attendance', 'peak-hours', {
+        range: 'mtd',
+        locationId: BRANCH,
+      });
+      for await (const _chunk of service.streamDrilldownCsv('attendance', {
+        range: 'mtd',
+        locationId: BRANCH,
+      })) {
+        // drained so the generator issues its query
+      }
+
+      expect(whereOf(checkInFindMany, 0).locationId).toBe(BRANCH);
+      expect(whereOf(checkInFindMany, 1).locationId).toBe(BRANCH);
+    });
+  });
 });
