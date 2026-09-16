@@ -17,6 +17,7 @@ const db = vi.hoisted(() => {
   return {
     user: model(),
     gym: model(),
+    location: model(),
     gymMember: model(),
     subscriptionPlan: model(),
     classTemplate: model(),
@@ -33,6 +34,7 @@ vi.mock('@fit/db', () => ({
   PrismaClient: vi.fn(() => ({
     user: db.user,
     gym: db.gym,
+    location: db.location,
     gymMember: db.gymMember,
     subscriptionPlan: db.subscriptionPlan,
     classTemplate: db.classTemplate,
@@ -47,6 +49,7 @@ vi.mock('@fit/db', () => ({
     TRAINER: 'TRAINER',
     MEMBER: 'MEMBER',
   },
+  LocationStatus: { ACTIVE: 'ACTIVE', INACTIVE: 'INACTIVE' },
   GymMemberStatus: { ACTIVE: 'ACTIVE', INVITED: 'INVITED' },
   SubscriptionStatus: { ACTIVE: 'ACTIVE', PAST_DUE: 'PAST_DUE', FROZEN: 'FROZEN' },
   SubscriptionInterval: { MONTH: 'MONTH', YEAR: 'YEAR' },
@@ -76,6 +79,7 @@ import {
   resolvePlanName,
   normalizeEmail,
   PILOT_MEMBER_FLOOR,
+  DEFAULT_CLASSES,
   DEFAULT_PLANS,
 } from './onboard';
 
@@ -240,6 +244,64 @@ describe('runOnboard', () => {
       meetsPilotFloor: true,
     });
     expect(db.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('creates a default "Main" branch for a gym with none and schedules classes there', async () => {
+    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
+    db.location.create.mockResolvedValueOnce({ id: 'loc-main' });
+
+    await runOnboard(args(...OWNER, '--members', '1'));
+
+    expect(db.location.create).toHaveBeenCalledWith({
+      data: { gymId: 'gym-1', name: 'Main', isDefault: true },
+      select: { id: true },
+    });
+    expect(db.classTemplate.create).toHaveBeenCalledTimes(DEFAULT_CLASSES.length);
+    for (const [call] of db.classTemplate.create.mock.calls) {
+      expect(call).toMatchObject({ data: { gymId: 'gym-1', locationId: 'loc-main' } });
+    }
+    // The last membership upserted is the roster member, homed on the default branch.
+    expect(db.gymMember.upsert.mock.lastCall?.[0]).toMatchObject({
+      create: { gymId: 'gym-1', locationId: 'loc-main', role: 'MEMBER' },
+    });
+  });
+
+  it("reuses the gym's existing default branch without creating one", async () => {
+    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
+    db.location.findFirst.mockResolvedValueOnce({ id: 'loc-default' });
+
+    await runOnboard(args(...OWNER, '--members', '1'));
+
+    expect(db.location.findFirst).toHaveBeenCalledWith({
+      where: { gymId: 'gym-1', isDefault: true },
+      select: { id: true },
+    });
+    expect(db.location.create).not.toHaveBeenCalled();
+    expect(db.location.update).not.toHaveBeenCalled();
+    expect(db.classTemplate.create.mock.calls[0]?.[0]).toMatchObject({
+      data: { locationId: 'loc-default' },
+    });
+  });
+
+  it('elects the oldest ACTIVE branch as default when the gym has branches but no default', async () => {
+    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
+    db.location.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'loc-old' });
+
+    await runOnboard(args(...OWNER, '--members', '1'));
+
+    expect(db.location.findFirst).toHaveBeenNthCalledWith(2, {
+      where: { gymId: 'gym-1', status: 'ACTIVE' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    expect(db.location.update).toHaveBeenCalledWith({
+      where: { id: 'loc-old' },
+      data: { isDefault: true },
+    });
+    expect(db.location.create).not.toHaveBeenCalled();
   });
 
   it('reads and imports a roster file when --roster is given', async () => {

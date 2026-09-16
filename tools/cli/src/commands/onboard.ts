@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import {
   PrismaClient,
+  LocationStatus,
   Role,
   GymMemberStatus,
   SubscriptionStatus,
@@ -239,6 +240,45 @@ function anchorAtHourUtc(hour: number): Date {
   return d;
 }
 
+/**
+ * The id of the gym's default branch, electing or creating one when it has none.
+ *
+ * A class template's `locationId` is NOT NULL, and a new member's home branch is the
+ * default one, so the schedule and the roster both need it. The election mirrors the
+ * migration that introduced `Location.isDefault`: the oldest ACTIVE branch, else the
+ * oldest branch of any status, else a new `"Main"` branch. Only a gym with no default
+ * is touched, so the partial unique index (one default per gym) always holds.
+ */
+async function ensureDefaultLocation(prisma: PrismaClient, gymId: string): Promise<string> {
+  const current = await prisma.location.findFirst({
+    where: { gymId, isDefault: true },
+    select: { id: true },
+  });
+  if (current) {
+    return current.id;
+  }
+  const oldest =
+    (await prisma.location.findFirst({
+      where: { gymId, status: LocationStatus.ACTIVE },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    })) ??
+    (await prisma.location.findFirst({
+      where: { gymId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }));
+  if (oldest) {
+    await prisma.location.update({ where: { id: oldest.id }, data: { isDefault: true } });
+    return oldest.id;
+  }
+  const created = await prisma.location.create({
+    data: { gymId, name: 'Main', isDefault: true },
+    select: { id: true },
+  });
+  return created.id;
+}
+
 export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
   const params = parseOnboardArgs(args);
   const roster = params.rosterPath
@@ -293,6 +333,7 @@ export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
       });
     }
     await prisma.gym.update({ where: { id: gym.id }, data: { ownerId: owner.id } });
+    const locationId = await ensureDefaultLocation(prisma, gym.id);
     await prisma.gymMember.upsert({
       where: { userId_gymId: { userId: owner.id, gymId: gym.id } },
       update: { role: Role.OWNER, status: GymMemberStatus.ACTIVE },
@@ -366,6 +407,7 @@ export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
       await prisma.classTemplate.create({
         data: {
           gymId: gym.id,
+          locationId,
           title: cls.title,
           category: cls.category,
           capacity: cls.capacity,
@@ -395,6 +437,7 @@ export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
         create: {
           userId: user.id,
           gymId: gym.id,
+          locationId,
           role: Role.MEMBER,
           status: GymMemberStatus.ACTIVE,
           joinedAt: now,
