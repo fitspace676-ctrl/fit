@@ -162,12 +162,9 @@ describe('requiredPermissions / isPublic', () => {
     expect(requiredPermissions(ENDPOINTS.listClasses)).toEqual([]);
   });
 
-  it('reports both permissions of POST /checkout', () => {
+  it('reports the declared permission of POST /checkout', () => {
     expect(isPublic(ENDPOINTS.createCheckout)).toBe(false);
-    expect(requiredPermissions(ENDPOINTS.createCheckout)).toEqual([
-      Permission.CreditPackManage,
-      Permission.SubscriptionManage,
-    ]);
+    expect(requiredPermissions(ENDPOINTS.createCheckout)).toEqual([Permission.ProfileManage]);
   });
 });
 

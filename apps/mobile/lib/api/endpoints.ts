@@ -61,8 +61,8 @@ export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
  * `'public'` mirrors `apps/api`'s `@Public()` decorator — exempt from the global
  * deny-by-default `PermissionsGuard`. Otherwise it is the exact list from
  * `@RequirePermissions(...)`, which the guard requires **all** of (see
- * `apps/api/src/common/rbac/permissions.guard.ts`), which is why
- * `POST /checkout` carries two.
+ * `apps/api/src/common/rbac/permissions.guard.ts`). A handler that checks a
+ * further capability per request lists only what its decorator declares.
  */
 export type EndpointPermission = 'public' | readonly Permission[];
 
@@ -211,13 +211,15 @@ export const ENDPOINTS = {
   /**
    * `POST /checkout` — buy a plan / package / credit pack.
    *
-   * Requires **both** capabilities; `MEMBER` holds both, which is exactly why
-   * this — and not `POST /orders` — is the member's purchase route.
+   * The handler requires only `ProfileManage`, then checks per request the one
+   * capability the product type needs (`CreditPackManage` or
+   * `SubscriptionManage`) — `MEMBER` holds all three, which is exactly why this —
+   * and not `POST /orders` — is the member's purchase route.
    */
   createCheckout: {
     method: 'POST',
     path: '/checkout',
-    permission: [Permission.CreditPackManage, Permission.SubscriptionManage],
+    permission: [Permission.ProfileManage],
   },
   /**
    * `GET /checkout/:orderId` — the confirmation summary.
@@ -228,7 +230,7 @@ export const ENDPOINTS = {
   getCheckoutOrder: {
     method: 'GET',
     path: '/checkout/:orderId',
-    permission: [Permission.CreditPackManage, Permission.SubscriptionManage],
+    permission: [Permission.ProfileManage],
   },
 
   // ── cart/cart.controller.ts — the whole controller is `@Public()` ─────────

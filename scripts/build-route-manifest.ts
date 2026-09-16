@@ -341,11 +341,24 @@ export function permissionValueMap(root = ROOT): Map<string, string> {
   return out;
 }
 
+/** Strip `as` / `satisfies` wrappers down to the expression they annotate. */
+function unwrapExpression(expr: ts.Expression): ts.Expression {
+  let out = expr;
+  while (ts.isAsExpression(out) || ts.isSatisfiesExpression(out)) out = out.expression;
+  return out;
+}
+
 /**
  * The permissions one role holds, read from `ROLE_PERMISSIONS` in
  * `packages/types/src/permissions.ts` — the shared source of truth the API guard
  * itself resolves against. Read rather than hard-coded so the mobile check stays
  * true as the matrix changes: widen MEMBER tomorrow and the check widens with it.
+ *
+ * A grant may be a literal list or spread from named lists in the same file
+ * (`MEMBER: [...MEMBER_SELF_SERVICE]`); both are followed. The
+ * `ACCOUNT_PERMISSIONS` every role implicitly holds (see `roleHasPermission`) are
+ * added on top. A spread this reader cannot follow throws rather than shrinking
+ * the set: a silently empty grant reads as every route being forbidden.
  *
  * Returns enum member names (`ClassBook`), matching what `@RequirePermissions`
  * is written in.
@@ -358,44 +371,60 @@ export function rolePermissions(role: string, root = ROOT): Set<string> {
     ts.ScriptTarget.Latest,
     true,
   );
-  let found: Set<string> | undefined;
+  const lists = new Map<string, ts.ArrayLiteralExpression>();
+  let grant: ts.Expression | undefined;
 
   const visit = (node: ts.Node): void => {
-    if (found) return;
-    if (
-      ts.isVariableDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      node.name.text === 'ROLE_PERMISSIONS'
-    ) {
-      let init = node.initializer;
-      while (init && (ts.isAsExpression(init) || ts.isSatisfiesExpression(init))) {
-        init = init.expression;
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const init = unwrapExpression(node.initializer);
+      if (node.name.text === 'ROLE_PERMISSIONS' && ts.isObjectLiteralExpression(init)) {
+        for (const prop of init.properties) {
+          if (!ts.isPropertyAssignment(prop)) continue;
+          const key =
+            ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) ? prop.name.text : '';
+          if (key === role) grant = unwrapExpression(prop.initializer);
+        }
+      } else if (ts.isArrayLiteralExpression(init)) {
+        lists.set(node.name.text, init);
       }
-      if (!init || !ts.isObjectLiteralExpression(init)) return;
-      for (const prop of init.properties) {
-        if (!ts.isPropertyAssignment(prop)) continue;
-        const key =
-          ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) ? prop.name.text : '';
-        if (key !== role) continue;
-        let value = prop.initializer;
-        while (ts.isAsExpression(value) || ts.isSatisfiesExpression(value))
-          value = value.expression;
-        if (!ts.isArrayLiteralExpression(value)) continue;
-        found = new Set(
-          value.elements.map(enumMemberName).filter((n): n is string => n !== undefined),
-        );
-      }
-      return;
     }
     ts.forEachChild(node, visit);
   };
   visit(source);
 
-  if (!found) {
+  if (!grant) {
     throw new Error(
       `ROLE_PERMISSIONS.${role} not found in ${relative(root, file)} — has the role been renamed?`,
     );
   }
+
+  const found = new Set<string>();
+  const collect = (expr: ts.Expression, seen: ReadonlySet<string>): void => {
+    if (!ts.isArrayLiteralExpression(expr)) {
+      throw new Error(
+        `ROLE_PERMISSIONS.${role} in ${relative(root, file)} is not a list this check can read`,
+      );
+    }
+    for (const element of expr.elements) {
+      if (!ts.isSpreadElement(element)) {
+        const member = enumMemberName(element);
+        if (member !== undefined) found.add(member);
+        continue;
+      }
+      const name = ts.isIdentifier(element.expression) ? element.expression.text : '';
+      const list = lists.get(name);
+      if (!list || seen.has(name)) {
+        throw new Error(
+          `ROLE_PERMISSIONS.${role} spreads '${element.expression.getText(source)}', which is ` +
+            `not a permission list declared in ${relative(root, file)}`,
+        );
+      }
+      collect(list, new Set([...seen, name]));
+    }
+  };
+  collect(grant, new Set());
+  const account = lists.get('ACCOUNT_PERMISSIONS');
+  if (account) collect(account, new Set(['ACCOUNT_PERMISSIONS']));
   return found;
 }
 
