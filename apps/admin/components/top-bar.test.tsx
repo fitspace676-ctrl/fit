@@ -151,9 +151,7 @@ describe('TopBar branch switcher, for a branch-scoped role', () => {
 
   it('offers no "All locations" option', () => {
     renderBar();
-    const labels = screen
-      .getAllByRole('option')
-      .map((option) => option.textContent);
+    const labels = screen.getAllByRole('option').map((option) => option.textContent);
     expect(labels).toEqual(['Downtown', 'Harbour']);
     expect(labels).not.toContain('All locations');
   });
