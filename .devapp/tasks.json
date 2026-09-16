@@ -1,0 +1,255 @@
+{
+  "phases" : [
+    {
+      "id" : "P1",
+      "tasks" : [
+        {
+          "acceptance" : [
+            "classes.detail.booking.book = 'დაჯავშნა' / 'Book', key-for-key",
+            "BookingBar height/radius/gutter capsuleMetricsFor-დან",
+            "screenshot სიმულატორზე, type-check/lint/test გადის"
+          ],
+          "createdAt" : "2026-09-04T20:51:16Z",
+          "files" : [
+            "apps/mobile/app/(tabs)/classes/[id].tsx",
+            "packages/i18n/locales/ka.json",
+            "packages/i18n/locales/en.json",
+            "packages/ui-mobile/src/layout/metrics.ts"
+          ],
+          "id" : "T1.1",
+          "status" : "done",
+          "title" : "გადააკეთე კლასის დაჯავშნის ბარი კაფსულის ზომაზე და შეამოკლე წარწერა",
+          "updatedAt" : "2026-09-04T21:06:27Z"
+        },
+        {
+          "acceptance" : [
+            "detail (და card) სქემა ატარებს trainerId + trainerAvatarUrl",
+            "apps/api სპეკები გადის"
+          ],
+          "createdAt" : "2026-09-04T20:51:20Z",
+          "files" : [
+            "packages/types/src/classes.ts",
+            "apps/api/src/classes"
+          ],
+          "id" : "T1.2",
+          "status" : "done",
+          "title" : "დაამატე trainerId და მწვრთნელის ფოტო class instance API/types-ზე",
+          "updatedAt" : "2026-09-04T21:06:28Z"
+        },
+        {
+          "acceptance" : [
+            "ერთი Sheet ეკრანზე (ორი რეჟიმი ან სხვა დასაბუთებული მიდგომა)",
+            "PersonRow pressable accessibilityLabel-ით",
+            "screenshot სიმულატორზე"
+          ],
+          "createdAt" : "2026-09-04T20:51:27Z",
+          "dependsOn" : [
+            "T1.1",
+            "T1.2"
+          ],
+          "files" : [
+            "apps/mobile/app/(tabs)/classes/[id].tsx",
+            "packages/ui-mobile/src/data-display/person-row.tsx"
+          ],
+          "id" : "T1.3",
+          "status" : "done",
+          "title" : "აჩვენე მწვრთნელის ფოტო კლასის გვერდზე და გახსენი მისი sheet",
+          "updatedAt" : "2026-09-04T21:42:47Z"
+        },
+        {
+          "acceptance" : [
+            "მომხმარებელმა აირჩია ა/ბ/გ ვარიანტი",
+            "არჩეული ვარიანტი განხორციელებულია, home.test.tsx გადის"
+          ],
+          "createdAt" : "2026-09-04T20:51:33Z",
+          "files" : [
+            "apps/mobile/app/(tabs)/home.tsx",
+            "apps/mobile/components/home/derive.ts"
+          ],
+          "id" : "T1.4",
+          "status" : "done",
+          "title" : "გადაწყვიტე და შეცვალე მთავარის 'დაჯავშნე გაკვეთილი' ბლოკი",
+          "updatedAt" : "2026-09-04T21:24:56Z"
+        },
+        {
+          "acceptance" : [
+            "წინადადება screenshot-ით ნაჩვენებია და მოწონებულია",
+            "განხორციელებული, type-check/lint/test გადის"
+          ],
+          "createdAt" : "2026-09-04T20:51:39Z",
+          "files" : [
+            "apps/mobile/app/(tabs)/profile/index.tsx"
+          ],
+          "id" : "T1.5",
+          "status" : "done",
+          "title" : "გაამარტივე პროფილის გვერდი მომხმარებლის მოწონების შემდეგ",
+          "updatedAt" : "2026-09-04T22:07:58Z"
+        },
+        {
+          "acceptance" : [
+            "ტაბზე დაჭერა ყოველთვის ტაბის root-ს ხსნის",
+            "screenshot სიმულატორზე"
+          ],
+          "createdAt" : "2026-09-04T21:23:38Z",
+          "detail" : "პროფილი → ჩემი ჯავშნები → სხვა ტაბი → პროფილის ტაბი აჩვენებს ისევ ჯავშნებს და არა პროფილს.",
+          "files" : [
+            "apps/mobile/app/(tabs)/_layout.tsx"
+          ],
+          "id" : "T1.6",
+          "priority" : "high",
+          "status" : "done",
+          "title" : "გაასწორე ტაბზე დაჭერისას სტეკის root-ზე დაბრუნება",
+          "updatedAt" : "2026-09-04T21:31:59Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:40:56Z",
+          "id" : "T1.7",
+          "status" : "done",
+          "title" : "mobile app - სერვისი თუ არ არის არც გამოჩნდეს ბლოკი",
+          "updatedAt" : "2026-09-10T06:39:39Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:41:53Z",
+          "id" : "T1.8",
+          "status" : "done",
+          "title" : "mobile app - მთავარ bottom ბარ ში შუაში ჩავსვათ qr button ",
+          "updatedAt" : "2026-09-10T07:15:35Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:42:37Z",
+          "id" : "T1.9",
+          "status" : "done",
+          "title" : "mobile app - მთავარ გვერდზე გეგმის ბლოკის ქავერი იყოს მმებერ პორტალის ქავერი",
+          "updatedAt" : "2026-09-10T06:39:41Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:44:58Z",
+          "id" : "T1.10",
+          "status" : "done",
+          "title" : "mobile app - pt დარჩა ს მაგივარად უბრალოდ pt დავწეროთ",
+          "updatedAt" : "2026-09-10T06:39:41Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:46:02Z",
+          "detail" : "შენი მწრთვნელის ბლოკი ამის მაგივარად უნდა იყოს მწრთვნელების ბლოკი სადაც გამოჩნდება 3 მწრთვნელი ქარდი და ქვემოთ იქნება ღილაკი ყველას ნახვა. მწვრთნელის არჩევის ამბავი თავიდან არ გვინდა",
+          "id" : "T1.11",
+          "status" : "done",
+          "title" : "mobile app - შენი მწრთვნელის ბლოკი",
+          "updatedAt" : "2026-09-10T06:39:41Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:50:57Z",
+          "id" : "T1.12",
+          "status" : "done",
+          "title" : "mobile app - light mode",
+          "updatedAt" : "2026-09-10T07:16:27Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:54:28Z",
+          "detail" : "ტრენერის შიდა გვერდი არ გვჭირდება ყველაგან ტრენერისმოდალი გვექნება ყველა ინფომრაციით",
+          "id" : "T1.13",
+          "status" : "done",
+          "title" : "mobile app - ტრენერის მოდალი",
+          "updatedAt" : "2026-09-10T06:55:34Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:57:55Z",
+          "detail" : "პროპდუქტოს შიოდა გვერდის გასწორება დიზიანში",
+          "id" : "T1.14",
+          "status" : "done",
+          "title" : "mobile app - პროდუქტის შიდა გვერდი",
+          "updatedAt" : "2026-09-09T19:44:19Z"
+        },
+        {
+          "createdAt" : "2026-09-09T18:59:32Z",
+          "detail" : "მაღაზიის გვერდზე ორი ტაბი იყოს პროდუტქტები და შეკვეთების გვერდი თავისი შიდა გერდებით",
+          "id" : "T1.15",
+          "status" : "done",
+          "title" : "mobile app - shop",
+          "updatedAt" : "2026-09-10T07:12:53Z"
+        },
+        {
+          "createdAt" : "2026-09-09T19:01:13Z",
+          "detail" : "სარეკლამო ბანერის სლაიდერი უნდა გვქონდეს მთავარ გვერდზე",
+          "id" : "T1.16",
+          "status" : "done",
+          "title" : "mobile app - სარეკლამო ბანერი",
+          "updatedAt" : "2026-09-10T07:38:02Z"
+        },
+        {
+          "createdAt" : "2026-09-09T19:02:52Z",
+          "detail" : "ბილინგის გვერდზე უნდა ჩანდეს მხოლოდ ინვოისები",
+          "id" : "T1.17",
+          "status" : "done",
+          "title" : "mobile app - billing",
+          "updatedAt" : "2026-09-09T19:32:46Z"
+        },
+        {
+          "createdAt" : "2026-09-09T19:04:09Z",
+          "detail" : "გაკვეთილების გვერდის ზემოთ იყოს ტაბი სვითჩერი: 1. გაკვეთილები და გივიე გვერდი ჩანდეს 2. ჩემი ჯავშნები და იგივე გვერდი ჩანდეს",
+          "id" : "T1.18",
+          "status" : "done",
+          "title" : "mobile app - გაკვეთილების გვერდი",
+          "updatedAt" : "2026-09-10T06:39:41Z"
+        },
+        {
+          "createdAt" : "2026-09-09T19:04:48Z",
+          "detail" : "profile page არ გვჭრდება პარამეტრები საერთოდ და პროფილის გვერდზე უნდა ჩანდეს: 1. პირადი მონაცემები 2. აბონიმენტი 3. გადახდების ისტორია 3. შეტყობინებების მართვა 5. ჩემი აქტივობა 6. ანგარიშის დეტალები 7. ენის შეცვლა 8. გასვლა 9. აპლიკაციის ვერსია სადმე პატარა ფონტ საიზით",
+          "id" : "T1.19",
+          "status" : "done",
+          "title" : "mobile app - profile page",
+          "updatedAt" : "2026-09-09T19:47:06Z"
+        },
+        {
+          "acceptance" : [
+            "Sheet იხსნება და ჩანს phone პანელში (screenshot)",
+            "ნატიური ქცევა და არსებული sheet ტესტები უცვლელი რჩება"
+          ],
+          "createdAt" : "2026-09-10T07:23:06Z",
+          "detail" : "phone პანელში (react-native-web) ყველა Sheet უხილავია: enter-ანიმაცია (onShow + requestAnimationFrame → withTiming) web-ზე არ ეშვება და პანელი 640px-ით ქვემოთ რჩება. შიგთავსი მონტაჟდება (phone text კითხულობს), მაგრამ ეკრანზე არაფერი ჩანს. ნატიურზე სავარაუდოდ სწორად მუშაობს — ე.ი. ეს preview-ს ხარვეზია და ყოველ ვიზუალურ შემოწმებას აფერხებს.",
+          "files" : [
+            "packages/ui-mobile/src/feedback/sheet.tsx"
+          ],
+          "id" : "T1.20",
+          "title" : "გაასწორე Sheet-ის გამოჩენა web preview-ზე",
+          "updatedAt" : "2026-09-10T07:23:06Z"
+        },
+        {
+          "acceptance" : [
+            "Vercel fit-web and fit-admin production env no longer define COOKIE_DOMAIN or NEXT_PUBLIC_COOKIE_DOMAIN",
+            "Both projects redeployed after the change and downtown/riverside sign-in still sets host-only cookies",
+            "docs/subdomain-routing.md no longer describes the legacy clear as active"
+          ],
+          "createdAt" : "2026-09-14T10:39:23Z",
+          "detail" : "PR #331 (main df67aaf, 2026-09-13) moved session cookies to host-only and appends a legacy clear for the old `Domain=.formacore.io` cookies on every session write. Keep the env vars until every legacy cookie has expired (refresh token lifetime ~30 days), then drop them so the clear-only code path can be retired too.",
+          "files" : [
+            "apps/web/lib/session-cookies.ts",
+            "apps/admin/lib/session-cookies.ts",
+            "docs/subdomain-routing.md"
+          ],
+          "id" : "T1.21",
+          "title" : "Remove COOKIE_DOMAIN / NEXT_PUBLIC_COOKIE_DOMAIN from Vercel fit-web and fit-admin, then redeploy — not before 2026-10-14",
+          "updatedAt" : "2026-09-14T10:39:23Z"
+        },
+        {
+          "acceptance" : [
+            "'Mobile smoke (Maestro)' is green on main",
+            "The failing step and its cause are named in the fix PR"
+          ],
+          "createdAt" : "2026-09-14T10:39:28Z",
+          "detail" : "The Maestro smoke job has been red on main since commit 4a37397 (Trainer / Staff: one door, one owner, #330), before the tenant-isolation merge (#331, df67aaf) — so it is not a tenant regression. Nobody is fixing it under the gym-isolation work; it needs its own look at the workflow log and the mobile seed (`db:seed:mobile-smoke`).",
+          "files" : [
+            ".github/workflows/mobile-smoke.yml",
+            "apps/mobile"
+          ],
+          "id" : "T1.22",
+          "title" : "Fix the 'Mobile smoke (Maestro)' workflow failing on main since 4a37397",
+          "updatedAt" : "2026-09-14T10:39:28Z"
+        }
+      ],
+      "title" : "Backlog"
+    }
+  ],
+  "updatedAt" : "2026-09-14T10:39:28Z",
+  "version" : 1
+}
