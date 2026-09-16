@@ -2,7 +2,14 @@ import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { ApiError, fetchGymSettings, fetchLocations, fetchReportCatalog } from '@/lib/api';
+import type { StaffRole } from '@fit/types';
+import {
+  ApiError,
+  fetchGymSettings,
+  fetchLocations,
+  fetchReportCatalog,
+  fetchStaff,
+} from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { SettingsForm } from './settings-form';
 
@@ -98,13 +105,45 @@ export default async function SettingsPage() {
       (page) => page.data,
       () => [],
     );
-    // Every report, hidden ones too, in the reader's language - the toggles have
-    // to name what the hub names. A failed call leaves the form its English fallback.
-    const reportCatalog = await fetchReportCatalog({ all: true }).then(
-      (catalog) => catalog,
-      () => undefined,
+    // Two independent reads, neither of which may sink the page: each degrades to
+    // its own fallback so a failure narrows what the form can say rather than
+    // costing the operator the whole screen.
+    //
+    // The head-count beside each role on the Roles & permissions rail is counted
+    // from the live roster (`GET /staff`) rather than stored anywhere: the number
+    // is "who holds this role right now", and the only place that is true is the
+    // roster itself. Gym-wide, unlike the Staff console's own tally — Settings
+    // configures the whole gym, so narrowing this by the header's branch would
+    // make the count disagree with what the grants beside it actually govern.
+    // A roster call that fails yields `null` — no head-counts are drawn at all,
+    // rather than "0 staff members" under every role, which would be a claim the
+    // failed request did not earn.
+    //
+    // The report catalogue is every report, hidden ones too, in the reader's
+    // language — the toggles have to name what the hub names. A failed call leaves
+    // the form its English fallback.
+    const [staffCountByRole, reportCatalog] = await Promise.all([
+      fetchStaff().then(
+        ({ staff }) =>
+          staff.reduce<Partial<Record<StaffRole, number>>>((counts, member) => {
+            counts[member.role] = (counts[member.role] ?? 0) + 1;
+            return counts;
+          }, {}),
+        () => null,
+      ),
+      fetchReportCatalog({ all: true }).then(
+        (catalog) => catalog,
+        () => undefined,
+      ),
+    ]);
+    return (
+      <SettingsForm
+        initial={settings}
+        locations={locations}
+        staffCountByRole={staffCountByRole}
+        reportCatalog={reportCatalog}
+      />
     );
-    return <SettingsForm initial={settings} locations={locations} reportCatalog={reportCatalog} />;
   } catch (error) {
     const message =
       error instanceof ApiError

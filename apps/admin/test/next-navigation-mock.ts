@@ -13,6 +13,9 @@ const refresh = vi.fn();
 /** The query string `useSearchParams()` will report. Set it before rendering. */
 let search = '';
 
+/** The path `usePathname()` will report. Set it before rendering. */
+let pathname = '/';
+
 export const navigationMock = {
   replace,
   push,
@@ -21,18 +24,23 @@ export const navigationMock = {
   setSearch(next: string): void {
     search = next;
   },
+  /** Set the path the next render observes, e.g. `setPathname('/settings')`. */
+  setPathname(next: string): void {
+    pathname = next;
+  },
   /** Clear call history and the query string. Call in `beforeEach`. */
   reset(): void {
     replace.mockReset();
     push.mockReset();
     refresh.mockReset();
     search = '';
+    pathname = '/';
   },
   /** The module factory to hand `vi.mock('next/navigation', …)`. */
   factory() {
     return {
       useRouter: () => ({ replace, push, refresh }),
-      usePathname: () => '/',
+      usePathname: () => pathname,
       useSearchParams: () => new URLSearchParams(search),
     };
   },

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   MAX_SUBSCRIPTION_ALLOWANCE,
   type SubscriptionInterval,
@@ -11,6 +12,7 @@ import {
 import { Badge, Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useGymCurrency } from '@/components/gym-currency';
+import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import {
   SUBSCRIPTION_INTERVALS,
   formatPrice,
@@ -67,6 +69,8 @@ type Initial = {
   freezeDaysPerPeriod: number;
   includedCredits: number;
   trialDays: number;
+  /** The one branch the plan is sold at; `null` (or omitted) is every branch. */
+  locationId?: string | null;
 };
 
 /**
@@ -157,6 +161,8 @@ export function SubscriptionPlanForm(props: Props) {
         trialDays: 0,
       };
 
+  const tCommon = useTranslations('admin.common');
+  const branch = useBranchExclusivity(props.mode, initial.locationId);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [price, setPrice] = useState(initial.priceAmount ? minorToInput(initial.priceAmount) : '');
@@ -202,6 +208,7 @@ export function SubscriptionPlanForm(props: Props) {
       freezeDaysPerPeriod: parseAllowance(freezeDays),
       includedCredits: initial.includedCredits,
       trialDays: initial.trialDays,
+      locationId: branch.locationId,
     };
 
     startTransition(async () => {
@@ -481,6 +488,32 @@ export function SubscriptionPlanForm(props: Props) {
               </span>
             </span>
           </label>
+
+          {branch.visible ? (
+            <div className="mt-4 flex flex-col gap-1">
+              <label htmlFor="plan-branch" className={LABEL_CLASS}>
+                {tCommon('branchExclusive')}
+              </label>
+              <select
+                id="plan-branch"
+                name="locationId"
+                value={branch.value}
+                onChange={(event) => branch.setValue(event.target.value)}
+                className={`${FIELD_CLASS} sm:max-w-xs`}
+              >
+                <option value="">{tCommon('allBranchesOption')}</option>
+                {branch.unlistedId ? (
+                  <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
+                ) : null}
+                {branch.locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-ink-400">{tCommon('branchExclusiveHint')}</p>
+            </div>
+          ) : null}
 
           {!isEdit ? (
             <div className="mt-4 flex flex-col gap-1">

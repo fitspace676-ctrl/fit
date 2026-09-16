@@ -29,6 +29,13 @@ describe('dashboardSalesQuerySchema', () => {
       dashboardSalesQuerySchema.parse({ granularity: 'monthly', productType: 'session-packs' }),
     ).toEqual({ granularity: 'monthly', productType: 'session-packs' });
   });
+
+  it('carries an optional branch, absent on "all locations"', () => {
+    expect(dashboardSalesQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(dashboardSalesQuerySchema.parse({}).locationId).toBeUndefined();
+    // Same forgiving rule as the rest of the tab: a junk branch means all of them.
+    expect(dashboardSalesQuerySchema.parse({ locationId: '' }).locationId).toBeUndefined();
+  });
 });
 
 describe('SALES_GRANULARITY_RANGE', () => {

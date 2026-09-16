@@ -1,61 +1,50 @@
-// @fit/mobile — reactive first-run onboarding flag.
+// @fit/mobile — the first-run flag, as React sees it.
 //
-// Mirrors `useAuth`: reads the onboarding flag from the SecureStore-backed
-// snapshot in `auth-storage` via `useSyncExternalStore` (so the route guard
-// re-renders the instant the user finishes onboarding) and hydrates that
-// snapshot from SecureStore exactly once per app launch, shared across every
-// consumer.
+// Same shape as `useSession`: one `useSyncExternalStore` over the store's own
+// snapshot, no local copy, no navigation. `resolveRedirect` takes `isComplete`
+// as its third argument, so this hook and that function are the two halves of
+// the onboarding zone — one reactive, one pure.
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import {
   getOnboardingSnapshot,
-  hydrateOnboarding,
   setOnboardingComplete,
   subscribeOnboarding,
-} from '../lib/auth-storage';
+} from '../lib/auth/onboarding-store';
+import { getSessionState, subscribeSessionState } from '../lib/auth/session';
 
-// Shared one-shot hydration: SecureStore is read once per launch no matter how
-// many components mount `useOnboarding`.
-let hydration: Promise<unknown> | null = null;
-function ensureHydrated(): Promise<unknown> {
-  if (!hydration) hydration = hydrateOnboarding();
-  return hydration;
-}
-
-export interface UseOnboarding {
-  /** True once the user has completed (or skipped past) the onboarding screens. */
-  isComplete: boolean;
-  /** True while the initial SecureStore hydration is in flight. */
-  isLoading: boolean;
-  /** Persist completion and flip the flag everywhere (called on "Get started"). */
-  complete: () => Promise<void>;
+/** What {@link useOnboarding} reports. */
+export interface OnboardingState {
+  /** Whether the intro has been completed on this install. */
+  readonly isComplete: boolean;
+  /**
+   * Whether the persisted flag is still being read.
+   *
+   * Shares the session's hydration flag because `hydrateAuth()` loads both in
+   * one pass — two independent "loading" flags would let the guard act on a
+   * half-known state, which is the redirect flash it exists to prevent.
+   */
+  readonly isHydrating: boolean;
+  /** Mark the intro done. Persisted, and published to every subscriber at once. */
+  readonly complete: () => Promise<void>;
 }
 
 /**
- * Read the reactive onboarding flag. Gate the onboarding screens on `isComplete`
- * once `isLoading` is false; call `complete()` when the user finishes the flow.
+ * The onboarding flag.
+ *
+ * `complete` is the store's own function, not a `useCallback` wrapper: it is
+ * already module-level and therefore already reference-stable, and wrapping it
+ * would only add a hook whose deps could go stale.
  */
-export function useOnboarding(): UseOnboarding {
+export function useOnboarding(): OnboardingState {
   const isComplete = useSyncExternalStore(
     subscribeOnboarding,
     getOnboardingSnapshot,
     getOnboardingSnapshot,
   );
-  const [isLoading, setIsLoading] = useState(hydration === null);
+  const isHydrating =
+    useSyncExternalStore(subscribeSessionState, getSessionState, getSessionState).status ===
+    'hydrating';
 
-  useEffect(() => {
-    let active = true;
-    void ensureHydrated().finally(() => {
-      if (active) setIsLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return {
-    isComplete,
-    isLoading,
-    complete: setOnboardingComplete,
-  };
+  return { isComplete, isHydrating, complete: setOnboardingComplete };
 }

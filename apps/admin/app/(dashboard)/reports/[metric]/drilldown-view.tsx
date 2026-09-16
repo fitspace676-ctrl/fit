@@ -14,11 +14,18 @@ import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
-import { reportQueryParams, type ReportDrilldown } from '@fit/types';
+import {
+  reportQueryParams,
+  type ReportDrilldown,
+  type ReportMetric,
+  type ReportSection,
+} from '@fit/types';
 import { Icon } from '@/components/ui';
 import { adminPath } from '@/lib/base-path';
 import { ReportSectionCard, formatUnitValue } from '../report-sections';
 import { ReportRangeControl } from '../report-range-control';
+import { BranchScopeNote } from '../branch-scope-note';
+import { GYM_WIDE_DRILLDOWNS, gymWideSectionColumnKeys } from '../branch-scope';
 
 const styles = stylex.create({
   page: {
@@ -119,21 +126,37 @@ const styles = stylex.create({
 export function DrilldownView({
   drilldown,
   canExport,
+  locationId,
 }: {
   drilldown: ReportDrilldown;
   /** `ReportExport` — the header's download buttons. */
   canExport: boolean;
+  /**
+   * The branch the server ran this drill-down for; `undefined` is every branch.
+   * It describes THIS render, not whatever the switcher holds now, so the
+   * downloads cannot drift from the figures above them.
+   */
+  locationId: string | undefined;
 }) {
   const t = useTranslations('admin.reports');
   const locale = useLocale();
 
-  /** The download URL for this drill-down at the window currently on screen. */
+  /**
+   * The download URL for this drill-down at the window AND branch on screen. The
+   * branch is written in explicitly: the export route would fall back to the
+   * cookie, but the cookie can move between this render and the click.
+   */
   const exportHref = (format: 'csv' | 'xlsx'): string =>
     adminPath(
-      `/reports/${encodeURIComponent(drilldown.metric)}/export?${reportQueryParams(
-        drilldown,
-      ).toString()}&format=${format}`,
+      `/reports/${encodeURIComponent(drilldown.metric)}/export?${reportQueryParams({
+        ...drilldown,
+        locationId,
+      }).toString()}&format=${format}`,
     );
+
+  // Whether the whole drill-down is still gym-wide under the selected branch.
+  // Silent in "All locations" mode, where it would state the obvious.
+  const gymWide = locationId !== undefined && GYM_WIDE_DRILLDOWNS.has(drilldown.metric);
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -146,6 +169,8 @@ export function DrilldownView({
         <div {...stylex.props(styles.headCopy)}>
           <h1 {...stylex.props(styles.title)}>{drilldown.name}</h1>
           <p {...stylex.props(styles.description)}>{drilldown.description}</p>
+          {/* Above the KPI tiles, because it is true of every one of them. */}
+          {gymWide ? <BranchScopeNote /> : null}
         </div>
         <div {...stylex.props(styles.controls)}>
           <ReportRangeControl range={drilldown.range} from={drilldown.from} to={drilldown.to} />
@@ -198,9 +223,34 @@ export function DrilldownView({
             currency={drilldown.currency}
             locale={locale}
             emptyLabel={t('drilldown.emptySection')}
+            // One column of an otherwise branch-scoped section that cannot narrow
+            // (`staff`'s average rating). It rides in the card's action slot, so
+            // the shared section renderer needs no branch vocabulary of its own.
+            action={
+              locationId === undefined || gymWide ? undefined : (
+                <SectionScopeNote metric={drilldown.metric} section={section} />
+              )
+            }
           />
         ))}
       </div>
     </div>
   );
+}
+
+/**
+ * The "not split by branch" note for ONE table section, naming the columns it
+ * applies to - or nothing, which is almost every section. The labels come from
+ * the API's own section definition, so the note points at headers the reader can
+ * see in the table beneath it.
+ */
+function SectionScopeNote({ metric, section }: { metric: ReportMetric; section: ReportSection }) {
+  const keys = gymWideSectionColumnKeys(metric, section.id);
+  if (keys.length === 0 || section.kind !== 'table') {
+    return null;
+  }
+  const labels = section.columns
+    .filter((column) => keys.includes(column.key))
+    .map((column) => column.label);
+  return labels.length > 0 ? <BranchScopeNote columns={labels} /> : null;
 }

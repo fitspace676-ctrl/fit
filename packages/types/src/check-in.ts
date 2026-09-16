@@ -67,6 +67,29 @@ export type MemberEligibility = z.infer<typeof memberEligibilitySchema>;
 export const recordCheckInSchema = z.object({
   gymMemberId: z.string().min(1),
   method: checkInMethodSchema.default('MANUAL'),
+  /**
+   * The branch the member physically **walked into** for this arrival — the door
+   * they came through, which is `CheckIn.locationId` and emphatically NOT
+   * `GymMember.locationId`, their home branch. A drop-in at the other site makes
+   * the two differ, and recording that difference is the entire point of the
+   * column: occupancy, footfall and peak-hour figures are about the PLACE.
+   *
+   * **Optional on the wire, never optional in the database.** The desk always
+   * knows which door somebody came through, so a real branch is expected on
+   * essentially every call — but making it strictly required would 400 every
+   * existing caller (the console's reception POST, the mobile QR flow, the e2e
+   * fixtures) the moment this ships, and a front desk that cannot check anybody in
+   * is a worse failure than an under-specified arrival. So the API fills the gap
+   * instead of rejecting the request: an omitted branch falls back to the gym's
+   * default (`Location.isDefault`), never to `null` and never to the member's home
+   * branch — inferring the place from the person would invent a visit that did not
+   * happen. Same expand/contract terms as `createMemberSchema.locationId`; it
+   * tightens to required here, and to `NOT NULL` in the schema, once every caller
+   * sends one.
+   *
+   * A branch belonging to another gym is a `404 LOCATION_NOT_FOUND`.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `POST /admin/check-ins` body — {@link recordCheckInSchema}. */
@@ -84,6 +107,21 @@ export const checkInRowSchema = z.object({
   name: z.string(),
   photoUrl: z.string().nullable(),
   method: checkInMethodSchema,
+  /**
+   * The branch this arrival happened at, denormalised off `CheckIn.location` — the
+   * same one-hop projection `AdminClassTemplateRow.locationName`,
+   * `adminOrderRowSchema.locationName` and `MemberRow.locationName` all make. The
+   * name rather than the id because the feed only ever prints it.
+   *
+   * It earns its place because the arrivals feed is the one list where the branch
+   * is the fact being reported rather than a filter already applied: in "All
+   * locations" mode two people can arrive a minute apart at opposite sites, and
+   * without this the row cannot say which. `null`, not `''`, for an arrival with
+   * no branch — the relation is `onDelete: SetNull`, so retiring a branch genuinely
+   * un-places its past visits (the history is kept on purpose) and the cell reads
+   * as an explicit dash rather than the failed-load blank an empty string gives.
+   */
+  locationName: z.string().nullable(),
   checkedInAt: z.string(),
 });
 
@@ -105,6 +143,24 @@ export interface RecordCheckInResponse {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * `GET /admin/check-ins/today` query — the live reception feed, optionally
+ * narrowed to one branch. Follows the `list*QuerySchema` convention
+ * (`listMembersQuerySchema`, `listOrdersQuerySchema`): `locationId` omitted means
+ * every branch, which is what the console's "All locations" sends.
+ *
+ * The branch is the one people arrived AT (`CheckIn.locationId`), not the home
+ * branch of the people who arrived — a member dropping in at the other site
+ * belongs to that site's feed for the day, because the desk reading it is standing
+ * at that door.
+ */
+export const listTodayCheckInsQuerySchema = z.object({
+  locationId: z.string().min(1).optional(),
+});
+
+/** Validated `GET /admin/check-ins/today` query — {@link listTodayCheckInsQuerySchema}. */
+export type ListTodayCheckInsQuery = z.infer<typeof listTodayCheckInsQuerySchema>;
+
+/**
  * `GET /admin/check-ins/today` response — today's arrivals, most recent first
  * (the live reception feed). Empty until the first arrival of the day.
  */
@@ -117,8 +173,28 @@ export interface TodayCheckInsResponse {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * `GET /admin/check-ins/stats` query — the reception KPI snapshot, optionally
+ * narrowed to one branch. Same single-field shape as
+ * {@link listTodayCheckInsQuerySchema} and the same meaning of an omitted
+ * `locationId`: every branch.
+ *
+ * This one backs the console's sidebar check-in badge as well as the reception
+ * cards, so it is what makes the badge count one branch's arrivals rather than the
+ * whole company's. All four figures narrow together — `peakToday` is the busiest
+ * hour AT that branch, not the gym's peak hour counted at that branch, because
+ * every figure derives from the same filtered set in one pass.
+ */
+export const checkInStatsQuerySchema = z.object({
+  locationId: z.string().min(1).optional(),
+});
+
+/** Validated `GET /admin/check-ins/stats` query — {@link checkInStatsQuerySchema}. */
+export type CheckInStatsQuery = z.infer<typeof checkInStatsQuerySchema>;
+
+/**
  * `GET /admin/check-ins/stats` response — the reception KPI snapshot. All four are
- * "today" figures scoped to the caller's gym:
+ * "today" figures scoped to the caller's gym (and to one branch when the query
+ * names one):
  *   • `checkedInToday`  — total arrivals recorded today.
  *   • `inGymNow`        — members currently on-site (kept simple: today's distinct
  *                         arrivals, since there is no checkout event yet).

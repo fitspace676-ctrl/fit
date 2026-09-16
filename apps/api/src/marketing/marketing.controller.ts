@@ -20,6 +20,7 @@ import {
   createMessageTemplateSchema,
   createPromoCodeSchema,
   listCampaignsQuerySchema,
+  listPromoCodesQuerySchema,
   previewAudienceSchema,
   saveCampaignAsTemplateSchema,
   scheduleCampaignSchema,
@@ -166,12 +167,15 @@ export class MarketingController {
   // Promo codes
   // -------------------------------------------------------------------------
 
-  /** `GET /marketing/promo-codes` — every code, newest first. */
+  /**
+   * `GET /marketing/promo-codes?locationId=` — every code, newest first; given a
+   * branch, the codes redeemable there. A malformed query is a `400`.
+   */
   @Get('promo-codes')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.MarketingRead)
-  async listPromoCodes(): Promise<ListPromoCodesResponse> {
-    return this.marketing.listPromoCodes();
+  async listPromoCodes(@Query() query: unknown): Promise<ListPromoCodesResponse> {
+    return this.marketing.listPromoCodes(parse(listPromoCodesQuerySchema, query ?? {}));
   }
 
   /**

@@ -73,6 +73,12 @@ export type ProductSummary = z.infer<typeof productSummarySchema>;
  */
 export const listProductsQuerySchema = z.object({
   gymId: z.string().min(1),
+  /**
+   * Show what one branch of this gym sells — its exclusives plus every gym-wide
+   * product. Omitted, a signed-in member sees their home branch's shelf and a
+   * visitor every branch's; a branch that is not an active one of `gymId` is a `404`.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `GET /products` query — {@link listProductsQuerySchema}. */

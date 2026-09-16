@@ -2,7 +2,7 @@
   // Expo's base provides the React Native lib/jsx/module-resolution settings the
   // app needs, so we can't extend the bundler-targeted `@fit/config` base
   // directly — instead we mirror its *strictness* flags here so mobile gets the
-  // same type-safety guarantees as every other workspace (T1.2).
+  // same type-safety guarantees as every other workspace.
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,

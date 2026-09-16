@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { LocationStatus, Prisma } from '@fit/db';
 import {
+  LOCATION_IS_DEFAULT_CODE,
+  LOCATION_NOT_ACTIVE_CODE,
   locationHoursSchema,
   type AdminLocationDetail,
   type AdminLocationRow,
@@ -10,6 +12,7 @@ import {
   type ListAdminLocationsQuery,
   type ListAdminLocationsResponse,
   type LocationHours,
+  type MakeDefaultLocationResponse,
   type SetLocationStatusResponse,
   type UpdateLocationData,
   type UpdateLocationResponse,
@@ -32,6 +35,7 @@ const LOCATION_SELECT = {
   amenities: true,
   hours: true,
   status: true,
+  isDefault: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.LocationSelect;
@@ -163,8 +167,21 @@ export class AdminLocationsService {
   /**
    * Deactivate a location (T4.5) — set `status` to `INACTIVE` so it drops off the
    * public listing while the record is preserved. Idempotent; `404`-on-miss.
+   *
+   * The gym's ACTIVE default branch is refused with `409 LOCATION_IS_DEFAULT`: it is
+   * the fallback for check-ins, new members' home branch and stock moves, so
+   * another branch has to be made the default first ({@link makeDefaultLocation}).
+   * A default that is already inactive (the backfill could elect one) stays a
+   * no-op, so the call keeps its idempotency.
    */
   async deactivateLocation(id: string): Promise<SetLocationStatusResponse> {
+    const location = await this.requireLocation(id);
+    if (location.isDefault && location.status === LocationStatus.ACTIVE) {
+      throw new ConflictException({
+        message: 'The default branch cannot be deactivated. Make another branch the default first.',
+        code: LOCATION_IS_DEFAULT_CODE,
+      });
+    }
     return this.setStatus(id, LocationStatus.INACTIVE);
   }
 
@@ -175,6 +192,61 @@ export class AdminLocationsService {
    */
   async reactivateLocation(id: string): Promise<SetLocationStatusResponse> {
     return this.setStatus(id, LocationStatus.ACTIVE);
+  }
+
+  /**
+   * Make a location the gym's DEFAULT branch, taking the flag off whichever branch
+   * held it. Idempotent on the current default; `404`-on-miss.
+   *
+   * Only an `ACTIVE` branch can become the default (`409 LOCATION_NOT_ACTIVE`).
+   * Both writes run in one transaction and in this order — clear the old default,
+   * then set the new — because the partial unique index
+   * `locations_gymId_default_key ... WHERE "isDefault"` is checked per statement
+   * and would reject a second default even for the instant between the two. Every
+   * `where` names the caller's gym explicitly on top of the tenant extension, so a
+   * foreign id is a `404` here and the `updateMany` can never reach another gym's
+   * default. Two operators moving the flag at once collide on that same index;
+   * the loser gets a `409 LOCATION_DEFAULT_CONFLICT` to retry rather than a `500`.
+   */
+  async makeDefaultLocation(id: string): Promise<MakeDefaultLocationResponse> {
+    const gymId = this.tenant.gymId;
+    try {
+      await this.prisma.client.$transaction(async (tx) => {
+        const location = await tx.location.findFirst({
+          where: { id, gymId },
+          select: { id: true, status: true, isDefault: true },
+        });
+        if (!location) {
+          throw new NotFoundException({
+            message: 'Location not found',
+            code: 'LOCATION_NOT_FOUND',
+          });
+        }
+        if (location.isDefault) {
+          return;
+        }
+        if (location.status !== LocationStatus.ACTIVE) {
+          throw new ConflictException({
+            message: 'Only an active branch can be the default. Reactivate it first.',
+            code: LOCATION_NOT_ACTIVE_CODE,
+          });
+        }
+        await tx.location.updateMany({
+          where: { gymId, isDefault: true },
+          data: { isDefault: false },
+        });
+        await tx.location.updateMany({ where: { id, gymId }, data: { isDefault: true } });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException({
+          message: 'The default branch changed at the same time. Reload and try again.',
+          code: 'LOCATION_DEFAULT_CONFLICT',
+        });
+      }
+      throw error;
+    }
+    return this.getLocation(id);
   }
 
   /** Set a location's lifecycle `status`, 404-ing an unknown / cross-tenant id. */
@@ -189,10 +261,15 @@ export class AdminLocationsService {
    * scoped `where` constrains `gymId`, so a cross-tenant id never matches — the
    * guard for every write.
    */
-  private async requireLocation(id: string): Promise<{ id: string; photoUrl: string | null }> {
+  private async requireLocation(id: string): Promise<{
+    id: string;
+    photoUrl: string | null;
+    status: LocationStatus;
+    isDefault: boolean;
+  }> {
     const location = await this.prisma.client.location.findFirst({
       where: { id },
-      select: { id: true, photoUrl: true },
+      select: { id: true, photoUrl: true, status: true, isDefault: true },
     });
     if (!location) {
       throw new NotFoundException({ message: 'Location not found', code: 'LOCATION_NOT_FOUND' });
@@ -262,6 +339,7 @@ export class AdminLocationsService {
       amenities: row.amenities,
       hours: this.parseHours(row.hours),
       status: row.status,
+      isDefault: row.isDefault,
       createdAt: row.createdAt.toISOString(),
     };
   }

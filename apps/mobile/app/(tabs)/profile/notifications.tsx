@@ -1,242 +1,281 @@
+// `/profile/notifications` — the inbox. `notifications` (21 keys, D10).
+//
+// ===========================================================================
+// THE ONE NOTIFICATION SURFACE THAT IS ACTUALLY BACKED BY AN ENDPOINT.
+//
+// Three routes exist and all three are here: `GET /notifications` (the page,
+// which carries the full unread total alongside it), `GET /notifications/
+// unread-count` (the badge, for screens that do not render the list) and
+// `POST /notifications/mark-read`. There is no preferences controller — see
+// `/profile/notification-settings`, which says so on the glass.
+//
+// ---------------------------------------------------------------------------
+// MARK-READ INVALIDATES A ROOT, NOT A KEY, AND THAT IS NOT A SHORTCUT.
+//
+// `queryKeys.notifications(gymId)` takes `filters` at index 2 and defaults it to
+// `null`, so it names ONE filter bucket. Invalidating that alone would leave an
+// `unreadOnly: true` list and the `['notifications', gymId, 'unreadCount']`
+// badge untouched — the "badge says 3, inbox is empty" bug the key factory's own
+// doc comment promises against. `useNotificationMutations.ts` invalidates the
+// two-segment root instead, and this screen simply calls the mutation and lets
+// the matrix do it. No `.refetch()` anywhere.
+//
+// ---------------------------------------------------------------------------
+// AN ITEM'S `href` IS A **WEB PORTAL** PATH, AND IS TREATED AS A HINT.
+//
+// `NotificationDto.href` is documented as "an in-app deep-link target (e.g.
+// `/bookings`)" and is authored by the API for the member PORTAL, whose routes
+// are `/member/...`. This app's routes are not the portal's — `/bookings` here
+// is `/profile/bookings` — so the href is mapped through a small, explicit table
+// rather than handed to `router.push` verbatim. An unmapped href navigates
+// NOWHERE rather than to an unmatched route: a dead-end tap is a small
+// annoyance; expo-router's "Unmatched Route" screen is a broken app.
+
 import { useCallback, useMemo } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import type { NotificationCategory, NotificationDto } from '@fit/types';
-import { useI18n } from '../../../providers';
-import { useActiveGymId } from '../../../hooks/useActiveGym';
-import { useMarkNotificationsRead, useNotifications } from '../../../hooks/useNotifications';
+import { View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import type { NotificationDto } from '@fit/types';
+import {
+  AppBar,
+  Button,
+  DotBadge,
+  EmptyState,
+  IconButton,
+  ListRow,
+  Screen,
+  Skeleton,
+  Surface,
+  layout,
+  spacing,
+  useToast,
+  type IconName,
+} from '@fit/ui-mobile';
 
-/**
- * Member notification inbox (T8.5) — the target of the bell on Home and Profile
- * and of the `fit://notifications/:id` deep link (remapped here by
- * `app/+native-intent.ts`).
- *
- * Lists the caller's real notifications with their read state, wired to the
- * inbox API (T8.4) via `useNotifications`: an emoji per category, unread items
- * tinted with a dot, newest first. Tapping an item marks it read and follows its
- * in-app deep link (`href`) when present — the same navigation the push-tap
- * handler uses (`usePushNotifications`); a header action marks everything read.
- * Pull-to-refresh revalidates, and the gear opens notification *preferences*
- * (`/profile/notification-settings`), where per-category delivery is chosen.
- *
- * Dark-only aurora glass over the `ink-950` canvas, matching the Profile hub the
- * bell sits on (cf. Shop cart) rather than the system-themed settings screens.
- */
+import { OfflineNotice } from '../../../components/auth/notices';
+import { useIsOnline } from '../../../components/auth/use-online';
+import { NOTIFICATIONS_PENDING_COPY } from '../../../components/home/pending-copy';
+import { sectionPhase } from '../../../components/home/section';
+import { formatMediumDate, formatTime } from '../../../components/services/date-format';
+import { useNotifications } from '../../../hooks/queries/useNotifications';
+import { useMarkNotificationsRead } from '../../../hooks/mutations/useNotificationMutations';
+import { useGymId } from '../../../hooks/useActiveGym';
+import { queryKeys } from '../../../lib/query-keys';
+import { useI18n } from '../../../providers/I18nProvider';
 
-/** The emoji shown per notification category — mirrors the web bell's icon map. */
-const CATEGORY_GLYPH: Record<NotificationCategory, string> = {
-  BOOKING: '📅',
-  BILLING: '💳',
-  SYSTEM: '🔔',
+/** Category → the glyph the row draws. The three the API can send. */
+const CATEGORY_ICON: Readonly<Record<NotificationDto['category'], IconName>> = {
+  BOOKING: 'calendar',
+  BILLING: 'card',
+  SYSTEM: 'info',
 };
 
-export default function NotificationsScreen() {
-  const { t } = useI18n();
-  const insets = useSafeAreaInsets();
-  const gymId = useActiveGymId();
+/**
+ * A portal href, mapped to a route THIS app has.
+ *
+ * Explicit and small on purpose — see the header. `null` means "do not
+ * navigate", which is what an unknown href gets.
+ */
+export function routeForHref(href: string | null): string | null {
+  if (href === null) return null;
+  const path = href.replace(/^\/member/, '');
+  if (path.startsWith('/classes')) return path;
+  if (path.startsWith('/bookings')) return '/profile/bookings';
+  if (path.startsWith('/account/membership') || path.startsWith('/membership')) {
+    return '/profile/membership';
+  }
+  if (path.startsWith('/account/billing') || path.startsWith('/billing')) return '/profile/billing';
+  if (path.startsWith('/shop')) return '/shop';
+  if (path.startsWith('/trainers')) return '/trainers';
+  if (path.startsWith('/services')) return '/services';
+  return null;
+}
 
-  const inbox = useNotifications(gymId);
-  const markRead = useMarkNotificationsRead(gymId);
+export default function NotificationsScreen() {
+  const { t, locale } = useI18n();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const online = useIsOnline();
+  const gymId = useGymId();
+  const scoped = gymId ?? '';
+
+  const inbox = useNotifications();
+  const markRead = useMarkNotificationsRead();
 
   const items = useMemo(() => inbox.data?.data ?? [], [inbox.data]);
   const unread = inbox.data?.unread ?? 0;
-  const refreshing = inbox.isFetching && !inbox.isLoading;
+  const phase = sectionPhase(inbox, online);
 
-  // Tapping an item marks it read (no-op if already read) and follows its in-app
-  // deep link when present — the same best-effort navigation the push-tap handler
-  // performs. `mutate` is fire-and-forget; the mutation invalidates the inbox so
-  // the row repaints as read.
-  const onItemPress = useCallback(
-    (item: NotificationDto): void => {
-      if (!item.readAt) markRead.mutate([item.id]);
-      if (item.href) router.push(item.href);
+  /**
+   * A mark-read that did not happen, said out loud.
+   *
+   * The mutation is otherwise INVISIBLE: it invalidates on success and the dot
+   * disappears, so a failure leaves the dot exactly where it was and nothing on
+   * screen distinguishes "the server refused" from "the member misread the
+   * screen". Both `.mutate()` calls here were the only two in the app with no
+   * callbacks at all.
+   *
+   * A toast rather than an `Alert`: unlike a failed LOAD there is nothing to
+   * retry from — the row is still there and pressing it again re-fires the same
+   * request, which is the recovery.
+   *
+   * TODO(i18n) `notifications.markReadError`. `notifications.error` exists but
+   * is the LIST's sentence ("We couldn't load your notifications"), which is
+   * not true of a write that failed over a list already on screen — see
+   * `components/home/pending-copy.ts`.
+   */
+  const markReadFailed = useCallback(() => {
+    toast.error(NOTIFICATIONS_PENDING_COPY.markReadError);
+  }, [toast]);
+
+  const open = useCallback(
+    (item: NotificationDto) => {
+      // Mark this one read on the way out. Idempotent server-side, so a row the
+      // member re-opens costs one no-op request rather than needing a guard.
+      if (item.readAt === null) markRead.mutate({ ids: [item.id] }, { onError: markReadFailed });
+      const route = routeForHref(item.href);
+      if (route !== null) router.push(route);
     },
-    [markRead],
+    [markRead, markReadFailed, router],
   );
 
-  const onMarkAll = useCallback((): void => {
-    if (unread > 0 && !markRead.isPending) markRead.mutate(undefined);
-  }, [markRead, unread]);
-
   return (
-    <View className="flex-1 bg-ink-950">
-      {/* ---- top app bar ---- */}
-      <View style={{ paddingTop: insets.top + 12 }} className="flex-row items-center px-5 pb-3">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('notifications.back')}
-          onPress={() => router.back()}
-          hitSlop={8}
-          className="h-11 w-11 items-center justify-center rounded-btn border border-white/10 bg-white/5 active:bg-white/10"
-        >
-          <Text className="text-xl font-bold text-ink-300">‹</Text>
-        </Pressable>
-        <View className="flex-1 flex-row items-center justify-center gap-1.5">
-          <Text className="text-lg font-extrabold tracking-tight text-white">
-            {t('notifications.inboxTitle')}
-          </Text>
-          {unread > 0 ? (
-            <Text
-              className="font-mono text-sm text-ink-500"
-              style={{ fontVariant: ['tabular-nums'] }}
-            >
-              · {unread}
-            </Text>
-          ) : null}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t('notifications.settings')}
-          onPress={() => router.push('/profile/notification-settings')}
-          hitSlop={8}
-          className="h-11 w-11 items-center justify-center rounded-btn border border-white/10 bg-white/5 active:bg-white/10"
-        >
-          <Text className="text-base">⚙️</Text>
-        </Pressable>
-      </View>
-
-      {/* ---- mark-all-read action ---- */}
-      {unread > 0 ? (
-        <View className="flex-row justify-end px-5 pb-1">
-          <Pressable
-            accessibilityRole="button"
-            disabled={markRead.isPending}
-            onPress={onMarkAll}
-            hitSlop={6}
-            className="active:opacity-70"
-            style={{ opacity: markRead.isPending ? 0.5 : 1 }}
-          >
-            <Text className="text-xs font-semibold text-brand-300">
-              {t('notifications.markAllRead')}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {/* ---- body ---- */}
-      {inbox.isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#8B7FF0" />
-        </View>
-      ) : inbox.isError ? (
-        <View className="flex-1 items-center justify-center px-8">
-          <View className="h-16 w-16 items-center justify-center rounded-card border border-white/10 bg-white/5">
-            <Text className="text-2xl">⚠️</Text>
-          </View>
-          <Text className="mt-4 text-center text-base font-semibold text-white">
-            {t('notifications.error')}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void inbox.refetch()}
-            className="mt-5 h-11 items-center justify-center rounded-btn bg-brand-600 px-6 active:bg-brand-700"
-          >
-            <Text className="text-sm font-bold text-white">{t('notifications.retry')}</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingTop: 4,
-            paddingBottom: insets.bottom + 24,
-            flexGrow: 1,
-          }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void inbox.refetch()}
-              tintColor="#94A3B8"
+    <Screen
+      testID="notifications-screen"
+      header={
+        <AppBar
+          title={t('notifications.inboxTitle')}
+          leading={
+            <IconButton
+              icon="chevronLeft"
+              accessibilityLabel={t('notifications.back')}
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace('/profile');
+              }}
+              variant="surface"
+              testID="notifications-back"
             />
           }
-          ItemSeparatorComponent={() => <View className="h-2.5" />}
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center px-8 pt-24">
-              <View className="h-16 w-16 items-center justify-center rounded-card border border-white/10 bg-white/5">
-                <Text className="text-2xl">🔔</Text>
-              </View>
-              <Text className="mt-4 text-center text-base font-semibold text-white">
-                {t('notifications.empty')}
-              </Text>
-              <Text className="mt-1 text-center text-sm text-ink-400">
-                {t('notifications.emptyHint')}
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <NotificationRow
-              item={item}
-              nowLabel={t('notifications.timeNow')}
-              onPress={onItemPress}
+          trailing={
+            <IconButton
+              icon="settings"
+              accessibilityLabel={t('notifications.settings')}
+              onPress={() => {
+                router.push('/profile/notification-settings');
+              }}
+              variant="surface"
+              testID="notifications-settings"
             />
-          )}
+          }
         />
-      )}
-    </View>
-  );
-}
-
-/** One inbox row: an emoji tile, title + body, relative age, and — while unread —
- * a tinted surface with a brand dot. */
-function NotificationRow({
-  item,
-  nowLabel,
-  onPress,
-}: {
-  item: NotificationDto;
-  nowLabel: string;
-  onPress: (item: NotificationDto) => void;
-}) {
-  const unread = item.readAt === null;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => onPress(item)}
-      className={`flex-row items-start gap-3 rounded-card border p-3.5 active:opacity-80 ${
-        unread ? 'border-brand-400/25 bg-brand-500/[0.08]' : 'border-white/[0.06] bg-white/[0.03]'
-      }`}
+      }
     >
-      <View
-        className={`h-10 w-10 items-center justify-center rounded-btn ${
-          unread ? 'bg-brand-500/20' : 'bg-white/[0.06]'
-        }`}
-      >
-        <Text className="text-base">{CATEGORY_GLYPH[item.category]}</Text>
-      </View>
-      <View className="min-w-0 flex-1">
-        <View className="flex-row items-center gap-2">
-          <Text className="flex-1 text-sm font-semibold text-white" numberOfLines={1}>
-            {item.title}
-          </Text>
-          {unread ? <View className="h-2 w-2 rounded-full bg-brand-400" /> : null}
-        </View>
-        <Text className="mt-0.5 text-xs leading-5 text-ink-400" numberOfLines={2}>
-          {item.body}
-        </Text>
-        <Text className="mt-1 font-mono text-[11px] text-ink-500">
-          {formatRelative(item.createdAt, nowLabel)}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
+      <View style={{ gap: layout.sectionGap }}>
+        {online ? null : <OfflineNotice testID="notifications-offline" />}
 
-/** Compact relative age of an ISO timestamp: the localized "now", then `5m` /
- * `3h` / `2d`, else a short ISO date. Numeric suffixes are locale-agnostic, so
- * only the "now" label is translated (mirrors the web bell's formatter). */
-function formatRelative(iso: string, nowLabel: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '';
-  const mins = Math.floor((Date.now() - then) / 60_000);
-  if (mins < 1) return nowLabel;
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return new Date(then).toISOString().slice(0, 10);
+        {phase === 'loading' ? (
+          <View
+            testID="notifications-loading"
+            accessible
+            accessibilityLabel={t('notifications.title')}
+            style={{ gap: spacing[2] }}
+          >
+            <Skeleton height={72} radius={22} />
+            <Skeleton height={72} radius={22} />
+            <Skeleton height={72} radius={22} />
+          </View>
+        ) : null}
+
+        {phase === 'error' ? (
+          <EmptyState
+            testID="notifications-error"
+            icon="info"
+            title={t('notifications.error')}
+            action={{
+              label: t('notifications.retry'),
+              onPress: () => {
+                // The two-segment root, so the badge query goes with the list.
+                void queryClient.invalidateQueries({
+                  queryKey: queryKeys.notifications(scoped).slice(0, 2),
+                });
+              },
+              variant: 'secondary',
+              testID: 'notifications-retry',
+            }}
+          />
+        ) : null}
+
+        {phase === 'ready' ? (
+          items.length === 0 ? (
+            <EmptyState
+              testID="notifications-empty"
+              icon="bell"
+              title={t('notifications.empty')}
+              body={t('notifications.emptyHint')}
+            />
+          ) : (
+            <View style={{ gap: spacing[3] }}>
+              {unread > 0 ? (
+                <Button
+                  testID="notifications-mark-all"
+                  label={t('notifications.markAllRead')}
+                  variant="secondary"
+                  size="sm"
+                  busy={markRead.isPending}
+                  onPress={() => {
+                    // No argument marks EVERY unread item read — the endpoint's
+                    // own "mark all" form.
+                    markRead.mutate(undefined, { onError: markReadFailed });
+                  }}
+                />
+              ) : null}
+
+              <Surface tone="card" padVertical={1} testID="notifications-list">
+                {items.map((item) => {
+                  const when = `${formatMediumDate(locale, item.createdAt)} · ${formatTime(
+                    locale,
+                    item.createdAt,
+                  )}`;
+                  const isUnread = item.readAt === null;
+                  return (
+                    <ListRow
+                      key={item.id}
+                      testID={`notifications-item-${item.id}`}
+                      icon={CATEGORY_ICON[item.category]}
+                      title={item.title}
+                      hint={`${item.body} · ${when}`}
+                      onPress={() => {
+                        open(item);
+                      }}
+                      // The unread dot is the ONLY thing that says the item is
+                      // unread, and it is inside the row's single accessibility
+                      // node — so the word has to be in the label.
+                      accessibilityLabel={
+                        isUnread
+                          ? `${t('notifications.title')}, ${item.title}, ${item.body}, ${when}`
+                          : `${item.title}, ${item.body}, ${when}`
+                      }
+                      trailing={
+                        isUnread ? (
+                          <View
+                            accessible={false}
+                            accessibilityElementsHidden
+                            importantForAccessibility="no-hide-descendants"
+                          >
+                            <DotBadge />
+                          </View>
+                        ) : undefined
+                      }
+                    />
+                  );
+                })}
+              </Surface>
+            </View>
+          )
+        ) : null}
+      </View>
+    </Screen>
+  );
 }

@@ -6,6 +6,7 @@
   "types": "./index.ts",
   "exports": {
     ".": "./index.ts",
+    "./member": "./member.ts",
     "./locales/*": "./locales/*"
   },
   "scripts": {

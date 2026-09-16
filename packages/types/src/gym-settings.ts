@@ -14,6 +14,11 @@
 
 import { z } from 'zod';
 import { locationHoursSchema, type LocationHours } from './locations-admin';
+import {
+  gymRolePermissionsSettingsSchema,
+  updateGymRolePermissionsSchema,
+  type GymRolePermissionsSettings,
+} from './role-permissions';
 import { paymentMethodSchema, type PaymentMethod } from './orders';
 
 /**
@@ -841,6 +846,7 @@ export const gymSettingsStoredSchema = z.object({
   payments: gymPaymentMethodsSchema.default({}),
   invoice: gymInvoiceSettingsSchema.default({}),
   receipt: gymReceiptSettingsSchema.default({}),
+  permissions: gymRolePermissionsSettingsSchema.default({}),
 });
 
 /** The stored settings blob — {@link gymSettingsStoredSchema}. */
@@ -875,6 +881,7 @@ export interface GymSettings {
   payments: GymPaymentMethods;
   invoice: GymInvoiceSettings;
   receipt: GymReceiptSettings;
+  permissions: GymRolePermissionsSettings;
 }
 
 /** Successful `GET /gyms/settings` response. */
@@ -926,6 +933,7 @@ export const updateGymSettingsSchema = z
     payments: gymPaymentMethodsSchema.partial().strict().optional(),
     invoice: gymInvoiceSettingsSchema.partial().strict().optional(),
     receipt: gymReceiptSettingsSchema.partial().strict().optional(),
+    permissions: updateGymRolePermissionsSchema.optional(),
   })
   .strict();
 

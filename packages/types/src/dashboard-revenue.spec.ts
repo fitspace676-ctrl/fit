@@ -53,6 +53,12 @@ describe('dashboard revenue contract', () => {
     });
   });
 
+  it('carries an optional branch, absent on "all locations"', () => {
+    expect(dashboardRevenueQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(dashboardRevenueQuerySchema.parse({}).locationId).toBeUndefined();
+    expect(dashboardRevenueQuerySchema.parse({ locationId: '' }).locationId).toBeUndefined();
+  });
+
   it('maps every projection window to a day count', () => {
     expect(PROJECTION_WINDOW_DAYS).toEqual({ '7': 7, '30': 30 });
   });

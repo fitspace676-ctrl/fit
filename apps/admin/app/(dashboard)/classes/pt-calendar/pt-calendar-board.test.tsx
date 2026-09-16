@@ -93,6 +93,8 @@ const session: AdminPtSession = {
   durationMinutes: 60,
   status: 'SCHEDULED',
   notes: '',
+  locationId: null,
+  locationName: null,
 };
 
 const slot: AdminServiceSession = {
@@ -111,6 +113,8 @@ const slot: AdminServiceSession = {
   status: 'BOOKED',
   invoice: null,
   notes: '',
+  locationId: null,
+  locationName: null,
 };
 
 function renderBoard({ canWrite = true, trainerId = '' } = {}) {

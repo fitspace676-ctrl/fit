@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InvoiceStatus, InvoiceType, Prisma, ServiceSessionStatus, ServiceStatus } from '@fit/db';
 import type {
@@ -21,6 +22,7 @@ import { InvoiceService } from '../billing/invoice.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { PrismaService } from '../prisma/prisma.service';
+import { atLocation } from '../common/location-filter.util';
 
 /** A staff / member row as the session names it. */
 const PERSON_SELECT = {
@@ -35,6 +37,7 @@ const SESSION_SELECT = {
   serviceId: true,
   staffId: true,
   memberId: true,
+  locationId: true,
   startsAt: true,
   endsAt: true,
   status: true,
@@ -51,6 +54,7 @@ const SESSION_SELECT = {
   },
   staff: { select: PERSON_SELECT },
   member: { select: PERSON_SELECT },
+  location: { select: { name: true } },
   invoice: { select: { id: true, number: true, amount: true, currency: true, status: true } },
 } satisfies Prisma.ServiceSessionSelect;
 
@@ -83,6 +87,11 @@ export class ServiceSessionsService {
       where: {
         ...(query.staffId ? { staffId: query.staffId } : {}),
         ...(query.serviceId ? { serviceId: query.serviceId } : {}),
+        // The branch this slot runs at. The PT calendar draws these blocks beside
+        // `PtSession` blocks, so the two narrow on the same kind of column — give
+        // one a filter and not the other and a branch-filtered calendar is
+        // assembled from two populations.
+        ...atLocation(query.locationId),
         ...(query.categoryId ? { service: { categoryId: query.categoryId } } : {}),
         startsAt: { gte: new Date(query.from), lt: new Date(query.to) },
       },
@@ -129,6 +138,7 @@ export class ServiceSessionsService {
         gymId: this.tenant.gymId,
         serviceId: service.id,
         staffId: service.staffId,
+        locationId: await this.resolveLocation(data.locationId, service.staffId),
         startsAt,
         endsAt,
         notes: data.notes,
@@ -181,7 +191,12 @@ export class ServiceSessionsService {
 
   // ── Public (portal) ──────────────────────────────────────────────────────
 
-  /** The OPEN, still-future slots of a gym (optionally one service) in `[from, to)`. */
+  /**
+   * The OPEN, still-future slots of a gym (optionally one service, optionally one
+   * branch) in `[from, to)`. `locationId` is the branch the controller already
+   * resolved and checked against `gymId`; a slot with no branch shows only when
+   * none is asked for.
+   */
   async listOpenSlots(query: ListServiceSlotsQuery): Promise<ListServiceSlotsResponse> {
     const from = new Date(Math.max(new Date(query.from).getTime(), Date.now()));
     const rows = await this.base.client.serviceSession.findMany({
@@ -189,6 +204,7 @@ export class ServiceSessionsService {
         gymId: query.gymId,
         status: ServiceSessionStatus.OPEN,
         ...(query.serviceId ? { serviceId: query.serviceId } : {}),
+        ...atLocation(query.locationId),
         service: { status: ServiceStatus.ACTIVE },
         startsAt: { gte: from, lt: new Date(query.to) },
       },
@@ -305,6 +321,46 @@ export class ServiceSessionsService {
     return member.id;
   }
 
+  /**
+   * The branch a new slot runs at — the same three-way resolution
+   * {@link PtSessionsService} uses, and deliberately identical because the two
+   * appear on one calendar and a member cannot tell them apart.
+   *
+   * A sent branch wins after a gym check (`422 LOCATION_INVALID` otherwise, not a
+   * foreign-key 500). Otherwise a staff member rostered at exactly one branch
+   * supplies the only possible answer. Otherwise `null` — never the gym's default,
+   * because a slot is a plan and defaulting one books an appointment at a door
+   * nobody chose.
+   *
+   * Frozen once written, like `staffId` beside it: reassigning the service later
+   * moves neither, so a member who booked a Tuesday at the satellite still has one.
+   */
+  private async resolveLocation(
+    requested: string | undefined,
+    staffId: string,
+  ): Promise<string | null> {
+    if (requested !== undefined) {
+      const location = await this.prisma.client.location.findFirst({
+        where: { id: requested },
+        select: { id: true },
+      });
+      if (!location) {
+        throw new UnprocessableEntityException({
+          message: 'Pick a branch of this gym',
+          code: 'LOCATION_INVALID',
+        });
+      }
+      return location.id;
+    }
+    // `take: 2` answers "is there exactly one" as well as reading them all would.
+    const assignments = await this.prisma.client.locationStaff.findMany({
+      where: { staffId },
+      select: { locationId: true },
+      take: 2,
+    });
+    return assignments.length === 1 ? (assignments[0]?.locationId ?? null) : null;
+  }
+
   private notFound(): NotFoundException {
     return new NotFoundException({ message: 'Session not found', code: 'SESSION_NOT_FOUND' });
   }
@@ -327,6 +383,8 @@ function toAdmin(row: SessionRecord): AdminServiceSession {
     staffName: personName(row.staff) ?? 'Staff member',
     memberId: row.memberId,
     memberName: personName(row.member),
+    locationId: row.locationId,
+    locationName: row.location?.name ?? null,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     durationMinutes: Math.round((row.endsAt.getTime() - row.startsAt.getTime()) / 60000),

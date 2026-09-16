@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BillingModule } from '../billing/billing.module';
+import { PortalBranchModule } from '../common/portal-branch.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminClassTemplatesController } from './admin-class-templates.controller';
 import { AdminClassTemplatesService } from './admin-class-templates.service';
@@ -66,7 +67,7 @@ import { PtSessionsService } from './pt-sessions.service';
  * cron runs off the app-wide `ScheduleModule`.
  */
 @Module({
-  imports: [BillingModule, NotificationsModule],
+  imports: [BillingModule, NotificationsModule, PortalBranchModule],
   controllers: [
     ClassesController,
     AdminClassTemplatesController,

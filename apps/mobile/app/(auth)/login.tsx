@@ -1,226 +1,240 @@
-import { Link, router } from 'expo-router';
-import { useState } from 'react';
-import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  AuthButton,
-  AuthError,
-  AuthSwitch,
-  GlassField,
-  SocialButton,
-} from '../../components/auth/form-controls';
-import { loginWithPassword } from '../../lib/auth';
-import { useAppleSignIn } from '../../lib/use-apple-sign-in';
-import { useGoogleSignIn } from '../../lib/use-google-sign-in';
-import { useTranslation } from '../../providers';
-
-// Formacore "Aurora Glass" sign-in (member-signin-mobile artboard): an immersive
-// photo hero with the brand mark, a Sign in / Create account segmented switch,
-// glass credential fields with a show-password toggle, then the OAuth options.
+// Sign in — email + password.
 //
-// Email/password (POST /auth/login), "Continue with Google" (Expo AuthSession)
-// and, on supported devices, "Continue with Apple" (native Sign in with Apple)
-// each persist a session to the keychain via `auth-storage`, which the root
-// `useProtectedRoute` guard observes to route the user onward — so no handler
-// navigates itself.
+// ## This screen does not navigate
+//
+// On success it calls nothing but `signIn`. The session store flips,
+// `RouteGuard` sees it, and the guard is what replaces the route — including
+// honouring the `?next=` it wrote when it bounced the user here off an `auth`
+// route. That is the plan's rule ("no screen navigates on sign-in itself") and
+// it is why `resolveRedirect`'s zone table is the single readable description of
+// where a user may be: the old app spread the same decision across five screens'
+// `.then()` handlers, which is why its table was wrong for months and untested.
+//
+// So there is nothing here that reads `next`. The parameter is on the URL, the
+// guard reads it, and this screen's only job is to make the session exist.
+//
+// ## Errors are inline, never a toast
+//
+// A toast auto-dismisses. A wrong password is not an event, it is a state the
+// form is in until the user changes something — and the correction happens at
+// the field, which is where the message has to be. The `Alert` sits above the
+// fields with `live`, so a screen reader announces it the moment it appears.
 
-// Hero photograph from the formacore artboard. Darkened by the stacked scrims
-// below so the brand mark and heading stay legible over any frame.
-const HERO_URI =
-  'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&h=600&fit=crop';
+// `Alert` is aliased: `react-native` exports one too, and the two are utterly
+// different things. The alias makes a future `import { Alert } from 'react-native'`
+// impossible to add by accident.
+import { Alert as Advisory, Button, Surface, Text, spacing } from '@fit/ui-mobile';
+import { useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
+import { View, type TextInput } from 'react-native';
+
+import { AuthScreen } from '../../components/auth/auth-screen';
+import { authErrorKey } from '../../components/auth/auth-error';
+import { AuthField } from '../../components/auth/field';
+import { CoolDownNotice, OfflineNotice } from '../../components/auth/notices';
+import { coolDownSecondsFor, useCoolDown } from '../../components/auth/use-cool-down';
+import { useIsOnline } from '../../components/auth/use-online';
+import { resolveGymSlug, signIn } from '../../lib/auth/session';
+import type { MessageKey } from '../../lib/i18n/keys';
+import { useI18n } from '../../providers/I18nProvider';
 
 export default function LoginScreen() {
-  const t = useTranslation();
-  const insets = useSafeAreaInsets();
-  const google = useGoogleSignIn();
-  const apple = useAppleSignIn();
-  const googleBusy = google.status === 'authenticating';
-  const appleBusy = apple.status === 'authenticating';
+  const { t } = useI18n();
+  const router = useRouter();
+  const online = useIsOnline();
+  const coolDown = useCoolDown();
+
+  // The chain's target. See `components/auth/field.tsx` — the ref reaches the
+  // `TextInput` because React 19 passes `ref` to a function component as a prop.
+  const passwordRef = useRef<TextInput>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !pending;
+  const blocked = pending || coolDown.active || !online;
 
-  const onSubmit = (): void => {
-    if (!canSubmit) return;
+  const submit = (): void => {
+    if (blocked) return;
     setPending(true);
-    setError(null);
-    loginWithPassword(email.trim(), password).catch((err: unknown) => {
-      setPending(false);
-      setError(err instanceof Error ? err.message : t('auth.genericError'));
-    });
+    setErrorKey(null);
+    // `gymSlug` is a REQUIRED property of `signIn`'s argument (D4): an optional
+    // parameter is one a screen forgets, and a forgotten slug is a member
+    // silently signed into the wrong branch. `resolveGymSlug()` answers from the
+    // deep link, then the build's pinned slug, then the last successful login.
+    signIn({ email, password, gymSlug: resolveGymSlug() })
+      .then(() => {
+        // Deliberately NOT `setPending(false)`. The guard is about to replace
+        // this route; re-enabling the button in the gap would let a double-press
+        // fire a second `POST /auth/login` against the same rate limiter, and
+        // the screen would flash "not busy" on its way out.
+      })
+      .catch((error: unknown) => {
+        setPending(false);
+        const seconds = coolDownSecondsFor(error);
+        if (seconds !== null) {
+          coolDown.start(seconds);
+          return;
+        }
+        setErrorKey(authErrorKey(error));
+      });
   };
 
   return (
-    <View className="flex-1 bg-ink-950">
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerClassName="grow"
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ---- photo hero ---- */}
-          <View className="h-64">
-            <Image
-              source={{ uri: HERO_URI }}
-              resizeMode="cover"
-              className="absolute h-full w-full"
-            />
-            {/* Stacked scrims fake the artboard's top→bottom gradient (React
-                Native `className` can't paint a CSS gradient), fading the frame
-                into the ink-950 form below. */}
-            <View className="absolute inset-0 bg-ink-950/30" />
-            <View className="absolute inset-x-0 bottom-0 h-40 bg-ink-950/55" />
-            <View className="absolute inset-x-0 bottom-0 h-16 bg-ink-950/85" />
+    <AuthScreen
+      testID="login"
+      title={t('auth.login.title')}
+      subtitle={t('auth.login.subtitle')}
+      footer={
+        <View style={{ gap: spacing[4] }}>
+          {/*
+            JOIN, not just register.
+            `/register` mints a login; it does not sell a membership. The join
+            funnel — `(join)/checkout`, which signs the buyer up and charges in
+            one pass — had NO inbound link anywhere in the app: it was reachable
+            only by a `fit://checkout` deep link. So a visitor who browsed the
+            public classes, liked one, and tapped Book was offered a sign-in for
+            an account they do not have, and no way to become a member at all.
+            That is the exact funnel decision D9 exists to protect.
 
-            <View
-              className="absolute inset-x-0 top-0 flex-row items-center gap-2.5 px-5"
-              style={{ paddingTop: insets.top + 12 }}
-            >
-              <View className="h-11 w-11 items-center justify-center rounded-btn bg-brand-600">
-                <Text className="text-xl font-black text-white">F</Text>
-              </View>
-              <Text className="text-xl font-extrabold tracking-tight text-white">FormaCore</Text>
-            </View>
-
-            <View className="absolute inset-x-0 bottom-0 px-5 pb-6">
-              <Text className="text-3xl font-black tracking-tight text-white">
-                {t('auth.login.heroTitle')}
-              </Text>
-              <Text className="mt-1.5 max-w-[280px] text-sm text-ink-200">
-                {t('auth.login.heroSubtitle')}
-              </Text>
-            </View>
-          </View>
-
-          {/* ---- form ---- */}
-          <View className="gap-5 px-5 pb-8 pt-5">
-            <AuthSwitch
-              value="in"
-              options={[
-                { key: 'in', label: t('auth.tabs.signIn'), onPress: () => {} },
-                {
-                  key: 'up',
-                  label: t('auth.tabs.createAccount'),
-                  onPress: () => router.push('/register'),
-                },
-              ]}
-            />
-
-            <View className="gap-3">
-              <AuthError message={error} />
-              <GlassField
-                testID="login-email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder={t('auth.fields.emailPlaceholder')}
-                autoCapitalize="none"
-                autoComplete="email"
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                editable={!pending}
-              />
-              <GlassField
-                testID="login-password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder={t('auth.fields.password')}
-                autoCapitalize="none"
-                autoComplete="current-password"
-                textContentType="password"
-                secureTextEntry={!showPassword}
-                editable={!pending}
-                trailing={
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('auth.togglePassword')}
-                    hitSlop={8}
-                    onPress={() => setShowPassword((s) => !s)}
-                  >
-                    <Text className="text-sm font-semibold text-ink-300">
-                      {showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
-                    </Text>
-                  </Pressable>
-                }
-              />
-              <Link href="/forgot-password" asChild>
-                <Text className="self-end text-sm font-medium text-brand-300">
-                  {t('auth.login.forgotPassword')}
+            Every signed-out CTA in the app routes here (`?next=` brings them
+            back), so this is the one place the offer has to exist rather than
+            five. The copy was authored for it and had gone unread: `auth.join`
+            is a complete block in both locales, and the web login draws the
+            same tile.
+          */}
+          <Surface tone="tile" border padding={5}>
+            <View style={{ gap: spacing[3] }}>
+              <View style={{ gap: spacing[1] }}>
+                <Text variant="bodyLarge">{t('auth.join.title')}</Text>
+                <Text variant="bodySmall" color="textSecondary">
+                  {t('auth.join.subtitle')}
                 </Text>
-              </Link>
-            </View>
-
-            <AuthButton
-              testID="login-submit"
-              label={t('auth.login.submit')}
-              busyLabel={t('auth.login.submitting')}
-              busy={pending}
-              disabled={!canSubmit}
-              onPress={onSubmit}
-              trailing={<Text className="text-base font-semibold text-white">→</Text>}
-            />
-
-            <View className="flex-row items-center gap-3">
-              <View className="h-px flex-1 bg-white/10" />
-              <Text className="text-xs font-medium uppercase tracking-wider text-ink-500">
-                {t('auth.orContinueWith')}
-              </Text>
-              <View className="h-px flex-1 bg-white/10" />
-            </View>
-
-            {apple.isAvailable || google.isConfigured ? (
-              <View className="flex-row gap-3">
-                {apple.isAvailable ? (
-                  <SocialButton
-                    className="flex-1"
-                    label={appleBusy ? t('auth.signingIn') : t('auth.social.apple')}
-                    disabled={appleBusy}
-                    onPress={apple.signIn}
-                  />
-                ) : null}
-                {google.isConfigured ? (
-                  <SocialButton
-                    className="flex-1"
-                    label={googleBusy ? t('auth.signingIn') : t('auth.social.google')}
-                    disabled={!google.isReady || googleBusy}
-                    onPress={google.signIn}
-                  />
-                ) : null}
               </View>
-            ) : (
-              <Text className="text-center text-sm text-ink-400">
-                {t('auth.googleNotConfigured')}
+              <Button
+                variant="secondary"
+                size="md"
+                testID="login-join-link"
+                label={t('auth.join.cta')}
+                onPress={() => {
+                  router.push('/checkout');
+                }}
+              />
+              {/*
+                `caption`, NOT `micro`. `micro` is 10px / 600 UPPERCASE with
+                0.10em tracking — an eyebrow role, documented for tab labels and
+                the smallest legible kicker. A full sentence set in it renders
+                in Georgian as MTAVRULI ("ᲓᲐᲐᲮᲚᲝᲔᲑᲘᲗ ᲝᲠᲘ ᲬᲣᲗᲘ ᲡᲭᲘᲠᲓᲔᲑᲐ."), which
+                is a display alphabet: Georgian has no sentence case, so
+                uppercasing prose does not emphasise it, it changes the script
+                the reader is reading. `caption` (12 / 500, sentence case) is
+                the scale's role for helper text, which is what this is.
+              */}
+              <Text variant="caption" color="textSecondary" testID="login-join-note">
+                {t('auth.join.ctaNote')}
               </Text>
-            )}
+            </View>
+          </Surface>
+          {/*
+            THE "Don't have an account? Create one" ROW USED TO BE HERE, AND IT
+            WAS THE SAME OFFER TWICE.
 
-            {google.status === 'error' && google.error ? (
-              <Text className="text-sm text-danger-300">{google.error}</Text>
-            ) : null}
-            {apple.status === 'error' && apple.error ? (
-              <Text className="text-sm text-danger-300">{apple.error}</Text>
-            ) : null}
+            The tile above already asks "First time here?" and answers it with
+            "Become a member" — the join funnel, which is what a visitor without
+            an account actually wants. A second, quieter link two lines below it
+            asked the identical question and sent the visitor somewhere else:
+            `/register` mints a login and sells nothing. Two answers to one
+            question is how a buyer ends up with an account and no membership.
 
-            <Text className="mt-1 text-center text-xs leading-relaxed text-ink-500">
-              {t('auth.terms')}
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+            `/register` is not gone — it is still a route, still reachable from
+            the verify and invite flows — it just no longer competes with the
+            funnel on the screen every signed-out CTA lands on. `auth.login
+            .noAccount` / `.registerLink` were used by nothing else in the repo
+            and went with it.
+          */}
+        </View>
+      }
+    >
+      {/* TODO(i18n): `common.offline.title` / `common.offline.body` — plan §6
+          state 4 has no copy in either catalogue. See `pending-copy.ts`. */}
+      {online ? null : <OfflineNotice testID="login-offline" />}
+
+      {coolDown.active ? (
+        <CoolDownNotice testID="login-cooldown" secondsLeft={coolDown.secondsLeft} />
+      ) : null}
+
+      {errorKey === null ? null : (
+        <Advisory testID="login-error" tone="danger" live title={t(errorKey)} />
+      )}
+
+      <AuthField
+        testID="login-email"
+        label={t('auth.fields.email')}
+        placeholder={t('auth.fields.emailPlaceholder')}
+        value={email}
+        onChangeText={setEmail}
+        disabled={pending}
+        invalid={errorKey !== null}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        // Android's autofill service and iOS's QuickType strip are different
+        // APIs for the same thing; neither is a superset, so both are set.
+        autoComplete="email"
+        textContentType="emailAddress"
+        // The chain. `submitBehavior="submit"` keeps the keyboard up across the
+        // hop — the default blurs first, which collapses and re-opens the
+        // keyboard between two adjacent fields.
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+      />
+
+      <AuthField
+        ref={passwordRef}
+        testID="login-password"
+        label={t('auth.fields.password')}
+        placeholder={t('auth.fields.passwordPlaceholder')}
+        value={password}
+        onChangeText={setPassword}
+        disabled={pending}
+        invalid={errorKey !== null}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="current-password"
+        textContentType="password"
+        // Passing `revealLabels` is what turns a `secureTextEntry` field into a
+        // revealable one; the strings stay in the app's catalogue.
+        revealLabels={{ show: t('auth.showPassword'), hide: t('auth.hidePassword') }}
+        // Last field: "go" submits rather than hopping.
+        returnKeyType="go"
+        onSubmitEditing={submit}
+        action={
+          <Button
+            variant="ghost"
+            size="sm"
+            testID="login-forgot"
+            label={t('auth.login.forgotPassword')}
+            onPress={() => {
+              router.push('/forgot-password');
+            }}
+          />
+        }
+      />
+
+      <Button
+        testID="login-submit"
+        variant="primary"
+        size="lg"
+        fullWidth
+        label={t('auth.login.submit')}
+        busyLabel={t('auth.login.submitting')}
+        busy={pending}
+        disabled={coolDown.active || !online}
+        onPress={submit}
+      />
+    </AuthScreen>
   );
 }

@@ -26,6 +26,10 @@ export const SWEEPABLE_ENTITIES: ReadonlySet<string> = new Set([
   'logos',
   'classes',
   'services',
+  // Home-screen promotional banners (T1.16). Referenced by `Banner.imageUrl`,
+  // which `MediaSweepService.collectReferencedKeys` reads — an entity listed here
+  // but missing from that query has its images deleted on the next nightly run.
+  'banners',
 ]);
 
 /**

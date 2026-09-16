@@ -1,22 +1,26 @@
-// @fit/admin — shared opening-hours formatting for the locations UI.
+// @fit/admin — opening-hours helpers for the locations UI.
 //
-// One place the roster, detail page, and (future) public projection agree on how
-// a structured `LocationHours` map renders to human-readable strings, so the
-// admin surfaces never drift on the display format.
+// The week-shaped and clock-dependent parts the roster and detail page share:
+// which day an instant falls on, whether the branch is open right now, and the
+// compact week summary the roster cell renders.
+//
+// The one-day display string itself is not here: `formatDayHours` lives in
+// `@fit/types` beside the `MIDNIGHT_CLOSE` encoding it has to interpret, because
+// the public `GET /locations` projection renders the same day and the two had
+// drifted. It is re-exported so the console's call sites stay unchanged.
 
 import {
+  CLOSED_LABEL,
   MIDNIGHT_CLOSE,
   WEEKDAYS,
   WEEKDAY_LABELS,
+  formatDayHours,
   type DayHours,
   type LocationHours,
   type Weekday,
 } from '@fit/types';
 
-/** One day's hours as a display string, e.g. `06:00–23:00` or `Closed`. */
-export function formatDayHours(day: DayHours): string {
-  return day.closed ? 'Closed' : `${day.open}–${day.close}`;
-}
+export { formatDayHours };
 
 /**
  * The {@link Weekday} key for a given instant, Monday-first to match
@@ -84,7 +88,7 @@ export function formatHoursSummary(hours: LocationHours): string {
     }
   }
 
-  const open = groups.filter((group) => group.text !== 'Closed');
+  const open = groups.filter((group) => group.text !== CLOSED_LABEL);
   if (open.length === 0) {
     return 'Closed all week';
   }

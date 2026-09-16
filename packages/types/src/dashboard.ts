@@ -89,6 +89,8 @@ export const dashboardDateSchema = z
  * `GET /dashboard/overview` query — `range` shapes the revenue chart; `period`
  * (+ `from`/`to` when `period=custom`) drives the period-bounded KPI cards. Each
  * field defaults so an empty query yields the landing dashboard (`7d` chart, today).
+ * `locationId` scopes every card to a single branch; omitted, the dashboard is the
+ * whole gym — every branch's numbers added together.
  */
 export const dashboardOverviewQuerySchema = z.object({
   // Every field degrades to its default on a bad/omitted value rather than 500-ing
@@ -97,6 +99,8 @@ export const dashboardOverviewQuerySchema = z.object({
   period: dashboardPeriodSchema.catch(DEFAULT_DASHBOARD_PERIOD),
   from: dashboardDateSchema.optional().catch(undefined),
   to: dashboardDateSchema.optional().catch(undefined),
+  // Same rule: a stale branch id in a bookmarked URL falls back to all branches.
+  locationId: z.string().min(1).optional().catch(undefined),
 });
 export type DashboardOverviewQuery = z.infer<typeof dashboardOverviewQuerySchema>;
 

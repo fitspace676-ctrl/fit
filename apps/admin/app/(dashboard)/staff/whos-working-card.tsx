@@ -117,6 +117,13 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-secondary)',
   },
+  branch: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
   empty: {
     display: 'flex',
     alignItems: 'center',
@@ -138,8 +145,25 @@ const styles = stylex.create({
  * rendered above the staff console. Each person shows their avatar initials,
  * name, role badge and shift hours; the header pill counts how many are on
  * shift. It is accurate as of page load and does not refresh on its own.
+ *
+ * `shifts` arrives already narrowed to the console's branch — the console filters
+ * on `ShiftSlot.locationId`, the door the shift staffs, never on the person's
+ * roster. See `staff-console.tsx` for why those are different questions.
  */
-export function WhosWorkingCard({ shifts }: { shifts: WorkingNowRow[] }) {
+export function WhosWorkingCard({
+  shifts,
+  showBranch,
+}: {
+  shifts: WorkingNowRow[];
+  /**
+   * Name each person's branch. True only in "All locations" mode, where the card
+   * mixes two sites' desks into one grid and the name is the only thing on the
+   * tile that says which — the receptionist reading it is standing at one of them.
+   * With a branch selected the chrome already names it and every tile would repeat
+   * that one constant.
+   */
+  showBranch: boolean;
+}) {
   const t = useTranslations('admin.staff');
 
   return (
@@ -174,6 +198,24 @@ export function WhosWorkingCard({ shifts }: { shifts: WorkingNowRow[] }) {
                     {shift.startTime} – {shift.endTime}
                   </span>
                 </div>
+                {/*
+                  A shift with no branch gets a dash, never an empty line — the
+                  roster's own blank cells make the same point: "-" reads as "we
+                  have no answer", a gap reads as a tile that failed to render.
+                  Only reachable here, in all-branches mode, since a filtered card
+                  matches by equality and drops it.
+
+                  `shift.unresolvedLocation` is deliberately NOT used as a
+                  fallback. A surviving free-text label means precisely "this text
+                  named no branch of this gym" — a typo, a room, a closed site —
+                  and printing it beside a name would present it as the branch this
+                  person is standing at, which is the one thing it is known not to
+                  be. It is an operator's queue item, and it belongs wherever that
+                  queue eventually gets a screen.
+                */}
+                {showBranch ? (
+                  <span {...stylex.props(styles.branch)}>{shift.locationName ?? '-'}</span>
+                ) : null}
               </div>
             </div>
           ))}

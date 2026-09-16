@@ -1,617 +1,621 @@
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import type { ClassInstanceCard, MemberBookingHistoryEntry, ProductSummary } from '@fit/types';
-import { useI18n } from '../../providers';
-import { useActiveGymId } from '../../hooks/useActiveGym';
-import { useSessionProfile } from '../../hooks/useSessionProfile';
-import { useMemberBookings } from '../../hooks/useMemberBookings';
-import { useClassInstances } from '../../hooks/useClassInstances';
-import { useProducts } from '../../hooks/useProducts';
-import { formatTime, startOfWeek } from '../../lib/classes';
-import { formatMoney } from '../../lib/shop';
-
-// Formacore "Aurora Glass" member home (member-home-mobile artboard) — the tab
-// the member lands on. A near-black `ink-950` canvas with the digital
-// membership card as the focal element, the member's next booked class, a live
-// stat strip, this week's bookable classes, and a shop rail. Everything is wired
-// to the SAME queries the rest of the app uses (bookings, class instances,
-// products), so the home mirrors live data without a bespoke endpoint; sections
-// with nothing to show degrade to a friendly prompt rather than a blank.
+// Home — `mobile-home-v2.tsx`, on real data. Built LAST, on purpose.
 //
-// The screen is intentionally dark-only (like the sign-in, T7.1): the formacore
-// mobile artboards are a single frosted-aurora identity, so this does not track
-// the system light/dark theme the way the older themed tabs still do. React
-// Native `className` can't paint CSS gradients or backdrop blur, so the card's
-// gradient is approximated with a solid brand fill + translucent white overlays,
-// the same trick the auth screens use.
+// ===========================================================================
+// SEVEN ENDPOINTS, SIX SECTIONS, SIX BRANCHES. NEVER ONE SPINNER.
 //
-// The check-in CTAs (`Show check-in QR`, `Check in`) route to the dedicated QR
-// tab rather than re-implementing its sheet, so there is one source of truth for
-// the scannable code.
+// The deleted app's home screen hardcoded `ACTIVE`, `22 / 30` and a 73% ring
+// into its membership card, and §1 of `docs/mobile-rebuild-plan.md` names it as
+// one of the three reasons the app was deleted. WP-10..15 therefore schedules
+// this screen last: "building it first is exactly how the hardcoded
+// `ACTIVE / 22/30 / 73%` happened. Every section gets its own loading/empty/
+// error — never one page-level spinner."
+//
+// Both halves of that are enforced rather than remembered:
+//
+//   * **Nothing here is a literal.** `home.test.tsx` greps THIS FILE and
+//     `components/home/**` for `ACTIVE`, `22`, `30` and `73` and fails on any
+//     of them. Every number on screen is a field on a response or a pure
+//     function of one (`components/membership/derive.ts`,
+//     `components/home/derive.ts`), and both modules are separately tested.
+//
+//   * **Every section owns its phase.** `HomeSection` + `sectionPhase()` give
+//     each one its own skeleton, its own offline branch, and its own error box
+//     with a retry that invalidates only that section's key. Web achieves the
+//     same resilience with `safe()`, which swallows the failure into an empty
+//     array — good enough for a server render, useless on a phone, because it
+//     cannot tell "this gym has no trainers" from "the trainers call 500'd" and
+//     leaves nothing to retry.
+//
+// ---------------------------------------------------------------------------
+// WHAT IS ON SCREEN, AND WHERE EACH NUMBER COMES FROM.
+//
+//   banners         `GET /banners` — the gym's promotional reel, and the one
+//                   block on this screen that is NOT a `HomeSection`. Marketing
+//                   does not get a skeleton, an error box or a retry: nobody
+//                   opened the app to look at it, so a slow request must not
+//                   reserve a screen-wide hole above the member's plan and a
+//                   failed one must not put "we couldn't load this · Try again"
+//                   on screen for an advertisement. It renders only once the
+//                   request has answered with at least one slide, and is absent
+//                   otherwise — loading, failed, offline and "this gym runs no
+//                   campaigns" all draw exactly nothing.
+//   greeting        `GET /me/profile` — the member's name, with
+//                   `member.home.greetingFallbackName` while it loads or fails.
+//                   The bell's dot is `GET /notifications/unread-count`.
+//   membership      `GET /me/subscription`. Plan, status, period, days left.
+//                   Its cover band is `GET /gyms/by-subdomain/:slug` →
+//                   `portal.loginImageUrl` — the gym's own photograph, and the
+//                   one image the member contract carries. Not part of the
+//                   section's phase; see the query's note below.
+//   counters        `GET /me/bookings` + `GET /members/me/credit-packs`.
+//   upcoming        `GET /me/bookings` again — same query, different question.
+//   services        `GET /services` + `GET /me/service-sessions`. The section is
+//                   ABSENT for a gym that sells none — see it below.
+//   trainers        `GET /trainers`. Three of them, and a row opens the coach's
+//                   sheet rather than the coach's screen.
+//   for training    `GET /products`.
+//
+// There is no "book a class" rail. It drew six class cards above the fold —
+// roughly a screen and a half of discovery on the one screen a member opens to
+// check what they have already booked — and the member's own bookings were left
+// at the foot of the page under all of it. Discovery is the classes tab's job;
+// Home states the member's standing and links there. The section's derivations
+// (`bookableClasses`, `bookableWindow`) went with it, and `member.home.bookClass`
+// / `noBookable` stay in the catalogue because web's home still reads them.
+//
+// ---------------------------------------------------------------------------
+// THREE ARTBOARD ELEMENTS ARE NOT HERE, AND EACH ABSENCE IS A FINDING.
+//
+//   1. **The day-streak tile.** Needs a check-in log. The only check-in surface
+//      on the API is `@Controller('admin/check-ins')` behind `MemberRead` /
+//      `MemberWrite` — a `MEMBER` token cannot call it. See
+//      `components/home/stat-strip.tsx`.
+//   2. **The check-in QR disc** on the membership capsule. That screen was
+//      removed on 2026-08-31 (Q1: no scanner integration, nothing to talk to),
+//      and `member.home.showQr` / `qrTitle` / `qrSub` / `checkIn` are now dead
+//      copy. The capsule's action opens the membership screen instead.
+//   3. **A "cancel membership" affordance** anywhere on the block.
+//      `cancelAtPeriodEnd` is rendered as a status LINE; there is no member
+//      route that writes it (plan §7).
+//
+// ---------------------------------------------------------------------------
+// `now` IS PINNED IN STATE, AND THAT IS LOAD-BEARING.
+//
+// Every "upcoming" filter and every "days left" figure on the screen is
+// measured against it. A fresh `new Date()` in the render body would give each
+// of them a slightly different instant; `useState(() => new Date())` pins one
+// for the life of the mount, so they all agree.
+//
+// ---------------------------------------------------------------------------
+// THIS ROUTE IS `auth`. There is no signed-out branch, deliberately:
+// `ROUTE_POLICY` has `'(tabs)/home': 'auth'`, so `resolveRedirect` sends a
+// signed-out visitor to `/login?next=/home` before this component mounts. The
+// public discovery surfaces (classes, shop, trainers, services) are where the
+// signed-out branches live.
 
-/** A short, friendly day label (Today / Tomorrow / weekday) for an instant. */
-function dayLabel(iso: string, locale: string, today: string, tomorrow: string): string {
-  const target = new Date(iso);
-  const now = new Date();
-  const dayDiff = Math.round(
-    (new Date(target.toDateString()).getTime() - new Date(now.toDateString()).getTime()) /
-      86_400_000,
-  );
-  if (dayDiff === 0) return today;
-  if (dayDiff === 1) return tomorrow;
-  return target.toLocaleDateString(locale, { weekday: 'short' });
-}
+import { useCallback, useMemo, useState } from 'react';
+import { Linking, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import type { PublicBanner } from '@fit/types';
+import {
+  AppBar,
+  Avatar,
+  Button,
+  EmptyState,
+  IconButton,
+  Pill,
+  Screen,
+  ScrollRail,
+  Skeleton,
+  Surface,
+  layout,
+  spacing,
+} from '@fit/ui-mobile';
 
-/** Occupancy tone (Tailwind bg class) from a filled-fraction, matching the web bar. */
-function occupancyTone(value: number, cap: number): string {
-  const pct = cap > 0 ? (value / cap) * 100 : 0;
-  if (pct >= 100) return 'bg-danger-500';
-  if (pct > 85) return 'bg-warning-500';
-  if (pct > 60) return 'bg-accent-500';
-  return 'bg-success-500';
-}
-
-/** A slim occupancy meter — a glass track with a tone-coloured fill. */
-function Occupancy({ value, cap }: { value: number; cap: number }) {
-  const pct = cap > 0 ? Math.min(Math.round((value / cap) * 100), 100) : 0;
-  return (
-    <View className="h-1.5 overflow-hidden rounded-pill bg-white/10">
-      <View
-        className={`h-full rounded-pill ${occupancyTone(value, cap)}`}
-        style={{ width: `${pct}%` }}
-      />
-    </View>
-  );
-}
-
-/** A frosted glass surface — the home's card primitive (dark-only). */
-function GlassCard({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <View className={`overflow-hidden rounded-card border border-white/10 bg-white/5 ${className}`}>
-      {children}
-    </View>
-  );
-}
-
-/** A time chip (HH:mm over a day label) used down the left of every class row. */
-function TimeChip({
-  time,
-  day,
-  className = '',
-}: {
-  time: string;
-  day: string;
-  className?: string;
-}) {
-  return (
-    <View
-      className={`items-center rounded-card border border-white/10 bg-white/5 px-2 py-2 ${className}`}
-    >
-      <Text className="font-mono text-sm font-bold text-white">{time}</Text>
-      <Text className="font-mono text-[10px] text-ink-500">{day}</Text>
-    </View>
-  );
-}
+import { OfflineNotice } from '../../components/auth/notices';
+import { useIsOnline } from '../../components/auth/use-online';
+import { HomeBannerSlider, type BannerTarget } from '../../components/home/banner-slider';
+import {
+  SERVICES_LIMIT,
+  SHOP_RAIL_LIMIT,
+  UPCOMING_LIMIT,
+  upcomingBookings,
+} from '../../components/home/derive';
+import { HomeSection, combinePhases, sectionPhase } from '../../components/home/section';
+import { HomeStatStrip } from '../../components/home/stat-strip';
+import {
+  NextSessionRow,
+  ServiceRow,
+  ShopRailRow,
+  TrainerRow,
+  UpcomingBookingRow,
+} from '../../components/home/rows';
+import { TRAINERS_LIMIT, nextServiceSession } from '../../components/home/derive';
+import { TrainerSheet } from '../../components/classes/trainer-sheet';
+import { HomeMembershipCard } from '../../components/membership/membership-card';
+import { creditBalance } from '../../components/membership/derive';
+import { formatDayLong } from '../../components/services/date-format';
+import { trainerInitials } from '../../components/trainers/trainer-filters';
+import { useBanners } from '../../hooks/queries/useBanners';
+import { useMyBookings } from '../../hooks/queries/useBookings';
+import { useGymBySlug } from '../../hooks/queries/useGym';
+import { useCreditPacks, useMembership } from '../../hooks/queries/useMembership';
+import { useMyProfile } from '../../hooks/queries/useAccount';
+import { useUnreadCount } from '../../hooks/queries/useNotifications';
+import { useMyServiceSessions, useServices } from '../../hooks/queries/useServices';
+import { useProducts } from '../../hooks/queries/useShop';
+import { useTrainers } from '../../hooks/queries/useTrainers';
+import { useGymId } from '../../hooks/useActiveGym';
+import { resolveGymSlug } from '../../lib/auth/session';
+import { queryKeys } from '../../lib/query-keys';
+import { useI18n } from '../../providers/I18nProvider';
 
 export default function HomeScreen() {
   const { t, locale } = useI18n();
-  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const online = useIsOnline();
+  const gymId = useGymId();
 
-  const gymId = useActiveGymId();
-  const { userId } = useSessionProfile();
+  // See the header: pinned, so every figure on the screen agrees with the rest.
+  const [now] = useState(() => new Date());
 
-  const weekStart = useMemo(() => startOfWeek(new Date()), []);
-  const bookingsQuery = useMemberBookings(gymId, 'all');
-  const classesQuery = useClassInstances(gymId, weekStart);
-  const productsQuery = useProducts(gymId);
+  const profile = useMyProfile();
+  const membership = useMembership();
+  // `all`, not `upcoming`: the same rows answer both "what is next" and "how
+  // many have I ever booked", and one query is one request.
+  const bookings = useMyBookings('all');
+  const packs = useCreditPacks();
+  const services = useServices();
+  const sessions = useMyServiceSessions();
+  const trainers = useTrainers();
+  const products = useProducts();
+  const unread = useUnreadCount();
+  const banners = useBanners();
 
-  const [filter, setFilter] = useState('__all');
+  /**
+   * The public tenant lookup, for one field: `portal.loginImageUrl`.
+   *
+   * The gym's own photograph — the picture it uploaded for the member portal's
+   * sign-in screen — drawn as the band across the top of the membership block.
+   * It is the ONLY gym-authored image on the member contract: `brand.logoUrl` is
+   * a mark rather than a photograph and nothing else on the wire carries one.
+   *
+   * This query is NOT gym-scoped and is not part of any section's phase: it is
+   * keyed by slug (`NON_GYM_SCOPED_KEYS`), it is the same 10-minute-stale record
+   * login and settings already read, and a gym whose lookup is slow or 404s
+   * simply renders the block without a cover. Wiring it into `membershipPhase`
+   * would let a branding request skeleton the member's plan.
+   */
+  const gym = useGymBySlug(resolveGymSlug() ?? null);
+  const coverUrl = gym.data?.portal.loginImageUrl ?? null;
 
-  const now = Date.now();
-  const bookings: MemberBookingHistoryEntry[] = bookingsQuery.data ?? [];
-  const upcoming = useMemo(
-    () =>
-      bookings
-        .filter((b) => b.status === 'BOOKED' || b.status === 'WAITLIST')
-        .filter((b) => new Date(b.classInstance.startsAt).getTime() >= now)
-        .sort(
-          (a, b) =>
-            new Date(a.classInstance.startsAt).getTime() -
-            new Date(b.classInstance.startsAt).getTime(),
-        ),
-    [bookings, now],
-  );
-  const nextBooking = upcoming[0] ?? null;
-  const attended = useMemo(
-    () => bookings.filter((b) => b.status === 'ATTENDED').length,
-    [bookings],
-  );
-
-  const classes: ClassInstanceCard[] = classesQuery.data ?? [];
-  const categories = useMemo(() => {
-    const seen = new Set<string>();
-    for (const c of classes) if (c.category) seen.add(c.category);
-    return Array.from(seen);
-  }, [classes]);
-  const bookable = useMemo(
-    () =>
-      classes
-        .filter((c) => new Date(c.startsAt).getTime() >= now)
-        .filter((c) => filter === '__all' || c.category === filter)
-        .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
-        .slice(0, 6),
-    [classes, filter, now],
-  );
-
-  const products: ProductSummary[] = productsQuery.data ?? [];
-  const topProducts = products.slice(0, 6);
-
-  const memberName = t('member.home.greetingFallbackName');
-  const memberId = `FC-${(userId ?? 'member').slice(-4).toUpperCase()}`;
-  const today = t('member.home.today');
-  const tomorrow = t('member.home.tomorrow');
-
-  const stats = [
-    {
-      key: 'streak',
-      label: t('member.home.dayStreak'),
-      value: Math.min(attended, 30),
-      glyph: '🔥',
+  /**
+   * Invalidate one resource root.
+   *
+   * Never `.refetch()`: the plan bans it outright, and a root invalidation is
+   * also what takes every filter bucket under it — which is the difference
+   * between the badge refreshing and the badge lying.
+   */
+  const invalidate = useCallback(
+    (key: readonly unknown[]) => {
+      void queryClient.invalidateQueries({ queryKey: key });
     },
-    { key: 'checkins', label: t('member.home.checkInsMonth'), value: attended, glyph: '✅' },
-    { key: 'booked', label: t('member.home.classesBooked'), value: upcoming.length, glyph: '📅' },
-  ];
+    [queryClient],
+  );
+
+  const scoped = gymId ?? '';
+
+  const upcoming = useMemo(
+    () => upcomingBookings(bookings.data?.bookings, now),
+    [bookings.data, now],
+  );
+  const credits = useMemo(() => creditBalance(packs.data?.packs), [packs.data]);
+  const nextSession = useMemo(
+    () => nextServiceSession(sessions.data?.sessions, now),
+    [sessions.data, now],
+  );
+
+  const memberName = profile.data?.profile.name?.trim();
+  const unreadCount = unread.data?.unread ?? 0;
+
+  /**
+   * The carousel's slides — and its ONLY branch.
+   *
+   * `?? []` collapses loading, offline, error and "no campaigns" into one
+   * answer, which is the whole of the marketing block's policy: the reel is
+   * drawn when there is something to draw and is absent otherwise. That is why
+   * this query is not fed into a `sectionPhase` like the six sections are.
+   */
+  const bannerSlides = banners.data?.banners ?? [];
+
+  /**
+   * Follow a slide.
+   *
+   * The destination was resolved by the slider (which knows which in-app roots
+   * exist); this decides only *how* to open it. A rejected `openURL` — a URL the
+   * OS has no handler for — is swallowed on purpose: there is no recovery to
+   * offer and an error dialog over an advertisement is worse than nothing
+   * happening.
+   */
+  const openBanner = useCallback(
+    (_banner: PublicBanner, target: BannerTarget) => {
+      if (target.kind === 'route') {
+        router.push(target.path);
+        return;
+      }
+      void Linking.openURL(target.url).catch(() => undefined);
+    },
+    [router],
+  );
+
+  // The trainers teaser, and the coach whose sheet is open. The sheet takes the
+  // trainer's name and portrait as props (it draws them under its own request),
+  // so the row's own record is looked up rather than re-fetched.
+  const trainerRows = useMemo(
+    () => (trainers.data?.trainers ?? []).slice(0, TRAINERS_LIMIT),
+    [trainers.data],
+  );
+  const [trainerSheetId, setTrainerSheetId] = useState<string | null>(null);
+  const sheetTrainer = trainerRows.find((trainer) => trainer.id === trainerSheetId) ?? null;
+
+  const membershipPhase = sectionPhase(membership, online);
+  const statsPhase = combinePhases(sectionPhase(bookings, online), sectionPhase(packs, online));
+  const servicesPhase = combinePhases(
+    sectionPhase(services, online),
+    sectionPhase(sessions, online),
+  );
+  const trainersPhase = sectionPhase(trainers, online);
+  const productsPhase = sectionPhase(products, online);
+  const upcomingPhase = sectionPhase(bookings, online);
 
   return (
-    <ScrollView
-      className="flex-1 bg-ink-950"
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 32, gap: 20 }}
-      showsVerticalScrollIndicator={false}
+    <Screen
+      testID="home-screen"
+      header={
+        <AppBar
+          testID="home-appbar"
+          // The date, in the device's wall clock — `Intl` is banned and
+          // `createDateTimeFormat` reads UTC, so `wallClock()` does the shift.
+          eyebrow={formatDayLong(locale, now)}
+          // The screen's first `role="header"`. The sections add the rest.
+          // The greeting is a phrase, not a noun: at the default 28 it truncates
+          // to "კეთილი დაბრ…" between the avatar and the bell. The artboard
+          // draws this one header at 20 for the same reason.
+          titleVariant="section"
+          title={t('member.home.greeting')}
+          subtitle={
+            profile.isPending && profile.data === undefined
+              ? t('member.home.greetingFallbackName')
+              : memberName === undefined || memberName === ''
+                ? t('member.home.greetingFallbackName')
+                : memberName
+          }
+          leading={
+            <Avatar
+              size={52}
+              ring="accent"
+              initials={initialsFor(memberName)}
+              accessibilityLabel={memberName ?? t('member.home.greetingFallbackName')}
+              testID="home-avatar"
+            />
+          }
+          trailing={
+            <IconButton
+              icon="bell"
+              accessibilityLabel={t('member.profile.mobile.notificationsA11y')}
+              onPress={() => {
+                router.push('/profile/notifications');
+              }}
+              {...(unreadCount > 0 ? { badge: { count: unreadCount } } : {})}
+              testID="home-notifications"
+            />
+          }
+        />
+      }
     >
-      {/* ---- top app bar ---- */}
-      <View className="flex-row items-center justify-between px-5">
-        <View>
-          <Text className="font-mono text-[10px] uppercase tracking-[1.5px] text-ink-500">
-            {new Date().toLocaleDateString(locale, {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-            })}
-          </Text>
-          <Text className="mt-0.5 text-2xl font-extrabold tracking-tight text-white">
-            {t('member.home.greeting')}
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-2">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('member.shell.notifications')}
-            onPress={() => router.push('/profile/notifications')}
-            className="h-11 w-11 items-center justify-center rounded-btn border border-white/10 bg-white/5 active:bg-white/10"
-          >
-            <Text className="text-lg">🔔</Text>
-            <View className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-brand-500" />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('member.shell.viewProfile')}
-            onPress={() => router.push('/profile')}
-            className="h-11 w-11 items-center justify-center rounded-full border border-brand-500 bg-brand-600"
-          >
-            <Text className="text-base font-black text-white">
-              {memberName.slice(0, 1).toUpperCase()}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+      <View style={{ gap: layout.sectionGap }}>
+        {/* The radio is a screen-wide fact, so it is stated once at the top as
+            well as per section: eight offline boxes would be absurd, but a
+            member who scrolled past the first section still needs to know. */}
+        {online ? null : <OfflineNotice testID="home-offline" />}
 
-      <View className="gap-5 px-5">
-        {/* ---- membership card (focal) ---- */}
-        <View className="overflow-hidden rounded-card border border-white/15 bg-brand-600 p-5">
-          {/* Faked gradient: translucent white overlays over the solid brand fill. */}
-          <View className="absolute inset-x-0 top-0 h-px bg-white/40" />
-          <View className="absolute -right-8 -top-10 h-40 w-40 rounded-full bg-white/10" />
-          <View className="absolute -bottom-14 -left-10 h-40 w-44 rounded-full bg-iris-400/20" />
+        {/* ── Promotions ─────────────────────────────────────────────────── */}
+        {/* Under the greeting, above the member's plan, and NOT a
+            `HomeSection` — see the header. No heading either: the artboard's
+            reel is the picture, and a "Promotions" title over an advertisement
+            is chrome announcing an advertisement. */}
+        <HomeBannerSlider banners={bannerSlides} onPressBanner={openBanner} testID="home-banners" />
 
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-2">
-              <Text className="text-base">⚡</Text>
-              <Text className="text-sm font-extrabold tracking-tight text-white">
-                {t('member.shell.brand')}
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-1.5 rounded-pill border border-white/30 bg-white/20 px-2 py-0.5">
-              <View className="h-1.5 w-1.5 rounded-full bg-success-300" />
-              <Text className="text-[10px] font-bold text-white">{t('member.home.active')}</Text>
-            </View>
-          </View>
+        {/* ── Membership ─────────────────────────────────────────────────── */}
+        <HomeSection
+          testID="home-membership"
+          phase={membershipPhase}
+          onRetry={() => {
+            invalidate(queryKeys.membership(scoped));
+          }}
+          skeleton={<Skeleton height={196} radius="page" />}
+        >
+          {membership.data === undefined ? null : (
+            <HomeMembershipCard
+              data={membership.data}
+              now={now}
+              coverUrl={coverUrl}
+              onManage={() => {
+                router.push('/profile/membership');
+              }}
+            />
+          )}
+        </HomeSection>
 
-          <View className="mt-6 flex-row items-end justify-between">
-            <View className="flex-1">
-              <Text className="text-3xl font-black tracking-tight text-white">
-                {t('member.membership.status.ACTIVE')}
-              </Text>
-              <Text className="mt-1.5 font-mono text-xs text-white/70">
-                {memberName} · {t('member.home.memberId')} {memberId}
-              </Text>
-            </View>
-          </View>
+        {/* ── Counters ───────────────────────────────────────────────────── */}
+        <HomeSection
+          testID="home-stat-strip"
+          phase={statsPhase}
+          onRetry={() => {
+            invalidate(queryKeys.bookings(scoped));
+            invalidate(queryKeys.creditPacks(scoped));
+          }}
+          skeleton={<Skeleton height={92} radius={26} />}
+        >
+          <HomeStatStrip upcomingCount={upcoming.length} credits={credits} />
+        </HomeSection>
 
-          {/* Billing-period progress (placeholder window, mirrors the web home). */}
-          <View className="mt-5">
-            <View className="mb-1.5 flex-row items-center justify-between">
-              <Text className="text-xs font-semibold text-white/80">
-                {t('member.home.daysLeft', { used: 22, total: 30 })}
-              </Text>
-              <Text className="font-mono text-[11px] text-white/70">73%</Text>
-            </View>
-            <View className="h-2 overflow-hidden rounded-pill bg-white/20">
-              <View className="h-full rounded-pill bg-white" style={{ width: '73%' }} />
-            </View>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/qr')}
-            className="mt-5 flex-row items-center justify-center gap-2 rounded-btn bg-white py-4 active:bg-ink-100"
-          >
-            <Text className="text-base">▦</Text>
-            <Text className="text-[15px] font-bold text-brand-700">{t('member.home.showQr')}</Text>
-          </Pressable>
-        </View>
-
-        {/* ---- next class ---- */}
-        <GlassCard className="p-4">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-[11px] font-semibold uppercase tracking-[1.5px] text-ink-400">
-              {t('member.home.nextClass')}
-            </Text>
-            {nextBooking ? (
-              <View className="flex-row items-center gap-1.5 rounded-pill border border-accent-400/30 bg-accent-500/20 px-2.5 py-1">
-                <View className="h-1.5 w-1.5 rounded-full bg-accent-400" />
-                <Text className="text-[11px] font-semibold text-accent-200">
-                  {dayLabel(nextBooking.classInstance.startsAt, locale, today, tomorrow)}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          {bookingsQuery.isLoading ? (
-            <View className="items-center py-6">
-              <ActivityIndicator color="#9184F1" />
-            </View>
-          ) : nextBooking ? (
-            <>
-              <View className="mt-3.5 flex-row items-center gap-3.5">
-                <TimeChip
-                  time={formatTime(nextBooking.classInstance.startsAt, locale)}
-                  day={dayLabel(nextBooking.classInstance.startsAt, locale, today, tomorrow)}
-                  className="w-16"
+        {/* ── Upcoming bookings ──────────────────────────────────────────── */}
+        {/* Directly under the counters, and the ONLY class-booking surface on
+            Home: a member opens this screen to see what they have booked, and
+            discovering new classes is the classes tab's job — which is where
+            both the section action and the empty state's CTA go. */}
+        <HomeSection
+          testID="home-upcoming"
+          title={t('member.home.upcomingBookings')}
+          action={{
+            label: t('member.home.myBookings'),
+            onPress: () => {
+              router.push('/profile/bookings');
+            },
+            testID: 'home-upcoming-all',
+          }}
+          phase={upcomingPhase}
+          onRetry={() => {
+            invalidate(queryKeys.bookings(scoped));
+          }}
+        >
+          {upcoming.length === 0 ? (
+            <EmptyState
+              testID="home-upcoming-empty"
+              icon="clock"
+              title={t('member.home.noClasses')}
+              action={{
+                label: t('member.home.browseClasses'),
+                onPress: () => {
+                  router.push('/classes');
+                },
+                variant: 'secondary',
+                testID: 'home-upcoming-browse',
+              }}
+            />
+          ) : (
+            <Surface tone="card" padVertical={1}>
+              {upcoming.slice(0, UPCOMING_LIMIT).map((entry) => (
+                <UpcomingBookingRow
+                  key={entry.bookingId}
+                  entry={entry}
+                  onPress={() => {
+                    router.push(`/classes/${entry.classInstance.id}`);
+                  }}
+                  testID={`home-booking-${entry.bookingId}`}
                 />
-                <View className="min-w-0 flex-1">
-                  <View className="flex-row items-center gap-2">
-                    <View
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ backgroundColor: nextBooking.classInstance.color || '#9184F1' }}
+              ))}
+            </Surface>
+          )}
+        </HomeSection>
+
+        {/* ── Services ───────────────────────────────────────────────────── */}
+        {/* A GYM WITH NO SERVICES GETS NO SECTION — not a heading over "no
+            services yet". The other sections' empty states each carry an action
+            the member can take ("browse classes", "visit shop"); this one never
+            could, because whether a gym sells personal training is the gym's
+            decision and nothing a member does changes it. A heading, a link to
+            an equally empty `/services`, and a sentence saying so is three rows
+            of chrome reporting an absence. The loading, offline and error
+            branches are UNTOUCHED: "we could not load the services" is a real
+            thing to say, and a section that vanished on a failed request would
+            be indistinguishable from a gym that sells none. */}
+        {servicesPhase === 'ready' &&
+        nextSession === null &&
+        (services.data?.services ?? []).length === 0 ? null : (
+          <HomeSection
+            testID="home-services"
+            title={t('member.home.services')}
+            action={{
+              label: t('member.home.viewServices'),
+              onPress: () => {
+                router.push('/services');
+              },
+              testID: 'home-services-all',
+            }}
+            phase={servicesPhase}
+            onRetry={() => {
+              invalidate(['services', scoped]);
+              invalidate(queryKeys.myServiceSessions(scoped).slice(0, 2));
+            }}
+          >
+            <View style={{ gap: spacing[2] }}>
+              {nextSession === null ? null : (
+                <NextSessionRow
+                  session={nextSession}
+                  onPress={() => {
+                    router.push('/profile/bookings');
+                  }}
+                  testID="home-next-session"
+                />
+              )}
+
+              {/* Empty AND a booked session is a state the API allows — a
+                  session survives its service being retired — so the list is
+                  still guarded rather than assumed non-empty. */}
+              {(services.data?.services ?? []).length === 0 ? null : (
+                <Surface tone="card" padVertical={1}>
+                  {(services.data?.services ?? []).slice(0, SERVICES_LIMIT).map((service) => (
+                    <ServiceRow
+                      key={service.id}
+                      service={service}
+                      onPress={() => {
+                        router.push(`/services/${service.id}`);
+                      }}
+                      testID={`home-service-${service.id}`}
                     />
-                    <Text
-                      className="flex-1 text-lg font-bold tracking-tight text-white"
-                      numberOfLines={1}
-                    >
-                      {nextBooking.classInstance.title}
-                    </Text>
-                  </View>
-                  <Text className="mt-1.5 text-xs text-ink-400" numberOfLines={1}>
-                    {[nextBooking.classInstance.trainerName, nextBooking.classInstance.room]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
-                  <View className="mt-2">
-                    <Occupancy
-                      value={nextBooking.classInstance.bookedCount}
-                      cap={nextBooking.classInstance.capacity}
-                    />
-                  </View>
-                </View>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/qr')}
-                className="mt-4 h-11 flex-row items-center justify-center gap-2 rounded-btn bg-brand-600 active:bg-brand-700"
-              >
-                <Text className="text-sm">▦</Text>
-                <Text className="text-sm font-semibold text-white">{t('member.home.checkIn')}</Text>
-              </Pressable>
-            </>
+                  ))}
+                </Surface>
+              )}
+            </View>
+          </HomeSection>
+        )}
+
+        {/* ── Trainers ───────────────────────────────────────────────────── */}
+        {/* The gym's coaches, three of them, as a teaser for `/trainers` — the
+            same shape as the shop section below (a few rows, then one button to
+            the whole thing). It was "Your trainer" over the first name in a
+            roster ordered alphabetically: the API models no member↔trainer
+            relationship, so "your" was a claim the wire cannot support, and the
+            plan's own §7 lists it. Tapping a row opens the coach's SHEET rather
+            than navigating — see `components/home/rows.tsx`. */}
+        <HomeSection
+          testID="home-trainer"
+          title={t('member.home.trainers')}
+          phase={trainersPhase}
+          onRetry={() => {
+            invalidate(queryKeys.trainers(scoped));
+          }}
+          skeleton={<Skeleton height={84} radius={26} />}
+        >
+          {trainerRows.length === 0 ? (
+            <EmptyState
+              testID="home-trainer-empty"
+              icon="users"
+              title={t('member.trainers.empty.title')}
+            />
           ) : (
-            <View className="items-center gap-2 py-6">
-              <Text className="text-2xl">📅</Text>
-              <Text className="text-sm text-ink-400">{t('member.home.noClasses')}</Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/classes')}
-                className="mt-1 rounded-btn border border-white/15 bg-white/5 px-4 py-2 active:bg-white/10"
-              >
-                <Text className="text-sm font-semibold text-white">
-                  {t('member.home.browseClasses')}
-                </Text>
-              </Pressable>
+            <View style={{ gap: spacing[3] }}>
+              {trainerRows.map((trainer) => (
+                <TrainerRow
+                  key={trainer.id}
+                  trainer={trainer}
+                  // The noun is copy, the name is data. `PersonRow`'s pressable
+                  // shape requires the whole sentence — the row is one stop.
+                  accessibilityLabel={`${t('member.home.trainers')}, ${trainer.name}`}
+                  onPress={() => {
+                    setTrainerSheetId(trainer.id);
+                  }}
+                  testID={`home-trainer-${trainer.id}`}
+                />
+              ))}
+
+              <Button
+                label={t('member.home.viewAll')}
+                variant="secondary"
+                fullWidth
+                onPress={() => {
+                  router.push('/trainers');
+                }}
+                testID="home-trainer-all"
+              />
             </View>
           )}
-        </GlassCard>
+        </HomeSection>
 
-        {/* ---- quick stats ---- */}
-        <View className="flex-row gap-3">
-          {stats.map((s) => (
-            <GlassCard key={s.key} className="flex-1 p-3.5">
-              <Text className="text-base">{s.glyph}</Text>
-              <Text
-                className="mt-2.5 text-2xl font-extrabold text-white"
-                style={{ fontVariant: ['tabular-nums'] }}
-              >
-                {s.value}
-              </Text>
-              <Text className="mt-0.5 text-[10px] font-semibold uppercase tracking-[1px] text-ink-400">
-                {s.label}
-              </Text>
-            </GlassCard>
-          ))}
-        </View>
+        {/* ── For your training ──────────────────────────────────────────── */}
+        <HomeSection
+          testID="home-shop"
+          title={t('member.home.forTraining')}
+          phase={productsPhase}
+          onRetry={() => {
+            invalidate(['products', scoped]);
+          }}
+        >
+          <View style={{ gap: spacing[3] }}>
+            {/* The artboard's lime "−10%" chip. Copy, not a computed discount:
+                `member.home.membersGet` is a fixed marketing string and no
+                endpoint returns a member discount rate. */}
+            <View style={{ flexDirection: 'row' }}>
+              <Pill tone="accent" size="sm">
+                {t('member.home.membersGet')}
+              </Pill>
+            </View>
 
-        {/* ---- book a class ---- */}
-        <View>
-          <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-lg font-bold tracking-tight text-white">
-              {t('member.home.bookClass')}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/classes')}
-              hitSlop={8}
-            >
-              <Text className="text-xs font-semibold text-brand-300">
-                {t('member.home.viewAll')} ›
-              </Text>
-            </Pressable>
-          </View>
-
-          {categories.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
-            >
-              {[
-                { key: '__all', label: t('member.home.viewAll') },
-                ...categories.map((c) => ({ key: c, label: c })),
-              ].map((chip) => {
-                const active = filter === chip.key;
-                return (
-                  <Pressable
-                    key={chip.key}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    onPress={() => setFilter(chip.key)}
-                    className={`h-9 justify-center rounded-pill px-4 ${
-                      active ? 'bg-white' : 'border border-white/10 bg-white/5 active:bg-white/10'
-                    }`}
-                  >
-                    <Text
-                      className={`text-[13px] font-semibold ${active ? 'text-ink-950' : 'text-ink-300'}`}
-                    >
-                      {chip.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          ) : null}
-
-          <View className="mt-3 gap-2.5">
-            {classesQuery.isLoading ? (
-              <View className="items-center py-8">
-                <ActivityIndicator color="#9184F1" />
-              </View>
-            ) : bookable.length > 0 ? (
-              bookable.map((c) => {
-                const full = c.bookedCount >= c.capacity;
-                return (
-                  <Pressable
-                    key={c.id}
-                    accessibilityRole="button"
-                    onPress={() => router.push(`/classes/${c.id}`)}
-                    className="overflow-hidden rounded-card border border-white/10 bg-white/5 p-3.5 active:bg-white/10"
-                  >
-                    <View className="flex-row items-center gap-3">
-                      <TimeChip
-                        time={formatTime(c.startsAt, locale)}
-                        day={dayLabel(c.startsAt, locale, today, tomorrow)}
-                        className="w-14"
-                      />
-                      <View
-                        className="h-10 w-1 rounded-full"
-                        style={{ backgroundColor: c.color || '#9184F1' }}
-                      />
-                      <View className="min-w-0 flex-1">
-                        <Text className="font-semibold text-white" numberOfLines={1}>
-                          {c.title}
-                        </Text>
-                        <Text className="text-xs text-ink-400" numberOfLines={1}>
-                          {[c.trainerName, c.locationName].filter(Boolean).join(' · ')}
-                        </Text>
-                      </View>
-                      <View
-                        className={`h-9 justify-center rounded-btn px-4 ${
-                          full ? 'bg-warning-500' : 'bg-brand-600'
-                        }`}
-                      >
-                        <Text className="text-xs font-bold text-white">
-                          {full ? t('member.home.joinWaitlist') : t('member.home.book')}
-                        </Text>
-                      </View>
-                    </View>
-                    <View className="mt-3 flex-row items-center gap-2.5">
-                      <View className="flex-1">
-                        <Occupancy value={c.bookedCount} cap={c.capacity} />
-                      </View>
-                      <Text
-                        className="font-mono text-[11px] text-ink-500"
-                        style={{ fontVariant: ['tabular-nums'] }}
-                      >
-                        {c.bookedCount}/{c.capacity}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })
+            {(products.data?.products ?? []).length === 0 ? (
+              <EmptyState testID="home-shop-empty" icon="bag" title={t('member.home.noProducts')} />
             ) : (
-              <GlassCard className="items-center gap-2 py-8">
-                <Text className="text-2xl">📅</Text>
-                <Text className="text-sm text-ink-400">{t('member.home.noBookable')}</Text>
-              </GlassCard>
-            )}
-          </View>
-        </View>
-
-        {/* ---- shop rail ---- */}
-        <View>
-          <View className="mb-3 flex-row items-center justify-between">
-            <View>
-              <Text className="text-lg font-bold tracking-tight text-white">
-                {t('member.home.forTraining')}
-              </Text>
-              <Text className="mt-0.5 text-xs text-ink-400">{t('member.home.membersGet')}</Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={() => router.push('/shop')} hitSlop={8}>
-              <Text className="text-xs font-semibold text-brand-300">
-                {t('member.home.visitShop')} ›
-              </Text>
-            </Pressable>
-          </View>
-
-          {productsQuery.isLoading ? (
-            <View className="items-center py-8">
-              <ActivityIndicator color="#9184F1" />
-            </View>
-          ) : topProducts.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
-            >
-              {topProducts.map((p) => (
-                <Pressable
-                  key={p.id}
-                  accessibilityRole="button"
-                  onPress={() => router.push(`/shop/product/${p.id}`)}
-                  className="w-40 overflow-hidden rounded-card border border-white/10 bg-white/5 active:bg-white/10"
-                >
-                  <View className="aspect-[4/3] bg-white/5">
-                    {p.imageUrl ? (
-                      <Image
-                        source={{ uri: p.imageUrl }}
-                        resizeMode="cover"
-                        className="h-full w-full"
-                      />
-                    ) : (
-                      <View className="h-full w-full items-center justify-center">
-                        <Text className="text-2xl">🛍️</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View className="p-3">
-                    <Text className="text-sm font-semibold text-white" numberOfLines={1}>
-                      {p.name}
-                    </Text>
-                    <Text
-                      className="mt-2 font-mono text-sm font-bold text-brand-300"
-                      style={{ fontVariant: ['tabular-nums'] }}
-                    >
-                      {formatMoney(p.priceAmount, p.currency, locale)}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : (
-            <GlassCard className="items-center gap-2 py-8">
-              <Text className="text-2xl">🛍️</Text>
-              <Text className="text-sm text-ink-400">{t('member.home.noProducts')}</Text>
-            </GlassCard>
-          )}
-        </View>
-
-        {/* ---- upcoming bookings (also the entry point to the Bookings tab) ---- */}
-        {upcoming.length > 0 ? (
-          <View>
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-lg font-bold tracking-tight text-white">
-                {t('member.home.upcomingBookings')}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/bookings')}
-                hitSlop={8}
-              >
-                <Text className="text-xs font-semibold text-brand-300">
-                  {t('member.home.viewAll')} ›
-                </Text>
-              </Pressable>
-            </View>
-            <GlassCard>
-              {upcoming.slice(0, 4).map((b, i) => (
-                <Pressable
-                  key={b.bookingId}
-                  accessibilityRole="button"
-                  onPress={() => router.push(`/classes/${b.classInstance.id}`)}
-                  className={`flex-row items-center gap-3.5 p-3.5 active:bg-white/5 ${
-                    i > 0 ? 'border-t border-white/10' : ''
-                  }`}
-                >
-                  <TimeChip
-                    time={formatTime(b.classInstance.startsAt, locale)}
-                    day={dayLabel(b.classInstance.startsAt, locale, today, tomorrow)}
-                    className="w-14"
+              // A rail, not a stack: the section is a teaser for the shop, and
+              // side by side it costs one screen-height instead of four. The
+              // section already sits inside the screen gutter, so the rail adds
+              // no edge padding of its own — `edgePadding` defaults to the
+              // gutter and would double it.
+              <ScrollRail testID="home-shop-rail" edgePadding={0} gap={3}>
+                {(products.data?.products ?? []).slice(0, SHOP_RAIL_LIMIT).map((product) => (
+                  <ShopRailRow
+                    key={product.id}
+                    product={product}
+                    onPress={() => {
+                      router.push(`/shop/product/${product.id}`);
+                    }}
+                    testID={`home-product-${product.id}`}
                   />
-                  <View className="min-w-0 flex-1">
-                    <Text className="font-semibold text-white" numberOfLines={1}>
-                      {b.classInstance.title}
-                    </Text>
-                    <Text className="text-xs text-ink-400" numberOfLines={1}>
-                      {[b.classInstance.trainerName, b.classInstance.room]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
-                  </View>
-                  <View
-                    className={`rounded-pill px-2.5 py-1 ${
-                      b.status === 'WAITLIST' ? 'bg-warning-500/20' : 'bg-success-500/20'
-                    }`}
-                  >
-                    <Text
-                      className={`text-[11px] font-semibold ${
-                        b.status === 'WAITLIST' ? 'text-warning-300' : 'text-success-300'
-                      }`}
-                    >
-                      {b.status === 'WAITLIST'
-                        ? t('member.home.waitlist', { position: b.waitlistPosition ?? 0 })
-                        : t('member.home.confirmed')}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </GlassCard>
+                ))}
+              </ScrollRail>
+            )}
+
+            <Button
+              label={t('member.home.visitShop')}
+              variant="secondary"
+              fullWidth
+              onPress={() => {
+                router.push('/shop');
+              }}
+              testID="home-visit-shop"
+            />
           </View>
-        ) : null}
+        </HomeSection>
       </View>
-    </ScrollView>
+
+      {/*
+        The coach's whole profile — the SAME sheet the class screen opens
+        (`components/classes/trainer-sheet.tsx`), mounted once at the screen
+        level rather than per row: a `Sheet` per trainer would be three modals in
+        the tree waiting for a press. `trainerId` is what opens it, so `null` is
+        "closed"; `name` and `avatarUrl` are the row's own denormalised values,
+        drawn while the sheet's own request is in flight.
+
+        No `onOpenProfile`: the prop is deprecated because there is no
+        `/trainers/:id` screen any more — this sheet IS the profile. The section's
+        button goes to the ROSTER (`/trainers`), which does exist.
+      */}
+      <TrainerSheet
+        gymId={gymId}
+        trainerId={sheetTrainer === null ? null : sheetTrainer.id}
+        name={sheetTrainer?.name ?? ''}
+        avatarUrl={sheetTrainer?.avatarUrl ?? null}
+        onClose={() => {
+          setTrainerSheetId(null);
+        }}
+        testID="home-trainer-sheet"
+      />
+    </Screen>
   );
+}
+
+/**
+ * The avatar monogram.
+ *
+ * `GET /me/profile` carries no photo — there is no member avatar field on the
+ * contract at all — so the ring is always a monogram, and the artboard's
+ * portrait is one more thing the API cannot answer. Georgian is caseless and
+ * Unicode 11 maps Mkhedruli to Mtavruli, which Georgian readers parse as
+ * shouting, so `trainerInitials`' rule applies here too: the shared helper is
+ * reused rather than re-derived.
+ */
+function initialsFor(name: string | undefined): string {
+  return name === undefined || name === '' ? '' : trainerInitials(name);
 }

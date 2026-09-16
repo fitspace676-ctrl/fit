@@ -144,10 +144,26 @@ export const decideTimeOffRequestSchema = z.object({
 /** Validated decision body — {@link decideTimeOffRequestSchema}. */
 export type DecideTimeOffRequestInput = z.infer<typeof decideTimeOffRequestSchema>;
 
-/** Query for `GET /staff/time-off` — filter the gym-wide queue by status / staff. */
+/**
+ * Query for `GET /staff/time-off` — filter the approval queue by status / staff,
+ * and since Stage 6 by branch.
+ *
+ * `locationId` asks **"whose absence costs THIS branch cover"**, so it reads the
+ * staff member's roster assignments (`LocationStaff`) rather than a column on the
+ * request. A `TimeOffRequest` carries no branch and should not: a week off is not
+ * an event at a place, it is the absence of one.
+ *
+ * That makes this filter **overlapping, not partitioning** — deliberately. A coach
+ * rostered at both sites appears in both branches' queues, because their week off
+ * really does leave both short. Per-branch queue lengths therefore sum to MORE
+ * than the gym-wide queue, and nothing may treat this as a per-branch head-count of
+ * absences. It is the availability half of the Stage 6 rule, and the API's
+ * `location-filter.util.ts` states it once for every reader.
+ */
 export const listTimeOffQuerySchema = z.object({
   status: timeOffStatusSchema.optional(),
   staffId: z.string().trim().min(1).optional(),
+  locationId: z.string().trim().min(1).optional(),
 });
 
 /** Validated `GET /staff/time-off` query — {@link listTimeOffQuerySchema}. */
@@ -180,13 +196,29 @@ export interface ListTimeOffResponse {
 // Weekly schedule (shifts)
 // ---------------------------------------------------------------------------
 
-/** One shift in the weekly-schedule editor. `dayOfWeek` is 0 (Mon) … 6 (Sun). */
+/**
+ * One shift in the weekly-schedule editor. `dayOfWeek` is 0 (Mon) … 6 (Sun).
+ *
+ * `locationId` is the **branch this shift staffs** — one gym `Location`, because a
+ * shift staffs one door. It replaced a free-text `location` field in Stage 6 of
+ * multi-branch, and the replacement is not a rename: the old field was a name
+ * somebody typed, which looked like a branch, joined to nothing, and drifted the
+ * moment a branch was renamed. There is deliberately **no way to write free text
+ * here any more** — the surviving strings on old rows are a queue for an operator
+ * to resolve (see {@link ShiftSlotRow.unresolvedLocation}), and a schedule editor
+ * that could still mint new ones would keep that queue growing forever.
+ *
+ * Optional, and it stays optional: a rota is a PLAN, so a shift with no branch
+ * picked is left unattributed rather than defaulted onto the gym's default branch.
+ * Defaulting would assert somebody stood at a door they were never at — unlike a
+ * check-in, which really happened and can bear a lossy attribution.
+ */
 export const shiftSlotInputSchema = z
   .object({
     dayOfWeek: z.number().int().min(0).max(6),
     startTime: timeOfDaySchema,
     endTime: timeOfDaySchema,
-    location: z.string().trim().max(120).optional(),
+    locationId: z.string().trim().min(1).optional(),
   })
   .refine((value) => value.endTime > value.startTime, {
     message: 'End time must be after start time',
@@ -205,14 +237,35 @@ export const updateStaffScheduleSchema = z.object({
 /** Validated `PUT /staff/:staffId/schedule` body — {@link updateStaffScheduleSchema}. */
 export type UpdateStaffScheduleInput = z.infer<typeof updateStaffScheduleSchema>;
 
-/** One shift as the calendar grid renders it. */
+/**
+ * One shift as the calendar grid renders it.
+ *
+ * The branch arrives as **three** fields rather than one, because Stage 6 left
+ * three genuinely different states behind and collapsing them would resurrect the
+ * ambiguity the free-text column was removed for:
+ *
+ *  - `locationId` + `locationName` set — the shift staffs a real branch. Render it
+ *    as one.
+ *  - all three null — the shift is unattributed. It is not "at the main branch";
+ *    nothing knows where it is, and it is absent from every branch-filtered read.
+ *  - `unresolvedLocation` set — the row carries a surviving free-text label that
+ *    **named no branch of this gym**: a typo, a room, a closed site, or a branch
+ *    belonging to another tenant. It is a queue item for an operator to resolve
+ *    into a real branch, NOT a branch to display as one, and it never satisfies a
+ *    branch filter. No write path can create a new one.
+ */
 export interface ShiftSlotRow {
   id: string;
   staffId: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
-  location: string | null;
+  /** The branch this shift staffs, or `null` when it is unattributed. */
+  locationId: string | null;
+  /** That branch's display name, resolved through the relation. */
+  locationName: string | null;
+  /** A surviving free-text label that matched no branch — see the note above. */
+  unresolvedLocation: string | null;
 }
 
 /** Successful `GET /staff/:staffId/schedule` (and the `PUT` echo) response. */
@@ -221,9 +274,41 @@ export interface StaffScheduleResponse {
 }
 
 /**
+ * Query for `GET /staff/working-now` — optionally narrow "who is on shift right
+ * now" to one branch.
+ *
+ * **The endpoint took no query at all before Stage 6, and that was the sharpest
+ * casualty of branches being separate operating units.** "Who is working now"
+ * across a gym with two sites answers a question nobody asks: the receptionist
+ * looking at the card is standing at ONE door and wants to know who is behind it.
+ * A gym-wide answer is not a broader answer, it is a wrong one — it lists people
+ * who are twenty minutes away as if they were here.
+ *
+ * The narrowing reads `ShiftSlot.locationId`, the branch the shift staffs — an
+ * event at a place. It is emphatically NOT the roster hop: "Nino can work at
+ * Saburtalo" does not put her behind that desk on a Tuesday morning, and this card
+ * is about the door, not the capability.
+ *
+ * Omitted, every branch's shifts come back exactly as they did before, so an
+ * un-updated caller sees no change. A shift with no branch (`locationId` null) is
+ * absent from a filtered result and present in the unfiltered one: it is somebody
+ * rostered somewhere unrecorded, and no branch may adopt it.
+ */
+export const workingNowQuerySchema = z.object({
+  locationId: z.string().trim().min(1).optional(),
+});
+
+/** Validated `GET /staff/working-now` query — {@link workingNowQuerySchema}. */
+export type WorkingNowQuery = z.infer<typeof workingNowQuerySchema>;
+
+/**
  * One staff member on shift right now, as the on-shift card renders it.
  * A denormalised {@link ShiftSlotRow} + the staff member's display name and role,
  * so the card needs no second lookup. `staffId` is the membership id.
+ *
+ * The three branch fields mean exactly what they mean on {@link ShiftSlotRow} —
+ * including `unresolvedLocation`, which stays a queue item rather than a branch
+ * even here, where the temptation to print it beside a name is strongest.
  */
 export interface WorkingNowRow {
   staffId: string;
@@ -231,13 +316,19 @@ export interface WorkingNowRow {
   role: StaffRole;
   startTime: string;
   endTime: string;
-  location: string | null;
+  /** The branch this shift staffs, or `null` when it is unattributed. */
+  locationId: string | null;
+  /** That branch's display name, resolved through the relation. */
+  locationName: string | null;
+  /** A surviving free-text label that matched no branch — see {@link ShiftSlotRow}. */
+  unresolvedLocation: string | null;
 }
 
 /**
  * Successful `GET /staff/working-now` response — every staff member whose weekly
  * schedule places them on shift at this moment, in the gym's own time zone,
- * ordered by start time.
+ * ordered by start time. Narrowed to one branch when the query carried a
+ * `locationId`.
  */
 export interface WorkingNowResponse {
   shifts: WorkingNowRow[];
@@ -326,7 +417,15 @@ export const directoryStaffStatusSchema = z.enum(['ACTIVE', 'SUSPENDED']);
  * `firstName` and `role` are required, so the front desk can capture as little as
  * a name and a role; everything else is optional. `workingHours` reuses the
  * weekly {@link shiftSlotInputSchema}; `assignedLocationIds` are gym `Location`
- * ids.
+ * ids, persisted since Stage 6 as `LocationStaff` rows — the branches this person
+ * can be rostered at.
+ *
+ * An empty `assignedLocationIds` is accepted and means "we do not know where this
+ * person works": they appear on the gym-wide roster and under no branch filter.
+ * Requiring one was considered and refused for the reason the front-desk flows keep
+ * winning — this form exists so a walk-in trainer can be captured with a name and a
+ * role, and a mandatory branch turns "I'll fill that in later" into "I can't add
+ * them at all".
  */
 export const createStaffSchema = z.object({
   firstName: z.string().trim().min(1, 'A first name is required').max(120),

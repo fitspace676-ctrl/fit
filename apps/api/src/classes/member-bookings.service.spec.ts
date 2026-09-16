@@ -8,6 +8,7 @@ import type { TenantContext } from '../common/tenant/tenant.context';
 const GYM_ID = 'gym-1';
 const USER_ID = 'user-1';
 const MEMBER_ID = 'gm-1';
+const TRAINER_PHOTO = 'https://pub.example.com/gym-1/trainers/nino.jpg';
 
 /** A loose view of the query args the service passes — enough to assert on. */
 interface QueryArgs {
@@ -25,7 +26,7 @@ function row(over?: {
   startsAt?: Date;
   capacityOverride?: number | null;
   instanceStatus?: InstanceStatus;
-  trainer?: { name: string } | null;
+  trainer?: { id: string; name: string; photoUrl: string | null } | null;
   location?: { name: string } | null;
   room?: string | null;
 }) {
@@ -50,7 +51,10 @@ function row(over?: {
         room: over?.room === undefined ? 'Studio A' : over.room,
         capacity: 12,
         durationMinutes: 60,
-        trainer: over?.trainer === undefined ? { name: 'Nino' } : over.trainer,
+        trainer:
+          over?.trainer === undefined
+            ? { id: 'tr-1', name: 'Nino', photoUrl: TRAINER_PHOTO }
+            : over.trainer,
         location: over?.location === undefined ? { name: 'Downtown' } : over.location,
       },
     },
@@ -150,6 +154,8 @@ describe('MemberBookingsService', () => {
             startsAt: '2026-06-10T18:00:00.000Z',
             endsAt: '2026-06-10T19:00:00.000Z',
             trainerName: 'Nino',
+            trainerId: 'tr-1',
+            trainerAvatarUrl: TRAINER_PHOTO,
             locationName: 'Downtown',
             room: 'Studio A',
             // capacityOverride (8) wins over the template capacity (12).
@@ -172,6 +178,8 @@ describe('MemberBookingsService', () => {
       const { bookings } = await service.list({ scope: 'all' });
       expect(bookings[0]?.classInstance).toMatchObject({
         trainerName: '',
+        trainerId: null,
+        trainerAvatarUrl: null,
         locationName: '',
         room: '',
         // Falls back to the template capacity when no override is set.

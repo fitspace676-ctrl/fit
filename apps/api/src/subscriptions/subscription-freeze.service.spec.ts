@@ -38,23 +38,38 @@ function setup(overrides?: {
   member?: { id: string } | null;
   subscription?: SubscriptionRecord | null;
   gymSettings?: unknown;
+  /** Rows the freeze claim matched. `0` is the lost race. */
+  claimCount?: number;
+  /** What the row looks like on the re-read after a claim that did not land. */
+  afterRace?: SubscriptionRecord | null;
 }) {
   const memberFindFirst = vi.fn(() =>
     Promise.resolve(overrides?.member === undefined ? { id: 'member-1' } : overrides.member),
   );
+  const initial = overrides?.subscription === undefined ? subscription() : overrides.subscription;
+  let reads = 0;
+  // The first read is the one the flow judges; a second read only happens when the
+  // claim lost the race, and then it must be able to show the state that beat it.
   const subscriptionFindFirst = vi.fn(() =>
     Promise.resolve(
-      overrides?.subscription === undefined ? subscription() : overrides.subscription,
+      reads++ === 0 || overrides?.afterRace === undefined ? initial : overrides.afterRace,
     ),
   );
   const subscriptionUpdate = vi.fn((args: { data: Record<string, unknown> }) =>
     Promise.resolve(args),
   );
+  const subscriptionUpdateMany = vi.fn((_args: { where: unknown; data: unknown }) =>
+    Promise.resolve({ count: overrides?.claimCount ?? 1 }),
+  );
   const gymFindFirst = vi.fn(() => Promise.resolve({ settings: overrides?.gymSettings ?? null }));
 
   const client: Record<string, unknown> = {
     gymMember: { findFirst: memberFindFirst },
-    subscription: { findFirst: subscriptionFindFirst, update: subscriptionUpdate },
+    subscription: {
+      findFirst: subscriptionFindFirst,
+      update: subscriptionUpdate,
+      updateMany: subscriptionUpdateMany,
+    },
     gym: { findFirst: gymFindFirst },
     // Interactive transaction: run the callback against the same scoped client.
     $transaction: (cb: (tx: unknown) => unknown) => cb(client),
@@ -68,6 +83,7 @@ function setup(overrides?: {
     memberFindFirst,
     subscriptionFindFirst,
     subscriptionUpdate,
+    subscriptionUpdateMany,
     gymFindFirst,
   };
 }
@@ -94,22 +110,48 @@ afterEach(() => {
 
 describe('SubscriptionFreezeService.freeze', () => {
   it('freezes an active subscription, stamping the dates and committing the days', async () => {
-    const { service, subscriptionUpdate } = setup();
+    const { service, subscriptionUpdateMany } = setup();
 
     const result = await service.freeze('sub-1', freezeInput({ durationDays: 10 }));
 
     expect(result).toEqual({ frozenUntil: '2026-06-20T00:00:00.000Z' });
-    expect(subscriptionUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
+    expect(subscriptionUpdateMany.mock.calls[0]?.[0]?.data).toMatchObject({
       status: SubscriptionStatus.FROZEN,
       frozenAt: new Date('2026-06-10T00:00:00.000Z'),
       frozenUntil: new Date('2026-06-20T00:00:00.000Z'),
-      freezeDaysUsed: 10,
+      freezeDaysUsed: { increment: 10 },
+    });
+  });
+
+  /**
+   * The shape is the guarantee: the cap has to be a predicate the database
+   * evaluates against the live row, because the `freezeDaysUsed` this request read
+   * may already be stale by the time it writes. Asserting it here catches a
+   * regression to `used + durationDays` without needing a database; that the bound
+   * actually holds under real concurrency is proved in
+   * `subscription-freeze-concurrency.int-spec.ts`.
+   */
+  it('claims the allowance with the cap inside the statement, not a computed total', async () => {
+    // cap 14, 4 already used, asking for 10 → the claim may only land while no more
+    // than 4 days are on the row (14 - 10).
+    const { service, subscriptionUpdateMany } = setup({
+      subscription: subscription({ freezeDaysUsed: 4, plan: { freezeDaysPerPeriod: 14 } }),
+    });
+
+    await service.freeze('sub-1', freezeInput({ durationDays: 10 }));
+
+    expect(subscriptionUpdateMany.mock.calls[0]?.[0]?.where).toMatchObject({
+      id: 'sub-1',
+      // Pinned to the status the state machine judged, so a subscription frozen by
+      // a concurrent request cannot be frozen a second time.
+      status: SubscriptionStatus.ACTIVE,
+      freezeDaysUsed: { lte: 4 },
     });
   });
 
   it('rejects a freeze that exceeds the plan allowance with the remaining days', async () => {
     // cap 14, 10 already used → only 4 left, asking for 5 → 422 remainingDays:4.
-    const { service, subscriptionUpdate } = setup({
+    const { service, subscriptionUpdateMany } = setup({
       subscription: subscription({ freezeDaysUsed: 10, plan: { freezeDaysPerPeriod: 14 } }),
     });
 
@@ -120,11 +162,50 @@ describe('SubscriptionFreezeService.freeze', () => {
       code: 'EXCEEDS_FREEZE_ALLOWANCE',
       remainingDays: 4,
     });
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses the freeze when the claim loses the race, with the allowance now left', async () => {
+    // Both requests read `freezeDaysUsed: 0` against a cap of 14 and both passed the
+    // check; the other one committed 10 days first, so this claim matches nothing.
+    const { service, subscriptionUpdate } = setup({
+      subscription: subscription({ freezeDaysUsed: 0, plan: { freezeDaysPerPeriod: 14 } }),
+      claimCount: 0,
+      afterRace: subscription({ status: SubscriptionStatus.ACTIVE, freezeDaysUsed: 10 }),
+    });
+
+    const error = await rejection(service.freeze('sub-1', freezeInput({ durationDays: 10 })));
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect(error.getResponse()).toMatchObject({
+      code: 'EXCEEDS_FREEZE_ALLOWANCE',
+      // The honest figure after the winner's 10 days, not the 14 this request read.
+      remainingDays: 4,
+    });
+    // Nothing was written: the loser is refused, never silently ignored.
     expect(subscriptionUpdate).not.toHaveBeenCalled();
   });
 
+  it('reports ALREADY_FROZEN when the race was lost to a concurrent freeze', async () => {
+    const { service } = setup({
+      claimCount: 0,
+      afterRace: subscription({ status: SubscriptionStatus.FROZEN, freezeDaysUsed: 10 }),
+    });
+
+    const error = await rejection(service.freeze('sub-1', freezeInput({ durationDays: 3 })));
+
+    expect(error).toBeInstanceOf(ConflictException);
+    expect(error.getResponse()).toMatchObject({ code: 'ALREADY_FROZEN' });
+  });
+
+  it('404s when the subscription is gone by the time the claim runs', async () => {
+    const { service } = setup({ claimCount: 0, afterRace: null });
+
+    await expect(service.freeze('sub-1', freezeInput())).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it("rejects a freeze shorter than the gym's minimum (422 BELOW_MIN_FREEZE_DAYS)", async () => {
-    const { service, subscriptionUpdate } = setup({
+    const { service, subscriptionUpdateMany } = setup({
       gymSettings: { freeze: { minFreezeDays: 7 } },
     });
 
@@ -132,11 +213,11 @@ describe('SubscriptionFreezeService.freeze', () => {
 
     expect(error).toBeInstanceOf(UnprocessableEntityException);
     expect(error.getResponse()).toMatchObject({ code: 'BELOW_MIN_FREEZE_DAYS', minFreezeDays: 7 });
-    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
   });
 
   it("rejects a freeze longer than the gym's maximum (422 EXCEEDS_MAX_FREEZE_DAYS)", async () => {
-    const { service, subscriptionUpdate } = setup({
+    const { service, subscriptionUpdateMany } = setup({
       subscription: subscription({ plan: { freezeDaysPerPeriod: 90 } }),
       gymSettings: { freeze: { maxFreezeDays: 14 } },
     });
@@ -148,17 +229,17 @@ describe('SubscriptionFreezeService.freeze', () => {
       code: 'EXCEEDS_MAX_FREEZE_DAYS',
       maxFreezeDays: 14,
     });
-    expect(subscriptionUpdate).not.toHaveBeenCalled();
+    expect(subscriptionUpdateMany).not.toHaveBeenCalled();
   });
 
   it('allows a freeze within the gym min/max window', async () => {
-    const { service, subscriptionUpdate } = setup({
+    const { service, subscriptionUpdateMany } = setup({
       gymSettings: { freeze: { minFreezeDays: 5, maxFreezeDays: 30 } },
     });
 
     await service.freeze('sub-1', freezeInput({ durationDays: 10 }));
 
-    expect(subscriptionUpdate).toHaveBeenCalled();
+    expect(subscriptionUpdateMany).toHaveBeenCalled();
   });
 
   it('rejects re-freezing an already-frozen subscription (409 ALREADY_FROZEN)', async () => {
@@ -263,7 +344,7 @@ describe('SubscriptionFreezeService.unfreeze', () => {
 
 describe('SubscriptionFreezeService staff variants', () => {
   it('freezeForStaff freezes without resolving a caller membership', async () => {
-    const { service, memberFindFirst, subscriptionUpdate } = setup();
+    const { service, memberFindFirst, subscriptionUpdateMany } = setup();
 
     const result = await service.freezeForStaff('sub-1', freezeInput({ durationDays: 10 }));
 
@@ -271,9 +352,9 @@ describe('SubscriptionFreezeService staff variants', () => {
     // Staff act on the member — no self-membership lookup — but the subscription is
     // still tenant-scoped by the id alone (no `memberId` requirement).
     expect(memberFindFirst).not.toHaveBeenCalled();
-    expect(subscriptionUpdate.mock.calls[0]?.[0]?.data).toMatchObject({
+    expect(subscriptionUpdateMany.mock.calls[0]?.[0]?.data).toMatchObject({
       status: SubscriptionStatus.FROZEN,
-      freezeDaysUsed: 10,
+      freezeDaysUsed: { increment: 10 },
     });
   });
 

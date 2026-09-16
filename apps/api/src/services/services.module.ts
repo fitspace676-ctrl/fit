@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { InvoiceModule } from '../billing/invoice.module';
+import { PortalBranchModule } from '../common/portal-branch.module';
 import { GymsModule } from '../gyms/gyms.module';
 import { AdminServicesController } from './admin-services.controller';
 import { AdminServicesService } from './admin-services.service';
@@ -21,7 +22,7 @@ import { ServiceSessionsService } from './service-sessions.service';
  * reads (see `services.service.ts`).
  */
 @Module({
-  imports: [GymsModule, InvoiceModule],
+  imports: [GymsModule, InvoiceModule, PortalBranchModule],
   controllers: [
     AdminServicesController,
     ServicesController,

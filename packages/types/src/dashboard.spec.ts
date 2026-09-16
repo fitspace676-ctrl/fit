@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { dashboardSecondaryKpisSchema, dashboardRecentMemberSchema } from './dashboard';
+import {
+  dashboardOverviewQuerySchema,
+  dashboardSecondaryKpisSchema,
+  dashboardRecentMemberSchema,
+} from './dashboard';
+
+describe('dashboardOverviewQuerySchema', () => {
+  it('carries an optional branch, absent on "all locations"', () => {
+    expect(dashboardOverviewQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(dashboardOverviewQuerySchema.parse({}).locationId).toBeUndefined();
+  });
+
+  // The file's own degradation contract: a stale branch in a bookmarked URL falls
+  // back to every branch rather than 400-ing the dashboard.
+  it('degrades an unusable branch id to all branches', () => {
+    expect(dashboardOverviewQuerySchema.parse({ locationId: '' }).locationId).toBeUndefined();
+  });
+});
 
 describe('dashboardSecondaryKpisSchema', () => {
   it('accepts the six secondary KPI figures', () => {

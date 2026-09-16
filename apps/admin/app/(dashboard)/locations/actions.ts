@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import {
+  LOCATION_IS_DEFAULT_CODE,
+  LOCATION_NOT_ACTIVE_CODE,
   Permission,
   createLocationSchema,
   roleHasPermission,
@@ -16,6 +18,7 @@ import {
   createLocation,
   createUpload,
   deactivateLocation,
+  makeDefaultLocation,
   reactivateLocation,
   updateLocation,
   type SignedUploadResponse,
@@ -42,6 +45,15 @@ function toMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.message === 'LOCATION_NOT_FOUND') {
       return 'That location no longer exists.';
+    }
+    if (error.message === LOCATION_IS_DEFAULT_CODE) {
+      return 'The default branch cannot be deactivated. Make another branch the default first.';
+    }
+    if (error.message === LOCATION_NOT_ACTIVE_CODE) {
+      return 'Only an active branch can be the default. Reactivate it first.';
+    }
+    if (error.message === 'LOCATION_DEFAULT_CONFLICT') {
+      return 'The default branch changed at the same time. Reload and try again.';
     }
     if (error.status === 503) {
       return 'Photo storage is not configured. Save the location without a photo, or try again later.';
@@ -117,6 +129,25 @@ export async function setLocationActiveAction(
     revalidatePath('/locations');
     revalidatePath(`/locations/${id}`);
     return { ok: true, data: { status: location.status } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Make a branch the gym's default. Enforces `LocationWrite` — the same capability
+ * the API route requires — and refreshes the roster + detail caches, since the
+ * flag moves off another branch in the same write.
+ */
+export async function makeDefaultLocationAction(id: string): Promise<ActionResult> {
+  if (!(await requireLocationWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    await makeDefaultLocation(id);
+    revalidatePath('/locations');
+    revalidatePath(`/locations/${id}`);
+    return { ok: true, data: undefined };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

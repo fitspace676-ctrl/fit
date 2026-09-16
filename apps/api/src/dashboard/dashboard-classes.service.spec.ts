@@ -342,3 +342,62 @@ describe('DashboardClassesService.get — the gym clock', () => {
     expect(result.demandByHour[3]?.[21]).toBe(0);
   });
 });
+
+describe('DashboardClassesService.get — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** The `where` a mocked read was issued with. */
+  function whereOf(fn: ReturnType<typeof vi.fn>): Record<string, unknown> {
+    return (fn.mock.calls[0]?.[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {};
+  }
+
+  it('filters occurrences on their own column, plain equality', async () => {
+    const { service, instanceFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    // No `OR locationId IS NULL`: Stage 0 backfilled every `class_instances` row
+    // to its gym's default branch, so equality is complete.
+    expect(whereOf(instanceFindMany).locationId).toBe('loc_1');
+  });
+
+  // A `Booking` has no branch of its own; it inherits the occurrence's. The clause
+  // must go INSIDE the existing `classInstance` filter — a second `classInstance`
+  // key would overwrite the window and silently widen the tab to all time.
+  it('reaches a booking branch through its occurrence, without dropping the window', async () => {
+    const { service, bookingFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    const nested = whereOf(bookingFindMany).classInstance as Record<string, unknown>;
+    expect(nested.locationId).toBe('loc_1');
+    expect(nested.startsAt).toBeDefined();
+  });
+
+  // Inverted by Stage 6, which gave `PtSession` a `locationId`. This series was
+  // the tab's one gym-wide figure for five stages — not because it was hard to
+  // filter but because the model reached a branch through nothing at all, neither
+  // a column nor a relation. The console's "PT sessions are gym-wide." caption is
+  // retired with this assertion: it became false, not merely stale.
+  it('narrows the PT series too, on the branch the hour was delivered at', async () => {
+    const { service, ptFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(whereOf(ptFindMany).locationId).toBe('loc_1');
+    // The column, not the coach's roster and not their base branch: a coach based
+    // at the flagship who covers a Tuesday at the satellite delivered that hour at
+    // the satellite.
+    expect(whereOf(ptFindMany)).not.toHaveProperty('trainer');
+  });
+
+  it('sends no branch clause when no branch is selected', async () => {
+    const { service, instanceFindMany, bookingFindMany, ptFindMany } = setup({});
+
+    await service.get(QUERY);
+
+    expect(whereOf(instanceFindMany)).not.toHaveProperty('locationId');
+    expect(whereOf(bookingFindMany).classInstance).not.toHaveProperty('locationId');
+    expect(whereOf(ptFindMany)).not.toHaveProperty('locationId');
+  });
+});

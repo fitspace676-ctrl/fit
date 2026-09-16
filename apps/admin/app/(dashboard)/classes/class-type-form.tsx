@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { ClassPricingRule, ClassTypeStatus } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import type { RelationOption } from './class-template-form';
 import { createClassTypeAction, updateClassTypeAction } from './class-type-actions';
 
@@ -208,6 +210,8 @@ export type ClassTypeInitial = {
   priceMinor: number | null;
   includedPlanIds: string[];
   status: ClassTypeStatus;
+  /** The one branch the type is exclusive to; `null` is offered at every branch. */
+  locationId: string | null;
 };
 
 type Props = {
@@ -255,8 +259,11 @@ export function ClassTypeForm(props: Props) {
         priceMinor: null,
         includedPlanIds: [],
         status: 'ACTIVE',
+        locationId: null,
       };
 
+  const tCommon = useTranslations('admin.common');
+  const branch = useBranchExclusivity(props.mode, initial.locationId);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [durationMinutes, setDurationMinutes] = useState(String(initial.durationMinutes));
@@ -290,6 +297,7 @@ export function ClassTypeForm(props: Props) {
       priceMinor: pricingRule === 'PAID' ? majorToMinor(price) : null,
       includedPlanIds: pricingRule === 'INCLUDED' ? includedPlanIds : [],
       status,
+      locationId: branch.locationId,
     };
 
     startTransition(async () => {
@@ -464,6 +472,31 @@ export function ClassTypeForm(props: Props) {
           </div>
         ) : null}
       </div>
+
+      {branch.visible ? (
+        <div {...stylex.props(styles.fieldGroup)}>
+          <label htmlFor="ct-branch" {...stylex.props(styles.label)}>
+            {tCommon('branchExclusive')}
+          </label>
+          <select
+            id="ct-branch"
+            value={branch.value}
+            onChange={(e) => branch.setValue(e.target.value)}
+            {...stylex.props(styles.field)}
+          >
+            <option value="">{tCommon('allBranchesOption')}</option>
+            {branch.unlistedId ? (
+              <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
+            ) : null}
+            {branch.locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+          </select>
+          <p {...stylex.props(styles.hint)}>{tCommon('branchExclusiveHint')}</p>
+        </div>
+      ) : null}
 
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="ct-status" {...stylex.props(styles.label)}>

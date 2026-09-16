@@ -5,6 +5,7 @@ import {
   LOYALTY_REWARD_TYPE_CATALOG,
   type AdjustLoyaltyPointsInput,
   type CreateLoyaltyRewardInput,
+  type ListLoyaltyRewardsQuery,
   type ListLoyaltyRewardsResponse,
   type ListRedemptionsQuery,
   type ListRedemptionsResponse,
@@ -27,6 +28,7 @@ import {
   type UpdateLoyaltyProgramInput,
   type UpdateLoyaltyRewardInput,
 } from '@fit/types';
+import { availableAtLocation, memberAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -41,6 +43,10 @@ const REWARD_SELECT = {
   type: true,
   active: true,
   stock: true,
+  locationId: true,
+  // The branch this reward is EXCLUSIVE to, joined for its name only. `null` —
+  // almost every row — means any desk can honour it.
+  location: { select: { name: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.LoyaltyRewardSelect;
@@ -150,8 +156,18 @@ export class LoyaltyService {
   // Rewards catalogue
   // -------------------------------------------------------------------------
 
-  async listRewards(): Promise<ListLoyaltyRewardsResponse> {
+  /**
+   * The rewards catalogue, newest first.
+   *
+   * `query.locationId` narrows to what one branch can HONOUR, and it uses
+   * {@link availableAtLocation} rather than `atLocation`: a NULL
+   * `LoyaltyReward.locationId` means "redeemable at every branch", so plain
+   * equality would return only that branch's exclusives — an empty catalogue for
+   * almost every gym.
+   */
+  async listRewards(query: ListLoyaltyRewardsQuery = {}): Promise<ListLoyaltyRewardsResponse> {
     const rows = await this.prisma.client.loyaltyReward.findMany({
+      where: availableAtLocation(query.locationId),
       orderBy: { createdAt: 'desc' },
       select: REWARD_SELECT,
     });
@@ -168,12 +184,21 @@ export class LoyaltyService {
         type: input.type,
         active: input.active,
         stock: input.stock ?? null,
+        // The branch this reward is EXCLUSIVE to. `null` means every desk can
+        // honour it, and is deliberately NOT seeded from the console's active
+        // branch.
+        locationId: input.locationId,
       },
       select: REWARD_SELECT,
     });
     return this.toRewardRow(created);
   }
 
+  /**
+   * Patch a reward from the catalogue editor. `stock` is the one field here that
+   * is also written by the redemption paths; see the waiver on it for why the
+   * operator's figure is allowed to overwrite them.
+   */
   async updateReward(id: string, input: UpdateLoyaltyRewardInput): Promise<LoyaltyRewardRow> {
     await this.requireReward(id);
     const updated = await this.prisma.client.loyaltyReward.update({
@@ -184,7 +209,33 @@ export class LoyaltyService {
         ...(input.pointsCost !== undefined ? { pointsCost: input.pointsCost } : {}),
         ...(input.type !== undefined ? { type: input.type } : {}),
         ...(input.active !== undefined ? { active: input.active } : {}),
-        ...(input.stock !== undefined ? { stock: input.stock } : {}),
+        ...(input.stock !== undefined
+          ? {
+              // atomic-counter-exempt: an operator restating the catalogue's on-hand
+              // figure ("there are 12 of these"), not a claim derived from a read —
+              // this write is *meant* to override whatever the column currently holds,
+              // which is what stating an absolute figure means. It also cannot be
+              // spelled as a delta at all: `stock` is nullable and `null` means
+              // "unlimited", so the finite ↔ unlimited edits this form must express
+              // have no increment to give.
+              //
+              // The column does have concurrent writers — `redeem` decrements it and
+              // `cancelRedemption` increments it back — so a redemption committing
+              // between the editor's read and this write is overwritten and its unit
+              // given back. That is accepted here, and it is bounded: at most one unit
+              // per collision, only while an operator is actually editing that reward,
+              // and self-correcting at the next recount. Crucially nothing is *derived*
+              // from this column, so the loss cannot make two figures disagree —
+              // redemption history lives in its own `LoyaltyRedemption` rows and is
+              // never recomputed from `stock`. Contrast `ProductStockService.adjust`,
+              // which turns its `setTo` into a delta precisely because a stock ledger
+              // there would disagree.
+              stock: input.stock,
+            }
+          : {}),
+        // An absent key leaves the reward's branch alone; an explicit `null`
+        // widens it back to every branch.
+        ...(input.locationId !== undefined ? { locationId: input.locationId } : {}),
       },
       select: REWARD_SELECT,
     });
@@ -336,6 +387,11 @@ export class LoyaltyService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.type ? { rewardType: query.type } : {}),
       ...(query.memberId ? { memberId: query.memberId } : {}),
+      // A redemption is about a PERSON — whose points were spent — so it follows the
+      // member's home branch, live. An un-homed member's redemptions drop out of every
+      // branch and stay in the gym-wide list. The tenant extension still pins `gymId`,
+      // so another gym's branch id matches no member here and returns an empty page.
+      ...memberAtLocation(query.locationId),
     };
 
     const [rows, total] = await Promise.all([
@@ -607,6 +663,8 @@ export class LoyaltyService {
       type: row.type,
       active: row.active,
       stock: row.stock,
+      locationId: row.locationId,
+      locationName: row.location?.name ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

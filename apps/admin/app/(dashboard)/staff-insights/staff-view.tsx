@@ -48,6 +48,7 @@ import {
   type DashboardStaffResponse,
   type StaffGranularity,
 } from '@fit/types';
+import { useActiveLocation } from '@/components/active-location';
 import { loadStaffAction } from './actions';
 import { StaffKpiStrip } from './staff-kpi-strip';
 import { SessionsTrendCard } from './sessions-trend-card';
@@ -164,6 +165,11 @@ const motion = stylex.create({
 export function StaffView() {
   const t = useTranslations('admin.dashboard.staff');
 
+  // Passed in rather than read inside the action — see `sales/sales-view.tsx`
+  // for the two reasons (a `?locationId=` deep link an action cannot see, and
+  // the cache key below, which has to move when the branch does).
+  const { locationId } = useActiveLocation();
+
   const [granularity, setGranularity] = useState<StaffGranularity>(DEFAULT_STAFF_GRANULARITY);
 
   const cache = useRef(new Map<string, DashboardStaffResponse>());
@@ -172,7 +178,7 @@ export function StaffView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = granularity;
+  const key = `${granularity}:${locationId ?? ''}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -186,7 +192,7 @@ export function StaffView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadStaffAction({ granularity })
+    void loadStaffAction({ granularity, locationId })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -211,7 +217,7 @@ export function StaffView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, attempt, t]);
+  }, [key, granularity, locationId, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new

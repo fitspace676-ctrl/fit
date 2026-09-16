@@ -1,25 +1,41 @@
-// @fit/mobile — the session's active gym scope.
+// @fit/mobile — the gym scope, and the only place a screen may get one.
 //
-// Member-facing reads (classes, bookings) are scoped to one gym. The mobile app
-// has no separate gym-picker yet (that lands with multi-gym Settings, T6.8); the
-// active gym is simply the `gymId` claim baked into the session's access token by
-// the API at sign-in. This hook surfaces it reactively off `useAuth`, so a
-// re-scoped session (a future gym switch re-issuing the token) repaints every
-// consumer with no extra plumbing.
+// Every gym-scoped query key is `[resource, gymId, …]` (WP-3), and switching gym
+// means re-login (D4). So there must be exactly one answer in the app to "which
+// gym am I?", and it must come from the access token's `gymId` claim rather than
+// from a prop, a route param or a remembered slug. A second source is how a key
+// gets built under gym A while the session is gym B, which is a tenant data leak
+// wearing a caching bug's clothes.
+//
+// `null` is a real answer, not an error: a signed-in user with no active gym
+// membership gets a token with no `gymId` claim. Screens branch on it and render
+// their own "no plan" state; the route guard ignores it entirely
+// (`lib/route-policy.ts`).
 
-import { useMemo } from 'react';
-import { decodeSessionClaims } from '../lib/jwt';
-import { useAuth } from './useAuth';
+import { useSyncExternalStore } from 'react';
+import { getActiveGymSnapshot, subscribeSessionState, type ActiveGym } from '../lib/auth/session';
+
+export type { ActiveGym } from '../lib/auth/session';
 
 /**
- * The active gym id for the signed-in session, or `null` when signed out, still
- * hydrating, or on a scopeless platform session (no gym membership). Gate any
- * gym-scoped query on a non-null value.
+ * The gym this session is scoped to, or `null` when signed out, still hydrating,
+ * or signed in with no active membership.
+ *
+ * Reference-stable between session changes, so it is safe in a dependency array
+ * and as a query-key input.
  */
-export function useActiveGymId(): string | null {
-  const { session } = useAuth();
-  return useMemo(
-    () => decodeSessionClaims(session?.accessToken)?.gymId ?? null,
-    [session?.accessToken],
-  );
+export function useActiveGym(): ActiveGym | null {
+  return useSyncExternalStore(subscribeSessionState, getActiveGymSnapshot, getActiveGymSnapshot);
+}
+
+/**
+ * The gym id, or `null`. The value every `queryKeys.*(gymId)` call takes.
+ *
+ * A query whose key needs a gym must be disabled while this is `null` rather
+ * than falling back to a placeholder — `['classes', undefined]` and
+ * `['classes', 'gym_a']` are different cache buckets, and the first one is a
+ * bucket two different tenants can both land in.
+ */
+export function useGymId(): string | null {
+  return useActiveGym()?.gymId ?? null;
 }

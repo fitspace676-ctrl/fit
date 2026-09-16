@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { DEFAULT_LOW_STOCK_THRESHOLD, MAX_LOW_STOCK_THRESHOLD } from '@fit/types';
+import { MAX_LOW_STOCK_THRESHOLD } from '@fit/types';
 import { Icon } from '@/components/ui';
 
 /**
@@ -23,13 +23,6 @@ const THRESHOLD_PRESETS = [3, 5, 10, 20, 30, 50] as const;
  * `.indexOf()` all fail the build here.
  */
 const PRESET_SET: ReadonlySet<number> = new Set(THRESHOLD_PRESETS);
-
-/** The URL for a threshold — the default is the bare page, so it stays shareable. */
-function hrefFor(value: number): string {
-  return value === DEFAULT_LOW_STOCK_THRESHOLD
-    ? '/shop/low-stock'
-    : `/shop/low-stock?threshold=${value}`;
-}
 
 const styles = stylex.create({
   row: {
@@ -132,21 +125,45 @@ const styles = stylex.create({
 });
 
 /**
- * The threshold selector above the low-stock report: one-tap presets plus a
- * custom cushion.
+ * The threshold selector above the low-stock report: the per-line default, one-tap
+ * override presets, and a custom cushion.
  *
  * The presets stay real links, so they prefetch, survive a middle-click and read
  * as navigation — which is what they are; only the custom field needs a client.
  * A threshold that is not a preset (arrived at by typing, or by editing the URL)
  * renders as the custom pill, already active and holding its value, so the row
  * always shows the number the report was actually built with.
+ *
+ * **`null` is the leading option, not a missing value.** Since Stage 4 each
+ * position carries its own cushion (branch → product → gym default), and that is
+ * what the alert list actually wants; a preset here is an explicit "ignore all of
+ * that, show me everything at or below N". The first pill therefore names the
+ * default rather than leaving it as the gap before the numbers.
+ *
+ * Every href is built from the CURRENT search params, so choosing a cushion cannot
+ * drop an explicit `?locationId=` the reader arrived with — the presets used to be
+ * absolute paths, which silently reset any other param on the page.
  */
-export function ThresholdPicker({ threshold }: { threshold: number }) {
+export function ThresholdPicker({ threshold }: { threshold: number | null }) {
   const router = useRouter();
-  const isPreset = PRESET_SET.has(threshold);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isPreset = threshold !== null && PRESET_SET.has(threshold);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(threshold));
+  const [draft, setDraft] = useState(threshold === null ? '' : String(threshold));
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /** The URL for a cushion — `null` (each line's own) is the bare page. */
+  function hrefFor(value: number | null): string {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === null) {
+      params.delete('threshold');
+    } else {
+      params.set('threshold', String(value));
+    }
+    const qs = params.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }
 
   useEffect(() => {
     if (editing) inputRef.current?.select();
@@ -155,7 +172,7 @@ export function ThresholdPicker({ threshold }: { threshold: number }) {
   // The URL is the source of truth for what the report shows, so a navigation —
   // a preset, the back button — discards whatever was half-typed here.
   useEffect(() => {
-    setDraft(String(threshold));
+    setDraft(threshold === null ? '' : String(threshold));
     setEditing(false);
   }, [threshold]);
 
@@ -176,6 +193,14 @@ export function ThresholdPicker({ threshold }: { threshold: number }) {
   return (
     <div {...stylex.props(styles.row)}>
       <span {...stylex.props(styles.label)}>Threshold</span>
+
+      <Link
+        href={hrefFor(null)}
+        aria-current={threshold === null ? 'page' : undefined}
+        {...stylex.props(styles.pill, threshold === null && styles.pillActive)}
+      >
+        Each line’s own
+      </Link>
 
       {THRESHOLD_PRESETS.map((preset) => (
         <Link
@@ -222,10 +247,10 @@ export function ThresholdPicker({ threshold }: { threshold: number }) {
         <button
           type="button"
           onClick={() => setEditing(true)}
-          aria-current={isPreset ? undefined : 'page'}
-          {...stylex.props(styles.pill, !isPreset && styles.pillActive)}
+          aria-current={isPreset || threshold === null ? undefined : 'page'}
+          {...stylex.props(styles.pill, !isPreset && threshold !== null && styles.pillActive)}
         >
-          {isPreset ? 'Custom…' : `≤ ${threshold}`}
+          {isPreset || threshold === null ? 'Custom…' : `≤ ${threshold}`}
         </button>
       )}
     </div>

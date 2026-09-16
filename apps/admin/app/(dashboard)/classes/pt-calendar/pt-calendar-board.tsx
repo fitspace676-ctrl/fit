@@ -410,6 +410,19 @@ function PtSessionDetail({
               </span>
             </div>
             <div {...stylex.props(styles.detailRow)}>
+              <span {...stylex.props(styles.detailLabel)}>{t('session.branch')}</span>
+              {/*
+                The door this hour was booked at, and a dash when the session has
+                none — never a blank line, which reads as a row that failed to
+                render. Unattributed is a real state: Stage 6 gives a PT session the
+                branch it was created with, or the coach's branch when they are
+                rostered at exactly one, and otherwise leaves it null rather than
+                inventing a room. Only reachable in all-branches mode, since a
+                filtered week matches by equality.
+              */}
+              <span {...stylex.props(styles.detailValue)}>{session.locationName ?? '-'}</span>
+            </div>
+            <div {...stylex.props(styles.detailRow)}>
               <span {...stylex.props(styles.detailLabel)}>{t('session.status')}</span>
               <span>
                 <Badge tone={STATUS_TONES[session.status]} label={t(`status.${session.status}`)} />

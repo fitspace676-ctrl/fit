@@ -38,6 +38,7 @@ import {
   productVariantsSchema,
   type ProductVariant,
   AUDIT_ACTION_LABELS,
+  isGymWideReport,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -56,6 +57,8 @@ import {
 import { addZonedDays, zonedDayStart, zonedParts } from './zoned-time.util';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { OPENING_COUNT_NOTE } from '../products/admin-products.service';
+import { parseBranchCounts } from '../products/order-stock';
+import { atLocation, memberAtLocation } from '../common/location-filter.util';
 import {
   localizeColumns,
   localizeDefinition,
@@ -104,6 +107,34 @@ interface ComputedReport {
  * is NOT in its model set (see `check-in.service.ts`), so the check-in log pins
  * `gymId` from {@link TenantContext} by hand — forgetting that would read every
  * gym's visits.
+ *
+ * ## The branch filter
+ *
+ * `ReportQuery.locationId` narrows a report to one branch; absent, every read
+ * issues exactly the query it would without the feature. Each report reads the
+ * branch its own ROWS can answer for - the rule in `common/location-filter.util.ts`,
+ * applied per read rather than per model:
+ *
+ *   - ORDER-backed (sales, till log, reconciliation, revenue, refunds, product
+ *     sales) - the branch that rang the sale up: `Payment` / `Refund` / `Order`.
+ *   - CLASS-backed (attendance, utilisation, cancellations, waitlist, no-shows) -
+ *     `ClassInstance.locationId`, reached through the instance by bookings.
+ *   - MEMBER-backed (roster, movement, retention, at-risk, expiries, occasions,
+ *     projected revenue, credit packs) - the member's home branch: on the
+ *     `GymMember` row, through `member` for `Subscription` and `CreditPack`.
+ *     Outstanding invoices read the frozen `Invoice.locationId` instead.
+ *   - VISIT-backed (the check-in log) - `CheckIn.locationId`, the door walked into.
+ *   - DELIVERY-backed (PT sessions, trainer activity and performance, PT sales,
+ *     the shift schedule, stock movements) - where the hour, the shift or the
+ *     movement happened: `PtSession` / `ServiceSession` / `ShiftSlot` /
+ *     `StockMovement`. `stock-inventory` reads the branch's own `ProductStock`.
+ *
+ * Never two attributions inside one figure. `revenue-summary` carries both rules,
+ * but in separate COLUMNS - the takings flow follows the till, the MRR stock
+ * follows the member - never added together.
+ *
+ * `GYM_WIDE_REPORT_KEYS` (`@fit/types`) are the reports whose data cannot answer
+ * "which branch". They never receive the branch, and the console says so.
  */
 @Injectable()
 export class ReportsService {
@@ -159,7 +190,12 @@ export class ReportsService {
     query: ReportQuery,
     lang: ReportLocale | null = null,
   ): Promise<ReportResult> {
-    const computed = await this.computeReport(key, reportWindowInput(query), lang);
+    const computed = await this.computeReport(
+      key,
+      reportWindowInput(query),
+      lang,
+      query.locationId,
+    );
     return {
       key,
       name: computed.name,
@@ -205,7 +241,12 @@ export class ReportsService {
     query: ReportQuery,
     lang: ReportLocale | null = null,
   ): AsyncGenerator<string> {
-    const { columns, rows } = await this.computeReport(key, reportWindowInput(query), lang);
+    const { columns, rows } = await this.computeReport(
+      key,
+      reportWindowInput(query),
+      lang,
+      query.locationId,
+    );
     yield `${columns.map((column) => csvCell(column.label)).join(',')}\r\n`;
     for (const row of rows) {
       yield `${reportCsvRow(columns, row).map(csvCell).join(',')}\r\n`;
@@ -223,7 +264,12 @@ export class ReportsService {
     query: ReportQuery,
     lang: ReportLocale | null = null,
   ): Promise<Buffer> {
-    const { name, columns, rows } = await this.computeReport(key, reportWindowInput(query), lang);
+    const { name, columns, rows } = await this.computeReport(
+      key,
+      reportWindowInput(query),
+      lang,
+      query.locationId,
+    );
     const headers = columns.map((column) => column.label);
     const cells = rows.map((row) => reportXlsxRow(columns, row));
     return buildReportWorkbook(name, headers, cells);
@@ -238,6 +284,7 @@ export class ReportsService {
     key: ReportKey,
     input: ReportWindowInput,
     lang: ReportLocale | null,
+    locationId?: string,
   ): Promise<ComputedReport> {
     // The gym's own zone, for the same reason the dashboard passes it: "today"
     // and "this month" are calendar questions, and UTC answers them wrong for
@@ -248,7 +295,7 @@ export class ReportsService {
     // interface language); the gym's own otherwise (a scheduled export, the digest).
     const language = lang ?? resolveEmailLocale(locale.language);
     const s = reportStrings(language);
-    const computed = await this.computeRows(key, win, s);
+    const computed = await this.computeRows(key, win, s, locationId);
     return {
       ...computed,
       name: s.catalogue[key].name,
@@ -266,42 +313,47 @@ export class ReportsService {
     key: ReportKey,
     win: ReportWindow,
     s: ReportStrings,
+    requested: string | undefined,
   ): Promise<Omit<ComputedReport, 'window'>> {
     const definition = REPORT_DEFINITIONS[key];
+    // Resolved once, here: a gym-wide report never sees the branch, so no later
+    // edit inside its method can start filtering it on a proxy by accident.
+    const locationId = isGymWideReport(key) ? undefined : requested;
 
     switch (key) {
       /* ---- Sales -------------------------------------------------------- */
       case 'sales-summary': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.salesSummary(win),
+          this.salesSummary(win, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'sales-by-payment-method': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.salesByPaymentMethod(win, s),
+          this.salesByPaymentMethod(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'plan-performance': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.planPerformance(win, s),
+          this.planPerformance(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'sales-by-staff': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.salesByStaff(win, s),
+          this.salesByStaff(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'discounts-and-promotions': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
+          // Gym-wide under every branch: see GYM_WIDE_REPORTS below.
           this.discountsAndPromotions(win),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
@@ -309,28 +361,28 @@ export class ReportsService {
       case 'refunds-detail': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.refundsDetail(win, s),
+          this.refundsDetail(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'sales-transactions': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.salesTransactions(win, s),
+          this.salesTransactions(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'daily-reconciliation': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.dailyReconciliation(win),
+          this.dailyReconciliation(win, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'pos-transaction-log': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.posTransactionLog(win, s),
+          this.posTransactionLog(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -339,49 +391,49 @@ export class ReportsService {
       case 'revenue-summary': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.revenueSummary(win),
+          this.revenueSummary(win, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'revenue-by-location': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.revenueByLocation(win, s),
+          this.revenueByLocation(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'revenue-by-payment-method': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.revenueByPaymentMethod(win, s),
+          this.revenueByPaymentMethod(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'outstanding-invoices': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.outstandingInvoices(win, s),
+          this.outstandingInvoices(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'projected-revenue': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.projectedRevenue(win, s),
+          this.projectedRevenue(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'refunds-accounting': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.refundsAccounting(win),
+          this.refundsAccounting(win, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'revenue-by-channel': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.revenueByChannel(win),
+          this.revenueByChannel(win, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -389,28 +441,28 @@ export class ReportsService {
       case 'product-sales': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.productSales(win, s),
+          this.productSales(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'product-sales-detail': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.productSalesDetail(win, s),
+          this.productSalesDetail(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'stock-inventory': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.stockInventory(s),
+          this.stockInventory(s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'stock-movements': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.stockMovements(win, s),
+          this.stockMovements(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -419,81 +471,84 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.attendanceByClass(win, s),
+          rows: await this.attendanceByClass(win, s, locationId),
         };
       case 'class-utilization':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.classUtilization(win, s),
+          rows: await this.classUtilization(win, s, locationId),
         };
       case 'class-cancellations':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.classCancellations(win, s),
+          rows: await this.classCancellations(win, s, locationId),
         };
       case 'waitlist-demand':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.waitlistDemand(win, s),
+          rows: await this.waitlistDemand(win, s, locationId),
         };
       case 'pt-sessions':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.ptSessions(win, s),
+          rows: await this.ptSessions(win, s, locationId),
         };
 
       /* ---- Trainers & staff ---------------------------------------------- */
       case 'credit-usage': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.creditUsage(win, s),
+          this.creditUsage(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'trainer-sales': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.trainerSales(win, s),
+          this.trainerSales(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'trainer-sales-detail': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.trainerSalesDetail(win, s),
+          this.trainerSalesDetail(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'staff-schedule': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.staffSchedule(win, s),
+          this.staffSchedule(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'audit-log': {
-        const [currency, rows] = await Promise.all([this.resolveCurrency(), this.auditLog(win, s)]);
+        const [currency, rows] = await Promise.all([
+          this.resolveCurrency(), // Gym-wide: see GYM_WIDE_REPORTS.
+          this.auditLog(win, s),
+        ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'trainer-activity': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.trainerActivity(win, s),
+          this.trainerActivity(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
       case 'trainer-activity-detail': {
         const [currency, rows] = await Promise.all([
           this.resolveCurrency(),
-          this.trainerActivityDetail(win, s),
+          this.trainerActivityDetail(win, s, locationId),
         ]);
         return { name: definition.name, currency, columns: definition.columns, rows };
       }
@@ -502,7 +557,7 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.trainerPerformance(win, s),
+          rows: await this.trainerPerformance(win, s, locationId),
         };
       /* ---- Members ------------------------------------------------------- */
       case 'membership-movement':
@@ -510,56 +565,56 @@ export class ReportsService {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.membershipMovement(win),
+          rows: await this.membershipMovement(win, locationId),
         };
       case 'retention-and-churn':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.retentionAndChurn(win),
+          rows: await this.retentionAndChurn(win, locationId),
         };
       case 'members-at-risk':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.membersAtRisk(win, s),
+          rows: await this.membersAtRisk(win, s, locationId),
         };
       case 'expiring-memberships':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.expiringMemberships(win, s),
+          rows: await this.expiringMemberships(win, s, locationId),
         };
       case 'member-roster':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.memberRoster(win, s),
+          rows: await this.memberRoster(win, s, locationId),
         };
       case 'member-check-in-log':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.memberCheckInLog(win, s),
+          rows: await this.memberCheckInLog(win, s, locationId),
         };
       case 'upcoming-occasions':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.upcomingOccasions(win, s),
+          rows: await this.upcomingOccasions(win, s, locationId),
         };
       case 'no-show-rate':
         return {
           name: definition.name,
           currency: await this.resolveCurrency(),
           columns: definition.columns,
-          rows: await this.noShowRate(win, s),
+          rows: await this.noShowRate(win, s, locationId),
         };
     }
   }
@@ -598,14 +653,18 @@ export class ReportsService {
    * catalogue's other reports, where an absent SLICE (a channel, a trainer) is
    * omitted rather than invented.
    */
-  private async salesSummary(win: ReportWindow): Promise<ReportRow[]> {
+  private async salesSummary(win: ReportWindow, locationId?: string): Promise<ReportRow[]> {
     const [payments, refunds] = await Promise.all([
       this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        where: {
+          status: PaymentStatus.CAPTURED,
+          createdAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
+        },
         select: { amount: true, createdAt: true },
       }),
       this.prisma.client.refund.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end } },
+        where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: { amount: true, createdAt: true },
       }),
     ]);
@@ -645,10 +704,18 @@ export class ReportsService {
    * the till writes, so this groups in the database. A method nobody used in the
    * window is absent rather than shown as a zero row.
    */
-  private async salesByPaymentMethod(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async salesByPaymentMethod(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const grouped = await this.prisma.client.payment.groupBy({
       by: ['method'],
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       _sum: { amount: true, refundedAmount: true },
       _count: { _all: true },
     });
@@ -676,10 +743,15 @@ export class ReportsService {
    * label would answer a different question than the one asked; the POS
    * transaction log is where line-item retail lives.
    */
-  private async planPerformance(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async planPerformance(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const orders = await this.prisma.client.order.findMany({
       where: {
         createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
         payment: { is: { status: PaymentStatus.CAPTURED } },
       },
       select: {
@@ -815,10 +887,15 @@ export class ReportsService {
    * purchase lands there, as does every till sale rung before the attribution
    * existed, and hiding them would make the rows fail to add up to the gym's total.
    */
-  private async salesByStaff(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async salesByStaff(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const orders = await this.prisma.client.order.findMany({
       where: {
         createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
         payment: { is: { status: PaymentStatus.CAPTURED } },
       },
       select: {
@@ -865,6 +942,10 @@ export class ReportsService {
    * {@link PromoRedemption} ledger rather than `PromoCode.usedCount`, because that
    * counter is a lifetime running total and cannot be windowed — and because the
    * ledger is the only place the discounted AMOUNT is recorded.
+   *
+   * GYM-WIDE under every branch filter (`GYM_WIDE_REPORT_KEYS`): a redemption has
+   * no branch, no order relation to hop through, and no member for a walk-in. An
+   * empty table here would read as "this branch gave nothing away".
    */
   private async discountsAndPromotions(win: ReportWindow): Promise<ReportRow[]> {
     const redemptions = await this.prisma.client.promoRedemption.findMany({
@@ -904,9 +985,13 @@ export class ReportsService {
    * `REFUNDED` status event, which is written only once a capture is fully
    * reversed and so names nobody for a partial refund.
    */
-  private async refundsDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async refundsDetail(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const refunds = await this.prisma.client.refund.findMany({
-      where: { createdAt: { gte: win.start, lt: win.end } },
+      where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
       select: {
         createdAt: true,
         orderId: true,
@@ -954,10 +1039,15 @@ export class ReportsService {
    * Scoped to `pos`-provider payments, the same test the order roster's POS filter
    * uses, so "what the till sold" means one thing across the console.
    */
-  private async posTransactionLog(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async posTransactionLog(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const orders = await this.prisma.client.order.findMany({
       where: {
         createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
         payment: { is: { provider: POS_PROVIDER } },
       },
       select: {
@@ -1000,16 +1090,20 @@ export class ReportsService {
    * account balance today, any method the till learns later) is "other", so
    * the five method columns always add up to the day's total.
    */
-  private async dailyReconciliation(win: ReportWindow): Promise<ReportRow[]> {
+  private async dailyReconciliation(win: ReportWindow, locationId?: string): Promise<ReportRow[]> {
     const days: ReportWindow = { ...win, bucket: 'day' };
     const [payments, refunds] = await Promise.all([
       this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        where: {
+          status: PaymentStatus.CAPTURED,
+          createdAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
+        },
         select: { amount: true, createdAt: true, method: true, provider: true, orderId: true },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.client.refund.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end } },
+        where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: { amount: true, createdAt: true },
       }),
     ]);
@@ -1093,9 +1187,13 @@ export class ReportsService {
    * but not all of it reads "partially refunded" - `OrderStatus` has no such
    * state, and "paid" would hide the refund.
    */
-  private async salesTransactions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async salesTransactions(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const orders = await this.prisma.client.order.findMany({
-      where: { createdAt: { gte: win.start, lt: win.end } },
+      where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
       select: {
         id: true,
         createdAt: true,
@@ -1208,10 +1306,15 @@ export class ReportsService {
   }
 
   /** Every product line sold in the window, resolved to its product and variant. */
-  private async soldProductLines(win: ReportWindow, s: ReportStrings): Promise<SoldLine[]> {
+  private async soldProductLines(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<SoldLine[]> {
     const orders = await this.prisma.client.order.findMany({
       where: {
         createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
         payment: { is: { status: PaymentStatus.CAPTURED } },
       },
       select: {
@@ -1271,8 +1374,12 @@ export class ReportsService {
    * quantity; a product with no cost on file reads null for cost and margin
    * rather than a margin of 100%.
    */
-  private async productSales(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
-    const lines = await this.soldProductLines(win, s);
+  private async productSales(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
+    const lines = await this.soldProductLines(win, s, locationId);
     interface Entry {
       product: string;
       variant: string;
@@ -1335,8 +1442,12 @@ export class ReportsService {
   }
 
   /** Every product line sold in the window, one row each, oldest first. */
-  private async productSalesDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
-    const lines = await this.soldProductLines(win, s);
+  private async productSalesDetail(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
+    const lines = await this.soldProductLines(win, s, locationId);
     return lines.map((line) => ({
       date: isoDate(line.order.createdAt, win.zone),
       time: clockTime(line.order.createdAt, win.zone),
@@ -1361,11 +1472,23 @@ export class ReportsService {
 
   /**
    * Every stock position - a product's base count, or each of its variants -
-   * with its value and a status against the product's own low-stock threshold.
-   * Stock is held per product, not per branch, so there is no location column.
-   * A snapshot: the reporting window does not apply.
+   * with its value and a status against its low-stock threshold. A snapshot:
+   * the reporting window does not apply.
+   *
+   * BRANCH-AWARE through {@link ProductStock}, the per-branch shelf Stage 4 made
+   * the source of truth. Inventory AGGREGATES rather than expands - the Stage 4
+   * decision the product console already follows: one row per position in both
+   * modes, carrying the selected branch's count and its own cushion (branch, then
+   * product) when a branch is set, and the gym-wide roll-up `Product.stock` has
+   * always meant when not. So there is still no location column.
+   *
+   * A product with NO row at the selected branch reads "not tracked", never zero:
+   * nothing was counted there, which is a different claim from "somebody counted
+   * and found none" (`branchPositionStock` in the product service reads it the
+   * same way). The product list itself is not narrowed by `Product.locationId`:
+   * that column says where a product is OFFERED, not where its units are.
    */
-  private async stockInventory(s: ReportStrings): Promise<ReportRow[]> {
+  private async stockInventory(s: ReportStrings, locationId?: string): Promise<ReportRow[]> {
     const rows = await this.prisma.client.product.findMany({
       select: {
         id: true,
@@ -1380,24 +1503,54 @@ export class ReportsService {
       orderBy: { name: 'asc' },
       take: DETAIL_ROW_LIMIT,
     });
+    const holdings = new Map<
+      string,
+      { stock: number | null; variants: number[]; lowStockThreshold: number | null }
+    >();
+    if (locationId !== undefined && rows.length > 0) {
+      const held = await this.prisma.client.productStock.findMany({
+        where: { locationId, productId: { in: rows.map((row) => row.id) } },
+        select: { productId: true, stock: true, variants: true, lowStockThreshold: true },
+      });
+      for (const entry of held) {
+        holdings.set(entry.productId, {
+          stock: entry.stock,
+          variants: parseBranchCounts(entry.variants),
+          lowStockThreshold: entry.lowStockThreshold,
+        });
+      }
+    }
     const out: ReportRow[] = [];
     for (const row of rows) {
       const product = toProductRecord(row);
+      const holding = holdings.get(product.id);
+      // One position's count: the gym roll-up with no branch; with one, that
+      // branch's shelf - `null` when the branch has no row for this product, and
+      // a real `0` for a variant slot the branch row has not grown to yet.
+      const onHand = (variantIndex: number | null, gymWide: number | null): number | null => {
+        if (locationId === undefined) return gymWide;
+        if (!holding) return null;
+        return variantIndex === null ? holding.stock : (holding.variants[variantIndex] ?? 0);
+      };
+      const threshold =
+        locationId === undefined
+          ? product.lowStockThreshold
+          : (holding?.lowStockThreshold ?? product.lowStockThreshold);
       const positions: Array<{ variant: string; sku: string; stock: number | null }> =
         product.variants.length > 0
-          ? product.variants.map((variant) => ({
+          ? product.variants.map((variant, index) => ({
               variant: variant.name,
               sku: variant.sku,
-              stock: variant.stock,
+              stock: onHand(index, variant.stock),
             }))
-          : [{ variant: '', sku: '', stock: product.stock }];
+          : [{ variant: '', sku: '', stock: onHand(null, product.stock) }];
       for (const position of positions) {
         const status =
           position.stock === null
             ? 'notTracked'
             : position.stock === 0
               ? 'outOfStock'
-              : product.lowStockThreshold !== null && position.stock <= product.lowStockThreshold
+              : threshold !== null && position.stock <= threshold
                 ? 'lowStock'
                 : 'inStock';
         out.push({
@@ -1410,7 +1563,7 @@ export class ReportsService {
             position.stock === null || product.costAmount === null
               ? null
               : position.stock * product.costAmount,
-          threshold: product.lowStockThreshold,
+          threshold,
           status: s.values.stockStatuses[status] ?? status,
         });
       }
@@ -1431,9 +1584,13 @@ export class ReportsService {
    * Actors are looked up by their bare user id, as the console's own ledger view
    * does: a movement outlives the staff member who made it.
    */
-  private async stockMovements(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async stockMovements(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const movements = await this.prisma.client.stockMovement.findMany({
-      where: { createdAt: { gte: win.start, lt: win.end } },
+      where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
       select: {
         createdAt: true,
         variantIndex: true,
@@ -1544,17 +1701,24 @@ export class ReportsService {
    * `arpm` is that base divided by the members carrying it — the recurring average,
    * not the period's takings per head, which would swing with every retail sale.
    */
-  private async revenueSummary(win: ReportWindow): Promise<ReportRow[]> {
+  private async revenueSummary(win: ReportWindow, locationId?: string): Promise<ReportRow[]> {
     const [payments, refunds, subscriptions] = await Promise.all([
       this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        where: {
+          status: PaymentStatus.CAPTURED,
+          createdAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
+        },
         select: { amount: true, createdAt: true },
       }),
       this.prisma.client.refund.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end } },
+        where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: { amount: true, createdAt: true },
       }),
       this.prisma.client.subscription.findMany({
+        // The recurring STOCK follows the member's home branch, live; the FLOW
+        // above follows the till. Two columns, two rules, never summed.
+        where: memberAtLocation(locationId),
         select: {
           memberId: true,
           priceAmount: true,
@@ -1612,19 +1776,33 @@ export class ReportsService {
    * when the branch really belongs to the gym, so a silent omission would make the
    * rows fail to add up to the gym's own total.
    */
-  private async revenueByLocation(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async revenueByLocation(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const payments = await this.prisma.client.payment.findMany({
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       select: {
         amount: true,
         refundedAmount: true,
-        order: { select: { location: { select: { name: true } } } },
+        // The payment's OWN branch, not a hop through the order. Stage 5
+        // denormalised `order.locationId` onto the payment row precisely so this
+        // aggregate could be one equality on an indexed column; reading it through
+        // the relation plans as a join plus a heap filter and cannot use the index.
+        // The two answer identically — the copy is stamped from the order at write
+        // time and nothing moves a payment between branches afterwards.
+        location: { select: { name: true } },
       },
     });
 
     const byLocation = new Map<string, { orders: number; gross: number; refunded: number }>();
     for (const payment of payments) {
-      const name = payment.order?.location?.name ?? s.values.noLocation;
+      const name = payment.location?.name ?? s.values.noLocation;
       const entry = byLocation.get(name) ?? { orders: 0, gross: 0, refunded: 0 };
       entry.orders += 1;
       entry.gross += payment.amount;
@@ -1655,11 +1833,20 @@ export class ReportsService {
    * Ignores the reporting window: a debt from four months ago is exactly the one
    * worth chasing, and windowing it away would hide the worst rows.
    */
-  private async outstandingInvoices(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async outstandingInvoices(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     // Issued in the window, OR still owed whenever it was issued: an obligation
     // does not stop being one because the month rolled over.
     const invoices = await this.prisma.client.invoice.findMany({
       where: {
+        // The invoice's OWN branch, frozen at issue from its member's home branch.
+        // Never the order: this set mixes subscription invoices (no order) with
+        // sales, and one rule has to cover every row or `outstanding` means
+        // something different row by row.
+        ...atLocation(locationId),
         OR: [
           { issuedAt: { gte: win.start, lt: win.end } },
           { status: { in: [InvoiceStatus.PENDING, InvoiceStatus.FAILED] } },
@@ -1758,11 +1945,15 @@ export class ReportsService {
    * not renew (cancelling at period end, or a trial) has no next charge and
    * nothing expected, but still recurs today, so it still counts toward MRR.
    */
-  private async projectedRevenue(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async projectedRevenue(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const now = new Date();
     const forward = forwardWindow(win, now);
     const subscriptions = await this.prisma.client.subscription.findMany({
-      where: { status: { in: [...LIVE_SUB_STATUSES] } },
+      where: { status: { in: [...LIVE_SUB_STATUSES] }, ...memberAtLocation(locationId) },
       select: {
         status: true,
         priceAmount: true,
@@ -1831,9 +2022,17 @@ export class ReportsService {
    * account balance today). The same classification the daily reconciliation
    * uses, so the two agree on what "online" and "other" mean.
    */
-  private async revenueByPaymentMethod(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async revenueByPaymentMethod(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const payments = await this.prisma.client.payment.findMany({
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       select: {
         amount: true,
         refundedAmount: true,
@@ -1893,14 +2092,18 @@ export class ReportsService {
    * report's own description rather than left for a reader to infer from a column
    * that is always zero.
    */
-  private async refundsAccounting(win: ReportWindow): Promise<ReportRow[]> {
+  private async refundsAccounting(win: ReportWindow, locationId?: string): Promise<ReportRow[]> {
     const [payments, refunds] = await Promise.all([
       this.prisma.client.payment.findMany({
-        where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+        where: {
+          status: PaymentStatus.CAPTURED,
+          createdAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
+        },
         select: { amount: true, createdAt: true },
       }),
       this.prisma.client.refund.findMany({
-        where: { createdAt: { gte: win.start, lt: win.end } },
+        where: { createdAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: { amount: true, createdAt: true },
       }),
     ]);
@@ -1944,10 +2147,14 @@ export class ReportsService {
    * (gross − refunded, all MINOR units). A channel with no captured rows is omitted
    * rather than shown as a fabricated zero.
    */
-  private async revenueByChannel(win: ReportWindow): Promise<ReportRow[]> {
+  private async revenueByChannel(win: ReportWindow, locationId?: string): Promise<ReportRow[]> {
     const grouped = await this.prisma.client.payment.groupBy({
       by: ['provider'],
-      where: { status: PaymentStatus.CAPTURED, createdAt: { gte: win.start, lt: win.end } },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        createdAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
+      },
       _sum: { amount: true, refundedAmount: true },
       _count: { _all: true },
     });
@@ -2002,10 +2209,15 @@ export class ReportsService {
    * Cancelled sessions are excluded from both sides: a class that never ran offered
    * no seats, and counting its capacity would report the gym as emptier than it was.
    */
-  private async classUtilization(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async classUtilization(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const instances = await this.prisma.client.classInstance.findMany({
       where: {
         startsAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
         status: { not: InstanceStatus.CANCELED },
       },
       select: {
@@ -2068,10 +2280,15 @@ export class ReportsService {
    * `WAITLIST` is a real booking status the booking flow writes, so these are people
    * who actually asked and were refused, not an estimate of demand.
    */
-  private async waitlistDemand(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async waitlistDemand(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const instances = await this.prisma.client.classInstance.findMany({
       where: {
         startsAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
         status: { not: InstanceStatus.CANCELED },
       },
       select: {
@@ -2143,10 +2360,15 @@ export class ReportsService {
    * bookings were cancelled by the gym, not the member, and a utilisation
    * figure for a class that did not run would say the wrong thing.
    */
-  private async attendanceByClass(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async attendanceByClass(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const instances = await this.prisma.client.classInstance.findMany({
       where: {
         startsAt: { gte: win.start, lt: win.end },
+        ...atLocation(locationId),
         status: { not: InstanceStatus.CANCELED },
       },
       select: {
@@ -2217,11 +2439,17 @@ export class ReportsService {
    * check-in by that member from two hours before the class to its end. The
    * time a booking was cancelled is not recorded - only that it was.
    */
-  private async classCancellations(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async classCancellations(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const lead = 2 * 60 * 60 * 1000;
     const [bookings, checkIns] = await Promise.all([
       this.prisma.client.booking.findMany({
-        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        where: {
+          classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        },
         select: {
           status: true,
           createdAt: true,
@@ -2251,6 +2479,8 @@ export class ReportsService {
         take: DETAIL_ROW_LIMIT,
       }),
       // `CheckIn` sits outside the tenant extension, so the gym is pinned by hand.
+      // Not narrowed by branch: "checked in" asks whether this member was seen
+      // around the class, and the booking already carries the class's branch.
       this.prisma.client.checkIn.findMany({
         where: {
           gymId: this.tenant.gymId,
@@ -2296,12 +2526,22 @@ export class ReportsService {
    * raised) and the trainer calendar's own sessions (which carry the trainer
    * and the time, and nothing about who or how much). Neither is tied to a
    * credit pack, so there is no package column yet.
+   *
+   * COACHING-BACKED: both sources narrow by the branch the hour was DELIVERED at
+   * (`ServiceSession.locationId`, `PtSession.locationId`, Stage 6), never by the
+   * coach's base branch - a flagship coach covering a satellite shift delivered
+   * that hour at the satellite. The location column prints the same relation.
    */
-  private async ptSessions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async ptSessions(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const [booked, scheduled] = await Promise.all([
       this.prisma.client.serviceSession.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           service: { type: ServiceType.PERSONAL_TRAINING },
         },
         select: {
@@ -2316,12 +2556,19 @@ export class ReportsService {
           },
           service: { select: { name: true } },
           invoice: { select: { amount: true } },
+          location: { select: { name: true } },
         },
         take: DETAIL_ROW_LIMIT,
       }),
       this.prisma.client.ptSession.findMany({
-        where: { startsAt: { gte: win.start, lt: win.end } },
-        select: { startsAt: true, endsAt: true, status: true, trainer: { select: { name: true } } },
+        where: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        select: {
+          startsAt: true,
+          endsAt: true,
+          status: true,
+          trainer: { select: { name: true } },
+          location: { select: { name: true } },
+        },
         take: DETAIL_ROW_LIMIT,
       }),
     ]);
@@ -2332,6 +2579,7 @@ export class ReportsService {
         row: {
           member: session.member ? memberName(session.member, s.values.unknownMember) : '',
           trainer: staffName(session.staff, s.values.unassigned),
+          location: session.location?.name ?? '',
           status: s.values.sessionStatuses[session.status] ?? session.status,
           duration: minutes(session.startsAt, session.endsAt),
           value: session.invoice?.amount ?? null,
@@ -2342,6 +2590,7 @@ export class ReportsService {
         row: {
           member: '',
           trainer: session.trainer?.name ?? s.values.unassigned,
+          location: session.location?.name ?? '',
           status: s.values.sessionStatuses[session.status] ?? session.status,
           duration: minutes(session.startsAt, session.endsAt),
           value: null,
@@ -2355,7 +2604,7 @@ export class ReportsService {
         time: clockTime(at, win.zone),
         member: row.member,
         trainer: row.trainer,
-        location: '',
+        location: row.location,
         status: row.status,
         duration: row.duration,
         value: row.value,
@@ -2368,8 +2617,13 @@ export class ReportsService {
    * the window does not apply. A pack with nothing left reads "used up" ahead
    * of its own status, because that is the fact the desk acts on.
    */
-  private async creditUsage(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async creditUsage(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const packs = await this.prisma.client.creditPack.findMany({
+      where: memberAtLocation(locationId),
       select: {
         name: true,
         totalCredits: true,
@@ -2419,12 +2673,23 @@ export class ReportsService {
    * session pack sold at the till goes to the staff member who SOLD it (a pack
    * is not tied to a trainer), a booked PT slot to the trainer who DELIVERS it
    * (the service session carries its staff and its invoice).
+   *
+   * Under a branch filter each line keeps the attribution of its own EVENT: a pack
+   * belongs to the till that rang it up (`Order.locationId`), a booked slot to the
+   * door it runs at (`ServiceSession.locationId`). Both are places, and each line
+   * prints its branch in the location column the summary groups by, so a filtered
+   * table never adds a person-attributed figure to a place-attributed one.
    */
-  private async ptSales(win: ReportWindow, s: ReportStrings): Promise<PtSaleLine[]> {
+  private async ptSales(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<PtSaleLine[]> {
     const [orders, sessions] = await Promise.all([
       this.prisma.client.order.findMany({
         where: {
           createdAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           soldById: { not: null },
           payment: { is: { status: PaymentStatus.CAPTURED } },
           package: {
@@ -2450,6 +2715,7 @@ export class ReportsService {
       this.prisma.client.serviceSession.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           service: { type: ServiceType.PERSONAL_TRAINING },
           invoice: { isNot: null },
         },
@@ -2463,6 +2729,7 @@ export class ReportsService {
           },
           service: { select: { name: true } },
           invoice: { select: { amount: true } },
+          location: { select: { name: true } },
         },
         take: DETAIL_ROW_LIMIT,
       }),
@@ -2500,15 +2767,19 @@ export class ReportsService {
         package: session.service.name,
         sessions: 1,
         amount: session.invoice?.amount ?? 0,
-        location: '',
+        location: session.location?.name ?? '',
       });
     }
     return lines.sort((a, b) => a.at.getTime() - b.at.getTime());
   }
 
   /** PT sales per trainer and branch - see {@link ptSales} for the attribution rule. */
-  private async trainerSales(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
-    const lines = await this.ptSales(win, s);
+  private async trainerSales(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
+    const lines = await this.ptSales(win, s, locationId);
     interface Entry {
       trainer: string;
       packagesSold: number;
@@ -2537,8 +2808,12 @@ export class ReportsService {
   }
 
   /** Every PT sale, one row each, oldest first - see {@link ptSales}. */
-  private async trainerSalesDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
-    const lines = await this.ptSales(win, s);
+  private async trainerSalesDetail(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
+    const lines = await this.ptSales(win, s, locationId);
     return lines.map((line) => ({
       date: isoDate(line.at, win.zone),
       trainer: line.trainer,
@@ -2552,17 +2827,28 @@ export class ReportsService {
 
   /**
    * Scheduled working time: the weekly shift pattern, projected onto every day
-   * of the window it falls on - the only schedule the product keeps. A shift's
-   * location is the free text the rota editor holds, not a branch record.
+   * of the window it falls on - the only schedule the product keeps.
+   *
+   * The branch column reads the RELATION first and the legacy free text only as a
+   * fallback. Stage 6 turned `ShiftSlot.location` from a typed-in string into a real
+   * {@link Location} FK and renamed the string to `locationName`; what survives in
+   * that string is exactly the residual class the migration could not resolve — a
+   * typo, a room, a closed site — which is still the only record of where the shift
+   * was, and so is still worth printing when no branch is attached.
    */
-  private async staffSchedule(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async staffSchedule(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const slots = await this.prisma.client.shiftSlot.findMany({
-      where: { staff: { deletedAt: null } },
+      where: { staff: { deletedAt: null }, ...atLocation(locationId) },
       select: {
         dayOfWeek: true,
         startTime: true,
         endTime: true,
-        location: true,
+        locationName: true,
+        location: { select: { name: true } },
         staff: {
           select: {
             firstName: true,
@@ -2590,7 +2876,7 @@ export class ReportsService {
           date: day,
           start: slot.startTime,
           end: slot.endTime,
-          location: slot.location ?? '',
+          location: slot.location?.name ?? slot.locationName ?? '',
         });
       }
     }
@@ -2608,6 +2894,9 @@ export class ReportsService {
    * recorded them. The trail is written by the platform operator's actions and
    * review moderation today; staff edits to members, prices and roles do not
    * reach it yet, and the report's description says so.
+   *
+   * GYM-WIDE under every branch filter (`GYM_WIDE_REPORT_KEYS`): an entry names an
+   * actor and a target id, never a place.
    */
   private async auditLog(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
     const entries = await this.prisma.client.auditLog.findMany({
@@ -2664,13 +2953,14 @@ export class ReportsService {
    * Dense buckets: a period with no movement is a real zero, because the period
    * happened.
    */
-  private async membershipMovement(win: ReportWindow): Promise<ReportRow[]> {
+  private async membershipMovement(win: ReportWindow, locationId?: string): Promise<ReportRow[]> {
     const [members, subscriptions] = await Promise.all([
       this.prisma.client.gymMember.findMany({
-        where: { role: Role.MEMBER, joinedAt: { lt: win.end } },
+        where: { role: Role.MEMBER, joinedAt: { lt: win.end }, ...atLocation(locationId) },
         select: { joinedAt: true },
       }),
       this.prisma.client.subscription.findMany({
+        where: memberAtLocation(locationId),
         select: { status: true, canceledAt: true, updatedAt: true },
       }),
     ]);
@@ -2729,8 +3019,9 @@ export class ReportsService {
    * complements, so printing both for all three windows would be three columns of
    * arithmetic rather than three facts.
    */
-  private async retentionAndChurn(win: ReportWindow): Promise<ReportRow[]> {
+  private async retentionAndChurn(win: ReportWindow, locationId?: string): Promise<ReportRow[]> {
     const subscriptions = await this.prisma.client.subscription.findMany({
+      where: memberAtLocation(locationId),
       select: { status: true, createdAt: true, canceledAt: true, updatedAt: true },
     });
 
@@ -2790,9 +3081,13 @@ export class ReportsService {
    * The thresholds are named once, beside the roster's status rules they share
    * ({@link assessMembership}), rather than buried in six queries.
    */
-  private async membersAtRisk(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async membersAtRisk(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const members = await this.prisma.client.gymMember.findMany({
-      where: { role: Role.MEMBER, deletedAt: null },
+      where: { role: Role.MEMBER, deletedAt: null, ...atLocation(locationId) },
       select: memberSelect(win),
       take: DETAIL_ROW_LIMIT,
     });
@@ -2837,13 +3132,18 @@ export class ReportsService {
    * list of people who have already gone. `7d`/`30d` mean the next 7 or 30 days;
    * `12w`/`12m` the next twelve weeks or months.
    */
-  private async expiringMemberships(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async expiringMemberships(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const now = new Date();
     const until = new Date(now.getTime() + (win.end.getTime() - win.start.getTime()));
     const subscriptions = await this.prisma.client.subscription.findMany({
       where: {
         status: { in: [...LIVE_SUB_STATUSES] },
         currentPeriodEnd: { gte: now, lt: until },
+        ...memberAtLocation(locationId),
       },
       select: {
         currentPeriodEnd: true,
@@ -2883,9 +3183,13 @@ export class ReportsService {
    * from the current subscription rather than read off the raw enum, so the
    * report and the retention list agree on what every word means.
    */
-  private async memberRoster(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async memberRoster(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const members = await this.prisma.client.gymMember.findMany({
-      where: { role: Role.MEMBER, deletedAt: null },
+      where: { role: Role.MEMBER, deletedAt: null, ...atLocation(locationId) },
       select: memberSelect(win),
       orderBy: { joinedAt: 'desc' },
       take: DETAIL_ROW_LIMIT,
@@ -2925,7 +3229,11 @@ export class ReportsService {
    * tenant rather than relying on the automatic scoping every other query here
    * gets. Forgetting that would read every gym's visits.
    */
-  private async memberCheckInLog(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async memberCheckInLog(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     // `CheckIn` carries a bare `locationId` with no relation to follow, so the
     // branch names are resolved in one small lookup and joined in memory rather
     // than left as opaque ids in the export.
@@ -2934,6 +3242,7 @@ export class ReportsService {
         where: {
           gymId: this.tenant.gymId,
           checkedInAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
         },
         select: {
           checkedInAt: true,
@@ -2970,11 +3279,15 @@ export class ReportsService {
    * New Year is handled by projecting each occasion into the coming year and
    * keeping whichever projection lands inside it.
    */
-  private async upcomingOccasions(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async upcomingOccasions(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const now = new Date();
     const until = new Date(now.getTime() + (win.end.getTime() - win.start.getTime()));
     const members = await this.prisma.client.gymMember.findMany({
-      where: { role: Role.MEMBER, deletedAt: null },
+      where: { role: Role.MEMBER, deletedAt: null, ...atLocation(locationId) },
       select: {
         joinedAt: true,
         dateOfBirth: true,
@@ -3033,19 +3346,27 @@ export class ReportsService {
    * one is two people to the data and reads as two rows, which is the honest
    * shape rather than a guess by name.
    *
-   * One row per trainer, not per trainer and branch: a PT session carries no
-   * branch at all, so a per-branch split would file every PT hour under "no
-   * location". The location column lists the branches their classes ran at.
+   * One row per trainer, not per trainer and branch: the header switcher already
+   * owns the branch axis. Under a branch filter every source narrows by where the
+   * work was DELIVERED - `ClassInstance.locationId`, `PtSession.locationId`,
+   * `ServiceSession.locationId` - so the row is one branch's population, never a
+   * class count from here beside PT hours from everywhere. The location column
+   * lists every branch the counted work happened at.
    *
    * "Members trained" counts distinct members across confirmed class bookings
    * ({@link CONFIRMED_BOOKING_STATUSES} - a no-show still held a seat) and the PT
    * sessions that name a member. A cancelled booking trained nobody.
    */
-  private async trainerActivity(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async trainerActivity(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const [instances, calendar, booked, trainers] = await Promise.all([
       this.prisma.client.classInstance.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           status: { not: InstanceStatus.CANCELED },
         },
         select: {
@@ -3065,19 +3386,26 @@ export class ReportsService {
       this.prisma.client.ptSession.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           status: { not: InstanceStatus.CANCELED },
         },
-        select: { trainerId: true, trainer: { select: { name: true } } },
+        select: {
+          trainerId: true,
+          trainer: { select: { name: true } },
+          location: { select: { name: true } },
+        },
       }),
       this.prisma.client.serviceSession.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           service: { type: ServiceType.PERSONAL_TRAINING },
           status: { in: [ServiceSessionStatus.BOOKED, ServiceSessionStatus.COMPLETED] },
         },
         select: {
           staffId: true,
           memberId: true,
+          location: { select: { name: true } },
           staff: {
             select: { firstName: true, lastName: true, user: { select: { name: true } } },
           },
@@ -3144,7 +3472,9 @@ export class ReportsService {
     }
     for (const session of calendar) {
       const key = session.trainerId ?? UNASSIGNED_KEY;
-      entryFor(key, session.trainer?.name ?? s.values.unassigned).ptSessions += 1;
+      const entry = entryFor(key, session.trainer?.name ?? s.values.unassigned);
+      entry.ptSessions += 1;
+      if (session.location) entry.locations.add(session.location.name);
     }
     for (const session of booked) {
       const linked = trainerByStaff.get(session.staffId);
@@ -3152,6 +3482,7 @@ export class ReportsService {
         ? entryFor(linked.id, linked.name)
         : entryFor(`staff:${session.staffId}`, staffName(session.staff, s.values.unassigned));
       entry.ptSessions += 1;
+      if (session.location) entry.locations.add(session.location.name);
       if (session.memberId) entry.members.add(session.memberId);
     }
 
@@ -3183,13 +3514,19 @@ export class ReportsService {
    * is a row per MEMBER rather than per class because the report's question is
    * who each trainer trained, and a class row alone could not name anyone.
    */
-  private async trainerActivityDetail(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async trainerActivityDetail(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const person = {
       select: { firstName: true, lastName: true, user: { select: { name: true } } },
     } as const;
     const [bookings, booked, calendar] = await Promise.all([
       this.prisma.client.booking.findMany({
-        where: { classInstance: { startsAt: { gte: win.start, lt: win.end } } },
+        where: {
+          classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
+        },
         select: {
           status: true,
           member: person,
@@ -3215,6 +3552,7 @@ export class ReportsService {
       this.prisma.client.serviceSession.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           service: { type: ServiceType.PERSONAL_TRAINING },
           status: { not: ServiceSessionStatus.OPEN },
         },
@@ -3224,16 +3562,18 @@ export class ReportsService {
           member: person,
           staff: person,
           service: { select: { name: true } },
+          location: { select: { name: true } },
         },
         take: DETAIL_ROW_LIMIT,
       }),
       this.prisma.client.ptSession.findMany({
-        where: { startsAt: { gte: win.start, lt: win.end } },
+        where: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
         select: {
           startsAt: true,
           status: true,
           trainer: { select: { name: true } },
           classType: { select: { name: true } },
+          location: { select: { name: true } },
         },
         take: DETAIL_ROW_LIMIT,
       }),
@@ -3260,7 +3600,7 @@ export class ReportsService {
         type: s.values.activityTypes.pt,
         session: session.service.name,
         member: session.member ? memberName(session.member, s.values.unknownMember) : '',
-        location: '',
+        location: session.location?.name ?? '',
         status: s.values.sessionStatuses[session.status] ?? session.status,
       })),
       ...calendar.map((session) => ({
@@ -3269,7 +3609,7 @@ export class ReportsService {
         type: s.values.activityTypes.pt,
         session: session.classType?.name ?? s.values.activityTypes.pt,
         member: '',
-        location: '',
+        location: session.location?.name ?? '',
         status: s.values.sessionStatuses[session.status] ?? session.status,
       })),
     ];
@@ -3304,11 +3644,16 @@ export class ReportsService {
    * the Staff segment's other three reports, which cannot be built at all until
    * that changes.
    */
-  private async trainerPerformance(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async trainerPerformance(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const [instances, ptSessions] = await Promise.all([
       this.prisma.client.classInstance.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           status: { not: InstanceStatus.CANCELED },
         },
         select: {
@@ -3328,6 +3673,7 @@ export class ReportsService {
       this.prisma.client.ptSession.findMany({
         where: {
           startsAt: { gte: win.start, lt: win.end },
+          ...atLocation(locationId),
           status: { not: InstanceStatus.CANCELED },
         },
         select: { trainerId: true, trainer: { select: { name: true } } },
@@ -3401,11 +3747,15 @@ export class ReportsService {
    * as a 0–100 percentage; a class with no assigned trainer rolls up under
    * "Unassigned". Ranked worst-first so the problem trainers surface at the top.
    */
-  private async noShowRate(win: ReportWindow, s: ReportStrings): Promise<ReportRow[]> {
+  private async noShowRate(
+    win: ReportWindow,
+    s: ReportStrings,
+    locationId?: string,
+  ): Promise<ReportRow[]> {
     const bookings = await this.prisma.client.booking.findMany({
       where: {
         status: { in: [BookingStatus.ATTENDED, BookingStatus.NO_SHOW] },
-        classInstance: { startsAt: { gte: win.start, lt: win.end } },
+        classInstance: { startsAt: { gte: win.start, lt: win.end }, ...atLocation(locationId) },
       },
       select: {
         status: true,
@@ -3626,6 +3976,10 @@ function memberSelect(win: ReportWindow) {
         plan: { select: { name: true } },
       },
     },
+    // Neither check-in read is narrowed by the branch filter, on purpose (roadmap
+    // Stage 3): the last visit and the visit count are facts about the PERSON,
+    // read to decide who needs attention. Filtering them would manufacture a churn
+    // risk out of a member who trains at the other site.
     checkIns: {
       orderBy: { checkedInAt: 'desc' as const },
       take: 1,

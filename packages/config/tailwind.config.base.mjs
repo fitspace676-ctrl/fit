@@ -10,32 +10,38 @@
 /**
  * Brand + design tokens shared across all Fit surfaces.
  *
- * `brand` is the formacore "electric indigo" scale — the single source of truth
- * for the brand color. The formacore apps (web, admin, platform, mobile) also
- * declare the full palette (accent/ink/status ramps) on top of this preset and
- * redeclare `brand` with these exact values; surfaces without a formacore
- * artboard (superadmin) inherit the brand straight from here, so keeping this in
- * sync with the design tokens is what stops the console drifting to a stale blue
- * (the value this held before the T10.6 parity audit).
+ * `brand` is the formacore "Lime Block" scale — the single source of truth for
+ * the brand color. The formacore apps (web, admin, platform) also declare the
+ * full palette (ink/status ramps) on top of this preset and redeclare `brand`
+ * with these exact values; surfaces without a formacore artboard (superadmin)
+ * inherit the brand straight from here.
+ *
+ * This scale drifted twice: to a pre-formacore blue before the T10.6 audit, and
+ * then to the electric indigo this file held until the August "Lime Block"
+ * repaint (`bea6e41`) was never propagated here. A prose instruction to keep it
+ * in sync is what failed both times, so `scripts/check-design-tokens.ts` now
+ * diffs these stops against the design tokens in CI. Change them there first.
  */
 export const fitTheme = {
   colors: {
     brand: {
-      50: '#F2F1FE',
-      100: '#E8E6FD',
-      200: '#D3CFFB',
-      300: '#B5AEF7',
-      400: '#9184F1',
-      500: '#6257E3',
-      600: '#5044D2',
-      700: '#4536B5',
-      800: '#392E92',
-      900: '#312A74',
-      950: '#1E1A45',
+      50: '#FBFEE9',
+      100: '#F6FCC9',
+      200: '#EFF9A2',
+      300: '#E4F26A',
+      400: '#D6E844',
+      500: '#C2D625',
+      600: '#A3B71C',
+      700: '#7D8C1B',
+      800: '#63701D',
+      900: '#525C1E',
+      950: '#2C330A',
     },
   },
   fontFamily: {
-    sans: ['Inter', 'system-ui', 'sans-serif'],
+    // Noto Sans Georgian leads: Manrope/Archivo were dropped from the direction
+    // because they carry no Georgian coverage and fell back mid-paragraph.
+    sans: ['Noto Sans Georgian', 'Inter', 'system-ui', 'sans-serif'],
     mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
   },
   borderRadius: {

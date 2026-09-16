@@ -252,6 +252,13 @@ describe('CreditPacksService', () => {
         amount: 5000,
         status: PaymentStatus.CAPTURED,
         provider: 'stub',
+        // Explicitly unattributed (Stage 5), mirroring the order above. A credit
+        // pack is bought from the member's own account — the purchase schema
+        // carries no branch, so the ORDER has none, and a payment must never claim
+        // a branch its order does not: the till reconciliation would then show
+        // money no drawer holds. Pinned so the null reads as a decision rather
+        // than a forgotten write path.
+        locationId: null,
       });
       const packData = ctx.creditPackCreate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
       expect(packData).toMatchObject({

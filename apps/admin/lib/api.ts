@@ -154,6 +154,7 @@ import type {
   UpdateStaffScheduleInput,
   WorkingNowResponse,
   SetLocationStatusResponse,
+  MakeDefaultLocationResponse,
   SetMemberStatusResponse,
   SendMemberEmailInput,
   SendMemberEmailResponse,
@@ -230,6 +231,13 @@ import type {
   CreatePromoCodeInput,
   UpdatePromoCodeInput,
   TogglePromoCodeInput,
+  Banner,
+  ListBannersResponse,
+  BannerResponse,
+  CreateBannerInput,
+  UpdateBannerInput,
+  ReorderBannersInput,
+  UploadBannerImageInput,
   ListMessageTemplatesResponse,
   MessageTemplateRow,
   CreateMessageTemplateInput,
@@ -684,6 +692,19 @@ export async function reactivateLocation(id: string): Promise<SetLocationStatusR
   return unwrap<SetLocationStatusResponse>(res);
 }
 
+/** `POST /admin/locations/:id/make-default` — make this branch the gym's default. */
+export async function makeDefaultLocation(id: string): Promise<MakeDefaultLocationResponse> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/locations/${encodeURIComponent(id)}/make-default`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<MakeDefaultLocationResponse>(res);
+}
+
 // ── Products (T4.6) ───────────────────────────────────────────────────────────
 
 /**
@@ -719,8 +740,16 @@ export async function fetchProducts(
  * carrying a variant at or below `threshold` (omitted ⇒ the API's default), most
  * urgent first. Enforces `ProductRead` (the same capability the roster needs).
  */
-export async function fetchLowStockProducts(threshold?: number): Promise<ListLowStockResponse> {
-  const qs = threshold === undefined ? '' : `?threshold=${encodeURIComponent(threshold)}`;
+export async function fetchLowStockProducts(
+  threshold?: number,
+  locationId?: string,
+): Promise<ListLowStockResponse> {
+  const params = new URLSearchParams();
+  // `threshold` is optional API-side now: omitted means "each line's own reorder
+  // point" (the branch → product → gym-default chain), not a flat number.
+  if (threshold !== undefined) params.set('threshold', String(threshold));
+  if (locationId) params.set('locationId', locationId);
+  const qs = params.toString() ? `?${params.toString()}` : '';
   const res = await fetch(`${apiBaseUrl()}/admin/products/low-stock${qs}`, {
     headers: await authHeaders(),
     cache: 'no-store',
@@ -741,6 +770,7 @@ export async function fetchInventory(
   if (query.search) params.set('search', query.search);
   if (query.status) params.set('status', query.status);
   if (query.tracked) params.set('tracked', 'true');
+  if (query.locationId) params.set('locationId', query.locationId);
   const qs = params.toString();
   const res = await fetch(`${apiBaseUrl()}/admin/products/inventory${qs ? `?${qs}` : ''}`, {
     headers: await authHeaders(),
@@ -860,6 +890,7 @@ export async function fetchStockMovements(
   const params = new URLSearchParams();
   if (query.page !== undefined) params.set('page', String(query.page));
   if (query.limit !== undefined) params.set('limit', String(query.limit));
+  if (query.locationId) params.set('locationId', query.locationId);
   const qs = params.toString();
   const res = await fetch(
     `${apiBaseUrl()}/admin/products/${encodeURIComponent(id)}/stock-movements${qs ? `?${qs}` : ''}`,
@@ -1972,12 +2003,15 @@ export async function fetchDashboardOverview(params?: {
   period?: DashboardPeriod;
   from?: string;
   to?: string;
+  /** Narrow every branch-bearing figure to one location; omit for all branches. */
+  locationId?: string;
 }): Promise<DashboardOverviewResponse> {
   const qs = new URLSearchParams();
   if (params?.range) qs.set('range', params.range);
   if (params?.period) qs.set('period', params.period);
   if (params?.from) qs.set('from', params.from);
   if (params?.to) qs.set('to', params.to);
+  if (params?.locationId) qs.set('locationId', params.locationId);
   const query = qs.toString();
   const res = await fetch(`${apiBaseUrl()}/dashboard/overview${query ? `?${query}` : ''}`, {
     headers: await authHeaders(),
@@ -1999,6 +2033,7 @@ export async function fetchDashboardSales(
     granularity: query.granularity,
     productType: query.productType,
   });
+  if (query.locationId) qs.set('locationId', query.locationId);
   const res = await fetch(`${apiBaseUrl()}/dashboard/sales?${qs.toString()}`, {
     headers: await authHeaders(),
     // Sales figures reflect live tenant state — never serve a stale snapshot.
@@ -2020,6 +2055,7 @@ export async function fetchDashboardMembers(
     retentionWindow: query.retentionWindow,
     expiringWindow: query.expiringWindow,
   });
+  if (query.locationId) qs.set('locationId', query.locationId);
   const res = await fetch(`${apiBaseUrl()}/dashboard/members?${qs.toString()}`, {
     headers: await authHeaders(),
     // Membership figures reflect live tenant state — never serve a stale snapshot.
@@ -2040,6 +2076,7 @@ export async function fetchDashboardRevenue(
     granularity: query.granularity,
     projectionWindow: query.projectionWindow,
   });
+  if (query.locationId) qs.set('locationId', query.locationId);
   const res = await fetch(`${apiBaseUrl()}/dashboard/revenue?${qs.toString()}`, {
     headers: await authHeaders(),
     // Revenue reflects live tenant state — never serve a stale snapshot.
@@ -2057,6 +2094,7 @@ export async function fetchDashboardClasses(
   query: DashboardClassesQuery,
 ): Promise<DashboardClassesResponse> {
   const qs = new URLSearchParams({ granularity: query.granularity });
+  if (query.locationId) qs.set('locationId', query.locationId);
   const res = await fetch(`${apiBaseUrl()}/dashboard/classes?${qs.toString()}`, {
     headers: await authHeaders(),
     // Class figures reflect live tenant state — never serve a stale snapshot.
@@ -2074,6 +2112,7 @@ export async function fetchDashboardStaff(
   query: DashboardStaffQuery,
 ): Promise<DashboardStaffResponse> {
   const qs = new URLSearchParams({ granularity: query.granularity });
+  if (query.locationId) qs.set('locationId', query.locationId);
   const res = await fetch(`${apiBaseUrl()}/dashboard/staff?${qs.toString()}`, {
     headers: await authHeaders(),
     // Staffing figures reflect live tenant state — never serve a stale snapshot.
@@ -2412,11 +2451,16 @@ export async function fetchReport(key: ReportKey, query?: ReportQuery): Promise<
  */
 export async function fetchReportExport(
   key: ReportKey,
-  query: { window?: ReportQuery; format?: ReportFormat } = {},
+  query: { window?: ReportQuery; format?: ReportFormat; locationId?: string } = {},
 ): Promise<Response> {
   const params = query.window ? reportQueryParams(query.window) : new URLSearchParams();
   if (query.format) {
     params.set('format', query.format);
+  }
+  // The export must carry exactly the screen's filter — a file that disagrees
+  // with the report it was downloaded from is worse than no filter at all.
+  if (query.locationId) {
+    params.set('locationId', query.locationId);
   }
   const qs = params.toString();
   return fetch(
@@ -2435,11 +2479,16 @@ export async function fetchReportExport(
  */
 export async function fetchReportDrilldownExport(
   metric: ReportMetric,
-  query: { window?: ReportDrilldownQuery; format?: ReportFormat } = {},
+  query: { window?: ReportDrilldownQuery; format?: ReportFormat; locationId?: string } = {},
 ): Promise<Response> {
   const params = query.window ? reportQueryParams(query.window) : new URLSearchParams();
   if (query.format) {
     params.set('format', query.format);
+  }
+  // The export must carry exactly the screen's filter — a file that disagrees
+  // with the report it was downloaded from is worse than no filter at all.
+  if (query.locationId) {
+    params.set('locationId', query.locationId);
   }
   const qs = params.toString();
   return fetch(
@@ -2566,9 +2615,13 @@ export async function recordPosSale(input: RecordPosSaleInput): Promise<RecordPo
  * for one business day (T7.5): captured takings grouped by settlement method, with
  * the expected cash drawer. Tenant-scoped and gated by `BillingRead` API-side.
  */
-export async function fetchCashReconciliation(date: string): Promise<CashReconciliationReport> {
+export async function fetchCashReconciliation(
+  date: string,
+  locationId?: string,
+): Promise<CashReconciliationReport> {
+  const branch = locationId ? `&locationId=${encodeURIComponent(locationId)}` : '';
   const res = await fetch(
-    `${apiBaseUrl()}/orders/reconciliation?date=${encodeURIComponent(date)}`,
+    `${apiBaseUrl()}/orders/reconciliation?date=${encodeURIComponent(date)}${branch}`,
     {
       headers: await authHeaders(),
       // The report reflects the live day's takings — never serve a stale view.
@@ -2591,6 +2644,7 @@ export async function fetchOrders(query: ListOrdersQueryInput = {}): Promise<Lis
   if (query.memberId) params.set('memberId', query.memberId);
   if (query.from) params.set('from', query.from);
   if (query.to) params.set('to', query.to);
+  if (query.locationId) params.set('locationId', query.locationId);
   const qs = params.toString();
   const res = await fetch(`${apiBaseUrl()}/orders${qs ? `?${qs}` : ''}`, {
     headers: await authHeaders(),
@@ -3034,9 +3088,17 @@ export async function deleteCampaign(id: string): Promise<void> {
   }
 }
 
-/** `GET /marketing/promo-codes` — every promo code, newest first. */
-export async function fetchPromoCodes(): Promise<ListPromoCodesResponse> {
-  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes`, {
+/**
+ * `GET /marketing/promo-codes?locationId=` — every promo code, newest first; given
+ * a branch, only the codes redeemable there (its own plus the gym-wide ones).
+ */
+export async function fetchPromoCodes(
+  params: { locationId?: string } = {},
+): Promise<ListPromoCodesResponse> {
+  const qs = new URLSearchParams();
+  if (params.locationId) qs.set('locationId', params.locationId);
+  const query = qs.toString();
+  const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes${query ? `?${query}` : ''}`, {
     headers: await authHeaders(),
     cache: 'no-store',
   });
@@ -3088,6 +3150,95 @@ export async function togglePromoCode(
 /** `DELETE /marketing/promo-codes/:id` — delete a promo code. */
 export async function deletePromoCode(id: string): Promise<void> {
   const res = await fetch(`${apiBaseUrl()}/marketing/promo-codes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    await unwrap<never>(res);
+  }
+}
+
+// ── Home-screen banners (T1.16) ───────────────────────────────────────────────
+//
+// The member app's home carousel, authored here. Unlike the promo-code routes
+// above, every banner endpoint answers with the row WRAPPED (`{ banner }` /
+// `{ banners }`) — see `@fit/types` `banners.ts` — so each helper unwraps to the
+// value its caller actually wants and the console never handles the envelope.
+
+/** `GET /marketing/banners` — every banner, live or not, in carousel order. */
+export async function fetchBanners(): Promise<Banner[]> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return (await unwrap<ListBannersResponse>(res)).banners;
+}
+
+/** `POST /marketing/banners` — create a banner; returns the new row. */
+export async function createBanner(input: CreateBannerInput): Promise<Banner> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<BannerResponse>(res)).banner;
+}
+
+/** `PATCH /marketing/banners/:id` — edit a banner; only the keys sent change. */
+export async function updateBanner(id: string, input: UpdateBannerInput): Promise<Banner> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<BannerResponse>(res)).banner;
+}
+
+/**
+ * `PATCH /marketing/banners/reorder` — each id's `sortOrder` becomes its index in
+ * `ids`, in one transaction. Returns the whole reel in its new order.
+ *
+ * Not `/:id/reorder`: the reel is reordered as a unit, and the API declares this
+ * route before `PATCH /:id` so `reorder` is never read as an id.
+ */
+export async function reorderBanners(input: ReorderBannersInput): Promise<Banner[]> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/reorder`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<ListBannersResponse>(res)).banners;
+}
+
+/**
+ * `POST /marketing/banners/:id/image` — finalise a banner's artwork by its R2
+ * `photoKey`; returns the updated row.
+ *
+ * The same finalise-by-key shape as the gym logo and the portal photograph: the
+ * browser has already `PUT` the bytes to a presigned URL from `POST /uploads`
+ * (with `entity: 'banners'`), and only this step needs a server — it checks the
+ * key belongs to this gym and turns it into a public URL.
+ */
+export async function uploadBannerImage(
+  id: string,
+  input: UploadBannerImageInput,
+): Promise<Banner> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/${encodeURIComponent(id)}/image`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return (await unwrap<BannerResponse>(res)).banner;
+}
+
+/** `DELETE /marketing/banners/:id` — remove a banner and free its artwork. */
+export async function deleteBanner(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/banners/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: await authHeaders(),
     cache: 'no-store',
@@ -3200,4 +3351,35 @@ export async function fetchRedemptions(
     cache: 'no-store',
   });
   return unwrap<ListRedemptionsResponse>(res);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Me — the caller's own effective permissions                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `GET /me/permissions` — what this session may do at this gym, resolved.
+ *
+ * The console cannot work this out for itself, and the reason is worth stating
+ * because it is the only thing this endpoint exists for. The grants live in
+ * `Gym.settings`, whose read endpoint requires `GymManage` — an OWNER capability
+ * — so a manager's console could never fetch the blob its own sidebar depends
+ * on. The branch assignments live in `LocationStaff`, which the console has no
+ * endpoint for at all. Both are one cheap read on the API side against a session
+ * it has already authenticated.
+ *
+ * Deliberately **not** permission-gated on the API: it tells a caller what they
+ * hold, which is not a secret from them, and gating it on any capability would
+ * make it unreadable by exactly the roles whose grants have been narrowed.
+ *
+ * The body is parsed, never cast — see `consolePermissionsFrom`. This one answer
+ * decides what the whole console offers, so a shape we merely asserted would turn
+ * a bad API deploy into a silently permissive console.
+ */
+export async function fetchMyPermissions(): Promise<unknown> {
+  const res = await fetch(`${apiBaseUrl()}/me/permissions`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<unknown>(res);
 }

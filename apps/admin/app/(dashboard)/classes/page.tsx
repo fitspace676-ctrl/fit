@@ -8,6 +8,7 @@ import {
   type ListAdminClassTypesQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchClassTypes } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
@@ -110,9 +111,20 @@ export default async function ClassTypesPage({
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ClassWrite);
   const relationOptions = canWrite ? await loadRelationOptions() : null;
 
+  // The branch the console is scoped to — the switcher's cookie, or an explicit
+  // `?locationId=` on this URL. `undefined` means every branch. Since Stage 7 the
+  // API reads it through the availability predicate: the branch's exclusive types
+  // plus every gym-wide (`locationId: null`) one.
+  //
+  // It OVERRIDES `query.locationId` rather than merging with it, as on the members
+  // roster: only the resolver checks the id against the gym's live branches, so a
+  // deactivated or cross-tenant id degrades to "all locations" instead of surviving
+  // in `query`. `classTypesQueryString` drops `undefined`, so a plain spread does it.
+  const locationId = await getActiveLocationId(raw);
+
   let content;
   try {
-    const result = await fetchClassTypes(query);
+    const result = await fetchClassTypes({ ...query, locationId });
     content = (
       <ClassTypesTable
         types={result.data}

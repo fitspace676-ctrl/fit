@@ -7,6 +7,7 @@ import type {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { toAvatarUrl } from './trainer-avatar';
 
 /** The booking + occurrence columns the member-history projection reads. The
  * template carries the denormalised display fields (title/description/category/
@@ -26,7 +27,7 @@ const HISTORY_SELECT = {
       bookedCount: true,
       status: true,
       room: true,
-      trainer: { select: { name: true } },
+      trainer: { select: { id: true, name: true, photoUrl: true } },
       location: { select: { name: true } },
       template: {
         select: {
@@ -38,7 +39,7 @@ const HISTORY_SELECT = {
           room: true,
           capacity: true,
           durationMinutes: true,
-          trainer: { select: { name: true } },
+          trainer: { select: { id: true, name: true, photoUrl: true } },
           location: { select: { name: true } },
         },
       },
@@ -145,6 +146,8 @@ export class MemberBookingsService {
  * projection does. */
 function toHistoryEntry(row: HistoryRow): MemberBookingHistoryEntry {
   const { classInstance: instance } = row;
+  // One trainer for the id / name / photo triple, as the public projection does.
+  const trainer = instance.trainer ?? instance.template?.trainer ?? null;
   return {
     bookingId: row.id,
     status: row.status,
@@ -156,7 +159,9 @@ function toHistoryEntry(row: HistoryRow): MemberBookingHistoryEntry {
       description: instance.template?.description ?? instance.classType?.description ?? '',
       startsAt: instance.startsAt.toISOString(),
       endsAt: instance.endsAt.toISOString(),
-      trainerName: instance.trainer?.name ?? instance.template?.trainer?.name ?? '',
+      trainerName: trainer?.name ?? '',
+      trainerId: trainer?.id ?? null,
+      trainerAvatarUrl: toAvatarUrl(trainer?.photoUrl),
       locationName: instance.location?.name ?? instance.template?.location?.name ?? '',
       room: instance.room ?? instance.template?.room ?? '',
       capacity:

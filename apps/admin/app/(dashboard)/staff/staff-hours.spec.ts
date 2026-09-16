@@ -10,7 +10,9 @@ function shift(dayOfWeek: number, startTime: string, endTime: string): ShiftSlot
     dayOfWeek,
     startTime,
     endTime,
-    location: null,
+    locationId: null,
+    locationName: null,
+    unresolvedLocation: null,
   };
 }
 

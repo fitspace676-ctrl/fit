@@ -247,6 +247,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
           <div {...stylex.props(styles.titleRow)}>
             <h1 {...stylex.props(styles.title)}>{location.name}</h1>
             <Badge tone={status.tone} label={status.label} />
+            {location.isDefault ? <Badge tone="accent" label="Default branch" /> : null}
           </div>
           {location.address ? <p {...stylex.props(styles.metaLine)}>{location.address}</p> : null}
           {location.phone ? <p {...stylex.props(styles.metaLine)}>{location.phone}</p> : null}
@@ -255,6 +256,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
           <LocationActions
             locationId={location.id}
             status={location.status}
+            isDefault={location.isDefault}
             canWrite={canWrite}
             canManage={canManage}
           />

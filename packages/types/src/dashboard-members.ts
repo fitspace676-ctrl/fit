@@ -60,11 +60,15 @@ export const DEFAULT_EXPIRING_WINDOW: ExpiringWindow = '7';
  * `GET /dashboard/members?granularity=&retentionWindow=&expiringWindow=` query.
  * `.catch` (not `.default`) so a hand-edited URL lands on the default rather than
  * a 400 — the same forgiving rule the overview and sales queries apply.
+ * `locationId` narrows every figure to the branch a member belongs to; omitted,
+ * the tab counts every branch's members together, which is also where an
+ * unrecognised id lands rather than 400-ing.
  */
 export const dashboardMembersQuerySchema = z.object({
   granularity: membersGranularitySchema.catch(DEFAULT_MEMBERS_GRANULARITY),
   retentionWindow: retentionWindowSchema.catch(DEFAULT_RETENTION_WINDOW),
   expiringWindow: expiringWindowSchema.catch(DEFAULT_EXPIRING_WINDOW),
+  locationId: z.string().min(1).optional().catch(undefined),
 });
 export type DashboardMembersQuery = z.infer<typeof dashboardMembersQuerySchema>;
 

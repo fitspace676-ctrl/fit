@@ -14,6 +14,8 @@ const detail = () => ({
   startsAt: '2026-06-01T09:00:00.000Z',
   endsAt: '2026-06-01T10:00:00.000Z',
   trainerName: '',
+  trainerId: null,
+  trainerAvatarUrl: null,
   locationName: '',
   room: '',
   capacity: 12,

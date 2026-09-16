@@ -45,6 +45,12 @@ describe('dashboard staff contract', () => {
     });
   });
 
+  it('carries an optional branch, absent on "all locations"', () => {
+    expect(dashboardStaffQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(dashboardStaffQuerySchema.parse({}).locationId).toBeUndefined();
+    expect(dashboardStaffQuerySchema.parse({ locationId: '' }).locationId).toBeUndefined();
+  });
+
   it('caps the trainer ranking at eight', () => {
     expect(TOP_TRAINERS).toBe(8);
   });

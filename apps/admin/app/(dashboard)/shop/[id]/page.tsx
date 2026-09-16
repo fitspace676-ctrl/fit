@@ -5,6 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission, type StockMovementRow } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchProduct, fetchStockMovements } from '@/lib/api';
+import { fetchActiveLocations, getActiveLocationId } from '@/lib/active-location-server';
 import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { formatPrice } from '../format-price';
@@ -216,9 +217,33 @@ function formatDate(iso: string | null): string {
  * table, plus the write controls for `ProductWrite` staff. A `404` from the API —
  * unknown or cross-tenant id — becomes Next's `notFound()`; any other failure
  * surfaces inline.
+ *
+ * ## Why this page stays gym-wide even under a branch filter
+ *
+ * `GET /admin/products/:id` is the CATALOGUE record, and a catalogue is gym-wide:
+ * a product is a thing the gym sells, not a thing one branch owns (that is Stage 7,
+ * if ever). Its `stock` and `variants[].stock` are therefore the roll-up across
+ * every branch, and there is no per-branch variant of the endpoint to ask instead.
+ * So the counts here do not narrow — they are labelled as the totals they are, and
+ * the branch-level figures live one click away on `/shop/inventory`, which does
+ * narrow. The one thing on the page that IS per-branch is the ledger, which
+ * genuinely mixes branches and therefore names one per row.
  */
-export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const [locationId, locations] = await Promise.all([
+    getActiveLocationId(searchParams),
+    fetchActiveLocations(),
+  ]);
+  const branchName = locationId
+    ? (locations.find((location) => location.id === locationId)?.name ?? locationId)
+    : null;
 
   let product;
   try {
@@ -266,7 +291,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   let movements: StockMovementRow[] = [];
   if (canViewMovements) {
     try {
-      movements = (await fetchStockMovements(id, { limit: 20 })).data;
+      movements = (await fetchStockMovements(id, { limit: 20, locationId })).data;
     } catch {
       movements = [];
     }
@@ -317,6 +342,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         movements={movements}
         canWrite={canAdjustStock}
         canViewMovements={canViewMovements}
+        branchName={branchName}
       />
 
       <section {...stylex.props(styles.section)}>
@@ -329,7 +355,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   <th {...stylex.props(styles.head)}>Name</th>
                   <th {...stylex.props(styles.head)}>SKU</th>
                   <th {...stylex.props(styles.head)}>Price</th>
-                  <th {...stylex.props(styles.head)}>Stock</th>
+                  {/* The catalogue record carries the roll-up, never one branch's
+                      shelf — see this page's header comment. */}
+                  <th {...stylex.props(styles.head)}>Stock (all branches)</th>
                 </tr>
               </thead>
               <tbody>

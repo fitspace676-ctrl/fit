@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { GymMemberStatus, GymStatus, Prisma, Role } from '@fit/db';
+import { GymMemberStatus, GymStatus, LocationStatus, Prisma, Role } from '@fit/db';
 import {
   ALREADY_MEMBER_CODE,
   EMAIL_TAKEN_CODE,
@@ -44,6 +44,7 @@ import type {
 import { env } from '../config/env';
 import { buildMemberUrl } from '../common/console-url';
 import { assertStartDateWithinPolicy } from '../gyms/start-date-policy.util';
+import { findDefaultLocationId } from '../locations/default-location';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { AppleOAuthService } from './apple-oauth.service';
@@ -249,6 +250,8 @@ export class AuthService {
       gymPublicTimezone(gym.settings),
     );
 
+    const locationId = await this.signupHomeBranch(gym.id, input.locationId);
+
     const existing = await this.prisma.client.user.findUnique({
       where: { email: input.email },
       select: { id: true },
@@ -315,6 +318,7 @@ export class AuthService {
           // `joinedAt` is still stamped now and still what "starts today" means,
           // and no billing anchor is derived from this — see `GymMember.startDate`.
           startDate: input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : null,
+          locationId,
         },
       });
 
@@ -345,6 +349,31 @@ export class AuthService {
     }
 
     return this.tokens.issueTokenPair(userId, await this.resolveSessionScope(userId, gym.slug));
+  }
+
+  /**
+   * The home branch a self-signup is filed under (decision D1): the branch the
+   * body names, else the gym's default, else `null` for a gym with no default.
+   * Without one the member sits outside every branch filter in the console.
+   *
+   * A named branch must be an ACTIVE one of `gymId`. Unknown, inactive and another
+   * gym's all get the same `400 LOCATION_NOT_FOUND` — a 400 for the same reason an
+   * unknown `gymId` is, and one answer for all three so the endpoint cannot be used
+   * to probe which ids exist on other tenants. Both reads run on the base client,
+   * so `gymId` is written in by hand.
+   */
+  private async signupHomeBranch(gymId: string, locationId?: string): Promise<string | null> {
+    if (locationId === undefined) {
+      return findDefaultLocationId(this.prisma.client, gymId);
+    }
+    const branch = await this.prisma.client.location.findFirst({
+      where: { id: locationId, gymId, status: LocationStatus.ACTIVE },
+      select: { id: true },
+    });
+    if (!branch) {
+      throw new BadRequestException({ message: 'Unknown location', code: 'LOCATION_NOT_FOUND' });
+    }
+    return branch.id;
   }
 
   /**

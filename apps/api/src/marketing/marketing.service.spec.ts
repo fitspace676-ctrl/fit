@@ -28,6 +28,10 @@ function promoRecord(over?: Record<string, unknown>) {
     expiryDate: null,
     oncePerMember: false,
     status: 'active',
+    // Stage 7 exclusivity: NULL means "redeemable at every branch", which is what
+    // almost every code holds — so it is the fixture's default.
+    locationId: null,
+    location: null,
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
     updatedAt: new Date('2026-07-01T00:00:00.000Z'),
     ...over,
@@ -218,6 +222,40 @@ describe('MarketingService promo validate/redeem', () => {
     );
   });
 
+  it('honours a gym-wide code at any till, and at none', async () => {
+    const { service } = setup({
+      promoCode: { findFirst: vi.fn(() => Promise.resolve(promoRecord())) },
+    });
+    // A NULL branch on the code constrains nothing — the opposite of what a NULL
+    // branch means on an order or a payment.
+    expect((await service.validatePromoCode({ code: 'SPRING25', locationId: 'loc-9' })).valid).toBe(
+      true,
+    );
+    expect((await service.validatePromoCode({ code: 'SPRING25' })).valid).toBe(true);
+  });
+
+  it('refuses a branch-exclusive code at another till', async () => {
+    const { service } = setup({
+      promoCode: { findFirst: vi.fn(() => Promise.resolve(promoRecord({ locationId: 'loc-1' }))) },
+    });
+    expect(
+      (await service.validatePromoCode({ code: 'SPRING25', locationId: 'loc-2' })).reason,
+    ).toBe('wrong_location');
+    // Its own branch still works.
+    expect((await service.validatePromoCode({ code: 'SPRING25', locationId: 'loc-1' })).valid).toBe(
+      true,
+    );
+  });
+
+  it('refuses a branch-exclusive code when the purchase has no branch', async () => {
+    // The online shop sends none. Refusing is the conservative direction, the same
+    // one `out_of_scope` takes for a purchase whose catalogue is unknown.
+    const { service } = setup({
+      promoCode: { findFirst: vi.fn(() => Promise.resolve(promoRecord({ locationId: 'loc-1' }))) },
+    });
+    expect((await service.validatePromoCode({ code: 'SPRING25' })).reason).toBe('wrong_location');
+  });
+
   it('redeem increments usedCount only while under the limit', async () => {
     const updateMany = vi.fn((_a: AnyArgs) => Promise.resolve({ count: 1 }));
     const findFirst = vi
@@ -251,6 +289,55 @@ describe('MarketingService promo validate/redeem', () => {
   });
 });
 
+describe('MarketingService.listPromoCodes', () => {
+  const whereOf = (client: ReturnType<typeof setup>['client']) =>
+    client.promoCode.findMany.mock.calls[0]?.[0]?.where;
+
+  it('lists every code in the gym when no branch is given', async () => {
+    const { service, client } = setup({
+      promoCode: {
+        findMany: vi.fn(() =>
+          Promise.resolve([promoRecord(), promoRecord({ id: 'promo-2', locationId: 'loc-1' })]),
+        ),
+      },
+    });
+
+    const res = await service.listPromoCodes();
+    await service.listPromoCodes({ locationId: undefined });
+
+    expect(res.data).toHaveLength(2);
+    // "All branches" is no predicate at all — not an empty OR that matches nothing.
+    expect(whereOf(client)).toEqual({});
+    expect((client.promoCode.findMany.mock.calls[1]?.[0] as AnyArgs).where).toEqual({});
+  });
+
+  it("narrows to the branch's own codes AND every gym-wide one", async () => {
+    const { service, client } = setup();
+
+    await service.listPromoCodes({ locationId: 'loc-1' });
+
+    // A NULL branch on a code means "redeemable everywhere", so equality alone would
+    // hide nearly every code from every branch's view.
+    expect(whereOf(client)).toEqual({
+      AND: { OR: [{ locationId: null }, { locationId: 'loc-1' }] },
+    });
+  });
+
+  it("matches nothing extra for another gym's branch id", async () => {
+    const { service, client } = setup();
+
+    await service.listPromoCodes({ locationId: 'loc-other-gym' });
+
+    // The foreign id only adds a disjunct no row of THIS gym carries; the gym
+    // itself is pinned by the tenant-scoped client, so at most the gym-wide codes
+    // of the caller's own gym come back — never the other gym's.
+    expect(whereOf(client)).not.toHaveProperty('gymId');
+    expect(whereOf(client)).toEqual({
+      AND: { OR: [{ locationId: null }, { locationId: 'loc-other-gym' }] },
+    });
+  });
+});
+
 describe('MarketingService promo create conflicts', () => {
   it('rejects a duplicate code (case-insensitive) with 409', async () => {
     const { service } = setup({
@@ -265,6 +352,8 @@ describe('MarketingService promo create conflicts', () => {
         appliesTo: 'all',
         oncePerMember: false,
         status: 'active',
+        // NULL is the Stage 7 default: redeemable at every branch.
+        locationId: null,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });

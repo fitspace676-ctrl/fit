@@ -49,6 +49,7 @@ import {
   type MembersGranularity,
   type RetentionWindow,
 } from '@fit/types';
+import { useActiveLocation } from '@/components/active-location';
 import { loadMembersAction } from './actions';
 import { MembersKpiStrip } from './members-kpi-strip';
 import { ActiveMembersCard } from './active-members-card';
@@ -165,6 +166,11 @@ export function MembersView() {
   const t = useTranslations('admin.dashboard.members');
   const locale = useLocale();
 
+  // Passed in rather than read inside the action — see `sales/sales-view.tsx`
+  // for the two reasons (a `?locationId=` deep link an action cannot see, and
+  // the cache key below, which has to move when the branch does).
+  const { locationId } = useActiveLocation();
+
   const [granularity, setGranularity] = useState<MembersGranularity>(DEFAULT_MEMBERS_GRANULARITY);
   const [retentionWindow, setRetentionWindow] = useState<RetentionWindow>(DEFAULT_RETENTION_WINDOW);
   // No control changes this in Plan A; it is in the key so the watch-lists' own
@@ -177,7 +183,7 @@ export function MembersView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${retentionWindow}:${expiringWindow}`;
+  const key = `${granularity}:${retentionWindow}:${expiringWindow}:${locationId ?? ''}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -191,7 +197,7 @@ export function MembersView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadMembersAction({ granularity, retentionWindow, expiringWindow })
+    void loadMembersAction({ granularity, retentionWindow, expiringWindow, locationId })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -216,7 +222,7 @@ export function MembersView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, retentionWindow, expiringWindow, attempt, t]);
+  }, [key, granularity, retentionWindow, expiringWindow, locationId, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new

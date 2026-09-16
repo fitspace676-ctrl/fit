@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -23,6 +24,7 @@ import {
   type ListServiceSlotsResponse,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
+import { PortalBranchService } from '../common/portal-branch.service';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -68,17 +70,27 @@ export class AdminServiceSessionsController {
 /**
  * Public side: the OPEN slots a visitor sees on the portal's service page.
  * `@Public()` and excluded from the JWT `TenantMiddleware` (like `/services`);
- * the gym is the explicit `gymId` query param.
+ * the gym is the explicit `gymId` query param. The branch is the explicit
+ * `locationId`, else a signed-in member's home branch, else every branch
+ * ({@link PortalBranchService}).
  */
 @Controller('service-sessions')
 export class ServiceSlotsController {
-  constructor(private readonly sessions: ServiceSessionsService) {}
+  constructor(
+    private readonly sessions: ServiceSessionsService,
+    private readonly portalBranch: PortalBranchService,
+  ) {}
 
   @Get()
   @HttpCode(HttpStatus.OK)
   @Public()
-  async list(@Query() query: unknown): Promise<ListServiceSlotsResponse> {
-    return this.sessions.listOpenSlots(parse(listServiceSlotsQuerySchema, query));
+  async list(
+    @Query() query: unknown,
+    @Headers('authorization') authorization?: string,
+  ): Promise<ListServiceSlotsResponse> {
+    const parsed = parse(listServiceSlotsQuerySchema, query);
+    const locationId = await this.portalBranch.resolve({ ...parsed, authorization });
+    return this.sessions.listOpenSlots({ ...parsed, locationId });
   }
 }
 

@@ -306,6 +306,10 @@ export class CartService {
       amount: subtotal,
       scope: 'products',
       memberId: member?.id ?? null,
+      // No `locationId`: an online basket happens at no branch. A gym-wide code —
+      // every code, unless someone deliberately tied one to a branch — is
+      // unaffected; a branch-exclusive one is refused, because nothing here can
+      // confirm the buyer is at that branch.
     });
     const discount = promo?.discount ?? 0;
     const total = subtotal - discount;

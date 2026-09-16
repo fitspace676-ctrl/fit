@@ -1,7 +1,16 @@
-import { BadRequestException, Controller, Get, HttpCode, HttpStatus, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Query,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { listProductsQuerySchema, type ListProductsResponse } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
+import { PortalBranchService } from '../common/portal-branch.service';
 import { ProductsService } from './products.service';
 
 /**
@@ -22,23 +31,33 @@ import { ProductsService } from './products.service';
  */
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly portalBranch: PortalBranchService,
+  ) {}
 
   /**
-   * `GET /products?gymId=<id>` — list the gym's active products. The query is
-   * validated up front (a bad/missing `gymId` is a `400` with per-field details)
-   * so the service only ever sees a well-formed request. An empty `products`
-   * array is a normal `200`.
+   * `GET /products?gymId=<id>[&locationId=<id>]` — list the gym's active products
+   * available at the caller's branch. The query is validated up front (a
+   * bad/missing `gymId` is a `400` with per-field details) so the service only
+   * ever sees a well-formed request. The branch is the explicit `locationId`, else
+   * a signed-in member's home branch, else every branch
+   * ({@link PortalBranchService}); a `locationId` outside the gym is a `404`. An
+   * empty `products` array is a normal `200`.
    */
   @Get()
   @HttpCode(HttpStatus.OK)
   @Public()
-  async list(@Query() query: unknown): Promise<ListProductsResponse> {
+  async list(
+    @Query() query: unknown,
+    @Headers('authorization') authorization?: string,
+  ): Promise<ListProductsResponse> {
     const result = listProductsQuerySchema.safeParse(query);
     if (!result.success) {
       throw new BadRequestException(formatIssues(result.error));
     }
-    return this.products.listProducts(result.data);
+    const locationId = await this.portalBranch.resolve({ ...result.data, authorization });
+    return this.products.listProducts({ ...result.data, locationId });
   }
 }
 

@@ -103,6 +103,8 @@ jobs:
           NODE_ENV: production
 
       - name: Wait for the API to be ready
+        # A poll, not a `sleep`: the API's boot time varies with migration and
+        # Nest module-init cost, and a fixed sleep is either flaky or wasteful.
         run: |
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:3000/health >/dev/null 2>&1; then

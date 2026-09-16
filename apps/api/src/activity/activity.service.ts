@@ -7,6 +7,7 @@ import {
   type ListActivityQuery,
   type ListActivityResponse,
 } from '@fit/types';
+import { atLocation, memberAtLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -45,6 +46,18 @@ interface DateWindow {
  * merged, sorted newest-first, and the requested page sliced out. `total` is the
  * exact sum of the per-source filtered counts, so the pager stays accurate without
  * materialising the whole stream.
+ *
+ * A `locationId` narrows every source by the attribution rule in
+ * `common/location-filter.util.ts`. The PLACE events read their own column —
+ * `checkin` the branch the member walked into, `sale` the till the payment was taken
+ * at. The PERSON events follow the member's home branch — `signup` on the
+ * `GymMember` row itself, `booking` and `subscription` through their member. Each
+ * kind has a path, so no kind is dropped wholesale; what falls out of a filtered page
+ * (and stays in the gym-wide one) is the unattributed residue: a `sale` whose
+ * `Payment.locationId` is NULL, a `checkin` recorded with no branch, and every
+ * `signup` / `booking` / `subscription` of a member with no home branch. A booking
+ * deliberately does NOT read its class's branch: the feed says who reserved, and a
+ * per-branch page must add back up to the gym-wide one person by person.
  */
 @Injectable()
 export class ActivityService {
@@ -66,8 +79,8 @@ export class ActivityService {
     const ceiling = query.page * query.limit;
 
     const [events, total] = await Promise.all([
-      this.collectEvents(kinds, window, ceiling),
-      this.countEvents(kinds, window),
+      this.collectEvents(kinds, window, ceiling, query.locationId),
+      this.countEvents(kinds, window, query.locationId),
     ]);
 
     const skip = (query.page - 1) * query.limit;
@@ -120,8 +133,11 @@ export class ActivityService {
     kinds: ActivityEventType[],
     window: DateWindow,
     ceiling: number,
+    locationId: string | undefined,
   ): Promise<ActivityEvent[]> {
-    const batches = await Promise.all(kinds.map((kind) => this.collectKind(kind, window, ceiling)));
+    const batches = await Promise.all(
+      kinds.map((kind) => this.collectKind(kind, window, ceiling, locationId)),
+    );
     return batches.flat();
   }
 
@@ -130,26 +146,34 @@ export class ActivityService {
     kind: ActivityEventType,
     window: DateWindow,
     ceiling: number,
+    locationId: string | undefined,
   ): Promise<ActivityEvent[]> {
     switch (kind) {
       case 'signup':
-        return this.collectSignups(window, ceiling);
+        return this.collectSignups(window, ceiling, locationId);
       case 'booking':
-        return this.collectBookings(window, ceiling);
+        return this.collectBookings(window, ceiling, locationId);
       case 'checkin':
-        return this.collectCheckins(window, ceiling);
+        return this.collectCheckins(window, ceiling, locationId);
       case 'sale':
-        return this.collectSales(window, ceiling);
+        return this.collectSales(window, ceiling, locationId);
       case 'subscription':
-        return this.collectSubscriptions(window, ceiling);
+        return this.collectSubscriptions(window, ceiling, locationId);
     }
   }
 
-  /** New members who joined — auto-scoped `GymMember` (role MEMBER only). */
-  private async collectSignups(window: DateWindow, take: number): Promise<ActivityEvent[]> {
+  /**
+   * New members who joined — auto-scoped `GymMember` (role MEMBER only). A person
+   * event: the row IS the member, so its own `locationId` is the home branch.
+   */
+  private async collectSignups(
+    window: DateWindow,
+    take: number,
+    locationId: string | undefined,
+  ): Promise<ActivityEvent[]> {
     const joinedAt = this.timeFilter(window);
     const rows = await this.prisma.client.gymMember.findMany({
-      where: { role: Role.MEMBER, ...(joinedAt ? { joinedAt } : {}) },
+      where: { role: Role.MEMBER, ...(joinedAt ? { joinedAt } : {}), ...atLocation(locationId) },
       orderBy: { joinedAt: 'desc' },
       take,
       select: { id: true, joinedAt: true, ...MEMBER_IDENTITY_SELECT },
@@ -167,11 +191,18 @@ export class ActivityService {
     }));
   }
 
-  /** Class reservations — auto-scoped `Booking`, joined to its class + member. */
-  private async collectBookings(window: DateWindow, take: number): Promise<ActivityEvent[]> {
+  /**
+   * Class reservations — auto-scoped `Booking`, joined to its class + member. A
+   * person event, attributed through the member's home branch.
+   */
+  private async collectBookings(
+    window: DateWindow,
+    take: number,
+    locationId: string | undefined,
+  ): Promise<ActivityEvent[]> {
     const createdAt = this.timeFilter(window);
     const rows = await this.prisma.client.booking.findMany({
-      where: createdAt ? { createdAt } : {},
+      where: { ...(createdAt ? { createdAt } : {}), ...memberAtLocation(locationId) },
       orderBy: { createdAt: 'desc' },
       take,
       select: {
@@ -202,12 +233,21 @@ export class ActivityService {
 
   /**
    * Reception arrivals — `CheckIn` is not in the auto-scope set, so the query pins
-   * the tenant explicitly from the context, exactly like the reception service.
+   * the tenant explicitly from the context, exactly like the reception service. A
+   * place event: the branch the member walked into, never their home branch.
    */
-  private async collectCheckins(window: DateWindow, take: number): Promise<ActivityEvent[]> {
+  private async collectCheckins(
+    window: DateWindow,
+    take: number,
+    locationId: string | undefined,
+  ): Promise<ActivityEvent[]> {
     const checkedInAt = this.timeFilter(window);
     const rows = await this.prisma.client.checkIn.findMany({
-      where: { gymId: this.tenant.gymId, ...(checkedInAt ? { checkedInAt } : {}) },
+      where: {
+        gymId: this.tenant.gymId,
+        ...(checkedInAt ? { checkedInAt } : {}),
+        ...atLocation(locationId),
+      },
       orderBy: { checkedInAt: 'desc' },
       take,
       select: {
@@ -233,12 +273,21 @@ export class ActivityService {
   /**
    * Captured sales — auto-scoped `Payment` (status `CAPTURED` = settled money),
    * joined to its order's member. A guest checkout has no member: fall back to the
-   * order's captured customer name, or leave the member fields `null`.
+   * order's captured customer name, or leave the member fields `null`. A place
+   * event: the payment's own frozen till branch, so a guest sale filters too.
    */
-  private async collectSales(window: DateWindow, take: number): Promise<ActivityEvent[]> {
+  private async collectSales(
+    window: DateWindow,
+    take: number,
+    locationId: string | undefined,
+  ): Promise<ActivityEvent[]> {
     const createdAt = this.timeFilter(window);
     const rows = await this.prisma.client.payment.findMany({
-      where: { status: PaymentStatus.CAPTURED, ...(createdAt ? { createdAt } : {}) },
+      where: {
+        status: PaymentStatus.CAPTURED,
+        ...(createdAt ? { createdAt } : {}),
+        ...atLocation(locationId),
+      },
       orderBy: { createdAt: 'desc' },
       take,
       select: {
@@ -274,11 +323,18 @@ export class ActivityService {
     });
   }
 
-  /** Subscription enrolments — auto-scoped `Subscription`, joined to plan + member. */
-  private async collectSubscriptions(window: DateWindow, take: number): Promise<ActivityEvent[]> {
+  /**
+   * Subscription enrolments — auto-scoped `Subscription`, joined to plan + member. A
+   * person event, attributed through the member's home branch like MRR.
+   */
+  private async collectSubscriptions(
+    window: DateWindow,
+    take: number,
+    locationId: string | undefined,
+  ): Promise<ActivityEvent[]> {
     const createdAt = this.timeFilter(window);
     const rows = await this.prisma.client.subscription.findMany({
-      where: createdAt ? { createdAt } : {},
+      where: { ...(createdAt ? { createdAt } : {}), ...memberAtLocation(locationId) },
       orderBy: { createdAt: 'desc' },
       take,
       select: {
@@ -303,39 +359,63 @@ export class ActivityService {
   }
 
   /** The exact count of every requested source inside the window, summed. */
-  private async countEvents(kinds: ActivityEventType[], window: DateWindow): Promise<number> {
-    const counts = await Promise.all(kinds.map((kind) => this.countKind(kind, window)));
+  private async countEvents(
+    kinds: ActivityEventType[],
+    window: DateWindow,
+    locationId: string | undefined,
+  ): Promise<number> {
+    const counts = await Promise.all(kinds.map((kind) => this.countKind(kind, window, locationId)));
     return counts.reduce((sum, n) => sum + n, 0);
   }
 
-  /** The filtered count of one source inside the window. */
-  private countKind(kind: ActivityEventType, window: DateWindow): Promise<number> {
+  /** The filtered count of one source inside the window — the same `where` its collector uses. */
+  private countKind(
+    kind: ActivityEventType,
+    window: DateWindow,
+    locationId: string | undefined,
+  ): Promise<number> {
     switch (kind) {
       case 'signup': {
         const joinedAt = this.timeFilter(window);
         return this.prisma.client.gymMember.count({
-          where: { role: Role.MEMBER, ...(joinedAt ? { joinedAt } : {}) },
+          where: {
+            role: Role.MEMBER,
+            ...(joinedAt ? { joinedAt } : {}),
+            ...atLocation(locationId),
+          },
         });
       }
       case 'booking': {
         const createdAt = this.timeFilter(window);
-        return this.prisma.client.booking.count({ where: createdAt ? { createdAt } : {} });
+        return this.prisma.client.booking.count({
+          where: { ...(createdAt ? { createdAt } : {}), ...memberAtLocation(locationId) },
+        });
       }
       case 'checkin': {
         const checkedInAt = this.timeFilter(window);
         return this.prisma.client.checkIn.count({
-          where: { gymId: this.tenant.gymId, ...(checkedInAt ? { checkedInAt } : {}) },
+          where: {
+            gymId: this.tenant.gymId,
+            ...(checkedInAt ? { checkedInAt } : {}),
+            ...atLocation(locationId),
+          },
         });
       }
       case 'sale': {
         const createdAt = this.timeFilter(window);
         return this.prisma.client.payment.count({
-          where: { status: PaymentStatus.CAPTURED, ...(createdAt ? { createdAt } : {}) },
+          where: {
+            status: PaymentStatus.CAPTURED,
+            ...(createdAt ? { createdAt } : {}),
+            ...atLocation(locationId),
+          },
         });
       }
       case 'subscription': {
         const createdAt = this.timeFilter(window);
-        return this.prisma.client.subscription.count({ where: createdAt ? { createdAt } : {} });
+        return this.prisma.client.subscription.count({
+          where: { ...(createdAt ? { createdAt } : {}), ...memberAtLocation(locationId) },
+        });
       }
     }
   }

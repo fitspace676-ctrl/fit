@@ -7,6 +7,7 @@ import type {
   ListClassInstancesResponse,
 } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { toAvatarUrl } from './trainer-avatar';
 
 /** The occurrence + template columns the member-facing detail projection reads.
  * The template carries the denormalised display fields (title/description/
@@ -19,7 +20,7 @@ const DETAIL_SELECT = {
   bookedCount: true,
   status: true,
   room: true,
-  trainer: { select: { name: true } },
+  trainer: { select: { id: true, name: true, photoUrl: true } },
   location: { select: { name: true } },
   template: {
     select: {
@@ -31,7 +32,7 @@ const DETAIL_SELECT = {
       room: true,
       capacity: true,
       durationMinutes: true,
-      trainer: { select: { name: true } },
+      trainer: { select: { id: true, name: true, photoUrl: true } },
       location: { select: { name: true } },
     },
   },
@@ -58,7 +59,7 @@ const CARD_SELECT = {
   endsAt: true,
   capacityOverride: true,
   bookedCount: true,
-  trainer: { select: { name: true } },
+  trainer: { select: { id: true, name: true, photoUrl: true } },
   location: { select: { name: true } },
   template: {
     select: {
@@ -68,7 +69,7 @@ const CARD_SELECT = {
       color: true,
       imageUrl: true,
       capacity: true,
-      trainer: { select: { name: true } },
+      trainer: { select: { id: true, name: true, photoUrl: true } },
       location: { select: { name: true } },
     },
   },
@@ -123,6 +124,16 @@ export class ClassesService {
         // member checking the schedule on arrival is looking for.
         startsAt: { lt: to },
         endsAt: { gt: from },
+        // A branch matches the occurrence's own assignment or, for a generated
+        // occurrence that carries none, its template's — the admin schedule's rule.
+        ...(query.locationId
+          ? {
+              OR: [
+                { locationId: query.locationId },
+                { template: { locationId: query.locationId } },
+              ],
+            }
+          : {}),
       },
       select: CARD_SELECT,
       orderBy: { startsAt: 'asc' },
@@ -162,12 +173,18 @@ export class ClassesService {
  * over the template's seat count, and absent relations flatten to empty strings
  * rather than nulls. */
 function toCard(row: InstanceCardRow): ListClassInstancesResponse['instances'][number] {
+  // Resolved as one trainer, not field by field: the id, the name and the photo
+  // on a card must all describe the same coach, which per-field fallbacks would
+  // not guarantee for an occurrence that overrides only some of them.
+  const trainer = row.trainer ?? row.template?.trainer ?? null;
   return {
     id: row.id,
     title: row.template?.title ?? row.classType?.name ?? 'Class',
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
-    trainerName: row.trainer?.name ?? row.template?.trainer?.name ?? '',
+    trainerName: trainer?.name ?? '',
+    trainerId: trainer?.id ?? null,
+    trainerAvatarUrl: toAvatarUrl(trainer?.photoUrl),
     locationName: row.location?.name ?? row.template?.location?.name ?? '',
     capacity: row.capacityOverride ?? row.template?.capacity ?? row.classType?.capacity ?? 0,
     bookedCount: row.bookedCount,
@@ -183,13 +200,17 @@ function toCard(row: InstanceCardRow): ListClassInstancesResponse['instances'][n
  * contract defines — resolving the per-occurrence capacity override and flatten-
  * ing the optional trainer / location / room to empty strings when absent. */
 function toDetail(row: InstanceDetailRow): GetClassInstanceResponse['instance'] {
+  // One trainer for all three fields — see {@link toCard}.
+  const trainer = row.trainer ?? row.template?.trainer ?? null;
   return {
     id: row.id,
     title: row.template?.title ?? row.classType?.name ?? 'Class',
     description: row.template?.description ?? row.classType?.description ?? '',
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
-    trainerName: row.trainer?.name ?? row.template?.trainer?.name ?? '',
+    trainerName: trainer?.name ?? '',
+    trainerId: trainer?.id ?? null,
+    trainerAvatarUrl: toAvatarUrl(trainer?.photoUrl),
     locationName: row.location?.name ?? row.template?.location?.name ?? '',
     room: row.room ?? row.template?.room ?? '',
     capacity: row.capacityOverride ?? row.template?.capacity ?? row.classType?.capacity ?? 0,

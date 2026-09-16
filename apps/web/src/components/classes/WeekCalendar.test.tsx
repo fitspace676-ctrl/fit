@@ -37,6 +37,8 @@ function card(over: Partial<ClassInstanceCard> = {}): ClassInstanceCard {
     startsAt: '2026-08-24T10:00:00.000Z',
     endsAt: '2026-08-24T11:00:00.000Z',
     trainerName: 'Nino Beridze',
+    trainerId: null,
+    trainerAvatarUrl: null,
     locationName: 'Vake Branch',
     capacity: 20,
     bookedCount: 4,

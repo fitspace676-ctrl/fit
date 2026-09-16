@@ -23,6 +23,9 @@ interface PackagePlanRecord {
   features: string[];
   popular: boolean;
   status: PackagePlanStatus;
+  /** Stage 7 exclusivity: `null` means "offered at every branch". */
+  locationId: string | null;
+  location: { name: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +52,10 @@ const row = (over?: Partial<PackagePlanRecord>): PackagePlanRecord => ({
   features: ['Personalised plan', 'Progress tracking'],
   popular: true,
   status: PackagePlanStatus.ACTIVE,
+  // Stage 7 exclusivity: NULL means "sold at every branch", which is what almost
+  // every catalogue row holds — so it is the fixture's default.
+  locationId: null,
+  location: null,
   createdAt: new Date('2026-03-01T00:00:00.000Z'),
   updatedAt: new Date('2026-03-02T00:00:00.000Z'),
   ...over,
@@ -109,6 +116,8 @@ const createInput = (over?: Partial<CreatePackagePlanData>): CreatePackagePlanDa
   features: ['Personalised plan', 'Progress tracking'],
   popular: true,
   status: 'ACTIVE',
+  // NULL is the Stage 7 default: sold at every branch, not "unattributed".
+  locationId: null,
   ...over,
 });
 
@@ -120,6 +129,7 @@ const updateInput = (over?: Partial<UpdatePackagePlanData>): UpdatePackagePlanDa
   sessionCount: null,
   features: ['Unlimited sessions'],
   popular: false,
+  locationId: null,
   ...over,
 });
 
@@ -144,6 +154,7 @@ describe('AdminPackagePlansService', () => {
             featureCount: 2,
             popular: true,
             status: 'ACTIVE',
+            locationName: null,
             createdAt: '2026-03-01T00:00:00.000Z',
           },
         ],
@@ -224,9 +235,11 @@ describe('AdminPackagePlansService', () => {
         featureCount: 2,
         popular: true,
         status: 'ACTIVE',
+        locationName: null,
         createdAt: '2026-03-01T00:00:00.000Z',
         description: 'Ten one-on-one personal training sessions.',
         features: ['Personalised plan', 'Progress tracking'],
+        locationId: null,
         updatedAt: '2026-03-02T00:00:00.000Z',
       });
     });

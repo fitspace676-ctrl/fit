@@ -20,6 +20,7 @@ import {
   type CreateLocationResponse,
   type GetAdminLocationResponse,
   type ListAdminLocationsResponse,
+  type MakeDefaultLocationResponse,
   type SetLocationStatusResponse,
   type UpdateLocationResponse,
 } from '@fit/types';
@@ -115,6 +116,19 @@ export class AdminLocationsController {
   @RequirePermissions(Permission.LocationManage)
   async reactivate(@Param('id') id: string): Promise<SetLocationStatusResponse> {
     return this.locations.reactivateLocation(id);
+  }
+
+  /**
+   * `POST /admin/locations/:id/make-default` — make this branch the gym's default,
+   * moving the flag off the previous one in the same transaction. Idempotent on the
+   * current default; `404` for an unknown / cross-tenant id; `409
+   * LOCATION_NOT_ACTIVE` for an inactive branch. Returns the updated detail.
+   */
+  @Post(':id/make-default')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.LocationWrite)
+  async makeDefault(@Param('id') id: string): Promise<MakeDefaultLocationResponse> {
+    return this.locations.makeDefaultLocation(id);
   }
 }
 

@@ -18,6 +18,7 @@
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
+import { branchAvailabilityQuerySchema, branchExclusivitySchema } from './locations-admin';
 
 /**
  * A package plan's lifecycle within the gym, mirroring the Prisma
@@ -62,6 +63,12 @@ export const listAdminPackagePlansQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().max(100).optional(),
   status: packagePlanStatusSchema.optional(),
+  /**
+   * Which branch the operator is looking at. Returns the packages that branch may
+   * SELL — its exclusives plus every gym-wide package — not the packages
+   * "belonging" to it. See {@link branchAvailabilityQuerySchema}.
+   */
+  locationId: branchAvailabilityQuerySchema,
   sort: packagePlanSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
 });
@@ -87,6 +94,13 @@ export interface AdminPackagePlanRow {
   featureCount: number;
   popular: boolean;
   status: PackagePlanStatus;
+  /**
+   * The branch this package is exclusive to, or **`null` for "sold at every
+   * branch"** — the state of very nearly every row, and the opposite of what a
+   * `null` branch means on a member or an order. The roster shows a badge only
+   * when it is set.
+   */
+  locationName: string | null;
   createdAt: string;
 }
 
@@ -112,6 +126,11 @@ export interface ListAdminPackagePlansResponse {
 export interface AdminPackagePlanDetail extends AdminPackagePlanRow {
   description: string;
   features: string[];
+  /**
+   * The raw branch id the edit form binds its select to — `null` meaning **"sold
+   * at every branch"**, the select's default option rather than a missing value.
+   */
+  locationId: string | null;
   updatedAt: string;
 }
 
@@ -151,6 +170,13 @@ const packagePlanProfileFields = {
     .max(MAX_PACKAGE_FEATURES, `A plan can have at most ${MAX_PACKAGE_FEATURES} features`)
     .default([]),
   popular: z.coerce.boolean().default(false),
+  /**
+   * The branch this package is exclusive to, or **`null` for "sold at every
+   * branch"** — see {@link branchExclusivitySchema}. Shared by create and edit,
+   * so an edit that omits it widens the package back to the whole gym; the form
+   * posts the whole profile.
+   */
+  locationId: branchExclusivitySchema,
 };
 
 /**

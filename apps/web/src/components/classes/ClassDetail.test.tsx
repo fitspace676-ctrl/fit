@@ -45,6 +45,8 @@ function instance(over: Partial<ClassInstanceDetail> = {}): ClassInstanceDetail 
     startsAt: '2026-06-01T09:00:00.000Z',
     endsAt: '2026-06-01T10:00:00.000Z',
     trainerName: 'Nino Beridze',
+    trainerId: null,
+    trainerAvatarUrl: null,
     locationName: 'Vake Branch',
     room: '',
     capacity: 12,

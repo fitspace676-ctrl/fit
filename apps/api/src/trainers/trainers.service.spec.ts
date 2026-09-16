@@ -66,6 +66,30 @@ describe('TrainersService.listTrainers', () => {
   });
 });
 
+describe('TrainersService.listTrainers — branch', () => {
+  it('narrows to trainers whose staff record is rostered at the branch', async () => {
+    const { service, findMany } = setup();
+
+    await service.listTrainers({ gymId: 'gym-1', locationId: 'loc-1' });
+
+    expect(findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        gymId: 'gym-1',
+        status: 'ACTIVE',
+        staff: { is: { locationAssignments: { some: { locationId: 'loc-1' } } } },
+      },
+    });
+  });
+
+  it('adds no roster predicate when no branch is resolved', async () => {
+    const { service, findMany } = setup();
+
+    await service.listTrainers({ gymId: 'gym-1' });
+
+    expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('staff');
+  });
+});
+
 describe('TrainersService.getTrainer', () => {
   it('returns the profile with upcoming classes and open service slots, by start', async () => {
     const { service, findFirst, instanceFindMany } = setup({

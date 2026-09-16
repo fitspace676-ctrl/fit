@@ -2,17 +2,13 @@
   "expo": {
     "name": "FormaCore",
     "slug": "fit",
-    "version": "0.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "fit",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#122357"
-    },
+    "backgroundColor": "#131312",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fit.app",
@@ -22,7 +18,7 @@
       "package": "com.fit.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#122357"
+        "backgroundColor": "#131312"
       }
     },
     "web": {
@@ -33,8 +29,25 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
+      "expo-font",
       "expo-apple-authentication",
       "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#131312"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FormaCore uses the camera to scan QR codes at the gym. The code stays on your phone.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       [
         "@sentry/react-native/expo",
         { "organization": "forma-0r", "project": "fit-mobile", "url": "https://de.sentry.io/" }

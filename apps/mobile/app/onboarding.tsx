@@ -1,112 +1,169 @@
-import { useRef, useState } from 'react';
+// `/onboarding` — the first-run intro. Two slides and a Get started.
+//
+// ===========================================================================
+// THE SCRIPT ALREADY EXISTED. All nine keys of it — `onboarding.skip`,
+// `onboarding.next`, `onboarding.getStarted` and a title/body pair for each of
+// classes, qr and shop — were written into the catalogues at full ka+en parity
+// for a screen that was never built. So the slides below are a transcription,
+// not a proposal: the order is the order the keys are in.
+//
+// ---------------------------------------------------------------------------
+// THE MIDDLE SLIDE IS GONE (2026-08-31). It was the QR one, and its subject —
+// "check in with the code on your phone" — left the app with the `/qr` screen
+// when Q1 closed: there is no scanner integration and no member-scoped
+// check-in endpoint. An intro slide for a feature the app does not have is
+// worse than one slide fewer, and inventing a third subject to keep the count
+// would be writing product copy to fill a hole in a deck.
+//
+// `onboarding.qr.title` and `onboarding.qr.body` are simply left unread. They
+// are authored copy in `packages/i18n`, they cost nothing, and they are the
+// script again the day a scanner exists.
+//
+// ---------------------------------------------------------------------------
+// WHY THIS SCREEN OWNS NO REDIRECT LOGIC.
+//
+// `resolveRedirect` (lib/route-policy.ts) already holds the whole zone table:
+// signed in and not onboarded, everything except this route redirects HERE;
+// once `complete()` lands, this route redirects to `/home`. So finishing is
+// one call — flip the flag — and the guard in the root layout moves the user.
+// A `router.replace('/home')` here would be a SECOND authority on the same
+// decision, and the deleted app's guard is a lesson in what two of those cost.
+// `router.replace('/')` is used only as the nudge that makes the guard
+// re-evaluate immediately rather than on the next navigation.
+// ===========================================================================
+
+import { useCallback, useState } from 'react';
+import { View } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
-  FlatList,
-  Pressable,
+  Button,
+  Heading,
+  Icon,
+  Pips,
+  Screen,
+  Surface,
   Text,
-  useWindowDimensions,
-  View,
-  type ListRenderItemInfo,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  spacing,
+  type IconName,
+} from '@fit/ui-mobile';
+
 import { useOnboarding } from '../hooks/useOnboarding';
-import { useTranslation } from '../providers';
+import { useI18n } from '../providers/I18nProvider';
+import type { MessageKey } from '../lib/i18n/keys';
 
-// The three first-run slides. `key` indexes into the `onboarding.*` i18n group;
-// the glyph is a lightweight stand-in for per-slide illustration art.
-const SLIDES = [
-  { key: 'classes', glyph: '🗓' },
-  { key: 'qr', glyph: '▦' },
-  { key: 'shop', glyph: '🛍' },
-] as const;
+interface Slide {
+  readonly key: 'classes' | 'shop';
+  readonly icon: IconName;
+  readonly title: MessageKey;
+  readonly body: MessageKey;
+}
 
-// First-run onboarding: a 3-slide, horizontally swipeable intro to classes, QR
-// check-in, and the shop. Reaching the end (or tapping Skip) marks onboarding
-// complete in SecureStore via `useOnboarding().complete()`; the root guard then
-// routes the user into the app and never shows these screens again.
+/** The slides, in catalogue order. The `qr` pair between them is unread. */
+const SLIDES: readonly Slide[] = [
+  {
+    key: 'classes',
+    icon: 'calendar',
+    title: 'onboarding.classes.title',
+    body: 'onboarding.classes.body',
+  },
+  { key: 'shop', icon: 'bag', title: 'onboarding.shop.title', body: 'onboarding.shop.body' },
+];
+
+/** The round plate the slide's glyph sits in — `h-20 w-20` on the artboards. */
+const PLATE = 80;
+
 export default function OnboardingScreen() {
-  const t = useTranslation();
+  const { t } = useI18n();
+  const router = useRouter();
   const { complete } = useOnboarding();
-  const { width } = useWindowDimensions();
-  const listRef = useRef<FlatList>(null);
   const [index, setIndex] = useState(0);
 
+  const slide = SLIDES[index] ?? SLIDES[0];
   const isLast = index === SLIDES.length - 1;
 
-  const finish = (): void => {
-    // Fire-and-forget: the guard reacts to the flag flipping; a SecureStore
-    // write failing shouldn't trap the user on the intro.
-    void complete();
-  };
+  const finish = useCallback(() => {
+    void complete().then(() => {
+      // Not a decision about WHERE — see the header. `/` re-runs the guard.
+      router.replace('/');
+    });
+  }, [complete, router]);
 
-  const onNext = (): void => {
+  const advance = useCallback(() => {
     if (isLast) {
       finish();
       return;
     }
-    listRef.current?.scrollToIndex({ index: index + 1, animated: true });
-  };
+    setIndex((current) => Math.min(current + 1, SLIDES.length - 1));
+  }, [finish, isLast]);
 
-  const onScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
-    const next = Math.round(event.nativeEvent.contentOffset.x / width);
-    if (next !== index) setIndex(next);
-  };
-
-  const renderSlide = ({ item }: ListRenderItemInfo<(typeof SLIDES)[number]>) => (
-    <View style={{ width }} className="flex-1 items-center justify-center gap-6 p-gutter">
-      <Text className="text-7xl">{item.glyph}</Text>
-      <Text className="text-center text-3xl font-bold tracking-tight text-white">
-        {t(`onboarding.${item.key}.title`)}
-      </Text>
-      <Text className="max-w-xs text-center text-base text-brand-200">
-        {t(`onboarding.${item.key}.body`)}
-      </Text>
-    </View>
-  );
+  if (slide === undefined) return null;
 
   return (
-    <SafeAreaView className="flex-1 bg-brand-950">
-      <View className="flex-row justify-end p-gutter">
-        <Pressable testID="onboarding-skip" accessibilityRole="button" onPress={finish} hitSlop={8}>
-          <Text className="text-base font-medium text-brand-300">{t('onboarding.skip')}</Text>
-        </Pressable>
+    <Screen
+      testID="onboarding-screen"
+      // No tab bar behind the intro, so there is nothing to reserve space for.
+      reserveTabBar={false}
+      contentContainerStyle={{ justifyContent: 'space-between', paddingVertical: spacing[8] }}
+    >
+      <View style={{ alignItems: 'flex-end' }}>
+        <Button
+          label={t('onboarding.skip')}
+          onPress={finish}
+          variant="ghost"
+          size="sm"
+          testID="onboarding-skip"
+        />
       </View>
 
-      <FlatList
-        ref={listRef}
-        data={SLIDES}
-        keyExtractor={(item) => item.key}
-        renderItem={renderSlide}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={onScrollEnd}
-      />
-
-      <View className="gap-6 p-gutter">
-        <View className="flex-row justify-center gap-2">
-          {SLIDES.map((slide, i) => (
-            <View
-              key={slide.key}
-              className={`h-2 rounded-full ${
-                i === index ? 'w-6 bg-brand-400' : 'w-2 bg-brand-700'
-              }`}
-            />
-          ))}
-        </View>
-
-        <Pressable
-          testID="onboarding-next"
-          accessibilityRole="button"
-          onPress={onNext}
-          className="w-full items-center rounded-card bg-brand-500 px-6 py-3"
+      <View style={{ alignItems: 'center', gap: spacing[5] }}>
+        <Surface
+          tone="quiet"
+          side={PLATE}
+          radius={PLATE / 2}
+          style={{ width: PLATE, height: PLATE, alignItems: 'center', justifyContent: 'center' }}
+          // The glyph repeats what the title says; announcing it twice is
+          // worse than announcing it once.
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
         >
-          <Text className="text-base font-medium text-white">
-            {isLast ? t('onboarding.getStarted') : t('onboarding.next')}
-          </Text>
-        </Pressable>
+          <Icon name={slide.icon} size={36} color="accent" />
+        </Surface>
+
+        {/* The screen's ONE `role="header"`. Only one slide is mounted at a
+            time, so it stays one however many slides there are. */}
+        <Heading level={1} style={{ textAlign: 'center' }} testID="onboarding-title">
+          {t(slide.title)}
+        </Heading>
+
+        <Text variant="body" color="textSecondary" style={{ textAlign: 'center' }}>
+          {t(slide.body)}
+        </Text>
       </View>
-    </SafeAreaView>
+
+      <View style={{ alignItems: 'center', gap: spacing[6] }}>
+        <Pips
+          filled={index + 1}
+          total={SLIDES.length}
+          // The pips are the only thing that says HOW FAR IN this is, and they
+          // have no text at all. `Pips` supplies the position itself as
+          // `accessibilityValue` ({min, max, now}), so naming it with the
+          // slide's own title yields "Find your next class, 1 of 2".
+          //
+          // TODO(i18n): a dedicated `onboarding.progress` would read better than
+          // reusing the title. It does not exist; the nine authored keys cover
+          // the script and not the chrome.
+          accessibilityLabel={t(slide.title)}
+          testID="onboarding-pips"
+        />
+        <Button
+          label={isLast ? t('onboarding.getStarted') : t('onboarding.next')}
+          onPress={advance}
+          variant="primary"
+          size="lg"
+          fullWidth
+          testID="onboarding-next"
+        />
+      </View>
+    </Screen>
   );
 }

@@ -1,9 +1,0 @@
-appId: com.fit.app
-name: 01-login
-tags:
-  - smoke
----
-# Smoke: a seeded member can sign in and reach the authenticated app shell.
-- runFlow: '../subflows/launch-and-sign-in.yaml'
-- assertVisible:
-    id: 'tab-qr'

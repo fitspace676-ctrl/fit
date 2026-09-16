@@ -98,6 +98,23 @@ export const listAdminInvoicesQuerySchema = z.object({
   type: invoiceTypeSchema.optional(),
   issuedFrom: isoDateSchema.optional(),
   issuedTo: isoDateSchema.optional(),
+  /**
+   * Narrow the roster to one branch, matched against `Invoice.locationId` — the
+   * home branch of the member the invoice was raised against, snapshotted at issue
+   * time by Stage 5 of the multi-branch roadmap.
+   *
+   * A snapshot rather than a live hop through `member`, which matters here more
+   * than anywhere: transferring a member used to move their entire billing history
+   * onto the new branch, so a document could leave the roster of the branch that
+   * raised it. It stays put now, and only invoices issued after the move appear at
+   * the new branch.
+   *
+   * An invoice with no branch (its member was purged, or that member's branch was
+   * retired) matches NO filter and is only visible in all-branches mode. NULL means
+   * "not attributable", never "the default branch" — folding it into a named branch
+   * would put a debt on a branch that never billed it.
+   */
+  locationId: z.string().trim().min(1).optional(),
   sort: invoiceSortSchema.default('issuedAt'),
   dir: sortDirSchema.default('desc'),
 });
@@ -124,6 +141,26 @@ export interface AdminInvoiceRow {
   description: string;
   amount: number;
   currency: string;
+  /**
+   * The branch the invoice was raised at, denormalised off `Invoice.location` —
+   * the same one-hop projection `adminOrderRowSchema.locationName` and
+   * `AdminClassTemplateRow.locationName` make, and carried for the same reason:
+   * **this roster genuinely mixes branches.** It is a gym-wide list of individual
+   * documents, so in all-branches mode two adjacent rows can belong to different
+   * branches and nothing else on the row says which.
+   *
+   * That is what separates it from `InventorySummary`, which deliberately carries
+   * no branch: inventory AGGREGATES, so every row there is already the same branch
+   * (the selected one) or a gym-wide roll-up, and a column would repeat the header
+   * switcher on every line. An invoice roster expands rather than aggregates, so
+   * the column is the only place the distinction can appear.
+   *
+   * Null for an invoice with no branch — the member was hard-deleted, or their
+   * branch was retired (`onDelete: SetNull`). Null, not `''`: the admin row schemas
+   * model absence as null throughout, and the table renders it as an explicit dash
+   * rather than the blank cell an empty string gives, which reads as a failed load.
+   */
+  locationName: string | null;
   issuedAt: string;
   dueDate: string | null;
 }

@@ -72,7 +72,10 @@ export type ReportMetric = z.infer<typeof reportMetricSchema>;
 
 /**
  * `GET /admin/reports/drilldown/:metric?range=&from=&to=` query — the catalogue's
- * own query schema, so a custom range is validated once and identically.
+ * own query schema, so a custom range is validated once and identically, and so a
+ * drill-down carries the same `locationId` as the report it was opened from. That
+ * id travels in the URL because a drill-down link is the one thing staff paste to
+ * each other, and it must arrive showing the branch the sender saw.
  */
 export const reportDrilldownQuerySchema = reportQuerySchema;
 export type ReportDrilldownQuery = z.infer<typeof reportDrilldownQuerySchema>;
@@ -80,7 +83,9 @@ export type ReportDrilldownQuery = z.infer<typeof reportDrilldownQuerySchema>;
 /**
  * `GET /admin/reports/drilldown/:metric/export?range=&format=` query — the file
  * download. Reuses the catalogue's {@link reportFormatSchema} so a drill-down and a
- * catalogue report offer the same two formats under the same two names.
+ * catalogue report offer the same two formats under the same two names, and
+ * inherits `locationId` from the preview query so the exported file is scoped to
+ * the same branch — every branch when it is omitted.
  */
 export const reportDrilldownExportQuerySchema = reportExportQuerySchema;
 export type ReportDrilldownExportQuery = z.infer<typeof reportDrilldownExportQuerySchema>;

@@ -372,3 +372,328 @@ describe('resolvePeriodWindow — the gym clock', () => {
     );
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/*  The branch filter (Stage 1, multi-branch)                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A whole-overview stub: every model method `getOverview` reaches for, each
+ * returning an empty/neutral result. The assertions below are about the `where`
+ * the service SENDS, not the rows it gets back — the point of these specs is that
+ * a branch filter lands on exactly the reads that can carry one, and on no others.
+ */
+function setupOverview() {
+  const paymentAggregate = vi.fn().mockResolvedValue({ _sum: { amount: 0 } });
+  const paymentFindMany = vi.fn().mockResolvedValue([]);
+  const paymentFindFirst = vi.fn().mockResolvedValue(null);
+  const classInstanceCount = vi.fn().mockResolvedValue(0);
+  const classInstanceFindMany = vi.fn().mockResolvedValue([]);
+  const checkInCount = vi.fn().mockResolvedValue(0);
+  const checkInFindMany = vi.fn().mockResolvedValue([]);
+  const gymMemberCount = vi.fn().mockResolvedValue(0);
+  const gymMemberFindMany = vi.fn().mockResolvedValue([]);
+  const subscriptionCount = vi.fn().mockResolvedValue(0);
+  const subscriptionGroupBy = vi.fn().mockResolvedValue([]);
+  const locationFindMany = vi.fn().mockResolvedValue([]);
+
+  const client = {
+    gym: { findFirst: vi.fn().mockResolvedValue({ name: 'Test Gym' }) },
+    gymMember: {
+      findFirst: vi.fn().mockResolvedValue({
+        role: Role.MANAGER,
+        user: { name: 'Staffer', email: 's@example.com' },
+      }),
+      count: gymMemberCount,
+      findMany: gymMemberFindMany,
+    },
+    location: { findMany: locationFindMany },
+    classTemplate: { groupBy: vi.fn().mockResolvedValue([]) },
+    checkIn: { count: checkInCount, findMany: checkInFindMany },
+    payment: {
+      aggregate: paymentAggregate,
+      findMany: paymentFindMany,
+      findFirst: paymentFindFirst,
+    },
+    classInstance: { count: classInstanceCount, findMany: classInstanceFindMany },
+    subscription: { count: subscriptionCount, groupBy: subscriptionGroupBy },
+  };
+
+  const prisma = { client } as unknown as TenantPrismaService;
+  const tenant = { gymId: 'gym_test', userId: 'user_test', role: Role.MANAGER } as TenantContext;
+
+  return {
+    service: new DashboardService(prisma, tenant, stubLocale()),
+    /** Every read that CAN carry a branch, through its order. */
+    paymentReads: [paymentAggregate, paymentFindMany, paymentFindFirst],
+    /** Every read that CAN carry a branch, on its own column. */
+    classInstanceReads: [classInstanceCount, classInstanceFindMany],
+    /** Every read that carries the member's HOME branch on its own column. */
+    memberReads: [gymMemberCount, gymMemberFindMany],
+    /** Every read that reaches the home branch through `member` (Stage 2). */
+    memberHopReads: [subscriptionCount, subscriptionGroupBy],
+    /** Every read that carries the branch WALKED INTO on its own column (Stage 3). */
+    checkInReads: [checkInCount, checkInFindMany],
+    /**
+     * The occupancy card's branch list. `Location` IS the branch, so it narrows on
+     * its primary key — a `locationId` clause here would filter a column the model
+     * does not have.
+     */
+    locationReads: [locationFindMany],
+  };
+}
+
+/** The `where` each recorded call was issued with. */
+function wheres(fn: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
+  return fn.mock.calls.map(
+    (call) => (call[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {},
+  );
+}
+
+const BASE_QUERY = { range: '7d', period: 'today' } as const;
+
+describe('DashboardService.getOverview — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  // Inverted by Stage 5, which gave `payments` the `locationId` the previous
+  // version of this test said it lacked. The property is unchanged and is the one
+  // that matters: EVERY payment read on this endpoint narrows, so no card ends up
+  // half branch-scoped. Only the path changed.
+  it('filters every payment read on the payment’s own branch column', async () => {
+    const { service, paymentReads } = setupOverview();
+
+    await service.getOverview({ ...BASE_QUERY, locationId: 'loc_1' });
+
+    for (const read of paymentReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        expect(where.locationId).toBe('loc_1');
+        // The order hop is gone: it could not use `(gymId, locationId, createdAt)`,
+        // and it re-read the order live where the column is a write-time snapshot.
+        expect(where).not.toHaveProperty('order');
+      }
+    }
+  });
+
+  it('filters class occurrences on their own column', async () => {
+    const { service, classInstanceReads } = setupOverview();
+
+    await service.getOverview({ ...BASE_QUERY, locationId: 'loc_1' });
+
+    for (const read of classInstanceReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        // Plain equality, not `OR IS NULL`: Stage 0 backfilled every row.
+        expect(where.locationId).toBe('loc_1');
+      }
+    }
+  });
+
+  // Stage 2 gave `GymMember` a home branch, so the member counts and the recent
+  // joiners now filter it directly. This assertion is the inverse of the one that
+  // stood here before; what it pins is unchanged — every member read moves
+  // together, so `newMembers7d`, `activeMembers` and the joiners table can never
+  // describe different populations.
+  it('filters every member read on the home branch', async () => {
+    const { service, memberReads } = setupOverview();
+
+    await service.getOverview({ ...BASE_QUERY, locationId: 'loc_1' });
+
+    for (const read of memberReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        // Plain equality on `GymMember.locationId`, served by
+        // `@@index([gymId, locationId, status])`.
+        expect(where.locationId).toBe('loc_1');
+      }
+    }
+  });
+
+  // A `Subscription` has no `locationId` of its own and reaches one only through
+  // its member — which, since Stage 2, has one. Attribution is the member's HOME
+  // branch, the same fragment the Revenue tab's MRR and the Members tab's cohorts
+  // read, so the dunning and renewal counts are about the same people.
+  it('reaches the home branch through the member on every subscription read', async () => {
+    const { service, memberHopReads } = setupOverview();
+
+    await service.getOverview({ ...BASE_QUERY, locationId: 'loc_1' });
+
+    for (const read of memberHopReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        expect(where).not.toHaveProperty('locationId');
+        expect(where.member).toEqual({ locationId: 'loc_1' });
+      }
+    }
+  });
+
+  // The inverse of the assertion that stood here before, and it protects the same
+  // property from the other side: every check-in surface on the overview moves
+  // TOGETHER, so `kpis.checkInsToday`, the occupancy card and the recent-arrivals
+  // feed can never describe different populations. Stage 3 gave `CheckIn.locationId`
+  // an FK and a write path, so what used to be a fabricated empty card is now a
+  // smaller, true one.
+  it('narrows every check-in read to the branch walked into', async () => {
+    const { service, checkInReads } = setupOverview();
+
+    await service.getOverview({ ...BASE_QUERY, locationId: 'loc_1' });
+
+    for (const read of checkInReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        // The branch on the ARRIVAL, never the member's home branch: a visit
+        // happens at a place, and a home branch does not say which door was used.
+        expect(where.locationId).toBe('loc_1');
+        expect(where).not.toHaveProperty('member');
+      }
+    }
+  });
+
+  // The occupancy card's denominator comes from this read. If it stayed gym-wide
+  // the donut would count one branch's bodies against every branch's capacity, and
+  // the card would list 0/N bars for the branches the operator just filtered out.
+  it('narrows the occupancy card branch list on the location primary key', async () => {
+    const { service, locationReads } = setupOverview();
+
+    await service.getOverview({ ...BASE_QUERY, locationId: 'loc_1' });
+
+    for (const read of locationReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        expect(where.id).toBe('loc_1');
+        expect(where).not.toHaveProperty('locationId');
+      }
+    }
+  });
+
+  it('sends no branch clause at all when no branch is selected', async () => {
+    const {
+      service,
+      paymentReads,
+      classInstanceReads,
+      memberReads,
+      memberHopReads,
+      checkInReads,
+      locationReads,
+    } = setupOverview();
+
+    await service.getOverview(BASE_QUERY);
+
+    // Not `locationId: undefined` — an absent branch must leave the original,
+    // index-served `where` byte-for-byte unchanged. For `check_ins` specifically
+    // that is what keeps "All locations" — the console's default — on
+    // `(gymId, checkedInAt)` rather than on the wider composite, which cannot serve
+    // the time range without first scanning every branch's slice.
+    for (const read of [...paymentReads, ...classInstanceReads, ...memberReads, ...checkInReads]) {
+      for (const where of wheres(read)) {
+        expect(where).not.toHaveProperty('locationId');
+        expect(where).not.toHaveProperty('order');
+      }
+    }
+    // And the branch list stays every active branch.
+    for (const read of locationReads) {
+      for (const where of wheres(read)) {
+        expect(where).not.toHaveProperty('id');
+      }
+    }
+    // The member hop leaves no empty `member` key behind either.
+    for (const read of memberHopReads) {
+      for (const where of wheres(read)) {
+        expect(where).not.toHaveProperty('member');
+      }
+    }
+  });
+
+  // Inverted at Stage 3. What this pins is unchanged in kind — where an arrival
+  // with no branch ends up — but the answer is now "nowhere", not "areas[0]". The
+  // fold-in existed only to paper over a column nothing wrote; with the backfill and
+  // the write path landed, it would report one named branch's occupancy inflated by
+  // everybody else's members.
+  it('leaves a branchless arrival out of every area, and in the live count', async () => {
+    const locationFindMany = vi.fn().mockResolvedValue([
+      { id: 'loc_1', name: 'Downtown' },
+      { id: 'loc_2', name: 'Riverside' },
+    ]);
+    // `locationId` goes back to NULL when a branch is deleted (`onDelete: SetNull`),
+    // so this row is reachable however complete the write path is.
+    const checkInFindMany = vi.fn().mockResolvedValue([
+      { gymMemberId: 'gm_1', locationId: 'loc_1' },
+      { gymMemberId: 'gm_2', locationId: null },
+    ]);
+    const client = {
+      location: { findMany: locationFindMany },
+      checkIn: { findMany: checkInFindMany },
+      classTemplate: {
+        groupBy: vi.fn().mockResolvedValue([
+          { locationId: 'loc_1', _max: { capacity: 20 } },
+          { locationId: 'loc_2', _max: { capacity: 10 } },
+        ]),
+      },
+    };
+    const prisma = { client } as unknown as TenantPrismaService;
+    const tenant = { gymId: 'gym_test' } as TenantContext;
+    const service = new DashboardService(prisma, tenant, stubLocale());
+
+    const result = await inGymNowOf(service)('UTC');
+
+    // Both people were really in the building, so both are in the headline count.
+    expect(result.current).toBe(2);
+    // The unattributed one is in NEITHER bar — above all, not in Downtown's.
+    expect(result.areas).toEqual([
+      { name: 'Downtown', capacity: 20, occupancy: 1 },
+      { name: 'Riverside', capacity: 10, occupancy: 0 },
+    ]);
+    // The bars therefore sum to less than `current`. That gap is the honest signal
+    // that somebody's branch is unknown; the fold-in used to close it by lying.
+    expect(result.areas.reduce((n, a) => n + a.occupancy, 0)).toBeLessThan(result.current);
+  });
+
+  // With a branch selected the whole card is that branch: the donut's numerator,
+  // its denominator and the single bar all come from the same one place. Leaving the
+  // location read gym-wide would count one branch's bodies against every branch's
+  // capacity and print 0/N bars for the branches that were just filtered out.
+  it('narrows occupancy to the selected branch alone — count, capacity and bar', async () => {
+    const locationFindMany = vi.fn().mockResolvedValue([{ id: 'loc_2', name: 'Riverside' }]);
+    const checkInFindMany = vi
+      .fn()
+      .mockResolvedValue([{ gymMemberId: 'gm_2', locationId: 'loc_2' }]);
+    const classTemplateGroupBy = vi
+      .fn()
+      .mockResolvedValue([{ locationId: 'loc_2', _max: { capacity: 10 } }]);
+    const client = {
+      location: { findMany: locationFindMany },
+      checkIn: { findMany: checkInFindMany },
+      classTemplate: { groupBy: classTemplateGroupBy },
+    };
+    const prisma = { client } as unknown as TenantPrismaService;
+    const tenant = { gymId: 'gym_test' } as TenantContext;
+    const service = new DashboardService(prisma, tenant, stubLocale());
+
+    const result = await inGymNowOf(service)('UTC', 'loc_2');
+
+    expect(result.current).toBe(1);
+    // Riverside's headroom, not Riverside + Downtown.
+    expect(result.capacity).toBe(10);
+    expect(result.areas).toEqual([{ name: 'Riverside', capacity: 10, occupancy: 1 }]);
+    // The capacity lookup is asked about the selected branch only.
+    expect(classTemplateGroupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { locationId: { in: ['loc_2'] } } }),
+    );
+  });
+});
+
+/** Reach the private occupancy builder without loosening its signature. */
+function inGymNowOf(service: DashboardService) {
+  return (
+    service as unknown as {
+      inGymNow(
+        zone: string,
+        locationId?: string,
+      ): Promise<{
+        current: number;
+        capacity: number;
+        areas: { name: string; capacity: number; occupancy: number }[];
+      }>;
+    }
+  ).inGymNow.bind(service);
+}

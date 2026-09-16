@@ -182,6 +182,9 @@ export class CreditPacksService {
       amount: plan.priceAmount,
       scope: 'packages',
       memberId,
+      // No `locationId`: a pack is bought from the member app, at no branch. Every
+      // gym-wide code still applies; a branch-exclusive one is refused rather than
+      // honoured on a purchase nothing can place.
     });
     const discount = promo?.discount ?? 0;
     const total = plan.priceAmount - discount;
@@ -229,6 +232,22 @@ export class CreditPacksService {
           amount: total,
           currency: plan.currency,
           status: PaymentStatus.CAPTURED,
+          // Explicitly unattributed, mirroring the order above (Stage 5).
+          //
+          // This is the one payment write path that stamps no branch, and it is
+          // written out rather than left to the column default so it reads as a
+          // decision instead of an omission. A credit pack is bought from the
+          // member's own account — `purchaseCreditPackSchema` carries no
+          // `locationId`, so the ORDER has no branch either, and a payment must
+          // never claim a branch its order does not. Defaulting it to the gym's
+          // main branch would credit that branch with takings no order backs, and
+          // the till reconciliation would then show money no drawer holds.
+          //
+          // Giving the purchase a real branch is a wire-contract change (the buyer
+          // would have to name one), not something this write can infer. Until
+          // then these rows sit in the gym-wide roll-up and out of every per-branch
+          // figure — the residual class `NO_LOCATION_LABEL` exists to catch.
+          locationId: null,
           // The MVP charge is stubbed (treated as captured); T8.8 swaps `stub` for
           // a concrete gateway + `providerRef`. Distinct from the POS `pos` channel.
           provider: 'stub',

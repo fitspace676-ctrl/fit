@@ -108,7 +108,13 @@ const reportWindowShape = {
   to: isoDaySchema.optional(),
 };
 
-type ReportWindowFields = { range: ReportRange; from?: string; to?: string };
+type ReportWindowFields = {
+  range: ReportRange;
+  from?: string;
+  to?: string;
+  /** The branch a report is narrowed to; absent means the gym-wide roll-up. */
+  locationId?: string;
+};
 
 /**
  * A `custom` range needs both days, in order, and no longer than
@@ -161,15 +167,24 @@ export function reportWindowSlug(query: ReportWindowFields): string {
 }
 
 /**
- * The query string a window travels as — `range`, plus `from` / `to` only on a
- * custom range — shared by the console's links, its fetchers and its download
- * URLs so none of them can spell the window differently.
+ * The query string a report travels as — `range`, plus `from` / `to` only on a
+ * custom range, plus `locationId` when one branch is selected — shared by the
+ * console's links, its fetchers and its download URLs so none of them can spell
+ * the same report differently.
+ *
+ * The branch belongs here rather than at each call site for the same reason the
+ * window does: a link, its preview fetch and its export URL are three spellings
+ * of one question, and a report that narrowed on screen but not in the file it
+ * downloaded would be the worst kind of wrong — plausible.
  */
 export function reportQueryParams(query: ReportWindowFields): URLSearchParams {
   const params = new URLSearchParams({ range: query.range });
   if (query.range === 'custom' && query.from !== undefined && query.to !== undefined) {
     params.set('from', query.from);
     params.set('to', query.to);
+  }
+  if (query.locationId !== undefined) {
+    params.set('locationId', query.locationId);
   }
   return params;
 }
@@ -339,17 +354,58 @@ export function isOfferedReport(key: ReportKey): key is OfferedReportKey {
   return (OFFERED_REPORT_KEYS as readonly ReportKey[]).includes(key);
 }
 
+/**
+ * The reports a branch filter does NOT narrow. The data behind them cannot answer
+ * "which branch", so the API ignores `locationId` for them rather than filter on a
+ * proxy, and the console marks them "not split by branch" while a branch is
+ * selected. One list for both sides, so the service and the caveat cannot drift.
+ *
+ *   - `discounts-and-promotions` - `PromoRedemption` has no branch, its `orderId`
+ *     is a relation-less scalar, and `memberId` is null by design for a walk-in:
+ *     a member hop would drop exactly the walk-in promotions the report prices.
+ *     Needs a Stage 5-shaped attribution column stamped at the till.
+ *   - `audit-log` - an entry names an actor and a polymorphic target id, never a
+ *     place, and most of it is the platform operator acting on the gym as a whole.
+ *
+ * A key comes off this list only when the DATA gains an honest branch, never
+ * because filtering was convenient.
+ */
+export const GYM_WIDE_REPORT_KEYS = [
+  'discounts-and-promotions',
+  'audit-log',
+] as const satisfies readonly ReportKey[];
+
+/** Whether `key` stays gym-wide under a branch filter - {@link GYM_WIDE_REPORT_KEYS}. */
+export function isGymWideReport(key: ReportKey): boolean {
+  return (GYM_WIDE_REPORT_KEYS as readonly ReportKey[]).includes(key);
+}
+
 /** The file formats a report can be exported as. */
 export const reportFormatSchema = z.enum(['csv', 'xlsx']);
 export type ReportFormat = z.infer<typeof reportFormatSchema>;
 
-/** `GET /admin/reports/:report?range=&from=&to=` query — the on-screen preview. */
-export const reportQuerySchema = z.object(reportWindowShape).superRefine(refineReportWindow);
+/**
+ * `GET /admin/reports/:report?range=&from=&to=` query — the on-screen preview.
+ * `locationId` restricts every figure to one branch; omitted, the report is the
+ * gym-wide roll-up across all of them. It rides in the URL rather than only the
+ * cookie so a report link stays shareable with the branch it was read at.
+ */
+export const reportQuerySchema = z
+  .object({ ...reportWindowShape, locationId: z.string().min(1).optional() })
+  .superRefine(refineReportWindow);
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
 
-/** `GET /admin/reports/:report/export?range=&from=&to=&format=` query — the file download. */
+/**
+ * `GET /admin/reports/:report/export?range=&from=&to=&format=` query — the file
+ * download. Carries the same `locationId` as the preview so the downloaded file
+ * covers exactly the branch on screen, not silently every branch.
+ */
 export const reportExportQuerySchema = z
-  .object({ ...reportWindowShape, format: reportFormatSchema.default('csv') })
+  .object({
+    ...reportWindowShape,
+    format: reportFormatSchema.default('csv'),
+    locationId: z.string().min(1).optional(),
+  })
   .superRefine(refineReportWindow);
 export type ReportExportQuery = z.infer<typeof reportExportQuerySchema>;
 
@@ -812,7 +868,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'products',
     name: 'Stock & inventory',
     description:
-      'Current stock of every product and variant, its unit cost and stock value, the low-stock threshold, and a status against it (in stock, low stock, out of stock, not tracked). Stock is held per product, not per branch.',
+      'Current stock of every product and variant, its unit cost and stock value, the low-stock threshold, and a status against it (in stock, low stock, out of stock, not tracked). With a branch selected, the counts are for that branch alone.',
     columns: [
       { key: 'product', label: 'Product', type: 'text' },
       { key: 'variant', label: 'Variant', type: 'text' },
@@ -955,7 +1011,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'staff',
     name: 'Trainer activity',
     description:
-      'What each trainer did in the window: classes run, PT sessions delivered, how many different members they trained, and how their class bookings ended - attended, cancelled, no-show. The location column lists the branches their classes ran at; a PT session carries no branch.',
+      'What each trainer did in the window: classes run, PT sessions delivered, how many different members they trained, and how their class bookings ended - attended, cancelled, no-show. The location column lists the branches the work was delivered at.',
     columns: [
       { key: 'trainer', label: 'Trainer', type: 'text' },
       { key: 'location', label: 'Location', type: 'text' },
@@ -1047,7 +1103,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'staff',
     name: 'Staff schedule',
     description:
-      "Scheduled working time: the weekly shift pattern projected onto every day of the window it falls on. A shift's location is the text the rota holds, not a branch record.",
+      "Scheduled working time: the weekly shift pattern projected onto every day of the window it falls on. The location is the shift's branch, or the rota's own text where it names no branch.",
     columns: [
       { key: 'staff', label: 'Staff member', type: 'text' },
       { key: 'role', label: 'Role', type: 'text' },

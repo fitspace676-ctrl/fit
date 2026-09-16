@@ -1,15 +1,35 @@
 'use client';
 
 import { useTransition } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { useTheme } from '@/components/theme/theme-provider';
 
 /** The Marketing shell's tab keys — labels come from `shellTabs.<key>`. */
-export type MarketingTab = 'campaigns' | 'promo' | 'audience' | 'templates';
+export type MarketingTab = 'campaigns' | 'promo' | 'audience' | 'templates' | 'banners';
 
-const TABS: readonly MarketingTab[] = ['campaigns', 'promo', 'audience', 'templates'];
+const TABS: readonly MarketingTab[] = ['campaigns', 'promo', 'audience', 'templates', 'banners'];
+
+/** The workspace's own path — the four `?tab=` surfaces live on it. */
+const MARKETING_PATH = '/marketing';
+
+/**
+ * Where each tab goes.
+ *
+ * Four of them are the one workspace page switching content, so they are search
+ * params on it. Banners (T1.16) is a route of its own — a different job with its
+ * own writes — so it is a path. Hard-coded rather than read off `usePathname`,
+ * which used to be the base here: on `/marketing/banners` the current path is no
+ * longer the workspace, and appending `?tab=promo` to it would build a link back
+ * to the page you are already on.
+ */
+function hrefFor(tab: MarketingTab): string {
+  if (tab === 'banners') {
+    return `${MARKETING_PATH}/banners`;
+  }
+  return tab === 'campaigns' ? MARKETING_PATH : `${MARKETING_PATH}?tab=${tab}`;
+}
 
 const styles = stylex.create({
   tablist: {
@@ -56,20 +76,19 @@ const styles = stylex.create({
 });
 
 /**
- * The Campaigns | Promo Codes | Audience | Templates shell tabs. Selection writes
- * the `tab` URL param (clearing the campaign filters, which belong to the
- * Campaigns tab only) so the server page re-renders the chosen surface.
+ * The Campaigns | Promo Codes | Audience | Templates | Banners shell tabs.
+ * Selecting one of the first four writes the `tab` URL param (clearing the
+ * campaign filters, which belong to the Campaigns tab only) so the server page
+ * re-renders the chosen surface; Banners navigates to its own route.
  */
 export function MarketingTabs({ active }: { active: MarketingTab }) {
   const t = useTranslations('admin.marketing');
   const { theme } = useTheme();
   const router = useRouter();
-  const pathname = usePathname();
   const [, startTransition] = useTransition();
 
   function select(tab: MarketingTab): void {
-    const href = tab === 'campaigns' ? pathname : `${pathname}?tab=${tab}`;
-    startTransition(() => router.replace(href));
+    startTransition(() => router.replace(hrefFor(tab)));
   }
 
   return (

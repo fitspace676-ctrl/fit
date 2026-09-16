@@ -142,9 +142,16 @@ function setup() {
     <T>(fn: (tx: { user: unknown; gymMember: unknown }) => Promise<T>): Promise<T> =>
       fn({ user: { create }, gymMember: { create: gymMemberCreate } }),
   );
+  // Signup's home-branch lookups: the gym's default when the body names none, and
+  // the named branch otherwise. Default to "the gym has a default, and any branch
+  // the body names is one of its active ones".
+  const locationFindFirst = vi.fn<
+    (args: { where: { id?: string; isDefault?: boolean } }) => Promise<{ id: string } | null>
+  >(({ where }) => Promise.resolve({ id: where.isDefault ? 'loc-default' : where.id! }));
 
   const prisma = {
     client: {
+      location: { findFirst: locationFindFirst },
       user: { findUnique, create, update, updateMany },
       gymMember: {
         findFirst: gymMemberFindFirst,
@@ -192,6 +199,7 @@ function setup() {
     gymFindFirst,
     gymFindUnique,
     gymMemberCreate,
+    locationFindFirst,
   };
 }
 
@@ -425,6 +433,69 @@ describe('AuthService', () => {
       await expect(
         ctx.service.signupMember({ ...VALID_SIGNUP, startDate: '2026-07-02' }),
       ).resolves.toBeDefined();
+    });
+  });
+
+  describe('signupMember — the home branch', () => {
+    const VALID_SIGNUP = {
+      gymId: 'gym-1',
+      name: 'Nino',
+      email: 'nino@example.com',
+      password: 'supersecret',
+      phone: '+995555000111',
+      gender: 'FEMALE',
+      dateOfBirth: '1994-03-02',
+      personalId: '01001000000',
+    } satisfies MemberSignupInput;
+
+    const createdData = () =>
+      (ctx.gymMemberCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+
+    it("files a member who names no branch under the gym's default", async () => {
+      await ctx.service.signupMember(VALID_SIGNUP);
+
+      expect(ctx.locationFindFirst).toHaveBeenCalledWith({
+        where: { gymId: 'gym-1', isDefault: true },
+        select: { id: true },
+      });
+      expect(createdData().locationId).toBe('loc-default');
+    });
+
+    it('leaves the home branch null when the gym has no default', async () => {
+      ctx.locationFindFirst.mockResolvedValueOnce(null);
+
+      await ctx.service.signupMember(VALID_SIGNUP);
+
+      expect(createdData().locationId).toBeNull();
+    });
+
+    it('files the member under a branch they name, once it is an active one of this gym', async () => {
+      await ctx.service.signupMember({ ...VALID_SIGNUP, locationId: 'loc-2' });
+
+      expect(ctx.locationFindFirst).toHaveBeenCalledTimes(1);
+      expect(ctx.locationFindFirst).toHaveBeenCalledWith({
+        where: { id: 'loc-2', gymId: 'gym-1', status: 'ACTIVE' },
+        select: { id: true },
+      });
+      expect(createdData().locationId).toBe('loc-2');
+    });
+
+    it("refuses another gym's branch with 400 LOCATION_NOT_FOUND before writing anything", async () => {
+      // Pinned to `gymId: 'gym-1'`, the lookup cannot see a branch of another gym.
+      ctx.locationFindFirst.mockResolvedValueOnce(null);
+
+      const error = await ctx.service
+        .signupMember({ ...VALID_SIGNUP, locationId: 'loc-other-gym' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'LOCATION_NOT_FOUND',
+      });
+      expect(ctx.locationFindFirst.mock.calls[0]?.[0].where).toMatchObject({ gymId: 'gym-1' });
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.gymMemberCreate).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
   });
 

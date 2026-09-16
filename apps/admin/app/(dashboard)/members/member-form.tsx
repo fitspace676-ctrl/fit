@@ -13,6 +13,7 @@ import { requiredIntakeFields } from '@fit/types';
 import type { Gender, GymMemberIntakeSettings, MemberIntakeField, MemberStatus } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { composeName, type StartDateWindow } from '@/lib/member-intake';
 import {
   createMemberAction,
@@ -208,6 +209,18 @@ export interface MemberFormInitial {
   emergencyContactName: string;
   emergencyContactPhone: string;
   medicalNotes: string;
+  /**
+   * The member's current home branch, by NAME — `null` for one recorded before
+   * branches existed.
+   *
+   * The name and not the id because the name is all `GET /members/:id` returns
+   * (`MemberRow.locationName`), and it is only ever printed: it labels the branch
+   * select's "leave this alone" option. The edit form therefore never pre-selects
+   * a branch, which is the safe shape — an unrecognised or deactivated branch
+   * simply leaves the option unselected and the field is omitted from the PATCH
+   * rather than silently transferring the member somewhere.
+   */
+  locationName: string | null;
 }
 
 type Props =
@@ -280,6 +293,7 @@ function LabeledField({
  */
 export function MemberForm(props: Props) {
   const t = useTranslations('admin.members');
+  const tCommon = useTranslations('admin.common');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -328,6 +342,32 @@ export function MemberForm(props: Props) {
   const [emergencyPhone, setEmergencyPhone] = useState(seed?.emergencyContactPhone ?? '');
   const [medicalNotes, setMedicalNotes] = useState(seed?.medicalNotes ?? '');
   const [status, setStatus] = useState<MemberStatus>('ACTIVE');
+
+  /**
+   * The member's HOME branch (`GymMember.locationId`) — not the staff
+   * work-assignment array, and not the till's "Selling at" branch.
+   *
+   * SEEDED FROM THE SWITCHER ON CREATE, NEVER ON EDIT. Someone who has scoped the
+   * console to Riverside is enrolling at Riverside, so pre-filling it there saves
+   * a click and stops walk-ins piling up at whichever branch the API would have
+   * defaulted to. Doing the same on edit would be the opposite of helpful: opening
+   * a Downtown member's profile while scoped to Riverside would silently propose
+   * transferring them, and a staffer correcting a phone number would carry the
+   * transfer through with the save. So edit starts empty — `''` omits the field
+   * from the PATCH entirely (see `updateMemberSchema.locationId`, which is
+   * optional and deliberately not nullable) and the member stays where they are.
+   *
+   * In "All locations" mode create ALSO starts empty, and the API's default-branch
+   * fallback (`Location.isDefault`) decides. Guessing here — first branch, or
+   * alphabetically first — would look like a considered choice while being an
+   * arbitrary one, and the API is the only party that knows which branch is the
+   * gym's default.
+   *
+   * Seed, not sync: this is `useState`'s initial value, so moving the top-bar
+   * switcher mid-form never overwrites a branch the operator has already picked.
+   */
+  const { locationId: activeLocationId, locations } = useActiveLocation();
+  const [locationId, setLocationId] = useState(isEdit ? '' : (activeLocationId ?? ''));
 
   // Create-only membership enrolment.
   const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
@@ -406,6 +446,10 @@ export function MemberForm(props: Props) {
           name: composedName,
           phone,
           ...profile,
+          // Omitted unless the operator actually picked a branch — an absent
+          // `locationId` leaves the member's current branch untouched, which is
+          // what every save that is not a transfer wants.
+          locationId: locationId || undefined,
         });
         if (!result.ok) {
           setError(result.error);
@@ -431,6 +475,8 @@ export function MemberForm(props: Props) {
         // silently enrols anyone in a plan its operator could not see.
         planId: planId || undefined,
         paymentMethod: paymentMethod || undefined,
+        // '' in "All locations" mode, where the API picks the gym's default branch.
+        locationId: locationId || undefined,
       });
       if (!result.ok) {
         setError(result.error);
@@ -649,6 +695,66 @@ export function MemberForm(props: Props) {
               />
             </LabeledField>
           )}
+
+          {/*
+            Home branch. NOT behind an intake toggle: `memberIntake` governs what
+            the gym asks the *person* for, and which branch a membership belongs to
+            is an operational fact the desk records, not a question the member
+            answers. A gym could no more switch it off than it could switch off the
+            member's id.
+
+            Hidden entirely for a gym with no branches on file, the same guard the
+            till's "Selling at" select uses — a select with nothing in it is worse
+            than no select.
+          */}
+          {locations.length > 0 ? (
+            <LabeledField
+              label={tCommon('locationLabel')}
+              htmlFor="locationId"
+              // "Optional" only where there is actually something to leave blank.
+              // On create with a branch already active in the chrome the field is
+              // pre-filled and has no empty option, so the suffix would describe a
+              // choice the select does not offer.
+              optional={isEdit || !activeLocationId ? t('form.optional') : undefined}
+            >
+              <select
+                id="locationId"
+                name="locationId"
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                {...stylex.props(styles.field)}
+              >
+                {/*
+                  The "no choice" option, whose meaning differs by mode and whose
+                  label says so: on edit it is "keep them where they are" — worded
+                  around the branch they are at rather than repeating its bare name,
+                  which would put two identical-looking entries in one list; on
+                  create it is "let the API use the gym's default branch". Both are
+                  the empty string, which drops `locationId` from the payload.
+
+                  On create with a branch already selected in the chrome there is
+                  no such option at all — the field is pre-filled with that branch,
+                  and offering "gym default" beside it would invite a choice that
+                  quietly means "somewhere else".
+                */}
+                {isEdit ? (
+                  <option value="">
+                    {seed?.locationName
+                      ? t('form.locationKeep', { branch: seed.locationName })
+                      : t('form.locationUnassigned')}
+                  </option>
+                ) : null}
+                {!isEdit && !activeLocationId ? (
+                  <option value="">{t('form.locationDefault')}</option>
+                ) : null}
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </LabeledField>
+          ) : null}
         </Stack>
       </Card>
 

@@ -74,4 +74,18 @@ describe('listAdminInvoicesQuerySchema', () => {
   it('caps the page size at 100', () => {
     expect(listAdminInvoicesQuerySchema.safeParse({ limit: '500' }).success).toBe(false);
   });
+
+  // Stage 5 of the multi-branch roadmap. Same shape as every other list query's
+  // branch param (`listOrdersQuerySchema`, `listTodayCheckInsQuerySchema`):
+  // optional, and ABSENT rather than empty when unset, because `undefined` is what
+  // the API reads as "all branches" and an empty string would filter on nothing.
+  it('accepts a branch, and is undefined for all branches', () => {
+    expect(listAdminInvoicesQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(listAdminInvoicesQuerySchema.parse({}).locationId).toBeUndefined();
+  });
+
+  it('refuses an empty branch rather than treating it as all branches', () => {
+    expect(listAdminInvoicesQuerySchema.safeParse({ locationId: '' }).success).toBe(false);
+    expect(listAdminInvoicesQuerySchema.safeParse({ locationId: '   ' }).success).toBe(false);
+  });
 });

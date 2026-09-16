@@ -9,6 +9,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { AutomationModule } from './automation/automation.module';
+import { BannersModule } from './banners/banners.module';
 import { BillingModule } from './billing/billing.module';
 import { CartModule } from './cart/cart.module';
 import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
@@ -90,6 +91,11 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
  *   live member-preview resolver, message templates, and the promo
  *   validate/redeem path POS/checkout consumes; `MarketingRead` /
  *   `MarketingManage`).
+ * - {@link BannersModule} serves both halves of the member app's home-screen
+ *   carousel (T1.16): the staff CRUD at `/marketing/banners` (same `MarketingRead`
+ *   / `MarketingManage` capabilities as the module above, since a banner is a
+ *   marketing asset) and the `@Public()` member listing `GET /banners?gymId=`,
+ *   which is excluded from `TenantMiddleware` like the other public listings.
  * - {@link AnalyticsModule} serves the staff console's tenant-scoped analytics
  *   (`/admin/analytics?range=` — range-windowed revenue/attendance/churn KPIs,
  *   revenue series, channel/plan mix, top classes; `ReportView`).
@@ -181,6 +187,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     CheckInModule,
     AutomationModule,
     MarketingModule,
+    BannersModule,
     LoyaltyModule,
     AnalyticsModule,
     ReportsModule,
@@ -225,6 +232,7 @@ export class AppModule implements NestModule {
    *    the public discovery listings
    *    (`GET /class-instances`, `GET /class-instances/:id`, the public live
    *    occupancy stream `GET /class-instances/occupancy/stream`, `GET /trainers`,
+   *    `GET /banners` (the member app's home carousel, drawn on first render),
    *    `GET /trainers/:id/reviews`, `GET /packages`, `GET /products`, `GET /locations`) — which an unauthenticated
    *    visitor browses on a gym subdomain and which carry their `gymId` as a
    *    query param rather than a session — the public tenant lookup
@@ -256,6 +264,7 @@ export class AppModule implements NestModule {
         { path: 'class-instances/occupancy/stream', method: RequestMethod.GET },
         { path: 'class-instances/:id', method: RequestMethod.GET },
         { path: 'trainers', method: RequestMethod.ALL },
+        { path: 'banners', method: RequestMethod.GET },
         { path: 'trainers/:id', method: RequestMethod.GET },
         { path: 'trainers/:id/reviews', method: RequestMethod.GET },
         { path: 'packages', method: RequestMethod.GET },

@@ -112,13 +112,11 @@ fit/
 │   ├── admin/      # @fit/admin      — gym staff admin console (Next.js)
 │   ├── platform/   # @fit/platform   — marketing + owner signup, root domain (Next.js)
 │   ├── superadmin/ # @fit/superadmin — platform operator console, SUPER_ADMIN-only (Next.js)
-│   ├── mobile/     # @fit/mobile     — mobile client (Expo / React Native)
 │   └── api/        # @fit/api        — backend API service
 ├── packages/
 │   ├── db/         # @fit/db         — Prisma client + schema/migrations
 │   ├── env/        # @fit/env        — zod-based environment + secrets validation
 │   ├── ui-web/     # @fit/ui-web     — shared web UI components
-│   ├── ui-mobile/  # @fit/ui-mobile  — shared mobile UI components
 │   ├── types/      # @fit/types      — shared TypeScript types
 │   ├── utils/      # @fit/utils      — shared utilities
 │   ├── i18n/       # @fit/i18n       — translations and i18n helpers

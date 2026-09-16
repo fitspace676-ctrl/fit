@@ -20,10 +20,12 @@ import {
   type TimeOffRequestRow,
   type UpdateStaffScheduleInput,
   type UpdateStaffTaskInput,
+  type WorkingNowQuery,
   type WorkingNowResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { atLocation, staffAtLocation } from '../common/location-filter.util';
 
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
 const STAFF_ROLES: Role[] = [Role.OWNER, Role.MANAGER, Role.RECEPTIONIST, Role.TRAINER];
@@ -124,13 +126,29 @@ const TIME_OFF_SELECT = {
 } satisfies Prisma.TimeOffRequestSelect;
 type TimeOffRecord = Prisma.TimeOffRequestGetPayload<{ select: typeof TIME_OFF_SELECT }>;
 
+/**
+ * The columns the weekly-schedule reads select off `ShiftSlot`.
+ *
+ * **`location: true` used to be here and silently changed meaning.** Stage 6
+ * renamed the free-text column to `locationName` (`@map("location")`, so no data
+ * moved) and gave the model a real `location` RELATION. A `select: { location:
+ * true }` therefore kept compiling and started returning a whole `Location` row
+ * where a string was expected — one of the two sites TypeScript caught, and only
+ * because the projection assigned it to a `string | null`.
+ *
+ * Both are selected now because they are different facts: `locationId` +
+ * `location.name` are the branch, and `locationName` is the residual free text
+ * that named NO branch of this gym. See {@link toShiftRow}.
+ */
 const SHIFT_SELECT = {
   id: true,
   staffId: true,
   dayOfWeek: true,
   startTime: true,
   endTime: true,
-  location: true,
+  locationId: true,
+  locationName: true,
+  location: { select: { name: true } },
 } satisfies Prisma.ShiftSlotSelect;
 type ShiftRecord = Prisma.ShiftSlotGetPayload<{ select: typeof SHIFT_SELECT }>;
 
@@ -288,6 +306,16 @@ export class StaffDepthService {
       where: {
         ...(query.status ? { status: query.status } : {}),
         ...(query.staffId ? { staffId: query.staffId } : {}),
+        // "Whose absence costs THIS branch cover" — the roster hop, not a column.
+        // A week off is not an event at a place, so `TimeOffRequest` gets no
+        // `locationId`; it is the ABSENCE of one, which is an availability
+        // question and reads `LocationStaff`.
+        //
+        // Overlapping by design: a coach rostered at both sites is in both
+        // queues, because their week off really does leave both short. Per-branch
+        // queue lengths therefore sum to more than the gym-wide queue, and this
+        // is not a per-branch count of absences.
+        ...staffAtLocation(query.locationId),
       },
       select: TIME_OFF_SELECT,
       orderBy: [{ status: 'asc' }, { startDate: 'asc' }],
@@ -423,7 +451,11 @@ export class StaffDepthService {
             dayOfWeek: shift.dayOfWeek,
             startTime: shift.startTime,
             endTime: shift.endTime,
-            location: shift.location ?? null,
+            // A branch FK, never free text. `location:` here compiled right up
+            // until Prisma threw `Unknown argument \`location\`` at runtime: a
+            // key inside a `createMany` array literal escapes excess-property
+            // checking entirely.
+            locationId: shift.locationId ?? null,
           })),
         });
       }
@@ -448,8 +480,29 @@ export class StaffDepthService {
    * within a single day. `endTime` is capped at `23:59`, so a shift that runs
    * past midnight has to be entered as two rows, which leaves a one-minute seam
    * at 23:59 where the card reads empty.
+   *
+   * ## Per branch, and this is the endpoint the branch split changed most
+   *
+   * It took no query at all before Stage 6, because it could not: the only branch
+   * a shift carried was a typed string. That made "who is working now" gym-wide by
+   * accident, and once branches are separate operating units a gym-wide answer is
+   * not broader, it is WRONG — the person reading this card is standing at one
+   * door, and a colleague twenty minutes away is not behind it with them.
+   *
+   * `locationId` narrows on `ShiftSlot.locationId` ({@link atLocation}), served by
+   * `shift_slots(gymId, locationId, dayOfWeek)`. It is deliberately NOT the
+   * roster hop: {@link LocationStaff} says Nino CAN work at Saburtalo, and this
+   * card asks who is behind that desk right now — the one place in the schema
+   * where the many-valued capability narrows to a single answer, which is why the
+   * shift needed a column of its own.
+   *
+   * A shift with no branch appears only in the unfiltered answer. That is the
+   * honest outcome and it is visible rather than silent: such a row shows on the
+   * card with no branch badge (or an `unresolvedLocation` label), so an operator
+   * can see there is a rota entry nobody has placed. It is never adopted into a
+   * named branch — the `areas[0]` fold-in Stage 3 deleted, with a string.
    */
-  async getWorkingNow(): Promise<WorkingNowResponse> {
+  async getWorkingNow(query: WorkingNowQuery = {}): Promise<WorkingNowResponse> {
     const gym = await this.prisma.client.gym.findUnique({
       where: { id: this.tenant.gymId },
       select: { settings: true },
@@ -463,12 +516,15 @@ export class StaffDepthService {
         startTime: { lte: time },
         endTime: { gt: time },
         staff: { role: { in: STAFF_ROLES }, status: GymMemberStatus.ACTIVE },
+        ...atLocation(query.locationId),
       },
       select: {
         staffId: true,
         startTime: true,
         endTime: true,
-        location: true,
+        locationId: true,
+        locationName: true,
+        location: { select: { name: true } },
         staff: { select: { role: true, user: { select: { name: true, email: true } } } },
       },
       orderBy: [{ startTime: 'asc' }],
@@ -480,7 +536,9 @@ export class StaffDepthService {
         role: row.staff.role as StaffRole,
         startTime: row.startTime,
         endTime: row.endTime,
-        location: row.location,
+        locationId: row.locationId,
+        locationName: row.location?.name ?? null,
+        unresolvedLocation: row.locationName,
       })),
     };
   }
@@ -570,6 +628,17 @@ export class StaffDepthService {
     };
   }
 
+  /**
+   * Project a shift row, splitting the branch into the three states the wire
+   * distinguishes — see {@link ShiftSlotRow}.
+   *
+   * `unresolvedLocation` is passed through and never merged into `locationName`.
+   * Merging them is the tempting one-line version and it is the whole mistake
+   * being undone: it would print a typo, a room name or a closed site in the same
+   * place as a real branch, which is exactly what the free-text column did for
+   * years. A row can carry a branch or an unresolved label, never both — the
+   * migration NULLed the text wherever it resolved.
+   */
   private toShiftRow(row: ShiftRecord): ShiftSlotRow {
     return {
       id: row.id,
@@ -577,7 +646,9 @@ export class StaffDepthService {
       dayOfWeek: row.dayOfWeek,
       startTime: row.startTime,
       endTime: row.endTime,
-      location: row.location,
+      locationId: row.locationId,
+      locationName: row.location?.name ?? null,
+      unresolvedLocation: row.locationName,
     };
   }
 }

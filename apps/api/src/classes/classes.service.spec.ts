@@ -4,6 +4,13 @@ import { InstanceStatus } from '@fit/db';
 import { ClassesService } from './classes.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
+/** A trainer as both projections select them — id + name + the raw photo column. */
+interface TrainerRow {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+}
+
 /** A joined occurrence row as the service's detail projection selects it. */
 interface InstanceRow {
   id: string;
@@ -12,6 +19,7 @@ interface InstanceRow {
   capacityOverride: number | null;
   bookedCount: number;
   status: InstanceStatus;
+  trainer: TrainerRow | null;
   template: {
     title: string;
     description: string;
@@ -21,7 +29,7 @@ interface InstanceRow {
     room: string | null;
     capacity: number;
     durationMinutes: number;
-    trainer: { name: string } | null;
+    trainer: TrainerRow | null;
     location: { name: string } | null;
   };
 }
@@ -38,6 +46,7 @@ const row = (over?: Partial<InstanceRow>): InstanceRow => ({
   capacityOverride: null,
   bookedCount: 4,
   status: InstanceStatus.SCHEDULED,
+  trainer: null,
   template: {
     title: 'Morning Flow',
     description: 'A gentle vinyasa to start the day.',
@@ -47,7 +56,11 @@ const row = (over?: Partial<InstanceRow>): InstanceRow => ({
     room: 'Studio A',
     capacity: 12,
     durationMinutes: 60,
-    trainer: { name: 'Nino Beridze' },
+    trainer: {
+      id: 'tr-tpl',
+      name: 'Nino Beridze',
+      photoUrl: 'https://pub.example.com/gym-1/trainers/nino.jpg',
+    },
     location: { name: 'Vake Branch' },
   },
   ...over,
@@ -85,6 +98,27 @@ describe('ClassesService', () => {
       from: '2026-06-01T00:00:00.000Z',
       to: '2026-06-08T00:00:00.000Z',
     };
+
+    it("narrows to a branch by the occurrence's own branch or its template's", async () => {
+      const { service, findMany } = setup(null, []);
+
+      await service.listInstances({ ...window, locationId: 'loc-1' });
+
+      expect(findMany.mock.calls[0]![0]).toMatchObject({
+        where: {
+          gymId: 'gym-1',
+          OR: [{ locationId: 'loc-1' }, { template: { locationId: 'loc-1' } }],
+        },
+      });
+    });
+
+    it('adds no branch predicate when no branch is resolved', async () => {
+      const { service, findMany } = setup(null, []);
+
+      await service.listInstances(window);
+
+      expect(findMany.mock.calls[0]![0].where).not.toHaveProperty('OR');
+    });
 
     it('scopes to the gym, hides non-SCHEDULED occurrences, and orders by start', async () => {
       const { service, findMany } = setup(null, []);
@@ -124,6 +158,8 @@ describe('ClassesService', () => {
             startsAt: '2026-06-01T09:00:00.000Z',
             endsAt: '2026-06-01T10:00:00.000Z',
             trainerName: 'Nino Beridze',
+            trainerId: 'tr-tpl',
+            trainerAvatarUrl: 'https://pub.example.com/gym-1/trainers/nino.jpg',
             locationName: 'Vake Branch',
             capacity: 8,
             bookedCount: 4,
@@ -159,6 +195,8 @@ describe('ClassesService', () => {
           startsAt: '2026-06-01T09:00:00.000Z',
           endsAt: '2026-06-01T10:00:00.000Z',
           trainerName: 'Nino Beridze',
+          trainerId: 'tr-tpl',
+          trainerAvatarUrl: 'https://pub.example.com/gym-1/trainers/nino.jpg',
           locationName: 'Vake Branch',
           room: 'Studio A',
           capacity: 12,
@@ -180,7 +218,7 @@ describe('ClassesService', () => {
       expect(instance.capacity).toBe(8);
     });
 
-    it('flattens an absent trainer / location / room to empty strings', async () => {
+    it('flattens an absent trainer / location / room to empty strings and nulls', async () => {
       const { service } = setup(
         row({ template: { ...row().template, trainer: null, location: null, room: null } }),
       );
@@ -188,8 +226,52 @@ describe('ClassesService', () => {
       const { instance } = await service.getInstance('ci-1', { gymId: 'gym-1' });
 
       expect(instance.trainerName).toBe('');
+      expect(instance.trainerId).toBeNull();
+      expect(instance.trainerAvatarUrl).toBeNull();
       expect(instance.locationName).toBe('');
       expect(instance.room).toBe('');
+    });
+
+    it("prefers the occurrence's own trainer over the template's, id and photo included", async () => {
+      const { service } = setup(
+        row({
+          trainer: {
+            id: 'tr-sub',
+            name: 'Vika Kikabidze',
+            photoUrl: 'https://pub.example.com/gym-1/trainers/vika.jpg',
+          },
+        }),
+      );
+
+      const { instance } = await service.getInstance('ci-1', { gymId: 'gym-1' });
+
+      // The id, the name and the photo describe one coach — a substitute must
+      // never inherit the template trainer's face.
+      expect(instance.trainerName).toBe('Vika Kikabidze');
+      expect(instance.trainerId).toBe('tr-sub');
+      expect(instance.trainerAvatarUrl).toBe('https://pub.example.com/gym-1/trainers/vika.jpg');
+    });
+
+    it('falls back to the template trainer when the occurrence has none', async () => {
+      const { service } = setup(row());
+
+      const { instance } = await service.getInstance('ci-1', { gymId: 'gym-1' });
+
+      expect(instance.trainerId).toBe('tr-tpl');
+      expect(instance.trainerAvatarUrl).toBe('https://pub.example.com/gym-1/trainers/nino.jpg');
+    });
+
+    it('nulls a photo that is not an http(s) URL, keeping the trainer', async () => {
+      const { service } = setup(
+        row({ trainer: { id: 'tr-sub', name: 'Vika Kikabidze', photoUrl: '/uploads/vika.jpg' } }),
+      );
+
+      const { instance } = await service.getInstance('ci-1', { gymId: 'gym-1' });
+
+      // A stray non-URL value would fail the client's `z.string().url()` parse
+      // and sink the whole response; the trainer still resolves without a face.
+      expect(instance.trainerAvatarUrl).toBeNull();
+      expect(instance.trainerId).toBe('tr-sub');
     });
 
     it('still resolves a non-scheduled occurrence, carrying its status', async () => {

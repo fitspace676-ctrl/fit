@@ -3,6 +3,7 @@ import {
   createMemberNoteSchema,
   createMemberSchema,
   createMemberTaskSchema,
+  listMembersQuerySchema,
   updateMemberSchema,
   updateMemberTaskSchema,
   resolveMemberKind,
@@ -171,5 +172,33 @@ describe('resolveMemberKind', () => {
         hasEverSubscribed: true,
       }),
     ).toBe('MEMBER');
+  });
+});
+
+describe('member home branch', () => {
+  it('accepts a branch on create and leaves it undefined when omitted', () => {
+    expect(
+      createMemberSchema.parse({ name: 'Ana', email: 'a@b.io', locationId: 'loc_1' }).locationId,
+    ).toBe('loc_1');
+    expect(createMemberSchema.parse({ name: 'Ana', email: 'a@b.io' }).locationId).toBeUndefined();
+  });
+
+  it('lets an edit transfer a member between branches', () => {
+    expect(
+      updateMemberSchema.parse({ name: 'Ana', phone: null, locationId: 'loc_2' }).locationId,
+    ).toBe('loc_2');
+  });
+
+  // Not nullable on purpose: a member can move branch, but once the backfill has
+  // given everyone one, "no branch" is not a state the product re-enters.
+  it('refuses to un-assign a member from every branch', () => {
+    expect(
+      updateMemberSchema.safeParse({ name: 'Ana', phone: null, locationId: null }).success,
+    ).toBe(false);
+  });
+
+  it('narrows the roster by branch, and omits the filter for all branches', () => {
+    expect(listMembersQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(listMembersQuerySchema.parse({}).locationId).toBeUndefined();
   });
 });

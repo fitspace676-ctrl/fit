@@ -36,6 +36,12 @@ describe('dashboard classes contract', () => {
     });
   });
 
+  it('carries an optional branch, absent on "all locations"', () => {
+    expect(dashboardClassesQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(dashboardClassesQuerySchema.parse({}).locationId).toBeUndefined();
+    expect(dashboardClassesQuerySchema.parse({ locationId: '' }).locationId).toBeUndefined();
+  });
+
   it('describes a seven-by-twenty-four grid', () => {
     expect([HEATMAP_ROWS, HEATMAP_COLS]).toEqual([7, 24]);
   });

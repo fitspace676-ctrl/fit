@@ -48,6 +48,7 @@ import {
   type ProjectionWindow,
   type RevenueGranularity,
 } from '@fit/types';
+import { useActiveLocation } from '@/components/active-location';
 import { loadRevenueAction } from './actions';
 import { RevenueKpiStrip } from './revenue-kpi-strip';
 import { RevenueTrendCard } from './revenue-trend-card';
@@ -165,6 +166,11 @@ export function RevenueView() {
   const t = useTranslations('admin.dashboard.revenue');
   const locale = useLocale();
 
+  // Passed in rather than read inside the action — see `sales/sales-view.tsx`
+  // for the two reasons (a `?locationId=` deep link an action cannot see, and
+  // the cache key below, which has to move when the branch does).
+  const { locationId } = useActiveLocation();
+
   const [granularity, setGranularity] = useState<RevenueGranularity>(DEFAULT_REVENUE_GRANULARITY);
   const [projectionWindow, setProjectionWindow] =
     useState<ProjectionWindow>(DEFAULT_PROJECTION_WINDOW);
@@ -175,7 +181,7 @@ export function RevenueView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${projectionWindow}`;
+  const key = `${granularity}:${projectionWindow}:${locationId ?? ''}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -189,7 +195,7 @@ export function RevenueView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadRevenueAction({ granularity, projectionWindow })
+    void loadRevenueAction({ granularity, projectionWindow, locationId })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -214,7 +220,7 @@ export function RevenueView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, projectionWindow, attempt, t]);
+  }, [key, granularity, projectionWindow, locationId, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new
@@ -317,15 +323,22 @@ export function RevenueView() {
 
         {/*
           The rail is what is owed and where it came from — the two facts that do
-          not move with the trends above. `byLocation === null` is a single-location
-          gym: the card is absent rather than empty, because the question does not
-          apply to it.
+          not move with the trends above.
+
+          The breakdown card answers "which branch did the takings come from",
+          which is a question only "All locations" is asking. Two ways it stops
+          applying, and both remove the card rather than emptying it:
+          `byLocation === null` is a single-location gym, and a selected branch
+          has already been answered by the filter — the chart would degrade to
+          one bar restating the KPI tile above it, with a caption ("Sales & POS
+          only") that would then read as a caveat on the whole tab rather than on
+          the split.
         */}
         <div {...stylex.props(styles.rail)}>
           <div {...stylex.props(step(2))}>
             <OutstandingInvoicesCard outstanding={data.outstanding} money={money} />
           </div>
-          {data.byLocation !== null ? (
+          {data.byLocation !== null && locationId === undefined ? (
             <div {...stylex.props(step(3))}>
               <RevenueByLocationCard slices={data.byLocation} money={money} />
             </div>

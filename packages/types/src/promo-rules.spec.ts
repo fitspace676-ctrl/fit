@@ -13,6 +13,9 @@ const promo = (over: Partial<PromoRuleFacts> = {}): PromoRuleFacts => ({
   oncePerMember: false,
   discountType: 'percentage',
   discountValue: 20,
+  // NULL is the gym-wide default: redeemable at every branch, constraining
+  // nothing. The exclusivity tests below opt in explicitly.
+  locationId: null,
   ...over,
 });
 
@@ -85,6 +88,47 @@ describe('promoRejectionReason', () => {
     expect(
       promoRejectionReason(promo({ minPurchase: 5000 }), { amount: 5000, now: NOW }),
     ).toBeNull();
+  });
+
+  describe('branch exclusivity', () => {
+    // Stage 7 of multi-branch: `locationId` on a promo code means "redeemable
+    // ONLY here", and NULL — the state of almost every code — means "redeemable
+    // everywhere". That inversion is the thing these tests pin down.
+
+    it('accepts a gym-wide code at any branch, and at none', () => {
+      expect(promoRejectionReason(promo(), { locationId: 'loc-1', now: NOW })).toBeNull();
+      expect(promoRejectionReason(promo(), { locationId: 'loc-2', now: NOW })).toBeNull();
+      expect(promoRejectionReason(promo(), { now: NOW })).toBeNull();
+    });
+
+    it('accepts an exclusive code at its own branch', () => {
+      expect(
+        promoRejectionReason(promo({ locationId: 'loc-1' }), { locationId: 'loc-1', now: NOW }),
+      ).toBeNull();
+    });
+
+    it('refuses an exclusive code at another branch', () => {
+      expect(
+        promoRejectionReason(promo({ locationId: 'loc-1' }), { locationId: 'loc-2', now: NOW }),
+      ).toBe('wrong_location');
+    });
+
+    it('refuses an exclusive code when the purchase has no branch', () => {
+      // The online shop and the member app send no branch. An exclusive code
+      // cannot be confirmed against a purchase that happened nowhere in
+      // particular, so it is refused — the same direction `out_of_scope` takes
+      // for a purchase whose catalogue is unknown.
+      expect(promoRejectionReason(promo({ locationId: 'loc-1' }), { now: NOW })).toBe(
+        'wrong_location',
+      );
+    });
+
+    it('reports scope before branch — WHAT before WHERE', () => {
+      const both = promo({ appliesTo: 'products', locationId: 'loc-1' });
+      expect(
+        promoRejectionReason(both, { scope: 'subscriptions', locationId: 'loc-2', now: NOW }),
+      ).toBe('out_of_scope');
+    });
   });
 
   it('reports the most fundamental reason when several apply', () => {

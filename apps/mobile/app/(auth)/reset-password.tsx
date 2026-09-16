@@ -1,102 +1,170 @@
-import { Link, useLocalSearchParams } from 'expo-router';
+// Set a new password, from the emailed link (`/reset-password?token=…`).
+//
+// ## No token, no form — ever
+//
+// A blank or missing `token` can never succeed: the API consumes a single-use
+// token and there is nothing this screen could send. Rendering the form anyway
+// means the user types a password, presses the button, and is told it failed —
+// having handed a password to a screen that was never going to use it. So the
+// missing-token branch returns BEFORE any state a form would need, and there is
+// no code path on which both exist.
+//
+// ## A session IS issued here
+//
+// Unlike register, `POST /auth/reset-password` returns a token pair — the API
+// revokes every existing session first, so the user walks away signed in on this
+// device and signed out everywhere else, which is the entire point of resetting
+// a possibly-compromised password. `completePasswordReset` adopts the pair, the
+// store flips, and `RouteGuard` navigates. This screen does not.
+//
+// `authStrict`: 5 per 900s.
+
+import { Alert as Advisory, Button, EmptyState } from '@fit/ui-mobile';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { AuthButton, AuthError, AuthField } from '../../components/auth/form-controls';
-import { resetPassword } from '../../lib/auth';
-import { useTranslation } from '../../providers';
 
-// Minimum password length the API enforces on a reset (mirrors @fit/types).
-const PASSWORD_MIN_LENGTH = 8;
+import { AuthScreen } from '../../components/auth/auth-screen';
+import { authErrorKey } from '../../components/auth/auth-error';
+import { AuthField } from '../../components/auth/field';
+import { CoolDownNotice, OfflineNotice } from '../../components/auth/notices';
+import { coolDownSecondsFor, useCoolDown } from '../../components/auth/use-cool-down';
+import { useIsOnline } from '../../components/auth/use-online';
+import { completePasswordReset } from '../../lib/auth/session';
+import type { MessageKey } from '../../lib/i18n/keys';
+import { useI18n } from '../../providers/I18nProvider';
 
-// Reset-password screen, reached from the emailed link via the
-// `fit://auth/reset?token=…` deep link (rewritten in `+native-intent`). It reads
-// the single-use token from the query, POSTs it with the new password to
-// /auth/reset-password, and — since that endpoint issues a fresh session — the
-// user walks away signed in; the root guard then routes them onward.
+/** `?token=` may arrive absent, empty, or (from a malformed link) repeated. */
+function firstToken(raw: string | string[] | undefined): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed.length === 0 ? null : trimmed;
+}
+
 export default function ResetPasswordScreen() {
-  const t = useTranslation();
-  const { token } = useLocalSearchParams<{ token?: string }>();
+  const { t } = useI18n();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ token?: string | string[] }>();
+  const token = firstToken(params.token);
+
+  const online = useIsOnline();
+  const coolDown = useCoolDown();
+
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
 
-  // No token means the screen was opened without (or with a malformed) link.
-  if (!token) {
+  const backToLogin = (): void => {
+    router.replace('/login');
+  };
+
+  const footer = (
+    <Button
+      variant="ghost"
+      size="md"
+      fullWidth
+      icon="arrowLeft"
+      testID="reset-back"
+      label={t('auth.reset.backToLogin')}
+      onPress={backToLogin}
+    />
+  );
+
+  // The dead-link branch. It is FIRST, and it returns, so no form state below is
+  // ever reachable with a null token. `EmptyState` is the error state (plan item
+  // G-05) and carries the way out as its action rather than only as a footer
+  // link — a dead end with no button is how the old app's error boxes read.
+  if (token === null) {
     return (
-      <SafeAreaView className="flex-1 bg-ink-950">
-        <View className="flex-1 justify-center gap-4 p-gutter">
-          <Text className="text-3xl font-bold tracking-tight text-white">
-            {t('auth.reset.title')}
-          </Text>
-          <Text className="text-base text-danger-300">{t('auth.reset.missingToken')}</Text>
-          <Link href="/forgot-password" asChild>
-            <Text className="text-base font-medium text-brand-300">{t('auth.forgot.title')}</Text>
-          </Link>
-        </View>
-      </SafeAreaView>
+      <AuthScreen testID="reset" title={t('auth.reset.title')} subtitle={t('auth.reset.subtitle')}>
+        <EmptyState
+          testID="reset-missing-token"
+          icon="info"
+          title={t('auth.reset.missingToken')}
+          action={{
+            label: t('auth.forgot.submit'),
+            testID: 'reset-request-new',
+            onPress: () => {
+              router.replace('/forgot-password');
+            },
+          }}
+        />
+      </AuthScreen>
     );
   }
 
-  const canSubmit = password.length >= PASSWORD_MIN_LENGTH && !pending;
+  const blocked = pending || coolDown.active || !online;
 
-  const onSubmit = (): void => {
-    if (!canSubmit) return;
+  const submit = (): void => {
+    if (blocked) return;
     setPending(true);
-    setError(null);
-    resetPassword(token, password).catch((err: unknown) => {
-      setPending(false);
-      setError(err instanceof Error ? err.message : t('auth.genericError'));
-    });
+    setErrorKey(null);
+    completePasswordReset({ token, password })
+      .then(() => {
+        // No `setPending(false)` and no navigation: a session was just issued,
+        // so `RouteGuard` is about to replace this route. See `login.tsx`.
+      })
+      .catch((error: unknown) => {
+        setPending(false);
+        const seconds = coolDownSecondsFor(error);
+        if (seconds !== null) {
+          coolDown.start(seconds);
+          return;
+        }
+        setErrorKey(authErrorKey(error));
+      });
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-ink-950">
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerClassName="grow justify-center gap-5 p-gutter"
-          keyboardShouldPersistTaps="handled"
-        >
-          <View className="gap-2">
-            <Text className="text-3xl font-bold tracking-tight text-white">
-              {t('auth.reset.title')}
-            </Text>
-            <Text className="text-base text-ink-300">{t('auth.reset.subtitle')}</Text>
-          </View>
+    <AuthScreen
+      testID="reset"
+      title={t('auth.reset.title')}
+      subtitle={t('auth.reset.subtitle')}
+      footer={footer}
+    >
+      {/* TODO(i18n): `common.offline.title` / `common.offline.body`. */}
+      {online ? null : <OfflineNotice testID="reset-offline" />}
 
-          <View className="gap-4">
-            <AuthError message={error} />
-            <AuthField
-              label={t('auth.fields.password')}
-              value={password}
-              onChangeText={setPassword}
-              placeholder={t('auth.fields.passwordPlaceholder')}
-              autoCapitalize="none"
-              autoComplete="password-new"
-              textContentType="newPassword"
-              secureTextEntry
-              editable={!pending}
-            />
-            <Text className="text-sm text-ink-400">{t('auth.fields.passwordHint')}</Text>
-            <AuthButton
-              label={t('auth.reset.submit')}
-              busyLabel={t('auth.reset.submitting')}
-              busy={pending}
-              disabled={!canSubmit}
-              onPress={onSubmit}
-            />
-          </View>
+      {coolDown.active ? (
+        <CoolDownNotice testID="reset-cooldown" secondsLeft={coolDown.secondsLeft} />
+      ) : null}
 
-          <Link href="/login" asChild>
-            <Text className="text-center text-sm font-medium text-brand-300">
-              {t('auth.forgot.backToLogin')}
-            </Text>
-          </Link>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      {errorKey === null ? null : (
+        <Advisory testID="reset-error" tone="danger" live title={t(errorKey)} />
+      )}
+
+      <AuthField
+        testID="reset-password"
+        label={t('auth.fields.password')}
+        placeholder={t('auth.fields.passwordPlaceholder')}
+        hint={t('auth.fields.passwordHint')}
+        value={password}
+        onChangeText={setPassword}
+        disabled={pending}
+        invalid={errorKey !== null}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        // A NEW password, not the stored one. Telling the password manager which
+        // is which is what makes it offer to UPDATE the saved entry instead of
+        // filling the old one back in.
+        autoComplete="new-password"
+        textContentType="newPassword"
+        revealLabels={{ show: t('auth.showPassword'), hide: t('auth.hidePassword') }}
+        returnKeyType="go"
+        onSubmitEditing={submit}
+      />
+
+      <Button
+        testID="reset-submit"
+        variant="primary"
+        size="lg"
+        fullWidth
+        label={t('auth.reset.submit')}
+        busyLabel={t('auth.reset.submitting')}
+        busy={pending}
+        disabled={coolDown.active || !online}
+        onPress={submit}
+      />
+    </AuthScreen>
   );
 }

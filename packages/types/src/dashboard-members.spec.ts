@@ -38,6 +38,12 @@ describe('dashboardMembersQuerySchema', () => {
       }),
     ).toEqual({ granularity: 'monthly', retentionWindow: '90', expiringWindow: '30' });
   });
+
+  it('carries an optional branch, absent on "all locations"', () => {
+    expect(dashboardMembersQuerySchema.parse({ locationId: 'loc_1' }).locationId).toBe('loc_1');
+    expect(dashboardMembersQuerySchema.parse({}).locationId).toBeUndefined();
+    expect(dashboardMembersQuerySchema.parse({ locationId: '' }).locationId).toBeUndefined();
+  });
 });
 
 describe('MEMBERSHIP_STATUSES', () => {

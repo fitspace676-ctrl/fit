@@ -6,6 +6,35 @@ import { gymMemberIntakeSettingsSchema, updateMemberSchema } from '@fit/types';
 import { MemberForm, type MemberFormInitial } from './member-form';
 import { createMemberAction, updateMemberAction } from './actions';
 
+/**
+ * The console's active branch, as the top-bar switcher reports it. Hoisted so the
+ * `vi.mock` factory below can close over it — vitest lifts `vi.mock` above the
+ * imports, and the factory runs while `./member-form` is being imported.
+ *
+ * Empty by default, which is a gym with no branches on file: the form hides the
+ * branch select entirely in that case, so every start-date spec below sees the
+ * form exactly as it was before Stage 2.
+ */
+const activeLocation = vi.hoisted(() => ({
+  locationId: undefined as string | undefined,
+  locations: [] as { id: string; name: string }[],
+}));
+
+vi.mock('@/components/active-location', () => ({
+  useActiveLocation: () => ({
+    active: activeLocation.locationId ?? 'all',
+    locationId: activeLocation.locationId,
+    locations: activeLocation.locations,
+    setActive: vi.fn(),
+  }),
+}));
+
+/** Every branch the gym has, for the specs that need the select to render. */
+const BRANCHES = [
+  { id: 'loc-riverside', name: 'Riverside' },
+  { id: 'loc-downtown', name: 'Downtown' },
+];
+
 /** Render inside the console's English catalogue, as the dashboard layout does. */
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -37,6 +66,7 @@ const existing: MemberFormInitial = {
   emergencyContactName: 'Nino',
   emergencyContactPhone: '555000222',
   medicalNotes: '',
+  locationName: 'Riverside',
 };
 
 /** The one start-date input, whose label carries an "· Optional" suffix. */
@@ -167,5 +197,125 @@ describe('MemberForm — start date on create', () => {
     await waitFor(() => expect(createMemberAction).toHaveBeenCalledTimes(1));
     const [input] = vi.mocked(createMemberAction).mock.calls[0]!;
     expect(input.startDate).toBe('2026-09-01');
+  });
+});
+
+describe('MemberForm — the member’s home branch', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    activeLocation.locationId = undefined;
+    activeLocation.locations = [];
+  });
+
+  /** The branch select, labelled with the same word the top-bar switcher uses. */
+  function branchSelect(): HTMLSelectElement {
+    return screen.getByLabelText<HTMLSelectElement>(/^Location/);
+  }
+
+  it('is hidden for a gym with no branches on file', () => {
+    // A select with nothing in it is worse than no select — the same guard the
+    // till's "Selling at" control uses.
+    renderWithIntl(<MemberForm mode="create" />);
+
+    expect(screen.queryByLabelText(/^Location/)).toBeNull();
+  });
+
+  it('pre-fills the branch the console is scoped to, and sends it', async () => {
+    // Someone who has switched the whole console to Riverside is enrolling at
+    // Riverside; defaulting elsewhere is how a walk-in lands at the wrong branch.
+    activeLocation.locations = BRANCHES;
+    activeLocation.locationId = 'loc-riverside';
+    renderWithIntl(
+      <MemberForm
+        mode="create"
+        enrolment={false}
+        intake={gymMemberIntakeSettingsSchema.parse({
+          phone: false,
+          gender: false,
+          dateOfBirth: false,
+          personalId: false,
+          address: false,
+          emergencyContact: false,
+        })}
+      />,
+    );
+
+    expect(branchSelect().value).toBe('loc-riverside');
+
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Ana' } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'ana@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create member' }));
+
+    await waitFor(() => expect(createMemberAction).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(createMemberAction).mock.calls[0]![0].locationId).toBe('loc-riverside');
+  });
+
+  it('leaves the branch to the API in "All locations" mode', async () => {
+    // Nothing is guessed client-side: the API is the only party that knows which
+    // branch is the gym's default (`Location.isDefault`), so the field is simply
+    // omitted and that fallback does the work.
+    activeLocation.locations = BRANCHES;
+    renderWithIntl(
+      <MemberForm
+        mode="create"
+        enrolment={false}
+        intake={gymMemberIntakeSettingsSchema.parse({
+          phone: false,
+          gender: false,
+          dateOfBirth: false,
+          personalId: false,
+          address: false,
+          emergencyContact: false,
+        })}
+      />,
+    );
+
+    expect(branchSelect().value).toBe('');
+
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Ana' } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'ana@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create member' }));
+
+    await waitFor(() => expect(createMemberAction).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(createMemberAction).mock.calls[0]![0].locationId).toBeUndefined();
+  });
+
+  it('never pre-selects a branch on edit, whatever the switcher is on', async () => {
+    // THE DANGEROUS CASE. Opening a Downtown member's profile while the console is
+    // scoped to Riverside must not propose a transfer, or a staffer fixing a phone
+    // number carries one through with the save.
+    activeLocation.locations = BRANCHES;
+    activeLocation.locationId = 'loc-riverside';
+    renderWithIntl(
+      <MemberForm mode="edit" memberId="m-1" initial={{ ...existing, locationName: 'Downtown' }} />,
+    );
+
+    expect(branchSelect().value).toBe('');
+    // The "no change" option is worded around the branch they are at, rather than
+    // repeating its bare name — two identical-looking entries in one select is a
+    // list a reader has to guess at.
+    // (The wording itself is asserted structurally rather than by string: it is a
+    // `form.locationKeep` message that has yet to land in the catalogues.)
+    expect(branchSelect().options[0]!.value).toBe('');
+    expect(screen.getAllByRole('option', { name: 'Downtown' })).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateMemberAction).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(updateMemberAction).mock.calls[0]![1].locationId).toBeUndefined();
+  });
+
+  it('transfers the member when a branch is picked on edit', async () => {
+    activeLocation.locations = BRANCHES;
+    renderWithIntl(
+      <MemberForm mode="edit" memberId="m-1" initial={{ ...existing, locationName: 'Downtown' }} />,
+    );
+
+    fireEvent.change(branchSelect(), { target: { value: 'loc-riverside' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(updateMemberAction).toHaveBeenCalledTimes(1));
+    const [, input] = vi.mocked(updateMemberAction).mock.calls[0]!;
+    expect(updateMemberSchema.parse(input).locationId).toBe('loc-riverside');
   });
 });

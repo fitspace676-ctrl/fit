@@ -18,6 +18,7 @@ import {
   Permission,
   adjustLoyaltyPointsSchema,
   createLoyaltyRewardSchema,
+  listLoyaltyRewardsQuerySchema,
   listRedemptionsQuerySchema,
   loyaltyTimeseriesQuerySchema,
   loyaltyTopEarnersQuerySchema,
@@ -87,11 +88,16 @@ export class LoyaltyController {
   // Rewards catalogue
   // -------------------------------------------------------------------------
 
+  /**
+   * `GET /loyalty/rewards` — the catalogue. `?locationId=` narrows to what one
+   * branch can HONOUR: its exclusive rewards PLUS every gym-wide one. Omitted is
+   * the whole catalogue.
+   */
   @Get('rewards')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.LoyaltyRead)
-  async listRewards(): Promise<ListLoyaltyRewardsResponse> {
-    return this.loyalty.listRewards();
+  async listRewards(@Query() query: unknown): Promise<ListLoyaltyRewardsResponse> {
+    return this.loyalty.listRewards(parse(listLoyaltyRewardsQuerySchema, query));
   }
 
   @Post('rewards')

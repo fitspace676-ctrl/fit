@@ -4,8 +4,9 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { MANUAL_STOCK_REASONS, type ManualStockReason } from '@fit/types';
-import { Badge, Button, Dialog } from '@fit/ui-kit';
+import { Badge, Button, Dialog, SelectField } from '@fit/ui-kit';
 import { Icon, useToast } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { adjustStockAction } from '../actions';
 
 /**
@@ -205,6 +206,17 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.375rem',
   },
+  /** The branch a fixed-branch adjuster states rather than offers. */
+  branchFixed: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  hint: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 interface StockAdjusterProps {
@@ -214,20 +226,48 @@ interface StockAdjusterProps {
   variantIndex: number | null;
   variantName: string;
   sku: string;
-  /** The position's live on-hand count — the adjustment's starting point. */
-  stock: number;
+  /**
+   * The on-hand figure the caller is showing for this position, or `null` when
+   * nothing is recorded for it. What it *means* is settled by
+   * {@link StockAdjusterProps.stockLocationId}, not by this number.
+   */
+  stock: number | null;
+  /**
+   * The branch {@link StockAdjusterProps.stock} is the count for, or `null` when
+   * it is the gym-wide roll-up — a figure held on no single shelf.
+   *
+   * **This is what picks the adjuster's mode**, and the distinction is the whole
+   * reason the prop exists. Since Stage 4 a count belongs to a branch, so
+   * "I counted the shelf: eleven" is only a true statement when the eleven on
+   * screen came from the shelf being written to. When it did (`stockLocationId`
+   * names the branch), the form works in absolute terms and posts `setTo`, which
+   * is what makes a recount safe against a colleague restocking mid-edit. When it
+   * did not — the catalogue's gym-wide total, or an all-branches inventory row —
+   * the form works in signed deltas instead, because setting a branch's shelf to
+   * a number that came from four branches added together is precisely the
+   * untargeted write Stage 4 exists to eliminate.
+   */
+  stockLocationId: string | null;
 }
 
 /**
- * The stock-adjustment entry point (T4.7), rebuilt on brand-tokened StyleX (T11.22).
- * An "Adjust" button that opens a modal to set a position's new on-hand count: a
- * −/+ stepper, quick "+N" restock presets, a direct number field, a reason, and a
- * "→ N units" preview.
+ * The stock-adjustment entry point (T4.7), rebuilt on brand-tokened StyleX (T11.22),
+ * per-branch since Stage 4 of multi-branch. An "Adjust" button that opens a modal
+ * to move one position at one branch: a −/+ stepper, quick "+N" restock presets, a
+ * direct number field, a reason, and a preview of where the count lands.
  *
- * The staffer works in absolute terms — the number they can see on the shelf — so
- * the count is submitted as `setTo` and the server derives the movement's delta
- * against the live figure. That way a colleague's restock landing mid-edit is not
- * silently undone by this one.
+ * **Every adjustment names a branch** — `adjustStockSchema.locationId` is required,
+ * the one place in multi-branch the branch is not optional-with-a-default. The
+ * branch comes from one of two places: the caller's own scope when it is showing a
+ * single branch's counts (in which case it is stated, not offered — you do not
+ * correct the satellite's shelf from the flagship's stocktake), or the console's
+ * active branch when the caller's figure is gym-wide. In "All locations" mode
+ * there is no active branch to inherit, so the operator picks one and Apply stays
+ * disabled until they do; the API would reject the write anyway, and a disabled
+ * button explains itself better than a `400`.
+ *
+ * See {@link StockAdjusterProps.stockLocationId} for why the form switches between
+ * an absolute count and a signed delta.
  *
  * Every adjustment carries a reason, and optionally a note, because the point of
  * the ledger is answering "why is this 3?" months later. Rendered only for staff
@@ -241,21 +281,39 @@ export function StockAdjuster({
   variantName,
   sku,
   stock,
+  stockLocationId,
 }: StockAdjusterProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { locationId: activeLocationId, locations } = useActiveLocation();
+
+  // The count on screen is a real shelf's count only when the caller says which
+  // shelf it came from. That is also the only case where the branch is not the
+  // operator's to choose — the surface is already scoped to it.
+  const absolute = stockLocationId !== null;
+  const baseline = stock ?? 0;
+
+  const [chosenBranch, setChosenBranch] = useState<string>(
+    () => activeLocationId ?? (locations.length === 1 ? locations[0]!.id : ''),
+  );
+  const branch = stockLocationId ?? chosenBranch;
+  const branchName = locations.find((location) => location.id === branch)?.name ?? branch;
+
   const [open, setOpen] = useState(false);
-  const [target, setTarget] = useState(stock);
+  /** Absolute mode: the new on-hand count. Delta mode: the signed change. */
+  const [amount, setAmount] = useState(() => (absolute ? baseline : 0));
   const [reason, setReason] = useState<ManualStockReason>('RECEIVE');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, startSave] = useTransition();
 
-  const delta = target - stock;
+  const delta = absolute ? amount - baseline : amount;
   const unchanged = delta === 0;
+  const branchMissing = branch === '';
 
   function reset() {
-    setTarget(stock);
+    setAmount(absolute ? baseline : 0);
+    setChosenBranch(activeLocationId ?? (locations.length === 1 ? locations[0]!.id : ''));
     setReason('RECEIVE');
     setNote('');
     setError(null);
@@ -266,23 +324,26 @@ export function StockAdjuster({
     setOpen(false);
   }
 
+  /** Absolute counts cannot go below zero; a delta may be negative (a write-off). */
   function clamp(next: number): number {
     if (!Number.isFinite(next)) return 0;
-    return Math.max(0, Math.trunc(next));
+    const whole = Math.trunc(next);
+    return absolute ? Math.max(0, whole) : whole;
   }
 
   function apply() {
-    if (unchanged) return;
+    if (unchanged || branchMissing) return;
     setError(null);
     startSave(async () => {
       const result = await adjustStockAction(productId, {
+        locationId: branch,
         variantIndex,
-        setTo: target,
+        ...(absolute ? { setTo: amount } : { delta }),
         reason,
         note,
       });
       if (result.ok) {
-        toast(`${variantName} stock set to ${result.data.stock}`, {
+        toast(`${variantName} at ${branchName} set to ${result.data.stock}`, {
           tone: 'success',
           icon: 'check',
         });
@@ -331,7 +392,7 @@ export function StockAdjuster({
               variant="primary"
               size="inline"
               onClick={apply}
-              disabled={unchanged || saving}
+              disabled={unchanged || branchMissing || saving}
               icon={<Icon name="check" {...stylex.props(styles.kitGlyph)} />}
               label={saving ? 'Saving…' : 'Apply adjustment'}
             />
@@ -339,12 +400,56 @@ export function StockAdjuster({
         }
       >
         <div {...stylex.props(styles.body)}>
+          {/* The branch is stated when the surface already owns it, and chosen
+              otherwise. It is never absent: the API requires it. */}
+          <div {...stylex.props(styles.field)}>
+            <span {...stylex.props(styles.fieldLabel)}>Branch</span>
+            {absolute ? (
+              <span {...stylex.props(styles.branchFixed)}>{branchName}</span>
+            ) : locations.length === 0 ? (
+              <p role="alert" {...stylex.props(styles.error)}>
+                <Icon name="info" {...stylex.props(styles.errorIcon)} />
+                <span>
+                  No branches are available to record this against. Add a location before adjusting
+                  stock.
+                </span>
+              </p>
+            ) : (
+              <>
+                <SelectField
+                  label="Branch"
+                  labelHidden
+                  size="chrome"
+                  value={chosenBranch}
+                  disabled={saving}
+                  onChange={(event) => setChosenBranch(event.target.value)}
+                  options={[
+                    { value: '', label: 'Choose a branch…' },
+                    ...locations.map((location) => ({ value: location.id, label: location.name })),
+                  ]}
+                />
+                {branchMissing ? (
+                  <p {...stylex.props(styles.hint)}>
+                    A count is a claim about one shelf, so this adjustment has to name the branch it
+                    changed.
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
+
           <div {...stylex.props(styles.onHandRow)}>
-            <span {...stylex.props(styles.onHandLabel)}>On hand now</span>
-            <Badge
-              tone={stock === 0 ? 'danger' : 'pending'}
-              label={stock === 0 ? 'Out of stock' : `${stock} left`}
-            />
+            <span {...stylex.props(styles.onHandLabel)}>
+              {absolute ? `On hand at ${branchName}` : 'On hand, all branches'}
+            </span>
+            {stock === null ? (
+              <Badge tone="neutral" label="Nothing recorded" />
+            ) : (
+              <Badge
+                tone={stock === 0 ? 'danger' : 'pending'}
+                label={stock === 0 ? 'Out of stock' : `${stock} left`}
+              />
+            )}
           </div>
 
           <div {...stylex.props(styles.stepperRow)}>
@@ -352,27 +457,27 @@ export function StockAdjuster({
               variant="secondary"
               size="card"
               iconOnly
-              onClick={() => setTarget((value) => clamp(value - STEP))}
-              disabled={target <= 0 || saving}
+              onClick={() => setAmount((value) => clamp(value - STEP))}
+              disabled={(absolute && amount <= 0) || saving}
               icon={<Icon name="minus" {...stylex.props(styles.kitGlyph)} />}
               label="Decrease"
             />
             <input
               type="number"
               inputMode="numeric"
-              min={0}
+              min={absolute ? 0 : undefined}
               step={1}
-              value={target}
+              value={amount}
               disabled={saving}
-              aria-label="New on-hand count"
-              onChange={(event) => setTarget(clamp(event.target.valueAsNumber))}
+              aria-label={absolute ? 'New on-hand count' : 'Change in units'}
+              onChange={(event) => setAmount(clamp(event.target.valueAsNumber))}
               {...stylex.props(styles.countInput)}
             />
             <Button
               variant="secondary"
               size="card"
               iconOnly
-              onClick={() => setTarget((value) => clamp(value + STEP))}
+              onClick={() => setAmount((value) => clamp(value + STEP))}
               disabled={saving}
               icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
               label="Increase"
@@ -385,7 +490,7 @@ export function StockAdjuster({
                 key={add}
                 type="button"
                 disabled={saving}
-                onClick={() => setTarget((value) => clamp(value + add))}
+                onClick={() => setAmount((value) => clamp(value + add))}
                 {...stylex.props(styles.quickAdd)}
               >
                 +{add}
@@ -427,19 +532,42 @@ export function StockAdjuster({
             />
           </div>
 
+          {/* Absolute mode lands on a number the operator can check against the
+              shelf. Delta mode cannot — nobody here knows what the branch holds —
+              so it previews the movement itself, and says what it moves. */}
           <p {...stylex.props(styles.preview)}>
             <Icon name="arrow" sw={2} {...stylex.props(styles.previewIcon)} />
-            <span>
-              <span {...stylex.props(styles.previewTarget)}>{target}</span> units
-              {unchanged ? null : (
+            {absolute ? (
+              <span>
+                <span {...stylex.props(styles.previewTarget)}>{amount}</span> units at {branchName}
+                {unchanged ? null : (
+                  <span
+                    {...stylex.props(styles.delta, delta > 0 ? styles.deltaUp : styles.deltaDown)}
+                  >
+                    ({delta > 0 ? '+' : ''}
+                    {delta})
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span>
                 <span
-                  {...stylex.props(styles.delta, delta > 0 ? styles.deltaUp : styles.deltaDown)}
+                  {...stylex.props(
+                    styles.previewTarget,
+                    delta > 0 ? styles.deltaUp : delta < 0 ? styles.deltaDown : undefined,
+                  )}
                 >
-                  ({delta > 0 ? '+' : ''}
-                  {delta})
-                </span>
-              )}
-            </span>
+                  {delta > 0 ? '+' : ''}
+                  {delta}
+                </span>{' '}
+                units at {branchMissing ? 'the branch you choose' : branchName}
+                {stock === null ? null : (
+                  <span {...stylex.props(styles.delta)}>
+                    (all branches: {stock} → {stock + delta})
+                  </span>
+                )}
+              </span>
+            )}
           </p>
 
           {error !== null ? (

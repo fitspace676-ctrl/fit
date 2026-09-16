@@ -35,10 +35,13 @@ export const DEFAULT_CLASSES_GRANULARITY: ClassesGranularity = 'daily';
 
 /**
  * `GET /dashboard/classes?granularity=` query. `.catch` (not `.default`) so a
- * hand-edited URL lands on the default rather than a 400.
+ * hand-edited URL lands on the default rather than a 400. `locationId` counts only
+ * the classes held at one branch; omitted, the tab covers every branch's timetable,
+ * and a stale id falls back there rather than erroring.
  */
 export const dashboardClassesQuerySchema = z.object({
   granularity: classesGranularitySchema.catch(DEFAULT_CLASSES_GRANULARITY),
+  locationId: z.string().min(1).optional().catch(undefined),
 });
 export type DashboardClassesQuery = z.infer<typeof dashboardClassesQuerySchema>;
 

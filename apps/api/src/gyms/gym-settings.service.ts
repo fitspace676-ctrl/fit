@@ -20,6 +20,7 @@ import {
   type UploadGymPortalLogoInput,
   type UploadGymPortalLogoResponse,
 } from '@fit/types';
+import { invalidateGymAccess } from '../common/rbac/request-access';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
@@ -87,6 +88,21 @@ export class GymSettingsService {
       staffDirectory: { ...current.staffDirectory, ...input.staffDirectory },
       reports: { ...current.reports, ...input.reports },
       payments: { ...current.payments, ...input.payments },
+      permissions: {
+        // Merged per ROLE rather than per field: `grants` is a set, so a partial
+        // merge of it would silently union the old grants with the new ones and
+        // make un-ticking a box impossible. A supplied role replaces its own row;
+        // an omitted one is untouched. OWNER is normalised to full access by
+        // `updateGymRolePermissionsSchema` on the way in, so the padlock holds
+        // even against a client echoing the whole matrix back.
+        OWNER: input.permissions?.OWNER ?? current.permissions.OWNER,
+        MANAGER: { ...current.permissions.MANAGER, ...input.permissions?.MANAGER },
+        RECEPTIONIST: {
+          ...current.permissions.RECEPTIONIST,
+          ...input.permissions?.RECEPTIONIST,
+        },
+        TRAINER: { ...current.permissions.TRAINER, ...input.permissions?.TRAINER },
+      },
       invoice: { ...current.invoice, ...input.invoice },
       receipt: { ...current.receipt, ...input.receipt },
     };
@@ -116,7 +132,19 @@ export class GymSettingsService {
       data: { name: nextName, settings: next as unknown as Prisma.InputJsonValue },
     });
 
-    return this.toResponse(nextName, next);
+    // The `permissions` section is what `PermissionsGuard` gates every request on,
+    // and it is cached per gym. Bust it here, immediately after the row is
+    // committed, so an operator who unticks a box sees the revocation on their very
+    // next request rather than at the end of the cache's TTL. Called for EVERY
+    // settings patch, not only one that touched `permissions`: the cache holds the
+    // section, this method rewrites the whole blob, and a bust costs one indexed
+    // read to rebuild — cheaper than a rule about which patches matter.
+    invalidateGymAccess(this.tenant.gymId);
+
+    // Same cast the write above makes: `grants` is typed as the `Permission`
+    // enum, which Prisma's structural `JsonValue` does not accept even though the
+    // runtime value is a plain string array. `toResponse` re-parses it anyway.
+    return this.toResponse(nextName, next as unknown as Prisma.JsonValue);
   }
 
   /**
@@ -294,6 +322,7 @@ export class GymSettingsService {
       staffDirectory: stored.staffDirectory,
       reports: stored.reports,
       payments: stored.payments,
+      permissions: stored.permissions,
       invoice: stored.invoice,
       receipt: stored.receipt,
     };

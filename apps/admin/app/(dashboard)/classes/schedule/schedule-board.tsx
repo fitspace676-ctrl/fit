@@ -12,6 +12,7 @@ import {
 } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { useActiveLocation } from '@/components/active-location';
 import { useOccupancyStream } from '@/hooks/use-occupancy-stream';
 import { ClassDrawer } from './class-drawer';
 import { AddClassDrawer } from '../add-class-drawer';
@@ -33,11 +34,18 @@ const styles = stylex.create({
 
 /**
  * The staff schedule (T3.2): the shared {@link CalendarBoard} drawn over class
- * occurrences, with the trainer / location filters, the "Add Class" drawer
- * (seeded by click-to-create), live occupancy over SSE, and the class drawer.
+ * occurrences, with the trainer filter, the "Add Class" drawer (seeded by
+ * click-to-create), live occupancy over SSE, and the class drawer.
  *
  * The calendar itself - toolbar, day / week / month / list - lives in
  * `calendar-board.tsx` and is the same one the PT Calendar draws with.
+ *
+ * THE BRANCH IS NO LONGER A PAGE FILTER. It belongs to the top-bar switcher and
+ * applies console-wide; this board only *reads* it, to say whether an empty day is
+ * genuinely empty or merely narrowed. `?locationId=` still works — the server page
+ * resolves it ahead of the cookie — but nothing here writes it, and in particular
+ * "Clear filters" does not clear it: a page-level control must not silently change
+ * a console-wide setting the operator set somewhere else.
  */
 export function ScheduleBoard({
   view,
@@ -46,9 +54,7 @@ export function ScheduleBoard({
   dayAnchor,
   instances,
   trainers,
-  locations,
   trainerId,
-  locationId,
   canWrite,
   canBook,
   canMarkAttendance,
@@ -68,9 +74,7 @@ export function ScheduleBoard({
   dayAnchor: string;
   instances: AdminScheduleInstance[];
   trainers: ScheduleOption[];
-  locations: ScheduleOption[];
   trainerId: string;
-  locationId: string;
   /** Whether the staff session holds `ClassWrite` (gates the drawer's cancel). */
   canWrite: boolean;
   /** `BookingManage` - the drawer's desk booking. */
@@ -134,7 +138,15 @@ export function ScheduleBoard({
     [pathname, router, searchParams],
   );
 
-  const hasFilters = trainerId !== '' || locationId !== '';
+  // Two different questions, deliberately not one flag. `hasPageFilters` decides
+  // whether to offer "Clear filters", and so may only count filters this page owns
+  // and can actually clear. `narrowed` decides whether an empty day reads as "no
+  // classes" or "no classes match", and so must also count the console-wide branch
+  // — otherwise selecting a branch would make the other branch's days look like a
+  // gym with nothing on.
+  const { locationId: activeLocationId } = useActiveLocation();
+  const hasPageFilters = trainerId !== '';
+  const narrowed = hasPageFilters || activeLocationId !== undefined;
 
   return (
     <CalendarBoard
@@ -143,7 +155,7 @@ export function ScheduleBoard({
       monthAnchor={monthAnchor}
       dayAnchor={dayAnchor}
       events={instances}
-      filtered={hasFilters}
+      filtered={narrowed}
       timeZone={timeZone}
       openHour={openHour}
       closeHour={closeHour}
@@ -172,18 +184,14 @@ export function ScheduleBoard({
             options={trainers}
             onChange={(value) => setParams({ trainerId: value })}
           />
-          <FilterSelect
-            label={t('filters.location')}
-            value={locationId}
-            allLabel={t('filters.allLocations')}
-            options={locations}
-            onChange={(value) => setParams({ locationId: value })}
-          />
-          {hasFilters ? (
+          {/* The branch select that used to sit beside this one is gone — the
+              top-bar switcher owns the branch for the whole console, so Clear
+              clears `trainerId` and nothing else. */}
+          {hasPageFilters ? (
             <Button
               variant="ghost"
               size="inline"
-              onClick={() => setParams({ trainerId: null, locationId: null })}
+              onClick={() => setParams({ trainerId: null })}
               icon={<Icon name="x" {...stylex.props(styles.kitGlyph)} />}
               label={t('filters.clear')}
             />

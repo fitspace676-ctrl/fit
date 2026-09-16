@@ -19,6 +19,9 @@ const detail = (over?: Partial<GetAdminPackagePlanResponse>): GetAdminPackagePla
   featureCount: 0,
   popular: false,
   status: 'ACTIVE',
+  // NULL is the Stage 7 default: sold at every branch.
+  locationId: null,
+  locationName: null,
   createdAt: '2026-03-01T00:00:00.000Z',
   description: '',
   features: [],

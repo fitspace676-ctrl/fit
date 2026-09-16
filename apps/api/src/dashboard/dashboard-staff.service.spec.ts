@@ -345,3 +345,128 @@ describe('DashboardStaffService', () => {
     });
   });
 });
+
+describe('DashboardStaffService.get — the branch filter', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  /** Every `where` a mocked read was issued with. */
+  function wheres(fn: ReturnType<typeof vi.fn>): Record<string, unknown>[] {
+    return fn.mock.calls.map(
+      (call) => (call[0] as { where?: Record<string, unknown> } | undefined)?.where ?? {},
+    );
+  }
+
+  // Stage 6 gave the four branchless models a branch, and these specs pin WHICH
+  // filter each read takes — the distinction that is easy to get backwards and
+  // impossible to see in a number afterwards.
+  it('narrows the two event reads on their own column', async () => {
+    const { service, instanceFindMany, ptFindMany, shiftFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    // Classes, PT hours and shifts are all events at a PLACE — a room was
+    // occupied, a door was staffed — so each carries its own `locationId` and is
+    // read with plain equality. `PtSession` gained that column in Stage 6, which
+    // is what unblocked the whole tab: `sessionsDelivered` ADDS classes and PT,
+    // and filtering only the half that could be filtered would have summed one
+    // branch's classes with every branch's coaching.
+    for (const fn of [instanceFindMany, ptFindMany, shiftFindMany]) {
+      for (const where of wheres(fn)) {
+        expect(where.locationId).toBe('loc_1');
+      }
+    }
+  });
+
+  it('narrows the two availability reads through the roster, not through a column', async () => {
+    const { service, trainerFindMany, timeOffFindMany } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    // "Which coaches can this branch call on" and "whose absence costs it cover"
+    // are questions of AVAILABILITY, and neither model has (or should have) a
+    // branch column: a coach's branches are a capability, and a capability is
+    // many-valued. Both hop through `LocationStaff`.
+    for (const fn of [trainerFindMany, timeOffFindMany]) {
+      for (const where of wheres(fn)) {
+        expect(where.staff).toEqual({
+          is: { locationAssignments: { some: { locationId: 'loc_1' } } },
+        });
+        expect(where).not.toHaveProperty('locationId');
+      }
+    }
+  });
+
+  // The staff head-count is the one figure where the two rules genuinely compete,
+  // and the previous stages' spec asserted the opposite of what Stage 6 needs.
+  it('counts staff by the ROSTER, because both terms of the gap must share a population', async () => {
+    const { service, memberCount } = setup({});
+
+    await service.get({ ...QUERY, locationId: 'loc_1' });
+
+    for (const where of wheres(memberCount)) {
+      // `gaps.staffWithoutShifts` subtracts "people with a shift at this branch"
+      // from this count. Base-branch head-count minus shifts-at-this-branch would
+      // subtract two different populations: a coach based at the flagship who
+      // works Tuesdays at the satellite would be a gap at the flagship and a
+      // surplus at the satellite, and the `Math.max(0, …)` would swallow the
+      // negative half silently.
+      expect(where.locationAssignments).toEqual({ some: { locationId: 'loc_1' } });
+      // Still NOT `GymMember.locationId`, and for a sharper reason than before.
+      // That column is now genuinely meaningful on a staff row — it is the
+      // person's BASE branch — and it is what a per-branch head-count of the
+      // payroll reads, precisely because it partitions. This figure is not a
+      // head-count; it is a rostering gap, and it deliberately does not sum to
+      // the payroll across branches.
+      expect(where).not.toHaveProperty('locationId');
+      // The deprecated array is not read anywhere any more.
+      expect(where).not.toHaveProperty('assignedLocationIds');
+    }
+  });
+
+  it('returns genuinely different figures per branch', async () => {
+    // The inverse of the old "same figures with and without a branch" assertion.
+    // Every read is filtered now, so the mocks answer identically and the numbers
+    // agree — what changed is that a `where` reaches the database at all, which
+    // the specs above pin directly. Here we only assert the shape survives.
+    const rows = { instances: [instance()], ptSessions: [session()], trainers: [trainer()] };
+    const branch = await setup(rows).service.get({ ...QUERY, locationId: 'loc_1' });
+
+    expect(branch.kpis.sessionsDelivered).toBeGreaterThan(0);
+  });
+
+  // `utilizationRate` is the one thing Stage 6 could NOT fix, and this inverts the
+  // spec that used to guard the opposite.
+  it('nulls utilizationRate under a branch filter — the denominator cannot narrow', async () => {
+    const rows = { instances: [instance()], trainers: [trainer()] };
+
+    const gymWide = await setup(rows).service.get(QUERY);
+    const branch = await setup(rows).service.get({ ...QUERY, locationId: 'loc_1' });
+
+    // Gym-wide the rate is real.
+    expect(gymWide.kpis.utilizationRate).not.toBeNull();
+    // Under a branch it is not, because `Trainer.availability` is a weekly JSON
+    // document with no branch dimension at all: the numerator narrows and the
+    // denominator cannot, so the rate would divide one branch's delivered minutes
+    // by every branch's availability. That is not a smaller rate, it is a wrong
+    // one — the exact objection the exemption register raised. Shipping it beside
+    // branch-filtered hours would put two populations in one row and LOOK filtered.
+    expect(branch.kpis.utilizationRate).toBeNull();
+    for (const row of branch.trainers) {
+      expect(row.utilizationRate).toBeNull();
+    }
+  });
+
+  it('still counts the trainers whose availability is genuinely unset', async () => {
+    // The suppression above must not swallow the gaps card: an unset week is true
+    // at every branch, so this counter is computed from the same loop and left
+    // alone. Without it, the console could not tell "no branch dimension" from
+    // "nobody configured a week".
+    const withoutAvailability = trainer({ availability: {} });
+    const result = await setup({ trainers: [withoutAvailability] }).service.get({
+      ...QUERY,
+      locationId: 'loc_1',
+    });
+
+    expect(result.gaps.trainersWithoutAvailability).toBe(1);
+  });
+});

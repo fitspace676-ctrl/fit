@@ -53,10 +53,14 @@ export const PROJECTION_WINDOW_DAYS: Record<ProjectionWindow, number> = { '7': 7
 /**
  * `GET /dashboard/revenue?granularity=&projectionWindow=` query. `.catch` (not
  * `.default`) so a hand-edited URL lands on the default rather than a 400.
+ * `locationId` narrows the takings to one branch; omitted, the tab is the gym's
+ * consolidated revenue across every branch — and an id that no longer resolves
+ * degrades to that same whole-gym view.
  */
 export const dashboardRevenueQuerySchema = z.object({
   granularity: revenueGranularitySchema.catch(DEFAULT_REVENUE_GRANULARITY),
   projectionWindow: projectionWindowSchema.catch(DEFAULT_PROJECTION_WINDOW),
+  locationId: z.string().min(1).optional().catch(undefined),
 });
 export type DashboardRevenueQuery = z.infer<typeof dashboardRevenueQuerySchema>;
 

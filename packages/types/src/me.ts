@@ -1,10 +1,11 @@
 // @fit/types — member self-service ("/me/*") contracts.
 //
-// The signed-in member reading/managing their own membership, profile, and
-// goals. Each endpoint resolves the caller from the session — there is no member
-// id on the wire — and is tenant-scoped to the caller's gym.
+// The signed-in member reading/managing their own membership, profile, goals and
+// order history. Each endpoint resolves the caller from the session — there is no
+// member id on the wire — and is tenant-scoped to the caller's gym.
 
 import { z } from 'zod';
+import { orderStatusSchema } from './orders';
 
 /* -------------------------------------------------------------------------- */
 /*  GET /me/subscription                                                       */
@@ -138,3 +139,103 @@ export const putMeGoalsSchema = z.object({
     .max(8),
 });
 export type PutMeGoalsInput = z.infer<typeof putMeGoalsSchema>;
+
+/* -------------------------------------------------------------------------- */
+/*  GET /me/orders                                                             */
+/* -------------------------------------------------------------------------- */
+
+// The caller's own purchase history — the list behind the mobile Orders tab, and
+// the missing half of a pair that until now had only a detail view.
+//
+// WHY THIS EXISTS. `GET /checkout/:orderId` could confirm ONE order, but only if
+// you already held its id — which the app only ever had for the purchase it had
+// just made. There was no member-callable way to ask "what have I bought": the
+// roster is `GET /orders` (`OrdersController`), gated on `BillingRead`, a
+// permission `ROLE_PERMISSIONS.MEMBER` does not hold, so a member reaching for it
+// gets a 403. Hence a `/me` route: the caller is resolved from the session and the
+// query is constrained to their own membership, exactly as `GET /me/subscription`
+// and `GET /me/bookings` are.
+//
+// The rows are deliberately a SUMMARY, not the detail: a card needs a date, a
+// state, a total and enough of the basket to recognise it. Everything richer —
+// the full itemised breakdown — stays on `GET /checkout/:orderId`, which the app
+// already renders, so this contract adds a list without forking the detail.
+
+/**
+ * Query for `GET /me/orders`. The member is the authenticated caller (resolved
+ * from the session, never off the wire), so the only inputs are the pager.
+ * Purchase history grows without bound over a membership's life, so pagination is
+ * mandatory server-side, mirroring `GET /admin/activity` and `GET /orders`:
+ * `page` is 1-based and `limit` capped — at 50 rather than 100, because this is a
+ * phone list that pages as it scrolls. Numbers are coerced (they arrive as query
+ * strings), and both default, so a bare `GET /me/orders` is valid.
+ */
+export const listMyOrdersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+/** Validated `GET /me/orders` query — {@link listMyOrdersQuerySchema}. */
+export type ListMyOrdersQuery = z.infer<typeof listMyOrdersQuerySchema>;
+
+/** The raw (pre-coercion) query — what a client serialises into the URL. */
+export type ListMyOrdersQueryInput = z.input<typeof listMyOrdersQuerySchema>;
+
+/**
+ * One row of the member's own order history, as a list card renders it.
+ *
+ * `status` is the same three-state public enum the confirmation screen already
+ * shows ({@link orderStatusSchema}) — including its lossy edge, a `REFUNDED`
+ * order reading as `cancelled` — so the list and the detail it links into cannot
+ * disagree about what an order's state is called. Staff see the true lifecycle on
+ * the admin order detail, which has its own richer enum.
+ *
+ * `total` is in the currency's MINOR units (as everywhere in the order contracts);
+ * `itemCount` is the number of priced LINES, matching {@link AdminOrderRow} — a
+ * discount adjustment is a line, so this is "lines on the order", not "units
+ * bought". `itemLabels` is the first {@link MY_ORDER_LABEL_PREVIEW} of those lines
+ * in the order they were written, which is what lets a card read "Whey Protein,
+ * Shaker +2 more" without a second fetch; an order with no lines (nothing today
+ * writes one, but the relation permits it) is a normal empty array.
+ *
+ * There is no human order NUMBER here because the `Order` row has none — its `id`
+ * is a cuid and is what `GET /checkout/:orderId` is addressed by. Rendering a
+ * short prefix of it is a display choice, not a contract one.
+ */
+export const memberOrderSummarySchema = z.object({
+  id: z.string().min(1),
+  status: orderStatusSchema,
+  total: z.number().int().nonnegative(),
+  currency: z.string().length(3),
+  itemCount: z.number().int().nonnegative(),
+  itemLabels: z.array(z.string()),
+  /** ISO-8601 instant the order was placed. */
+  createdAt: z.string().datetime(),
+});
+
+/** A single member order-history row — {@link memberOrderSummarySchema}. */
+export type MemberOrderSummary = z.infer<typeof memberOrderSummarySchema>;
+
+/**
+ * How many line labels {@link memberOrderSummarySchema}'s `itemLabels` carries.
+ * Two: enough for a card to name what the order was, few enough that the API is
+ * not shipping a whole basket per row to render "+N more".
+ */
+export const MY_ORDER_LABEL_PREVIEW = 2;
+
+/**
+ * Successful `GET /me/orders` response — one page of the caller's orders, newest
+ * first. `total` is the count across the whole history (so the client knows when
+ * it has reached the end); `page` / `limit` echo the request. An empty `orders`
+ * array is a normal `200` — a member who has never bought anything, and equally a
+ * caller with no membership in this gym at all.
+ */
+export const listMyOrdersResponseSchema = z.object({
+  orders: z.array(memberOrderSummarySchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1),
+});
+
+/** Validated `GET /me/orders` response — {@link listMyOrdersResponseSchema}. */
+export type ListMyOrdersResponse = z.infer<typeof listMyOrdersResponseSchema>;

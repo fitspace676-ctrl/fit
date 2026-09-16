@@ -32,7 +32,7 @@
 //     is the fail-closed side).
 
 /** The gym-scoped role names a permission grant is keyed by (SUPER_ADMIN holds all). */
-type GymScopedRoleName = 'OWNER' | 'MANAGER' | 'RECEPTIONIST' | 'TRAINER' | 'MEMBER';
+export type GymScopedRoleName = 'OWNER' | 'MANAGER' | 'RECEPTIONIST' | 'TRAINER' | 'MEMBER';
 
 /**
  * Fine-grained, gym-scoped capabilities. A role is the coarse identity a caller
@@ -242,7 +242,20 @@ const OWNER_ONLY: readonly Permission[] = [
   Permission.RolesManage,
 ];
 
-const ALL_PERMISSIONS: readonly Permission[] = Object.values(Permission);
+/**
+ * Every {@link Permission}, in declaration order.
+ *
+ * Read off the enum rather than re-listed, so a capability added above is
+ * automatically part of "all permissions" — which matters because that phrase is
+ * load-bearing: it is what the OWNER role is pinned to (`./role-permissions`), and
+ * a hand-maintained copy that fell one entry behind would quietly leave the gym's
+ * owner unable to reach a new screen.
+ *
+ * Also the canonical ORDER. Anything that has to present or store a permission set
+ * sorts by this list, so two sets holding the same capabilities serialise
+ * identically instead of differing by the order a click happened to add them in.
+ */
+export const ALL_PERMISSIONS: readonly Permission[] = Object.values(Permission);
 
 const without = (
   source: readonly Permission[],

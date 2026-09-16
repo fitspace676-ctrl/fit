@@ -49,6 +49,23 @@ export interface InvoiceTxClient {
       select: { settings: true };
     }): Promise<{ settings: Prisma.JsonValue } | null>;
   };
+  /**
+   * The billed member, read for one thing only: their home branch, which
+   * {@link InvoiceService.issue} stamps onto `Invoice.locationId`.
+   *
+   * `gymId` is pinned in the `where` alongside `id` rather than left to the client.
+   * The scoped client would inject it; the unscoped billing job would not, and a
+   * `memberId` that resolved across tenants would copy another gym's branch onto
+   * this invoice — the exact cross-tenant row a foreign key cannot catch, because
+   * that location does exist. The Stage 5 migration guards its backfill the same
+   * way (`m."gymId" = i."gymId"`); this is the write-path half of that guard.
+   */
+  gymMember: {
+    findFirst(args: {
+      where: { id: string; gymId: string };
+      select: { locationId: true };
+    }): Promise<{ locationId: string | null } | null>;
+  };
 }
 
 /** What an invoice is raised for and how much — the caller-supplied part of the row. */
@@ -116,18 +133,35 @@ export class InvoiceService {
    * The settings are read inside the transaction rather than injected, because the two
    * clients that mint invoices differ (the scoped enrolment client and the unscoped
    * billing job) and only the transaction is common to both.
+   *
+   * **The branch is resolved here, not passed in** (Stage 5). `Invoice.locationId`
+   * is the billed member's home branch at issue time — the PERSON half of the rule
+   * in `apps/api/src/common/location-filter.util.ts`, snapshotted onto the row so
+   * every invoice read is index-served instead of joined. Putting the lookup in
+   * this one seam rather than in {@link IssueInvoiceInput} is the same argument
+   * that put the numbering here: all four issuers (enrolment, renewal, a booked
+   * service session, a hand-raised invoice) go through this method, and a caller
+   * that forgot the field would mint a NULL no backfill can ever revisit —
+   * silently, because NULL is also the legitimate value for an unattributable row.
+   *
+   * **Never from `input.orderId`, even when there is one.** `orderId` is nullable
+   * and recurring billing leaves it null, so an order-based rule would attribute
+   * the one-off minority one way and the rest another, and `outstanding` would mean
+   * something different row by row. One rule for every invoice, whatever raised it.
    */
   async issue(tx: InvoiceTxClient, input: IssueInvoiceInput): Promise<IssuedInvoice> {
     const issuedAt = input.issuedAt ?? new Date();
     const year = issuedAt.getUTCFullYear();
     const settings = await this.invoiceSettings(tx, input.gymId);
     const numbering: InvoiceNumbering = { prefix: settings.prefix, format: settings.format };
+    const locationId = await this.memberBranch(tx, input.gymId, input.memberId);
     const seq = await this.allocateSeq(tx, input.gymId, year, numbering, settings.startNumber);
 
     return tx.invoice.create({
       data: {
         gymId: input.gymId,
         memberId: input.memberId,
+        locationId,
         subscriptionId: input.subscriptionId ?? null,
         orderId: input.orderId ?? null,
         number: formatInvoiceNumber(year, seq, numbering),
@@ -156,6 +190,37 @@ export class InvoiceService {
   private async invoiceSettings(tx: InvoiceTxClient, gymId: string): Promise<GymInvoiceSettings> {
     const gym = await tx.gym.findFirst({ where: { id: gymId }, select: { settings: true } });
     return gymSettingsStoredSchema.parse(gym?.settings ?? {}).invoice;
+  }
+
+  /**
+   * The billed member's home branch, or `null` when there is no honest answer.
+   *
+   * Three ways to get `null`, and **all three are the correct outcome, not a
+   * fallback**: no member to bill (`memberId` is nullable on the input), a member
+   * that does not resolve inside this gym, or a member whose own `locationId` is
+   * null because their branch was retired (`GymMember.location` is `SetNull`).
+   *
+   * Deliberately no default-branch fallback, which is where this departs from the
+   * Stage 2 and 3 write paths. Those columns had no prior attribution, so defaulting
+   * invented the only answer available. This one has an attribution already — the
+   * live member hop every invoice read used before Stage 5 — and the whole promise
+   * of the denormalisation is that it moves no figure between branches. Defaulting
+   * an unattributable invoice to the main branch would credit that branch with a
+   * debt the console has never shown there, and the write path would then disagree
+   * with the migration that backfilled its neighbours. A NULL means "not
+   * attributable"; it stays in the gym-wide roll-up and out of every per-branch one.
+   */
+  private async memberBranch(
+    tx: InvoiceTxClient,
+    gymId: string,
+    memberId: string | null,
+  ): Promise<string | null> {
+    if (memberId === null) return null;
+    const member = await tx.gymMember.findFirst({
+      where: { id: memberId, gymId },
+      select: { locationId: true },
+    });
+    return member?.locationId ?? null;
   }
 
   /**

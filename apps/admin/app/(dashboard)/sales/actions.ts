@@ -1,5 +1,28 @@
 'use server';
 
+// WHY THIS ACTION DOES NOT RESOLVE THE BRANCH ITSELF — the convention all five
+// dashboard tab actions follow.
+//
+// A Server Action has `cookies()`, so this file could call
+// `getActiveLocationId()` and drop `locationId` from the query type entirely.
+// That is less plumbing, and it is the wrong trade:
+//
+//  • An action is never handed `searchParams`. The cookie is only the AMBIENT
+//    truth — `?locationId=` outranks it (`lib/active-location.ts`) — so an
+//    action resolving the branch on its own can only ever see the cookie. Open a
+//    drilldown link naming branch B while the cookie says A, and the page
+//    renders B's Overview above a tab showing A's figures, under one switcher
+//    claiming B. The client provider applies the same precedence the page does,
+//    so passing the value in keeps the whole screen on one branch.
+//  • The tab's response cache is client-side and outlives a branch change
+//    (`router.refresh()` re-renders the server tree; a mounted Client Component
+//    keeps its state). The view therefore has to know the branch anyway — to key
+//    that cache, and to decide whether to show the branch-scope note. Having it
+//    pass the value too costs one field and removes a second source of truth.
+//
+// The value is still not trusted: it arrives as request input like everything
+// else, and the schema parse below is what makes it safe.
+
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,

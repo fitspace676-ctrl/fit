@@ -246,6 +246,17 @@ describe('StaffDepthService.listTimeOff', () => {
       expect.objectContaining({ where: {} }),
     );
   });
+
+  it('narrows by branch through the roster, because leave is not an event at a place', async () => {
+    const { service, client } = setup();
+    await service.listTimeOff({ locationId: 'loc-1' });
+    const where = client.timeOffRequest.findMany.mock.calls[0]![0].where as Record<string, unknown>;
+    // A week off is the ABSENCE of an event, so `TimeOffRequest` gets no
+    // `locationId`; the branch question it answers is "whose absence costs THIS
+    // branch cover", which is availability and reads `LocationStaff`.
+    expect(where.staff).toEqual({ is: { locationAssignments: { some: { locationId: 'loc-1' } } } });
+    expect(where).not.toHaveProperty('locationId');
+  });
 });
 
 describe('StaffDepthService.updateSchedule', () => {
@@ -254,7 +265,7 @@ describe('StaffDepthService.updateSchedule', () => {
     await service.updateSchedule('gm-1', {
       shifts: [
         { dayOfWeek: 0, startTime: '09:00', endTime: '17:00' },
-        { dayOfWeek: 2, startTime: '10:00', endTime: '18:00', location: 'Club 1' },
+        { dayOfWeek: 2, startTime: '10:00', endTime: '18:00', locationId: 'loc-1' },
       ],
     });
     expect(client.shiftSlot.deleteMany).toHaveBeenCalledWith({ where: { staffId: 'gm-1' } });
@@ -268,8 +279,16 @@ describe('StaffDepthService.updateSchedule', () => {
       dayOfWeek: 0,
       startTime: '09:00',
       endTime: '17:00',
-      location: null,
+      // A shift with no branch picked stays unattributed. NOT defaulted onto the
+      // gym's main branch: a rota is a plan, and defaulting one asserts somebody
+      // stood at a door they were never at.
+      locationId: null,
     });
+    expect(created[1]).toMatchObject({ locationId: 'loc-1' });
+    // The regression the compiler cannot see: `location:` inside a `createMany`
+    // array literal type-checks and then throws `Unknown argument \`location\``.
+    expect(created[0]).not.toHaveProperty('location');
+    expect(created[1]).not.toHaveProperty('location');
   });
 
   it('an empty list clears the schedule without inserting', async () => {
@@ -290,7 +309,12 @@ describe('StaffDepthService.getWorkingNow', () => {
     staffId: 'gm-9',
     startTime: '10:00',
     endTime: '18:00',
-    location: 'Branch 1',
+    locationId: 'loc-1',
+    // The surviving free text is NULL wherever the branch resolved — the migration
+    // moved one into the other rather than keeping both, so a rename can never
+    // leave a stale name sitting beside a correct id.
+    locationName: null,
+    location: { name: 'Vake' },
     staff: { role: 'TRAINER', user: { name: 'Nino Trainer', email: 'nino@x.com' } },
   };
 
@@ -323,9 +347,70 @@ describe('StaffDepthService.getWorkingNow', () => {
           role: 'TRAINER',
           startTime: '10:00',
           endTime: '18:00',
-          location: 'Branch 1',
+          locationId: 'loc-1',
+          locationName: 'Vake',
+          unresolvedLocation: null,
         },
       ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("narrows to one branch on the shift's own column, not the staff roster", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T08:00:00Z'));
+    try {
+      const { service, client } = setup({
+        gym: gymInZone('Asia/Tbilisi'),
+        shiftSlot: { findMany: vi.fn(() => Promise.resolve([shiftRow])) },
+      });
+
+      await service.getWorkingNow({ locationId: 'loc-1' });
+
+      const where = client.shiftSlot.findMany.mock.calls[0]![0].where as Record<string, unknown>;
+      // The endpoint took NO query at all before Stage 6 — not by choice, but
+      // because a shift's only branch was free text nobody could join on. That
+      // made "who is working now" gym-wide by accident, and once branches are
+      // separate operating units a gym-wide answer is wrong rather than broader:
+      // the person reading the card is standing at one door.
+      expect(where.locationId).toBe('loc-1');
+      // `ShiftSlot.locationId`, not `LocationStaff`. The roster says Nino CAN work
+      // at Saburtalo; this card asks who is behind that desk right now — the one
+      // place the many-valued capability narrows to a single answer.
+      expect(where.staff).not.toHaveProperty('locationAssignments');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('surfaces a surviving free-text label as unresolved, never as a branch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T08:00:00Z'));
+    try {
+      const { service } = setup({
+        gym: gymInZone('Asia/Tbilisi'),
+        shiftSlot: {
+          findMany: vi.fn(() =>
+            Promise.resolve([
+              { ...shiftRow, locationId: null, locationName: 'Studio B', location: null },
+            ]),
+          ),
+        },
+      });
+
+      const result = await service.getWorkingNow();
+
+      // A non-NULL `locationName` after Stage 6 means precisely: this text named
+      // NO branch of this gym — a typo, a room, a closed site, or another
+      // tenant's branch, which the migration refused to adopt. It is a queue item
+      // for an operator, so it crosses the wire on its own field and never
+      // impersonates a resolved branch.
+      expect(result.shifts[0]).toMatchObject({
+        locationId: null,
+        locationName: null,
+        unresolvedLocation: 'Studio B',
+      });
     } finally {
       vi.useRealTimers();
     }

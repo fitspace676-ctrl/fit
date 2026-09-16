@@ -99,6 +99,7 @@ export default async function EditSubscriptionPlanPage({
           freezeDaysPerPeriod: plan.freezeDaysPerPeriod,
           includedCredits: plan.includedCredits,
           trialDays: plan.trialDays,
+          locationId: plan.locationId,
         }}
       />
     </div>

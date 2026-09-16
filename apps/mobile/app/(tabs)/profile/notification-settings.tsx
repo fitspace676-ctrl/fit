@@ -1,86 +1,166 @@
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useI18n, useTheme } from '../../../providers';
-import { useNotificationPrefs } from '../../../hooks/useNotificationPrefs';
-import { SettingsSection, ToggleRow } from '../../../components/settings/SettingsControls';
+// `/profile/notification-settings` — the screen that tells the truth about
+// itself.
+//
+// ===========================================================================
+// THERE IS NO NOTIFICATION-PREFERENCES ENDPOINT. NOT ONE.
+//
+// The whole notification surface on this API is five routes: the inbox, the
+// unread count, mark-read, and the push-token pair. **Nothing accepts a
+// preference.** Plan §7 lists it among the four constraints the API imposes and
+// names what happened last time:
+//
+//   > The deleted app shipped a settings screen that called nothing and stored
+//   > toggles in AsyncStorage. Do not rebuild that illusion: either drop the
+//   > screen or make it plainly device-local.
+//
+// `/profile` takes the first option — it carries no preference switches at all,
+// and the note on it says why. This screen takes the second, and the difference
+// between it and the deleted app's is three things:
+//
+//   1. **A disclaimer above the controls**, not buried in a footnote. The
+//      catalogue's own `notifications.subtitle` already says "Delivery is
+//      enabled in a later update" — someone knew.
+//   2. **Nothing is persisted.** `components/notifications/device-prefs.ts` is
+//      in-memory for the life of the process, deliberately: a toggle that
+//      survives a relaunch is indistinguishable from a toggle that was SAVED,
+//      and AsyncStorage is precisely what made the last one a lie.
+//   3. **The master switch is separated from the categories**, because when
+//      delivery lands (C6) the master one becomes real — it maps onto
+//      `POST /notifications/push-token` and `DELETE /notifications/push-token/
+//      :deviceId`, which do exist — while the categories stay fiction until a
+//      preferences controller exists.
+//
+// ---------------------------------------------------------------------------
+// WHY IT IS HERE AT ALL RATHER THAN DELETED.
+//
+// The inbox has a settings affordance in its own copy (`notifications.settings`)
+// and the artboard draws the toggles on Profile. Deleting the screen and leaving
+// `member.profile.mobile.toggles` and six `notifications.*` keys pointing at
+// nothing is a different kind of confusion. A screen that says "this is stored
+// on this device and does not affect delivery yet" is smaller, honest, and one
+// diff away from being real.
+//
+// **Owed: `notifications.deviceOnly`** — the disclaimer sentence, in both
+// locales. Rendered below as a marked English placeholder; nothing is invented
+// in Georgian.
 
-/**
- * Notification preferences (T6.8) — reached from the settings action in the
- * inbox header (`/profile/notifications`, T8.5) and mirrored by the quick
- * toggles on the Profile screen.
- *
- * A master **Push notifications** switch gates three category toggles (class
- * reminders, booking updates, promotions). All four persist locally via
- * `useNotificationPrefs` (AsyncStorage); when push is off the categories are
- * shown disabled. The push token transport is registered separately in `lib/push`
- * (T6.10); these toggles remain the member's per-category delivery choices.
- */
+import { View } from 'react-native';
+import { useRouter } from 'expo-router';
+import {
+  Alert,
+  AppBar,
+  IconButton,
+  Screen,
+  SectionHeader,
+  Surface,
+  SwitchRow,
+  Text,
+  layout,
+  spacing,
+} from '@fit/ui-mobile';
+
+import {
+  CATEGORY_KEYS,
+  setCategoryEnabled,
+  setPushEnabled,
+  useDevicePrefs,
+} from '../../../components/notifications/device-prefs';
+import { useI18n } from '../../../providers/I18nProvider';
+
+// ===========================================================================
+// TODO(i18n) — `notifications.deviceOnly`.
+//
+// The disclaimer this screen is built around. English-only on purpose, in the
+// same spirit as `components/auth/pending-copy.ts` and
+// `components/home/pending-copy.ts`: the branch ships, the sentence is owed,
+// and no Georgian is invented. Kept here rather than in the shared placeholder
+// module because it belongs to exactly one screen and should be deleted with
+// the key that replaces it.
+// ===========================================================================
+
+/** TODO(i18n) `notifications.deviceOnly` — title. */
+const DEVICE_ONLY_TITLE = 'Saved on this device only';
+
+/** TODO(i18n) `notifications.deviceOnly` — body. */
+const DEVICE_ONLY_BODY =
+  'These choices are not sent to the gym and do not change what you receive yet. They reset when the app restarts.';
+
 export default function NotificationSettingsScreen() {
-  const { colors } = useTheme();
   const { t } = useI18n();
-  const insets = useSafeAreaInsets();
-  const { prefs, isLoading, setPrefs, toggle } = useNotificationPrefs();
+  const router = useRouter();
+  const prefs = useDevicePrefs();
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.background }}
-      contentContainerStyle={{ padding: 20, paddingTop: insets.top + 20, gap: 24 }}
+    <Screen
+      testID="notification-settings-screen"
+      header={
+        <AppBar
+          title={t('notifications.title')}
+          subtitle={t('notifications.subtitle')}
+          leading={
+            <IconButton
+              icon="chevronLeft"
+              accessibilityLabel={t('notifications.back')}
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace('/profile/notifications');
+              }}
+              variant="surface"
+              testID="notification-settings-back"
+            />
+          }
+        />
+      }
     >
-      <View style={{ gap: 4 }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: colors.text }}>
-          {t('notifications.title')}
-        </Text>
-        <Text style={{ fontSize: 14, color: colors.textMuted }}>{t('notifications.subtitle')}</Text>
-      </View>
+      <View style={{ gap: layout.sectionGap }}>
+        {/* The disclaimer leads. It is the reason the screen is honest. */}
+        <Alert
+          testID="notification-settings-disclaimer"
+          tone="warning"
+          icon="info"
+          // TODO(i18n): replace both with t('notifications.deviceOnly.*').
+          title={DEVICE_ONLY_TITLE}
+          body={DEVICE_ONLY_BODY}
+        />
 
-      {isLoading ? (
-        <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : (
-        <>
-          <SettingsSection title={t('notifications.push')}>
-            <ToggleRow
-              first
-              label={t('notifications.push')}
-              hint={t('notifications.pushHint')}
-              value={prefs.push}
-              onValueChange={(next) => void setPrefs({ push: next })}
-            />
-          </SettingsSection>
+        <Surface tone="card" padVertical={1}>
+          <SwitchRow
+            testID="notification-settings-push"
+            label={t('notifications.push')}
+            description={t('notifications.pushHint')}
+            checked={prefs.push}
+            onChange={setPushEnabled}
+          />
+        </Surface>
 
-          <SettingsSection title={t('notifications.categories')}>
-            <ToggleRow
-              first
-              label={t('notifications.classReminders')}
-              hint={t('notifications.classRemindersHint')}
-              value={prefs.classReminders}
-              disabled={!prefs.push}
-              onValueChange={() => void toggle('classReminders')}
-            />
-            <ToggleRow
-              label={t('notifications.bookingUpdates')}
-              hint={t('notifications.bookingUpdatesHint')}
-              value={prefs.bookingUpdates}
-              disabled={!prefs.push}
-              onValueChange={() => void toggle('bookingUpdates')}
-            />
-            <ToggleRow
-              label={t('notifications.promotions')}
-              hint={t('notifications.promotionsHint')}
-              value={prefs.promotions}
-              disabled={!prefs.push}
-              onValueChange={() => void toggle('promotions')}
-            />
-          </SettingsSection>
+        <View style={{ gap: spacing[3] }}>
+          <SectionHeader title={t('notifications.categories')} size="md" />
 
-          {!prefs.push ? (
-            <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center' }}>
+          <Surface tone="card" padVertical={1}>
+            {CATEGORY_KEYS.map((key) => (
+              <SwitchRow
+                key={key}
+                testID={`notification-settings-${key}`}
+                label={t(`notifications.${key}`)}
+                description={t(`notifications.${key}Hint`)}
+                checked={prefs.categories[key]}
+                // Gated by the master switch, which is how the catalogue's own
+                // `disabledHint` expects the screen to behave.
+                disabled={!prefs.push}
+                onChange={(enabled) => {
+                  setCategoryEnabled(key, enabled);
+                }}
+              />
+            ))}
+          </Surface>
+
+          {prefs.push ? null : (
+            <Text variant="caption" color="textSecondary" testID="notification-settings-disabled">
               {t('notifications.disabledHint')}
             </Text>
-          ) : null}
-        </>
-      )}
-    </ScrollView>
+          )}
+        </View>
+      </View>
+    </Screen>
   );
 }

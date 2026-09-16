@@ -83,6 +83,20 @@ describe('LoyaltyController', () => {
     expect(fns.adjustPoints).not.toHaveBeenCalled();
   });
 
+  it('parses the redemptions branch filter and hands it to the service', async () => {
+    const { controller, fns } = setup();
+    await controller.listRedemptions({ page: '2', locationId: 'loc-a' });
+    expect(fns.listRedemptions).toHaveBeenCalledWith({ page: 2, limit: 20, locationId: 'loc-a' });
+  });
+
+  it('rejects an empty redemptions locationId with 400', async () => {
+    const { controller, fns } = setup();
+    await expect(controller.listRedemptions({ locationId: '' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(fns.listRedemptions).not.toHaveBeenCalled();
+  });
+
   it('coerces the top-earners limit from the query and delegates', async () => {
     const { controller, fns } = setup();
     await controller.topEarners({ limit: '5' });

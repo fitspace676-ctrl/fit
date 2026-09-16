@@ -1,148 +1,177 @@
-// @fit/ui-mobile — NativeWind theme preset.
+// @fit/ui-mobile — the NativeWind preset.
 //
-// The formacore design tokens, expressed as a Tailwind/NativeWind preset so the
-// Expo app's `className` styles resolve to the SAME palette and radii the web
-// console and member portal use. The mobile `tailwind.config.mjs` layers this
-// preset over the NativeWind base:
+// `apps/mobile/tailwind.config.mjs` presets this, and its `content` must
+// include `packages/ui-mobile/src/**` — a missed glob is the classic "the
+// shared package renders unstyled" bug.
 //
-//   import mobilePreset from '@fit/ui-mobile/tailwind';
-//   export default { presets: [nativewind, mobilePreset], content: [...] };
+// ===========================================================================
+// THE COLOURS COME FROM `src/palette.mjs`, NOT FROM A COPY.
 //
-// Keep the colour scales + radii here in sync with the runtime map in
-// `src/tokens.ts` (className side ↔ runtime side). Fonts are intentionally left
-// to the system default: the web `var(--font-*)` families aren't bundled into
-// the Expo binary, so overriding `fontFamily` here would only fall back anyway.
+// This file imports the literals. It does not restate them. The previous
+// package restated them, behind a comment asking humans to keep the two copies
+// in sync, and they drifted for six weeks — see the header of `palette.mjs`.
+// Tailwind's config loader cannot import a `.ts` module, which is the only
+// reason the literal source is `.mjs` rather than TypeScript.
+//
+// `theme.colors`, NOT `theme.extend.colors`. This is the load-bearing line in
+// the file. Setting `colors` REPLACES the colour object — Tailwind's own
+// defaults (`red-500`, `blue-500`, `slate-*`) and the `brand` that
+// `packages/config/tailwind.config.base.mjs` contributes all disappear, and
+// only the three shipped ramps survive. That is what makes `bg-iris-500` a
+// build error on mobile: the class generates nothing, NativeWind applies
+// nothing, and the missing style is visible immediately.
+//
+// Web deliberately does the opposite — `apps/web/tailwind.config.mjs` aliases
+// `accent`/`iris`/`warning`/`info`/`flame` to `ink` and `success` to `brand`,
+// because the portal shell still has call sites and a hard failure there breaks
+// a shipped screen. Mobile has zero call sites, so mobile takes the strict
+// option. Do not "harmonise" the two by adding the aliases here.
+//
+// This preset layers ON TOP of `@fit/config/tailwind`, so it must fully
+// redeclare everything it needs rather than assuming an inherited value: the
+// base contributes only `brand`, a `sans`/`mono` stack meant for a browser, one
+// `borderRadius.card` at 12px (not this ladder's 26), a `spacing.gutter`, and a
+// set of CSS keyframes that mean nothing in RN.
+// ===========================================================================
 
-/** The formacore token set shared with every Fit surface. */
-export const fitMobileTheme = {
-  colors: {
-    brand: {
-      50: '#F2F1FE',
-      100: '#E8E6FD',
-      200: '#D3CFFB',
-      300: '#B5AEF7',
-      400: '#9184F1',
-      500: '#6257E3',
-      600: '#5044D2',
-      700: '#4536B5',
-      800: '#392E92',
-      900: '#312A74',
-      950: '#1E1A45',
-    },
-    accent: {
-      50: '#ECF1FF',
-      100: '#DCE6FF',
-      200: '#C0D2FF',
-      300: '#96B2FF',
-      400: '#6589FF',
-      500: '#3B5EF5',
-      600: '#2342EB',
-      700: '#1B33D8',
-      800: '#1C2DAE',
-      900: '#1D2C89',
-      950: '#151B52',
-    },
-    ink: {
-      50: '#F6F7F9',
-      100: '#ECEEF2',
-      200: '#D8DCE4',
-      300: '#B5BBC8',
-      400: '#8A92A4',
-      500: '#646D82',
-      600: '#4B5468',
-      700: '#394155',
-      800: '#232838',
-      900: '#151926',
-      950: '#0B0D15',
-    },
-    success: {
-      50: '#ECFDF3',
-      100: '#D1FADF',
-      200: '#A6F4C5',
-      300: '#6CE9A6',
-      400: '#32D583',
-      500: '#12B76A',
-      600: '#039855',
-      700: '#027A48',
-      800: '#05603A',
-      900: '#054F31',
-      950: '#022C1C',
-    },
-    warning: {
-      50: '#FFFAEB',
-      100: '#FEF0C7',
-      200: '#FEDF89',
-      300: '#FEC84B',
-      400: '#FDB022',
-      500: '#F79009',
-      600: '#DC6803',
-      700: '#B54708',
-      800: '#93370D',
-      900: '#7A2E0E',
-      950: '#4E1D09',
-    },
-    danger: {
-      50: '#FEF3F2',
-      100: '#FEE4E2',
-      200: '#FECDCA',
-      300: '#FDA29B',
-      400: '#F97066',
-      500: '#EF4444',
-      600: '#D92D20',
-      700: '#B42318',
-      800: '#912018',
-      900: '#7A271A',
-      950: '#4E1410',
-    },
-    info: {
-      50: '#EFF8FF',
-      100: '#D1E9FF',
-      200: '#B2DDFF',
-      300: '#84CAFF',
-      400: '#53B1FD',
-      500: '#2E90FA',
-      600: '#1570EF',
-      700: '#175CD3',
-      800: '#1849A9',
-      900: '#194185',
-      950: '#102A56',
-    },
-    iris: {
-      50: '#F4F3FF',
-      100: '#EBE9FE',
-      200: '#D9D6FE',
-      300: '#BDB4FE',
-      400: '#9B8AFB',
-      500: '#7A5AF8',
-      600: '#6938EF',
-      700: '#5925DC',
-      800: '#4A1FB8',
-      900: '#3E1C96',
-      950: '#27115F',
-    },
-    flame: {
-      50: '#FEF6EE',
-      100: '#FDEAD7',
-      200: '#F9DBAF',
-      300: '#F7B27A',
-      400: '#F38744',
-      500: '#EF6820',
-      600: '#E04F16',
-      700: '#B93815',
-      800: '#932F19',
-      900: '#772917',
-      950: '#511C10',
-    },
-  },
-  borderRadius: {
-    field: '0.5rem',
-    btn: '0.75rem',
-    card: '1rem',
-    pill: '9999px',
-  },
+import { palette } from './src/palette.mjs';
+
+/**
+ * The named radius ladder, mirroring `src/tokens/radii.ts`.
+ *
+ * Restated here because Tailwind cannot import the `.ts` and these are numbers
+ * rather than hexes — the single-source rule that binds absolutely is about
+ * colour, which is where the drift actually happened. `tokens.spec.ts` asserts
+ * this object and `radii.ts` agree rung for rung, so the duplication is
+ * mechanically checked rather than trusted.
+ *
+ * The web mirror (`apps/web/tailwind.config.mjs`) uses the artboards' own class
+ * names — `field` / `btn` / `chip` / `card` / `block` / `pill` — so those are
+ * aliased alongside the canonical names. A screen ported from an artboard keeps
+ * reading the way the artboard was written.
+ */
+const borderRadius = {
+  none: '0px',
+  inner: '10px',
+  chip: '10px',
+  element: '14px',
+  field: '14px',
+  btn: '14px',
+  container: '26px',
+  card: '26px',
+  page: '32px',
+  block: '32px',
+  full: '9999px',
+  pill: '9999px',
 };
 
-/** A ready-to-spread Tailwind/NativeWind preset. */
+/** The 4pt grid, mirroring `src/tokens/spacing.ts`. */
+const spacing = {
+  0: '0px',
+  0.5: '2px',
+  1: '4px',
+  1.5: '6px',
+  2: '8px',
+  2.5: '10px',
+  3: '12px',
+  3.5: '14px',
+  4: '16px',
+  5: '20px',
+  6: '24px',
+  7: '28px',
+  8: '32px',
+  9: '36px',
+  10: '40px',
+  11: '44px',
+  12: '48px',
+  14: '56px',
+  16: '64px',
+  20: '80px',
+  24: '96px',
+  32: '128px',
+  gutter: '20px',
+};
+
+/**
+ * The type roles as `text-*` utilities, mirroring `src/tokens/typography.ts`.
+ *
+ * Every entry carries an explicit `lineHeight` and `letterSpacing` in PX. RN
+ * has no `em` and Android clips Georgian descenders when `lineHeight` is left
+ * to the font's metrics — see the header of `typography.ts` for both.
+ */
+const fontSize = {
+  display: ['34px', { lineHeight: '38px', letterSpacing: '-0.85px' }],
+  title: ['28px', { lineHeight: '32px', letterSpacing: '-0.7px' }],
+  heading: ['24px', { lineHeight: '28px', letterSpacing: '-0.6px' }],
+  subheading: ['22px', { lineHeight: '26px', letterSpacing: '-0.55px' }],
+  section: ['20px', { lineHeight: '24px', letterSpacing: '-0.5px' }],
+  subtitle: ['17px', { lineHeight: '22px', letterSpacing: '0px' }],
+  'body-lg': ['16px', { lineHeight: '22px', letterSpacing: '0px' }],
+  body: ['15px', { lineHeight: '21px', letterSpacing: '0px' }],
+  'body-sm': ['13px', { lineHeight: '21px', letterSpacing: '0px' }],
+  caption: ['12px', { lineHeight: '16px', letterSpacing: '0px' }],
+  label: ['11px', { lineHeight: '14px', letterSpacing: '1.32px' }],
+  eyebrow: ['12px', { lineHeight: '16px', letterSpacing: '1.68px' }],
+  micro: ['10px', { lineHeight: '13px', letterSpacing: '1px' }],
+  'mono-display': ['30px', { lineHeight: '30px', letterSpacing: '0px' }],
+  'mono-lg': ['17px', { lineHeight: '18px', letterSpacing: '0px' }],
+  'mono-body': ['15px', { lineHeight: '16px', letterSpacing: '0px' }],
+  'mono-sm': ['13px', { lineHeight: '14px', letterSpacing: '0px' }],
+  'mono-caption': ['12px', { lineHeight: '14px', letterSpacing: '0px' }],
+  'mono-micro': ['10px', { lineHeight: '12px', letterSpacing: '0px' }],
+};
+
+/**
+ * The bundled families, by their REGISTERED names (see `src/tokens/fonts.ts`).
+ *
+ * Each weight is its own family because RN does not synthesise weights for a
+ * custom family on Android — `font-mono-bold`, not `font-mono font-bold`. The
+ * `sans` key is intentionally the SYSTEM stack: decision D5 puts body copy on
+ * San Francisco / Roboto, and only the two heading weights are bundled.
+ */
+const fontFamily = {
+  sans: ['System'],
+  'sans-bold': ['NotoSansGeorgian-Bold'],
+  'sans-extrabold': ['NotoSansGeorgian-ExtraBold'],
+  mono: ['JetBrainsMono-Regular'],
+  'mono-medium': ['JetBrainsMono-Medium'],
+  'mono-semibold': ['JetBrainsMono-SemiBold'],
+  'mono-bold': ['JetBrainsMono-Bold'],
+};
+
+/** @type {import('tailwindcss').Config} */
 export default {
-  theme: { extend: fitMobileTheme },
+  theme: {
+    // REPLACE, not extend — see the header.
+    colors: {
+      transparent: palette.transparent,
+      white: palette.white,
+      ink: palette.ink,
+      brand: palette.brand,
+      danger: palette.danger,
+    },
+    borderRadius,
+    spacing,
+    fontSize,
+    fontFamily,
+    extend: {
+      /**
+       * The `--fc-*` surfaces that are translucent, as background utilities.
+       *
+       * They are in `extend` rather than replacing anything because they are
+       * additions to the colour vocabulary, not a ramp. They live here as well
+       * as in `semantic.ts` because a class-authored screen needs
+       * `bg-glass` — and unlike the ramps these are pre-multiplied rgba, which
+       * only the dark arm of the map ever uses in v1.
+       */
+      backgroundColor: {
+        glass: 'rgba(30, 30, 28, 0.72)',
+        header: 'rgba(19, 19, 18, 0.95)',
+        scrim: 'rgba(19, 19, 18, 0.85)',
+      },
+      borderColor: {
+        glass: 'rgba(255, 255, 255, 0.12)',
+      },
+    },
+  },
 };

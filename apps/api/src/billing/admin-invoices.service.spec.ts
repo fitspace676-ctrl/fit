@@ -27,6 +27,7 @@ function invoiceRecord(over: Record<string, unknown> = {}) {
     issuedAt: new Date('2026-07-26T00:00:00.000Z'),
     dueDate: new Date('2026-08-31T00:00:00.000Z'),
     member: { user: { name: 'Nino B', email: 'nino@example.com' } },
+    location: { name: 'Vake' },
     ...over,
   };
 }
@@ -281,5 +282,104 @@ describe('AdminInvoicesService.emailInvoice', () => {
     await expect(service.emailInvoice('inv-1')).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(getPdf).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The branch filter and the branch column (Stage 5).
+ *
+ * This suite is the ONLY place `/payments/invoices` gets branch coverage: the dev
+ * seed mints no invoices at all, so there is no seeded row with a `locationId` for
+ * an integration test or a manual click-through to exercise. Everything the
+ * endpoint promises about branches is pinned here.
+ */
+describe('AdminInvoicesService — the branch filter', () => {
+  it('narrows the page and the count on the invoice’s own branch column', async () => {
+    const { service, invoice } = build();
+
+    await service.listInvoices(query({ locationId: 'loc-1' }));
+
+    // The same `where` on both, or the pager reports a count for a different set
+    // than the page it is paging.
+    const listWhere = (invoice.findMany.mock.calls[0]![0] as { where: Record<string, unknown> })
+      .where;
+    const countWhere = (invoice.count.mock.calls[0]![0] as { where: Record<string, unknown> })
+      .where;
+    expect(listWhere.locationId).toBe('loc-1');
+    expect(countWhere).toEqual(listWhere);
+
+    // Never through `member`: the column is a snapshot of the member's home branch
+    // at issue time, so a live hop would move a transferred member's whole history
+    // off the roster of the branch that raised it.
+    expect(listWhere).not.toHaveProperty('member');
+    // Nor through the order — `Invoice.orderId` is null on every subscription
+    // invoice, so that path would silently drop the recurring majority.
+    expect(listWhere).not.toHaveProperty('order');
+  });
+
+  // A NULL branch means "not attributable" (the member was purged, or their branch
+  // retired), never "the default branch". A plain equality excludes it, which is
+  // the intended behaviour: such a debt belongs to no branch's books.
+  it('sends no branch clause at all for all-branches mode', async () => {
+    const { service, invoice } = build();
+
+    await service.listInvoices(query());
+
+    const where = (invoice.findMany.mock.calls[0]![0] as { where: Record<string, unknown> }).where;
+    expect(where).not.toHaveProperty('locationId');
+    // No `OR locationId IS NULL` arm anywhere — an absent branch leaves the read's
+    // original plan untouched.
+    expect(where).not.toHaveProperty('OR');
+  });
+
+  it('keeps the other filters alongside the branch rather than replacing them', async () => {
+    const { service, invoice } = build();
+
+    await service.listInvoices(
+      query({ locationId: 'loc-1', type: 'MEMBERSHIP', issuedFrom: '2026-07-01' }),
+    );
+
+    const where = (invoice.findMany.mock.calls[0]![0] as { where: Record<string, unknown> }).where;
+    expect(where.locationId).toBe('loc-1');
+    expect(where.type).toBe('MEMBERSHIP');
+    expect(where.issuedAt).toBeDefined();
+  });
+
+  it('carries the branch name onto the row', async () => {
+    const { service } = build({
+      invoice: { findMany: vi.fn().mockResolvedValue([invoiceRecord()]) },
+    });
+
+    const result = await service.listInvoices(query());
+
+    expect(result.data[0]!.locationName).toBe('Vake');
+  });
+
+  // Null, not `''` — the table renders an explicit dash, where a blank cell reads
+  // as a failed load. Same contract as `adminOrderRowSchema.locationName`.
+  it('reports a null branch name for an unattributed invoice', async () => {
+    const { service } = build({
+      invoice: { findMany: vi.fn().mockResolvedValue([invoiceRecord({ location: null })]) },
+    });
+
+    const result = await service.listInvoices(query());
+
+    expect(result.data[0]!.locationName).toBeNull();
+  });
+
+  // A hand-raised invoice goes through the same seam as every automatic one, so it
+  // gets its branch from `InvoiceService.issue` — this service never passes one.
+  it('does not pass a branch when raising an invoice by hand', async () => {
+    const { service, issue } = build();
+
+    await service.createInvoice({
+      memberId: 'mem-1',
+      type: 'OTHER',
+      description: 'Locker hire',
+      amount: 5000,
+      currency: 'GEL',
+    });
+
+    expect(issue.mock.calls[0]![1]).not.toHaveProperty('locationId');
   });
 });

@@ -1,138 +1,207 @@
-import { Link } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { AuthButton, AuthError, AuthField } from '../../components/auth/form-controls';
-// Canvas + accents follow the formacore ink-950 sign-in palette; the glass
-// fields come from the shared AuthField.
-import { register } from '../../lib/auth';
-import { useTranslation } from '../../providers';
+// Create an account.
+//
+// ## Registration issues NO session
+//
+// `POST /auth/register` creates the account and sends a verification email; the
+// first session arrives later, via `GET /auth/verify?token=` on the `verify`
+// screen. So there is nothing for `RouteGuard` to react to here and nothing to
+// navigate to — on success the whole form is REPLACED by a "check your inbox"
+// panel. Leaving the form standing beside its own confirmation is how a user
+// submits twice and spends two of the five requests the limiter allows.
+//
+// ## `authStrict` — 5 requests per 900 seconds
+//
+// This is one of the three screens behind it, and the tightest realistic path to
+// it is short: two typos and a re-read of the password rules. A 429 carries
+// `Retry-After`; the cool-down disables submit and counts down, and nothing here
+// auto-retries — retrying a rate-limit response is what the limiter is defending
+// against, and it turns a 15-minute wait into a longer one.
 
-// Minimum password length the API enforces (mirrors `PASSWORD_MIN_LENGTH` in
-// @fit/types). Checked client-side too so the user gets the hint before a 400.
-const PASSWORD_MIN_LENGTH = 8;
+import { Alert as Advisory, Button, Text } from '@fit/ui-mobile';
+import { useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
+import { View, type TextInput } from 'react-native';
 
-// Registration screen. POSTs to /auth/register, which creates the account and
-// emails a verification link — no session is issued yet — so on success we show
-// a "check your inbox" state rather than navigating into the app. The emailed
-// link deep-links back to the (auth)/verify screen, which logs the user in.
+import { AuthScreen } from '../../components/auth/auth-screen';
+import { authErrorKey } from '../../components/auth/auth-error';
+import { AuthField } from '../../components/auth/field';
+import { CoolDownNotice, OfflineNotice } from '../../components/auth/notices';
+import { coolDownSecondsFor, useCoolDown } from '../../components/auth/use-cool-down';
+import { useIsOnline } from '../../components/auth/use-online';
+import { registerAccount } from '../../lib/auth/session';
+import type { MessageKey } from '../../lib/i18n/keys';
+import { useI18n } from '../../providers/I18nProvider';
+
 export default function RegisterScreen() {
-  const t = useTranslation();
+  const { t } = useI18n();
+  const router = useRouter();
+  const online = useIsOnline();
+  const coolDown = useCoolDown();
+
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
+  const [done, setDone] = useState(false);
 
-  const canSubmit =
-    name.trim().length > 0 &&
-    email.trim().length > 0 &&
-    password.length >= PASSWORD_MIN_LENGTH &&
-    !pending;
+  const blocked = pending || coolDown.active || !online;
 
-  const onSubmit = (): void => {
-    if (!canSubmit) return;
+  const submit = (): void => {
+    if (blocked) return;
     setPending(true);
-    setError(null);
-    register(email.trim(), password, name.trim())
+    setErrorKey(null);
+    registerAccount({ name, email, password })
       .then(() => {
-        setSubmitted(true);
-      })
-      .catch((err: unknown) => {
         setPending(false);
-        setError(err instanceof Error ? err.message : t('auth.genericError'));
+        setDone(true);
+      })
+      .catch((error: unknown) => {
+        setPending(false);
+        const seconds = coolDownSecondsFor(error);
+        if (seconds !== null) {
+          coolDown.start(seconds);
+          return;
+        }
+        setErrorKey(authErrorKey(error));
       });
   };
 
-  if (submitted) {
+  const footer = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+      <Text variant="bodySmall" color="textSecondary">
+        {t('auth.register.haveAccount')}
+      </Text>
+      <Button
+        variant="ghost"
+        size="sm"
+        testID="register-login-link"
+        label={t('auth.register.loginLink')}
+        onPress={() => {
+          router.replace('/login');
+        }}
+      />
+    </View>
+  );
+
+  // THE FORM IS GONE, not disabled. There is no second thing to submit and no
+  // field left worth reading; what remains is one instruction and one way out.
+  if (done) {
     return (
-      <SafeAreaView className="flex-1 bg-ink-950">
-        <View className="flex-1 justify-center gap-4 p-gutter">
-          <Text className="text-3xl font-bold tracking-tight text-white">
-            {t('auth.register.title')}
-          </Text>
-          <Text className="text-base text-ink-300">{t('auth.register.success')}</Text>
-          <Link href="/login" asChild>
-            <Text className="text-base font-medium text-brand-300">
-              {t('auth.forgot.backToLogin')}
-            </Text>
-          </Link>
-        </View>
-      </SafeAreaView>
+      <AuthScreen
+        testID="register"
+        title={t('auth.register.title')}
+        subtitle={t('auth.register.subtitle')}
+        footer={footer}
+      >
+        <Advisory
+          testID="register-success"
+          tone="success"
+          // `live`: the panel appears in place of the form the user was just
+          // reading, so a screen reader must be told rather than left on a tree
+          // that silently changed underneath it.
+          live
+          icon="mail"
+          title={t('auth.register.success')}
+        />
+      </AuthScreen>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-ink-950">
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerClassName="grow justify-center gap-5 p-gutter"
-          keyboardShouldPersistTaps="handled"
-        >
-          <View className="gap-2">
-            <Text className="text-3xl font-bold tracking-tight text-white">
-              {t('auth.register.title')}
-            </Text>
-            <Text className="text-base text-ink-300">{t('auth.register.subtitle')}</Text>
-          </View>
+    <AuthScreen
+      testID="register"
+      title={t('auth.register.title')}
+      subtitle={t('auth.register.subtitle')}
+      footer={footer}
+    >
+      {/* TODO(i18n): `common.offline.title` / `common.offline.body`. */}
+      {online ? null : <OfflineNotice testID="register-offline" />}
 
-          <View className="gap-4">
-            <AuthError message={error} />
-            <AuthField
-              label={t('auth.fields.name')}
-              value={name}
-              onChangeText={setName}
-              placeholder={t('auth.fields.namePlaceholder')}
-              autoComplete="name"
-              textContentType="name"
-              editable={!pending}
-            />
-            <AuthField
-              label={t('auth.fields.email')}
-              value={email}
-              onChangeText={setEmail}
-              placeholder={t('auth.fields.emailPlaceholder')}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              editable={!pending}
-            />
-            <AuthField
-              label={t('auth.fields.password')}
-              value={password}
-              onChangeText={setPassword}
-              placeholder={t('auth.fields.passwordPlaceholder')}
-              autoCapitalize="none"
-              autoComplete="password-new"
-              textContentType="newPassword"
-              secureTextEntry
-              editable={!pending}
-            />
-            <Text className="text-sm text-ink-400">{t('auth.fields.passwordHint')}</Text>
-            <AuthButton
-              label={t('auth.register.submit')}
-              busyLabel={t('auth.register.submitting')}
-              busy={pending}
-              disabled={!canSubmit}
-              onPress={onSubmit}
-            />
-          </View>
+      {coolDown.active ? (
+        <CoolDownNotice testID="register-cooldown" secondsLeft={coolDown.secondsLeft} />
+      ) : null}
 
-          <View className="flex-row justify-center gap-1">
-            <Text className="text-sm text-ink-400">{t('auth.register.haveAccount')}</Text>
-            <Link href="/login" asChild>
-              <Text className="text-sm font-medium text-brand-300">
-                {t('auth.register.loginLink')}
-              </Text>
-            </Link>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      {errorKey === null ? null : (
+        <Advisory testID="register-error" tone="danger" live title={t(errorKey)} />
+      )}
+
+      <AuthField
+        testID="register-name"
+        label={t('auth.fields.name')}
+        placeholder={t('auth.fields.namePlaceholder')}
+        value={name}
+        onChangeText={setName}
+        disabled={pending}
+        autoCapitalize="words"
+        autoComplete="name"
+        textContentType="name"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => emailRef.current?.focus()}
+      />
+
+      <AuthField
+        ref={emailRef}
+        testID="register-email"
+        label={t('auth.fields.email')}
+        placeholder={t('auth.fields.emailPlaceholder')}
+        value={email}
+        onChangeText={setEmail}
+        disabled={pending}
+        invalid={errorKey !== null}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+      />
+
+      <AuthField
+        ref={passwordRef}
+        testID="register-password"
+        label={t('auth.fields.password')}
+        placeholder={t('auth.fields.passwordPlaceholder')}
+        // The rule the API enforces (`PASSWORD_MIN_LENGTH`), stated BEFORE it
+        // can be broken rather than as a rejection afterwards.
+        hint={t('auth.fields.passwordHint')}
+        value={password}
+        onChangeText={setPassword}
+        disabled={pending}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        // `new-password` / `newPassword`, not `password`: this is what makes iOS
+        // offer to GENERATE and save a strong one and Android offer to store it,
+        // instead of both offering to fill an existing entry.
+        autoComplete="new-password"
+        textContentType="newPassword"
+        revealLabels={{ show: t('auth.showPassword'), hide: t('auth.hidePassword') }}
+        returnKeyType="go"
+        onSubmitEditing={submit}
+      />
+
+      <Text variant="caption" color="textSecondary" testID="register-terms">
+        {t('auth.terms')}
+      </Text>
+
+      <Button
+        testID="register-submit"
+        variant="primary"
+        size="lg"
+        fullWidth
+        label={t('auth.register.submit')}
+        busyLabel={t('auth.register.submitting')}
+        busy={pending}
+        disabled={coolDown.active || !online}
+        onPress={submit}
+      />
+    </AuthScreen>
   );
 }

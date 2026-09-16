@@ -17,6 +17,7 @@ const detail = (over?: Partial<GetAdminLocationResponse>): GetAdminLocationRespo
   photoUrl: null,
   amenities: ['Sauna'],
   status: 'ACTIVE',
+  isDefault: false,
   createdAt: '2026-02-01T00:00:00.000Z',
   hours: locationHoursSchema.parse({}),
   updatedAt: '2026-02-01T00:00:00.000Z',
@@ -36,11 +37,15 @@ function setup() {
   const updateLocation = vi.fn<() => Promise<CreateLocationResponse>>(() =>
     Promise.resolve(detail()),
   );
+  const makeDefaultLocation = vi.fn<() => Promise<CreateLocationResponse>>(() =>
+    Promise.resolve(detail({ isDefault: true })),
+  );
   const service = {
     listLocations,
     getLocation,
     createLocation,
     updateLocation,
+    makeDefaultLocation,
   } as unknown as AdminLocationsService;
   return {
     controller: new AdminLocationsController(service),
@@ -48,6 +53,7 @@ function setup() {
     getLocation,
     createLocation,
     updateLocation,
+    makeDefaultLocation,
   };
 }
 
@@ -128,6 +134,16 @@ describe('AdminLocationsController', () => {
         'l-1',
         expect.objectContaining({ name: 'Renamed' }),
       );
+    });
+  });
+
+  describe('POST /admin/locations/:id/make-default', () => {
+    it('forwards the id and returns the updated detail', async () => {
+      ctx = setup();
+      const result = await ctx.controller.makeDefault('l-1');
+
+      expect(ctx.makeDefaultLocation).toHaveBeenCalledWith('l-1');
+      expect(result.isDefault).toBe(true);
     });
   });
 });

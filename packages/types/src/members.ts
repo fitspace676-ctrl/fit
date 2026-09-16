@@ -94,6 +94,12 @@ export const listMembersQuerySchema = z.object({
    */
   kind: memberKindSchema.optional(),
   planId: z.string().min(1).optional(),
+  /**
+   * Narrow the roster to one branch — the member's HOME branch
+   * (`GymMember.locationId`), not anywhere they happen to have trained. Omit for
+   * every branch, which is what the console's "All locations" sends.
+   */
+  locationId: z.string().min(1).optional(),
   sort: memberSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
   // The "Frozen" tab: narrow to live members holding a `FROZEN` subscription. It is
@@ -171,6 +177,13 @@ export interface MemberRow {
   planName: string | null;
   /** The live plan denormalised for the roster's PLAN cell, or `null`. */
   plan: MemberPlan | null;
+  /**
+   * The member's home branch, denormalised for the roster's LOCATION cell —
+   * `null` for a member with no branch recorded. The name rather than the id
+   * because the table only ever prints it; the same shape
+   * `AdminClassTemplateRow.locationName` uses.
+   */
+  locationName: string | null;
   /** ISO instant of the member's most recent `CheckIn`, or `null` for none. */
   lastVisitAt: string | null;
   /** ISO instant the live subscription next bills, or `null` (see `billingState`). */
@@ -593,6 +606,14 @@ export const createMemberSchema = z.object({
   planId: z.string().min(1).optional(),
   /** Preferred payment method recorded on the profile (`"CASH"` / `"CARD"` / …). */
   paymentMethod: editableText(40),
+  /**
+   * The branch this member belongs to. The console pre-fills the branch its
+   * switcher is on, falling back to the gym's default (`Location.isDefault`) in
+   * "All locations" mode, so a member is never created unattributed. Optional on
+   * the wire only until every caller sends it — the column is on its way to
+   * `NOT NULL`.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `POST /members` body — {@link createMemberSchema}. */
@@ -616,6 +637,13 @@ export const updateMemberSchema = z.object({
     .nullable()
     .transform((value) => (value ? value : null)),
   ...memberProfileShape,
+  /**
+   * Move the member to another branch. Deliberately NOT nullable: a member can
+   * transfer, but "no branch" is not a state the product wants to be able to
+   * re-enter once the backfill has given everyone one. Omitted leaves the current
+   * branch untouched.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `PATCH /members/:id` body — {@link updateMemberSchema}. */

@@ -69,6 +69,13 @@ export const listActivityQuerySchema = z.object({
   from: calendarDaySchema.optional(),
   /** Upper bound of the range, inclusive — events on or before this day. */
   to: calendarDaySchema.optional(),
+  /**
+   * Narrow the feed to one branch; omitted means every branch. A place event
+   * (`checkin`, `sale`) is attributed by the branch it happened at, a person event
+   * (`signup`, `booking`, `subscription`) by the member's home branch. A row with no
+   * branch on that path drops out of a filtered page and stays in the gym-wide one.
+   */
+  locationId: z.string().min(1).optional(),
 });
 
 /** Validated `GET /admin/activity` query — {@link listActivityQuerySchema}. */

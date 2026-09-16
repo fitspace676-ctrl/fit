@@ -153,6 +153,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           stock: product.stock,
           lowStockThreshold: product.lowStockThreshold,
           categoryId: product.category?.id ?? null,
+          locationId: product.locationId,
         }}
       />
     </div>

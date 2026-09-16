@@ -192,6 +192,7 @@ export class AdminClassTemplatesService {
       // (it shows as an ended class), or the create silently produces nothing.
       await this.regenerateInstances(
         row.id,
+        row.locationId,
         {
           rrule: row.rrule,
           validFrom: row.validFrom,
@@ -256,7 +257,7 @@ export class AdminClassTemplatesService {
     // — a PAUSED one keeps its existing instances and generates nothing, so its
     // instances are left exactly as they are (mirroring the generation job).
     if (status === ClassTemplateStatus.ACTIVE) {
-      await this.regenerateInstances(id, {
+      await this.regenerateInstances(id, input.locationId, {
         rrule: input.rrule,
         validFrom,
         validUntil,
@@ -280,6 +281,11 @@ export class AdminClassTemplatesService {
    */
   private async regenerateInstances(
     templateId: string,
+    /**
+     * The template's branch. Stamped on every occurrence this creates, and realigned
+     * onto the future occurrences it keeps — see the comment at the realign below.
+     */
+    locationId: string | null,
     recurrence: {
       rrule: string;
       validFrom: Date;
@@ -310,19 +316,31 @@ export class AdminClassTemplatesService {
     const from = options?.fromStartOfDay ? startOfDayInZone(now, timeZone) : now;
     const windowEnd = new Date(from.getTime() + DEFAULT_WEEKS_AHEAD * 7 * 24 * 60 * 60 * 1000);
 
-    const existing: ExistingInstance[] = await this.prisma.client.classInstance.findMany({
-      where: { templateId, startsAt: { gte: from, lt: windowEnd } },
-      select: {
-        id: true,
-        startsAt: true,
-        endsAt: true,
-        status: true,
-        bookedCount: true,
-        detachedAt: true,
-      },
-    });
+    const existing: (ExistingInstance & { locationId: string | null })[] =
+      await this.prisma.client.classInstance.findMany({
+        where: { templateId, startsAt: { gte: from, lt: windowEnd } },
+        select: {
+          id: true,
+          startsAt: true,
+          endsAt: true,
+          status: true,
+          bookedCount: true,
+          detachedAt: true,
+          locationId: true,
+        },
+      });
 
     const plan = planInstanceRegeneration({ ...recurrence, timeZone, existing, now: from });
+
+    // The occurrences that stay attached follow the template to its branch. A row
+    // stamped with the old branch would otherwise sit there on its own column and
+    // at the new one through the template's — shown at both. Detached rows keep
+    // theirs: their seats were booked at the branch they are already at.
+    const leaving = new Set([...plan.toDelete, ...plan.toDetach]);
+    const toMove = existing
+      .filter((row) => row.detachedAt === null && !leaving.has(row.id))
+      .filter((row) => row.locationId !== locationId)
+      .map((row) => row.id);
 
     if (plan.toDelete.length > 0) {
       await this.prisma.client.classInstance.deleteMany({ where: { id: { in: plan.toDelete } } });
@@ -333,6 +351,12 @@ export class AdminClassTemplatesService {
         data: { detachedAt: now },
       });
     }
+    if (toMove.length > 0) {
+      await this.prisma.client.classInstance.updateMany({
+        where: { id: { in: toMove } },
+        data: { locationId },
+      });
+    }
     for (const { id, endsAt } of plan.toRealign) {
       await this.prisma.client.classInstance.update({ where: { id }, data: { endsAt } });
     }
@@ -341,6 +365,9 @@ export class AdminClassTemplatesService {
         data: plan.toCreate.map((startsAt) => ({
           gymId: this.tenant.gymId,
           templateId,
+          // On the row itself, not only through the template: the read side's
+          // `OR template.locationId` fallback is for rows that predate the column.
+          locationId,
           startsAt,
           endsAt: new Date(startsAt.getTime() + recurrence.durationMinutes * 60 * 1000),
           status: InstanceStatus.SCHEDULED,
@@ -480,6 +507,15 @@ export class AdminClassTemplatesService {
 
     if (query.status) {
       where.status = query.status;
+    }
+    // Narrow to the branch this recurring class runs at. A template's own
+    // `locationId` is the right path — the create/update body requires it ("Pick
+    // the location this class runs at"), so it is where the class *belongs*, not
+    // where it happens to have occurred. Plain equality: the Stage 0 backfill
+    // left no NULL `locationId` on `class_templates`, so nothing to rescue with
+    // an `OR locationId IS NULL`. Served by the `(gymId, locationId)` index.
+    if (query.locationId) {
+      where.locationId = query.locationId;
     }
 
     const search = query.search?.trim();

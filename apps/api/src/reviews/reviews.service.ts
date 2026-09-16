@@ -287,11 +287,37 @@ export class ReviewsService {
    * reviews: `rating` is the mean star rating (rounded to one decimal, `0` when
    * there are none) and `reviewCount` their number. Runs on the transaction
    * client so the aggregate is consistent with the review write that triggered it.
+   *
+   * The pair is a **projection**, not a claim: it is rewritten wholesale from the
+   * aggregate rather than nudged by a delta, because `rating` is a mean and the two
+   * columns must come out of one and the same read or they contradict each other.
+   * That only holds if this transaction is the sole writer of the pair between the
+   * aggregate and the write, and under Postgres' READ COMMITTED it is *not* by
+   * default: two members reviewing the same trainer at the same instant each take an
+   * aggregate that cannot see the other's uncommitted row, both compute `N + 1`, and
+   * the second write lands `N + 1` when the truth is `N + 2` — a drift that survives
+   * until some later review happens to recompute it.
+   *
+   * So the row is locked first. Locking makes a concurrent recompute of the *same*
+   * trainer block here rather than at its own `UPDATE`, so it takes its aggregate
+   * only after we commit and therefore counts our review. Raw SQL because Prisma has
+   * no lock primitive; it bypasses the tenant extension, which is why the lock pins
+   * the primary key — and `trainerId` is never a value off the wire, it is read off a
+   * tenant-scoped occurrence or review by both callers.
+   *
+   * `FOR NO KEY UPDATE`, not `FOR UPDATE`, and the distinction is load-bearing: the
+   * review row this transaction has just inserted references the trainer, so Postgres
+   * is already holding a `FOR KEY SHARE` on it for the foreign key. `FOR UPDATE`
+   * conflicts with that, so two reviewers would each wait on the other's key-share and
+   * one would die with a deadlock (`40P01`). `FOR NO KEY UPDATE` conflicts only with
+   * the other writers — which is exactly the exclusion this needs — and it is the same
+   * mode the `UPDATE` below would take anyway.
    */
   private async recomputeTrainerRating(
     tx: ScopedTransactionClient,
     trainerId: string,
   ): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM "trainers" WHERE id = ${trainerId} FOR NO KEY UPDATE`;
     const agg = await tx.review.aggregate({
       where: { trainerId, status: ReviewStatus.VISIBLE },
       _avg: { rating: true },
@@ -301,7 +327,18 @@ export class ReviewsService {
     const avg = agg._avg.rating ?? 0;
     await tx.trainer.update({
       where: { id: trainerId },
-      data: { rating: Math.round(avg * 10) / 10, reviewCount: count },
+      data: {
+        rating: Math.round(avg * 10) / 10,
+        // atomic-counter-exempt: a projection of the review rows, not a counter
+        // claimed against a prior read — the aggregate above IS the source of truth
+        // and this column only caches it, so `{ increment }` would be the wrong
+        // arithmetic (it could not repair a count that had already drifted, and
+        // `rating` has no delta at all). The write is safe because the row lock
+        // above makes this transaction the only writer of the pair between the
+        // aggregate and here; remove that lock and two concurrent reviews both
+        // store `N + 1`.
+        reviewCount: count,
+      },
     });
   }
 

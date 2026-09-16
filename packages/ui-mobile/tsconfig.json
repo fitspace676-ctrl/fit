@@ -5,8 +5,9 @@
   // primitives. Mirrors how `@fit/ui-web` type-checks its components.
   "extends": "@fit/config/tsconfig.base.json",
   "compilerOptions": {
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["jest", "node"]
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts"],
   "exclude": ["node_modules", "dist", "build", ".next", ".expo", ".turbo", "coverage"]
 }

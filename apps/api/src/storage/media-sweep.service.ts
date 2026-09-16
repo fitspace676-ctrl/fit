@@ -148,7 +148,7 @@ export class MediaSweepService {
   /**
    * Every object key the database still points at, across all gyms.
    *
-   * Three columns and one JSON field hold *public URLs*, so each is reduced to a key
+   * Four columns and one JSON field hold *public URLs*, so each is reduced to a key
    * by taking the URL's path. Matching on the path rather than on the configured
    * `R2_PUBLIC_URL` prefix is deliberate: after a move to a custom domain the stored
    * URLs still carry the old host, and a prefix match would read every one of them as
@@ -163,32 +163,39 @@ export class MediaSweepService {
       if (key) keys.add(key);
     };
 
-    const [products, trainers, locations, classTemplates, services, gyms] = await Promise.all([
-      this.prisma.client.product.findMany({ select: { images: true } }),
-      this.prisma.client.trainer.findMany({
-        where: { photoUrl: { not: null } },
-        select: { photoUrl: true },
-      }),
-      this.prisma.client.location.findMany({
-        where: { photoUrl: { not: null } },
-        select: { photoUrl: true },
-      }),
-      this.prisma.client.classTemplate.findMany({
-        where: { imageUrl: { not: null } },
-        select: { imageUrl: true },
-      }),
-      this.prisma.client.service.findMany({
-        where: { coverUrl: { not: null } },
-        select: { coverUrl: true },
-      }),
-      this.prisma.client.gym.findMany({ select: { settings: true } }),
-    ]);
+    const [products, trainers, locations, classTemplates, services, banners, gyms] =
+      await Promise.all([
+        this.prisma.client.product.findMany({ select: { images: true } }),
+        this.prisma.client.trainer.findMany({
+          where: { photoUrl: { not: null } },
+          select: { photoUrl: true },
+        }),
+        this.prisma.client.location.findMany({
+          where: { photoUrl: { not: null } },
+          select: { photoUrl: true },
+        }),
+        this.prisma.client.classTemplate.findMany({
+          where: { imageUrl: { not: null } },
+          select: { imageUrl: true },
+        }),
+        this.prisma.client.service.findMany({
+          where: { coverUrl: { not: null } },
+          select: { coverUrl: true },
+        }),
+        // Home-screen banners (T1.16). `imageUrl` is NOT NULL but is empty on a
+        // banner whose artwork has not been finalised yet, which `toObjectKey`
+        // reads as "no reference" — so an empty string here costs nothing and the
+        // column needs no filter.
+        this.prisma.client.banner.findMany({ select: { imageUrl: true } }),
+        this.prisma.client.gym.findMany({ select: { settings: true } }),
+      ]);
 
     for (const product of products) for (const image of product.images) add(image);
     for (const trainer of trainers) add(trainer.photoUrl);
     for (const location of locations) add(location.photoUrl);
     for (const template of classTemplates) add(template.imageUrl);
     for (const service of services) add(service.coverUrl);
+    for (const banner of banners) add(banner.imageUrl);
     // The gym logo, the member portal's sign-in photograph and the portal's own
     // wordmark all live inside the `settings` JSON blob rather than in their own
     // columns; read them defensively, since a hand-edited row must not abort the
