@@ -25,3 +25,6 @@ apps/e2e/blob-report/
 
 # Local tooling metadata
 .planflow/
+.devapp/
+.workstation/
+forma-core-app/.workstation/
