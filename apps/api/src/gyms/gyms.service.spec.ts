@@ -131,6 +131,9 @@ describe('GymsService.resolveBySubdomain', () => {
         loginImageUrl: null,
         logoUrl: null,
         primaryColor: DEFAULT_PRIMARY_COLOR,
+        // …and says so, so the member site can tell "never chose" from "chose
+        // the brand's own colour" — the resolved value alone cannot.
+        chosenPrimaryColor: null,
       },
     });
     expect(findUnique).toHaveBeenCalledWith(

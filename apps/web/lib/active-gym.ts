@@ -63,6 +63,31 @@ export async function getActiveGymSlug(): Promise<string | null> {
 const API_URL = (env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 /**
+ * The one `GET /gyms/by-subdomain/:slug` request every reader below makes.
+ *
+ * UNCACHED, on purpose. This lookup carried `next: { revalidate: 300 }`, and on
+ * Vercel that data cache outlives the request: a gym that saved a new portal
+ * colour in the console kept seeing the old one on its own sign-in screen for up
+ * to five minutes, and — since the console had already said "saved" — read that
+ * as the setting doing nothing. A tenant's skin, name, zone and contact details
+ * all come from this body, and every one of them is edited in the console with
+ * the expectation of seeing it land. The API answers from one indexed row, and
+ * the pages that call this are already dynamic (they read cookies and headers),
+ * so nothing is given up.
+ *
+ * Within one render the several readers still share ONE request: React's fetch
+ * memoization dedupes identical `GET`s regardless of the cache option, so a
+ * layout that resolves the skin and the presence, and a shell that resolves the
+ * name and the skin again, cost the API a single round trip.
+ */
+function lookupTenant(slug: string): Promise<Response> {
+  return fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  });
+}
+
+/**
  * Resolve the active tenant to its gym id via the public
  * `GET /gyms/by-subdomain/:slug` lookup, or `null` when there is no tenant in
  * scope (apex / preview URL) or the slug names no active gym. Server-only.
@@ -80,11 +105,7 @@ export async function getActiveGymId(): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
-      headers: { Accept: 'application/json' },
-      // The tenant rarely changes; let Next cache the lookup briefly.
-      next: { revalidate: 300 },
-    });
+    const response = await lookupTenant(slug);
     if (!response.ok) {
       return null;
     }
@@ -106,8 +127,8 @@ export async function getActiveGymId(): Promise<string | null> {
  * - `unknown` — anything else (network error, `5xx`). Rendered like `found`, so a
  *   passing API hiccup never tells a gym's members their gym does not exist.
  *
- * Server-only. A `404` is not kept in Next's fetch cache (only `200`s are), so a
- * gym created a moment after someone hit its address is found on the next visit.
+ * Server-only. The lookup is uncached, so a gym created a moment after someone
+ * hit its address is found on the next visit.
  */
 export type ActiveGymPresence = 'none' | 'found' | 'not-found' | 'unknown';
 
@@ -118,10 +139,7 @@ export async function getActiveGymPresence(): Promise<ActiveGymPresence> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 300 },
-    });
+    const response = await lookupTenant(slug);
     if (response.ok) {
       return 'found';
     }
@@ -149,11 +167,7 @@ export async function getActiveGymContact(): Promise<GymPublicContact | null> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
-      headers: { Accept: 'application/json' },
-      // Same short cache as the id lookup: contact details change rarely.
-      next: { revalidate: 300 },
-    });
+    const response = await lookupTenant(slug);
     if (!response.ok) {
       return null;
     }
@@ -171,7 +185,7 @@ export async function getActiveGymContact(): Promise<GymPublicContact | null> {
 
 /**
  * The active tenant's display name (`Downtown Strength`), or `null` when there
- * is no tenant in scope. Server-only, and from the same cached
+ * is no tenant in scope. Server-only, and from the same
  * `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
  *
  * The login screen names the gym in its headline — "Downtown Strength · წევრის
@@ -186,10 +200,7 @@ export async function getActiveGymName(): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 300 },
-    });
+    const response = await lookupTenant(slug);
     if (!response.ok) {
       return null;
     }
@@ -203,7 +214,7 @@ export async function getActiveGymName(): Promise<string | null> {
 /**
  * The IANA zone the active tenant's wall-clock times are read in, or
  * `Asia/Tbilisi` when there is no tenant in scope. Server-only, from the same
- * cached `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
+ * `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
  *
  * Every class and booking time the portal renders goes through this rather than
  * the viewer's zone: "Monday 18:00 at Main Floor" is the same appointment
@@ -217,10 +228,7 @@ export async function getActiveGymTimezone(): Promise<string> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 300 },
-    });
+    const response = await lookupTenant(slug);
     if (!response.ok) {
       return DEFAULT_TIMEZONE;
     }
@@ -238,7 +246,7 @@ export async function getActiveGymTimezone(): Promise<string> {
  * own wordmark, plus the two colours **the gym actually chose** (`null` on either
  * meaning "never chosen").
  * `null` overall when there is no tenant in scope, the slug names no active gym,
- * or the lookup fails. Server-only, from the same cached
+ * or the lookup fails. Server-only, from the same
  * `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}.
  *
  * `null` means "render the shipped FormaCore palette", which is the right answer
@@ -262,12 +270,7 @@ export async function getActiveGymPortalSkin(): Promise<ActiveGymPortalSkin | nu
   }
 
   try {
-    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
-      headers: { Accept: 'application/json' },
-      // Same short cache as the id lookup: a gym's skin changes rarely, and the
-      // sign-in screen renders on every visit.
-      next: { revalidate: 300 },
-    });
+    const response = await lookupTenant(slug);
     if (!response.ok) {
       return null;
     }
@@ -319,7 +322,7 @@ export interface ActiveGymBrand {
  * The active tenant's {@link ActiveGymBrand}, or `null` when there is no tenant in
  * scope, the slug names no active gym, or the lookup fails — every one of which
  * the page's metadata answers with plain FormaCore. Server-only, from the same
- * cached `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}. Never
+ * `GET /gyms/by-subdomain/:slug` lookup as {@link getActiveGymId}. Never
  * throws: metadata that failed to resolve must not take the page down with it.
  */
 export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
@@ -329,10 +332,7 @@ export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 300 },
-    });
+    const response = await lookupTenant(slug);
     if (!response.ok) {
       return null;
     }

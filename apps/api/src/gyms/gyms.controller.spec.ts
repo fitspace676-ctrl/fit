@@ -30,6 +30,7 @@ function setup() {
         loginImageUrl: null,
         logoUrl: null,
         primaryColor: '#84cc16',
+        chosenPrimaryColor: null,
       },
     }),
   );
@@ -72,6 +73,7 @@ describe('GymsController', () => {
           loginImageUrl: null,
           logoUrl: null,
           primaryColor: '#84cc16',
+          chosenPrimaryColor: null,
         },
       });
     });
