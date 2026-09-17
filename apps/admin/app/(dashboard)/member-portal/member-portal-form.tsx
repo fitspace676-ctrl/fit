@@ -520,9 +520,6 @@ const styles = stylex.create({
     color: 'rgba(255, 255, 255, 0.88)',
   },
   previewBenefitIcon: { marginTop: '0.125rem', flexShrink: 0, height: '0.75rem', width: '0.75rem' },
-  // The portal's accent-as-type token, which the gym does not configure — the
-  // mock reads it from the theme so it cannot drift from what the portal paints.
-  previewBenefitIconAccent: { color: 'var(--color-text-accent)' },
   previewJoinCta: {
     display: 'inline-flex',
     marginTop: '0.75rem',
@@ -1393,13 +1390,12 @@ function PortalPreview({
         <div {...stylex.props(styles.previewJoin)}>
           <p {...stylex.props(styles.previewJoinTitle)}>{t('joinTitle', { gym: gymName })}</p>
           <p {...stylex.props(styles.previewBenefit)}>
-            {/* The lime, not the gym's colour: the accent as TYPE is not a brand
-                slot in the portal either, so the mock must not imply it is — see
-                `portal-theme.ts` in @fit/web. */}
+            {/* The gym's colour: the portal paints its accent type — links and
+                ticks — from the primary too, see `portal-theme.ts` in @fit/web. */}
             <Icon
               name="check"
               sw={2.6}
-              {...stylex.props(styles.previewBenefitIcon, styles.previewBenefitIconAccent)}
+              {...stylex.props(styles.previewBenefitIcon, styles.tintText(primary))}
             />
             {t('joinBenefit')}
           </p>

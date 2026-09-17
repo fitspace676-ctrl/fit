@@ -55,7 +55,7 @@ const jetbrains = JetBrains_Mono({
  * The tab, favicon and share card name the gym this host serves, and fall back
  * to FormaCore where none is in scope (apex, `app.<root>`, a preview URL, an
  * unknown slug). Per request, like the layout itself: the tenant is the Host.
- * The lookup is the same cached one the layout body makes.
+ * The lookup is the same one the layout body makes, deduped within the render.
  */
 export async function generateMetadata(): Promise<Metadata> {
   return gymMetadata(await getActiveGymBrand());
@@ -87,10 +87,12 @@ export default async function LocaleLayout({
   // The tenant's skin is resolved HERE, in the layout that renders `<html>`, so
   // the gym's colours are in the first painted markup rather than swapped in a
   // frame later. This layout was already per-request (it reads the theme
-  // cookie), so the lookup adds a cached round trip and no rendering mode change.
-  // A gym that has chosen no portal colour resolves to no override at all.
+  // cookie), so the lookup adds one round trip and no rendering mode change. It
+  // is deliberately not cached: a colour saved in the console has to be on the
+  // next visit, not five minutes later. A gym that has chosen no portal colour
+  // resolves to no override at all.
   //
-  // The same cached lookup also says whether the host names a gym at all. One
+  // The same lookup also says whether the host names a gym at all. One
   // that does not (`typo.<root>`) renders "gym not found" in place of every page
   // — here, because this is the one layout every route on the host shares. A
   // lookup that merely failed renders the page as before.

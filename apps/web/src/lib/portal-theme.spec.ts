@@ -58,9 +58,17 @@ function varsFor(primaryColor: string): PortalThemeVars {
   return portalThemeVars({ primaryColor });
 }
 
-/** What the tenant lookup hands the scope, from one `GET /gyms/by-subdomain` body. */
-function skinFor(portal: Partial<GymPortalTheme>, brand: Partial<GymPublicBrand> | null) {
-  const resolved: GymPortalTheme = {
+/**
+ * What the tenant lookup hands the scope, from one `GET /gyms/by-subdomain` body
+ * — as an API that predates `chosenPrimaryColor` sends it, so these cases
+ * exercise the comparison that stands in for it. The explicit field has its own
+ * cases below.
+ */
+function skinFor(
+  portal: Partial<Omit<GymPortalTheme, 'chosenPrimaryColor'>>,
+  brand: Partial<GymPublicBrand> | null,
+) {
+  const resolved: Omit<GymPortalTheme, 'chosenPrimaryColor'> = {
     loginImageUrl: null,
     // Irrelevant to the colour resolution these cases exercise: the wordmark has
     // no "did the gym choose this?" problem to undo, because `brand.logoUrl` has
@@ -137,12 +145,40 @@ describe('portalThemeVars', () => {
     expect(vars['--color-accent']).not.toMatch(/^light-dark\(/);
   });
 
-  it("never writes the accent TYPE ramp, which stays the product's lime", () => {
-    // The gym paints the fill. Links, ticks and accented figures are not a brand
-    // slot: `formacore.css` ships them as a light/dark lime pair, and one
-    // configurable hex could not have replaced that pair without losing a theme.
-    for (const primary of ['#E11D48', '#0F172A', '#E4F26A', DEFAULT_PRIMARY_COLOR]) {
+  it('paints the accent TYPE in the gym colour too, not only the fill', () => {
+    // The regression this pins: Downtown chose `#069494`, its sign-in button
+    // turned teal, and its "forgot password" link and every accented figure
+    // behind the door stayed lime — the console's preview showed them teal, so
+    // the setting read as broken.
+    for (const primary of ['#069494', '#E11D48', DEFAULT_PRIMARY_COLOR]) {
       const vars = varsFor(primary);
+      expect(vars['--color-text-accent']).toMatch(/^(light-dark\(|#)/);
+      expect(vars['--color-icon-accent']).toBe(vars['--color-text-accent']);
+    }
+  });
+
+  it.each(BRANDS)(
+    'keeps accent type legible and distinct from body text (%s)',
+    (_name, primary) => {
+      const value = varsFor(primary)['--color-text-accent'];
+      // A brand that cannot be told apart from body text in either theme keeps the
+      // shipped lime rather than turning every link into plain prose.
+      if (value === undefined) return;
+      const { light, dark } = themes(value);
+      expect(contrastOn(light, LIGHT_SURFACE)).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastOn(dark, DARK_SURFACE)).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastOn(light, INK)).toBeGreaterThanOrEqual(1.6);
+      expect(contrastOn(dark, PAPER)).toBeGreaterThanOrEqual(1.6);
+    },
+  );
+
+  it('leaves the accent type lime for a brand that would read as body text', () => {
+    // A near-black corrected for the light surface IS the ink, and a near-white
+    // corrected for the dark surface IS the paper: as type, neither says "notice
+    // this", so the lime stays and only the fill follows the gym.
+    for (const primary of ['#0B0B0C', '#FAFAF5']) {
+      const vars = varsFor(primary);
+      expect(vars['--color-accent']).toBeDefined();
       expect(vars['--color-text-accent']).toBeUndefined();
       expect(vars['--color-icon-accent']).toBeUndefined();
     }
@@ -208,17 +244,51 @@ describe('chosenPortalColors', () => {
     expect(skinFor(portal, brand)).toEqual({ primaryColor: null });
   });
 
-  it('repaints the fill ramp and nothing else when a gym chooses', () => {
+  it('repaints the fill and the accent type when a gym chooses', () => {
     const only = skinFor({ primaryColor: '#E11D48' }, {});
     expect(only).toEqual({ primaryColor: '#E11D48' });
     const vars = portalThemeVars(only);
-    // The fill ramp follows the gym…
     expect(vars['--color-accent']).toBe('#E11D48');
     expect(vars['--color-on-accent']).toBeDefined();
     expect(vars['--fc-booked']).toBeDefined();
-    // …and the accent type it does not own stays the shipped lime.
-    expect(vars['--color-text-accent']).toBeUndefined();
-    expect(vars['--color-icon-accent']).toBeUndefined();
+    expect(vars['--color-text-accent']).toBeDefined();
+    expect(vars['--color-icon-accent']).toBeDefined();
+  });
+
+  // The lookup now says outright which colour was chosen, and that answer wins
+  // over the comparison — which could not tell "chose the brand's own colour"
+  // from "never chose", and the console's "customise" button seeds the field
+  // with exactly the brand colour.
+  it('believes the lookup when it says the colour was chosen, even the brand’s own', () => {
+    const portal: GymPortalTheme = {
+      loginImageUrl: null,
+      logoUrl: null,
+      primaryColor: '#7C2D12',
+      chosenPrimaryColor: '#7C2D12',
+    };
+    const brand = { primaryColor: '#7C2D12', secondaryColor: '#134E4A' };
+    expect(chosenPortalColors(portal, brand)).toEqual({ primaryColor: '#7C2D12' });
+    expect(portalThemeVars(chosenPortalColors(portal, brand))['--color-accent']).toBe('#7C2D12');
+  });
+
+  it('believes the lookup when it says nothing was chosen, whatever the brand', () => {
+    const portal: GymPortalTheme = {
+      loginImageUrl: null,
+      logoUrl: null,
+      primaryColor: '#E11D48',
+      chosenPrimaryColor: null,
+    };
+    expect(
+      chosenPortalColors(portal, { primaryColor: '#111111', secondaryColor: '#222222' }),
+    ).toEqual({ primaryColor: null });
+    expect(chosenPortalColors(portal, null)).toEqual({ primaryColor: null });
+  });
+
+  it('falls back to the comparison when the field is not a string or null', () => {
+    const portal = { primaryColor: '#E11D48', chosenPrimaryColor: 42 } as unknown as GymPortalTheme;
+    expect(
+      chosenPortalColors(portal, { primaryColor: '#111111', secondaryColor: '#222222' }),
+    ).toEqual({ primaryColor: '#E11D48' });
   });
 
   it('ignores hex case, so #4F46E5 and #4f46e5 are one colour', () => {

@@ -379,6 +379,25 @@ describe('gymPortalTheme — resolving the wordmark against the brand', () => {
       loginImageUrl: null,
       logoUrl: null,
       primaryColor: '#e4f26a',
+      chosenPrimaryColor: '#e4f26a',
     });
+  });
+
+  // The resolution erases the one thing the member site has to know: whether
+  // the gym chose. So the chosen colour travels beside the resolved one — `null`
+  // when the brand is standing in, and the gym's own value otherwise, even when
+  // that value happens to equal the brand's.
+  it('says whether the portal colour was chosen or is the brand standing in', () => {
+    expect(gymPortalTheme({ brand: { primaryColor: '#84cc16' } })).toMatchObject({
+      primaryColor: '#84cc16',
+      chosenPrimaryColor: null,
+    });
+    expect(
+      gymPortalTheme({
+        brand: { primaryColor: '#84cc16' },
+        memberPortal: { primaryColor: '#84cc16' },
+      }),
+    ).toMatchObject({ primaryColor: '#84cc16', chosenPrimaryColor: '#84cc16' });
+    expect(gymPortalTheme({}).chosenPrimaryColor).toBeNull();
   });
 });

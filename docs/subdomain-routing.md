@@ -147,9 +147,10 @@ not rendered as a sign-in form for a gym nobody can join. `getActiveGymPresence(
 
 `GymNotFound` is rendered by the locale layout in place of the page, so every route
 on such a host says the same thing. Because it is a layout render rather than
-Next's `notFound()`, the document's HTTP status is not a `404`. A `404` lookup is
-not kept in Next's fetch cache, so a gym created a moment later is found on the
-next visit.
+Next's `notFound()`, the document's HTTP status is not a `404`. The lookup is
+never cached (`cache: 'no-store'`), so a gym created a moment later is found on
+the next visit, and a portal colour saved in the console shows on the next page
+load.
 
 ### At the API: `TENANT_REQUIRED`
 

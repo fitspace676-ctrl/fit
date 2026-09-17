@@ -1072,6 +1072,15 @@ export interface GymPortalTheme {
   loginImageUrl: string | null;
   logoUrl: string | null;
   primaryColor: string;
+  /**
+   * The colour the gym set under Settings → Member portal itself, or `null` when
+   * `primaryColor` above is the brand's standing in. Carried alongside the
+   * resolved value because the member site needs the distinction the resolution
+   * erases: a gym that never chose keeps the shipped palette, and a gym that
+   * chose exactly its brand colour gets it — the two were indistinguishable by
+   * comparison alone.
+   */
+  chosenPrimaryColor: string | null;
 }
 
 /**
@@ -1089,6 +1098,7 @@ export function gymPortalTheme(rawSettings: unknown): GymPortalTheme {
     loginImageUrl: stored.memberPortal.loginImageUrl,
     logoUrl: stored.memberPortal.logoUrl ?? stored.brand.logoUrl,
     primaryColor: stored.memberPortal.primaryColor ?? stored.brand.primaryColor,
+    chosenPrimaryColor: stored.memberPortal.primaryColor,
   };
 }
 

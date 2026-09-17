@@ -27,14 +27,14 @@
 //   the honest shape for it; what has to move per theme is the ink ON it and the
 //   tints beside it.
 //
-//   The accent as INK — `--color-text-accent` and `--color-icon-accent`, the
-//   accent used as type on the page surface — is NOT a brand slot and is left
-//   exactly as `formacore.css` ships it: the product's lime, already carried as
-//   a light/dark pair. It marks what to notice (a link, a tick, an accented
-//   figure) rather than what the gym owns, and a single configurable hex could
-//   not have replaced that pair without losing one theme or the other. The field
-//   that used to set it inherited `brand.secondaryColor` — a near-black picked
-//   for documents, which is not an accent at all.
+//   The same `primaryColor` drives the accent as INK — `--color-text-accent` and
+//   `--color-icon-accent`, the links, ticks and accented figures on the page
+//   surface — corrected per theme into a light/dark pair. Leaving it lime made a
+//   chosen colour look half-applied: a teal button beside a lime link. A brand
+//   that would read as body text once corrected (a near-black, a near-white)
+//   keeps the lime, which still says "notice this" where the brand could not.
+//   `brand.secondaryColor` — a near-black picked for documents — is not consulted
+//   for it, because a document colour is not an accent.
 //
 // LEGIBILITY WINS OVER FIDELITY. The portal ships a light and a dark skin and a
 // working toggle between them, so a single hex has to survive both. The failure
@@ -258,23 +258,34 @@ export interface PortalColorChoice {
  * The comparison is case-insensitive, so `#4F46E5` and `#4f46e5` are one colour
  * rather than two.
  *
- * THE ONE DEGENERATE CASE: a gym that deliberately sets a portal colour to the
- * identical value its brand already carries reads as unset and keeps the shipped
- * palette. That is indistinguishable from inheritance by construction — the two
- * states produce byte-identical responses — and the rendered result differs only
- * for that exact pair. The alternative, guessing by comparing against hardcoded
- * platform defaults, is worse: it would misread every gym that deliberately
- * picked the platform's own indigo, and it would rot the moment those defaults
- * change.
+ * THE ONE DEGENERATE CASE of that comparison: a gym that deliberately sets a
+ * portal colour to the identical value its brand already carries reads as unset
+ * and keeps the shipped palette — the two states produce byte-identical
+ * responses. That is not a corner: the console's "customise" button seeds the
+ * field with the brand colour, so a gym that pressed it and saved landed exactly
+ * there and saw nothing change. So the lookup now also carries
+ * `chosenPrimaryColor`, the stored value itself, and when it is present it is the
+ * answer. The comparison remains only for an API too old to send it.
  *
  * A missing brand (the lookup allows `brand: null`) means nothing can be
  * compared, so nothing is claimed as chosen — the conservative answer, which
  * leaves the portal exactly as it renders today.
  */
 export function chosenPortalColors(
-  portal: GymPortalTheme,
+  portal: Pick<GymPortalTheme, 'primaryColor'> &
+    Partial<Pick<GymPortalTheme, 'chosenPrimaryColor'>>,
   brand: Pick<GymPublicBrand, 'primaryColor' | 'secondaryColor'> | null,
 ): PortalColorChoice {
+  // An API that says outright which colour the gym chose is believed: it is the
+  // stored value, and the degenerate case above does not exist for it. A gym
+  // that pressed "customise" in the console — which seeds the field with the
+  // brand colour — and saved has chosen that colour, and gets it.
+  // Anything but a string or `null` is a body this code does not recognise, and
+  // falls through to the comparison rather than reaching `parseHex`.
+  const chosen: unknown = portal.chosenPrimaryColor;
+  if (typeof chosen === 'string' || chosen === null) {
+    return { primaryColor: chosen };
+  }
   const inherited = (value: string, from: string | undefined): string | null =>
     from === undefined || value.trim().toLowerCase() === from.trim().toLowerCase() ? null : value;
   return { primaryColor: brand ? inherited(portal.primaryColor, brand.primaryColor) : null };
@@ -283,11 +294,11 @@ export function chosenPortalColors(
 /**
  * The custom-property overrides for the colour a gym actually chose.
  *
- * Only the FILL ramp is ever written. A gym that chose a primary gets its blocks
- * and buttons repainted and keeps the shipped accent type, and an unconfigured
- * gym gets an empty map and the Lime Block palette `formacore.css` already
- * renders. What you change is what changes, and what you left alone still looks
- * like the product you bought — which is the whole point of gating this.
+ * Only the accent ramp is ever written. A gym that chose a primary gets its
+ * blocks, buttons, links and ticks repainted, and an unconfigured gym gets an
+ * empty map and the Lime Block palette `formacore.css` already renders. What
+ * you change is what changes, and what you left alone still looks like the
+ * product you bought — which is the whole point of gating this.
  *
  * A colour that is not a six-digit hex is treated as unchosen for the same
  * reason: the stored schema guarantees the shape, so that only happens against
@@ -329,14 +340,41 @@ export function portalThemeVars(choice: PortalColorChoice): PortalThemeVars {
     );
     // `--fc-focus-ring` is deliberately absent: `formacore.css` already derives
     // it from `var(--color-accent)`, so it follows this override on its own.
+
+    // The accent as TYPE — links, ticks, accented figures. Left lime, a gym that
+    // chose teal got a teal button beside a lime "forgot password" link, while
+    // the console's preview showed both teal, and the setting read as broken.
+    // One hex still becomes a light/dark pair here: each half is corrected
+    // against its own surface, so a navy brand does not vanish on the dark skin.
+    const typeAccent = accentType(primary);
+    if (typeAccent) {
+      vars['--color-text-accent'] = typeAccent;
+      vars['--color-icon-accent'] = typeAccent;
+    }
   }
 
-  // `--color-text-accent` / `--color-icon-accent` are deliberately NOT written.
-  // The accent as TYPE — links, ticks, accented figures — stays the product's
-  // lime, which `formacore.css` already ships as a light/dark pair. A gym paints
-  // the fill; the mark that says "this is the thing to notice" is not a brand
-  // slot, and one hex could not have replaced that pair without losing a theme.
   return vars;
+}
+
+/**
+ * Minimum contrast between accent type and body text in the same theme. Below it
+ * a link reads as ordinary prose, and the shipped lime says "notice this" better
+ * than the gym's colour would.
+ */
+const ACCENT_DISTINCTION = 1.6;
+
+/**
+ * `primary` as accent type, `light-dark()` corrected to AA on each surface — or
+ * `null` when the corrected colour would not stand apart from body text in
+ * either theme (a near-black or near-white brand), leaving the shipped lime.
+ */
+function accentType(primary: Rgb): string | null {
+  const light = readableOn(primary, LIGHT_SURFACE, TEXT_CONTRAST);
+  const dark = readableOn(primary, DARK_SURFACE, TEXT_CONTRAST);
+  const distinct =
+    contrastRatio(light, INK) >= ACCENT_DISTINCTION &&
+    contrastRatio(dark, PAPER) >= ACCENT_DISTINCTION;
+  return distinct ? lightDark(toHex(light), toHex(dark)) : null;
 }
 
 /**
