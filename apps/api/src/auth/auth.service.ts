@@ -1087,9 +1087,7 @@ export class AuthService {
     }
 
     if (user.isSuperAdmin) {
-      return (await verify(user.passwordHash))
-        ? { emailVerifiedAt: user.emailVerifiedAt }
-        : null;
+      return (await verify(user.passwordHash)) ? { emailVerifiedAt: user.emailVerifiedAt } : null;
     }
 
     if (gymSlug) {

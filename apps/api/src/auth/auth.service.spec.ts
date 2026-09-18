@@ -151,9 +151,11 @@ function setup() {
   // The per-gym credential (T1.25): what signup / invite / social write, and what
   // verify / activate / reset stamp and rewrite. Defaults to "no row yet".
   const credentialFindUnique = vi.fn<
-    (
-      args: unknown,
-    ) => Promise<{ emailVerifiedAt?: Date | null; name?: string | null; passwordHash?: string | null } | null>
+    (args: unknown) => Promise<{
+      emailVerifiedAt?: Date | null;
+      name?: string | null;
+      passwordHash?: string | null;
+    } | null>
   >(() => Promise.resolve(null));
   const credentialFindFirst = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
     Promise.resolve(null),
@@ -761,8 +763,20 @@ describe('AuthService', () => {
 
   describe('requestPasswordReset', () => {
     /** The credentials `requestPasswordReset` reads off the account. */
-    const DOWNTOWN_CRED = { gymId: 'gym-downtown', name: 'Sam D.', gym: { slug: 'downtown' } };
-    const RIVERSIDE_CRED = { gymId: 'gym-riverside', name: null, gym: { slug: 'riverside' } };
+    const DOWNTOWN_CRED = {
+      gymId: 'gym-downtown',
+      passwordHash: 'hash-downtown',
+      emailVerifiedAt: new Date('2026-01-01'),
+      name: 'Sam D.',
+      gym: { slug: 'downtown', name: 'Downtown', status: 'ACTIVE' },
+    };
+    const RIVERSIDE_CRED = {
+      gymId: 'gym-riverside',
+      passwordHash: 'hash-riverside',
+      emailVerifiedAt: new Date('2026-01-01'),
+      name: null,
+      gym: { slug: 'riverside', name: 'Riverside', status: 'ACTIVE' },
+    };
 
     it('mints a whole-identity reset token for an account with no gym, and emails it', async () => {
       ctx.findUnique.mockResolvedValue({ id: 'user-1', name: 'Sam', credentials: [] });
@@ -836,7 +850,7 @@ describe('AuthService', () => {
     // The host is caller-chosen: it must not be able to steer a stranger's token
     // to a gym site the account has nothing to do with — and there is no password
     // there to reset anyway.
-    it("mints nothing when the host names a gym the account has no credential in", async () => {
+    it('mints nothing when the host names a gym the account has no credential in', async () => {
       ctx.findUnique.mockResolvedValue({ id: 'user-1', name: 'Sam', credentials: [DOWNTOWN_CRED] });
 
       const result = await ctx.service.requestPasswordReset({ email: 'a@b.com' }, null, 'evil');
@@ -1006,9 +1020,12 @@ describe('AuthService', () => {
 
         const result = await ctx.service.resetPassword(VALID_RESET, null);
 
-        expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', expect.objectContaining({
-          gymSlug: 'riverside',
-        }));
+        expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+          'user-1',
+          expect.objectContaining({
+            gymSlug: 'riverside',
+          }),
+        );
         expect(result).toMatchObject({ sessionIssued: true });
       });
 
@@ -1329,7 +1346,10 @@ describe('AuthService', () => {
       gym: { slug: 'riverside', name: 'Riverside Fitness', status: 'ACTIVE' },
     };
     /** A member of both gyms, with a credential in each. */
-    const twoGymUser: StoredUser = { ...verifiedUser, credentials: [DOWNTOWN_CRED, RIVERSIDE_CRED] };
+    const twoGymUser: StoredUser = {
+      ...verifiedUser,
+      credentials: [DOWNTOWN_CRED, RIVERSIDE_CRED],
+    };
     const TWO_MEMBERSHIPS = [
       {
         gymId: 'gym-downtown',
@@ -1388,7 +1408,7 @@ describe('AuthService', () => {
         );
       });
 
-      it("answers 401 on a gym the address has no credential in — after a dummy verify", async () => {
+      it('answers 401 on a gym the address has no credential in — after a dummy verify', async () => {
         // A downtown member typing their downtown password on riverside's site:
         // there is no riverside password to check, and saying so would say which
         // gyms the address belongs to.
@@ -1449,7 +1469,7 @@ describe('AuthService', () => {
 
         expect(error).toBeInstanceOf(ConflictException);
         expect((error as ConflictException).getResponse()).toEqual({
-          message: expect.any(String),
+          message: expect.any(String) as unknown,
           code: 'GYM_SELECTION_REQUIRED',
           data: {
             gyms: [
@@ -2667,7 +2687,10 @@ describe('AuthService.registerGym', () => {
     expect(ctx.userCreate).not.toHaveBeenCalled();
     expect(ctx.gymCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ ownerId: 'existing-owner', createdByUserId: 'existing-owner' }),
+        data: expect.objectContaining({
+          ownerId: 'existing-owner',
+          createdByUserId: 'existing-owner',
+        }) as unknown,
       }),
     );
     expect(ctx.gymMemberCreate).toHaveBeenCalledWith({
@@ -2687,7 +2710,11 @@ describe('AuthService.registerGym', () => {
       JSON.stringify({ userId: 'existing-owner', gymId: 'gym-1' }),
     );
     expect(ctx.sendOwnerOnboardingEmail).toHaveBeenCalled();
-    expect(result).toEqual({ gymId: 'gym-1', subdomainSlug: 'downtown', ownerUserId: 'existing-owner' });
+    expect(result).toEqual({
+      gymId: 'gym-1',
+      subdomainSlug: 'downtown',
+      ownerUserId: 'existing-owner',
+    });
   });
 
   it('creates the owner without a password hash when none is supplied', async () => {

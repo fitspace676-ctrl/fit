@@ -80,13 +80,61 @@ describe('registerGym atomicity (integration)', () => {
     expect(await prisma.gym.count()).toBe(1);
   });
 
-  it('rejects a duplicate email and never creates the second gym', async () => {
-    await auth.registerGym(INPUT);
+  it('creates a credential for the new gym alongside the owner membership', async () => {
+    const res = await auth.registerGym(INPUT);
 
-    await expect(auth.registerGym({ ...INPUT, subdomainSlug: 'uptown' })).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    const credential = await prisma.gymCredential.findUnique({
+      where: { userId_gymId: { userId: res.ownerUserId, gymId: res.gymId } },
+    });
+    expect(credential).toMatchObject({ name: 'Olivia Owner', emailVerifiedAt: null });
+    expect(credential?.passwordHash).toEqual(expect.stringMatching(/^\$argon2id\$/));
+  });
 
-    expect(await prisma.gym.count()).toBe(1);
+  it('reuses an existing owner email: a second gym, a second credential, one user', async () => {
+    const first = await auth.registerGym(INPUT);
+    const firstCredential = await prisma.gymCredential.findUniqueOrThrow({
+      where: { userId_gymId: { userId: first.ownerUserId, gymId: first.gymId } },
+    });
+
+    const second = await auth.registerGym({
+      ...INPUT,
+      subdomainSlug: 'uptown',
+      password: 'a-different-password',
+    });
+
+    expect(second.ownerUserId).toBe(first.ownerUserId);
+    const [users, gyms, members, credentials] = await Promise.all([
+      prisma.user.count(),
+      prisma.gym.count(),
+      prisma.gymMember.count(),
+      prisma.gymCredential.count(),
+    ]);
+    expect({ users, gyms, members, credentials }).toEqual({
+      users: 1,
+      gyms: 2,
+      members: 2,
+      credentials: 2,
+    });
+
+    // The first gym's password is untouched; the new gym has its own.
+    const [downtown, uptown] = await Promise.all([
+      prisma.gymCredential.findUniqueOrThrow({
+        where: { userId_gymId: { userId: first.ownerUserId, gymId: first.gymId } },
+      }),
+      prisma.gymCredential.findUniqueOrThrow({
+        where: { userId_gymId: { userId: second.ownerUserId, gymId: second.gymId } },
+      }),
+    ]);
+    expect(downtown.passwordHash).toBe(firstCredential.passwordHash);
+    expect(uptown.passwordHash).not.toBe(firstCredential.passwordHash);
+  });
+
+  it('provisions without a password: the credential waits for activation', async () => {
+    const res = await auth.registerGym({ ...INPUT, password: undefined });
+
+    const credential = await prisma.gymCredential.findUniqueOrThrow({
+      where: { userId_gymId: { userId: res.ownerUserId, gymId: res.gymId } },
+    });
+    expect(credential.passwordHash).toBeNull();
   });
 });
