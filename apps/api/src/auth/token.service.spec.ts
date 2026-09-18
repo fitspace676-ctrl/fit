@@ -406,6 +406,30 @@ describe('TokenService', () => {
       // No lookup needed — it targets the user's tokens directly.
       expect(refreshToken.findUnique).not.toHaveBeenCalled();
     });
+
+    it("narrows to one gym's sessions — plus unpinned ones — when a gym is named", async () => {
+      const { service, refreshToken } = setup();
+
+      await service.revokeAllForUser('user-1', 'gym-downtown');
+
+      const revoke = refreshToken.updateMany.mock.calls[0]![0] as { where: unknown };
+      // A Downtown reset must not sign the person out of Riverside; a token with
+      // no pin predates pinning and could be on any gym, so it goes too.
+      expect(revoke.where).toEqual({
+        userId: 'user-1',
+        revokedAt: null,
+        OR: [{ gymId: 'gym-downtown' }, { gymId: null }],
+      });
+    });
+
+    it('revokes everything when the gym is null (a whole-identity reset)', async () => {
+      const { service, refreshToken } = setup();
+
+      await service.revokeAllForUser('user-1', null);
+
+      const revoke = refreshToken.updateMany.mock.calls[0]![0] as { where: unknown };
+      expect(revoke.where).toEqual({ userId: 'user-1', revokedAt: null });
+    });
   });
 
   describe('signScopedAccessToken', () => {

@@ -545,13 +545,21 @@ export class MembersService {
   async updateMember(id: string, input: UpdateMemberInput): Promise<UpdateMemberResponse> {
     const member = await this.requireMember(id);
 
-    // `name` / `phone` live on the shared `User`; the profile extras live on the
-    // gym-scoped `GymMember`. Write both (the profile write is skipped when the
-    // body carries no profile fields).
+    // `name` / `phone` live on the shared `User` — still what the rosters read —
+    // and, since T1.25, on this gym's credential, which is the per-gym record
+    // that will replace the shared one. Write both; the profile extras live on
+    // the gym-scoped `GymMember` (that write is skipped when the body carries no
+    // profile fields).
     await this.prisma.client.user.update({
       where: { id: member.userId },
       data: { name: input.name, phone: input.phone },
     });
+    if (input.name !== undefined || input.phone !== undefined) {
+      await this.prisma.client.gymCredential.updateMany({
+        where: { userId: member.userId, gymId: this.tenant.gymId },
+        data: { name: input.name, phone: input.phone },
+      });
+    }
 
     // A branch move rides with the profile write. `updateMemberSchema.locationId`
     // is not nullable, so an omitted branch leaves the member where they are and

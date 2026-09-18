@@ -123,6 +123,52 @@ export const MEMBERSHIP_NOT_ACTIVE_CODE = 'MEMBERSHIP_NOT_ACTIVE';
 export const NOT_A_MEMBER_CODE = 'NOT_A_MEMBER';
 
 /**
+ * `409` code returned by `POST /auth/login` when the sign-in named no gym (the
+ * mobile app, `app.<root>`) and the password opened the address's credential at
+ * **more than one** gym — passwords are per gym (T1.25), and the day they became
+ * so every account had the same one everywhere. The body carries the gyms the
+ * password unlocked as `data.gyms` ({@link GymSelectionRequiredResponse}); the
+ * client asks which and signs in again with that `gymSlug`. Only ever sent after
+ * the password has checked out, so the list is never shown to anyone but its
+ * owner.
+ */
+export const GYM_SELECTION_REQUIRED_CODE = 'GYM_SELECTION_REQUIRED';
+
+/** One gym a sign-in could continue on — {@link GymSelectionRequiredResponse}. */
+export interface GymSelectionOption {
+  slug: string;
+  name: string;
+}
+
+/** Error body of a `409 GYM_SELECTION_REQUIRED` — {@link GYM_SELECTION_REQUIRED_CODE}. */
+export interface GymSelectionRequiredResponse {
+  code: typeof GYM_SELECTION_REQUIRED_CODE;
+  message: string;
+  data: { gyms: GymSelectionOption[] };
+}
+
+/**
+ * The gyms a `409 GYM_SELECTION_REQUIRED` body offers, or `null` when `body` is
+ * anything else — the one parser both the web and mobile sign-in forms use, so
+ * neither has to know the error envelope's shape.
+ */
+export function gymSelectionOptions(body: unknown): GymSelectionOption[] | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { code, data } = body as { code?: unknown; data?: unknown };
+  if (code !== GYM_SELECTION_REQUIRED_CODE) return null;
+  const gyms = (data as { gyms?: unknown } | null | undefined)?.gyms;
+  if (!Array.isArray(gyms)) return null;
+  const options = gyms.filter(
+    (gym): gym is GymSelectionOption =>
+      typeof gym === 'object' &&
+      gym !== null &&
+      typeof (gym as GymSelectionOption).slug === 'string' &&
+      typeof (gym as GymSelectionOption).name === 'string',
+  );
+  return options.length > 0 ? options : null;
+}
+
+/**
  * `403` code returned when an authenticated request arrives on one gym's
  * subdomain carrying a session bound to a different gym (the access token's
  * `gymSlug` claim disagrees with the tenant host). The web and admin servers
@@ -148,6 +194,13 @@ export const TENANT_REQUIRED_CODE = 'TENANT_REQUIRED';
  */
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
+  /**
+   * The gym whose password is being reset — see {@link sessionGymSlugSchema}.
+   * A client on a gym's own site can leave it out (the host names the gym); the
+   * mobile app sends the gym it last signed in to. With neither, the API resets
+   * the one gym the address belongs to, or every gym when it belongs to several.
+   */
+  gymSlug: sessionGymSlugSchema,
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

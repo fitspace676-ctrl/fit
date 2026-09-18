@@ -4,7 +4,13 @@ import { type FormEvent, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loginWithCredentials, postLoginPath, signInErrorKey } from '@/lib/auth';
+import {
+  isGymSelectionRequired,
+  loginWithCredentials,
+  postLoginPath,
+  signInErrorKey,
+} from '@/lib/auth';
+import type { GymSelectionOption } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
 import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
 
@@ -40,6 +46,22 @@ const styles = stylex.create({
     transitionProperty: 'color',
     transitionDuration: '150ms',
   },
+  chooser: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+  },
+  chooserTitle: {
+    margin: 0,
+    fontSize: '1rem',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  chooserHint: {
+    margin: 0,
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 /**
@@ -67,22 +89,69 @@ export function CredentialsLoginForm() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(inviteError ? t('invite.invalid') : null);
+  // Off a gym's own host (the apex), a password that opens the address at more
+  // than one gym comes back as `409 GYM_SELECTION_REQUIRED` (T1.25): the API
+  // lists the gyms it unlocked and the visitor picks one, which signs in again
+  // naming it. On a gym host the host names the gym and this never shows.
+  const [gymChoices, setGymChoices] = useState<GymSelectionOption[] | null>(null);
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
+  const signIn = (gymSlug?: string): void => {
     setPending(true);
     setError(null);
-    loginWithCredentials(email, password, inviteToken)
+    loginWithCredentials(email, password, inviteToken, gymSlug)
       .then(async () => {
         const destination = await postLoginPath(safeFrom(searchParams.get('from')), locale);
         router.replace(destination);
       })
       .catch((err: unknown) => {
         setPending(false);
+        if (isGymSelectionRequired(err)) {
+          setGymChoices(err.gyms);
+          return;
+        }
         const key = signInErrorKey(err);
         setError(key ? t(key) : err instanceof Error ? err.message : t('genericError'));
       });
   };
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    signIn();
+  };
+
+  if (gymChoices) {
+    return (
+      <div {...stylex.props(styles.chooser)} data-testid="gym-chooser">
+        <p {...stylex.props(styles.chooserTitle)}>{t('login.chooseGym.title')}</p>
+        <p {...stylex.props(styles.chooserHint)}>{t('login.chooseGym.hint')}</p>
+        {error ? <Banner tone="error">{error}</Banner> : null}
+        {gymChoices.map((gym) => (
+          <Button
+            key={gym.slug}
+            type="button"
+            variant="primary"
+            size="door"
+            fullWidth
+            loading={pending}
+            label={gym.name}
+            onClick={() => signIn(gym.slug)}
+          />
+        ))}
+        <Button
+          type="button"
+          variant="ghost"
+          size="card"
+          fullWidth
+          disabled={pending}
+          label={t('login.chooseGym.back')}
+          onClick={() => {
+            setGymChoices(null);
+            setPassword('');
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <Form onSubmit={onSubmit}>

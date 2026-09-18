@@ -3496,6 +3496,11 @@
         "notAMember": "This account isn’t a member of this gym. Join the gym to sign in here.",
         "membershipNotActive": "Your membership at this gym isn’t active yet. Ask the gym to activate it.",
         "gymSuspended": "This gym is temporarily unavailable."
+      },
+      "chooseGym": {
+        "title": "Which gym are you signing in to?",
+        "hint": "This email and password work at more than one gym. Pick one to continue.",
+        "back": "Use a different account"
       }
     },
     "register": {
