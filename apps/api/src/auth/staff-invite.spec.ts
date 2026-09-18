@@ -97,15 +97,15 @@ function setup(opts?: {
   };
 
   const prisma = { client } as unknown as PrismaService;
+  const set = vi.fn(() => Promise.resolve('OK'));
   const redis = {
-    client: { set: vi.fn(() => Promise.resolve('OK')), get: vi.fn(), del: vi.fn() },
+    client: { set, get: vi.fn(), del: vi.fn() },
   } as unknown as RedisService;
   const tokens = {
     issueTokenPair: vi.fn(() => Promise.resolve({ accessToken: 'a', refreshToken: 'r' })),
   } as unknown as TokenService;
-  const email = {
-    sendVerificationEmail: vi.fn(() => Promise.resolve()),
-  } as unknown as EmailService;
+  const sendVerificationEmail = vi.fn(() => Promise.resolve());
+  const email = { sendVerificationEmail } as unknown as EmailService;
   const google = {} as unknown as GoogleOAuthService;
   const apple = {} as unknown as AppleOAuthService;
 
@@ -121,8 +121,8 @@ function setup(opts?: {
     credentialFindFirst,
     credentialCreate,
     credentialUpdate,
-    sendVerificationEmail: email.sendVerificationEmail as ReturnType<typeof vi.fn>,
-    set: redis.client.set as ReturnType<typeof vi.fn>,
+    sendVerificationEmail,
+    set,
   };
 }
 
@@ -163,7 +163,11 @@ describe('AuthService — staff invites (T4.7)', () => {
     });
 
     it('routes an address known only from another gym to register — it has no password here yet', async () => {
-      const { service } = setup({ invite: liveInvite(), userExists: true, credentialExists: false });
+      const { service } = setup({
+        invite: liveInvite(),
+        userExists: true,
+        credentialExists: false,
+      });
       const { url } = await service.acceptInvite('tok-123');
       expect(url).toBe('https://app.example.com/member/register?inviteToken=tok-123');
     });

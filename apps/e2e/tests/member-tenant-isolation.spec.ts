@@ -208,10 +208,21 @@ test.describe('Tenant isolation across gym subdomains', () => {
     test('a refresh keeps a riverside session on riverside, not the primary gym', async ({
       request,
     }) => {
-      // Precondition: downtown really is the primary gym, so a session that
-      // drifted there on refresh would be visible below.
-      const unbound = await apiLogin(request);
-      expect(jwtClaims(unbound.accessToken).gymSlug).toBe('downtown');
+      // Precondition: the account really does belong to both gyms with the same
+      // password (per-gym credentials, T1.25): a sign-in naming no gym is asked
+      // which one rather than dropped on the primary gym — so a session that
+      // drifted on refresh could only be a bug in the refresh path below.
+      const unbound = await request.post(`${API_URL}/auth/login`, {
+        data: { email: member.email, password: member.password },
+      });
+      expect(unbound.status(), await unbound.text()).toBe(409);
+      const selection = (await unbound.json()) as {
+        code: string;
+        data: { gyms: { slug: string }[] };
+      };
+      expect(selection.code).toBe('GYM_SELECTION_REQUIRED');
+      expect(selection.data.gyms.map((g) => g.slug).sort()).toEqual(['downtown', 'riverside']);
+      expect(jwtClaims((await apiLogin(request, 'downtown')).accessToken).gymSlug).toBe('downtown');
 
       await signIn(page, RIVERSIDE);
       const before = {
