@@ -10,7 +10,8 @@ vi.mock('./env', () => ({
   env: { NEXT_PUBLIC_ROOT_DOMAIN: 'formacore.io', NEXT_PUBLIC_API_URL: 'https://api.test' },
 }));
 
-const { getActiveGymBrand, getActiveGymPresence } = await import('./active-gym');
+const { getActiveGymBrand, getActiveGymPortalSkin, getActiveGymPresence } =
+  await import('./active-gym');
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -51,6 +52,55 @@ describe('getActiveGymPresence', () => {
     host.value = 'app.formacore.io';
     await expect(getActiveGymPresence()).resolves.toBe('none');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('the tenant lookup', () => {
+  it('is never served from the data cache, so a saved setting lands on the next visit', async () => {
+    // `next: { revalidate: 300 }` kept a gym's old portal colour on its own
+    // sign-in screen for up to five minutes after the console said "saved".
+    fetchMock.mockResolvedValue(new Response('{"gymId":"g1"}', { status: 200 }));
+    await getActiveGymPresence();
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit & { next?: unknown };
+    expect(init.cache).toBe('no-store');
+    expect(init.next).toBeUndefined();
+  });
+});
+
+describe('getActiveGymPortalSkin', () => {
+  const gym = (portal: Record<string, unknown>) =>
+    new Response(
+      JSON.stringify({
+        gymId: 'g1',
+        name: 'Downtown Strength',
+        brand: {
+          name: 'Downtown Strength',
+          logoUrl: null,
+          primaryColor: '#111111',
+          secondaryColor: '#222222',
+        },
+        portal: { loginImageUrl: null, logoUrl: null, ...portal },
+      }),
+      { status: 200 },
+    );
+
+  it('carries the colour the gym chose, even when it equals the brand colour', async () => {
+    // The console's "customise" seeds the field with the brand colour; a gym
+    // that saved it there has chosen, and the lookup now says so outright.
+    fetchMock.mockResolvedValue(gym({ primaryColor: '#111111', chosenPrimaryColor: '#111111' }));
+    await expect(getActiveGymPortalSkin()).resolves.toMatchObject({ primaryColor: '#111111' });
+  });
+
+  it('carries nothing when the lookup says the brand is standing in', async () => {
+    fetchMock.mockResolvedValue(gym({ primaryColor: '#111111', chosenPrimaryColor: null }));
+    await expect(getActiveGymPortalSkin()).resolves.toMatchObject({ primaryColor: null });
+  });
+
+  it('falls back to comparing against the brand for an API that predates the field', async () => {
+    fetchMock.mockResolvedValue(gym({ primaryColor: '#ff5500' }));
+    await expect(getActiveGymPortalSkin()).resolves.toMatchObject({ primaryColor: '#ff5500' });
+    fetchMock.mockResolvedValue(gym({ primaryColor: '#111111' }));
+    await expect(getActiveGymPortalSkin()).resolves.toMatchObject({ primaryColor: null });
   });
 });
 
