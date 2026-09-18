@@ -364,10 +364,19 @@ export class TokenService {
    * devices. Used when an event invalidates all existing sessions at once — a
    * password reset, where any session an attacker may hold must be cut along
    * with the user's own. Idempotent: a user with no live tokens is a no-op.
+   *
+   * With `gymId` (a per-gym password change, T1.25) only the sessions pinned to
+   * that gym go — a Downtown reset must not sign the person out of Riverside —
+   * plus any token with no pin at all, which predates pinning and could be a
+   * session on any gym: revoking too much is safe, revoking too little is not.
    */
-  async revokeAllForUser(userId: string): Promise<void> {
+  async revokeAllForUser(userId: string, gymId?: string | null): Promise<void> {
     await this.prisma.client.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
+      where: {
+        userId,
+        revokedAt: null,
+        ...(gymId ? { OR: [{ gymId }, { gymId: null }] } : {}),
+      },
       data: { revokedAt: new Date() },
     });
   }

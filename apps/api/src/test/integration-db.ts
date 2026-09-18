@@ -35,7 +35,7 @@ export function asTenant<T>(state: TenantState, query: () => Promise<T>): Promis
  */
 export async function resetDb(): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "audit_logs", "refresh_tokens", "gym_members", "gyms", "users" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "audit_logs", "refresh_tokens", "gym_credentials", "gym_members", "gyms", "users" RESTART IDENTITY CASCADE',
   );
 }
 

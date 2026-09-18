@@ -201,8 +201,14 @@ function setup(overrides?: {
     Promise.resolve(overrides?.location === undefined ? { id: 'loc-default' } : overrides.location),
   );
 
+  // The per-gym name/phone (T1.25) written alongside the shared `User` fields.
+  const credentialUpdateMany = vi.fn<(args: WhereArgs) => Promise<{ count: number }>>(() =>
+    Promise.resolve({ count: 1 }),
+  );
+
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
+    gymCredential: { updateMany: credentialUpdateMany },
     gym: { findFirst: gymFindFirst },
     location: { findFirst: locationFindFirst },
     gymMember: {
@@ -283,6 +289,7 @@ function setup(overrides?: {
     gymMemberGroupBy,
     gymMemberCreate,
     gymMemberUpdate,
+    credentialUpdateMany,
     userFindUnique,
     userCreate,
     userUpdate,
@@ -673,13 +680,20 @@ describe('MembersService', () => {
 
   describe('updateMember', () => {
     it('updates the member’s user name + phone and returns the detail', async () => {
-      const { service, findFirst, userUpdate } = setup({ findFirst: row() });
+      const { service, findFirst, userUpdate, credentialUpdateMany } = setup({
+        findFirst: row(),
+      });
 
       const result = await service.updateMember('gm-1', { name: 'Renamed', phone: '777' });
 
       expect(findFirst.mock.calls[0]?.[0]?.where).toMatchObject({ id: 'gm-1', role: Role.MEMBER });
       expect(userUpdate.mock.calls[0]?.[0]).toMatchObject({
         where: { id: 'u-1' },
+        data: { name: 'Renamed', phone: '777' },
+      });
+      // …and THIS gym's credential, the per-gym record (T1.25) — never another gym's.
+      expect(credentialUpdateMany.mock.calls[0]?.[0]).toMatchObject({
+        where: { userId: 'u-1', gymId: 'gym-1' },
         data: { name: 'Renamed', phone: '777' },
       });
       expect(result.id).toBe('gm-1');

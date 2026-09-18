@@ -173,20 +173,29 @@ export class AuthController {
     return this.auth.acceptInvite(token);
   }
 
-  /** `POST /auth/login` — authenticate an email/password pair and issue a session. */
+  /**
+   * `POST /auth/login` — authenticate an email/password pair and issue a session.
+   *
+   * The gym whose password is checked is the body's `gymSlug`, else the tenant
+   * host the call names (read the same way as on `POST /auth/refresh`). With
+   * neither, the password is tried against every gym the address belongs to; a
+   * password that opens several answers `409 GYM_SELECTION_REQUIRED` with the
+   * list, and the client signs in again naming one.
+   */
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() body: unknown): Promise<TokenPair> {
+  async login(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
     const input = parse(loginSchema, body);
-    return this.auth.login(input);
+    return this.auth.login(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
   /**
    * `POST /auth/forgot-password` — mint a reset token and email the reset link.
    *
-   * The tenant host the call names is read the same way as on `POST /auth/refresh`;
-   * the service addresses the link at that gym's own site when the account
-   * belongs to it.
+   * The gym is the body's `gymSlug` (the mobile app's remembered gym), else the
+   * tenant host the call names, read the same way as on `POST /auth/refresh`; the
+   * service mints the token for that gym's credential and addresses the link at
+   * its site.
    */
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)

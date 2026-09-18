@@ -252,7 +252,19 @@ describe('AuthController', () => {
       const result = await ctx.controller.login({ email: 'A@B.com', password: 'supersecret' });
 
       expect(result).toEqual({ accessToken: 'a', refreshToken: 'r' });
-      expect(ctx.login).toHaveBeenCalledWith({ email: 'a@b.com', password: 'supersecret' });
+      expect(ctx.login).toHaveBeenCalledWith({ email: 'a@b.com', password: 'supersecret' }, null);
+    });
+
+    it('passes the tenant slug named by x-tenant-host through, so the host picks the password', async () => {
+      await ctx.controller.login(
+        { email: 'a@b.com', password: 'supersecret' },
+        { 'x-tenant-host': `downtown.${env.PLATFORM_ROOT_DOMAIN}` },
+      );
+
+      expect(ctx.login).toHaveBeenCalledWith(
+        { email: 'a@b.com', password: 'supersecret' },
+        'downtown',
+      );
     });
 
     it('rejects a malformed body with a 400', async () => {

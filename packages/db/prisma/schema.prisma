@@ -438,6 +438,7 @@ model Gym {
   productCategories       ProductCategory[]
   packagePlans            PackagePlan[]
   staffInvites            StaffInvite[]
+  credentials             GymCredential[]
   classTemplates          ClassTemplate[]
   classTypes              ClassType[]
   classInstances          ClassInstance[]
@@ -515,6 +516,7 @@ model User {
   updatedAt       DateTime  @updatedAt
 
   memberships             GymMember[]
+  credentials             GymCredential[]
   refreshTokens           RefreshToken[]
   pushTokens              PushToken[]
   carts                   Cart[]
@@ -528,6 +530,49 @@ model User {
   agentChatSessions       AgentChatSession[]
 
   @@map("users")
+}
+
+/// What one person uses to sign in to ONE gym (T1.25, per-gym credentials).
+///
+/// `User` is the cross-gym identity — the email, the OAuth subject ids, the push
+/// tokens. Everything a member proves at a gym's door lives here instead, one row
+/// per `(user, gym)`: the password for that gym, whether the address was verified
+/// **for that gym**, and the name / phone the gym knows them by. So one email can
+/// belong to several gyms with a different password in each, a reset on one gym
+/// leaves the others untouched, and a staff edit of a name at one gym changes
+/// nothing at another.
+///
+/// Nullable `passwordHash`: a social-only member, an owner provisioned by the
+/// operator console before they activate, and a member invited but not yet
+/// through the door all hold a row with no password yet. `emailVerifiedAt` is
+/// per-gym because the verification mail is sent by, and lands on, one gym.
+///
+/// Backfilled from `users` for every existing membership when the table was
+/// introduced (`20260917120000_gym_credentials`). `User.passwordHash` /
+/// `emailVerifiedAt` / `name` / `phone` are still written for a brand-new
+/// account and still what a platform account (super-admin, a bare `/auth/register`
+/// user with no gym) signs in with; a later change retires them.
+///
+/// Listed in the tenant extension's scoped models: the auth flows run on the
+/// unscoped `PrismaService` (they precede any tenant), and every other reader is
+/// a gym-scoped handler that must not see another tenant's rows.
+model GymCredential {
+  id              String    @id @default(cuid())
+  userId          String
+  gymId           String
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  name            String?
+  phone           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym  Gym  @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gymId])
+  @@index([gymId])
+  @@map("gym_credentials")
 }
 
 /// A registered device for Expo push delivery (T6.10). One row per

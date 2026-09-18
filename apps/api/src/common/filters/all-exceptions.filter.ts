@@ -18,6 +18,12 @@ export interface ErrorResponseBody {
    * when the error carries no extra detail.
    */
   details: string[] | null;
+  /**
+   * Structured, code-specific payload a handler chose to send alongside the
+   * error — e.g. the gyms a `GYM_SELECTION_REQUIRED` sign-in may continue on.
+   * Present only when the handler stamped a `data` object on its exception.
+   */
+  data?: Record<string, unknown>;
   /** Correlates the response with server logs (from `x-request-id`). */
   requestId?: string;
   /**
@@ -72,7 +78,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<RequestWithId>();
 
-    const { status, code, message, details } = this.describe(exception);
+    const { status, code, message, details, data } = this.describe(exception);
 
     let sentryEventId: string | undefined;
     if (status >= SERVER_ERROR_THRESHOLD) {
@@ -92,6 +98,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       code,
       message,
       details,
+      ...(data ? { data } : {}),
       requestId: request.id,
       ...(sentryEventId ? { sentryEventId } : {}),
     };
@@ -99,12 +106,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     response.status(status).json(body);
   }
 
-  /** Map an arbitrary thrown value onto a status, code, message, and details. */
+  /** Map an arbitrary thrown value onto a status, code, message, details and data. */
   private describe(exception: unknown): {
     status: number;
     code: string;
     message: string;
     details: string[] | null;
+    data?: Record<string, unknown>;
   } {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
@@ -121,6 +129,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message?: unknown;
         code?: unknown;
         details?: unknown;
+        data?: unknown;
       };
       // A handler may stamp a stable, domain-specific `code` (e.g. `EMAIL_TAKEN`)
       // onto the exception body; honour it so the wire contract isn't limited to
@@ -136,11 +145,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // specifics behind a domain code, e.g. *why* a promo code was refused.
       // Without this they were silently dropped, leaving a client able to see
       // that something failed but never able to say what to do about it.
+      // And, for the few codes whose specifics are not a list of strings (the
+      // gyms a `GYM_SELECTION_REQUIRED` sign-in may continue on), a `data` object
+      // forwarded as-is. Only a plain object qualifies; anything else is dropped.
+      const data =
+        typeof record.data === 'object' && record.data !== null && !Array.isArray(record.data)
+          ? (record.data as Record<string, unknown>)
+          : undefined;
       return {
         status,
         code,
         message: typeof record.message === 'string' ? record.message : exception.message,
         details: this.asStringArray(record.details),
+        ...(data ? { data } : {}),
       };
     }
 

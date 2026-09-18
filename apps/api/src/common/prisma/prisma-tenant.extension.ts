@@ -99,6 +99,12 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
  */
 export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'GymMember',
+  // What a person signs in to ONE gym with (T1.25): that gym's password,
+  // verification stamp, name and phone. The auth flows that create and check
+  // these run on the unscoped `PrismaService` before any tenant is in scope,
+  // exactly like `registerGym` always has; listed for the gym-scoped handlers
+  // (the members console's name/phone edit) that write them from inside a request.
+  'GymCredential',
   // The member's own record and the staff-authored detail hanging off it. The
   // goals are the member's to edit from the portal; the notes and tasks are the
   // gym's about them. All three are keyed on `memberId` by their callers, which
