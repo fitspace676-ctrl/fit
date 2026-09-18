@@ -97,14 +97,18 @@ function setup(opts?: {
   };
 
   const prisma = { client } as unknown as PrismaService;
-  const set = vi.fn(() => Promise.resolve('OK'));
+  const set = vi.fn<(key: string, value: string, ex: string, ttl: number) => Promise<string>>(() =>
+    Promise.resolve('OK'),
+  );
   const redis = {
     client: { set, get: vi.fn(), del: vi.fn() },
   } as unknown as RedisService;
   const tokens = {
     issueTokenPair: vi.fn(() => Promise.resolve({ accessToken: 'a', refreshToken: 'r' })),
   } as unknown as TokenService;
-  const sendVerificationEmail = vi.fn(() => Promise.resolve());
+  const sendVerificationEmail = vi.fn<(...args: unknown[]) => Promise<void>>(() =>
+    Promise.resolve(),
+  );
   const email = { sendVerificationEmail } as unknown as EmailService;
   const google = {} as unknown as GoogleOAuthService;
   const apple = {} as unknown as AppleOAuthService;
