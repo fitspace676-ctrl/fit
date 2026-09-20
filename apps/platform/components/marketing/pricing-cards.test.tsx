@@ -29,6 +29,25 @@ describe('PricingCards', () => {
     expect(screen.getAllByRole('link', { name: /Start free trial/ })).toHaveLength(tiers.length);
   });
 
+  it('closes every card with its buttons, under the feature list', () => {
+    render(<PricingCards />);
+
+    for (const tier of tiers) {
+      // The h2 is a direct child of the card body, so its parent is the card.
+      const card = screen.getByRole('heading', { name: tier.name }).parentElement!;
+      const features = within(card).getByRole('list');
+      const footer = card.lastElementChild!;
+
+      expect(footer).toContainElement(within(card).getByRole('link', { name: /Start free trial/ }));
+      expect(footer).toContainElement(
+        within(card).getByRole('button', { name: 'Request pricing' }),
+      );
+      expect(features.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }
+  });
+
   it('prints no figure, currency or billing period', () => {
     // The flag is the product decision under test; if it is flipped back on the
     // prices are meant to return, so assert the state this suite describes.
