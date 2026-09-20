@@ -12,7 +12,7 @@ import { BUILT_FOR } from '@/data/built-for';
 import { PricingCards } from './pricing-cards';
 import { cn } from '@/lib/utils';
 import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
-import { DemoModal, RequestPricingModal, TrialModal } from './lead-modals';
+import { DemoModal, TrialModal } from './lead-modals';
 import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -23,10 +23,9 @@ import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing
 
    Faithful port of the "Marketing / platform" design. Shared chrome (nav,
    footer, buttons, icon set) lives in `./marketing-ui`. Every signup CTA
-   funnels into the owner-signup flow (`/register-gym`); "Book a demo" and
-   "Request pricing" open lead forms that post to `/api/leads`. The pricing
-   band shows the plan grid or the request CTA depending on
-   `@/lib/pricing-visibility`.
+   funnels into the owner-signup flow (`/register-gym`); "Book a demo" opens a
+   lead form that posts to `/api/leads`. The pricing band always shows the plan
+   grid — whether the figures on it are printed is `@/lib/pricing-visibility`.
    ──────────────────────────────────────────────────────────────────────── */
 
 /* ---- module mock screens ---- */
@@ -136,7 +135,7 @@ export default function PlatformLanding() {
   const [showcaseIn, setShowcaseIn] = useState(false);
   useEffect(() => setShowcaseIn(true), []);
   // Which CTA form modal is open (null = none).
-  const [modal, setModal] = useState<null | 'trial' | 'demo' | 'pricing'>(null);
+  const [modal, setModal] = useState<null | 'trial' | 'demo'>(null);
 
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
@@ -357,42 +356,29 @@ export default function PlatformLanding() {
         </div>
       </section>
 
-      {/* pricing — the three plans when prices are published; otherwise the same
-          band, with the price grid swapped for a request form (see
-          `@/lib/pricing-visibility`). */}
+      {/* pricing — the three plans, shared with the /pricing page. The figures
+          themselves only print while prices are published (see
+          `@/lib/pricing-visibility`); the cards are the same either way. */}
       <section
         id="pricing"
         className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-8"
       >
         <div className="mb-10 max-w-2xl">
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
-            {SHOW_PUBLIC_PRICING ? 'One platform. One simple price.' : 'One platform. One price.'}
+            {SHOW_PUBLIC_PRICING ? 'One platform. One simple price.' : 'One platform. Three plans.'}
           </h2>
           <p className="mt-4 text-lg text-muted leading-relaxed">
             {SHOW_PUBLIC_PRICING
               ? 'Every plan is the full platform - pick the tier that fits where your business is today.'
-              : "Every plan is the full platform. Tell us where your business is today and we'll send you a quote that fits it."}
+              : "Every plan is the full platform - pick the tier that fits where your business is today, and we'll send you a quote for it."}
           </p>
         </div>
-        {SHOW_PUBLIC_PRICING ? (
-          <>
-            <PricingCards />
-            <div className="mt-10 flex justify-center">
-              <Btn v="glass" size="md" icon={I.arrow} href="/pricing">
-                See full pricing & comparison
-              </Btn>
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('pricing')}>
-              Request pricing
-            </Btn>
-            <Btn v="glass" size="lg" onClick={() => setModal('demo')}>
-              Book a demo
-            </Btn>
-          </div>
-        )}
+        <PricingCards />
+        <div className="mt-10 flex justify-center">
+          <Btn v="glass" size="md" icon={I.arrow} href="/pricing">
+            {SHOW_PUBLIC_PRICING ? 'See full pricing & comparison' : 'Compare all plans'}
+          </Btn>
+        </div>
       </section>
 
       {/* built for — audience-specific value props in animated stacked tabs */}
@@ -450,24 +436,13 @@ export default function PlatformLanding() {
                   >
                     Book a free demo
                   </button>
-                  {SHOW_PUBLIC_PRICING ? (
-                    <Link
-                      href="/pricing"
-                      className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
-                    >
-                      See pricing
-                      <Icon d={I.arrow} c="h-4 w-4" />
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setModal('pricing')}
-                      className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
-                    >
-                      Request pricing
-                      <Icon d={I.arrow} c="h-4 w-4" />
-                    </button>
-                  )}
+                  <Link
+                    href="/pricing"
+                    className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
+                  >
+                    {SHOW_PUBLIC_PRICING ? 'See pricing' : 'See plans'}
+                    <Icon d={I.arrow} c="h-4 w-4" />
+                  </Link>
                 </div>
 
                 {/* stats strip */}
@@ -651,10 +626,10 @@ export default function PlatformLanding() {
 
       <MarketingFooter />
 
-      {/* CTA form modals — opened by the trial / demo / pricing buttons throughout. */}
+      {/* CTA form modals — opened by the trial / demo buttons throughout. The
+          pricing-request form is carried by the plan cards themselves. */}
       <TrialModal open={modal === 'trial'} onClose={() => setModal(null)} />
       <DemoModal open={modal === 'demo'} onClose={() => setModal(null)} />
-      <RequestPricingModal open={modal === 'pricing'} onClose={() => setModal(null)} />
     </div>
   );
 }

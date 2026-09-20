@@ -74,24 +74,13 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
               >
                 Book a free demo
               </button>
-              {SHOW_PUBLIC_PRICING ? (
-                <Link
-                  href="/pricing"
-                  className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
-                >
-                  See pricing
-                  <Icon d={I.arrow} c="h-4 w-4" />
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setModal('pricing')}
-                  className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
-                >
-                  Request pricing
-                  <Icon d={I.arrow} c="h-4 w-4" />
-                </button>
-              )}
+              <Link
+                href="/pricing"
+                className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
+              >
+                {SHOW_PUBLIC_PRICING ? 'See pricing' : 'See plans'}
+                <Icon d={I.arrow} c="h-4 w-4" />
+              </Link>
             </div>
 
             {/* stats strip */}
