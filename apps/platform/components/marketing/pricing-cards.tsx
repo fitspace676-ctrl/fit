@@ -153,24 +153,7 @@ export const PricingCards = () => {
                 billed monthly · cancel any time
               </p>
 
-              <div className="mt-6 space-y-2.5">
-                <Btn
-                  v={tier.ctaVariant}
-                  size="md"
-                  full
-                  icon={I.arrow}
-                  href={tier.ctaHref ?? SIGNUP_HREF}
-                >
-                  {tier.cta}
-                </Btn>
-                {!SHOW_PUBLIC_PRICING && (
-                  <Btn v="glass" size="md" full onClick={() => setRequesting(true)}>
-                    Request pricing
-                  </Btn>
-                )}
-              </div>
-
-              <ul className="mt-6 space-y-3 border-t border-overlay/10 pt-6">
+              <ul className="mt-6 grow space-y-3 border-t border-overlay/10 pt-6">
                 {tier.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm">
                     <span
@@ -186,20 +169,39 @@ export const PricingCards = () => {
                   </li>
                 ))}
               </ul>
+
+              {/* The buttons close every card. `grow` on the list above absorbs
+                  the slack, so they line up across tiers of different lengths. */}
+              <div className="mt-6 space-y-2.5 border-t border-overlay/10 pt-6">
+                <Btn
+                  v={tier.ctaVariant}
+                  size="md"
+                  full
+                  icon={I.arrow}
+                  href={tier.ctaHref ?? SIGNUP_HREF}
+                >
+                  {tier.cta}
+                </Btn>
+                {!SHOW_PUBLIC_PRICING && (
+                  <Btn v="glass" size="md" full onClick={() => setRequesting(true)}>
+                    Request pricing
+                  </Btn>
+                )}
+              </div>
             </div>
           );
 
           return tier.highlight ? (
             <GradientBorder
               key={tier.id}
-              className="h-full w-[82%] shrink-0 snap-start rounded-[1.5rem] shadow-[0_40px_100px_-40px_rgba(124,58,237,0.6)] sm:w-[60%] lg:w-auto lg:-translate-y-3"
+              className="w-[82%] shrink-0 self-stretch snap-start rounded-[1.5rem] shadow-[0_40px_100px_-40px_rgba(124,58,237,0.6)] sm:w-[60%] lg:w-auto lg:-translate-y-3"
             >
               {body}
             </GradientBorder>
           ) : (
             <div
               key={tier.id}
-              className="relative h-full w-[82%] shrink-0 snap-start overflow-hidden rounded-[1.5rem] ring-1 ring-inset ring-overlay/10 transition hover:ring-overlay/20 shadow-[0_18px_60px_-28px_rgba(16,18,33,0.45)] sm:w-[60%] lg:w-auto"
+              className="relative w-[82%] shrink-0 self-stretch snap-start overflow-hidden rounded-[1.5rem] ring-1 ring-inset ring-overlay/10 transition hover:ring-overlay/20 shadow-[0_18px_60px_-28px_rgba(16,18,33,0.45)] sm:w-[60%] lg:w-auto"
             >
               {body}
             </div>
