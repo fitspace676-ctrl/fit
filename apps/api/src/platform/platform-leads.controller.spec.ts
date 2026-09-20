@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import type { CreatePlatformLeadInput } from '@fit/types';
+import {
+  RATE_LIMIT_KEY,
+  RATE_LIMITS,
+  type RateLimitOptions,
+} from '../common/rate-limit/rate-limit.decorator';
 import { PlatformLeadsController } from './platform-leads.controller';
 import type { PlatformLeadsService } from './platform-leads.service';
 
@@ -39,6 +45,26 @@ describe('PlatformLeadsController.create', () => {
     expect(parsed.message).toBeUndefined();
   });
 
+  it('accepts a pricing request carrying only a name and email', async () => {
+    const { controller, create } = setup();
+
+    await controller.create({ type: 'pricing', name: 'Giorgi', email: 'giorgi@gym.ge' });
+
+    const parsed = create.mock.calls[0]![0] as CreatePlatformLeadInput;
+    expect(parsed.type).toBe('pricing');
+    expect(parsed.business).toBeUndefined();
+    expect(parsed.phone).toBeUndefined();
+  });
+
+  it('rejects a pricing request with no email', async () => {
+    const { controller, create } = setup();
+
+    await expect(controller.create({ type: 'pricing', name: 'Giorgi' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('rejects a malformed body with a 400 and never calls the service', async () => {
     const { controller, create } = setup();
 
@@ -53,5 +79,12 @@ describe('PlatformLeadsController.create', () => {
     await expect(
       controller.create({ type: 'partnership', name: 'X', email: 'x@gym.ge' }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('PlatformLeadsController rate limit', () => {
+  it('carries the shared leads policy, so the public write is throttled per IP', () => {
+    const policy = new Reflector().get<RateLimitOptions>(RATE_LIMIT_KEY, PlatformLeadsController);
+    expect(policy).toEqual(RATE_LIMITS.leads);
   });
 });

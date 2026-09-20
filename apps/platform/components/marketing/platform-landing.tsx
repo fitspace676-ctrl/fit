@@ -11,7 +11,8 @@ import { Marquee } from '@/registry/magicui/marquee';
 import { BUILT_FOR } from '@/data/built-for';
 import { PricingCards } from './pricing-cards';
 import { cn } from '@/lib/utils';
-import { DemoModal, TrialModal } from './lead-modals';
+import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
+import { DemoModal, RequestPricingModal, TrialModal } from './lead-modals';
 import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -22,8 +23,10 @@ import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing
 
    Faithful port of the "Marketing / platform" design. Shared chrome (nav,
    footer, buttons, icon set) lives in `./marketing-ui`. Every signup CTA
-   funnels into the owner-signup flow (`/register-gym`) and "Book a demo"
-   opens a mail draft; the "Pricing" nav routes to the dedicated /pricing page.
+   funnels into the owner-signup flow (`/register-gym`); "Book a demo" and
+   "Request pricing" open lead forms that post to `/api/leads`. The pricing
+   band shows the plan grid or the request CTA depending on
+   `@/lib/pricing-visibility`.
    ──────────────────────────────────────────────────────────────────────── */
 
 /* ---- module mock screens ---- */
@@ -133,7 +136,7 @@ export default function PlatformLanding() {
   const [showcaseIn, setShowcaseIn] = useState(false);
   useEffect(() => setShowcaseIn(true), []);
   // Which CTA form modal is open (null = none).
-  const [modal, setModal] = useState<null | 'trial' | 'demo'>(null);
+  const [modal, setModal] = useState<null | 'trial' | 'demo' | 'pricing'>(null);
 
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
@@ -354,22 +357,42 @@ export default function PlatformLanding() {
         </div>
       </section>
 
-      {/* pricing — the three plans, shared with the /pricing page */}
-      <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-8">
+      {/* pricing — the three plans when prices are published; otherwise the same
+          band, with the price grid swapped for a request form (see
+          `@/lib/pricing-visibility`). */}
+      <section
+        id="pricing"
+        className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-8"
+      >
         <div className="mb-10 max-w-2xl">
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
-            One platform. One simple price.
+            {SHOW_PUBLIC_PRICING ? 'One platform. One simple price.' : 'One platform. One price.'}
           </h2>
           <p className="mt-4 text-lg text-muted leading-relaxed">
-            Every plan is the full platform - pick the tier that fits where your business is today.
+            {SHOW_PUBLIC_PRICING
+              ? 'Every plan is the full platform - pick the tier that fits where your business is today.'
+              : "Every plan is the full platform. Tell us where your business is today and we'll send you a quote that fits it."}
           </p>
         </div>
-        <PricingCards />
-        <div className="mt-10 flex justify-center">
-          <Btn v="glass" size="md" icon={I.arrow} href="/pricing">
-            See full pricing & comparison
-          </Btn>
-        </div>
+        {SHOW_PUBLIC_PRICING ? (
+          <>
+            <PricingCards />
+            <div className="mt-10 flex justify-center">
+              <Btn v="glass" size="md" icon={I.arrow} href="/pricing">
+                See full pricing & comparison
+              </Btn>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('pricing')}>
+              Request pricing
+            </Btn>
+            <Btn v="glass" size="lg" onClick={() => setModal('demo')}>
+              Book a demo
+            </Btn>
+          </div>
+        )}
       </section>
 
       {/* built for — audience-specific value props in animated stacked tabs */}
@@ -427,13 +450,24 @@ export default function PlatformLanding() {
                   >
                     Book a free demo
                   </button>
-                  <Link
-                    href="/pricing"
-                    className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
-                  >
-                    See pricing
-                    <Icon d={I.arrow} c="h-4 w-4" />
-                  </Link>
+                  {SHOW_PUBLIC_PRICING ? (
+                    <Link
+                      href="/pricing"
+                      className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
+                    >
+                      See pricing
+                      <Icon d={I.arrow} c="h-4 w-4" />
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setModal('pricing')}
+                      className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
+                    >
+                      Request pricing
+                      <Icon d={I.arrow} c="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
 
                 {/* stats strip */}
@@ -617,9 +651,10 @@ export default function PlatformLanding() {
 
       <MarketingFooter />
 
-      {/* CTA form modals — opened by the trial / demo buttons throughout. */}
+      {/* CTA form modals — opened by the trial / demo / pricing buttons throughout. */}
       <TrialModal open={modal === 'trial'} onClose={() => setModal(null)} />
       <DemoModal open={modal === 'demo'} onClose={() => setModal(null)} />
+      <RequestPricingModal open={modal === 'pricing'} onClose={() => setModal(null)} />
     </div>
   );
 }

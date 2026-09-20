@@ -3,20 +3,21 @@ import { z } from 'zod';
 /**
  * Platform marketing lead capture (T8.2).
  *
- * The public marketing site's two lead forms — the free-trial signup and the
- * book-a-demo request — post to `POST /platform/leads`. This is the wire contract
- * shared between that Next.js client and the NestJS controller: the discriminating
- * `type`, the always-required contact fields, and the form-specific optionals
- * (`business` for a trial, `phone` / `message` for a demo).
+ * The public marketing site's lead forms — the free-trial signup, the book-a-demo
+ * request, and the pricing request that replaced the published price list — post to
+ * `POST /platform/leads`. This is the wire contract shared between that Next.js
+ * client and the NestJS controller: the discriminating `type`, the always-required
+ * contact fields, and the form-specific optionals (`business` for a trial,
+ * `phone` / `message` for a demo; the pricing form asks for name and email only).
  */
 
 /** The marketing form a lead came from. */
-export const PLATFORM_LEAD_TYPES = ['trial', 'demo'] as const;
+export const PLATFORM_LEAD_TYPES = ['trial', 'demo', 'pricing'] as const;
 
 /** Lead source — a member of {@link PLATFORM_LEAD_TYPES}. */
 export const platformLeadTypeSchema = z.enum(PLATFORM_LEAD_TYPES);
 
-/** The wire-level lead source (`'trial' | 'demo'`). */
+/** The wire-level lead source (`'trial' | 'demo' | 'pricing'`). */
 export type PlatformLeadType = z.infer<typeof platformLeadTypeSchema>;
 
 /**

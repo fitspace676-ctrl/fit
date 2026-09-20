@@ -5,7 +5,8 @@ import Link from 'next/link';
 import type { AudiencePage } from '@/data/built-for';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { cn } from '@/lib/utils';
-import { DemoModal, TrialModal } from './lead-modals';
+import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
+import { DemoModal, RequestPricingModal, TrialModal } from './lead-modals';
 import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -21,7 +22,7 @@ import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing
 
 export function BuiltForPage({ audience }: { audience: AudiencePage }) {
   // Which CTA form modal is open (null = none) — mirrors the landing page.
-  const [modal, setModal] = useState<null | 'trial' | 'demo'>(null);
+  const [modal, setModal] = useState<null | 'trial' | 'demo' | 'pricing'>(null);
 
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
@@ -73,13 +74,24 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
               >
                 Book a free demo
               </button>
-              <Link
-                href="/pricing"
-                className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
-              >
-                See pricing
-                <Icon d={I.arrow} c="h-4 w-4" />
-              </Link>
+              {SHOW_PUBLIC_PRICING ? (
+                <Link
+                  href="/pricing"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
+                >
+                  See pricing
+                  <Icon d={I.arrow} c="h-4 w-4" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setModal('pricing')}
+                  className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
+                >
+                  Request pricing
+                  <Icon d={I.arrow} c="h-4 w-4" />
+                </button>
+              )}
             </div>
 
             {/* stats strip */}
@@ -172,9 +184,15 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
                 <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('demo')}>
                   Book a free demo
                 </Btn>
-                <Btn v="glass" size="lg" href="/pricing">
-                  See all plans
-                </Btn>
+                {SHOW_PUBLIC_PRICING ? (
+                  <Btn v="glass" size="lg" href="/pricing">
+                    See all plans
+                  </Btn>
+                ) : (
+                  <Btn v="glass" size="lg" onClick={() => setModal('pricing')}>
+                    Request pricing
+                  </Btn>
+                )}
               </div>
             </div>
           </div>
@@ -183,9 +201,10 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
 
       <MarketingFooter />
 
-      {/* CTA form modals — opened by the demo buttons throughout. */}
+      {/* CTA form modals — opened by the demo / pricing buttons throughout. */}
       <TrialModal open={modal === 'trial'} onClose={() => setModal(null)} />
       <DemoModal open={modal === 'demo'} onClose={() => setModal(null)} />
+      <RequestPricingModal open={modal === 'pricing'} onClose={() => setModal(null)} />
     </div>
   );
 }

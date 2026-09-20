@@ -10,17 +10,20 @@ import { PrismaService } from '../prisma/prisma.service';
 const LEAD_TYPE_BY_WIRE: Record<CreatePlatformLeadInput['type'], PlatformLeadType> = {
   trial: PlatformLeadType.TRIAL,
   demo: PlatformLeadType.DEMO,
+  pricing: PlatformLeadType.PRICING,
 };
 
 /** Human label for each lead source, for the team-notification copy. */
 const LEAD_TYPE_LABEL: Record<PlatformLeadType, string> = {
   [PlatformLeadType.TRIAL]: 'Free-trial signup',
   [PlatformLeadType.DEMO]: 'Demo request',
+  [PlatformLeadType.PRICING]: 'Pricing request',
 };
 
 /**
- * Platform sales-lead capture (T8.2) — the backend the marketing site's trial /
- * demo forms post to, replacing their frontend-only placeholder submit.
+ * Platform sales-lead capture (T8.2) — the backend the marketing site's trial,
+ * demo and pricing-request forms post to, replacing their frontend-only
+ * placeholder submit.
  *
  * A lead belongs to no gym (the prospect has no tenant yet), so this runs on the
  * **unscoped** {@link PrismaService} and writes a tenant-less `PlatformLead`. The
@@ -53,13 +56,19 @@ export class PlatformLeadsService {
       select: { id: true },
     });
 
+    // One line per capture, so a submission can be confirmed from the deploy log
+    // without reading the table. Deliberately contact-free — the prospect's name
+    // and email live in the row and the notification, not in the log stream.
+    this.logger.log(`lead request captured: type=${type} id=${lead.id}`);
+
     await this.notifyTeam(input, type);
     return { id: lead.id };
   }
 
   /**
-   * Email the configured sales inbox about a new lead. No-op (logged) when no
-   * `PLATFORM_LEADS_EMAIL` is set or Resend is unconfigured; a Resend failure is
+   * Email the configured sales inbox about a new lead (`PLATFORM_LEADS_EMAIL`,
+   * which defaults to the sales address). No-op (logged) on the rare deploy that
+   * resolves no recipient at all, or when Resend is unconfigured; a Resend failure is
    * caught and logged — the lead is already persisted, so a notification hiccup
    * must not fail the public submission.
    */
