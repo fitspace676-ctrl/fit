@@ -10,6 +10,12 @@ import { validateEnv, z } from '@fit/env';
 export const env = validateEnv(
   z.object({
     NEXT_PUBLIC_API_URL: z.string().url().optional(),
+    // Server-side API base URL, used by the `/api/leads` route handler that
+    // forwards the marketing forms to the backend. Separate from the public one
+    // because that has to be present at *build* time to be inlined into the
+    // bundle, while this is read per request — so the lead forms keep working on
+    // a deploy that only ever set a server variable.
+    API_URL: z.string().url().optional(),
     // Platform root domain (`fit.ge`, or `localhost` in dev). Used to build the
     // tenant admin URL a new owner is redirected to after signup.
     NEXT_PUBLIC_ROOT_DOMAIN: z.string().optional(),

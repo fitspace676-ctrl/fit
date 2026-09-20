@@ -2979,6 +2979,9 @@ model InvoiceSequence {
 enum PlatformLeadType {
   TRIAL
   DEMO
+  /// A pricing request from the marketing site — the plan prices are no longer
+  /// published, so the "Request pricing" form captures name + email instead.
+  PRICING
 }
 
 /// An inbound sales lead captured from the platform marketing site's trial/demo

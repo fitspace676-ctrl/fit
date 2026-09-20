@@ -175,9 +175,16 @@ export const envSchema = z.object({
   // `From` address for transactional mail. Must be a verified Resend sender.
   EMAIL_FROM: z.string().default('FormaCore <no-reply@fit.app>'),
   // Destination inbox for platform sales-lead notifications (the marketing site's
-  // trial/demo forms, T8.2). Unset → the best-effort team notification is skipped;
-  // leads are still persisted either way, so none are lost.
-  PLATFORM_LEADS_EMAIL: z.string().email().optional(),
+  // trial / demo / pricing-request forms, T8.2). Defaults to the sales inbox so a
+  // deploy that never set it still delivers; blank is treated as unset rather than
+  // failing boot, while a malformed address still fails fast. A lead is persisted
+  // before the notification either way, so none are lost if delivery misfires.
+  PLATFORM_LEADS_EMAIL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : 'info@formacore.io'))
+    .pipe(z.string().email()),
 
   // ── Push delivery (Expo — optional) ──
   // Master switch for outbound Expo push (T8.3). Off by default so no real device

@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
-import type { CreatePlatformLeadInput } from '@fit/types';
 import { AnimatedModal } from '@/components/ui/animated-modal';
-import { submitLead } from '@/lib/leads';
+import { submitLead, type SubmitLeadInput } from '@/lib/leads';
 import { Btn } from './marketing-ui';
 
 const inputCls =
@@ -31,14 +30,26 @@ function field(form: HTMLFormElement, name: string): string | undefined {
 }
 
 /**
- * Shared submit hook for the two lead forms: posts the assembled lead to the API
- * (`POST /platform/leads`), tracking submitting / error / done state so the form
- * can disable the button, surface a validation error, and swap to a thank-you view.
+ * A spam trap: an input no sighted or assistive-tech user ever reaches, which an
+ * automated form-filler happily completes. A filled `website` makes the route
+ * handler drop the submission without telling the bot why.
  */
-function useLeadSubmit(
-  build: (form: HTMLFormElement) => CreatePlatformLeadInput,
-  onClose: () => void,
-) {
+const Honeypot = () => (
+  <div aria-hidden className="hidden">
+    <label>
+      Website
+      <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+    </label>
+  </div>
+);
+
+/**
+ * Shared submit hook for the lead forms: posts the assembled lead to the site's
+ * own `POST /api/leads` route (which forwards it to the backend), tracking
+ * submitting / error / done state so the form can disable the button, surface a
+ * validation error, and swap to a thank-you view.
+ */
+function useLeadSubmit(build: (form: HTMLFormElement) => SubmitLeadInput, onClose: () => void) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'done'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +105,7 @@ export const TrialModal = ({ open, onClose }: LeadModalProps) => {
       name: field(form, 'name') ?? '',
       email: field(form, 'email') ?? '',
       business: field(form, 'business'),
+      website: field(form, 'website'),
     }),
     onClose,
   );
@@ -139,12 +151,13 @@ export const TrialModal = ({ open, onClose }: LeadModalProps) => {
               required
             />
           </Field>
+          <Honeypot />
           <ErrorNote message={error} />
           <div className="flex justify-end gap-2 pt-2">
             <Btn v="glass" size="md" onClick={close}>
               Cancel
             </Btn>
-            <Btn v="primary" size="md" type="submit">
+            <Btn v="primary" size="md" type="submit" disabled={status === 'submitting'}>
               {status === 'submitting' ? 'Starting…' : 'Start free trial'}
             </Btn>
           </div>
@@ -163,6 +176,7 @@ export const DemoModal = ({ open, onClose }: LeadModalProps) => {
       email: field(form, 'email') ?? '',
       phone: field(form, 'phone'),
       message: field(form, 'message'),
+      website: field(form, 'website'),
     }),
     onClose,
   );
@@ -210,13 +224,79 @@ export const DemoModal = ({ open, onClose }: LeadModalProps) => {
               placeholder="Bookings, payments, member app…"
             />
           </Field>
+          <Honeypot />
           <ErrorNote message={error} />
           <div className="flex justify-end gap-2 pt-2">
             <Btn v="glass" size="md" onClick={close}>
               Cancel
             </Btn>
-            <Btn v="primary" size="md" type="submit">
+            <Btn v="primary" size="md" type="submit" disabled={status === 'submitting'}>
               {status === 'submitting' ? 'Sending…' : 'Request demo'}
+            </Btn>
+          </div>
+        </form>
+      )}
+    </AnimatedModal>
+  );
+};
+
+/**
+ * Pricing-request form — the plan prices are no longer published, so every
+ * "Request pricing" button on the marketing site opens this instead of routing
+ * to a price list. Deliberately the shortest form of the three: a name and an
+ * email is all we need to send a quote back.
+ */
+export const RequestPricingModal = ({ open, onClose }: LeadModalProps) => {
+  const { status, error, submit, close } = useLeadSubmit(
+    (form) => ({
+      type: 'pricing',
+      name: field(form, 'name') ?? '',
+      email: field(form, 'email') ?? '',
+      website: field(form, 'website'),
+    }),
+    onClose,
+  );
+
+  return (
+    <AnimatedModal
+      open={open}
+      onClose={close}
+      title="Request pricing"
+      description="Leave your name and email and we'll send you a quote for your business."
+    >
+      {status === 'done' ? (
+        <ThankYou
+          message="Thanks — we've got your request and will get back to you shortly with pricing."
+          onClose={close}
+        />
+      ) : (
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Full name">
+            <input
+              className={inputCls}
+              type="text"
+              name="name"
+              placeholder="David Iobashvili"
+              required
+            />
+          </Field>
+          <Field label="Work email">
+            <input
+              className={inputCls}
+              type="email"
+              name="email"
+              placeholder="you@yourgym.com"
+              required
+            />
+          </Field>
+          <Honeypot />
+          <ErrorNote message={error} />
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn v="glass" size="md" onClick={close}>
+              Cancel
+            </Btn>
+            <Btn v="primary" size="md" type="submit" disabled={status === 'submitting'}>
+              {status === 'submitting' ? 'Sending…' : 'Request pricing'}
             </Btn>
           </div>
         </form>

@@ -5,6 +5,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 're
 import Link from 'next/link';
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
 import { BUILT_FOR } from '@/data/built-for';
+import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
 import { I, Icon } from './icons';
 import { HeaderSearch } from './header-search';
 
@@ -38,6 +39,7 @@ export const Btn = ({
   href,
   onClick,
   type = 'button',
+  disabled = false,
   ripple = false,
   rippleColor = '#6257E3',
 }: {
@@ -51,6 +53,12 @@ export const Btn = ({
   onClick?: (e: ReactMouseEvent<HTMLElement>) => void;
   /** Native button type (only used when rendering a <button>). */
   type?: 'button' | 'submit' | 'reset';
+  /**
+   * Disable the button (only used when rendering a <button>) — the lead forms set
+   * it while a submission is in flight so an impatient second click can't send a
+   * duplicate.
+   */
+  disabled?: boolean;
   /** Spawn a Material-style ripple from the click point. */
   ripple?: boolean;
   /** Ripple fill colour (defaults to brand-500). */
@@ -71,7 +79,7 @@ export const Btn = ({
     glassGradient:
       'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-[linear-gradient(135deg,#7C3AED,#EC4899)] hover:text-white hover:border-transparent hover:shadow-[0_8px_30px_-6px_rgba(124,58,237,0.7)] active:brightness-95 focus-visible:ring-brand-500/40',
   };
-  const className = `relative inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 ${ripple ? 'overflow-hidden' : ''} ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
+  const className = `relative inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${ripple ? 'overflow-hidden' : ''} ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
   const style: CSSProperties | undefined = size === 'lg' ? { height: '3.25rem' } : undefined;
 
   const [ripples, setRipples] = useState<{ x: number; y: number; size: number; key: number }[]>([]);
@@ -138,7 +146,13 @@ export const Btn = ({
     );
   }
   return (
-    <button type={type} className={className} style={style} onClick={handleClick}>
+    <button
+      type={type}
+      disabled={disabled}
+      className={className}
+      style={style}
+      onClick={handleClick}
+    >
       {inner}
     </button>
   );
@@ -230,16 +244,25 @@ export const Aurora = () => (
  * Top-level marketing nav items. "Pricing" routes to its own page; the rest are
  * in-page anchors on the homepage that stay inert on other surfaces, faithful to
  * the design. `active` highlights the item for the current page.
+ *
+ * `NavItem` keeps "Pricing" in the union whether or not it is shown, so the
+ * pricing page can still declare itself active and the type doesn't churn when
+ * {@link SHOW_PUBLIC_PRICING} flips back on.
  */
-const NAV_ITEMS = ['Core', 'Built For', 'Pricing', 'Resources'] as const;
-type NavItem = (typeof NAV_ITEMS)[number];
+const ALL_NAV_ITEMS = ['Core', 'Built For', 'Pricing', 'Resources'] as const;
+type NavItem = (typeof ALL_NAV_ITEMS)[number];
+
+/** The items actually rendered — "Pricing" drops out while prices are hidden. */
+const NAV_ITEMS: readonly NavItem[] = SHOW_PUBLIC_PRICING
+  ? ALL_NAV_ITEMS
+  : ALL_NAV_ITEMS.filter((item) => item !== 'Pricing');
 
 // Mobile bottom dock — navigation icons + CTAs, fixed to the bottom of the
 // viewport on small screens (hidden from `lg` up, where the top nav shows).
 const DOCK_NAV: { label: NavItem; icon: string; href: string }[] = [
   { label: 'Core', icon: I.layers, href: '/' },
   { label: 'Built For', icon: I.members, href: '#' },
-  { label: 'Pricing', icon: I.card, href: '/pricing' },
+  ...(SHOW_PUBLIC_PRICING ? [{ label: 'Pricing' as const, icon: I.card, href: '/pricing' }] : []),
   { label: 'Resources', icon: I.box, href: '#' },
 ];
 
@@ -567,9 +590,11 @@ export const MarketingFooter = () => (
         <Link href="/" className="hover:text-muted">
           Core
         </Link>
-        <Link href="/pricing" className="hover:text-muted">
-          Pricing
-        </Link>
+        {SHOW_PUBLIC_PRICING && (
+          <Link href="/pricing" className="hover:text-muted">
+            Pricing
+          </Link>
+        )}
         <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
           Privacy
         </a>

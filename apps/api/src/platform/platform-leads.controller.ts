@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, HttpCode, HttpStatus, Post } fro
 import { z } from 'zod';
 import { createPlatformLeadSchema, type CreatePlatformLeadResponse } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
+import { RateLimit, RATE_LIMITS } from '../common/rate-limit/rate-limit.decorator';
 import { PlatformLeadsService } from './platform-leads.service';
 
 /**
@@ -11,8 +12,14 @@ import { PlatformLeadsService } from './platform-leads.service';
  * so it carries no session and is excluded from the tenant middleware in
  * `AppModule`. The single handler validates the body and hands it to the service,
  * which persists the lead and best-effort notifies the sales inbox.
+ *
+ * `@RateLimit` because that combination — unauthenticated, writes a row, sends an
+ * email — is exactly what a spam bot looks for. The marketing site forwards the
+ * visitor's `X-Forwarded-For` through its route handler, so the per-IP bucket keys
+ * on the real client rather than collapsing every visitor into one proxy budget.
  */
 @Public()
+@RateLimit(RATE_LIMITS.leads)
 @Controller('platform/leads')
 export class PlatformLeadsController {
   constructor(private readonly leads: PlatformLeadsService) {}

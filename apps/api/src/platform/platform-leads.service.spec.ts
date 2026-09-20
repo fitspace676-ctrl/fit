@@ -32,6 +32,12 @@ const DEMO: CreatePlatformLeadInput = {
   message: 'Bookings and the member app',
 };
 
+const PRICING: CreatePlatformLeadInput = {
+  type: 'pricing',
+  name: 'Giorgi M',
+  email: 'giorgi@crossfit.ge',
+};
+
 function setup() {
   const create = vi.fn().mockResolvedValue({ id: 'lead-1' });
   const prisma = { client: { platformLead: { create } } } as unknown as PrismaService;
@@ -77,6 +83,33 @@ describe('PlatformLeadsService.create', () => {
         message: 'Bookings and the member app',
       },
     });
+  });
+
+  it('persists a pricing request mapped to the PRICING enum with no optional fields', async () => {
+    const { service, create } = setup();
+
+    await service.create(PRICING);
+
+    expect(create.mock.calls[0]![0]).toMatchObject({
+      data: {
+        type: PlatformLeadType.PRICING,
+        name: 'Giorgi M',
+        email: 'giorgi@crossfit.ge',
+        business: null,
+        phone: null,
+        message: null,
+      },
+    });
+  });
+
+  it('notifies the sales inbox about a pricing request', async () => {
+    const { service, send } = setup();
+
+    await service.create(PRICING);
+
+    const message = send.mock.calls[0]![0] as { to: string; subject: string };
+    expect(message.to).toBe('sales@fit.app');
+    expect(message.subject).toBe('New Pricing request: Giorgi M');
   });
 
   it('notifies the sales inbox with the prospect set as reply-to', async () => {

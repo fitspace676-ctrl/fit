@@ -69,4 +69,11 @@ export const RATE_LIMITS = {
    * a class-start rush (≈2/s) without letting a single desk hammer the endpoint.
    */
   checkIn: { name: 'check-in', limit: 120, windowSec: 60 } satisfies RateLimitOptions,
+  /**
+   * Public marketing lead capture (`POST /platform/leads`) — unauthenticated, it
+   * writes a row and sends mail, so it is the site's most inviting spam target. A
+   * real prospect submits once (twice if they retry a typo); ten an hour per IP
+   * leaves that untouched while capping a naive flood.
+   */
+  leads: { name: 'platform-leads', limit: 10, windowSec: 3600 } satisfies RateLimitOptions,
 } as const;
