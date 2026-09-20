@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { PricingCards, tiers } from './pricing-cards';
 import { Reveal } from '@/components/ui/scroll-reveal';
+import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
 import {
   Aurora,
   Btn,
@@ -19,10 +20,11 @@ import {
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore - Pricing  ·  "Aurora Glass"
    The /pricing surface. Same dark aurora identity and shared chrome as the
-   homepage. A platform-capability grid, three tiers priced in GEL (Starter /
-   Growth / Pro), a grouped feature-comparison table, a "which plan is right for
-   you" guide and the implementation timeline. Every trial CTA funnels into the
+   homepage. A platform-capability grid, the three tiers (Starter / Growth /
+   Pro), a grouped feature-comparison table, a "which plan is right for you"
+   guide and the implementation timeline. Every trial CTA funnels into the
    owner-signup flow (`/register-gym`); the sales / demo CTA opens a mail draft.
+   The tier figures only print while `@/lib/pricing-visibility` says so.
    ──────────────────────────────────────────────────────────────────────── */
 
 /* ---- grouped feature comparison ---- */
@@ -211,7 +213,9 @@ export default function PricingPage() {
         <PricingCards />
         <p className="mt-6 text-xs text-subtle flex items-center justify-center gap-2 text-center">
           <Icon d={I.shield} c="w-3.5 h-3.5" sw={2} />
-          Prices in Georgian lari (₾), excl. VAT. Each tier builds on the one before it.
+          {SHOW_PUBLIC_PRICING
+            ? 'Prices in Georgian lari (₾), excl. VAT. Each tier builds on the one before it.'
+            : "Each tier builds on the one before it. Tell us about your business and we'll send you a quote."}
         </p>
       </section>
 

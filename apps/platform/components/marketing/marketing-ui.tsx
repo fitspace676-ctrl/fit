@@ -5,7 +5,6 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 're
 import Link from 'next/link';
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
 import { BUILT_FOR } from '@/data/built-for';
-import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
 import { I, Icon } from './icons';
 import { HeaderSearch } from './header-search';
 
@@ -245,24 +244,19 @@ export const Aurora = () => (
  * in-page anchors on the homepage that stay inert on other surfaces, faithful to
  * the design. `active` highlights the item for the current page.
  *
- * `NavItem` keeps "Pricing" in the union whether or not it is shown, so the
- * pricing page can still declare itself active and the type doesn't churn when
- * {@link SHOW_PUBLIC_PRICING} flips back on.
+ * The link stays in place whether or not prices are published — `/pricing` shows
+ * the plans either way, with the figures replaced by a quote request while
+ * `SHOW_PUBLIC_PRICING` is off.
  */
-const ALL_NAV_ITEMS = ['Core', 'Built For', 'Pricing', 'Resources'] as const;
-type NavItem = (typeof ALL_NAV_ITEMS)[number];
-
-/** The items actually rendered — "Pricing" drops out while prices are hidden. */
-const NAV_ITEMS: readonly NavItem[] = SHOW_PUBLIC_PRICING
-  ? ALL_NAV_ITEMS
-  : ALL_NAV_ITEMS.filter((item) => item !== 'Pricing');
+const NAV_ITEMS = ['Core', 'Built For', 'Pricing', 'Resources'] as const;
+type NavItem = (typeof NAV_ITEMS)[number];
 
 // Mobile bottom dock — navigation icons + CTAs, fixed to the bottom of the
 // viewport on small screens (hidden from `lg` up, where the top nav shows).
 const DOCK_NAV: { label: NavItem; icon: string; href: string }[] = [
   { label: 'Core', icon: I.layers, href: '/' },
   { label: 'Built For', icon: I.members, href: '#' },
-  ...(SHOW_PUBLIC_PRICING ? [{ label: 'Pricing' as const, icon: I.card, href: '/pricing' }] : []),
+  { label: 'Pricing', icon: I.card, href: '/pricing' },
   { label: 'Resources', icon: I.box, href: '#' },
 ];
 
@@ -590,11 +584,9 @@ export const MarketingFooter = () => (
         <Link href="/" className="hover:text-muted">
           Core
         </Link>
-        {SHOW_PUBLIC_PRICING && (
-          <Link href="/pricing" className="hover:text-muted">
-            Pricing
-          </Link>
-        )}
+        <Link href="/pricing" className="hover:text-muted">
+          Pricing
+        </Link>
         <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
           Privacy
         </a>
