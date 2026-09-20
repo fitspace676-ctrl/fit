@@ -8,8 +8,11 @@
 // token therefore never lives anywhere client JS can read it.
 
 import {
+  GYM_SELECTION_REQUIRED_CODE,
   MEMBERSHIP_NOT_ACTIVE_CODE,
   NOT_A_MEMBER_CODE,
+  gymSelectionOptions,
+  type GymSelectionOption,
   type ResetPasswordResponse,
 } from '@fit/types';
 import { extractGymSlug } from '@fit/utils';
@@ -66,11 +69,18 @@ export interface TokenPair {
  */
 export class SignInError extends Error {
   readonly code: string | undefined;
+  /**
+   * The gyms a `409 GYM_SELECTION_REQUIRED` offers (T1.25): the password opened
+   * the address at more than one gym and the sign-in named none (the apex host).
+   * The form asks which and signs in again with that `gymSlug`. Empty otherwise.
+   */
+  readonly gyms: GymSelectionOption[];
 
-  constructor(message: string, code?: string) {
+  constructor(message: string, code?: string, gyms: GymSelectionOption[] = []) {
     super(message);
     this.name = 'SignInError';
     this.code = code;
+    this.gyms = gyms;
   }
 }
 
@@ -80,7 +90,20 @@ async function signInError(response: Response, fallback: string): Promise<SignIn
     message?: string;
     code?: string;
   } | null;
-  return new SignInError(detail?.message ?? `${fallback} (${response.status})`, detail?.code);
+  return new SignInError(
+    detail?.message ?? `${fallback} (${response.status})`,
+    detail?.code,
+    gymSelectionOptions(detail) ?? [],
+  );
+}
+
+/** Whether a refused sign-in is the API asking which gym to continue on. */
+export function isGymSelectionRequired(error: unknown): error is SignInError {
+  return (
+    error instanceof SignInError &&
+    error.code === GYM_SELECTION_REQUIRED_CODE &&
+    error.gyms.length > 0
+  );
 }
 
 /** The `auth` message keys a sign-in refusal has its own copy for. */
@@ -191,13 +214,18 @@ export async function registerWithCredentials(input: {
  * verifies the credentials and issues a {@link TokenPair}, which we persist
  * before returning (the caller walks away signed in). Throws with the API's
  * error message on a non-2xx response.
+ *
+ * The gym whose password is checked is this page's (`<slug>.<root>`), or, off a
+ * tenant host, `gymSlug` — the one the visitor picked after a
+ * `409 GYM_SELECTION_REQUIRED` ({@link isGymSelectionRequired}).
  */
 export async function loginWithCredentials(
   email: string,
   password: string,
   inviteToken?: string,
+  chosenGymSlug?: string,
 ): Promise<TokenPair> {
-  const gymSlug = currentGymSlug();
+  const gymSlug = currentGymSlug() || chosenGymSlug || null;
   const response = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },

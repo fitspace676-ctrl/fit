@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  isGymSelectionRequired,
   loginWithApple,
   loginWithCredentials,
   loginWithGoogle,
@@ -151,5 +152,63 @@ describe('a refused sign-in', () => {
     expect(signInErrorKey(new SignInError('x', 'INVALID_CREDENTIALS'))).toBeNull();
     expect(signInErrorKey(new SignInError('x'))).toBeNull();
     expect(signInErrorKey(new Error('x'))).toBeNull();
+  });
+});
+
+describe('a sign-in the API needs a gym for', () => {
+  const selection = {
+    message: 'This password signs you in to more than one gym — choose one',
+    code: 'GYM_SELECTION_REQUIRED',
+    data: {
+      gyms: [
+        { slug: 'downtown', name: 'Downtown' },
+        { slug: 'riverside', name: 'Riverside' },
+      ],
+    },
+  };
+
+  it('carries the gyms the password unlocked', async () => {
+    vi.stubGlobal('window', { location: { host: 'app.formacore.io' } });
+    fetchMock.mockResolvedValueOnce(reply(selection, 409));
+
+    const error = await loginWithCredentials('a@b.com', 'secret').catch((e: unknown) => e);
+
+    expect(isGymSelectionRequired(error)).toBe(true);
+    expect((error as SignInError).gyms).toEqual(selection.data.gyms);
+    // Off a tenant host the first attempt named no gym.
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(init?.body as string)).toEqual({ email: 'a@b.com', password: 'secret' });
+  });
+
+  it('signs in again naming the gym the visitor picked', async () => {
+    vi.stubGlobal('window', { location: { host: 'app.formacore.io' } });
+    fetchMock.mockResolvedValueOnce(reply({ accessToken: 'a', refreshToken: 'r' }));
+
+    await loginWithCredentials('a@b.com', 'secret', undefined, 'riverside');
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(init?.body as string)).toEqual({
+      email: 'a@b.com',
+      password: 'secret',
+      gymSlug: 'riverside',
+    });
+  });
+
+  it("never lets a picked gym override the page's own", async () => {
+    fetchMock.mockResolvedValueOnce(reply({ accessToken: 'a', refreshToken: 'r' }));
+
+    await loginWithCredentials('a@b.com', 'secret', undefined, 'downtown');
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(init?.body as string)).toMatchObject({ gymSlug: 'riverside' });
+  });
+
+  it('is not a selection when the 409 carries no gyms', async () => {
+    fetchMock.mockResolvedValueOnce(reply({ message: 'x', code: 'GYM_SELECTION_REQUIRED' }, 409));
+
+    const error = await loginWithCredentials('a@b.com', 'secret').catch((e: unknown) => e);
+
+    expect(isGymSelectionRequired(error)).toBe(false);
+    expect((error as SignInError).gyms).toEqual([]);
   });
 });

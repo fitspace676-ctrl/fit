@@ -196,6 +196,25 @@ export async function provisionMember(email: string, gymId: string): Promise<voi
     create: { userId: user.id, gymId, role: 'MEMBER', status: 'ACTIVE' },
   });
 
+  // And the gym's credential (T1.25): the password the account registered with
+  // becomes this gym's, verified — the membership alone opens no door.
+  const account = await prisma.user.findUniqueOrThrow({
+    where: { id: user.id },
+    select: { passwordHash: true, name: true, phone: true },
+  });
+  await prisma.gymCredential.upsert({
+    where: { userId_gymId: { userId: user.id, gymId } },
+    update: { passwordHash: account.passwordHash, emailVerifiedAt: new Date() },
+    create: {
+      userId: user.id,
+      gymId,
+      passwordHash: account.passwordHash,
+      emailVerifiedAt: new Date(),
+      name: account.name,
+      phone: account.phone,
+    },
+  });
+
   // An entitling subscription, so a confirmed seat draws no class credit (an
   // unentitled member would be refused with `422 INSUFFICIENT_CREDITS`).
   const entitled = await prisma.subscription.findFirst({
@@ -252,6 +271,19 @@ export async function provisionMultiGymMember(email: string, gymSlugs: string[])
       where: { userId_gymId: { userId: user.id, gymId } },
       update: { status: 'ACTIVE', role: 'MEMBER', joinedAt },
       create: { userId: user.id, gymId, role: 'MEMBER', status: 'ACTIVE', joinedAt },
+    });
+    // The same dev password at every gym (T1.25) — what the backfill left every
+    // existing account with — so a sign-in on any of the slugs' hosts succeeds.
+    await prisma.gymCredential.upsert({
+      where: { userId_gymId: { userId: user.id, gymId } },
+      update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+      create: {
+        userId: user.id,
+        gymId,
+        passwordHash: DEV_PASSWORD_HASH,
+        emailVerifiedAt: new Date(),
+        name: user.name,
+      },
     });
   }
 }

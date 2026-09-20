@@ -754,7 +754,13 @@ async function main() {
     [riverside.id, riverside.slug],
   ]);
 
+  // Every seeded membership gets the gym's credential (T1.25) — the row a sign-in
+  // on that gym's host actually checks. Mirrors the backfill migration, and, like
+  // the user upserts above, re-points the dev password on every run.
+  const credentials = await backfillCredentials();
+
   console.log('[@fit/db] seed complete:', {
+    credentials,
     gyms: [downtown.slug, riverside.slug],
     branches: branches.map(
       (b) => `${slugByGymId.get(b.gymId) ?? b.gymId}/${b.name}${b.isDefault ? ' *' : ''}`,
@@ -2839,6 +2845,31 @@ async function ensureBanners(gymId: string): Promise<void> {
     if (existing) continue;
     await prisma.banner.create({ data: { gymId, ...banner } });
   }
+}
+
+/**
+ * One `gym_credentials` row per membership, carrying the user's password /
+ * verification / name / phone — the same statement as the
+ * `20260917120000_gym_credentials` backfill, except that an existing row's
+ * password and verification stamp are re-pointed at the user's current ones
+ * (the seed resets the fixture logins to the dev password every run, and a
+ * credential left on a password someone typed into a reset form would make
+ * `alex@example.com` unusable on that gym). Returns the row count.
+ */
+async function backfillCredentials(): Promise<number> {
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "gym_credentials" ("id", "userId", "gymId", "passwordHash", "emailVerifiedAt", "name", "phone", "createdAt", "updatedAt")
+    SELECT gen_random_uuid()::text, m."userId", m."gymId", u."passwordHash", u."emailVerifiedAt", u."name", u."phone", NOW(), NOW()
+    FROM "gym_members" m
+    JOIN "users" u ON u."id" = m."userId"
+    ON CONFLICT ("userId", "gymId") DO UPDATE SET
+      "passwordHash" = COALESCE(EXCLUDED."passwordHash", "gym_credentials"."passwordHash"),
+      "emailVerifiedAt" = COALESCE(EXCLUDED."emailVerifiedAt", "gym_credentials"."emailVerifiedAt"),
+      "name" = COALESCE("gym_credentials"."name", EXCLUDED."name"),
+      "phone" = COALESCE("gym_credentials"."phone", EXCLUDED."phone"),
+      "updatedAt" = NOW()
+  `);
+  return prisma.gymCredential.count();
 }
 
 main()

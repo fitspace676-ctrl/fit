@@ -88,8 +88,12 @@ describe('the member slice', () => {
     // schedule, so `services.card.showSchedule` / `.hideSchedule` and the whole
     // `services.schedule.*` block left the catalogue with the card disclosure
     // that read them; main's own member-facing additions make up the rest.
-    expect(enKeys).toHaveLength(1116);
-    expect(kaKeys).toHaveLength(1116);
+    //
+    // 2026-09-17, per-gym credentials (#345): 1116 → 1119. One email can now
+    // hold a password per gym, so a sign-in that matches more than one gets
+    // `auth.chooseGym.title` / `.hint` / `.back` for the picker between them.
+    expect(enKeys).toHaveLength(1119);
+    expect(kaKeys).toHaveLength(1119);
   });
 });
 

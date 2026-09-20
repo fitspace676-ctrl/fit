@@ -62,6 +62,10 @@ describe('login gym-suspension gate (integration)', () => {
     await prisma.gymMember.create({
       data: { userId: user.id, gymId: gym.id, role: Role.MEMBER, status: GymMemberStatus.ACTIVE },
     });
+    // What the gym's door checks (T1.25): the membership alone has no password.
+    await prisma.gymCredential.create({
+      data: { userId: user.id, gymId: gym.id, passwordHash, emailVerifiedAt: new Date() },
+    });
   });
 
   afterAll(disconnect);
@@ -124,6 +128,16 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
         joinedAt: new Date('2026-03-01'),
       },
     });
+    // The same password at both gyms — what the backfill leaves every existing
+    // account with — so the sign-ins below are about the gate, not the credential.
+    await prisma.gymCredential.createMany({
+      data: [downtown.id, riverside.id].map((gymId) => ({
+        userId: user.id,
+        gymId,
+        passwordHash,
+        emailVerifiedAt: new Date(),
+      })),
+    });
   });
 
   afterAll(disconnect);
@@ -137,6 +151,8 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
   });
 
   it('signs the same member into their live gym when no subdomain is named', async () => {
+    // The password opens both credentials, but riverside is suspended, so it is
+    // not a candidate: one live match, no gym selection to ask for.
     await expect(auth.login(CREDS)).resolves.toMatchObject({ accessToken: 'access' });
 
     expect(claims[0]).toMatchObject({ gymId: downtownId, role: Role.OWNER });
