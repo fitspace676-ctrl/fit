@@ -11,8 +11,12 @@
     "backgroundColor": "#131312",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fit.app",
-      "usesAppleSignIn": true
+      "bundleIdentifier": "io.formacore.app",
+      "usesAppleSignIn": true,
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.fit.app",
@@ -50,7 +54,11 @@
       ],
       [
         "@sentry/react-native/expo",
-        { "organization": "forma-0r", "project": "fit-mobile", "url": "https://de.sentry.io/" }
+        {
+          "organization": "forma-0r",
+          "project": "fit-mobile",
+          "url": "https://de.sentry.io/"
+        }
       ]
     ],
     "experiments": {
