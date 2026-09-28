@@ -3702,7 +3702,8 @@
         "previousWeek": "წინა კვირა",
         "nextWeek": "შემდეგი კვირა",
         "today": "დღეს",
-        "unavailable": "მიუწვდომელია"
+        "unavailable": "მიუწვდომელია",
+        "done": "მზადაა"
       }
     },
     "payment": {

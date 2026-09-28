@@ -232,6 +232,17 @@ export function Screen({
           // taps that land on a control through on the first press.
           // ==================================================================
           keyboardShouldPersistTaps="handled"
+          // ==================================================================
+          // AND WITHOUT THIS, A NUMBER PAD CANNOT BE PUT AWAY.
+          //
+          // iOS's `phone-pad`, `number-pad` and `decimal-pad` have no Return
+          // key, so a member who has typed a phone number is left with a
+          // keyboard over the bottom half of the form and no key that closes
+          // it. Dragging the content down is the platform's own answer —
+          // `interactive` lets the keyboard follow the finger as in Messages.
+          // Android's pads do have a key, and `on-drag` is its nearest match.
+          // ==================================================================
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           // The scroll view gets its own selector. A Maestro flow that has to
           // scroll a screen needs a handle on the scroller rather than on the
           // frame around it, and a render test needs one to read the reserve

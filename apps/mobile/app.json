@@ -13,7 +13,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "io.formacore.app",
       "usesAppleSignIn": true,
-      "buildNumber": "1",
+      "buildNumber": "2",
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -59,7 +59,8 @@
           "project": "fit-mobile",
           "url": "https://de.sentry.io/"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
