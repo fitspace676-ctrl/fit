@@ -67,6 +67,13 @@ jest.mock('expo-font', () => ({
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
 jest.mock('expo-camera', () => require('./test-support/expo-camera-mock'));
 
+// The birthday picker is a native view (iOS) and a native dialog (Android), and
+// jest-expo stubs neither. Same module-not-factory shape as `expo-camera`.
+jest.mock('@react-native-community/datetimepicker', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
+  require('./test-support/datetimepicker-mock'),
+);
+
 // `expo-splash-screen` talks to a native module. The root layout's contract —
 // hide exactly once, and only after fonts have loaded OR errored — is asserted
 // against these spies.

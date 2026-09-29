@@ -92,8 +92,11 @@ describe('the member slice', () => {
     // 2026-09-17, per-gym credentials (#345): 1116 → 1119. One email can now
     // hold a password per gym, so a sign-in that matches more than one gets
     // `auth.chooseGym.title` / `.hint` / `.back` for the picker between them.
-    expect(enKeys).toHaveLength(1119);
-    expect(kaKeys).toHaveLength(1119);
+    //
+    // 2026-09-29, the native birthday picker: 1119 → 1120. The iOS wheel sits
+    // in a sheet committed by `checkout.details.calendar.done`.
+    expect(enKeys).toHaveLength(1120);
+    expect(kaKeys).toHaveLength(1120);
   });
 });
 

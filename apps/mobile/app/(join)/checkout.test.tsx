@@ -4,6 +4,7 @@
 //
 // Run this file with `--runTestsByPath`. `(join)` in a `-t` / path PATTERN is a
 // regex group, so `jest app/(join)` matches `app/join` and finds nothing.
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { onlineManager } from '@tanstack/react-query';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import type { GymMemberIntakeSettings, SignupCatalogueResponse } from '@fit/types';
@@ -736,15 +737,29 @@ describe('the details step is built from the gym’s intake settings', () => {
     expect(view.getByTestId('join-details-firstName-input')).toBeTruthy();
   });
 
-  it('types a date day-first and stores it as the wire format', async () => {
+  it('picks the birthday on the wheel and shows it only once Done is pressed', async () => {
     mockGetCatalogue.mockResolvedValue(
       catalogue({ memberIntake: { ...LEAN_INTAKE, dateOfBirth: true } }),
     );
     const view = renderScreen(<JoinCheckoutScreen />);
     await toDetails(view);
-    fireEvent.changeText(view.getByTestId('join-details-dateOfBirth-input'), '01041994');
+    const value = () => view.getByTestId('join-details-dateOfBirth-value');
+    expect(value()).toHaveTextContent('Choose a date');
+
+    fireEvent.press(view.getByTestId('join-details-dateOfBirth-button'));
+    const wheel = view.UNSAFE_getByType(DateTimePicker);
+    const onChange = wheel.props.onChange as (event: { type: string }, date: Date) => void;
+    // The wheel never offers a birthday after today.
+    expect(wheel.props.maximumDate).toBeInstanceOf(Date);
+    act(() => {
+      onChange({ type: 'set' }, new Date(1994, 3, 1));
+    });
+    // Scrolling the wheel is not an answer.
+    expect(value()).toHaveTextContent('Choose a date');
+
+    fireEvent.press(view.getByTestId('join-details-dateOfBirth-done'));
     await waitFor(() => {
-      expect(view.getByTestId('join-details-dateOfBirth-input').props.value).toBe('01.04.1994');
+      expect(value()).toHaveTextContent('01.04.1994');
     }, WAIT);
   });
 });

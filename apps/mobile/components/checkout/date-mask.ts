@@ -1,4 +1,11 @@
-// @fit/mobile — typing a calendar day on a phone, with no native picker.
+// @fit/mobile — typing a calendar day, for the web preview only.
+//
+// SUPERSEDED ON THE PHONE. Both dates the join form asks for are now picked:
+// the start date on a week strip (`start-date-field.tsx`) and the birthday on
+// the platform's date picker (`birth-date-field.tsx`, whose header records why
+// the masked box could not be filled in on a device). The native picker has no
+// web half, so `BirthDateField`'s web branch still types through this mask.
+// The note below is the original reasoning, kept for the record.
 //
 // ===========================================================================
 // WHY A MASKED TEXT FIELD AND NOT A DATE PICKER.

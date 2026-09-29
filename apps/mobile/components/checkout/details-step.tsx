@@ -41,7 +41,7 @@ import { useRef } from 'react';
 import { View, type TextInput } from 'react-native';
 
 import { AuthField } from '../auth/field';
-import { dayInputFromIso, isoFromDayInput, maskDayInput } from './date-mask';
+import { BirthDateField } from './birth-date-field';
 import {
   asksFor,
   missingDetailFields,
@@ -71,16 +71,10 @@ interface FieldSpec {
   readonly hintKey?: MessageKey;
   /** Which group it sits in. */
   readonly group: 'about' | 'account';
-  /** A `dd.mm.yyyy` masked entry rather than free text. */
+  /** Picked on the platform's date picker (`birth-date-field.tsx`), not typed. */
   readonly date?: true;
   readonly keyboard?: 'email-address' | 'phone-pad' | 'number-pad';
-  readonly autoComplete?:
-    | 'given-name'
-    | 'family-name'
-    | 'email'
-    | 'new-password'
-    | 'tel'
-    | 'birthdate-full';
+  readonly autoComplete?: 'given-name' | 'family-name' | 'email' | 'new-password' | 'tel';
   readonly textContentType?:
     | 'givenName'
     | 'familyName'
@@ -141,8 +135,6 @@ const FIELDS: readonly FieldSpec[] = [
     labelKey: 'checkout.details.fields.dateOfBirth',
     group: 'about',
     date: true,
-    keyboard: 'number-pad',
-    autoComplete: 'birthdate-full',
   },
   {
     key: 'personalId',
@@ -267,20 +259,9 @@ export function DetailsStep({
     return field.hintKey === undefined ? undefined : t(field.hintKey);
   }
 
-  function valueOf(field: FieldSpec): string {
-    return field.date === true ? dayInputFromIso(state[field.key]) : state[field.key];
-  }
-
-  function onChange(field: FieldSpec, next: string): void {
-    dispatch({
-      type: 'text',
-      field: field.key,
-      // A date's STATE is always ISO; the mask is only what the buyer sees.
-      // An incomplete entry stores `''`, which `signupBodyFor` then omits —
-      // an unanswered optional field must be absent, never half-typed.
-      value: field.date === true ? isoFromDayInput(maskDayInput(next)) : next,
-    });
-  }
+  // The return-key chain skips the picked date: it has no keyboard to hop
+  // from, and focusing it would open a picker nobody asked for.
+  const typed = shown.filter((field) => field.date !== true);
 
   const groups = [
     {
@@ -359,8 +340,24 @@ export function DetailsStep({
             ) : null}
 
             {fields.map((field) => {
-              const index = shown.indexOf(field);
-              const next = shown[index + 1];
+              if (field.date === true) {
+                return (
+                  <BirthDateField
+                    key={field.key}
+                    testID={`${testID}-${field.key}`}
+                    label={t(field.labelKey)}
+                    value={state[field.key]}
+                    onChange={(iso) => {
+                      dispatch({ type: 'text', field: field.key, value: iso });
+                    }}
+                    today={context.today}
+                    invalid={invalid(field)}
+                    disabled={disabled}
+                  />
+                );
+              }
+              const index = typed.indexOf(field);
+              const next = typed[index + 1];
               const isLast = next === undefined;
               return (
                 <AuthField
@@ -378,13 +375,10 @@ export function DetailsStep({
                       ? t('checkout.details.fields.name')
                       : t(field.labelKey)
                   }
-                  placeholder={
-                    field.date === true ? t('checkout.details.fields.datePlaceholder') : undefined
-                  }
                   hint={hintFor(field)}
-                  value={valueOf(field)}
+                  value={state[field.key]}
                   onChangeText={(text: string) => {
-                    onChange(field, text);
+                    dispatch({ type: 'text', field: field.key, value: text });
                   }}
                   invalid={invalid(field)}
                   disabled={disabled}

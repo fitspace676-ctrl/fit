@@ -154,6 +154,16 @@ describe('Screen', () => {
     expect(screen.getByTestId('s-scroll').props.keyboardShouldPersistTaps).toBe('handled');
   });
 
+  it('lets a drag put away a keyboard that has no Return key', () => {
+    // iOS's phone and number pads cannot close themselves.
+    renderScreen(
+      <Screen testID="s">
+        <Text>x</Text>
+      </Screen>,
+    );
+    expect(screen.getByTestId('s-scroll').props.keyboardDismissMode).toBe('interactive');
+  });
+
   it('avoids the keyboard on iOS with behavior="padding", and nowhere else', () => {
     const view = renderScreen(
       <Screen testID="s">
