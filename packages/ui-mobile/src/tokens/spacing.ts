@@ -76,7 +76,7 @@ export const layout = {
    * 40px icon buttons, which are under it; `hitSlopFor(size)` in WP-5 exists to
    * close that gap in the component, never at the call site.
    */
-  minTouchTarget: 44,
+  minTouchTarget: spacing[11],
 
   /** Control heights the artboards use: `h-9` / `h-10` / `h-11` / `h-14`. */
   controlHeight: {
