@@ -117,7 +117,6 @@ function setup(overrides?: {
     Promise.resolve(null),
   );
   const credentialUpsert = vi.fn(() => Promise.resolve({ id: 'cred-1' }));
-  const credentialDeleteMany = vi.fn(() => Promise.resolve({ count: 1 }));
   const userCreate = vi.fn(() => Promise.resolve({ id: 'u-new' }));
   const gymMemberCreate = vi.fn(
     (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
@@ -139,7 +138,7 @@ function setup(overrides?: {
       update: gymMemberUpdate,
       delete: gymMemberDelete,
     },
-    gymCredential: { upsert: credentialUpsert, deleteMany: credentialDeleteMany },
+    gymCredential: { upsert: credentialUpsert },
     staffInvite: {
       findMany: inviteFindMany,
       deleteMany: inviteDeleteMany,
@@ -201,7 +200,6 @@ function setup(overrides?: {
     userCreate,
     userFindUnique,
     credentialUpsert,
-    credentialDeleteMany,
     trainerFindFirst,
     trainerCreate,
     trainerUpdate,
@@ -365,40 +363,6 @@ describe('StaffService', () => {
         select: { id: true },
       });
       expect(ctx.credentialUpsert).not.toHaveBeenCalled();
-    });
-
-    it('relinks a profile to an existing identity without moving or overwriting a password', async () => {
-      const ctx = setup();
-      ctx.userFindUnique.mockResolvedValue({ id: 'other-user' });
-      ctx.gymMemberFindFirst.mockResolvedValueOnce(row()).mockResolvedValueOnce(null);
-      await ctx.service.updateStaffProfile('gm-1', { email: input.email, firstName: 'Nino' });
-      expect(ctx.gymMemberUpdate.mock.calls[0]?.[0]).toMatchObject({
-        data: { user: { connect: { id: 'other-user' } } },
-      });
-      expect(ctx.credentialDeleteMany).toHaveBeenCalledWith({
-        where: { userId: 'u-1', gymId: 'gym-1' },
-      });
-      expect(ctx.credentialUpsert).toHaveBeenCalledWith({
-        where: { userId_gymId: { userId: 'other-user', gymId: 'gym-1' } },
-        create: {
-          userId: 'other-user',
-          gymId: 'gym-1',
-          passwordHash: null,
-          name: 'Nino',
-          phone: null,
-        },
-        update: {},
-      });
-      expect(ctx.userUpdate).not.toHaveBeenCalled();
-    });
-
-    it('rejects relinking onto an existing same-gym member', async () => {
-      const ctx = setup();
-      ctx.userFindUnique.mockResolvedValue({ id: 'other-user' });
-      await expect(
-        ctx.service.updateStaffProfile('gm-1', { email: input.email }),
-      ).rejects.toMatchObject({ response: { code: 'EMAIL_IN_USE' } });
-      expect(ctx.credentialDeleteMany).not.toHaveBeenCalled();
     });
   });
 

@@ -504,7 +504,7 @@ export class StaffService {
    * except for a `TRAINER`, whose week is owned by `Trainer.availability` and only
    * mirrored onto these rows, so a sent schedule is ignored rather than becoming a
    * second writer. Role is changed via {@link updateRole}, not here. `404 STAFF_NOT_FOUND` for an
-   * unknown id; `409 EMAIL_IN_USE` when a new email already belongs to this gym.
+   * unknown id; `409 EMAIL_IN_USE` when a new email already belongs to someone else.
    */
   async updateStaffProfile(memberId: string, input: UpdateStaffProfileInput): Promise<StaffMember> {
     const existing = await this.prisma.client.gymMember.findFirst({
@@ -523,18 +523,14 @@ export class StaffService {
     // Only a non-empty address changes the email; an empty/absent value leaves it
     // untouched (edit never rewrites a real address to a synthetic placeholder).
     const email = input.email?.trim() ? input.email.trim().toLowerCase() : undefined;
-    const targetUser = email
-      ? await this.prisma.client.user.findUnique({ where: { email }, select: { id: true } })
-      : null;
-    const relink = targetUser !== null && targetUser.id !== existing.userId;
-    if (relink) {
-      const clash = await this.prisma.client.gymMember.findFirst({
-        where: { userId: targetUser.id, gymId },
+    if (email) {
+      const clash = await this.prisma.client.user.findUnique({
+        where: { email },
         select: { id: true },
       });
-      if (clash) {
+      if (clash && clash.id !== existing.userId) {
         throw new ConflictException({
-          message: 'That email already belongs to a member of this gym',
+          message: 'That email already belongs to a user',
           code: 'EMAIL_IN_USE',
         });
       }
@@ -549,26 +545,6 @@ export class StaffService {
 
     await this.prisma.client.$transaction(async (tx) => {
       const memberData: Prisma.GymMemberUpdateInput = {};
-      if (relink) {
-        memberData.user = { connect: { id: targetUser.id } };
-        // The old identity loses this gym only. Never move its password to a
-        // different email, or change the target identity's other gyms.
-        await tx.gymCredential.deleteMany({ where: { userId: existing.userId, gymId } });
-        await tx.gymCredential.upsert({
-          where: { userId_gymId: { userId: targetUser.id, gymId } },
-          create: {
-            userId: targetUser.id,
-            gymId,
-            passwordHash: null,
-            name:
-              [input.firstName ?? existing.firstName, input.lastName ?? existing.lastName]
-                .filter(Boolean)
-                .join(' ') || null,
-            phone: input.phone?.trim() || null,
-          },
-          update: {},
-        });
-      }
       if (input.firstName !== undefined) memberData.firstName = input.firstName.trim();
       if (input.lastName !== undefined) memberData.lastName = input.lastName.trim() || null;
       if (input.status !== undefined) memberData.status = input.status;
@@ -609,7 +585,7 @@ export class StaffService {
       if (email) userData.email = email;
       if (input.phone !== undefined)
         userData.phone = input.phone.trim() ? input.phone.trim() : null;
-      if (!relink && Object.keys(userData).length > 0) {
+      if (Object.keys(userData).length > 0) {
         await tx.user.update({ where: { id: existing.userId }, data: userData });
       }
 

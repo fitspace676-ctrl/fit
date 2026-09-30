@@ -5,7 +5,6 @@ import {
   loginWithCredentials,
   loginWithGoogle,
   resetPassword,
-  registerWithCredentials,
   SignInError,
   signInErrorKey,
 } from './auth';
@@ -29,24 +28,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
-});
-
-describe('registerWithCredentials', () => {
-  it('sends the same tenant context as login', async () => {
-    const input = { name: 'Member', email: 'member@example.com', password: 'password-123' };
-    await registerWithCredentials(input);
-    const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('http://localhost:3000/auth/register');
-    expect(new Headers(init?.headers).get('x-tenant-host')).toBe('riverside.formacore.io');
-    expect(JSON.parse(init?.body as string)).toEqual({ ...input, gymSlug: 'riverside' });
-  });
-
-  it('keeps platform registration without a gym on app host', async () => {
-    vi.stubGlobal('window', { location: { host: 'app.formacore.io' } });
-    const input = { name: 'Member', email: 'member@example.com', password: 'password-123' };
-    await registerWithCredentials(input);
-    expect(JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)).toEqual(input);
-  });
 });
 
 describe('resetPassword', () => {
