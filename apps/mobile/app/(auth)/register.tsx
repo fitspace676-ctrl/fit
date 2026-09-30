@@ -16,6 +16,13 @@
 // `Retry-After`; the cool-down disables submit and counts down, and nothing here
 // auto-retries — retrying a rate-limit response is what the limiter is defending
 // against, and it turns a 15-minute wait into a longer one.
+//
+// ## An empty or short field never reaches the API
+//
+// Same rule as the sign-in form: the server's answer to a blank field is a 400
+// the banner could only call "something went wrong". So the form says which
+// field and why, under that field, before anything is sent — and typing in a
+// field clears its verdict.
 
 import { Alert as Advisory, Button, Text, spacing } from '@fit/ui-mobile';
 import { useRouter } from 'expo-router';
@@ -32,6 +39,41 @@ import { registerAccount } from '../../lib/auth/session';
 import type { MessageKey } from '../../lib/i18n/keys';
 import { useI18n } from '../../providers/I18nProvider';
 
+/** The sign-in form's shape check (`login.tsx`). */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** `PASSWORD_MIN_LENGTH` in `@fit/types` — the rule the API enforces. */
+const PASSWORD_MIN_LENGTH = 8;
+
+interface FieldErrors {
+  readonly name: MessageKey | null;
+  readonly email: MessageKey | null;
+  readonly password: MessageKey | null;
+}
+
+const NO_FIELD_ERRORS: FieldErrors = { name: null, email: null, password: null };
+
+/** What is wrong with each field before anything is sent, if anything. */
+function registerFieldErrors(name: string, email: string, password: string): FieldErrors {
+  const address = email.trim();
+  return {
+    name: name.trim() === '' ? 'auth.register.errors.nameRequired' : null,
+    email:
+      address === ''
+        ? 'auth.login.errors.emailRequired'
+        : EMAIL_SHAPE.test(address)
+          ? null
+          : 'auth.login.errors.emailInvalid',
+    password:
+      password === ''
+        ? 'auth.login.errors.passwordRequired'
+        : password.length < PASSWORD_MIN_LENGTH
+          ? // The hint's own sentence, now in red in the hint's place.
+            'auth.fields.passwordHint'
+          : null,
+  };
+}
+
 export default function RegisterScreen() {
   const { t } = useI18n();
   const router = useRouter();
@@ -46,14 +88,18 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>(NO_FIELD_ERRORS);
   const [done, setDone] = useState(false);
 
   const blocked = pending || coolDown.active || !online;
 
   const submit = (): void => {
     if (blocked) return;
-    setPending(true);
+    const checked = registerFieldErrors(name, email, password);
     setErrorKey(null);
+    setFieldErrors(checked);
+    if (checked.name !== null || checked.email !== null || checked.password !== null) return;
+    setPending(true);
     registerAccount({ name, email, password })
       .then(() => {
         setPending(false);
@@ -158,8 +204,12 @@ export default function RegisterScreen() {
         label={t('auth.fields.name')}
         placeholder={t('auth.fields.namePlaceholder')}
         value={name}
-        onChangeText={setName}
+        onChangeText={(text: string) => {
+          setName(text);
+          setFieldErrors((current) => ({ ...current, name: null }));
+        }}
         disabled={pending}
+        error={fieldErrors.name === null ? undefined : t(fieldErrors.name)}
         autoCapitalize="words"
         autoComplete="name"
         textContentType="name"
@@ -174,8 +224,13 @@ export default function RegisterScreen() {
         label={t('auth.fields.email')}
         placeholder={t('auth.fields.emailPlaceholder')}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text: string) => {
+          setEmail(text);
+          setErrorKey(null);
+          setFieldErrors((current) => ({ ...current, email: null }));
+        }}
         disabled={pending}
+        error={fieldErrors.email === null ? undefined : t(fieldErrors.email)}
         invalid={errorKey !== null}
         keyboardType="email-address"
         autoCapitalize="none"
@@ -196,8 +251,13 @@ export default function RegisterScreen() {
         // can be broken rather than as a rejection afterwards.
         hint={t('auth.fields.passwordHint')}
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(text: string) => {
+          setPassword(text);
+          setErrorKey(null);
+          setFieldErrors((current) => ({ ...current, password: null }));
+        }}
         disabled={pending}
+        error={fieldErrors.password === null ? undefined : t(fieldErrors.password)}
         // Marked with the address, not left white beside it: the refusal is
         // about the pair, and a blank password is as likely the cause.
         invalid={errorKey !== null}

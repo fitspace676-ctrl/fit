@@ -102,8 +102,12 @@ describe('the member slice', () => {
     // step lists what is still owed (`checkout.details.invalidFields`), and the
     // two English placeholders in `components/checkout/pending-copy.ts` became
     // `checkout.payment.termsRequired` / `.alreadySubscribed`.
-    expect(enKeys).toHaveLength(1127);
-    expect(kaKeys).toHaveLength(1127);
+    //
+    // 2026-10-01, the register form's own checks: 1127 → 1128. An empty name
+    // is refused at the field (`auth.register.errors.nameRequired`); the email
+    // and password reuse the sign-in's sentences and the password hint.
+    expect(enKeys).toHaveLength(1128);
+    expect(kaKeys).toHaveLength(1128);
   });
 });
 

@@ -7,7 +7,15 @@
 // and a rail's edge padding.
 
 import { act } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StatusBar, View } from 'react-native';
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaInsetsContext, type EdgeInsets } from 'react-native-safe-area-context';
 import { render, screen, within } from '@testing-library/react-native';
 
@@ -30,6 +38,16 @@ function flatten(style: unknown): Record<string, unknown> {
     return Object.assign({}, ...style.map(flatten)) as Record<string, unknown>;
   if (style && typeof style === 'object') return style as Record<string, unknown>;
   return {};
+}
+
+/** Fire the footer wrapper's `onLayout`, if it has one, at `height`. */
+function layOutFooter(height: number): void {
+  const onLayout = screen.getByTestId('s-footer').props.onLayout as
+    | ((event: { nativeEvent: { layout: Record<string, number> } }) => void)
+    | undefined;
+  act(() => {
+    onLayout?.({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height } } });
+  });
 }
 
 function renderScreen(node: React.ReactElement, insets: EdgeInsets = NO_INSETS) {
@@ -105,10 +123,58 @@ describe('Screen', () => {
       NOTCHED,
     );
     const style = flatten(screen.getByTestId('s-footer').props.style);
-    expect(style.bottom).toBe(0);
     // The home indicator's band is inside the wrapper, not under the scroll.
     expect(style.paddingBottom).toBe(34);
     expect(style.backgroundColor).toBe(darkColors.backgroundBody);
+  });
+
+  // The checkout's details step: iOS scrolls a focused field into the scroll
+  // view's visible frame, and while the footer lay over that frame the field
+  // landed above the keyboard but behind the footer. Docked under the scroll,
+  // the frame ends where the footer begins.
+  it('docks a tab-less footer under the scroll instead of over it', () => {
+    renderScreen(
+      <Screen testID="s" reserveTabBar={false} footer={<View testID="s-footer-content" />}>
+        <View />
+      </Screen>,
+      NOTCHED,
+    );
+    const footer = screen.getByTestId('s-footer');
+    const style = flatten(footer.props.style);
+    expect(style.position).toBeUndefined();
+    expect(style.bottom).toBeUndefined();
+
+    // A sibling AFTER the scroll view, in the same column.
+    const column = screen.getByTestId(Platform.OS === 'ios' ? 's-keyboard-frame' : 's');
+    const order = column.children
+      .filter((node) => typeof node !== 'string')
+      .map((node) => (node as { props: { testID?: string } }).props.testID);
+    expect(order.indexOf('s-scroll')).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf('s-footer')).toBe(order.indexOf('s-scroll') + 1);
+  });
+
+  it('reserves no scroll room for a docked footer — it takes its own', () => {
+    renderScreen(
+      <Screen testID="s" reserveTabBar={false} footer={<View />}>
+        <View />
+      </Screen>,
+    );
+    layOutFooter(118);
+    expect(
+      flatten(screen.getByTestId('s-scroll').props.contentContainerStyle).paddingBottom,
+    ).toBeUndefined();
+  });
+
+  it('still reserves the measured height of a floating footer', () => {
+    renderScreen(
+      <Screen testID="s" footer={<View />}>
+        <View />
+      </Screen>,
+    );
+    layOutFooter(56);
+    expect(flatten(screen.getByTestId('s-scroll').props.contentContainerStyle).paddingBottom).toBe(
+      128 + 56,
+    );
   });
 
   it('keeps the capsule-side footer transparent — the capsule is the plate there', () => {
@@ -237,6 +303,57 @@ describe('Screen', () => {
     expect(flatten(frame.props.style).flex).toBe(1);
     // The footer is INSIDE the frame, not a sibling of it on the KAV.
     expect(within(frame).getByTestId('s-footer')).toBeTruthy();
+  });
+
+  // iOS never scrolls a React Native scroll view to its first responder, and
+  // the KAV only shrinks it: the details step's name field was left cut in
+  // half behind the docked footer.
+  it('scrolls the focused field up into the visible frame when the keyboard shows', () => {
+    if (Platform.OS !== 'ios') return;
+    let onShow: (() => void) | undefined;
+    jest.spyOn(Keyboard, 'addListener').mockImplementation(((
+      event: string,
+      handler: () => void,
+    ) => {
+      if (event === 'keyboardDidShow') onShow = handler;
+      return { remove: jest.fn() };
+    }) as unknown as typeof Keyboard.addListener);
+    // The scroll view's frame: y 211–421. The field's bare input: y 400–421.
+    const field = {
+      measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => {
+        cb(20, 400, 350, 21);
+      },
+    };
+    jest.spyOn(TextInput.State, 'currentlyFocusedInput').mockReturnValue(field as never);
+
+    const ref = { current: null as ScrollView | null };
+    try {
+      renderScreen(
+        <Screen testID="s" reserveTabBar={false} scrollRef={ref} footer={<View />}>
+          <Text>x</Text>
+        </Screen>,
+      );
+      // Own properties on this one instance, not spies: the mock's methods are
+      // shared `jest.fn`s on the prototype, and a spy would record into them.
+      const scroller = ref.current as ScrollView;
+      const scrollTo = jest.fn();
+      Object.assign(scroller, {
+        scrollTo,
+        getNativeScrollRef: () => ({
+          measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => {
+            cb(0, 211, 402, 210);
+          },
+        }),
+      });
+
+      act(() => {
+        onShow?.();
+      });
+      // 421 + 28 (the box's padding and a gap) − 421: the overlap, no more.
+      expect(scrollTo).toHaveBeenCalledWith({ y: 28, animated: true });
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 
   // ==========================================================================

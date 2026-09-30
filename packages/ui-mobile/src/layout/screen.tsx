@@ -1,9 +1,19 @@
-import { useState, type ReactElement, type ReactNode, type Ref } from 'react';
 import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+} from 'react';
+import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StatusBar,
+  TextInput,
   View,
   type RefreshControlProps,
   type StyleProp,
@@ -21,6 +31,13 @@ import {
   headerTopFor,
   tabBarBottomOffset,
 } from './metrics';
+
+/**
+ * Room left between a revealed field and the edge that was covering it. What
+ * gets measured is the bare `TextInput`, not the bordered box around it, so
+ * this is the box's own inner padding (~16) plus the footer's gap.
+ */
+const FOCUS_MARGIN = 16 + FOOTER_GAP;
 
 // ===========================================================================
 // THE PAGE FRAME. Gutters, safe areas, the keyboard, and the space the
@@ -133,13 +150,18 @@ export interface ScreenProps {
    * filled control, or already a `Surface`, passes as-is.
    *
    * THE BAND BELOW IT IS `Screen`'s, THOUGH — when there is no tab bar. With
-   * `reserveTabBar={false}` the footer floats `max(inset, 12)` above the edge,
-   * and the plate only covers its own box: the rows scrolling past showed in
-   * the strip under it and in the gutters beside it (the join funnel's
-   * details step). So in that case the wrapper runs to the bottom edge and
-   * paints the CANVAS colour — the page's own ground, not a card — which
-   * hides the scroll without drawing a second shape around the footer. Over
-   * the floating capsule it stays transparent: the capsule is the plate there.
+   * `reserveTabBar={false}` the footer is DOCKED: not laid over the scroll
+   * but stacked under it, in the flow, with the `max(inset, 12)` band inside
+   * it on the CANVAS colour — the page's own ground, not a card. Nothing
+   * scrolls behind it, so there is nothing to hide, and the scroll view ends
+   * where the footer begins. That last part is the point: the focused field
+   * is revealed within the scroll view's VISIBLE frame (see the reveal in the
+   * component), and while the footer was laid over that frame the field
+   * landed above the keyboard but under the footer (the join funnel's details
+   * step, the first-name row at 528–549pt behind a footer at 448–566pt).
+   * Over the floating capsule it
+   * stays absolute and transparent: the capsule is the plate there, and the
+   * list is meant to run under both.
    * ==========================================================================
    */
   footer?: ReactNode;
@@ -189,10 +211,16 @@ export function Screen({
   const insets = useSafeInsets();
   const tabBarInset = useTabBarInset();
 
-  // The footer is measured rather than assumed, because its height is the
-  // caller's: the shop's cart bar is one `lg` button, a checkout bar is two.
-  // Without this the last row of the list hides behind it.
-  const [footerHeight, setFooterHeight] = useState(0);
+  // Without a tab bar the footer is docked under the scroll rather than laid
+  // over it — see `ScreenProps.footer`.
+  const docked = !reserveTabBar;
+
+  // The floating footer is measured rather than assumed, because its height
+  // is the caller's: the shop's cart bar is one `lg` button, a checkout bar
+  // is two. Without this the last row of the list hides behind it. A docked
+  // footer takes its own room in the flow and needs no reserve.
+  const [measuredFooterHeight, setFooterHeight] = useState(0);
+  const footerHeight = docked ? 0 : measuredFooterHeight;
 
   // WHERE THE FOOTER SITS, AND WHY IT IS NOT JUST `bottom: 0`.
   //
@@ -207,6 +235,61 @@ export function Screen({
 
   const spec = TONES[tone];
   const background = colors[spec.background];
+
+  // ==========================================================================
+  // THE FOCUSED FIELD IS SCROLLED INTO VIEW HERE, BECAUSE NOTHING ELSE DOES IT.
+  //
+  // iOS never scrolls a React Native `ScrollView` to its first responder, and
+  // the `KeyboardAvoidingView` below only SHRINKS the scroll view — so a field
+  // that sat in the lower half of the page before the keyboard rose was left
+  // under the footer, or cut in half by the scroll view's new bottom edge (the
+  // join funnel's details step: the name field behind the continue button).
+  //
+  // So on every `keyboardDidShow` — which iOS posts again on each hop between
+  // fields, not only on the first — the focused input is measured in the
+  // window against the scroll view's visible frame, less a floating footer,
+  // and the scroll moves by exactly the overlap. `automaticallyAdjustKeyboard
+  // Insets` was the alternative, and it answers to the KEYBOARD's top edge: on
+  // top of the KAV it pays for the keyboard twice, and it still knows nothing
+  // of the footer.
+  // ==========================================================================
+  const ownScrollRef = useRef<ScrollView | null>(null);
+  const scrollOffset = useRef(0);
+  const setScrollRef = useCallback(
+    (node: ScrollView | null) => {
+      ownScrollRef.current = node;
+      if (typeof scrollRef === 'function') scrollRef(node);
+      else if (scrollRef) (scrollRef as { current: ScrollView | null }).current = node;
+    },
+    [scrollRef],
+  );
+  const floatingFooterCover =
+    footer === undefined || docked ? 0 : measuredFooterHeight + footerBottom;
+
+  useEffect(() => {
+    if (!scroll || !keyboardAvoiding || Platform.OS !== 'ios') return undefined;
+    const subscription = Keyboard.addListener('keyboardDidShow', () => {
+      const input = TextInput.State.currentlyFocusedInput() as View | null;
+      const scroller = ownScrollRef.current?.getNativeScrollRef() as View | null | undefined;
+      if (!input || !scroller) return;
+      scroller.measureInWindow((_x, frameTop, _w, frameHeight) => {
+        input.measureInWindow((_ix, fieldTop, _iw, fieldHeight) => {
+          const visibleBottom = frameTop + frameHeight - floatingFooterCover;
+          const below = fieldTop + fieldHeight + FOCUS_MARGIN - visibleBottom;
+          const above = frameTop + FOCUS_MARGIN - fieldTop;
+          const delta = below > 0 ? below : above > 0 ? -above : 0;
+          if (delta === 0) return;
+          ownScrollRef.current?.scrollTo({
+            y: Math.max(0, scrollOffset.current + delta),
+            animated: true,
+          });
+        });
+      });
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [scroll, keyboardAvoiding, floatingFooterCover]);
 
   // The canvas is dark in v1 (decision Q5), so `body` wants light glyphs; the
   // lime canvas wants dark ones in both modes, because the lime does not
@@ -235,7 +318,12 @@ export function Screen({
 
       {scroll ? (
         <ScrollView
-          ref={scrollRef}
+          ref={setScrollRef}
+          // Read by the focused-field reveal above; no render depends on it.
+          onScroll={(event) => {
+            scrollOffset.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
           // ==================================================================
           // WITHOUT THIS, THE FIRST TAP AFTER TYPING DOES NOTHING.
           //
@@ -304,19 +392,19 @@ export function Screen({
         <View
           testID={testID ? `${testID}-footer` : undefined}
           pointerEvents="box-none"
-          onLayout={(event) => {
-            setFooterHeight(event.nativeEvent.layout.height);
-          }}
+          onLayout={
+            docked
+              ? undefined
+              : (event) => {
+                  setFooterHeight(event.nativeEvent.layout.height);
+                }
+          }
           style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            ...(reserveTabBar
-              ? { bottom: footerBottom }
-              : // Down to the edge, on the canvas — see `ScreenProps.footer`.
-                // The measured height now includes the band, so the scroll's
-                // reserve clears it too.
-                { bottom: 0, paddingBottom: footerBottom, backgroundColor: background }),
+            ...(docked
+              ? // Under the scroll, in the flow, down to the edge on the
+                // canvas — see `ScreenProps.footer`.
+                { paddingBottom: footerBottom, backgroundColor: background }
+              : { position: 'absolute', left: 0, right: 0, bottom: footerBottom }),
             ...(gutter ? { paddingHorizontal: SCREEN_GUTTER } : {}),
           }}
         >
@@ -369,13 +457,13 @@ export function Screen({
   // height on the container, which fights `flex: 1` and makes the content jump
   // rather than slide.
   //
-  // AND THE CONTENT GOES IN ONE MORE `View`, OR THE FOOTER STAYS UNDER THE
-  // KEYBOARD. `padding` shrinks the KAV's CONTENT box, but the footer is
-  // `position: absolute; bottom: 0`, and Yoga resolves an absolute child's
-  // offsets against the parent's PADDING box, as the web does — so the padding
-  // never reached it and the register screen's submit sat behind the keyboard
-  // (pre-login audit, `register-keyboard.png`). The inner `flex: 1` view IS the
-  // shrunken box, so the footer's `bottom: 0` lands on the keyboard's top edge.
+  // AND THE CONTENT GOES IN ONE MORE `View`, OR AN ABSOLUTE FOOTER STAYS UNDER
+  // THE KEYBOARD. `padding` shrinks the KAV's CONTENT box, but Yoga resolves an
+  // absolute child's offsets against the parent's PADDING box, as the web
+  // does — so the padding never reached the footer and the register screen's
+  // submit sat behind the keyboard (pre-login audit, `register-keyboard.png`).
+  // The inner `flex: 1` view IS the shrunken box. A docked footer is in the
+  // flow and would ride the padding anyway; the frame keeps both cases alike.
   // ==========================================================================
   if (keyboardAvoiding && Platform.OS === 'ios') {
     return (
