@@ -20,7 +20,7 @@
 | "38 სერვისში unscoped `PrismaService`, cron-ებში გაუფილტრავი"        | **მცდარია**                 | `scopeArgs` (`prisma-tenant.extension.ts:277-282`) tenant-ის გარეშე `TENANT_CONTEXT_MISSING`-ს აგდებს (fail closed); cron-ები unscoped კლიენტს განზრახ, ცხადი `gymId`-ით იყენებენ.  |
 | web cookies `COOKIE_DOMAIN` ქვედომენებს შორის                        | უკვე host-only              | `session-cookies.ts` `COOKIE_DOMAIN`-ს მხოლოდ ძველი cookie-ს წასაშლელად იყენებს; env-ის მოხსნა Vercel-ზე — T1.21 (2026-10-14-ის შემდეგ).                                            |
 | rate-limit key `gymId`-ის გარეშე                                     | არ იცვლება                  | per-IP ლიმიტი განზრახია; per-gym key თავდამსხმელს ბიუჯეტს gym-ების რაოდენობით გაუმრავლებდა.                                                                                         |
-| OAuth-ის "ობოლი" `User` `NOT_A_MEMBER`-ზე                            | დაბალი, არ იცვლება          | `User` row-ს გვერდითი ეფექტი არ აქვს; PR #354-ის შემდეგ ამ ელფოსტით რეგისტრაცია ნორმალურად გადის.                                                                                   |
+| OAuth-ის "ობოლი" `User` `NOT_A_MEMBER`-ზე                            | გასწორდა — ამ PR-ში         | gym-ის სახელობით sign-in-ზე ბრენდ-ახალი Google/Apple იდენტობა `User`-ის ჩაწერამდე `NOT_A_MEMBER`-ით უარიყოფა; auto-join არ დამატებულა (#340-ის გადაწყვეტილება რჩება).               |
 | `AgentChatSession` / `RefreshToken` `TENANT_SCOPED_MODELS`-ის გარეშე | დოკუმენტირებული გამონაკლისი | უცვლელი.                                                                                                                                                                            |
 
 ---
