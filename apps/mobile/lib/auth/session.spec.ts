@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoginInput } from '@fit/types';
-import type { AuthApi } from '../api/auth';
+import { createAuthApi, type AuthApi } from '../api/auth';
 import { env } from '../env';
 import { ApiError } from '../http/api-error';
 import { resetApiClientForTests } from '../http/api-client';
@@ -287,6 +287,47 @@ describe('signIn', () => {
     expect(getSessionState().status).toBe('signed-in');
   });
 
+  it('preserves the 409 gym choices and remembers the selected gym after retry', async () => {
+    const gyms = [{ slug: 'downtown', name: 'Downtown Gym' }];
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 'GYM_SELECTION_REQUIRED',
+            data: { gyms },
+          }),
+          { status: 409 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify(pair(FRESH_EXP))));
+    const api = createAuthApi({ apiUrl: 'https://api.example.test', fetchImpl, timeoutMs: 5000 });
+    configureSession({
+      authApi: {
+        ...api,
+        gymIdBySlug: () => Promise.resolve('gym_a'),
+      },
+    });
+    await hydrateAuth();
+
+    const credentials = { email: 'a@b.test', password: 'pw' };
+    await expect(signIn({ ...credentials, gymSlug: undefined })).rejects.toMatchObject({
+      status: 409,
+      code: 'GYM_SELECTION_REQUIRED',
+      gyms,
+    });
+    expect(getSessionState().status).toBe('signed-out');
+    expect(storage.map.has('last_gym_slug')).toBe(false);
+
+    const result = await signIn({ ...credentials, gymSlug: 'downtown' });
+    await result.gymScope;
+    expect(fetchImpl.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({ ...credentials, gymSlug: 'downtown' }),
+    );
+    expect(storage.map.get('last_gym_slug')).toBe('downtown');
+    expect(resolveGymSlug()).toBe('downtown');
+  });
+
   it('omits gymSlug entirely rather than sending undefined', async () => {
     const login = vi.fn((_input: LoginInput) => Promise.resolve(pair(FRESH_EXP)));
     configureSession({ authApi: fakeAuthApi({ login }) });
@@ -462,6 +503,18 @@ describe('the passwordless entry points', () => {
       message: 'if an account exists',
     });
     expect(getSessionState().status).toBe('signed-out');
+  });
+
+  it('sends the remembered gym with password reset requests', async () => {
+    const forgotPassword = vi.fn(() => Promise.resolve({ message: 'if an account exists' }));
+    configureSession({ authApi: fakeAuthApi({ forgotPassword }) });
+    storage.map.set('last_gym_slug', 'downtown');
+    await hydrateAuth();
+    await requestPasswordReset('a@b.test');
+    expect(forgotPassword).toHaveBeenCalledWith(
+      { email: 'a@b.test', gymSlug: 'downtown' },
+      undefined,
+    );
   });
 });
 

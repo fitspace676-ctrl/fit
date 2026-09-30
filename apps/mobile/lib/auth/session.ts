@@ -558,7 +558,11 @@ export async function requestPasswordReset(
   email: string,
   options?: AuthCallOptions,
 ): Promise<{ message: string }> {
-  return deps.authApi.forgotPassword({ email }, options);
+  const gymSlug = resolveGymSlug();
+  return deps.authApi.forgotPassword(
+    { email, ...(gymSlug === undefined ? {} : { gymSlug }) },
+    options,
+  );
 }
 
 /** Persist an issued pair, then start (but do not await) the gym-scope check. */

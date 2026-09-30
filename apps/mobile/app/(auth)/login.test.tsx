@@ -14,6 +14,7 @@ import { onlineManager } from '@tanstack/react-query';
 
 import { darkColors } from '@fit/ui-mobile';
 
+import { GymSelectionRequiredError } from '../../lib/api/auth';
 import { ApiError } from '../../lib/http/api-error';
 import { a11yState } from '../../test-support/a11y';
 import { renderApp } from '../../test-support/render';
@@ -31,7 +32,7 @@ jest.mock('expo-router', () => ({
 // Typed, because an untyped `jest.fn()` returns `any` and the factory arrow
 // below would then be an unsafe return at every mocked module boundary.
 const mockSignIn = jest.fn<Promise<unknown>, unknown[]>();
-const mockResolveGymSlug = jest.fn(() => 'downtown');
+const mockResolveGymSlug = jest.fn<string | undefined, []>(() => 'downtown');
 
 jest.mock('../../lib/auth/session', () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
@@ -150,6 +151,53 @@ describe('login screen', () => {
       password: 'hunter22',
       gymSlug: 'downtown',
     });
+  });
+
+  it('offers the gyms after 409 and retries the same credentials with the selected slug', async () => {
+    mockResolveGymSlug.mockReturnValueOnce(undefined);
+    mockSignIn.mockRejectedValueOnce(
+      new GymSelectionRequiredError([
+        { slug: 'downtown', name: 'Downtown Gym' },
+        { slug: 'riverside', name: 'Riverside Gym' },
+      ]),
+    );
+    renderApp(<LoginScreen />);
+    fillCredentials();
+    fireEvent.press(screen.getByTestId('login-submit'));
+
+    await screen.findByTestId('login-gym-picker');
+    expect(screen.getByText('Downtown Gym')).toBeTruthy();
+    expect(screen.getByText('Riverside Gym')).toBeTruthy();
+    expect(screen.queryByTestId('login-error')).toBeNull();
+    expect(mockSignIn).toHaveBeenLastCalledWith({
+      email: 'a@b.co',
+      password: 'hunter22',
+      gymSlug: undefined,
+    });
+
+    mockSignIn.mockReturnValueOnce(pending());
+    fireEvent.press(screen.getByTestId('login-gym-riverside'));
+    expect(mockSignIn).toHaveBeenLastCalledWith({
+      email: 'a@b.co',
+      password: 'hunter22',
+      gymSlug: 'riverside',
+    });
+    fireEvent.press(screen.getByTestId('login-gym-downtown'));
+    expect(mockSignIn).toHaveBeenCalledTimes(2);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('lets the member return from the picker to edit their credentials', async () => {
+    mockSignIn.mockRejectedValueOnce(
+      new GymSelectionRequiredError([{ slug: 'downtown', name: 'Downtown Gym' }]),
+    );
+    renderApp(<LoginScreen />);
+    fillCredentials();
+    fireEvent.press(screen.getByTestId('login-submit'));
+    await screen.findByTestId('login-gym-picker');
+    fireEvent.press(screen.getByTestId('login-gym-back'));
+    expect(screen.getByTestId('login-email-input').props.value).toBe('a@b.co');
+    expect(screen.queryByTestId('login-gym-picker')).toBeNull();
   });
 
   it('marks submit busy while the request is in flight, and swallows a second press', () => {

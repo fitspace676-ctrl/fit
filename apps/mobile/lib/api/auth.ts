@@ -60,6 +60,11 @@
 //   - `POST /auth/register-gym`, `GET /auth/accept-invite` — staff/owner
 //     surfaces the member app has no screen for.
 
+import {
+  gymSelectionOptions,
+  GYM_SELECTION_REQUIRED_CODE,
+  type GymSelectionOption,
+} from '@fit/types';
 import type {
   AppleAuthInput,
   ForgotPasswordInput,
@@ -80,6 +85,14 @@ import {
   CLIENT_ERROR_CODES,
   parseRetryAfter,
 } from '../http/api-error';
+
+/** A login needs the member to choose one of the gyms their credentials opened. */
+export class GymSelectionRequiredError extends ApiError {
+  constructor(readonly gyms: GymSelectionOption[]) {
+    super({ status: 409, code: GYM_SELECTION_REQUIRED_CODE });
+    Object.setPrototypeOf(this, GymSelectionRequiredError.prototype);
+  }
+}
 
 /** Everything the transport needs from the outside world. */
 export interface AuthApiDeps {
@@ -237,6 +250,10 @@ async function request<T>(
       return null as T;
     }
     const body = await readJson(response);
+    const gyms = response.status === 409 ? gymSelectionOptions(body) : null;
+    if (path === '/auth/login' && gyms !== null) {
+      throw new GymSelectionRequiredError(gyms);
+    }
     throw apiErrorFromResponse(
       response.status,
       body,

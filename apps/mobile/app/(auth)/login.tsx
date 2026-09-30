@@ -28,6 +28,7 @@
 // `Alert` is aliased: `react-native` exports one too, and the two are utterly
 // different things. The alias makes a future `import { Alert } from 'react-native'`
 // impossible to add by accident.
+import type { GymSelectionOption } from '@fit/types';
 import { Alert as Advisory, Button, Text, spacing } from '@fit/ui-mobile';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -39,6 +40,7 @@ import { AuthField } from '../../components/auth/field';
 import { CoolDownNotice, OfflineNotice } from '../../components/auth/notices';
 import { coolDownSecondsFor, useCoolDown } from '../../components/auth/use-cool-down';
 import { useIsOnline } from '../../components/auth/use-online';
+import { GymSelectionRequiredError } from '../../lib/api/auth';
 import { resolveGymSlug, signIn } from '../../lib/auth/session';
 import type { MessageKey } from '../../lib/i18n/keys';
 import { useI18n } from '../../providers/I18nProvider';
@@ -79,13 +81,14 @@ export default function LoginScreen() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [gymChoices, setGymChoices] = useState<GymSelectionOption[] | null>(null);
   const [pending, setPending] = useState(false);
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>(NO_FIELD_ERRORS);
 
   const blocked = pending || coolDown.active || !online;
 
-  const submit = (): void => {
+  const submit = (gymSlug = resolveGymSlug()): void => {
     if (blocked) return;
     const checked = loginFieldErrors(email, password);
     setErrorKey(null);
@@ -96,7 +99,7 @@ export default function LoginScreen() {
     // parameter is one a screen forgets, and a forgotten slug is a member
     // silently signed into the wrong branch. `resolveGymSlug()` answers from the
     // deep link, then the build's pinned slug, then the last successful login.
-    signIn({ email, password, gymSlug: resolveGymSlug() })
+    signIn({ email, password, gymSlug })
       .then(() => {
         // Deliberately NOT `setPending(false)`. The guard is about to replace
         // this route; re-enabling the button in the gap would let a double-press
@@ -105,6 +108,10 @@ export default function LoginScreen() {
       })
       .catch((error: unknown) => {
         setPending(false);
+        if (error instanceof GymSelectionRequiredError) {
+          setGymChoices(error.gyms);
+          return;
+        }
         const seconds = coolDownSecondsFor(error);
         if (seconds !== null) {
           coolDown.start(seconds);
@@ -113,6 +120,48 @@ export default function LoginScreen() {
         setErrorKey(authErrorKey(error));
       });
   };
+
+  if (gymChoices !== null) {
+    return (
+      <AuthScreen
+        testID="login-gym-picker"
+        title={t('auth.login.chooseGym.title')}
+        subtitle={t('auth.login.chooseGym.hint')}
+        brand
+      >
+        {online ? null : <OfflineNotice testID="login-offline" />}
+        {coolDown.active ? (
+          <CoolDownNotice testID="login-cooldown" secondsLeft={coolDown.secondsLeft} />
+        ) : null}
+        {errorKey === null ? null : (
+          <Advisory testID="login-error" tone="danger" live title={t(errorKey)} />
+        )}
+        {gymChoices.map((gym) => (
+          <Button
+            key={gym.slug}
+            testID={`login-gym-${gym.slug}`}
+            variant="primary"
+            size="lg"
+            fullWidth
+            label={gym.name}
+            disabled={blocked}
+            onPress={() => submit(gym.slug)}
+          />
+        ))}
+        <Button
+          testID="login-gym-back"
+          variant="ghost"
+          fullWidth
+          label={t('auth.login.chooseGym.back')}
+          disabled={pending}
+          onPress={() => {
+            setGymChoices(null);
+            setErrorKey(null);
+          }}
+        />
+      </AuthScreen>
+    );
+  }
 
   return (
     <AuthScreen
@@ -187,7 +236,7 @@ export default function LoginScreen() {
         revealLabels={{ show: t('auth.showPassword'), hide: t('auth.hidePassword') }}
         // Last field: "go" submits rather than hopping.
         returnKeyType="go"
-        onSubmitEditing={submit}
+        onSubmitEditing={() => submit()}
         action={
           <Button
             variant="ghost"
@@ -216,7 +265,7 @@ export default function LoginScreen() {
           busyLabel={t('auth.login.submitting')}
           busy={pending}
           disabled={coolDown.active || !online}
-          onPress={submit}
+          onPress={() => submit()}
         />
       </View>
 
