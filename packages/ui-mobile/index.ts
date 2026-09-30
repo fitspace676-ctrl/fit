@@ -193,7 +193,12 @@ export {
   type StarRatingLabels,
   type StarRatingProps,
 } from './src/forms/star-rating';
-export { TextField, type TextFieldProps } from './src/forms/text-field';
+export {
+  FieldLabel,
+  TextField,
+  type FieldLabelProps,
+  type TextFieldProps,
+} from './src/forms/text-field';
 
 // The frame.
 export { Screen, type ScreenProps, type ScreenTone } from './src/layout/screen';
