@@ -17,7 +17,7 @@
 // auto-retries — retrying a rate-limit response is what the limiter is defending
 // against, and it turns a 15-minute wait into a longer one.
 
-import { Alert as Advisory, Button, Text } from '@fit/ui-mobile';
+import { Alert as Advisory, Button, Text, spacing } from '@fit/ui-mobile';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View, type TextInput } from 'react-native';
@@ -70,7 +70,13 @@ export default function RegisterScreen() {
       });
   };
 
-  const footer = (
+  const toLogin = (): void => {
+    router.replace('/login');
+  };
+
+  // Above the main action, in the pinned footer: the way to the account the
+  // visitor may already have, one tap from the button they were about to press.
+  const loginRow = (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
       <Text variant="bodySmall" color="textSecondary">
         {t('auth.register.haveAccount')}
@@ -80,9 +86,7 @@ export default function RegisterScreen() {
         size="sm"
         testID="register-login-link"
         label={t('auth.register.loginLink')}
-        onPress={() => {
-          router.replace('/login');
-        }}
+        onPress={toLogin}
       />
     </View>
   );
@@ -95,7 +99,9 @@ export default function RegisterScreen() {
         testID="register"
         title={t('auth.register.title')}
         subtitle={t('auth.register.subtitle')}
-        footer={footer}
+        onBack={toLogin}
+        brand
+        footer={loginRow}
       >
         <Advisory
           testID="register-success"
@@ -116,7 +122,25 @@ export default function RegisterScreen() {
       testID="register"
       title={t('auth.register.title')}
       subtitle={t('auth.register.subtitle')}
-      footer={footer}
+      onBack={toLogin}
+      brand
+      footer={
+        <>
+          {loginRow}
+          {/* In the footer, so the keyboard lifts it instead of covering it. */}
+          <Button
+            testID="register-submit"
+            variant="primary"
+            size="lg"
+            fullWidth
+            label={t('auth.register.submit')}
+            busyLabel={t('auth.register.submitting')}
+            busy={pending}
+            disabled={coolDown.active || !online}
+            onPress={submit}
+          />
+        </>
+      }
     >
       {/* TODO(i18n): `common.offline.title` / `common.offline.body`. */}
       {online ? null : <OfflineNotice testID="register-offline" />}
@@ -190,21 +214,14 @@ export default function RegisterScreen() {
         onSubmitEditing={submit}
       />
 
-      <Text variant="caption" color="textSecondary" testID="register-terms">
+      <Text
+        variant="caption"
+        color="textSecondary"
+        testID="register-terms"
+        style={{ marginTop: spacing[2] }}
+      >
         {t('auth.terms')}
       </Text>
-
-      <Button
-        testID="register-submit"
-        variant="primary"
-        size="lg"
-        fullWidth
-        label={t('auth.register.submit')}
-        busyLabel={t('auth.register.submitting')}
-        busy={pending}
-        disabled={coolDown.active || !online}
-        onPress={submit}
-      />
     </AuthScreen>
   );
 }

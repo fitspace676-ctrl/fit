@@ -47,6 +47,7 @@ import {
   type IconName,
 } from '@fit/ui-mobile';
 
+import { BrandMark, NavRow } from '../components/auth/auth-screen';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useI18n } from '../providers/I18nProvider';
 import type { MessageKey } from '../lib/i18n/keys';
@@ -69,8 +70,21 @@ const SLIDES: readonly Slide[] = [
   { key: 'shop', icon: 'bag', title: 'onboarding.shop.title', body: 'onboarding.shop.body' },
 ];
 
-/** The round plate the slide's glyph sits in — `h-20 w-20` on the artboards. */
-const PLATE = 80;
+/**
+ * The round plate the slide's glyph sits in — 128 (`spacing[32]`), with a 56
+ * (`spacing[14]`) glyph. It was 80/36 and the slide read as a small mark
+ * floating in an empty screen (pre-login audit #14).
+ */
+const PLATE = spacing[32];
+const GLYPH = spacing[14];
+
+/**
+ * The two spacers around the slide. 2 : 3 lifts it a little above the true
+ * middle of the space between the header and the footer, where the eye reads
+ * "centre"; both shrink to nothing on a short screen.
+ */
+const CENTER_ABOVE = 2;
+const CENTER_BELOW = 3;
 
 export default function OnboardingScreen() {
   const { t } = useI18n();
@@ -103,19 +117,52 @@ export default function OnboardingScreen() {
       testID="onboarding-screen"
       // No tab bar behind the intro, so there is nothing to reserve space for.
       reserveTabBar={false}
-      contentContainerStyle={{ justifyContent: 'space-between', paddingVertical: spacing[8] }}
-    >
-      <View style={{ alignItems: 'flex-end' }}>
-        <Button
-          label={t('onboarding.skip')}
-          onPress={finish}
-          variant="ghost"
-          size="sm"
-          testID="onboarding-skip"
+      // The same top row as the auth screens, with the brand on the LEFT: the
+      // right-hand slot is Skip's, and Skip is the one control here that must
+      // not move between slides.
+      header={
+        <NavRow
+          leading={<BrandMark testID="onboarding-brand" />}
+          trailing={
+            <Button
+              label={t('onboarding.skip')}
+              onPress={finish}
+              variant="ghost"
+              size="md"
+              testID="onboarding-skip"
+            />
+          }
         />
-      </View>
-
-      <View style={{ alignItems: 'center', gap: spacing[5] }}>
+      }
+      footer={
+        <View style={{ alignItems: 'center', gap: spacing[6], paddingTop: spacing[4] }}>
+          <Pips
+            filled={index + 1}
+            total={SLIDES.length}
+            // The pips are the only thing that says HOW FAR IN this is, and they
+            // have no text at all. `Pips` supplies the position itself as
+            // `accessibilityValue` ({min, max, now}), so naming it with the
+            // slide's own title yields "Find your next class, 1 of 2".
+            //
+            // TODO(i18n): a dedicated `onboarding.progress` would read better than
+            // reusing the title. It does not exist; the nine authored keys cover
+            // the script and not the chrome.
+            accessibilityLabel={t(slide.title)}
+            testID="onboarding-pips"
+          />
+          <Button
+            label={isLast ? t('onboarding.getStarted') : t('onboarding.next')}
+            onPress={advance}
+            variant="primary"
+            size="lg"
+            fullWidth
+            testID="onboarding-next"
+          />
+        </View>
+      }
+    >
+      <View style={{ flexGrow: CENTER_ABOVE }} />
+      <View style={{ alignItems: 'center', gap: spacing[6] }}>
         <Surface
           tone="quiet"
           side={PLATE}
@@ -126,44 +173,27 @@ export default function OnboardingScreen() {
           accessible={false}
           importantForAccessibility="no-hide-descendants"
         >
-          <Icon name={slide.icon} size={36} color="accent" />
+          <Icon name={slide.icon} size={GLYPH} color="accent" />
         </Surface>
 
-        {/* The screen's ONE `role="header"`. Only one slide is mounted at a
-            time, so it stays one however many slides there are. */}
-        <Heading level={1} style={{ textAlign: 'center' }} testID="onboarding-title">
-          {t(slide.title)}
-        </Heading>
+        <View style={{ alignItems: 'center', gap: spacing[3] }}>
+          {/* The screen's ONE `role="header"`. Only one slide is mounted at a
+              time, so it stays one however many slides there are. */}
+          <Heading
+            level={1}
+            variant="title"
+            style={{ textAlign: 'center' }}
+            testID="onboarding-title"
+          >
+            {t(slide.title)}
+          </Heading>
 
-        <Text variant="body" color="textSecondary" style={{ textAlign: 'center' }}>
-          {t(slide.body)}
-        </Text>
+          <Text variant="bodyRegular" color="textSecondary" style={{ textAlign: 'center' }}>
+            {t(slide.body)}
+          </Text>
+        </View>
       </View>
-
-      <View style={{ alignItems: 'center', gap: spacing[6] }}>
-        <Pips
-          filled={index + 1}
-          total={SLIDES.length}
-          // The pips are the only thing that says HOW FAR IN this is, and they
-          // have no text at all. `Pips` supplies the position itself as
-          // `accessibilityValue` ({min, max, now}), so naming it with the
-          // slide's own title yields "Find your next class, 1 of 2".
-          //
-          // TODO(i18n): a dedicated `onboarding.progress` would read better than
-          // reusing the title. It does not exist; the nine authored keys cover
-          // the script and not the chrome.
-          accessibilityLabel={t(slide.title)}
-          testID="onboarding-pips"
-        />
-        <Button
-          label={isLast ? t('onboarding.getStarted') : t('onboarding.next')}
-          onPress={advance}
-          variant="primary"
-          size="lg"
-          fullWidth
-          testID="onboarding-next"
-        />
-      </View>
+      <View style={{ flexGrow: CENTER_BELOW }} />
     </Screen>
   );
 }

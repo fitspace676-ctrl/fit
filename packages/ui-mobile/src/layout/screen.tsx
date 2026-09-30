@@ -368,6 +368,14 @@ export function Screen({
   // `behavior="padding"` rather than `"height"`: `"height"` sets a fixed
   // height on the container, which fights `flex: 1` and makes the content jump
   // rather than slide.
+  //
+  // AND THE CONTENT GOES IN ONE MORE `View`, OR THE FOOTER STAYS UNDER THE
+  // KEYBOARD. `padding` shrinks the KAV's CONTENT box, but the footer is
+  // `position: absolute; bottom: 0`, and Yoga resolves an absolute child's
+  // offsets against the parent's PADDING box, as the web does — so the padding
+  // never reached it and the register screen's submit sat behind the keyboard
+  // (pre-login audit, `register-keyboard.png`). The inner `flex: 1` view IS the
+  // shrunken box, so the footer's `bottom: 0` lands on the keyboard's top edge.
   // ==========================================================================
   if (keyboardAvoiding && Platform.OS === 'ios') {
     return (
@@ -378,7 +386,9 @@ export function Screen({
         className={className}
       >
         <StatusBar barStyle={barStyle} animated />
-        {content}
+        <View testID={testID ? `${testID}-keyboard-frame` : undefined} style={{ flex: 1 }}>
+          {content}
+        </View>
       </KeyboardAvoidingView>
     );
   }

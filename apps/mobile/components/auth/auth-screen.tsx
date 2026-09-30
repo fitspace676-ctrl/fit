@@ -50,19 +50,94 @@
 //   pair on register and reset is what makes iOS offer to SAVE a strong
 //   password and Android offer to UPDATE the stored one; `current-password` /
 //   `password` on login is what makes them offer to fill it.
+//
+// DECISION 6 — ONE FRAME, TOP TO BOTTOM (the 2026-09-30 pre-login layout).
+//   · A navigation row in `Screen`'s static header slot: a back `IconButton`
+//     on the left where the screen already had a way back, and the app icon on
+//     login and register only — on the RIGHT beside a back button (register),
+//     on the LEFT above the title where there is none (login), rather than
+//     hanging alone at the far edge. The row keeps its 44pt height when it is
+//     empty, so the title never jumps between screens.
+//   · The title block scrolls WITH the form rather than staying pinned. With
+//     the keyboard up on a small phone, a pinned two-line title takes the room
+//     the focused field needs.
+//   · The main action goes in `Screen`'s footer, on the canvas, above the
+//     keyboard. Login is the exception by product decision: its submit stays
+//     under the password field (`login.tsx`).
+//   · The body follows the title block directly, `spacing[6]` below it, on
+//     every screen — short ones included. Centring a single field in the space
+//     left over parted it from the sentence that asks for it (the approved
+//     `forgot-password` mockup keeps them together).
 // ===========================================================================
 
-import { AppBar, Screen } from '@fit/ui-mobile';
+import { Heading, IconButton, Screen, Text, radii, spacing } from '@fit/ui-mobile';
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 
-/** The vertical rhythm between the header block and the form. */
-const FORM_GAP = 20;
+import { useI18n } from '../../providers/I18nProvider';
+
+/**
+ * The app icon itself — the asset the home screen shows, not a redrawing.
+ *
+ * `require`, not `import`: the `*.png` module declaration lives in Expo's
+ * generated `expo-env.d.ts`, which is gitignored, so an `import` type-checks
+ * on a machine that has run `expo start` and fails on a clean CI checkout.
+ * Metro resolves both to the same asset id.
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const APP_ICON = require('../../assets/icon.png') as number;
+
+/** `spacing[10]` — the brand mark's side. */
+const BRAND_SIZE = spacing[10];
+
+/** The nav row's height: the back button's 44pt target, kept when it is empty. */
+const NAV_ROW = spacing[11];
+
+/** The rhythm between fields. */
+const BODY_GAP = spacing[4];
+
+/** The app icon, 40pt, rounded like the icon it is. Decorative. */
+export function BrandMark({ testID }: { testID?: string }) {
+  return (
+    <Image
+      testID={testID}
+      source={APP_ICON}
+      // The title beside it already names the product; a screen reader gains
+      // nothing from hearing a picture of the same name.
+      accessible={false}
+      accessibilityIgnoresInvertColors
+      style={{ width: BRAND_SIZE, height: BRAND_SIZE, borderRadius: radii.inner }}
+    />
+  );
+}
+
+/**
+ * The navigation row every pre-login screen opens with: something on the left,
+ * something on the right, 44pt tall whether or not either is there.
+ */
+export function NavRow({ leading, trailing }: { leading?: ReactNode; trailing?: ReactNode }) {
+  return (
+    <View
+      style={{
+        minHeight: NAV_ROW,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}
+    >
+      {/* An empty slot still takes its side, so a lone trailing item stays right.
+          `flexShrink: 0`: a slot sized by its content must not be squeezed by
+          the row — a shrunk slot ellipsised onboarding's "Skip" label. */}
+      <View style={{ flexShrink: 0 }}>{leading}</View>
+      <View style={{ flexShrink: 0 }}>{trailing}</View>
+    </View>
+  );
+}
 
 export interface AuthScreenProps {
   /**
-   * The screen title. Rendered by `AppBar` as a `Heading`, which carries
-   * `accessibilityRole="header"` — and it is the ONLY header on these screens,
+   * The screen title, as a `Heading` — which carries
+   * `accessibilityRole="header"`, and it is the ONLY header on these screens,
    * which is plan §6 item 7's "one `role=header` per screen". Nothing else here
    * may use `Heading`; `Alert` and `EmptyState` deliberately do not.
    */
@@ -75,31 +150,78 @@ export interface AuthScreenProps {
   subtitle?: string;
   /** The form, the panel, or the state. */
   children: ReactNode;
-  /** Below the form — the "back to sign in" / "create one" row. */
+  /**
+   * Pinned at the bottom, above the keyboard: the screen's main action and
+   * whatever belongs with it. Rendered through `Screen`'s footer, which paints
+   * the canvas behind it down to the edge.
+   */
   footer?: ReactNode;
-  /** Forwarded to `Screen`; `${testID}-header`, `-scroll` follow from it. */
+  /**
+   * The existing way back, drawn as a chevron at the top left. Pass the SAME
+   * handler the screen's own "back to sign in" already runs — this is that
+   * action made findable, not a new destination.
+   */
+  onBack?: () => void;
+  /** The app icon — beside the back button, or in its place. Login and register only. */
+  brand?: boolean;
+  /** Forwarded to `Screen`; `${testID}-header`, `-scroll`, `-footer`, `-nav-back`, `-brand` follow. */
   testID: string;
 }
 
-/**
- * The auth stack's page frame: safe-area header, title block, scrolling body.
- *
- * There is deliberately no branding hero. The web screens have a photograph
- * (`AuthPhotoShell`) which exists to fill a 1440pt canvas beside a 400pt form; a
- * phone has no such space, and the artboards' own screens all open straight onto
- * their content. Adding a hero image here would push the first field below the
- * fold on an SE with the keyboard up.
- */
-export function AuthScreen({ title, subtitle, children, footer, testID }: AuthScreenProps) {
+/** The auth stack's page frame. See decision 6 above. */
+export function AuthScreen({
+  title,
+  subtitle,
+  children,
+  footer,
+  onBack,
+  brand = false,
+  testID,
+}: AuthScreenProps) {
+  const { t } = useI18n();
+  const brandMark = brand ? <BrandMark testID={`${testID}-brand`} /> : null;
+
   return (
     <Screen
       testID={testID}
       // No tab bar under the auth stack — see decision 1.
       reserveTabBar={false}
-      header={<AppBar title={title} subtitle={subtitle} padBottom={FORM_GAP} />}
+      header={
+        <NavRow
+          leading={
+            onBack === undefined ? (
+              brandMark
+            ) : (
+              <IconButton
+                icon="chevronLeft"
+                variant="surface"
+                accessibilityLabel={t('notifications.back')}
+                onPress={onBack}
+                testID={`${testID}-nav-back`}
+              />
+            )
+          }
+          trailing={onBack === undefined ? null : brandMark}
+        />
+      }
+      footer={
+        footer === undefined ? undefined : (
+          <View style={{ paddingTop: spacing[4], gap: spacing[3] }}>{footer}</View>
+        )
+      }
     >
-      <View style={{ gap: FORM_GAP }}>{children}</View>
-      {footer === undefined ? null : <View style={{ marginTop: FORM_GAP }}>{footer}</View>}
+      <View style={{ paddingTop: spacing[5], paddingBottom: spacing[6] }}>
+        <View style={{ marginBottom: spacing[6] }}>
+          <Heading level={2}>{title}</Heading>
+          {subtitle ? (
+            <Text variant="bodyRegular" color="textSecondary" style={{ marginTop: spacing[2] }}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={{ gap: BODY_GAP }}>{children}</View>
+      </View>
     </Screen>
   );
 }

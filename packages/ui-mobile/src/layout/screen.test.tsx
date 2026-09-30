@@ -222,6 +222,23 @@ describe('Screen', () => {
     }
   });
 
+  // The register screen's submit sat behind the keyboard: an absolute footer
+  // resolves `bottom: 0` against its parent's PADDING box, so the padding the
+  // KAV adds never moved it. It has to be the child of a box the KAV shrinks.
+  it('puts the footer inside the box the keyboard shrinks, not on the KAV itself', () => {
+    const view = renderScreen(
+      <Screen testID="s" reserveTabBar={false} footer={<View />}>
+        <Text>x</Text>
+      </Screen>,
+    );
+    if (Platform.OS !== 'ios') return;
+
+    const frame = view.getByTestId('s-keyboard-frame');
+    expect(flatten(frame.props.style).flex).toBe(1);
+    // The footer is INSIDE the frame, not a sibling of it on the KAV.
+    expect(within(frame).getByTestId('s-footer')).toBeTruthy();
+  });
+
   // ==========================================================================
   // `tone="accent"` — the QR screen's brightness boost.
   // ==========================================================================

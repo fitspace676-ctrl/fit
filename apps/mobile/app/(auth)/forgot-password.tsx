@@ -15,9 +15,10 @@
 //
 // `authStrict`: 5 per 900s. Same cool-down as register and reset.
 
-import { Alert as Advisory, Button } from '@fit/ui-mobile';
+import { Alert as Advisory, Button, spacing } from '@fit/ui-mobile';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { View } from 'react-native';
 
 import { AuthScreen } from '../../components/auth/auth-screen';
 import { authErrorKey } from '../../components/auth/auth-error';
@@ -62,7 +63,13 @@ export default function ForgotPasswordScreen() {
       });
   };
 
-  const footer = (
+  const backToLogin = (): void => {
+    router.replace('/login');
+  };
+
+  // The named way back. The header's chevron runs the same handler; this one
+  // stays because it says WHERE back goes, which a bare chevron does not.
+  const backLink = (
     <Button
       variant="ghost"
       size="md"
@@ -70,9 +77,7 @@ export default function ForgotPasswordScreen() {
       icon="arrowLeft"
       testID="forgot-back"
       label={t('auth.forgot.backToLogin')}
-      onPress={() => {
-        router.replace('/login');
-      }}
+      onPress={backToLogin}
     />
   );
 
@@ -85,7 +90,9 @@ export default function ForgotPasswordScreen() {
         testID="forgot"
         title={t('auth.forgot.title')}
         subtitle={t('auth.forgot.subtitle')}
-        footer={footer}
+        onBack={backToLogin}
+        // Nothing is left to send, so the way out takes the action's place.
+        footer={backLink}
       >
         <Advisory
           testID="forgot-sent"
@@ -103,7 +110,20 @@ export default function ForgotPasswordScreen() {
       testID="forgot"
       title={t('auth.forgot.title')}
       subtitle={t('auth.forgot.subtitle')}
-      footer={footer}
+      onBack={backToLogin}
+      footer={
+        <Button
+          testID="forgot-submit"
+          variant="primary"
+          size="lg"
+          fullWidth
+          label={t('auth.forgot.submit')}
+          busyLabel={t('auth.forgot.submitting')}
+          busy={pending}
+          disabled={coolDown.active || !online}
+          onPress={submit}
+        />
+      }
     >
       {/* TODO(i18n): `common.offline.title` / `common.offline.body`. */}
       {online ? null : <OfflineNotice testID="forgot-offline" />}
@@ -135,17 +155,7 @@ export default function ForgotPasswordScreen() {
         onSubmitEditing={submit}
       />
 
-      <Button
-        testID="forgot-submit"
-        variant="primary"
-        size="lg"
-        fullWidth
-        label={t('auth.forgot.submit')}
-        busyLabel={t('auth.forgot.submitting')}
-        busy={pending}
-        disabled={coolDown.active || !online}
-        onPress={submit}
-      />
+      <View style={{ marginTop: spacing[2] }}>{backLink}</View>
     </AuthScreen>
   );
 }
