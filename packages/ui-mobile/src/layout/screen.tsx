@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode, type Ref } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -98,6 +98,13 @@ export interface ScreenProps {
   refreshControl?: ReactElement<RefreshControlProps>;
 
   /**
+   * The `ScrollView` itself, for a screen that swaps its whole content in
+   * place — the join funnel's steps — and has to put the reader back at the
+   * top instead of mid-way down the next step. Ignored when `scroll={false}`.
+   */
+  scrollRef?: Ref<ScrollView>;
+
+  /**
    * Pinned above the tab bar, outside the scroll — the shop's cart bar.
    *
    * ==========================================================================
@@ -124,6 +131,15 @@ export interface ScreenProps {
    * whose own root is not opaque — a `View` stacking a note, a button and a
    * caption — wraps itself in `Surface tone="card"`. A footer that is a single
    * filled control, or already a `Surface`, passes as-is.
+   *
+   * THE BAND BELOW IT IS `Screen`'s, THOUGH — when there is no tab bar. With
+   * `reserveTabBar={false}` the footer floats `max(inset, 12)` above the edge,
+   * and the plate only covers its own box: the rows scrolling past showed in
+   * the strip under it and in the gutters beside it (the join funnel's
+   * details step). So in that case the wrapper runs to the bottom edge and
+   * paints the CANVAS colour — the page's own ground, not a card — which
+   * hides the scroll without drawing a second shape around the footer. Over
+   * the floating capsule it stays transparent: the capsule is the plate there.
    * ==========================================================================
    */
   footer?: ReactNode;
@@ -162,6 +178,7 @@ export function Screen({
   reserveTabBar = true,
   keyboardAvoiding = true,
   refreshControl,
+  scrollRef,
   footer,
   contentContainerStyle,
   testID,
@@ -218,6 +235,7 @@ export function Screen({
 
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
           // ==================================================================
           // WITHOUT THIS, THE FIRST TAP AFTER TYPING DOES NOTHING.
           //
@@ -293,7 +311,12 @@ export function Screen({
             position: 'absolute',
             left: 0,
             right: 0,
-            bottom: footerBottom,
+            ...(reserveTabBar
+              ? { bottom: footerBottom }
+              : // Down to the edge, on the canvas — see `ScreenProps.footer`.
+                // The measured height now includes the band, so the scroll's
+                // reserve clears it too.
+                { bottom: 0, paddingBottom: footerBottom, backgroundColor: background }),
             ...(gutter ? { paddingHorizontal: SCREEN_GUTTER } : {}),
           }}
         >

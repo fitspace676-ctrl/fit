@@ -60,6 +60,22 @@ import { useI18n } from '../../providers/I18nProvider';
 /** The three answers `genderSchema` accepts, in the order web lists them. */
 const GENDERS = ['FEMALE', 'MALE', 'OTHER'] as const satisfies readonly Gender[];
 
+/**
+ * The label each refusal is named by in the summary under the form, in the
+ * order the form draws them. `surname` is absent because it is never enforced
+ * (see `lastName` below); the rest are the fields a gym can switch on, plus the
+ * three the API always needs.
+ */
+const SUMMARY_LABELS = [
+  ['startDate', 'checkout.details.fields.startDate'],
+  ['name', 'checkout.details.fields.name'],
+  ['phone', 'checkout.details.fields.phone'],
+  ['dateOfBirth', 'checkout.details.fields.dateOfBirth'],
+  ['personalId', 'checkout.details.fields.personalId'],
+  ['gender', 'checkout.details.fields.gender'],
+  ['email', 'checkout.details.fields.email'],
+] as const satisfies readonly (readonly [MemberIntakeField, MessageKey])[];
+
 /** One text input, and everything that decides whether it is drawn. */
 interface FieldSpec {
   readonly key: JoinTextField;
@@ -259,6 +275,19 @@ export function DetailsStep({
     return field.hintKey === undefined ? undefined : t(field.hintKey);
   }
 
+  // THE SUMMARY NAMES EVERY FIELD STILL OWED — not the fixed "name, email and
+  // password" sentence, which was wrong for any gym that also asks for a
+  // phone, a birthday, a gender or an id: the buyer read that they had filled
+  // in everything it named and still could not continue.
+  const startDateOk = startDateAccepted(state, context);
+  const passwordOk = passwordAccepted(state);
+  const owed = [
+    ...SUMMARY_LABELS.filter(([field]) =>
+      field === 'startDate' ? !startDateOk : missing.includes(field),
+    ).map(([, key]) => t(key)),
+    ...(passwordOk ? [] : [t('checkout.details.fields.password')]),
+  ];
+
   // The return-key chain skips the picked date: it has no keyboard to hop
   // from, and focusing it would open a picker nobody asked for.
   const typed = shown.filter((field) => field.date !== true);
@@ -334,7 +363,7 @@ export function DetailsStep({
                 }}
                 policy={policy}
                 today={context.today}
-                invalid={showErrors && !startDateAccepted(state, context)}
+                invalid={showErrors && !startDateOk}
                 disabled={disabled}
               />
             ) : null}
@@ -438,14 +467,13 @@ export function DetailsStep({
         );
       })}
 
-      {showErrors &&
-      (missing.length > 0 || !passwordAccepted(state) || !startDateAccepted(state, context)) ? (
+      {showErrors && owed.length > 0 ? (
         <Advisory
           testID={`${testID}-invalid`}
           tone="danger"
           icon="info"
           live
-          title={t('checkout.details.invalid')}
+          title={t('checkout.details.invalidFields', { fields: owed.join(', ') })}
         />
       ) : null}
     </View>

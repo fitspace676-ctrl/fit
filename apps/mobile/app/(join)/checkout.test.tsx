@@ -7,6 +7,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { onlineManager } from '@tanstack/react-query';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
+import { ScrollView } from 'react-native';
 import type { GymMemberIntakeSettings, SignupCatalogueResponse } from '@fit/types';
 
 import JoinCheckoutScreen from './checkout';
@@ -622,7 +623,6 @@ describe('the failure branches', () => {
     expect(mockSignUpMember).not.toHaveBeenCalled();
     expect(mockCreateCheckout).not.toHaveBeenCalled();
     // …and the reason is on screen, beside the thing that fixes it.
-    // TODO(i18n) `checkout.payment.termsRequired`.
     await waitFor(() => view.getByTestId('join-terms-required'), WAIT);
     expect(view.getByText('Tick the box above to continue.')).toBeTruthy();
 
@@ -683,6 +683,28 @@ describe('the failure branches', () => {
     expect(mockReplace).toHaveBeenCalledWith('/home');
   });
 
+  // Both sentences were English-only placeholders in the middle of the
+  // Georgian funnel (`components/checkout/pending-copy.ts`, now deleted).
+  it('refuses in Georgian on the Georgian screen — terms and an existing membership', async () => {
+    mockCreateCheckout.mockRejectedValue(
+      new ApiError({ status: 409, code: 'ALREADY_SUBSCRIBED', message: 'already' }),
+    );
+    const view = renderScreen(<JoinCheckoutScreen />, { locale: 'ka' });
+    await toPayment(view);
+
+    await act(async () => {
+      fireEvent.press(view.getByTestId('join-submit'));
+      await Promise.resolve();
+    });
+    await waitFor(() => view.getByTestId('join-terms-required'), WAIT);
+    expect(view.getByText('გასაგრძელებლად მონიშნეთ ზემოთ მოცემული ველი.')).toBeTruthy();
+    expect(view.queryByText('Tick the box above to continue.')).toBeNull();
+
+    await payAndSettle(view);
+    await waitFor(() => view.getByTestId('join-failure-already-subscribed'), WAIT);
+    expect(view.getByText('თქვენ უკვე გაქვთ აქტიური წევრობა.')).toBeTruthy();
+  });
+
   it('400 GYM_NOT_FOUND says there is no gym in scope', async () => {
     mockSignUpMember.mockRejectedValue(
       new ApiError({ status: 400, code: 'GYM_NOT_FOUND', message: 'no gym' }),
@@ -735,6 +757,49 @@ describe('the details step is built from the gym’s intake settings', () => {
     await waitFor(() => view.getByTestId('join-details-invalid'), WAIT);
     // Still on the details step — Continue did not advance.
     expect(view.getByTestId('join-details-firstName-input')).toBeTruthy();
+  });
+
+  // The summary used to be one fixed sentence — "name, a valid email, and a
+  // password" — on a gym that also required four more fields, so a buyer who
+  // had filled in exactly what it named still could not continue.
+  it('names every field this gym still needs in the summary, not just three', async () => {
+    mockGetCatalogue.mockResolvedValue(
+      catalogue({
+        memberIntake: {
+          ...LEAN_INTAKE,
+          phone: true,
+          dateOfBirth: true,
+          gender: true,
+          personalId: true,
+        },
+      }),
+    );
+    const view = renderScreen(<JoinCheckoutScreen />);
+    await toDetails(view);
+    fireEvent.changeText(view.getByTestId('join-details-firstName-input'), 'ნინო');
+    fireEvent.changeText(view.getByTestId('join-details-email-input'), 'nino@example.test');
+    fireEvent.changeText(view.getByTestId('join-details-password-input'), 'correct-horse-9');
+
+    fireEvent.press(view.getByTestId('join-continue'));
+    const summary = await waitFor(() => view.getByTestId('join-details-invalid'), WAIT);
+
+    expect(summary).toHaveTextContent(
+      'Please fill in or correct: Phone, Date of birth, National ID number, Gender.',
+    );
+    // What IS filled in is not named.
+    expect(summary).not.toHaveTextContent(/Full name|Email|Password/);
+  });
+
+  it('names the account fields too while they are still owed', async () => {
+    const view = renderScreen(<JoinCheckoutScreen />, { locale: 'ka' });
+    await toDetails(view);
+
+    fireEvent.press(view.getByTestId('join-continue'));
+    const summary = await waitFor(() => view.getByTestId('join-details-invalid'), WAIT);
+
+    expect(summary).toHaveTextContent(
+      'გთხოვთ, შეავსოთ ან შეასწოროთ: სრული სახელი, ელფოსტა, პაროლი.',
+    );
   });
 
   it('picks the birthday on the wheel and shows it only once Done is pressed', async () => {
@@ -813,6 +878,35 @@ describe('the sticky footer', () => {
     const view = renderScreen(<JoinCheckoutScreen />);
     await waitFor(() => view.getByTestId('join-location-loc_1'), WAIT);
     expect(paintsOpaquely(view.getByTestId('join-footer-plate'))).toBe(true);
+  });
+});
+
+describe('moving between steps', () => {
+  // The four steps share one `ScrollView`. Scrolled to the last branch card,
+  // Continue opened the package list halfway down, past the first plans and
+  // the progress — the offset belonged to the previous step.
+  it('opens every step at its top', async () => {
+    const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(() => {
+      /* no native scroller under test */
+    });
+    try {
+      const view = renderScreen(<JoinCheckoutScreen />);
+      await waitFor(() => view.getByTestId('join-location-loc_1'), WAIT);
+      scrollTo.mockClear();
+
+      fireEvent.press(view.getByTestId('join-location-loc_1'));
+      fireEvent.press(view.getByTestId('join-continue'));
+      await waitFor(() => view.getByTestId('join-product-plan_1'), WAIT);
+      expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
+
+      // And on the way back, too.
+      scrollTo.mockClear();
+      fireEvent.press(view.getByTestId('join-back'));
+      await waitFor(() => view.getByTestId('join-location-loc_1'), WAIT);
+      expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
+    } finally {
+      scrollTo.mockRestore();
+    }
   });
 });
 

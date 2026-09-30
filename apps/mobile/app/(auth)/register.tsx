@@ -174,6 +174,9 @@ export default function RegisterScreen() {
         value={password}
         onChangeText={setPassword}
         disabled={pending}
+        // Marked with the address, not left white beside it: the refusal is
+        // about the pair, and a blank password is as likely the cause.
+        invalid={errorKey !== null}
         secureTextEntry
         autoCapitalize="none"
         autoCorrect={false}

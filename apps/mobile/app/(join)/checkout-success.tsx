@@ -32,6 +32,12 @@
 // again once this session ends until they click the emailed link, so
 // `checkout.success.verifyEmail` is the most load-bearing sentence on the
 // screen and is rendered on both branches.
+//
+// NOTHING FOUND IS NOT A RECEIPT. With no session, no id, or an order read that
+// came back empty there is no purchase on screen to confirm, so neither the
+// "You're all set!" header nor the emailed-link line is drawn — both are claims
+// about a purchase this screen cannot see. What is left is the missing state
+// and the way home.
 
 import {
   AppBar,
@@ -89,6 +95,13 @@ export default function JoinCheckoutSuccessScreen() {
   );
   const retryMembership = useRetry(gymId === null ? null : queryKeys.membership(gymId));
 
+  const signedOut = session.status !== 'signed-in' || gymId === null;
+  const noId = orderId === null && !boughtSubscription;
+  const orderEmpty =
+    orderId !== null && !order.isPending && !order.isError && order.data?.order === undefined;
+  /** There is no purchase here to confirm — see the file header. */
+  const nothingFound = signedOut || noId || orderEmpty;
+
   const home = (
     <Button
       testID="join-success-home"
@@ -104,7 +117,10 @@ export default function JoinCheckoutSuccessScreen() {
     />
   );
 
-  const header = (
+  const header = nothingFound ? (
+    // The funnel's own name, not a verdict: the verdict is the empty state.
+    <AppBar testID="join-success-header" title={t('checkout.title')} />
+  ) : (
     <AppBar
       testID="join-success-header"
       eyebrow={t('checkout.title')}
@@ -125,14 +141,14 @@ export default function JoinCheckoutSuccessScreen() {
             between the purchase and here. Both reads need a Bearer, so there is
             nothing to show and nothing to retry; the honest answer is the same
             one an unknown id gets. */}
-        {session.status !== 'signed-in' || gymId === null ? (
+        {signedOut ? (
           <EmptyState
             testID="join-success-signed-out"
             icon="lock"
             title={t('checkout.success.missing.title')}
             body={t('checkout.success.missing.subtitle')}
           />
-        ) : orderId === null && !boughtSubscription ? (
+        ) : noId ? (
           // No id at all — the screen was reached without either parameter.
           <EmptyState
             testID="join-success-missing"
@@ -161,13 +177,17 @@ export default function JoinCheckoutSuccessScreen() {
         )}
 
         {/* The one sentence on this screen a buyer must not miss. Rendered
-            whatever the outcome, because the session is unverified either way. */}
-        <Advisory
-          testID="join-success-verify"
-          tone="info"
-          icon="mail"
-          title={t('checkout.success.verifyEmail')}
-        />
+            whatever the outcome of the READ, because the session is unverified
+            either way — but not when there is no purchase at all, where "we
+            have emailed you a link" would be a claim about nothing. */}
+        {nothingFound ? null : (
+          <Advisory
+            testID="join-success-verify"
+            tone="info"
+            icon="mail"
+            title={t('checkout.success.verifyEmail')}
+          />
+        )}
       </View>
     </Screen>
   );

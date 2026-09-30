@@ -103,6 +103,16 @@ function parseLink(path: string): ParsedLink {
     segments = segments.slice(1);
   }
 
+  // EXPO GO'S `--` SEPARATOR. In Expo Go a link is `exp://<host:port>/--/login`:
+  // everything before `--` addresses the dev server's project, everything after
+  // it is the app's own path. Left in, `--` became the route's first segment
+  // and `/--/login` is an unmatched route. No app or web route is named `--`,
+  // so the first one found marks where the route starts.
+  const separator = segments.indexOf('--');
+  if (separator !== -1) {
+    segments = segments.slice(separator + 1);
+  }
+
   // THE `[locale]` SEGMENT. `apps/web` routes every page under `/[locale]/…`,
   // so every shareable URL a member can copy out of a browser starts `/ka/` or
   // `/en/`. The app has one locale at a time, chosen in Settings, and no route

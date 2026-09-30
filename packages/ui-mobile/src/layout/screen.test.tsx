@@ -94,6 +94,45 @@ describe('Screen', () => {
     expect(style.bottom).toBe(108);
   });
 
+  // The join funnel: with no capsule under it, the footer floated above the
+  // edge and the rows scrolling past showed in the strip below its plate and
+  // in the gutters beside it.
+  it('paints the canvas from a tab-less footer down to the bottom edge', () => {
+    renderScreen(
+      <Screen testID="s" reserveTabBar={false} footer={<View testID="s-footer-content" />}>
+        <View />
+      </Screen>,
+      NOTCHED,
+    );
+    const style = flatten(screen.getByTestId('s-footer').props.style);
+    expect(style.bottom).toBe(0);
+    // The home indicator's band is inside the wrapper, not under the scroll.
+    expect(style.paddingBottom).toBe(34);
+    expect(style.backgroundColor).toBe(darkColors.backgroundBody);
+  });
+
+  it('keeps the capsule-side footer transparent — the capsule is the plate there', () => {
+    render(
+      <Screen testID="s" footer={<View testID="s-footer-content" />}>
+        <View />
+      </Screen>,
+    );
+    const style = flatten(screen.getByTestId('s-footer').props.style);
+    expect(style.backgroundColor).toBeUndefined();
+    expect(style.paddingBottom).toBeUndefined();
+  });
+
+  it('hands the scroll view to a screen that has to reset it', () => {
+    const ref = { current: null as ScrollView | null };
+    renderScreen(
+      <Screen testID="s" scrollRef={ref}>
+        <Text>x</Text>
+      </Screen>,
+    );
+    expect(ref.current).not.toBeNull();
+    expect(typeof ref.current?.scrollTo).toBe('function');
+  });
+
   it('reserves no room for a footer that is not there', () => {
     const screen = render(
       <Screen testID="s">

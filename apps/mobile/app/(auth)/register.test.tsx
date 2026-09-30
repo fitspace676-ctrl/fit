@@ -15,8 +15,11 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { onlineManager } from '@tanstack/react-query';
 
 import { ApiError } from '../../lib/http/api-error';
+import { darkColors } from '@fit/ui-mobile';
+
 import { a11yState } from '../../test-support/a11y';
 import { renderApp } from '../../test-support/render';
+import { flatStyle } from '../../test-support/style';
 import RegisterScreen from './register';
 
 const mockPush = jest.fn();
@@ -160,6 +163,23 @@ describe('register screen', () => {
     fireEvent.press(submit);
     expect(mockRegisterAccount).toHaveBeenCalledTimes(2);
     expect(screen.queryByTestId('register-error')).toBeNull();
+  });
+
+  it('marks the empty password too, not only the address', async () => {
+    // A blank address and a blank password come back as one refusal; painting
+    // only the email red told the user the password was fine.
+    mockRegisterAccount.mockRejectedValueOnce(
+      new ApiError({ status: 400, code: 'VALIDATION_ERROR' }),
+    );
+    renderApp(<RegisterScreen />);
+
+    fireEvent.press(screen.getByTestId('register-submit'));
+    await screen.findByTestId('register-error');
+
+    expect(flatStyle(screen.getByTestId('register-email-box')).borderColor).toBe(darkColors.error);
+    expect(flatStyle(screen.getByTestId('register-password-box')).borderColor).toBe(
+      darkColors.error,
+    );
   });
 
   it('on a 429 shows a live countdown, blocks submit, and never auto-retries', async () => {

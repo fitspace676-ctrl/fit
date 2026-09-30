@@ -19,6 +19,11 @@
 // form is in until the user changes something — and the correction happens at
 // the field, which is where the message has to be. The `Alert` sits above the
 // fields with `live`, so a screen reader announces it the moment it appears.
+//
+// An empty or malformed field never reaches the API: the server's answer to it
+// is a 400 with no sentence the user can act on, so the form says which field
+// and why, under that field. And typing clears the stale verdict — a field
+// still painted red while the user is correcting it reads as "still wrong".
 
 // `Alert` is aliased: `react-native` exports one too, and the two are utterly
 // different things. The alias makes a future `import { Alert } from 'react-native'`
@@ -38,6 +43,30 @@ import { resolveGymSlug, signIn } from '../../lib/auth/session';
 import type { MessageKey } from '../../lib/i18n/keys';
 import { useI18n } from '../../providers/I18nProvider';
 
+/** The same shape check the join form's email field uses (`join-state.ts`). */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface FieldErrors {
+  readonly email: MessageKey | null;
+  readonly password: MessageKey | null;
+}
+
+const NO_FIELD_ERRORS: FieldErrors = { email: null, password: null };
+
+/** What is wrong with each field before anything is sent, if anything. */
+function loginFieldErrors(email: string, password: string): FieldErrors {
+  const address = email.trim();
+  return {
+    email:
+      address === ''
+        ? 'auth.login.errors.emailRequired'
+        : EMAIL_SHAPE.test(address)
+          ? null
+          : 'auth.login.errors.emailInvalid',
+    password: password === '' ? 'auth.login.errors.passwordRequired' : null,
+  };
+}
+
 export default function LoginScreen() {
   const { t } = useI18n();
   const router = useRouter();
@@ -52,13 +81,17 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>(NO_FIELD_ERRORS);
 
   const blocked = pending || coolDown.active || !online;
 
   const submit = (): void => {
     if (blocked) return;
-    setPending(true);
+    const checked = loginFieldErrors(email, password);
     setErrorKey(null);
+    setFieldErrors(checked);
+    if (checked.email !== null || checked.password !== null) return;
+    setPending(true);
     // `gymSlug` is a REQUIRED property of `signIn`'s argument (D4): an optional
     // parameter is one a screen forgets, and a forgotten slug is a member
     // silently signed into the wrong branch. `resolveGymSlug()` answers from the
@@ -173,8 +206,13 @@ export default function LoginScreen() {
         label={t('auth.fields.email')}
         placeholder={t('auth.fields.emailPlaceholder')}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text: string) => {
+          setEmail(text);
+          setErrorKey(null);
+          setFieldErrors((current) => ({ ...current, email: null }));
+        }}
         disabled={pending}
+        error={fieldErrors.email === null ? undefined : t(fieldErrors.email)}
         invalid={errorKey !== null}
         keyboardType="email-address"
         autoCapitalize="none"
@@ -197,8 +235,13 @@ export default function LoginScreen() {
         label={t('auth.fields.password')}
         placeholder={t('auth.fields.passwordPlaceholder')}
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(text: string) => {
+          setPassword(text);
+          setErrorKey(null);
+          setFieldErrors((current) => ({ ...current, password: null }));
+        }}
         disabled={pending}
+        error={fieldErrors.password === null ? undefined : t(fieldErrors.password)}
         invalid={errorKey !== null}
         secureTextEntry
         autoCapitalize="none"

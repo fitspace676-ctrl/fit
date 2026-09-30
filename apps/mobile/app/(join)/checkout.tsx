@@ -30,7 +30,7 @@
 // screen, made once, here. The two DoD states with no copy anywhere in either
 // catalogue — offline and the 429 cool-down — reuse
 // `components/auth/notices.tsx`, whose `pending-copy.ts` already owns that
-// debt; the one join-specific gap is in `components/checkout/pending-copy.ts`.
+// debt.
 //
 // THE TENANT. `ROUTE_POLICY['(join)']` is `'public'`, so this screen renders
 // with no session — but every gym-scoped query hook takes `gymId` from the
@@ -63,8 +63,8 @@ import {
 import type { CheckoutProductType } from '@fit/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { View, type ScrollView } from 'react-native';
 
 import { CoolDownNotice, OfflineNotice } from '../../components/auth/notices';
 import { useCoolDown } from '../../components/auth/use-cool-down';
@@ -93,7 +93,6 @@ import {
   type Step,
 } from '../../components/checkout/join-state';
 import { OrderSummary } from '../../components/checkout/order-summary';
-import { CHECKOUT_PENDING_COPY } from '../../components/checkout/pending-copy';
 import { deviceToday } from '../../components/checkout/start-date';
 import { useMoney } from '../../components/shop/money';
 import { LoadFailed, RowSkeletons } from '../../components/shop/states';
@@ -207,6 +206,16 @@ export default function JoinCheckoutScreen() {
     catalogue === null || catalogue.freeAccount.name.trim() === ''
       ? t('checkout.packages.free.name')
       : catalogue.freeAccount.name.trim();
+
+  // EVERY STEP OPENS AT ITS TOP. The four steps share one `ScrollView`, so a
+  // buyer who scrolled to the last branch card and pressed Continue landed
+  // halfway down the package list, past the first plans and the progress.
+  // Keyed on the step rather than done in `goto`, because the failure
+  // branches below move the step too (`emailTaken`, `productUnavailable`).
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [state.step]);
 
   const goto = useCallback(
     (step: Step): void => {
@@ -375,6 +384,7 @@ export default function JoinCheckoutScreen() {
     <Screen
       testID="join-checkout"
       header={header}
+      scrollRef={scrollRef}
       // No capsule under the join funnel — see `_layout.tsx`.
       reserveTabBar={false}
       footer={
@@ -811,12 +821,10 @@ export default function JoinCheckoutScreen() {
         {/* The reason Pay refused, next to the thing that fixes it. `live`, via
             `InlineNote`'s own region, because it appears as the RESULT of a
             press: a buyer who has just pressed Pay and heard nothing has no way
-            to know why.
-            TODO(i18n) `checkout.payment.termsRequired` — see
-            `components/checkout/pending-copy.ts`. */}
+            to know why. */}
         {showErrors && !state.terms ? (
           <InlineNote icon="info" iconColor="error" live testID="join-terms-required">
-            {CHECKOUT_PENDING_COPY.termsRequired}
+            {t('checkout.payment.termsRequired')}
           </InlineNote>
         ) : null}
       </View>
@@ -975,10 +983,9 @@ function FailureNotice({
           tone="info"
           icon="check"
           live
-          // TODO(i18n): `checkout.payment.alreadySubscribed`. See
-          // `components/checkout/pending-copy.ts` — web never rendered this
-          // branch, so the key was never authored.
-          title={CHECKOUT_PENDING_COPY.alreadySubscribed}
+          // Not `checkout.payment.error`: that says "try again", and trying
+          // again cannot work — the member already has what they were buying.
+          title={t('checkout.payment.alreadySubscribed')}
         >
           <Button
             testID={`${testID}-already-subscribed-home`}

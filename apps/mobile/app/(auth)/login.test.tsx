@@ -12,6 +12,8 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { onlineManager } from '@tanstack/react-query';
 
+import { darkColors } from '@fit/ui-mobile';
+
 import { ApiError } from '../../lib/http/api-error';
 import { a11yState } from '../../test-support/a11y';
 import { renderApp } from '../../test-support/render';
@@ -39,6 +41,12 @@ jest.mock('../../lib/auth/session', () => ({
 /** A promise that never settles — the "request in flight" state. */
 function pending(): Promise<never> {
   return new Promise<never>(() => undefined);
+}
+
+/** Type a well-formed address and a password, so submit reaches the network. */
+function fillCredentials(): void {
+  fireEvent.changeText(screen.getByTestId('login-email-input'), 'a@b.co');
+  fireEvent.changeText(screen.getByTestId('login-password-input'), 'hunter22');
 }
 
 beforeEach(() => {
@@ -112,6 +120,7 @@ describe('login screen', () => {
     // it is not, and there the fix is at the field.
     mockSignIn.mockRejectedValueOnce(new ApiError({ status: 503, code: 'UNAVAILABLE' }));
     renderApp(<LoginScreen />);
+    fillCredentials();
 
     fireEvent.press(screen.getByTestId('login-submit'));
     await screen.findByTestId('login-error');
@@ -146,6 +155,7 @@ describe('login screen', () => {
   it('marks submit busy while the request is in flight, and swallows a second press', () => {
     mockSignIn.mockReturnValue(pending());
     renderApp(<LoginScreen />);
+    fillCredentials();
 
     const submit = screen.getByTestId('login-submit');
     fireEvent.press(submit);
@@ -157,23 +167,100 @@ describe('login screen', () => {
     expect(mockSignIn).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a failure inline on the form — not as a toast', async () => {
+  it('shows a wrong password inline, as a wrong password — not as a toast', async () => {
     mockSignIn.mockRejectedValue(new ApiError({ status: 401, code: 'INVALID_CREDENTIALS' }));
     renderApp(<LoginScreen />);
+    fillCredentials();
 
     fireEvent.press(screen.getByTestId('login-submit'));
 
     const alert = await screen.findByTestId('login-error');
     expect(alert).toBeTruthy();
-    expect(screen.getByText('Something went wrong. Please try again.')).toBeTruthy();
+    // Not "Something went wrong": the user has to know the fix is at the field
+    // rather than in their network.
+    expect(
+      screen.getByText('The email or password is incorrect. Check them and try again.'),
+    ).toBeTruthy();
+    expect(screen.queryByText('Something went wrong. Please try again.')).toBeNull();
     // Re-enabled, because the fix is at the field and the user must be able to
     // press again once they have made it.
     expect(a11yState(screen.getByTestId('login-submit')).busy).toBe(false);
   });
 
+  // ==========================================================================
+  // AN EMPTY FORM IS NOT "SOMETHING WENT WRONG".
+  //
+  // It used to reach the API, come back a 400, and render the generic sentence
+  // with both fields red and nothing saying which was the problem.
+  // ==========================================================================
+  it('names the empty fields at the fields, without calling the API', () => {
+    renderApp(<LoginScreen />);
+
+    fireEvent.press(screen.getByTestId('login-submit'));
+
+    expect(mockSignIn).not.toHaveBeenCalled();
+    expect(screen.getByTestId('login-email-error')).toHaveTextContent('Enter your email.');
+    expect(screen.getByTestId('login-password-error')).toHaveTextContent('Enter your password.');
+    expect(screen.queryByTestId('login-error')).toBeNull();
+  });
+
+  it('rejects a malformed address at the email field', () => {
+    renderApp(<LoginScreen />);
+
+    fireEvent.changeText(screen.getByTestId('login-email-input'), 'not-an-address');
+    fireEvent.changeText(screen.getByTestId('login-password-input'), 'hunter22');
+    fireEvent.press(screen.getByTestId('login-submit'));
+
+    expect(mockSignIn).not.toHaveBeenCalled();
+    expect(screen.getByTestId('login-email-error')).toHaveTextContent(
+      'Enter a valid email address.',
+    );
+    expect(screen.queryByTestId('login-password-error')).toBeNull();
+  });
+
+  it('says it in Georgian on the Georgian screen', () => {
+    renderApp(<LoginScreen />, { locale: 'ka' });
+
+    fireEvent.press(screen.getByTestId('login-submit'));
+
+    expect(screen.getByTestId('login-email-error')).toHaveTextContent('შეიყვანე ელფოსტა.');
+    expect(screen.getByTestId('login-password-error')).toHaveTextContent('შეიყვანე პაროლი.');
+  });
+
+  it('clears the stale verdict and the red borders as soon as the user types', async () => {
+    mockSignIn.mockRejectedValue(new ApiError({ status: 401, code: 'INVALID_CREDENTIALS' }));
+    renderApp(<LoginScreen />);
+    fillCredentials();
+
+    fireEvent.press(screen.getByTestId('login-submit'));
+    await screen.findByTestId('login-error');
+    expect(flatStyle(screen.getByTestId('login-email-box')).borderColor).toBe(darkColors.error);
+    expect(flatStyle(screen.getByTestId('login-password-box')).borderColor).toBe(darkColors.error);
+
+    // Correcting the password is the fix in progress, not a second failure.
+    fireEvent.changeText(screen.getByTestId('login-password-input'), 'hunter23');
+
+    expect(screen.queryByTestId('login-error')).toBeNull();
+    expect(flatStyle(screen.getByTestId('login-email-box')).borderColor).not.toBe(darkColors.error);
+    expect(flatStyle(screen.getByTestId('login-password-box')).borderColor).not.toBe(
+      darkColors.error,
+    );
+  });
+
+  it('clears the message of the field being edited, and only that one', () => {
+    renderApp(<LoginScreen />);
+
+    fireEvent.press(screen.getByTestId('login-submit'));
+    fireEvent.changeText(screen.getByTestId('login-email-input'), 'a');
+
+    expect(screen.queryByTestId('login-email-error')).toBeNull();
+    expect(screen.getByTestId('login-password-error')).toBeTruthy();
+  });
+
   it('does not navigate on success — the guard does', async () => {
     mockSignIn.mockResolvedValue({ tokens: {}, claims: null, gymScope: Promise.resolve({}) });
     renderApp(<LoginScreen />);
+    fillCredentials();
 
     fireEvent.press(screen.getByTestId('login-submit'));
 
@@ -194,6 +281,7 @@ describe('login screen', () => {
         new ApiError({ status: 429, code: 'TOO_MANY_REQUESTS', retryAfterSec: 3 }),
       );
       renderApp(<LoginScreen />);
+      fillCredentials();
 
       fireEvent.press(screen.getByTestId('login-submit'));
       await act(async () => Promise.resolve());

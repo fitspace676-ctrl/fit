@@ -95,8 +95,15 @@ describe('the member slice', () => {
     //
     // 2026-09-29, the native birthday picker: 1119 → 1120. The iOS wheel sits
     // in a sheet committed by `checkout.details.calendar.done`.
-    expect(enKeys).toHaveLength(1120);
-    expect(kaKeys).toHaveLength(1120);
+    //
+    // 2026-09-30, the pre-login technical fixes: 1120 → 1127. The sign-in form
+    // names its own refusals (`auth.login.errors.invalidCredentials` /
+    // `.emailRequired` / `.emailInvalid` / `.passwordRequired`), the details
+    // step lists what is still owed (`checkout.details.invalidFields`), and the
+    // two English placeholders in `components/checkout/pending-copy.ts` became
+    // `checkout.payment.termsRequired` / `.alreadySubscribed`.
+    expect(enKeys).toHaveLength(1127);
+    expect(kaKeys).toHaveLength(1127);
   });
 });
 
