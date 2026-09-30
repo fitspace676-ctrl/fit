@@ -186,6 +186,49 @@ describe('RootLayout', () => {
     });
   });
 
+  describe('the screens wait for the fonts; the navigator does not', () => {
+    // A scene mounted before the faces register is measured in the system
+    // fallback and never re-measured — a thin title, a clipped bold label. The
+    // gate is `screenLayout`, so the navigator (and a cold deep link's route)
+    // stays mounted while only the scene is held back.
+    type ScreenLayout = (args: { children: ReactModule.ReactElement }) => ReactModule.ReactElement;
+    const scene = <View testID="scene" />;
+    const layoutOf = (): ScreenLayout =>
+      screen.getByTestId('root-stack').props.screenLayout as ScreenLayout;
+
+    it('holds the scene while the fonts are in flight', () => {
+      fonts.mockReturnValue([false, null]);
+      renderApp(<RootLayout />);
+
+      expect(screen.getByTestId('root-stack')).toBeTruthy();
+      expect(layoutOf()({ children: scene })).not.toBe(scene);
+    });
+
+    it('mounts it once they have loaded', () => {
+      renderApp(<RootLayout />);
+
+      expect(layoutOf()({ children: scene })).toBe(scene);
+    });
+
+    it('mounts it on an ERRORED load too — the system fallback, not a blank app', () => {
+      fonts.mockReturnValue([false, new Error('font asset missing')]);
+      renderApp(<RootLayout />);
+
+      expect(layoutOf()({ children: scene })).toBe(scene);
+    });
+
+    it('opens the gate when the load settles mid-flight', () => {
+      fonts.mockReturnValue([false, null]);
+      const view = renderApp(<RootLayout />);
+      expect(layoutOf()({ children: scene })).not.toBe(scene);
+
+      fonts.mockReturnValue([true, null]);
+      view.rerender(<RootLayout />);
+
+      expect(layoutOf()({ children: scene })).toBe(scene);
+    });
+  });
+
   it('renders the children the providers are given — the tower is real', async () => {
     // A smoke test for the provider order: `useI18n` throws outside its
     // provider and `useSafeAreaInsets` outside `SafeAreaProvider`, so anything

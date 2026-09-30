@@ -7,7 +7,7 @@ import '../global.css';
 
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useCallback, useEffect, type ReactElement } from 'react';
 
 import { AppProviders, RouteGuard, useAppBootstrap } from '../providers';
 
@@ -30,13 +30,39 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
  * always mounted and the *splash* is what hides the un-decided frame, which is
  * also exactly what a splash is for.
  *
+ * ## Why the screens wait for the fonts even though the navigator does not
+ *
+ * The navigator is mounted on the first frame; the SCREENS inside it are not,
+ * until `useFormacoreFonts()` has settled. A screen mounted before the faces
+ * are registered lays out every `NotoSansGeorgian-*` / `JetBrainsMono-*` run
+ * against the system fallback, and nothing re-measures it when the fonts land:
+ * the text's props never change, so no new layout is committed and the cached
+ * measurement stays. On a cold start that was every time — a thin title on
+ * onboarding and a bold button label measured in the fallback's advances and
+ * then clipped ("გაგრძელ…") on checkout. A warm app never showed it because the
+ * faces were already registered in the process.
+ *
+ * `screenLayout` wraps each root route's scene, so gating there keeps the
+ * navigation state — including a cold deep link's route — while holding back
+ * only the content. Nested navigators live inside those scenes, so the gate
+ * covers them too. A font ERROR also opens it: the app then draws with the
+ * system family, as it always has on that branch.
+ *
  * ## Why the guard is a sibling rather than a wrapper
  *
  * It has to be inside the navigation context to call `useSegments()`, and it has
  * to render nothing. A sibling of `Stack` under the providers is both.
  */
 export default function RootLayout() {
-  const { ready } = useAppBootstrap();
+  const { ready, fonts } = useAppBootstrap();
+  const fontsSettled = fonts.loaded || fonts.error !== null;
+
+  // A new function when the gate flips is what makes the navigator re-render
+  // its descriptors and mount the scene it has been holding.
+  const screenLayout = useCallback(
+    ({ children }: { children: ReactElement }): ReactElement => (fontsSettled ? children : <></>),
+    [fontsSettled],
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -50,7 +76,7 @@ export default function RootLayout() {
   return (
     <AppProviders>
       <RouteGuard />
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false }} screenLayout={screenLayout}>
         {/* ================================================================
             THE ONLY NAMED SCREEN IN THIS STACK, and it is named for ONE
             option. Every other route here comes from the file system with
