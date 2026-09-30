@@ -6,6 +6,25 @@
 
 ---
 
+## 0. ორკესტრატორის გადამოწმება (2026-10-01)
+
+ქვემოთ მოცემული audit-ი კითხვის თანმიმდევრობით დაიწერა; კოდში გადამოწმების შემდეგ ჩანაწერების სტატუსი ასეთია:
+
+| ჩანაწერი                                                             | სტატუსი                     | შენიშვნა                                                                                                                                                                            |
+| -------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `register` / `createMember` / `createStaff` (known 1, 3, 4)          | გასწორდა — PR #354          | ერთი ელფოსტა = ცალკე წევრობა და პაროლი თითო gym-ში; backfill migration `20261001090000_backfill_gym_credentials`.                                                                   |
+| ნოტიფიკაციის CTA ბმულები `WEB_URL`-ზე                                | გასწორდა — ამ PR-ში         | `notification-channels.ts` ახლა `buildMemberUrl(href, gym.slug)`-ს იყენებს.                                                                                                         |
+| მეილის გამომგზავნელი hardcoded `FormaCore`                           | გასწორდა — ამ PR-ში         | verification / reset მეილები gym-ის სახელით იგზავნება, gym-ის გარეშე — `FormaCore`.                                                                                                 |
+| `me-profile` / `updateMember` გლობალურ `User.name/phone`-ს წერს      | ნაწილობრივ — ამ PR-ში       | ჩაწერა და კითხვა `me/profile`-სა და `members`-ში per-gym credential-ზე გადავიდა; დანარჩენი ~19 სერვისი (activity, billing, reports…) ჯერ კიდევ `User.name`-ს კითხულობს — follow-up. |
+| mobile: `resolveGymSlug()` `undefined` fallback                      | გასწორდა — ამ PR-ში         | login-ზე `409 GYM_SELECTION_REQUIRED` picker დაემატა; forgot-password slug-ს აგზავნის.                                                                                              |
+| "38 სერვისში unscoped `PrismaService`, cron-ებში გაუფილტრავი"        | **მცდარია**                 | `scopeArgs` (`prisma-tenant.extension.ts:277-282`) tenant-ის გარეშე `TENANT_CONTEXT_MISSING`-ს აგდებს (fail closed); cron-ები unscoped კლიენტს განზრახ, ცხადი `gymId`-ით იყენებენ.  |
+| web cookies `COOKIE_DOMAIN` ქვედომენებს შორის                        | უკვე host-only              | `session-cookies.ts` `COOKIE_DOMAIN`-ს მხოლოდ ძველი cookie-ს წასაშლელად იყენებს; env-ის მოხსნა Vercel-ზე — T1.21 (2026-10-14-ის შემდეგ).                                            |
+| rate-limit key `gymId`-ის გარეშე                                     | არ იცვლება                  | per-IP ლიმიტი განზრახია; per-gym key თავდამსხმელს ბიუჯეტს gym-ების რაოდენობით გაუმრავლებდა.                                                                                         |
+| OAuth-ის "ობოლი" `User` `NOT_A_MEMBER`-ზე                            | დაბალი, არ იცვლება          | `User` row-ს გვერდითი ეფექტი არ აქვს; PR #354-ის შემდეგ ამ ელფოსტით რეგისტრაცია ნორმალურად გადის.                                                                                   |
+| `AgentChatSession` / `RefreshToken` `TENANT_SCOPED_MODELS`-ის გარეშე | დოკუმენტირებული გამონაკლისი | უცვლელი.                                                                                                                                                                            |
+
+---
+
 ## 1. Executive Summary (აღმასრულებელი მიმოხილვა)
 
 FormaCore იყენებს **Shared Database, Shared Schema** მოდელს ლოგიკური იზოლაციით (`gymId` სვეტი თითოეულ მოიჯარეზე მიბმულ ცხრილში). იზოლაციის მთავარი საყრდენი NestJS-ის `AsyncLocalStorage`-ზე დაფუძნებული `tenantStorage` და Prisma-ს გაფართოება (`prisma-tenant.extension.ts`) გახლავთ, რომელიც `where`-პირობებში ავტომატურად ამატებს `gymId`-ს.
