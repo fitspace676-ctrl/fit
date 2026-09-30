@@ -106,7 +106,8 @@ export class EmailService {
    *
    * `gymSlug` addresses the link at the gym the member signed up to; it is last
    * and optional so the existing argument order is untouched, and omitting it
-   * falls back to the platform-wide member origin.
+   * falls back to the platform-wide member origin. `gymName`, after it, makes
+   * that gym the mail's sender; omitted, the platform sends it.
    */
   async sendVerificationEmail(
     to: string,
@@ -114,6 +115,7 @@ export class EmailService {
     name?: string,
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
     gymSlug?: string | null,
+    gymName?: string | null,
   ): Promise<void> {
     const url = buildVerificationUrl(token, gymSlug);
     if (!this.isConfigured) {
@@ -122,7 +124,7 @@ export class EmailService {
       );
       return;
     }
-    await this.deliver(to, buildVerificationEmail(url, name, locale), 'verification');
+    await this.deliver(to, buildVerificationEmail(url, name, locale, gymName), 'verification');
   }
 
   /**
@@ -133,6 +135,7 @@ export class EmailService {
    * `gymSlug` takes the same last, optional slot as on
    * {@link sendVerificationEmail}: the gym whose site the reset was asked for on,
    * when the account belongs to it (see `AuthService.requestPasswordReset`).
+   * `gymName` names that gym as the sender, as there.
    */
   async sendPasswordResetEmail(
     to: string,
@@ -140,6 +143,7 @@ export class EmailService {
     name?: string,
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
     gymSlug?: string | null,
+    gymName?: string | null,
   ): Promise<void> {
     const url = buildPasswordResetUrl(token, gymSlug);
     if (!this.isConfigured) {
@@ -148,7 +152,7 @@ export class EmailService {
       );
       return;
     }
-    await this.deliver(to, buildPasswordResetEmail(url, name, locale), 'password-reset');
+    await this.deliver(to, buildPasswordResetEmail(url, name, locale, gymName), 'password-reset');
   }
 
   /**
@@ -427,18 +431,22 @@ function expiryPanel(expires: string, ignore: string): string {
  * Render the address-verification email (subject, HTML, plain text) in `locale`.
  * Pure - no I/O - so the copy is unit-testable and
  * {@link EmailService.sendVerificationEmail} is just the delivery wrapper. `url`
- * is the trusted verification deep link.
+ * is the trusted verification deep link. `gymName` is the gym the account
+ * belongs to: it becomes the sender (and a "sent by" line in the text body);
+ * without one the platform sends it.
  */
 export function buildVerificationEmail(
   url: string,
   name?: string,
   locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+  gymName?: string | null,
 ): { subject: string; html: string; text: string } {
   const t = emailStrings(locale);
   const greeting = t.shell.greeting(name?.trim() || undefined);
+  const gym = gymName?.trim() || null;
   const html = renderBrandedEmail({
     locale,
-    senderName: PLATFORM_NAME,
+    senderName: escapeHtml(gym ?? PLATFORM_NAME),
     eyebrow: escapeHtml(t.verify.eyebrow),
     heading: escapeHtml(t.verify.heading),
     preheader: t.verify.preheader,
@@ -450,7 +458,9 @@ export function buildVerificationEmail(
       expiryPanel(t.verify.expires, t.verify.ignore),
     footerNote: escapeHtml(t.verify.footer),
   });
-  const text = `${greeting}\n\n${t.verify.body}\n${url}\n\n${t.verify.expires} ${t.verify.ignore}`;
+  const text =
+    `${greeting}\n\n${t.verify.body}\n${url}\n\n${t.verify.expires} ${t.verify.ignore}` +
+    (gym ? `\n\n${t.shell.sentBy(gym)}` : '');
   return { subject: t.verify.subject, html, text };
 }
 
@@ -458,18 +468,21 @@ export function buildVerificationEmail(
  * Render the password-reset email (subject, HTML, plain text) in `locale`. Pure -
  * no I/O - so the copy is unit-testable and
  * {@link EmailService.sendPasswordResetEmail} is just the delivery wrapper. `url`
- * is the trusted reset deep link.
+ * is the trusted reset deep link. `gymName` names the sender as on
+ * {@link buildVerificationEmail}.
  */
 export function buildPasswordResetEmail(
   url: string,
   name?: string,
   locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+  gymName?: string | null,
 ): { subject: string; html: string; text: string } {
   const t = emailStrings(locale);
   const greeting = t.shell.greeting(name?.trim() || undefined);
+  const gym = gymName?.trim() || null;
   const html = renderBrandedEmail({
     locale,
-    senderName: PLATFORM_NAME,
+    senderName: escapeHtml(gym ?? PLATFORM_NAME),
     eyebrow: escapeHtml(t.reset.eyebrow),
     heading: escapeHtml(t.reset.heading),
     preheader: t.reset.preheader,
@@ -481,7 +494,9 @@ export function buildPasswordResetEmail(
       expiryPanel(t.reset.expires, t.reset.ignore),
     footerNote: escapeHtml(t.reset.footer),
   });
-  const text = `${greeting}\n\n${t.reset.body}\n${url}\n\n${t.reset.expires} ${t.reset.ignore}`;
+  const text =
+    `${greeting}\n\n${t.reset.body}\n${url}\n\n${t.reset.expires} ${t.reset.ignore}` +
+    (gym ? `\n\n${t.shell.sentBy(gym)}` : '');
   return { subject: t.reset.subject, html, text };
 }
 

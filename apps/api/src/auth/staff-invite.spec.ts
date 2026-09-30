@@ -32,7 +32,7 @@ interface Invite {
   email: string;
   role: Role;
   gymId: string;
-  gym: { slug: string };
+  gym: { slug: string; name: string };
   expiresAt: Date;
   usedAt: Date | null;
 }
@@ -135,7 +135,7 @@ const liveInvite = (over?: Partial<Invite>): Invite => ({
   email: 'invitee@example.com',
   role: Role.MANAGER,
   gymId: 'gym-1',
-  gym: { slug: 'downtown' },
+  gym: { slug: 'downtown', name: 'Downtown Strength' },
   expiresAt: new Date(Date.now() + 1_000_000),
   usedAt: null,
   ...over,
@@ -278,6 +278,7 @@ describe('AuthService — staff invites (T4.7)', () => {
         'Invitee',
         'en',
         'downtown',
+        'Downtown Strength',
       );
     });
 

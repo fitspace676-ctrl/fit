@@ -39,6 +39,7 @@ import type { AppleOAuthService } from './apple-oauth.service';
 interface GymRow {
   id: string;
   slug: string;
+  name?: string;
   settings: unknown;
 }
 
@@ -136,7 +137,7 @@ function setup() {
   // The tenant a public self-signup joins. Default to a live gym with no stored
   // settings, so `signupMember` sees the shipped defaults for every policy.
   const gymFindFirst = vi.fn<(args: unknown) => Promise<GymRow | null>>(() =>
-    Promise.resolve({ id: 'gym-1', slug: 'iron', settings: null }),
+    Promise.resolve({ id: 'gym-1', slug: 'iron', name: 'Iron Gym', settings: null }),
   );
   // The named-gym suspension check, which looks the slug up on its own. Default
   // to "unknown slug" → nothing to gate, exactly as before the check existed.
@@ -350,6 +351,7 @@ describe('AuthService', () => {
         'Alice',
         'en',
         undefined,
+        undefined,
       );
     });
 
@@ -363,6 +365,7 @@ describe('AuthService', () => {
         expect.any(String),
         'Alice',
         'ka',
+        undefined,
         undefined,
       );
     });
@@ -430,6 +433,7 @@ describe('AuthService', () => {
         'Alice',
         expect.any(String),
         'iron',
+        'Iron Gym',
       );
       expect(ctx.issueTokenPair).not.toHaveBeenCalled();
     });
@@ -707,11 +711,18 @@ describe('AuthService', () => {
         'Nino',
         'en',
         'iron',
+        // The gym, not the platform, is who the mail is from.
+        'Iron Gym',
       );
     });
 
     it('addresses a second gym at its own slug', async () => {
-      ctx.gymFindFirst.mockResolvedValue({ id: 'gym-2', slug: 'downtown', settings: null });
+      ctx.gymFindFirst.mockResolvedValue({
+        id: 'gym-2',
+        slug: 'downtown',
+        name: 'Downtown Strength',
+        settings: null,
+      });
 
       await ctx.service.signupMember({ ...VALID_SIGNUP, gymId: 'gym-2' });
 
@@ -721,6 +732,7 @@ describe('AuthService', () => {
         'Nino',
         'en',
         'downtown',
+        'Downtown Strength',
       );
     });
   });
@@ -927,6 +939,7 @@ describe('AuthService', () => {
         'Sam',
         'en',
         null,
+        null,
       );
     });
 
@@ -947,6 +960,8 @@ describe('AuthService', () => {
         'Sam D.',
         'ka',
         'downtown',
+        // …and names that gym as the sender.
+        'Downtown',
       );
     });
 
@@ -970,6 +985,7 @@ describe('AuthService', () => {
         'Sam',
         'en',
         'riverside',
+        'Riverside',
       );
     });
 
@@ -1000,6 +1016,7 @@ describe('AuthService', () => {
         'Sam D.',
         'en',
         'downtown',
+        'Downtown',
       );
     });
 
@@ -1018,6 +1035,7 @@ describe('AuthService', () => {
         expect.any(String),
         'Sam',
         'en',
+        null,
         null,
       );
     });

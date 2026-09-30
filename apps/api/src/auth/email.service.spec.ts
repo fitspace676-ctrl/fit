@@ -120,6 +120,24 @@ describe('EmailService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("names the account's gym as the sender when one is given", async () => {
+    configure({ RESEND_API_KEY: 're_123', WEB_URL: 'https://app.fit' });
+    const service = new EmailService();
+
+    await service.sendVerificationEmail(
+      'user@example.com',
+      'tok123',
+      'Sam',
+      'en',
+      null,
+      'Iron Gym',
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
+    expect(String(body.html)).toMatch(/font-weight:800[^>]*>Iron Gym<\/div>/);
+    expect(String(body.text)).toContain('Sent by Iron Gym on FormaCore.');
+  });
+
   it('POSTs to Resend with auth, sender, recipient, and the verification link', async () => {
     configure({ RESEND_API_KEY: 're_123', WEB_URL: 'https://app.fit' });
     const service = new EmailService();
@@ -329,6 +347,26 @@ describe('account email builders', () => {
     expect(html).toContain('expires in 1 hour');
     expect(html).not.toMatch(/—|--/);
     expect(text).not.toMatch(/—|--/);
+  });
+
+  it("sends the verification and reset mails from the account's gym, escaping its name", () => {
+    for (const build of [buildVerificationEmail, buildPasswordResetEmail]) {
+      const { html, text } = build(URL, 'Sam', 'en', ' Downtown & Co ');
+      expect(html).toMatch(/font-weight:800[^>]*>Downtown &amp; Co<\/div>/);
+      expect(html).not.toContain('Downtown & Co');
+      expect(text).toContain('Sent by Downtown & Co on FormaCore.');
+    }
+  });
+
+  it('keeps FormaCore as the sender without a gym, or with a blank one', () => {
+    for (const build of [buildVerificationEmail, buildPasswordResetEmail]) {
+      for (const gymName of [undefined, null, '   ']) {
+        const { html, text } = build(URL, 'Sam', 'en', gymName);
+        expect(html).toContain('FormaCore');
+        expect(html).not.toMatch(/font-weight:800[^>]*>Downtown/);
+        expect(text).not.toContain('Sent by');
+      }
+    }
   });
 
   it('frames the owner onboarding mail around the gym and escapes its name', () => {

@@ -299,6 +299,7 @@ export class AuthService {
         input.name,
         locale ?? DEFAULT_EMAIL_LOCALE,
         redeemed?.gymSlug,
+        redeemed?.gymName,
       );
     } catch (error) {
       this.logger.error(
@@ -319,7 +320,7 @@ export class AuthService {
   ): Promise<RegisterResponse> {
     const gym = await this.prisma.client.gym.findFirst({
       where: { slug: input.gymSlug, status: GymStatus.ACTIVE },
-      select: { id: true, slug: true, settings: true },
+      select: { id: true, slug: true, name: true, settings: true },
     });
     if (!gym) {
       throw new BadRequestException({ message: 'Unknown gym', code: 'GYM_NOT_FOUND' });
@@ -393,6 +394,7 @@ export class AuthService {
         input.name,
         locale ?? resolveEmailLocale(gymLanguage),
         gym.slug,
+        gym.name,
       );
     } catch (error) {
       this.logger.error(
@@ -436,7 +438,7 @@ export class AuthService {
     // subdomain, so a bad value is a malformed request, not a missing resource.
     const gym = await this.prisma.client.gym.findFirst({
       where: { id: input.gymId, status: GymStatus.ACTIVE },
-      select: { id: true, slug: true, settings: true },
+      select: { id: true, slug: true, name: true, settings: true },
     });
     if (!gym) {
       throw new BadRequestException({ message: 'Unknown gym', code: 'GYM_NOT_FOUND' });
@@ -562,8 +564,10 @@ export class AuthService {
         input.name,
         locale ?? resolveEmailLocale(gymLanguage),
         // Verifying lands them back on the gym they just joined, not on
-        // whichever site the platform-wide WEB_URL points at.
+        // whichever site the platform-wide WEB_URL points at — and the gym, not
+        // the platform, is who the mail is from.
         gym.slug,
+        gym.name,
       );
     } catch (error) {
       this.logger.error(
@@ -955,7 +959,9 @@ export class AuthService {
       select: {
         id: true,
         name: true,
-        credentials: { select: { gymId: true, name: true, gym: { select: { slug: true } } } },
+        credentials: {
+          select: { gymId: true, name: true, gym: { select: { slug: true, name: true } } },
+        },
       },
     });
 
@@ -976,6 +982,7 @@ export class AuthService {
           target.name ?? user.name ?? undefined,
           locale ?? DEFAULT_EMAIL_LOCALE,
           target.gymSlug,
+          target.gymName,
         );
       } catch (error) {
         this.logger.error(
@@ -1765,14 +1772,14 @@ export class AuthService {
     email: string,
     token?: string,
     credential?: { passwordHash: string; name?: string },
-  ): Promise<{ gymId: string; gymSlug: string } | null> {
+  ): Promise<{ gymId: string; gymSlug: string; gymName: string } | null> {
     if (!token) {
       return null;
     }
     try {
       const invite = await this.prisma.client.staffInvite.findUnique({
         where: { token },
-        include: { gym: { select: { slug: true } } },
+        include: { gym: { select: { slug: true, name: true } } },
       });
       if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
         return null;
@@ -1843,7 +1850,7 @@ export class AuthService {
         return null;
       }
       this.logger.debug(`Redeemed staff invite ${invite.id} for user ${userId}`);
-      return { gymId: invite.gymId, gymSlug: invite.gym.slug };
+      return { gymId: invite.gymId, gymSlug: invite.gym.slug, gymName: invite.gym.name };
     } catch (error) {
       this.logger.error(
         `Failed to redeem staff invite for ${email}: ${
@@ -1862,18 +1869,30 @@ export class AuthService {
  * the whole identity, linked at the platform-wide reset page.
  */
 function resetTarget(
-  credentials: { gymId: string; name: string | null; gym: { slug: string } }[],
+  credentials: { gymId: string; name: string | null; gym: { slug: string; name: string } }[],
   gymSlug: string | null | undefined,
-): { gymId: string | null; gymSlug: string | null; name: string | null } | null {
+): {
+  gymId: string | null;
+  gymSlug: string | null;
+  gymName: string | null;
+  name: string | null;
+} | null {
   if (gymSlug) {
     const match = credentials.find((c) => c.gym.slug === gymSlug);
-    return match ? { gymId: match.gymId, gymSlug, name: match.name } : null;
+    return match
+      ? { gymId: match.gymId, gymSlug, gymName: match.gym.name, name: match.name }
+      : null;
   }
   if (credentials.length === 1) {
     const [only] = credentials;
-    return { gymId: only!.gymId, gymSlug: only!.gym.slug, name: only!.name };
+    return {
+      gymId: only!.gymId,
+      gymSlug: only!.gym.slug,
+      gymName: only!.gym.name,
+      name: only!.name,
+    };
   }
-  return { gymId: null, gymSlug: null, name: null };
+  return { gymId: null, gymSlug: null, gymName: null, name: null };
 }
 
 /**
