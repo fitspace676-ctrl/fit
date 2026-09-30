@@ -26,6 +26,17 @@ describe('TextField', () => {
     expect(screen.getByText('ელფოსტა')).toBeTruthy();
   });
 
+  it('draws the label as sentence-case caption, not the uppercase micro role', () => {
+    render(<TextField label="ელფოსტა" testID="f" />);
+    const label = flatten(screen.getByText('ელფოსტა').props.style);
+    expect(label.textTransform).toBeUndefined();
+    expect(label.letterSpacing ?? 0).toBe(0);
+    expect(label.fontSize).toBe(12);
+    expect(label.lineHeight).toBe(16);
+    // Inert: the input already carries this string as its accessible name.
+    expect(screen.getByText('ელფოსტა').props.accessible).toBe(false);
+  });
+
   it('labelHidden keeps the name and drops the text', () => {
     // Not "drops the label" — leaning on a placeholder instead would leave the
     // control unnamed, and the placeholder disappears once there is a value.

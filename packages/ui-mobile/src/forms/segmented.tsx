@@ -55,6 +55,15 @@ const TRACK_HEIGHT = OPTION_HEIGHT + 2 * PAD;
 
 const GLYPH = 16;
 
+/**
+ * The two-line option: `spacing[16]` (64) for the track, as the join funnel's
+ * package tabs draw it, so "სავარჯიშო პაკეტები" wraps instead of being cut.
+ */
+const TALL_TRACK_HEIGHT = spacing[16];
+const TALL_OPTION_HEIGHT = TALL_TRACK_HEIGHT - 2 * PAD;
+const TALL_OPTION_RADIUS = 22;
+const TALL_TRACK_RADIUS = TALL_OPTION_RADIUS + PAD;
+
 export interface SegmentedOption<T extends string> {
   value: T;
   /** The visible text, or the accessible name when `iconOnly` is set. */
@@ -71,6 +80,12 @@ export interface SegmentedProps<T extends string> {
   onChange: (value: T) => void;
   options: readonly SegmentedOption<T>[];
   disabled?: boolean;
+  /**
+   * How many lines an option's label may take. Default `1`, the 44pt capsule.
+   * `2` draws the 64pt track and wraps a long label onto a second line rather
+   * than truncating it — for Georgian labels that do not fit a third of 350pt.
+   */
+  labelLines?: 1 | 2;
   /** Forwarded to the root; each option takes `${testID}-${option.value}`. */
   testID?: string;
   /** Merged last, so a screen can always nudge. */
@@ -84,6 +99,7 @@ interface OptionProps<T extends string> {
   selected: boolean;
   disabled: boolean;
   onPress: () => void;
+  labelLines: 1 | 2;
   testID?: string;
 }
 
@@ -92,10 +108,13 @@ function SegmentedItem<T extends string>({
   selected,
   disabled,
   onPress,
+  labelLines,
   testID,
 }: OptionProps<T>) {
   const colors = useThemeColors();
   const { pressed, onPressIn, onPressOut } = usePressed();
+  const tall = labelLines > 1;
+  const height = tall ? TALL_OPTION_HEIGHT : OPTION_HEIGHT;
 
   const foreground = disabled
     ? colors.textDisabled
@@ -111,7 +130,7 @@ function SegmentedItem<T extends string>({
       onPressIn={onPressIn}
       onPressOut={onPressOut}
       disabled={disabled}
-      hitSlop={hitSlopFor(OPTION_HEIGHT)}
+      hitSlop={hitSlopFor(height)}
       testID={testID}
       {...interactiveA11y(
         { accessibilityLabel: option.label, accessibilityRole: 'radio' },
@@ -119,14 +138,15 @@ function SegmentedItem<T extends string>({
       )}
       style={{
         flex: 1,
-        height: OPTION_HEIGHT,
-        minHeight: OPTION_HEIGHT,
+        height,
+        minHeight: height,
+        minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing[1.5],
-        paddingHorizontal: spacing[3],
-        borderRadius: OPTION_HEIGHT / 2,
+        paddingHorizontal: tall ? spacing[2] : spacing[3],
+        borderRadius: tall ? TALL_OPTION_RADIUS : OPTION_HEIGHT / 2,
         // The lime is the only chromatic thing in the control, which is what
         // makes "where am I" readable at a glance.
         ...(selected ? { backgroundColor: colors.accent } : {}),
@@ -134,7 +154,14 @@ function SegmentedItem<T extends string>({
     >
       {option.icon ? <Icon name={option.icon} color={foreground} size={GLYPH} /> : null}
       {option.iconOnly ? null : (
-        <Text variant="bodySmall" color={foreground} numberOfLines={1} accessible={false}>
+        <Text
+          variant="bodySmall"
+          color={foreground}
+          numberOfLines={labelLines}
+          align={tall ? 'center' : undefined}
+          accessible={false}
+          style={tall ? { flexShrink: 1 } : null}
+        >
           {option.label}
         </Text>
       )}
@@ -149,11 +176,14 @@ export function Segmented<T extends string>({
   onChange,
   options,
   disabled = false,
+  labelLines = 1,
   testID,
   style,
   className,
 }: SegmentedProps<T>) {
   const colors = useThemeColors();
+  const tall = labelLines > 1;
+  const trackHeight = tall ? TALL_TRACK_HEIGHT : TRACK_HEIGHT;
 
   return (
     <View
@@ -167,9 +197,9 @@ export function Segmented<T extends string>({
           alignItems: 'center',
           gap: spacing[0.5],
           padding: PAD,
-          height: TRACK_HEIGHT,
-          minHeight: TRACK_HEIGHT,
-          borderRadius: TRACK_HEIGHT / 2,
+          height: trackHeight,
+          minHeight: trackHeight,
+          borderRadius: tall ? TALL_TRACK_RADIUS : TRACK_HEIGHT / 2,
           backgroundColor: colors.backgroundMuted,
         },
         style,
@@ -182,6 +212,7 @@ export function Segmented<T extends string>({
           option={option}
           selected={option.value === value}
           disabled={disabled}
+          labelLines={labelLines}
           onPress={() => {
             onChange(option.value);
           }}

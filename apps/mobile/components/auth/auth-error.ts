@@ -13,24 +13,22 @@
 //
 // ## What that costs, and what is owed
 //
-// `auth.genericError` is the only error sentence the `auth` namespace carries,
-// so today every failure reads "Something went wrong. Please try again." — true,
-// but it cannot tell "wrong password" from "verify your email first", and the
-// second one is a dead end the user cannot escape without being told.
+// `auth.genericError` is the fallback sentence, and it cannot tell "wrong
+// password" from "verify your email first" — the second one is a dead end the
+// user cannot escape without being told. So each code the API distinguishes on
+// these five screens (`apps/api` sets them; `lib/api/auth.ts` documents them)
+// gets its own sentence as the key lands:
 //
-// TODO(i18n) — three keys owed, one per code the API actually distinguishes on
-// these five screens (`apps/api` sets them; `lib/api/auth.ts` documents them):
+//   | key                                    | code / status            |
+//   |----------------------------------------|--------------------------|
+//   | `auth.login.errors.invalidCredentials` | 401 INVALID_CREDENTIALS  |
+//   | `auth.errors.emailNotVerified` (owed)  | 403 EMAIL_NOT_VERIFIED   |
+//   | `auth.errors.rateLimited` (owed)       | 429 (see `pending-copy`) |
 //
-//   | key                              | code / status            |
-//   |----------------------------------|--------------------------|
-//   | `auth.errors.invalidCredentials`  | 401 INVALID_CREDENTIALS  |
-//   | `auth.errors.emailNotVerified`    | 403 EMAIL_NOT_VERIFIED   |
-//   | `auth.errors.rateLimited`         | 429 (see `pending-copy`) |
-//
-// The mapping table below is written now, with every arm pointing at the
-// fallback, so closing the gap is a one-line change per row rather than a new
-// module. Deliberately NOT a `switch` on `error.message`: the message is
-// server-authored prose that changes without notice, the code is the contract.
+// `invalidCredentials` sits under `auth.login.errors` beside the other sign-in
+// refusals: only `POST /auth/login` answers with that code. Deliberately NOT a
+// `switch` on `error.message`: the message is server-authored prose that
+// changes without notice, the code is the contract.
 
 import type { MessageKey } from '../../lib/i18n/keys';
 import { ApiError } from '../../lib/http/api-error';
@@ -40,10 +38,15 @@ export function authErrorKey(error: unknown): MessageKey {
   if (!ApiError.is(error)) {
     return 'auth.genericError';
   }
-  // TODO(i18n): `auth.errors.invalidCredentials` for 401 INVALID_CREDENTIALS,
-  // `auth.errors.emailNotVerified` for 403 EMAIL_NOT_VERIFIED. Until those keys
-  // exist, every code lands on the generic sentence — which is at least true,
-  // and in the user's language, which the API's own message is not.
+  // A wrong address or password is the user's to fix at the field, and the
+  // generic "try again" would tell them to repeat the same thing.
+  if (error.code === 'INVALID_CREDENTIALS') {
+    return 'auth.login.errors.invalidCredentials';
+  }
+  // TODO(i18n): `auth.errors.emailNotVerified` for 403 EMAIL_NOT_VERIFIED.
+  // Until that key exists, every other code lands on the generic sentence —
+  // which is at least true, and in the user's language, which the API's own
+  // message is not.
   return 'auth.genericError';
 }
 

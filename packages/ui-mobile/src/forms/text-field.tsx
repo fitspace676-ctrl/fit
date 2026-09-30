@@ -12,7 +12,7 @@ import { clampRadiusTo } from '../internal/clamp-radius';
 import { IconButton } from './icon-button';
 import { Icon } from '../primitives/icon/icon';
 import type { IconName } from '../primitives/icon/paths';
-import { Eyebrow, Text } from '../primitives/text';
+import { Text, type TextProps } from '../primitives/text';
 import type { SurfaceRadius } from '../tokens/radii';
 import { layout, spacing } from '../tokens/spacing';
 import { useThemeColors } from '../tokens/theme';
@@ -35,7 +35,8 @@ import { type as typeRoles } from '../tokens/typography';
 //   error   `border-danger-500` + `mt-2 block text-[12px] font-medium
 //            text-danger-400`
 //   label   `mb-2 block text-[10px] font-semibold uppercase
-//            tracking-[0.16em] text-ink-500`
+//            tracking-[0.16em] text-ink-500` — NOT FOLLOWED: see
+//            `FieldLabel` below. The label is sentence-case `caption`.
 //
 // THIS IS A FLAG, NOT A FOOTNOTE: the five auth screens will be built against
 // a control that was designed for a 1440pt browser. A 52pt field and a 14px
@@ -57,12 +58,35 @@ const FOCUS_RING_WIDTH = 3;
 
 const GLYPH = 18;
 
+export type FieldLabelProps = Omit<TextProps, 'variant'>;
+
+/**
+ * The name drawn above a form control — every field in the app, in one place.
+ *
+ * `caption` (12 / 500 / 16), sentence case, no tracking. The login comp's
+ * 10px uppercase micro-label was dropped on purpose: Georgian is unicameral,
+ * so `uppercase` never changed it, and at 10px with 0.10em tracking a
+ * mkhedruli label read as small print rather than as the field's name.
+ * A control that is not a `TextField` (a star rating, a date picker) puts
+ * this above itself so the form still looks like one form.
+ *
+ * `accessible={false}` by default: the control under it carries the same
+ * string as its accessible name, and a visible copy would announce it twice.
+ */
+export function FieldLabel({ children, ...rest }: FieldLabelProps) {
+  return (
+    <Text variant="caption" color="textSecondary" accessible={false} {...rest}>
+      {children}
+    </Text>
+  );
+}
+
 export interface TextFieldProps extends Omit<
   TextInputProps,
   'style' | 'placeholderTextColor' | 'editable' | 'accessibilityLabel'
 > {
   /**
-   * The micro-label above the field, and the input's accessible name.
+   * The {@link FieldLabel} above the field, and the input's accessible name.
    * REQUIRED — rule 1, and a `TextInput` with only a placeholder is unnamed
    * for a screen reader the moment anything is typed into it.
    */
@@ -181,13 +205,9 @@ export function TextField({
             marginBottom: spacing[2],
           }}
         >
-          {/* The login's 10px / 600 / uppercase micro-label. `micro` is the
-              scale's 10px small-caps role; it tracks at 0.10em against the
-              comp's 0.16em, a difference of 0.6pt at this size, and adding an
-              eleventh sans role for it would mean editing WP-1's file. */}
-          <Eyebrow size="micro" color="textSecondary" accessible={false}>
-            {label}
-          </Eyebrow>
+          {/* Sentence-case `caption`, not the comp's uppercase micro-label —
+              see `FieldLabel`. The input below carries `label` as its name. */}
+          <FieldLabel>{label}</FieldLabel>
           {action}
         </View>
       )}

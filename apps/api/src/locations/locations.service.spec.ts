@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../config/env', () => ({
+  env: { PLATFORM_ROOT_DOMAIN: 'formacore.io', WEB_URL: 'https://app.formacore.io' },
+}));
+
 import { LocationStatus } from '@fit/db';
 import { MIDNIGHT_CLOSE } from '@fit/types';
 import { LocationsService } from './locations.service';
@@ -12,6 +17,7 @@ interface LocationRecord {
   photoUrl: string | null;
   amenities: string[];
   hours: unknown;
+  gym: { slug: string };
 }
 
 interface FindManyArgs {
@@ -27,6 +33,7 @@ const row = (over?: Partial<LocationRecord>): LocationRecord => ({
   photoUrl: 'https://cdn.example.com/main.jpg',
   amenities: ['Showers', 'Parking'],
   hours: { mon: '06:00–23:00', sun: 'Closed' },
+  gym: { slug: 'downtown' },
   ...over,
 });
 
@@ -96,6 +103,23 @@ describe('LocationsService', () => {
 
     it('maps a branch with no photo to a null photoUrl', async () => {
       const { service } = setup([row({ photoUrl: null })]);
+
+      const { locations } = await service.listLocations({ gymId: 'gym-1' });
+
+      expect(locations[0]?.photoUrl).toBeNull();
+    });
+
+    it("makes a relative web photo path absolute on the gym's tenant host", async () => {
+      const { service, findMany } = setup([row({ photoUrl: '/gym-hero.webp' })]);
+
+      const { locations } = await service.listLocations({ gymId: 'gym-1' });
+
+      expect(findMany.mock.calls[0]?.[0].select).toMatchObject({ gym: { select: { slug: true } } });
+      expect(locations[0]?.photoUrl).toBe('https://downtown.formacore.io/gym-hero.webp');
+    });
+
+    it('maps a photo value that is neither a URL nor a root path to null', async () => {
+      const { service } = setup([row({ photoUrl: 'gym-hero.webp' })]);
 
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 

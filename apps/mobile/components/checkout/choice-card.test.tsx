@@ -4,11 +4,12 @@
 // A branch is a place, so its card leads with a picture of it — web's
 // `locationCard` has done this since the branch picker stopped being a row of
 // name-only chips. A plan is not a place and has no picture. So `undefined`
-// means "no band at all" and `null` means "a band, showing the monogram": a
-// branch whose photo has not been uploaded yet must not be a hole in a list of
-// pictures.
+// means "no band at all" and `null` means "the compact card, with the
+// monogram in a small tile": a branch whose photo has not been uploaded yet
+// must not be a hole in a list of pictures.
 
 import { fireEvent } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import { ChoiceCard } from './choice-card';
 import { renderScreen } from '../../test-support/render-screen';
@@ -66,5 +67,31 @@ describe('the photo band', () => {
     const view = renderScreen(<ChoiceCard {...BASE} title="ვაკის ფილიალი" photoUrl={null} />);
 
     expect(view.getByTestId('c-photo-initial')).toHaveTextContent('ვ');
+  });
+});
+
+describe('the compact branch card', () => {
+  // Audit #8: with no photograph, the monogram used to get the whole 16:9
+  // band. It is a small square tile beside the name now.
+  it('draws the monogram in a square tile, not a 16:9 band', () => {
+    const view = renderScreen(<ChoiceCard {...BASE} photoUrl={null} />);
+    const tile = StyleSheet.flatten(view.getByTestId('c-photo').props.style) as {
+      width?: number;
+      height?: number;
+      aspectRatio?: number;
+    };
+    expect(tile.width).toBe(56);
+    expect(tile.height).toBe(56);
+    expect(tile.aspectRatio).toBeUndefined();
+  });
+
+  it('keeps the 16:9 band when there is a photograph', () => {
+    const view = renderScreen(
+      <ChoiceCard {...BASE} photoUrl="https://images.example.com/rustaveli.jpg" />,
+    );
+    const band = StyleSheet.flatten(view.getByTestId('c-photo').props.style) as {
+      aspectRatio?: number;
+    };
+    expect(band.aspectRatio).toBeCloseTo(16 / 9);
   });
 });

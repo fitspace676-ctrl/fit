@@ -132,6 +132,24 @@ export interface ChipProps {
 
   disabled?: boolean;
 
+  /**
+   * Take an equal share of the row instead of the label's own width — the join
+   * funnel's four step chips, `(width − 3 × gap) / 4` each. The padding drops
+   * to `spacing[2]`, the label to 13 / 600, and a label that still does not fit
+   * scales down rather than being cut. Default `false`: every rail keeps its
+   * intrinsic-width chips.
+   */
+  stretch?: boolean;
+
+  /**
+   * How a disabled chip looks. `'dim'` (default) is the grey plate every rail
+   * uses. `'readable'` keeps the idle plate and a secondary-text label: the
+   * control is still disabled for touch and for a screen reader, but its words
+   * can be read — for a step that is not reachable YET, whose name the buyer
+   * still needs to see.
+   */
+  disabledLook?: 'dim' | 'readable';
+
   /** Override the rung. Clamped to half the height. */
   radius?: SurfaceRadius;
 
@@ -169,6 +187,8 @@ export function Chip({
   icon,
   dot,
   disabled = false,
+  stretch = false,
+  disabledLook = 'dim',
   radius = 'inner',
   accessibilityHint,
   testID,
@@ -182,21 +202,27 @@ export function Chip({
   const idle = TONES[tone];
   const on = SELECTED_FILL[selectedFill];
 
-  const background = disabled
-    ? colors.borderEmphasized
-    : selected
-      ? colors[on.bg]
-      : pressed
-        ? colors[idle.pressedBg]
-        : colors[idle.bg];
+  const readableDisabled = disabled && disabledLook === 'readable';
 
-  const foreground = disabled
-    ? colors.textDisabled
-    : selected
-      ? colors[on.fg]
-      : pressed
-        ? colors.textPrimary
-        : colors[idle.fg];
+  const background = readableDisabled
+    ? colors[idle.bg]
+    : disabled
+      ? colors.borderEmphasized
+      : selected
+        ? colors[on.bg]
+        : pressed
+          ? colors[idle.pressedBg]
+          : colors[idle.bg];
+
+  const foreground = readableDisabled
+    ? colors.textSecondary
+    : disabled
+      ? colors.textDisabled
+      : selected
+        ? colors[on.fg]
+        : pressed
+          ? colors.textPrimary
+          : colors[idle.fg];
 
   return (
     <Pressable
@@ -216,13 +242,14 @@ export function Chip({
           alignItems: 'center',
           justifyContent: 'center',
           gap: spacing[2],
-          paddingHorizontal: dims.padH,
+          paddingHorizontal: stretch ? spacing[2] : dims.padH,
           borderRadius: clampRadiusTo(radius, dims.height),
           backgroundColor: background,
           // A chip in a horizontal rail must keep its intrinsic width — the
           // artboards' `shrink-0`. Without it the rail's flex layout squeezes
           // the last chip instead of letting it scroll off.
           flexShrink: 0,
+          ...(stretch ? { flex: 1, flexShrink: 1, minWidth: 0 } : {}),
         },
         style,
       ]}
@@ -241,11 +268,13 @@ export function Chip({
       ) : null}
       {icon ? <Icon name={icon} color={foreground} size={dims.glyph} /> : null}
       <Text
-        variant={dims.variant}
+        variant={stretch ? 'bodySmall' : dims.variant}
         color={foreground}
         numberOfLines={1}
+        adjustsFontSizeToFit={stretch}
+        minimumFontScale={stretch ? 0.8 : undefined}
         accessible={false}
-        style={size === 'sm' ? SM_WEIGHT : null}
+        style={size === 'sm' || stretch ? SM_WEIGHT : null}
       >
         {label}
       </Text>

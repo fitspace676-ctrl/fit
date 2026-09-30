@@ -3495,7 +3495,11 @@
       "errors": {
         "notAMember": "This account isn’t a member of this gym. Join the gym to sign in here.",
         "membershipNotActive": "Your membership at this gym isn’t active yet. Ask the gym to activate it.",
-        "gymSuspended": "This gym is temporarily unavailable."
+        "gymSuspended": "This gym is temporarily unavailable.",
+        "invalidCredentials": "The email or password is incorrect. Check them and try again.",
+        "emailRequired": "Enter your email.",
+        "emailInvalid": "Enter a valid email address.",
+        "passwordRequired": "Enter your password."
       },
       "chooseGym": {
         "title": "Which gym are you signing in to?",
@@ -3510,7 +3514,10 @@
       "submitting": "Creating account…",
       "success": "Almost there! Check your inbox to verify your email and finish setting up your account.",
       "haveAccount": "Already have an account?",
-      "loginLink": "Sign in"
+      "loginLink": "Sign in",
+      "errors": {
+        "nameRequired": "Enter your name."
+      }
     },
     "forgot": {
       "title": "Reset your password",
@@ -3659,6 +3666,7 @@
       "signedIn": "You're signed in - your membership will be added to your account.",
       "submitting": "Saving…",
       "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
+      "invalidFields": "Please fill in or correct: {fields}.",
       "fields": {
         "name": "Full name",
         "firstName": "First name",
@@ -3714,7 +3722,9 @@
       "pay": "Pay",
       "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk - no card is charged online.",
       "error": "We couldn't place your order. Please try again.",
+      "alreadySubscribed": "You already have an active membership.",
       "terms": "I agree to the terms of service and the membership policy.",
+      "termsRequired": "Tick the box above to continue.",
       "summary": {
         "package": "Package",
         "total": "Total"

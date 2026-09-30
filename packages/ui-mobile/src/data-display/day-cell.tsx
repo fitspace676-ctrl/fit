@@ -61,6 +61,9 @@ const HEIGHT = 76;
  */
 export const DAY_CELL_WIDTH = WIDTH;
 
+/** A `fill` cell's height: shorter, because it no longer needs the rail's bulk. */
+export const DAY_CELL_FILL_HEIGHT = 64;
+
 /** `h-1.5 w-1.5`. */
 const DOT = 6;
 
@@ -94,6 +97,14 @@ export interface DayCellProps {
   disabled?: boolean;
 
   /**
+   * Share the row with its siblings instead of the fixed 50pt — `flex: 1` at
+   * {@link DAY_CELL_FILL_HEIGHT}. For a strip whose seven days must all fit
+   * with no scroller (the join funnel's start date). Default `false`: the
+   * classes rail keeps its 50 × 76 cells and its `ScrollRail`.
+   */
+  fill?: boolean;
+
+  /**
    * Forwarded to the root node. The dot is reachable as `${testID}-dot`, so a
    * test can assert the one piece of information that has no text.
    */
@@ -115,6 +126,7 @@ export function DayCell({
   selected = false,
   onPress,
   disabled = false,
+  fill = false,
   testID,
   style,
   className,
@@ -184,12 +196,12 @@ export function DayCell({
   );
 
   const cellStyle: ViewStyle = {
-    width: WIDTH,
-    height: HEIGHT,
+    ...(fill ? { flex: 1, minWidth: 0 } : { width: WIDTH }),
+    height: fill ? DAY_CELL_FILL_HEIGHT : HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing[1],
-    borderRadius: clampRadiusTo(22, WIDTH),
+    borderRadius: fill ? 14 : clampRadiusTo(22, WIDTH),
     backgroundColor: background,
   };
 
@@ -218,7 +230,7 @@ export function DayCell({
       // 50 × 76 already clears the floor, so this resolves to zero on every
       // side today. It is applied anyway, from the shorter side, so that a
       // later change to WIDTH cannot quietly drop the cell under 44.
-      hitSlop={hitSlopFor(Math.min(WIDTH, HEIGHT))}
+      hitSlop={hitSlopFor(fill ? DAY_CELL_FILL_HEIGHT : Math.min(WIDTH, HEIGHT))}
       {...interactiveA11y({ accessibilityLabel }, { disabled, selected })}
       style={[cellStyle, style]}
       className={className}

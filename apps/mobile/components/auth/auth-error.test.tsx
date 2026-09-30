@@ -1,10 +1,10 @@
 // What an auth failure turns into, and whether "try again" is honest.
 //
-// `authErrorKey` currently answers `auth.genericError` for everything — the
-// `auth` namespace carries exactly one error sentence — and the table in
-// `auth-error.ts` says which three keys are owed. That is asserted here on
-// purpose: when the keys land, this file is the one that fails, which is what
-// makes the debt visible rather than merely commented.
+// `authErrorKey` answers `auth.login.errors.invalidCredentials` for a wrong
+// address or password and `auth.genericError` for everything else — the table
+// in `auth-error.ts` says which two keys are still owed. That is asserted here
+// on purpose: when the keys land, this file is the one that fails, which is
+// what makes the debt visible rather than merely commented.
 //
 // `isRetryable` is the more interesting half. Plan §6 item 3 asks for "error
 // with a working retry", and on a form the retry IS the submit button — so the
@@ -30,7 +30,20 @@ describe('authErrorKey', () => {
       message: 'Invalid email or password',
     });
 
-    expect(authErrorKey(error)).toBe('auth.genericError');
+    expect(authErrorKey(error)).toBe('auth.login.errors.invalidCredentials');
+  });
+
+  it('names a wrong address or password instead of "something went wrong"', () => {
+    // The fix is at the field; the generic sentence tells the user to repeat
+    // exactly what just failed.
+    expect(authErrorKey(new ApiError({ status: 401, code: 'INVALID_CREDENTIALS' }))).toBe(
+      'auth.login.errors.invalidCredentials',
+    );
+    // A 401 that is NOT a credentials refusal (an expired session on some other
+    // call) is not about the fields on this form.
+    expect(authErrorKey(new ApiError({ status: 401, code: 'UNAUTHORIZED' }))).toBe(
+      'auth.genericError',
+    );
   });
 
   it('handles a non-ApiError — a thrown string, a TypeError, undefined', () => {
@@ -40,9 +53,9 @@ describe('authErrorKey', () => {
     expect(authErrorKey(null)).toBe('auth.genericError');
   });
 
-  it('TODO(i18n): every code still lands on the one sentence the namespace has', () => {
-    // Three keys are owed — `auth.errors.invalidCredentials` (401),
-    // `auth.errors.emailNotVerified` (403), `auth.errors.rateLimited` (429).
+  it('TODO(i18n): every other code still lands on the generic sentence', () => {
+    // Two keys are owed — `auth.errors.emailNotVerified` (403) and
+    // `auth.errors.rateLimited` (429).
     // Until they exist the app says "Something went wrong" to a member whose
     // real problem is "verify your email first", which is a dead end they
     // cannot escape without being told. When the keys land, THIS test fails.

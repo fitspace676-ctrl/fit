@@ -9,6 +9,7 @@ import {
   type ListLocationsResponse,
   type LocationSummary,
 } from '@fit/types';
+import { toPublicMediaUrl } from '../common/public-media-url';
 import { PrismaService } from '../prisma/prisma.service';
 import { findDefaultLocationId } from './default-location';
 
@@ -24,6 +25,8 @@ const LOCATION_SELECT = {
   photoUrl: true,
   amenities: true,
   hours: true,
+  // Only to resolve a relative `photoUrl` against the gym's tenant host.
+  gym: { select: { slug: true } },
 } satisfies Prisma.LocationSelect;
 
 type LocationRecord = Prisma.LocationGetPayload<{ select: typeof LOCATION_SELECT }>;
@@ -81,13 +84,15 @@ export class LocationsService {
    * Project a queried row to the public {@link LocationSummary}. `hours` is
    * projected from the stored structured week to a flat weekday→label string
    * map, so a legacy / malformed stored shape can never break the listing.
+   * `photoUrl` is made absolute — see {@link toPublicMediaUrl} — because a
+   * relative web `public/` path means nothing to the member app.
    */
   private toSummary(row: LocationRecord): LocationSummary {
     return {
       id: row.id,
       name: row.name,
       address: row.address,
-      photoUrl: row.photoUrl,
+      photoUrl: toPublicMediaUrl(row.photoUrl, row.gym.slug),
       amenities: row.amenities,
       hours: this.toHours(row.hours),
     };

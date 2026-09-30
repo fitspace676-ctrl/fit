@@ -15,8 +15,11 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { onlineManager } from '@tanstack/react-query';
 
 import { ApiError } from '../../lib/http/api-error';
+import { darkColors } from '@fit/ui-mobile';
+
 import { a11yState } from '../../test-support/a11y';
 import { renderApp } from '../../test-support/render';
+import { flatStyle } from '../../test-support/style';
 import RegisterScreen from './register';
 
 const mockPush = jest.fn();
@@ -101,6 +104,7 @@ describe('register screen', () => {
     mockRegisterAccount.mockReturnValue(pending());
     renderApp(<RegisterScreen />);
 
+    fillForm();
     const submit = screen.getByTestId('register-submit');
     fireEvent.press(submit);
 
@@ -162,6 +166,78 @@ describe('register screen', () => {
     expect(screen.queryByTestId('register-error')).toBeNull();
   });
 
+  it('marks the password too when the server refuses the pair, not only the address', async () => {
+    // A refusal about the pair; painting only the email red told the user the
+    // password was fine.
+    mockRegisterAccount.mockRejectedValueOnce(
+      new ApiError({ status: 400, code: 'VALIDATION_ERROR' }),
+    );
+    renderApp(<RegisterScreen />);
+
+    fillForm();
+    fireEvent.press(screen.getByTestId('register-submit'));
+    await screen.findByTestId('register-error');
+
+    expect(flatStyle(screen.getByTestId('register-email-box')).borderColor).toBe(darkColors.error);
+    expect(flatStyle(screen.getByTestId('register-password-box')).borderColor).toBe(
+      darkColors.error,
+    );
+  });
+
+  // An empty submit used to go to the API and come back as the banner's
+  // "Something went wrong" — a sentence nobody can act on.
+  it('an empty submit names each field under it, and never reaches the API', () => {
+    renderApp(<RegisterScreen />);
+
+    fireEvent.press(screen.getByTestId('register-submit'));
+
+    expect(screen.getByTestId('register-name-error')).toHaveTextContent('Enter your name.');
+    expect(screen.getByTestId('register-email-error')).toHaveTextContent('Enter your email.');
+    expect(screen.getByTestId('register-password-error')).toHaveTextContent('Enter your password.');
+    expect(screen.queryByTestId('register-error')).toBeNull();
+    expect(mockRegisterAccount).not.toHaveBeenCalled();
+  });
+
+  it('refuses a malformed address and a short password, and nothing else', () => {
+    renderApp(<RegisterScreen />);
+
+    fireEvent.changeText(screen.getByTestId('register-name-input'), 'Nino Gelashvili');
+    fireEvent.changeText(screen.getByTestId('register-email-input'), 'nino@example');
+    fireEvent.changeText(screen.getByTestId('register-password-input'), 'short');
+    fireEvent.press(screen.getByTestId('register-submit'));
+
+    expect(screen.queryByTestId('register-name-error')).toBeNull();
+    expect(screen.getByTestId('register-email-error')).toHaveTextContent(
+      'Enter a valid email address.',
+    );
+    // The hint's own sentence, in the hint's place.
+    expect(screen.getByTestId('register-password-error')).toHaveTextContent(
+      'At least 8 characters.',
+    );
+    expect(mockRegisterAccount).not.toHaveBeenCalled();
+  });
+
+  it('typing in a field clears that field’s verdict and leaves the others', () => {
+    renderApp(<RegisterScreen />);
+
+    fireEvent.press(screen.getByTestId('register-submit'));
+    fireEvent.changeText(screen.getByTestId('register-name-input'), 'N');
+
+    expect(screen.queryByTestId('register-name-error')).toBeNull();
+    expect(screen.getByTestId('register-email-error')).toBeTruthy();
+    expect(screen.getByTestId('register-password-error')).toBeTruthy();
+  });
+
+  it('names the fields in Georgian too', () => {
+    renderApp(<RegisterScreen />, { locale: 'ka' });
+
+    fireEvent.press(screen.getByTestId('register-submit'));
+
+    expect(screen.getByTestId('register-name-error')).toHaveTextContent('შეიყვანე სახელი.');
+    expect(screen.getByTestId('register-email-error')).toHaveTextContent('შეიყვანე ელფოსტა.');
+    expect(screen.getByTestId('register-password-error')).toHaveTextContent('შეიყვანე პაროლი.');
+  });
+
   it('on a 429 shows a live countdown, blocks submit, and never auto-retries', async () => {
     jest.useFakeTimers();
     try {
@@ -170,6 +246,7 @@ describe('register screen', () => {
       );
       renderApp(<RegisterScreen />);
 
+      fillForm();
       fireEvent.press(screen.getByTestId('register-submit'));
       await act(async () => Promise.resolve());
 
@@ -231,6 +308,7 @@ describe('register screen', () => {
     mockRegisterAccount.mockResolvedValue(undefined);
     renderApp(<RegisterScreen />, { locale: 'ka' });
 
+    fillForm();
     fireEvent.press(screen.getByTestId('register-submit'));
 
     await waitFor(() => {

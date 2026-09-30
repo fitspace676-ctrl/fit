@@ -34,7 +34,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import {
   Button,
-  Eyebrow,
+  FieldLabel,
   InlineNote,
   Sheet,
   StarRating,
@@ -174,13 +174,11 @@ export function ReviewSheet({
     >
       <View style={{ gap: spacing[4] }}>
         <View style={{ gap: spacing[2] }}>
-          {/* The same 10px micro-label `TextField` draws, so the two controls
-              in this sheet look like one form. `accessible={false}`: the
+          {/* The same `FieldLabel` `TextField` draws, so the two controls in
+              this sheet look like one form. Inert by default: the
               `StarRating` under it already carries this string as its
               accessible name, and a visible copy would announce it twice. */}
-          <Eyebrow size="micro" color="textSecondary" accessible={false}>
-            {t('member.reviews.ratingLabel')}
-          </Eyebrow>
+          <FieldLabel>{t('member.reviews.ratingLabel')}</FieldLabel>
           <StarRating
             testID={`${testID}-rating`}
             value={draft.rating}

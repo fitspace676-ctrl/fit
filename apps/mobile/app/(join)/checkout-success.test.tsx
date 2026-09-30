@@ -187,6 +187,61 @@ describe('the §6 states', () => {
     expect(view.getByTestId('join-success-signed-out')).toBeTruthy();
   });
 
+  // ==========================================================================
+  // NOTHING FOUND IS NOT A RECEIPT.
+  //
+  // Opened cold, the screen said "You're all set!", "Your membership purchase
+  // is confirmed" and "we have emailed you a confirmation link" — and then
+  // "We couldn't find that order". Only the last one was true.
+  // ==========================================================================
+  describe.each([
+    [
+      'signed out',
+      () => {
+        mockSession = { status: 'signed-out' };
+        mockGymId = null;
+      },
+      'join-success-signed-out',
+    ],
+    [
+      'no id at all',
+      () => {
+        mockParams = {};
+      },
+      'join-success-missing',
+    ],
+    [
+      'an order read that came back empty',
+      () => {
+        mockOrder = { data: {}, isPending: false, isError: false };
+      },
+      'join-success-missing',
+    ],
+  ])('with nothing to confirm (%s)', (_name, arrange, stateId) => {
+    it('claims no success and promises no email', () => {
+      arrange();
+      const view = renderScreen(<JoinCheckoutSuccessScreen />);
+
+      expect(view.getByTestId(stateId)).toBeTruthy();
+      expect(view.queryByText("You're all set!")).toBeNull();
+      expect(view.queryByText(/purchase is confirmed/)).toBeNull();
+      expect(view.queryByTestId('join-success-verify')).toBeNull();
+      // Still one header, and it names the funnel rather than a verdict.
+      expect(headerTexts(view.getAllByRole('header'))).toEqual(['Checkout']);
+      // The way out is still there.
+      fireEvent.press(view.getByTestId('join-success-home'));
+      expect(mockReplace).toHaveBeenCalledWith('/home');
+    });
+  });
+
+  it('says the same in Georgian', () => {
+    mockParams = {};
+    const view = renderScreen(<JoinCheckoutSuccessScreen />, { locale: 'ka' });
+    expect(view.getByText('ვერ მოვძებნეთ ეს შეკვეთა')).toBeTruthy();
+    expect(view.queryByText('ყველაფერი მზადაა!')).toBeNull();
+    expect(view.queryByTestId('join-success-verify')).toBeNull();
+  });
+
   it('shows the OFFLINE advisory', async () => {
     // TODO(i18n): no `offline` keys exist — see `components/auth/pending-copy.ts`.
     onlineManager.setOnline(false);

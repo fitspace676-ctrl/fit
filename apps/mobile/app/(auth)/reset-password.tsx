@@ -19,9 +19,10 @@
 //
 // `authStrict`: 5 per 900s.
 
-import { Alert as Advisory, Button, EmptyState } from '@fit/ui-mobile';
+import { Alert as Advisory, Button, EmptyState, spacing } from '@fit/ui-mobile';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { View } from 'react-native';
 
 import { AuthScreen } from '../../components/auth/auth-screen';
 import { authErrorKey } from '../../components/auth/auth-error';
@@ -57,7 +58,9 @@ export default function ResetPasswordScreen() {
     router.replace('/login');
   };
 
-  const footer = (
+  // The named way back, under the field. The header's chevron runs the same
+  // handler; this one stays because it says WHERE back goes.
+  const backLink = (
     <Button
       variant="ghost"
       size="md"
@@ -71,23 +74,30 @@ export default function ResetPasswordScreen() {
 
   // The dead-link branch. It is FIRST, and it returns, so no form state below is
   // ever reachable with a null token. `EmptyState` is the error state (plan item
-  // G-05) and carries the way out as its action rather than only as a footer
-  // link — a dead end with no button is how the old app's error boxes read.
+  // G-05); the way out is the screen's main action, in the footer where every
+  // other auth screen keeps its own, rather than a small button inside the card
+  // — a dead end with no button is how the old app's error boxes read.
   if (token === null) {
     return (
-      <AuthScreen testID="reset" title={t('auth.reset.title')} subtitle={t('auth.reset.subtitle')}>
-        <EmptyState
-          testID="reset-missing-token"
-          icon="info"
-          title={t('auth.reset.missingToken')}
-          action={{
-            label: t('auth.forgot.submit'),
-            testID: 'reset-request-new',
-            onPress: () => {
+      <AuthScreen
+        testID="reset"
+        title={t('auth.reset.title')}
+        subtitle={t('auth.reset.subtitle')}
+        onBack={backToLogin}
+        footer={
+          <Button
+            testID="reset-request-new"
+            variant="primary"
+            size="lg"
+            fullWidth
+            label={t('auth.forgot.submit')}
+            onPress={() => {
               router.replace('/forgot-password');
-            },
-          }}
-        />
+            }}
+          />
+        }
+      >
+        <EmptyState testID="reset-missing-token" icon="info" title={t('auth.reset.missingToken')} />
       </AuthScreen>
     );
   }
@@ -119,7 +129,20 @@ export default function ResetPasswordScreen() {
       testID="reset"
       title={t('auth.reset.title')}
       subtitle={t('auth.reset.subtitle')}
-      footer={footer}
+      onBack={backToLogin}
+      footer={
+        <Button
+          testID="reset-submit"
+          variant="primary"
+          size="lg"
+          fullWidth
+          label={t('auth.reset.submit')}
+          busyLabel={t('auth.reset.submitting')}
+          busy={pending}
+          disabled={coolDown.active || !online}
+          onPress={submit}
+        />
+      }
     >
       {/* TODO(i18n): `common.offline.title` / `common.offline.body`. */}
       {online ? null : <OfflineNotice testID="reset-offline" />}
@@ -154,17 +177,7 @@ export default function ResetPasswordScreen() {
         onSubmitEditing={submit}
       />
 
-      <Button
-        testID="reset-submit"
-        variant="primary"
-        size="lg"
-        fullWidth
-        label={t('auth.reset.submit')}
-        busyLabel={t('auth.reset.submitting')}
-        busy={pending}
-        disabled={coolDown.active || !online}
-        onPress={submit}
-      />
+      <View style={{ marginTop: spacing[2] }}>{backLink}</View>
     </AuthScreen>
   );
 }

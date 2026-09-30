@@ -125,6 +125,26 @@ describe('redirectSystemPath — universal links', () => {
   });
 });
 
+describe('redirectSystemPath — Expo Go', () => {
+  // Expo Go addresses the dev server first and the app after `--`. Kept, the
+  // separator became the route's first segment: `/--/login`, unmatched.
+  it('drops the `--` separator and everything before it', () => {
+    expect(rewrite('exp://192.168.1.20:8083/--/login')).toBe('/login');
+    expect(rewrite('exp://127.0.0.1:8083/--/checkout?plan=p_1')).toBe('/checkout?plan=p_1');
+    expect(rewrite('exps://u.expo.dev/project-id/--/classes/cls_1')).toBe('/classes/cls_1');
+  });
+
+  it('still applies the rewrites after the separator', () => {
+    expect(rewrite('exp://localhost:8083/--/auth/verify?token=t')).toBe('/verify?token=t');
+    expect(rewrite('exp://localhost:8083/--/orders/ord_1')).toBe('/shop/order/ord_1');
+  });
+
+  it('maps the bare Expo Go project URL to the front door', () => {
+    expect(rewrite('exp://localhost:8083/--/')).toBe('/');
+    expect(rewrite('exp://localhost:8083')).toBe('/');
+  });
+});
+
 describe('redirectSystemPath — hostile and malformed input', () => {
   // Contract 1: a throw here is a crash on the launch path. Every one of these
   // must return a string, and none may throw.

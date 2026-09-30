@@ -19,11 +19,16 @@
 // form is in until the user changes something — and the correction happens at
 // the field, which is where the message has to be. The `Alert` sits above the
 // fields with `live`, so a screen reader announces it the moment it appears.
+//
+// An empty or malformed field never reaches the API: the server's answer to it
+// is a 400 with no sentence the user can act on, so the form says which field
+// and why, under that field. And typing clears the stale verdict — a field
+// still painted red while the user is correcting it reads as "still wrong".
 
 // `Alert` is aliased: `react-native` exports one too, and the two are utterly
 // different things. The alias makes a future `import { Alert } from 'react-native'`
 // impossible to add by accident.
-import { Alert as Advisory, Button, Surface, Text, spacing } from '@fit/ui-mobile';
+import { Alert as Advisory, Button, Text, spacing } from '@fit/ui-mobile';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View, type TextInput } from 'react-native';
@@ -37,6 +42,30 @@ import { useIsOnline } from '../../components/auth/use-online';
 import { resolveGymSlug, signIn } from '../../lib/auth/session';
 import type { MessageKey } from '../../lib/i18n/keys';
 import { useI18n } from '../../providers/I18nProvider';
+
+/** The same shape check the join form's email field uses (`join-state.ts`). */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface FieldErrors {
+  readonly email: MessageKey | null;
+  readonly password: MessageKey | null;
+}
+
+const NO_FIELD_ERRORS: FieldErrors = { email: null, password: null };
+
+/** What is wrong with each field before anything is sent, if anything. */
+function loginFieldErrors(email: string, password: string): FieldErrors {
+  const address = email.trim();
+  return {
+    email:
+      address === ''
+        ? 'auth.login.errors.emailRequired'
+        : EMAIL_SHAPE.test(address)
+          ? null
+          : 'auth.login.errors.emailInvalid',
+    password: password === '' ? 'auth.login.errors.passwordRequired' : null,
+  };
+}
 
 export default function LoginScreen() {
   const { t } = useI18n();
@@ -52,13 +81,17 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>(NO_FIELD_ERRORS);
 
   const blocked = pending || coolDown.active || !online;
 
   const submit = (): void => {
     if (blocked) return;
-    setPending(true);
+    const checked = loginFieldErrors(email, password);
     setErrorKey(null);
+    setFieldErrors(checked);
+    if (checked.email !== null || checked.password !== null) return;
+    setPending(true);
     // `gymSlug` is a REQUIRED property of `signIn`'s argument (D4): an optional
     // parameter is one a screen forgets, and a forgotten slug is a member
     // silently signed into the wrong branch. `resolveGymSlug()` answers from the
@@ -86,75 +119,9 @@ export default function LoginScreen() {
       testID="login"
       title={t('auth.login.title')}
       subtitle={t('auth.login.subtitle')}
-      footer={
-        <View style={{ gap: spacing[4] }}>
-          {/*
-            JOIN, not just register.
-            `/register` mints a login; it does not sell a membership. The join
-            funnel — `(join)/checkout`, which signs the buyer up and charges in
-            one pass — had NO inbound link anywhere in the app: it was reachable
-            only by a `fit://checkout` deep link. So a visitor who browsed the
-            public classes, liked one, and tapped Book was offered a sign-in for
-            an account they do not have, and no way to become a member at all.
-            That is the exact funnel decision D9 exists to protect.
-
-            Every signed-out CTA in the app routes here (`?next=` brings them
-            back), so this is the one place the offer has to exist rather than
-            five. The copy was authored for it and had gone unread: `auth.join`
-            is a complete block in both locales, and the web login draws the
-            same tile.
-          */}
-          <Surface tone="tile" border padding={5}>
-            <View style={{ gap: spacing[3] }}>
-              <View style={{ gap: spacing[1] }}>
-                <Text variant="bodyLarge">{t('auth.join.title')}</Text>
-                <Text variant="bodySmall" color="textSecondary">
-                  {t('auth.join.subtitle')}
-                </Text>
-              </View>
-              <Button
-                variant="secondary"
-                size="md"
-                testID="login-join-link"
-                label={t('auth.join.cta')}
-                onPress={() => {
-                  router.push('/checkout');
-                }}
-              />
-              {/*
-                `caption`, NOT `micro`. `micro` is 10px / 600 UPPERCASE with
-                0.10em tracking — an eyebrow role, documented for tab labels and
-                the smallest legible kicker. A full sentence set in it renders
-                in Georgian as MTAVRULI ("ᲓᲐᲐᲮᲚᲝᲔᲑᲘᲗ ᲝᲠᲘ ᲬᲣᲗᲘ ᲡᲭᲘᲠᲓᲔᲑᲐ."), which
-                is a display alphabet: Georgian has no sentence case, so
-                uppercasing prose does not emphasise it, it changes the script
-                the reader is reading. `caption` (12 / 500, sentence case) is
-                the scale's role for helper text, which is what this is.
-              */}
-              <Text variant="caption" color="textSecondary" testID="login-join-note">
-                {t('auth.join.ctaNote')}
-              </Text>
-            </View>
-          </Surface>
-          {/*
-            THE "Don't have an account? Create one" ROW USED TO BE HERE, AND IT
-            WAS THE SAME OFFER TWICE.
-
-            The tile above already asks "First time here?" and answers it with
-            "Become a member" — the join funnel, which is what a visitor without
-            an account actually wants. A second, quieter link two lines below it
-            asked the identical question and sent the visitor somewhere else:
-            `/register` mints a login and sells nothing. Two answers to one
-            question is how a buyer ends up with an account and no membership.
-
-            `/register` is not gone — it is still a route, still reachable from
-            the verify and invite flows — it just no longer competes with the
-            funnel on the screen every signed-out CTA lands on. `auth.login
-            .noAccount` / `.registerLink` were used by nothing else in the repo
-            and went with it.
-          */}
-        </View>
-      }
+      // The front door: nothing to go back to, so the brand mark takes the
+      // back button's place, above the title.
+      brand
     >
       {/* TODO(i18n): `common.offline.title` / `common.offline.body` — plan §6
           state 4 has no copy in either catalogue. See `pending-copy.ts`. */}
@@ -173,8 +140,13 @@ export default function LoginScreen() {
         label={t('auth.fields.email')}
         placeholder={t('auth.fields.emailPlaceholder')}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text: string) => {
+          setEmail(text);
+          setErrorKey(null);
+          setFieldErrors((current) => ({ ...current, email: null }));
+        }}
         disabled={pending}
+        error={fieldErrors.email === null ? undefined : t(fieldErrors.email)}
         invalid={errorKey !== null}
         keyboardType="email-address"
         autoCapitalize="none"
@@ -197,8 +169,13 @@ export default function LoginScreen() {
         label={t('auth.fields.password')}
         placeholder={t('auth.fields.passwordPlaceholder')}
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(text: string) => {
+          setPassword(text);
+          setErrorKey(null);
+          setFieldErrors((current) => ({ ...current, password: null }));
+        }}
         disabled={pending}
+        error={fieldErrors.password === null ? undefined : t(fieldErrors.password)}
         invalid={errorKey !== null}
         secureTextEntry
         autoCapitalize="none"
@@ -224,17 +201,81 @@ export default function LoginScreen() {
         }
       />
 
-      <Button
-        testID="login-submit"
-        variant="primary"
-        size="lg"
-        fullWidth
-        label={t('auth.login.submit')}
-        busyLabel={t('auth.login.submitting')}
-        busy={pending}
-        disabled={coolDown.active || !online}
-        onPress={submit}
-      />
+      {/*
+        THE SUBMIT STAYS UNDER THE PASSWORD, NOT IN THE FOOTER — a product
+        decision (2026-09-30): signing in is what this screen is for, and its
+        button belongs next to the two fields it submits.
+      */}
+      <View style={{ marginTop: spacing[2] }}>
+        <Button
+          testID="login-submit"
+          variant="primary"
+          size="lg"
+          fullWidth
+          label={t('auth.login.submit')}
+          busyLabel={t('auth.login.submitting')}
+          busy={pending}
+          disabled={coolDown.active || !online}
+          onPress={submit}
+        />
+      </View>
+
+      {/*
+        JOIN, not just register.
+        `/register` mints a login; it does not sell a membership. The join
+        funnel — `(join)/checkout`, which signs the buyer up and charges in
+        one pass — had NO inbound link anywhere in the app: it was reachable
+        only by a `fit://checkout` deep link. So a visitor who browsed the
+        public classes, liked one, and tapped Book was offered a sign-in for
+        an account they do not have, and no way to become a member at all.
+        That is the exact funnel decision D9 exists to protect.
+
+        Every signed-out CTA in the app routes here (`?next=` brings them
+        back), so this is the one place the offer has to exist rather than
+        five. The copy was authored for it and had gone unread: `auth.join`
+        is a complete block in both locales, and the web login draws the
+        same tile.
+
+        It sits on the page's own 20pt axis, NOT inside a padded tile: the tile
+        added a second inset, so the join button was narrower than the sign-in
+        button above it and the two edges never lined up. The space above it
+        is what separates it from the form now.
+
+        THE "Don't have an account? Create one" ROW USED TO BE HERE TOO, AND IT
+        WAS THE SAME OFFER TWICE. "First time here?" already answers it with
+        "Become a member" — the join funnel, which is what a visitor without an
+        account actually wants; `/register` mints a login and sells nothing.
+        `/register` is still a route, reachable from the verify and invite
+        flows — it just no longer competes with the funnel here.
+      */}
+      <View testID="login-join" style={{ marginTop: spacing[4], gap: spacing[3] }}>
+        <View style={{ gap: spacing[1] }}>
+          <Text variant="section">{t('auth.join.title')}</Text>
+          <Text variant="bodyRegular" color="textSecondary">
+            {t('auth.join.subtitle')}
+          </Text>
+        </View>
+        <Button
+          variant="secondary"
+          size="md"
+          fullWidth
+          testID="login-join-link"
+          label={t('auth.join.cta')}
+          onPress={() => {
+            router.push('/checkout');
+          }}
+        />
+        {/*
+          `caption`, NOT `micro`. `micro` is 10px / 600 UPPERCASE with 0.10em
+          tracking — an eyebrow role. A full sentence set in it renders in
+          Georgian as MTAVRULI, a display alphabet: Georgian has no sentence
+          case, so uppercasing prose changes the script the reader is reading.
+          `caption` (12 / 500, sentence case) is the role for helper text.
+        */}
+        <Text variant="caption" color="textSecondary" testID="login-join-note">
+          {t('auth.join.ctaNote')}
+        </Text>
+      </View>
     </AuthScreen>
   );
 }

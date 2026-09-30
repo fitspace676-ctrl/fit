@@ -48,8 +48,6 @@ export function firstToken(raw: string | string[] | undefined): string | null {
   return trimmed === undefined || trimmed.length === 0 ? null : trimmed;
 }
 
-const BODY_GAP = 16;
-
 export default function VerifyScreen() {
   const { t } = useI18n();
   const router = useRouter();
@@ -115,10 +113,30 @@ export default function VerifyScreen() {
           ? { title: t('auth.verify.invalidTitle') }
           : { title: t('auth.verify.verifying') };
 
-  const frame = (children: ReactNode) => (
-    <AuthScreen testID="verify" title={heading.title} subtitle={heading.subtitle}>
+  // Every state shares the frame: the chevron back to sign-in (the same
+  // destination as the states' own "Sign in"), the body centred, and — where
+  // the state has one — its action in the footer rather than inside the card.
+  const frame = (children: ReactNode, footer?: ReactNode) => (
+    <AuthScreen
+      testID="verify"
+      title={heading.title}
+      subtitle={heading.subtitle}
+      onBack={toLogin}
+      footer={footer}
+    >
       {children}
     </AuthScreen>
+  );
+
+  const signInAction = (testID: string) => (
+    <Button
+      testID={testID}
+      variant="primary"
+      size="lg"
+      fullWidth
+      label={t('auth.verify.cta')}
+      onPress={toLogin}
+    />
   );
 
   // ── missing ──────────────────────────────────────────────────────────────
@@ -130,8 +148,8 @@ export default function VerifyScreen() {
         testID="verify-missing-token"
         icon="info"
         title={t('auth.verify.missingToken')}
-        action={{ label: t('auth.verify.cta'), testID: 'verify-missing-cta', onPress: toLogin }}
       />,
+      signInAction('verify-missing-cta'),
     );
   }
 
@@ -177,43 +195,39 @@ export default function VerifyScreen() {
   // The working retry plan §6 item 3 asks for: it re-runs the exchange with the
   // same, still-unspent token.
   //
-  // The button is a `Button` in `EmptyState`'s `children` rather than its
-  // `action`, because `EmptyStateAction` has no `disabled` — only `busy`, which
-  // draws a spinner and would say "retrying" while the truth is "waiting out a
-  // rate limit". (Owed back to WP-8b: `EmptyStateAction` should carry
-  // `disabled`.)
+  // The retry is the state's main action, so it sits in the footer like every
+  // other auth screen's — a plain `Button`, because it needs `disabled`, which
+  // `EmptyStateAction` does not carry (only `busy`, which would say
+  // "retrying" while the truth is "waiting out a rate limit").
   if (state === 'failed') {
     return frame(
-      <View style={{ gap: BODY_GAP }}>
+      <>
         {/* TODO(i18n): `common.offline.title` / `common.offline.body` — plan §6
             state 4 has no copy in either catalogue. See `pending-copy.ts`. */}
         {online ? null : <OfflineNotice testID="verify-offline" />}
         {coolDown.active ? (
           <CoolDownNotice testID="verify-cooldown" secondsLeft={coolDown.secondsLeft} />
         ) : null}
-        <EmptyState testID="verify-failed" icon="info" title={t(errorKey ?? 'auth.genericError')}>
-          <Button
-            testID="verify-retry"
-            variant="primary"
-            label={t('errors.generic.tryAgain')}
-            // Retrying into a live cool-down spends one of the five and resets
-            // nothing; being offline spends the 15s timeout to reach the same
-            // error. Neither is a retry, so neither is offered as one.
-            disabled={coolDown.active || !online}
-            onPress={retry}
-          />
-        </EmptyState>
-      </View>,
+        <EmptyState testID="verify-failed" icon="info" title={t(errorKey ?? 'auth.genericError')} />
+      </>,
+      <Button
+        testID="verify-retry"
+        variant="primary"
+        size="lg"
+        fullWidth
+        label={t('errors.generic.tryAgain')}
+        // Retrying into a live cool-down spends one of the five and resets
+        // nothing; being offline spends the 15s timeout to reach the same
+        // error. Neither is a retry, so neither is offered as one.
+        disabled={coolDown.active || !online}
+        onPress={retry}
+      />,
     );
   }
 
   // ── invalid (permanent) ──────────────────────────────────────────────────
   return frame(
-    <EmptyState
-      testID="verify-invalid"
-      icon="info"
-      title={t('auth.verify.missingToken')}
-      action={{ label: t('auth.verify.cta'), testID: 'verify-invalid-cta', onPress: toLogin }}
-    />,
+    <EmptyState testID="verify-invalid" icon="info" title={t('auth.verify.missingToken')} />,
+    signInAction('verify-invalid-cta'),
   );
 }
