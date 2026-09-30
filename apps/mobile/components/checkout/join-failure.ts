@@ -3,7 +3,7 @@
 // ===========================================================================
 // BRANCH ON `code`, NOT ON `status`. THREE OF THESE SHARE A STATUS.
 //
-// `409` is `EMAIL_TAKEN` from `POST /auth/signup` and `ALREADY_SUBSCRIBED` from
+// `409` is `ALREADY_MEMBER` from `POST /auth/signup` and `ALREADY_SUBSCRIBED` from
 // `POST /checkout`, and the two need opposite screens: one prefills a sign-in,
 // the other says "you already have this plan". C3a hit the same shape from the
 // other side — the brief said `SUBSCRIPTION_FROZEN` was a 409 and it is a 403 —
@@ -17,7 +17,7 @@
 // defect `components/auth/auth-error.ts` was written to avoid.
 // ===========================================================================
 
-import { EMAIL_TAKEN_CODE, PRODUCT_UNAVAILABLE_CODE } from '@fit/types';
+import { ALREADY_MEMBER_CODE, EMAIL_TAKEN_CODE, PRODUCT_UNAVAILABLE_CODE } from '@fit/types';
 
 import { ApiError } from '../../lib/http/api-error';
 
@@ -34,8 +34,8 @@ const GYM_NOT_FOUND_CODE = 'GYM_NOT_FOUND';
  */
 export type JoinFailure =
   /**
-   * `409 EMAIL_TAKEN` — **a branch, not an error.** The address already has an
-   * account, so the buyer is not stuck, they are one sign-in away. The funnel
+   * `409 ALREADY_MEMBER` — the address already belongs to this gym, so the buyer
+   * is one sign-in away. The funnel
    * returns to the details step (where the message can actually be seen) and
    * offers "sign in instead" with the address they typed already in hand.
    */
@@ -99,6 +99,7 @@ export function classifyJoinFailure(error: unknown): JoinFailure {
   }
 
   switch (error.code) {
+    case ALREADY_MEMBER_CODE:
     case EMAIL_TAKEN_CODE:
       return { kind: 'emailTaken' };
     case PRODUCT_UNAVAILABLE_CODE:

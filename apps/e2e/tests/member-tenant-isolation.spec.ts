@@ -1,3 +1,4 @@
+import prismaClientPkg from '@fit/db/generated/client/index.js';
 import {
   expect,
   test,
@@ -133,6 +134,67 @@ test.describe('Tenant isolation across gym subdomains', () => {
 
   test.afterAll(async () => {
     await disconnectFixtures();
+  });
+
+  test('one email registers on downtown and riverside with independent passwords', async ({
+    browser,
+    request,
+  }) => {
+    const email = `e2e.register.${RUN}@e2e.test`;
+    const credentials = [
+      { slug: 'downtown', origin: DOWNTOWN, password: 'downtown-register-secret' },
+      { slug: 'riverside', origin: RIVERSIDE, password: 'riverside-register-secret' },
+    ];
+    const db = new prismaClientPkg.PrismaClient();
+    try {
+      for (const gym of credentials) {
+        const context = await browser.newContext({ locale: 'en-US' });
+        try {
+          const page = await context.newPage();
+          await page.goto(`${gym.origin}/en/member/register`);
+          await page.locator('input[name="name"]').fill(`Member ${gym.slug}`);
+          await page.locator('input[name="email"]').fill(email);
+          await page.locator('input[name="password"]').fill(gym.password);
+          const response = page.waitForResponse(
+            (res) => res.url().endsWith('/auth/register') && res.request().method() === 'POST',
+          );
+          await page.getByRole('button', { name: 'Create account', exact: true }).click();
+          expect((await response).status()).toBe(201);
+          await expect(page.getByRole('status').filter({ hasText: 'Almost there!' })).toBeVisible();
+        } finally {
+          await context.close();
+        }
+      }
+      const user = await db.user.findUniqueOrThrow({ where: { email } });
+      expect(await db.gymMember.count({ where: { userId: user.id } })).toBe(2);
+      expect(await db.gymCredential.count({ where: { userId: user.id } })).toBe(2);
+      // Simulate the inbox clicks only; registrations above must create both
+      // memberships and both passwords. Actual token redemption is covered by integration tests.
+      await db.gymCredential.updateMany({
+        where: { userId: user.id },
+        data: { emailVerifiedAt: new Date() },
+      });
+      for (const gym of credentials) {
+        const other = credentials.find((candidate) => candidate.slug !== gym.slug)!;
+        const headers = { 'x-tenant-host': tenantHost(gym.slug) };
+        const correct = await request.post(`${API_URL}/auth/login`, {
+          headers,
+          data: { email, password: gym.password },
+        });
+        expect(correct.status(), await correct.text()).toBe(200);
+        const session = (await correct.json()) as { accessToken: string };
+        expect(jwtClaims(session.accessToken).gymSlug).toBe(gym.slug);
+        const wrong = await request.post(`${API_URL}/auth/login`, {
+          headers,
+          data: { email, password: other.password },
+        });
+        expect(wrong.status()).toBe(401);
+        expect(await wrong.json()).toMatchObject({ code: 'INVALID_CREDENTIALS' });
+      }
+    } finally {
+      await db.user.deleteMany({ where: { email } });
+      await db.$disconnect();
+    }
   });
 
   test.describe('session cookies', () => {

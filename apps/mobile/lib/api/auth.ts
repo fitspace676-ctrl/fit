@@ -291,6 +291,7 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     login: (input, options) =>
       request(deps, '/auth/login', { method: 'POST', json: input, options }),
 
+    // RegisterInput carries the gym resolved by the session layer, just like login.
     register: (input, options) =>
       request(deps, '/auth/register', { method: 'POST', json: input, options }),
 

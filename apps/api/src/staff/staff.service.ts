@@ -255,7 +255,8 @@ export class StaffService {
    * `passwordHash` (the console shows First/Last from the membership, so the
    * `User` only needs a name for other surfaces); an omitted email gets a unique
    * placeholder so the required+unique `User.email` still holds. A supplied email
-   * that already belongs to a user is a `409 EMAIL_IN_USE`. The selected
+   * already in this gym is a `409 EMAIL_IN_USE`; an identity from another gym
+   * is linked with a separate, password-less credential. The selected
    * specialties, assigned locations and weekly working hours are written in the
    * same transaction. Returns the new staff member.
    */
@@ -264,14 +265,17 @@ export class StaffService {
     const gymId = this.tenant.gymId;
     const email = input.email?.trim() ? input.email.trim().toLowerCase() : null;
 
-    if (email) {
-      const clash = await this.prisma.client.user.findUnique({
-        where: { email },
+    const existingUser = email
+      ? await this.prisma.client.user.findUnique({ where: { email }, select: { id: true } })
+      : null;
+    if (existingUser) {
+      const clash = await this.prisma.client.gymMember.findFirst({
+        where: { userId: existingUser.id, gymId },
         select: { id: true },
       });
       if (clash) {
         throw new ConflictException({
-          message: 'That email already belongs to a user',
+          message: 'That email already belongs to a member of this gym',
           code: 'EMAIL_IN_USE',
         });
       }
@@ -292,13 +296,26 @@ export class StaffService {
     this.assertLiveLocations(shiftLocationIds(input.workingHours), live);
 
     const memberId = await this.prisma.client.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          email: email ?? placeholderEmail(),
+      const user =
+        existingUser ??
+        (await tx.user.create({
+          data: {
+            email: email ?? placeholderEmail(),
+            name: displayName || null,
+            phone: input.phone?.trim() ? input.phone.trim() : null,
+          },
+          select: { id: true },
+        }));
+      await tx.gymCredential.upsert({
+        where: { userId_gymId: { userId: user.id, gymId } },
+        create: {
+          userId: user.id,
+          gymId,
+          passwordHash: null,
           name: displayName || null,
           phone: input.phone?.trim() ? input.phone.trim() : null,
         },
-        select: { id: true },
+        update: {},
       });
 
       // The BASE branch (`GymMember.locationId`), which partitions the payroll —
@@ -487,7 +504,7 @@ export class StaffService {
    * except for a `TRAINER`, whose week is owned by `Trainer.availability` and only
    * mirrored onto these rows, so a sent schedule is ignored rather than becoming a
    * second writer. Role is changed via {@link updateRole}, not here. `404 STAFF_NOT_FOUND` for an
-   * unknown id; `409 EMAIL_IN_USE` when a new email already belongs to someone else.
+   * unknown id; `409 EMAIL_IN_USE` when a new email already belongs to this gym.
    */
   async updateStaffProfile(memberId: string, input: UpdateStaffProfileInput): Promise<StaffMember> {
     const existing = await this.prisma.client.gymMember.findFirst({
@@ -506,14 +523,18 @@ export class StaffService {
     // Only a non-empty address changes the email; an empty/absent value leaves it
     // untouched (edit never rewrites a real address to a synthetic placeholder).
     const email = input.email?.trim() ? input.email.trim().toLowerCase() : undefined;
-    if (email) {
-      const clash = await this.prisma.client.user.findUnique({
-        where: { email },
+    const targetUser = email
+      ? await this.prisma.client.user.findUnique({ where: { email }, select: { id: true } })
+      : null;
+    const relink = targetUser !== null && targetUser.id !== existing.userId;
+    if (relink) {
+      const clash = await this.prisma.client.gymMember.findFirst({
+        where: { userId: targetUser.id, gymId },
         select: { id: true },
       });
-      if (clash && clash.id !== existing.userId) {
+      if (clash) {
         throw new ConflictException({
-          message: 'That email already belongs to a user',
+          message: 'That email already belongs to a member of this gym',
           code: 'EMAIL_IN_USE',
         });
       }
@@ -528,6 +549,26 @@ export class StaffService {
 
     await this.prisma.client.$transaction(async (tx) => {
       const memberData: Prisma.GymMemberUpdateInput = {};
+      if (relink) {
+        memberData.user = { connect: { id: targetUser.id } };
+        // The old identity loses this gym only. Never move its password to a
+        // different email, or change the target identity's other gyms.
+        await tx.gymCredential.deleteMany({ where: { userId: existing.userId, gymId } });
+        await tx.gymCredential.upsert({
+          where: { userId_gymId: { userId: targetUser.id, gymId } },
+          create: {
+            userId: targetUser.id,
+            gymId,
+            passwordHash: null,
+            name:
+              [input.firstName ?? existing.firstName, input.lastName ?? existing.lastName]
+                .filter(Boolean)
+                .join(' ') || null,
+            phone: input.phone?.trim() || null,
+          },
+          update: {},
+        });
+      }
       if (input.firstName !== undefined) memberData.firstName = input.firstName.trim();
       if (input.lastName !== undefined) memberData.lastName = input.lastName.trim() || null;
       if (input.status !== undefined) memberData.status = input.status;
@@ -568,7 +609,7 @@ export class StaffService {
       if (email) userData.email = email;
       if (input.phone !== undefined)
         userData.phone = input.phone.trim() ? input.phone.trim() : null;
-      if (Object.keys(userData).length > 0) {
+      if (!relink && Object.keys(userData).length > 0) {
         await tx.user.update({ where: { id: existing.userId }, data: userData });
       }
 

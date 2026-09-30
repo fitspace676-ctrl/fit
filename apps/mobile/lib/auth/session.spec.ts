@@ -438,6 +438,17 @@ describe('social sign-in', () => {
 });
 
 describe('the passwordless entry points', () => {
+  it('registration forwards the resolved gym and lets explicit context override the build', async () => {
+    (env as MutableEnv).gymSlug = 'downtown';
+    const register = vi.fn(() => Promise.resolve({ message: 'check your email' }));
+    configureSession({ authApi: fakeAuthApi({ register }) });
+    const input = { email: 'a@b.test', password: 'pw12345678', name: 'A' };
+    await registerAccount(input);
+    expect(register).toHaveBeenLastCalledWith({ ...input, gymSlug: 'downtown' }, undefined);
+    await registerAccount({ ...input, gymSlug: ' Riverside ' });
+    expect(register).toHaveBeenLastCalledWith({ ...input, gymSlug: 'riverside' }, undefined);
+  });
+
   it('registration and forgot-password pass straight through, session untouched', async () => {
     const register = vi.fn(() => Promise.resolve({ message: 'check your email' }));
     const forgotPassword = vi.fn(() => Promise.resolve({ message: 'if an account exists' }));

@@ -206,9 +206,11 @@ function setup(overrides?: {
     Promise.resolve({ count: 1 }),
   );
 
+  const credentialUpsert = vi.fn(() => Promise.resolve({ id: 'cred-1' }));
+
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
-    gymCredential: { updateMany: credentialUpdateMany },
+    gymCredential: { updateMany: credentialUpdateMany, upsert: credentialUpsert },
     gym: { findFirst: gymFindFirst },
     location: { findFirst: locationFindFirst },
     gymMember: {
@@ -290,6 +292,7 @@ function setup(overrides?: {
     gymMemberCreate,
     gymMemberUpdate,
     credentialUpdateMany,
+    credentialUpsert,
     userFindUnique,
     userCreate,
     userUpdate,
@@ -839,6 +842,31 @@ describe('MembersService', () => {
         deletedAt: null,
       });
     });
+  });
+
+  describe('createMember — gym credential', () => {
+    it.each([null, { id: 'u-other-gym' }])(
+      'creates a password-less credential for identity %j',
+      async (userFindUnique) => {
+        const ctx = setup({ userFindUnique, findFirst: null });
+        // The read after creation projects the member; the initial duplicate check finds none.
+        ctx.findFirst.mockResolvedValue(row());
+        if (userFindUnique) ctx.findFirst.mockResolvedValueOnce(null);
+        await ctx.service.createMember(createInput());
+        expect(ctx.credentialUpsert).toHaveBeenCalledWith({
+          where: { userId_gymId: { userId: userFindUnique?.id ?? 'u-new', gymId: 'gym-1' } },
+          create: {
+            userId: userFindUnique?.id ?? 'u-new',
+            gymId: 'gym-1',
+            passwordHash: null,
+            name: createInput().name,
+            phone: null,
+          },
+          update: {},
+        });
+        expect(ctx.userUpdate).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('createMember — trashed collision', () => {

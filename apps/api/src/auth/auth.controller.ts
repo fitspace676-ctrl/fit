@@ -88,8 +88,9 @@ export class AuthController {
   async register(
     @Body() body: unknown,
     @Headers('accept-language') acceptLanguage?: string,
+    @Headers() headers: TenantHeaders = {},
   ): Promise<RegisterResponse> {
-    const input = parse(registerSchema, body);
+    const input = withHostGymSlug(parse(registerSchema, body), headers);
     return this.auth.register(input, parseAcceptLanguage(acceptLanguage));
   }
 
@@ -101,7 +102,7 @@ export class AuthController {
    * as the other account-creating, email-sending routes.
    *
    * Failure modes the wizard branches on: `400 GYM_NOT_FOUND` (unknown or
-   * suspended tenant) and `409 EMAIL_TAKEN` (the address already has an account,
+   * suspended tenant) and `409 ALREADY_MEMBER` (the address already belongs to this gym,
    * which the wizard turns into a sign-in prompt).
    */
   @Post('signup')

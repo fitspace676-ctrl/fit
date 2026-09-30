@@ -212,9 +212,11 @@ export class AuthService {
   /**
    * Register a new user. Hashes the password, persists the user, mints a
    * single-use verification token in Redis, and sends the verification email.
-   * Throws `409 EMAIL_TAKEN` when the address already exists.
+   * With a gym, creates that gym’s membership and credential, or sets the first
+   * password for a staff-added member. `409 EMAIL_TAKEN` only describes a password
+   * already set in that gym. Without a gym the platform registration is unchanged.
    *
-   * The one exception to that `409` is a staff invitation (T4.7) for an address
+   * A staff invitation (T4.7) also allows registration for an address
    * that already has an account: the invitee is choosing the password for the
    * *inviting* gym, which is a new credential rather than a second account, so
    * the invite is redeemed onto the existing user — with the password just typed
@@ -222,13 +224,17 @@ export class AuthService {
    * verification mail goes out for that case: the invite was delivered to the
    * address and is single-use, which is the same proof of inbox control the
    * verification link would establish. A `register` with a stale or mismatched
-   * invite on a taken address is still the plain `409`.
+   * invite falls back to the normal gym or platform registration rules.
    */
   async register(
     input: RegisterInput,
     locale: EmailLocale | null = null,
   ): Promise<RegisterResponse> {
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+
+    if (input.gymSlug && !input.inviteToken) {
+      return this.registerGymMember(input, passwordHash, locale);
+    }
 
     const existing = await this.prisma.client.user.findUnique({
       where: { email: input.email },
@@ -241,6 +247,9 @@ export class AuthService {
       });
       if (redeemed) {
         return { message: 'verification email sent' };
+      }
+      if (input.gymSlug) {
+        return this.registerGymMember(input, passwordHash, locale);
       }
       // The address is unavoidably revealed as taken here, but no further detail
       // (e.g. whether it's verified) leaks. Unlike {@link signupMember} there is
@@ -267,6 +276,10 @@ export class AuthService {
       passwordHash,
       name: input.name,
     });
+
+    if (input.gymSlug && !redeemed) {
+      return this.registerGymMember(input, passwordHash, locale);
+    }
 
     const token = generateVerificationToken();
     await this.redis.client.set(
@@ -298,15 +311,106 @@ export class AuthService {
     return { message: 'verification email sent' };
   }
 
+  /** Register a password and membership on one active gym without exposing other gyms. */
+  private async registerGymMember(
+    input: RegisterInput,
+    passwordHash: string,
+    locale: EmailLocale | null,
+  ): Promise<RegisterResponse> {
+    const gym = await this.prisma.client.gym.findFirst({
+      where: { slug: input.gymSlug, status: GymStatus.ACTIVE },
+      select: { id: true, slug: true, settings: true },
+    });
+    if (!gym) {
+      throw new BadRequestException({ message: 'Unknown gym', code: 'GYM_NOT_FOUND' });
+    }
+    const locationId = await this.signupHomeBranch(gym.id);
+    const taken = () =>
+      new ConflictException({
+        message: 'Email is already registered in this gym',
+        code: EMAIL_TAKEN_CODE,
+      });
+
+    const register = () =>
+      this.prisma.client.$transaction(async (tx) => {
+        // An empty update preserves the shared identity and every other gym's password.
+        const user = await tx.user.upsert({
+          where: { email: input.email },
+          create: { email: input.email, name: input.name, passwordHash },
+          update: {},
+          select: { id: true },
+        });
+        const key = { userId: user.id, gymId: gym.id };
+        const credential = await tx.gymCredential.findUnique({
+          where: { userId_gymId: key },
+          select: { passwordHash: true },
+        });
+        if (credential?.passwordHash != null) throw taken();
+
+        // Keep a staff-added member's role, status and profile exactly as recorded.
+        await tx.gymMember.upsert({
+          where: { userId_gymId: key },
+          create: { ...key, role: Role.MEMBER, status: GymMemberStatus.ACTIVE, locationId },
+          update: {},
+        });
+        if (credential) {
+          const changed = await tx.gymCredential.updateMany({
+            where: { ...key, passwordHash: null },
+            data: { passwordHash, name: input.name, emailVerifiedAt: null },
+          });
+          if (changed.count === 0) throw taken();
+        } else {
+          await tx.gymCredential.create({
+            data: { ...key, passwordHash, name: input.name },
+          });
+        }
+        return user.id;
+      });
+    const userId = await register().catch(async (error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        // Prisma can emulate an empty-update User upsert with a read + insert.
+        // Another gym winning that identity race is not a duplicate here: retry
+        // the rolled-back transaction and attach to the identity it just created.
+        const target = error.meta?.target;
+        if (Array.isArray(target) && target.includes('email')) return register();
+        throw taken();
+      }
+      throw error;
+    });
+
+    const token = generateVerificationToken();
+    await this.redis.client.set(
+      verifyKey(token),
+      encodeTokenSubject({ userId, gymId: gym.id }),
+      'EX',
+      env.EMAIL_VERIFICATION_TTL,
+    );
+    try {
+      const gymLanguage = gymSettingsStoredSchema.parse(gym.settings ?? {}).locale.language;
+      await this.email.sendVerificationEmail(
+        input.email,
+        token,
+        input.name,
+        locale ?? resolveEmailLocale(gymLanguage),
+        gym.slug,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send verification email to ${input.email}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    return { message: 'verification email sent' };
+  }
+
   /**
    * Public member self-signup on one gym (`POST /auth/signup`) — the join
    * wizard's step 3.
    *
-   * Differs from {@link register} in three ways, all of which follow from this
-   * being a *gym onboarding a paying member* rather than a bare account
-   * creation: the `GymMember` is created alongside the `User` (with the profile
-   * the front desk needs — phone, date of birth, gender, national id, and the
-   * day the buyer says their membership begins), and a session is issued
+   * Extends gym-scoped {@link register} with the profile the front desk needs
+   * (phone, date of birth, gender, national id, and the membership start date),
+   * and issues a session
    * immediately so the buyer walks straight into the portal after paying instead
    * of bouncing off the login screen.
    *

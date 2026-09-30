@@ -114,6 +114,25 @@ describe('AuthController', () => {
       expect(ctx.register).toHaveBeenCalledWith(expect.anything(), 'ka');
     });
 
+    it('resolves the gym from x-tenant-host', async () => {
+      const input = { email: 'a@b.com', password: 'supersecret', name: 'Alice' };
+      await ctx.controller.register(input, undefined, {
+        'x-tenant-host': `downtown.${env.PLATFORM_ROOT_DOMAIN}`,
+      });
+      expect(ctx.register).toHaveBeenCalledWith({ ...input, gymSlug: 'downtown' }, null);
+    });
+
+    it('preserves an explicit gym slug for mobile registration', async () => {
+      const input = {
+        email: 'a@b.com',
+        password: 'supersecret',
+        name: 'Alice',
+        gymSlug: ' Riverside ',
+      };
+      await ctx.controller.register(input);
+      expect(ctx.register).toHaveBeenCalledWith({ ...input, gymSlug: 'riverside' }, null);
+    });
+
     it('rejects a malformed body with a 400 listing each failing field', async () => {
       const error = await ctx.controller
         .register({ email: 'not-an-email', password: 'short', name: '' })
