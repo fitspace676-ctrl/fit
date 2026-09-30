@@ -2179,6 +2179,29 @@ describe('AuthService', () => {
       expect(pair).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
     });
 
+    it('brand-new identity on a gym host is refused before any user row is written', async () => {
+      ctx.findUnique.mockResolvedValue(null); // no googleId match, no same-email account
+
+      const error = await ctx.service
+        .loginWithGoogle({ ...VALID, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'NOT_A_MEMBER' });
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('brand-new identity without a gym still creates the account', async () => {
+      ctx.findUnique.mockResolvedValue(null);
+      ctx.create.mockResolvedValue({ id: 'user-new' });
+
+      await ctx.service.loginWithGoogle(VALID);
+
+      expect(ctx.create).toHaveBeenCalledTimes(1);
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-new', SCOPELESS);
+    });
+
     it('rejects a Google account whose email is unverified', async () => {
       ctx.verifyIdToken.mockResolvedValue({
         googleId: 'g-1',
@@ -2374,6 +2397,29 @@ describe('AuthService', () => {
 
       const created = ctx.create.mock.calls[0]![0] as { data: { name: string | null } };
       expect(created.data.name).toBeNull();
+    });
+
+    it('brand-new identity on a gym host is refused before any user row is written', async () => {
+      ctx.findUnique.mockResolvedValue(null); // no appleId match, no same-email account
+
+      const error = await ctx.service
+        .loginWithApple({ ...VALID, gymSlug: 'riverside' })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ForbiddenException);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'NOT_A_MEMBER' });
+      expect(ctx.create).not.toHaveBeenCalled();
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('brand-new identity without a gym still creates the account', async () => {
+      ctx.findUnique.mockResolvedValue(null);
+      ctx.create.mockResolvedValue({ id: 'user-new' });
+
+      await ctx.service.loginWithApple(VALID);
+
+      expect(ctx.create).toHaveBeenCalledTimes(1);
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-new', SCOPELESS);
     });
 
     it('rejects a new identity when Apple withholds the email', async () => {
