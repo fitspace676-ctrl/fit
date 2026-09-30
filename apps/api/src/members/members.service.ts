@@ -118,51 +118,75 @@ const LIVE_SUBSCRIPTION_SELECT = {
  * leak PII the table doesn't need (`passwordHash`, OAuth subject ids, tokens),
  * so only `name` / `email` / `phone` are pulled from `User`.
  */
-const MEMBER_SELECT = {
-  id: true,
-  status: true,
-  joinedAt: true,
-  deletedAt: true,
-  dateOfBirth: true,
-  startDate: true,
-  personalId: true,
-  gender: true,
-  address: true,
-  emergencyContactName: true,
-  emergencyContactPhone: true,
-  medicalNotes: true,
-  user: { select: { name: true, email: true, phone: true } },
-  kindOverride: true,
-  subscriptions: {
-    where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
-    orderBy: { currentPeriodEnd: 'desc' },
-    take: 1,
-    select: LIVE_SUBSCRIPTION_SELECT,
-  },
-  // Every subscription this person has ever held, live or not. One number is all
-  // the derivation needs, and it is what separates a lapsed member from someone
-  // who only ever dropped in — counted here rather than fetched, so the roster
-  // does not grow a second query per page.
-  _count: { select: { subscriptions: true } },
-  checkIns: {
-    orderBy: { checkedInAt: 'desc' },
-    take: 1,
-    select: { checkedInAt: true },
-  },
-  // Unsettled invoices — summed into the roster's "owes" badge.
-  invoices: {
-    where: { status: InvoiceStatus.PENDING },
-    select: { amount: true, currency: true },
-  },
-  // The member's home branch, for the roster's LOCATION cell. A one-hop relation
-  // select on the page query — Prisma resolves it inside the same `findMany`, so
-  // it costs no extra round trip and is not an N+1. Only the name: the roster
-  // prints it and nothing more, and selecting the whole `Location` would drag its
-  // address, hours and settings JSON across for one string.
-  location: { select: { name: true } },
-} satisfies Prisma.GymMemberSelect;
+function memberUserSelect(gymId: string) {
+  return {
+    name: true,
+    email: true,
+    phone: true,
+    credentials: { where: { gymId }, select: { name: true, phone: true }, take: 1 },
+  } satisfies Prisma.UserSelect;
+}
 
-type MemberRecord = Prisma.GymMemberGetPayload<{ select: typeof MEMBER_SELECT }>;
+function memberDisplayFields(row: {
+  user: {
+    name: string | null;
+    phone: string | null;
+    credentials?: { name: string | null; phone: string | null }[];
+  };
+}) {
+  const credential = row.user.credentials?.[0];
+  return {
+    name: credential?.name ?? row.user.name,
+    phone: credential?.phone ?? row.user.phone,
+  };
+}
+
+const MEMBER_SELECT = (gymId: string) =>
+  ({
+    id: true,
+    status: true,
+    joinedAt: true,
+    deletedAt: true,
+    dateOfBirth: true,
+    startDate: true,
+    personalId: true,
+    gender: true,
+    address: true,
+    emergencyContactName: true,
+    emergencyContactPhone: true,
+    medicalNotes: true,
+    user: { select: memberUserSelect(gymId) },
+    kindOverride: true,
+    subscriptions: {
+      where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+      orderBy: { currentPeriodEnd: 'desc' },
+      take: 1,
+      select: LIVE_SUBSCRIPTION_SELECT,
+    },
+    // Every subscription this person has ever held, live or not. One number is all
+    // the derivation needs, and it is what separates a lapsed member from someone
+    // who only ever dropped in — counted here rather than fetched, so the roster
+    // does not grow a second query per page.
+    _count: { select: { subscriptions: true } },
+    checkIns: {
+      orderBy: { checkedInAt: 'desc' },
+      take: 1,
+      select: { checkedInAt: true },
+    },
+    // Unsettled invoices — summed into the roster's "owes" badge.
+    invoices: {
+      where: { status: InvoiceStatus.PENDING },
+      select: { amount: true, currency: true },
+    },
+    // The member's home branch, for the roster's LOCATION cell. A one-hop relation
+    // select on the page query — Prisma resolves it inside the same `findMany`, so
+    // it costs no extra round trip and is not an N+1. Only the name: the roster
+    // prints it and nothing more, and selecting the whole `Location` would drag its
+    // address, hours and settings JSON across for one string.
+    location: { select: { name: true } },
+  }) satisfies Prisma.GymMemberSelect;
+
+type MemberRecord = Prisma.GymMemberGetPayload<{ select: ReturnType<typeof MEMBER_SELECT> }>;
 type LiveSubscription = MemberRecord['subscriptions'][number];
 
 /**
@@ -268,7 +292,7 @@ export class MembersService {
     const [rows, total, planMix, counts] = await Promise.all([
       this.prisma.client.gymMember.findMany({
         where,
-        select: MEMBER_SELECT,
+        select: MEMBER_SELECT(this.tenant.gymId),
         orderBy: this.buildOrderBy(query),
         skip,
         take: query.limit,
@@ -297,7 +321,7 @@ export class MembersService {
   async getMember(id: string): Promise<GetMemberResponse> {
     const row = await this.prisma.client.gymMember.findFirst({
       where: { id, role: Role.MEMBER },
-      select: MEMBER_SELECT,
+      select: MEMBER_SELECT(this.tenant.gymId),
     });
     if (!row) {
       throw new NotFoundException({ message: 'Member not found', code: 'MEMBER_NOT_FOUND' });
@@ -550,26 +574,20 @@ export class MembersService {
   /**
    * Edit a member's profile (`name` / `phone`, T4.3). The id must resolve to a
    * `MEMBER`-role membership in the caller's gym (the scoped `where` makes a
-   * cross-tenant id a `404`). The fields live on the shared `User`, so the update
-   * targets the membership's `userId`; the email and status are deliberately not
+   * cross-tenant id a `404`). Name and phone live on this gym's credential;
+   * the email and status are deliberately not
    * editable here (see {@link updateMemberSchema}). Returns the updated detail.
    */
   async updateMember(id: string, input: UpdateMemberInput): Promise<UpdateMemberResponse> {
     const member = await this.requireMember(id);
 
-    // `name` / `phone` live on the shared `User` — still what the rosters read —
-    // and, since T1.25, on this gym's credential, which is the per-gym record
-    // that will replace the shared one. Write both; the profile extras live on
-    // the gym-scoped `GymMember` (that write is skipped when the body carries no
-    // profile fields).
-    await this.prisma.client.user.update({
-      where: { id: member.userId },
-      data: { name: input.name, phone: input.phone },
-    });
     if (input.name !== undefined || input.phone !== undefined) {
-      await this.prisma.client.gymCredential.updateMany({
-        where: { userId: member.userId, gymId: this.tenant.gymId },
-        data: { name: input.name, phone: input.phone },
+      const gymId = this.tenant.gymId;
+      const data = { name: input.name, phone: input.phone };
+      await this.prisma.client.gymCredential.upsert({
+        where: { userId_gymId: { userId: member.userId, gymId } },
+        create: { userId: member.userId, gymId, passwordHash: null, ...data },
+        update: data,
       });
     }
 
@@ -749,7 +767,7 @@ export class MembersService {
         status: true,
         joinedAt: true,
         dateOfBirth: true,
-        user: { select: { name: true, email: true, phone: true } },
+        user: { select: memberUserSelect(this.tenant.gymId) },
         subscriptions: {
           where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
           orderBy: { currentPeriodEnd: 'desc' },
@@ -780,7 +798,7 @@ export class MembersService {
 
     const { gymName, business, language } = await this.resolveGymMergeContext();
     const values = buildMemberMergeValues({
-      member,
+      member: { ...member, user: { ...member.user, ...memberDisplayFields(member) } },
       gymName,
       business,
       language,
@@ -1140,11 +1158,12 @@ export class MembersService {
     const lastVisitAt = row.checkIns[0]?.checkedInAt.toISOString() ?? null;
     const { nextBillingAt, billingState } = this.toBilling(sub);
 
+    const display = memberDisplayFields(row);
     return {
       id: row.id,
-      name: row.user.name ?? row.user.email,
+      name: display.name ?? row.user.email,
       email: row.user.email,
-      phone: row.user.phone,
+      phone: display.phone,
       status: row.status,
       kind: resolveMemberKind({
         kindOverride: row.kindOverride,
