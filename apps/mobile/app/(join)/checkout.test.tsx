@@ -759,6 +759,32 @@ describe('the details step is built from the gym’s intake settings', () => {
     expect(view.getByTestId('join-details-firstName-input')).toBeTruthy();
   });
 
+  // Audit #11: the summary used to be the LAST thing in the form, under nine
+  // fields, so a buyer pressing Continue near the top saw only red borders.
+  it('opens the form with the summary and scrolls up to it', async () => {
+    const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(() => {
+      /* no native scroller under test */
+    });
+    try {
+      const view = renderScreen(<JoinCheckoutScreen />);
+      await toDetails(view);
+      scrollTo.mockClear();
+
+      fireEvent.press(view.getByTestId('join-continue'));
+      await waitFor(() => view.getByTestId('join-details-invalid'), WAIT);
+
+      // Tree order: the summary comes before the form's opening line.
+      expect(
+        view
+          .getAllByTestId(/^join-details-(invalid|subtitle)$/)
+          .map((n) => (n.props as { testID: string }).testID),
+      ).toEqual(['join-details-invalid', 'join-details-subtitle']);
+      expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: true });
+    } finally {
+      scrollTo.mockRestore();
+    }
+  });
+
   // The summary used to be one fixed sentence — "name, a valid email, and a
   // password" — on a gym that also required four more fields, so a buyer who
   // had filled in exactly what it named still could not continue.
@@ -912,27 +938,28 @@ describe('moving between steps', () => {
 
 describe('the step rail', () => {
   // ==========================================================================
-  // THE ACTIVE STEP WAS THE ONE OFF THE END.
+  // ONE ROW OF FOUR, NOT TWO WRAPPED ROWS UNDER A PIPS METER.
   //
-  // Four label-width chips overflow the 335pt gutter in BOTH locales, and the
-  // rail scrolled from the left — so on step 4 the buyer saw the left edge of
-  // "გადახდა" and nothing more. `scrollToIndex` cannot help (it needs a fixed
-  // `itemWidth`, and these are label-width), and a "Step 4 of 4" counter cannot
-  // be pressed, which these chips can. So the row wraps.
-  //
-  // The overflow itself is geometry and not assertable here; what is assertable
-  // is that the chips are no longer inside a scroller that can hide one.
+  // The rail used to be a `ScrollRail` (it hid the active fourth chip), then a
+  // wrapping row of label-width chips under a separate `Pips` — three rows of
+  // progress before the first card (audit #9). Now each chip takes an equal
+  // share of one row, so all four fit and nothing wraps or scrolls.
   // ==========================================================================
-  it('wraps its chips instead of scrolling them out of reach', async () => {
+  it('lays the four chips out in one row, each an equal share', async () => {
     const view = renderScreen(<JoinCheckoutScreen />);
     await waitFor(() => view.getByTestId('join-location-loc_1'), WAIT);
 
     const row = flatStyle(view.getByTestId('join-steps'));
     expect(row.flexDirection).toBe('row');
-    expect(row.flexWrap).toBe('wrap');
-    // Not a ScrollView any more — a horizontal scroller is exactly what hid the
-    // fourth chip.
+    expect(row.flexWrap).toBeUndefined();
     expect(view.getByTestId('join-steps').props.horizontal).toBeUndefined();
+    for (const section of ['location', 'package', 'details', 'payment']) {
+      const chip = flatStyle(view.getByTestId(`join-steps-${section}`));
+      expect(chip.flex).toBe(1);
+      expect(chip.height).toBe(44);
+    }
+    // The separate progress meter is gone.
+    expect(view.queryByTestId('join-steps-pips')).toBeNull();
   });
 
   it('renders all four steps, the last one included', async () => {

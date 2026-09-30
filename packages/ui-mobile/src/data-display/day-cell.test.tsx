@@ -147,3 +147,20 @@ describe('DayCell', () => {
     expect(node.props.accessibilityLabel).toBe('ხუთშაბათი 6, 4 გაკვეთილი');
   });
 });
+
+describe('DayCell fill', () => {
+  it('keeps the fixed 50pt cell by default', () => {
+    render(<DayCell {...BASE} onPress={jest.fn()} testID="d" />);
+    const style = flatten(screen.getByTestId('d').props.style);
+    expect(style.width).toBe(50);
+    expect(style.flex).toBeUndefined();
+  });
+
+  it('shares the row when asked to', () => {
+    render(<DayCell {...BASE} fill onPress={jest.fn()} testID="d" />);
+    const style = flatten(screen.getByTestId('d').props.style);
+    expect(style.width).toBeUndefined();
+    expect(style.flex).toBe(1);
+    expect(style.height).toBe(64);
+  });
+});

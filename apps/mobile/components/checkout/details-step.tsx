@@ -61,7 +61,7 @@ import { useI18n } from '../../providers/I18nProvider';
 const GENDERS = ['FEMALE', 'MALE', 'OTHER'] as const satisfies readonly Gender[];
 
 /**
- * The label each refusal is named by in the summary under the form, in the
+ * The label each refusal is named by in the summary above the form, in the
  * order the form draws them. `surname` is absent because it is never enforced
  * (see `lastName` below); the rest are the fields a gym can switch on, plus the
  * three the API always needs.
@@ -307,6 +307,20 @@ export function DetailsStep({
 
   return (
     <View style={{ gap: spacing[5] }} testID={testID}>
+      {/* THE SUMMARY OPENS THE FORM (audit #11). At the bottom it was under
+          nine fields and the order card, so a buyer who pressed Continue near
+          the top saw red borders and no reason. The Continue handler scrolls
+          back up to it. */}
+      {showErrors && owed.length > 0 ? (
+        <Advisory
+          testID={`${testID}-invalid`}
+          tone="danger"
+          icon="info"
+          live
+          title={t('checkout.details.invalidFields', { fields: owed.join(', ') })}
+        />
+      ) : null}
+
       <Text variant="bodySmall" color="textSecondary" testID={`${testID}-subtitle`}>
         {t('checkout.details.guestSubtitle')}
       </Text>
@@ -466,16 +480,6 @@ export function DetailsStep({
           </View>
         );
       })}
-
-      {showErrors && owed.length > 0 ? (
-        <Advisory
-          testID={`${testID}-invalid`}
-          tone="danger"
-          icon="info"
-          live
-          title={t('checkout.details.invalidFields', { fields: owed.join(', ') })}
-        />
-      ) : null}
     </View>
   );
 }

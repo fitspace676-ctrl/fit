@@ -11,7 +11,7 @@
 // package should know before they commit that no card is charged online. It is
 // suppressed for the free account, which has nothing to pay for.
 
-import { Divider, Eyebrow, Money, Surface, Text, spacing } from '@fit/ui-mobile';
+import { Divider, Money, Surface, Text, spacing } from '@fit/ui-mobile';
 import { View } from 'react-native';
 
 import { useMoney } from '../shop/money';
@@ -45,16 +45,17 @@ export function OrderSummary({
   const empty = branchName === undefined && productName === undefined && freeLabel === undefined;
 
   return (
-    <Surface tone="card" padding={5} testID={testID}>
+    <Surface tone="card" padding={4} testID={testID}>
       <View style={{ gap: spacing[3] }}>
-        {/* An `Eyebrow`, NOT a `SectionHeader`. This card appears on three of
-            the four steps, and a `SectionHeader` emits
+        {/* Plain bold `Text`, NOT a `SectionHeader`. This card appears on
+            three of the four steps, and a `SectionHeader` emits
             `accessibilityRole="header"` — so the screen's ordered header list
             would gain a stray entry on every step, which is precisely what §6
-            (as amended) asks that assertion to catch. */}
-        <Eyebrow size="label" color="textSecondary">
+            (as amended) asks that assertion to catch. Not an `Eyebrow` either:
+            its uppercase turns Mkhedruli into MTAVRULI on iOS. */}
+        <Text variant="bodyLarge" color="textPrimary">
           {t('checkout.summary.title')}
-        </Eyebrow>
+        </Text>
 
         {empty ? (
           <Text variant="bodySmall" color="textSecondary" testID={`${testID}-empty`}>
@@ -76,11 +77,12 @@ export function OrderSummary({
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                gap: spacing[3],
               }}
             >
-              <Eyebrow size="label" color="textSecondary">
+              <Text variant="bodySmall" color="textSecondary">
                 {t('checkout.summary.total')}
-              </Eyebrow>
+              </Text>
               {freeLabel === undefined ? (
                 total === undefined || currency === undefined ? (
                   <Text variant="body" color="textSecondary" testID={`${testID}-total-pending`}>
@@ -111,7 +113,7 @@ export function OrderSummary({
             RECORDED. The free account pays nothing, so the sentence would be
             answering a question it never asked. */}
         {freeLabel === undefined ? (
-          <Text variant="caption" color="textSecondary" testID={`${testID}-note`}>
+          <Text variant="bodySmall" color="textSecondary" testID={`${testID}-note`}>
             {t('checkout.summary.note')}
           </Text>
         ) : null}
@@ -123,9 +125,9 @@ export function OrderSummary({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing[3] }}>
-      <Eyebrow size="label" color="textSecondary" style={{ flex: 1 }}>
+      <Text variant="bodySmall" color="textSecondary" style={{ flex: 1 }}>
         {label}
-      </Eyebrow>
+      </Text>
       <Text variant="body" color="textPrimary" align="right" style={{ flex: 2 }}>
         {value}
       </Text>

@@ -162,3 +162,27 @@ describe('while a request is in flight', () => {
     expect(a11y(view, 'sd-next-week').disabled).toBe(true);
   });
 });
+
+describe('the week row', () => {
+  // Audit #12: the days sat in a sideways `ScrollRail` that showed four or
+  // five of them. All seven now share one plain row.
+  it('draws all seven days in one row, with no scroller', () => {
+    const view = field();
+    const week = view.getByTestId('sd-week');
+    expect(week.props.horizontal).toBeUndefined();
+    for (const day of ['07', '08', '09', '10', '11', '12', '13']) {
+      expect(view.getByTestId(`sd-day-2026-09-${day}`)).toBeTruthy();
+    }
+  });
+
+  it('names both months when the week straddles them', () => {
+    // 2026-09-30 is a Wednesday: its week runs Sep 28 – Oct 4.
+    const view = field({ today: '2026-09-30' });
+    const month = view.getByTestId('sd-month');
+    expect(month).toHaveTextContent(/ — /);
+
+    // A week inside one month names only that one.
+    const inside = field();
+    expect(inside.getAllByTestId('sd-month').at(-1)).not.toHaveTextContent(/ — /);
+  });
+});

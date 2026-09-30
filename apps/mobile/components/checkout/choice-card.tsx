@@ -50,10 +50,12 @@ export interface ChoiceCardProps {
    * `GET /catalogue` all along. A PLAN is not a place and has no picture, so:
    *
    *   `undefined`  no thumbnail at all — the plan cards, unchanged.
-   *   `null`       a thumbnail is drawn, showing the monogram fallback. A branch
-   *                with no photo yet must not leave a hole where the other
-   *                branches have a picture.
-   *   a URL        the photograph, `cover`-fitted.
+   *   `null`       the COMPACT card: the monogram in a small square tile on the
+   *                left, name and address beside it, the radio on the right.
+   *                A branch with no photo yet still has a mark of its own,
+   *                without a 16:9 band spent on one letter.
+   *   a URL        the photograph, `cover`-fitted, in a 16:9 band — or the
+   *                compact card, if it fails to load.
    *
    * The fallback is the branch's own initial rather than one map pin repeated
    * down the list — web's `locationInitial` grammar, and the shop's.
@@ -89,14 +91,18 @@ export interface ChoiceCardProps {
   testID: string;
 }
 
-/** The artboard's tile radius (`CUT_TILE`), which is a literal pass-through. */
-const TILE_RADIUS = 22;
-
 /** Web's `locationThumb` aspect, verbatim — a 16:9 band across the card's top. */
 const PHOTO_ASPECT = 16 / 9;
 
-/** `locationInitial`'s 1.875rem, in points. */
-const MONOGRAM_SIZE = 30;
+/**
+ * The compact card's monogram tile — `spacing[14]` square. A branch with no
+ * photograph used to get the whole 16:9 band for one letter, so two branches
+ * took more than a screen to compare (audit #8).
+ */
+const MONOGRAM_TILE = spacing[14];
+
+/** The letter inside {@link MONOGRAM_TILE}. */
+const TILE_MONOGRAM_SIZE = 22;
 
 /**
  * The monogram for a branch with no photograph.
@@ -141,11 +147,15 @@ export function ChoiceCard({
   // suppressed — `class-card.tsx`'s `failedCover` does the same.
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
 
-  const hasPhoto = photoUrl !== undefined;
+  // Only a photograph that LOADS earns the 16:9 band. A dead URL degrades to
+  // the compact card, exactly like `null`: a band spent on one letter is the
+  // defect audit #8 was about, whatever the reason there is no picture.
+  const hasPhoto = typeof photoUrl === 'string' && photoUrl !== failedPhoto;
+  const compact = photoUrl === null || (typeof photoUrl === 'string' && !hasPhoto);
   // The 2pt selected border would otherwise shift the content by 1pt and make
   // the whole list twitch as the selection moves.
-  const pad = selected ? spacing[5] - 1 : spacing[5];
-  const showImage = photoUrl !== undefined && photoUrl !== null && photoUrl !== failedPhoto;
+  const basePad = compact ? spacing[4] : spacing[5];
+  const pad = selected ? basePad - 1 : basePad;
 
   return (
     <Pressable
@@ -160,7 +170,7 @@ export function ChoiceCard({
     >
       <Surface
         tone="card"
-        radius={TILE_RADIUS}
+        radius="container"
         border
         style={{
           borderColor: selected ? colors.accent : colors.border,
@@ -184,31 +194,48 @@ export function ChoiceCard({
               backgroundColor: colors.quiet,
             }}
           >
-            {showImage ? (
-              <Image
-                testID={`${testID}-photo-image`}
-                source={{ uri: photoUrl }}
-                resizeMode="cover"
-                onError={() => {
-                  setFailedPhoto(photoUrl);
-                }}
-                style={StyleSheet.absoluteFill}
-              />
-            ) : (
-              <Mono
-                variant="monoLarge"
-                color="textSecondary"
-                testID={`${testID}-photo-initial`}
-                style={{ fontSize: MONOGRAM_SIZE, lineHeight: MONOGRAM_SIZE }}
-              >
-                {monogramOf(title)}
-              </Mono>
-            )}
+            <Image
+              testID={`${testID}-photo-image`}
+              source={{ uri: photoUrl }}
+              resizeMode="cover"
+              onError={() => {
+                setFailedPhoto(photoUrl);
+              }}
+              style={StyleSheet.absoluteFill}
+            />
           </View>
         ) : null}
 
         <View style={{ gap: spacing[2], ...(hasPhoto ? { padding: pad } : {}) }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing[3] }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: compact ? 'center' : 'flex-start',
+              gap: spacing[3],
+            }}
+          >
+            {compact ? (
+              <View
+                testID={`${testID}-photo`}
+                style={{
+                  width: MONOGRAM_TILE,
+                  height: MONOGRAM_TILE,
+                  borderRadius: radii.element,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.quiet,
+                }}
+              >
+                <Mono
+                  variant="monoLarge"
+                  color="textSecondary"
+                  testID={`${testID}-photo-initial`}
+                  style={{ fontSize: TILE_MONOGRAM_SIZE, lineHeight: TILE_MONOGRAM_SIZE + 4 }}
+                >
+                  {monogramOf(title)}
+                </Mono>
+              </View>
+            ) : null}
             <View style={{ flex: 1, gap: spacing[1] }}>
               {badge === undefined ? null : (
                 <View style={{ flexDirection: 'row' }}>

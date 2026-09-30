@@ -31,15 +31,7 @@
 // the only thing that judges it. Only the way a buyer says it has changed.
 // ===========================================================================
 
-import {
-  DAY_CELL_WIDTH,
-  DayCell,
-  Eyebrow,
-  IconButton,
-  ScrollRail,
-  Text,
-  spacing,
-} from '@fit/ui-mobile';
+import { DayCell, FieldLabel, IconButton, Text, spacing } from '@fit/ui-mobile';
 import type { GymStartDatePolicy } from '@fit/types';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -127,97 +119,105 @@ export function StartDateField({
     setWeekStart(startOfWeek(addDays(weekStart, weeks * DAYS_IN_WEEK)));
   };
 
-  /**
-   * Which cell the rail centres on.
-   *
-   * `-1` — which `ScrollRail` reads as "index 0, do not scroll" — when the
-   * selection is not in the week on screen. That is the honest answer: there is
-   * no cell to bring into view.
-   */
-  const selectedIndex = days.findIndex((day) => selected !== null && isSameDay(day, selected));
+  // A week that straddles two months names both — "სექტემბერი, 2026 —
+  // ოქტომბერი, 2026" — or the 1 and 2 under a September heading read as
+  // September's (audit #12). `formatMonth` twice; no new copy.
+  const firstDay = days[0] ?? weekStart;
+  const lastDay = days[days.length - 1] ?? weekStart;
+  const monthLabel =
+    firstDay.getMonth() === lastDay.getMonth()
+      ? formatMonth(firstDay, locale)
+      : `${formatMonth(firstDay, locale)} — ${formatMonth(lastDay, locale)}`;
 
   return (
     <View style={{ gap: spacing[2] }} testID={testID}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'baseline',
-          justifyContent: 'space-between',
-          gap: spacing[3],
-        }}
-      >
-        {/* The same micro-label every `TextField` on this step draws, so the
-            replaced control still reads as one field in the column. */}
-        <Eyebrow size="micro" color="textSecondary" accessible={false}>
-          {label}
-        </Eyebrow>
-        <Text variant="caption" color="textSecondary" testID={`${testID}-month`}>
-          {formatMonth(weekStart, locale)}
-        </Text>
+      {/* The label, then the week's month between its two chevrons — one row,
+          so the seven days below get the whole width. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[2] }}>
+        <FieldLabel style={{ flexShrink: 1 }}>{label}</FieldLabel>
+        <View
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: spacing[1],
+          }}
+        >
+          <IconButton
+            icon="chevronLeft"
+            accessibilityLabel={t('checkout.details.calendar.previousWeek')}
+            variant="surface"
+            disabled={disabled || !canStepBack}
+            onPress={() => {
+              stepWeek(-1);
+            }}
+            testID={`${testID}-prev-week`}
+          />
+          <Text
+            variant="caption"
+            color="textPrimary"
+            align="center"
+            numberOfLines={2}
+            style={{ flexShrink: 1 }}
+            testID={`${testID}-month`}
+          >
+            {monthLabel}
+          </Text>
+          <IconButton
+            icon="chevronRight"
+            accessibilityLabel={t('checkout.details.calendar.nextWeek')}
+            variant="surface"
+            disabled={disabled || !canStepForward}
+            onPress={() => {
+              stepWeek(1);
+            }}
+            testID={`${testID}-next-week`}
+          />
+        </View>
       </View>
 
+      {/* ALL SEVEN DAYS, NO SCROLLER. This was a `ScrollRail` of fixed 50pt
+          cells between the chevrons, which showed four or five days and hid
+          the rest behind a second, sideways scroll that did something
+          different from the chevrons (audit #12). `DayCell.fill` shares the
+          row instead: (350 − 6 × 6) / 7 ≈ 45pt a day. */}
       <View
-        style={{ flexDirection: 'row', alignItems: 'center' }}
+        testID={`${testID}-week`}
+        style={{ flexDirection: 'row', gap: spacing[1.5] }}
         accessibilityRole="radiogroup"
         accessibilityLabel={label}
       >
-        <IconButton
-          icon="chevronLeft"
-          accessibilityLabel={t('checkout.details.calendar.previousWeek')}
-          variant="surface"
-          disabled={disabled || !canStepBack}
-          onPress={() => {
-            stepWeek(-1);
-          }}
-          testID={`${testID}-prev-week`}
-        />
-        <ScrollRail
-          testID={`${testID}-week`}
-          style={{ flexGrow: 1, flexShrink: 1 }}
-          edgePadding={spacing[2]}
-          scrollToIndex={selectedIndex}
-          itemWidth={DAY_CELL_WIDTH}
-        >
-          {days.map((day) => {
-            const key = dayKey(day);
-            const available = offered(day);
-            return (
-              <DayCell
-                key={key}
-                weekday={formatWeekdayShort(day, locale)}
-                date={dayOfMonth(day)}
-                selected={selected !== null && isSameDay(day, selected)}
-                disabled={disabled || !available}
-                // Nothing on the cell says which day of which month it is, that
-                // it is today, or that it is out of the window — so the whole
-                // sentence is spelled out, as `DayCell` requires.
-                accessibilityLabel={[
-                  todayDay !== null && isSameDay(day, todayDay)
-                    ? t('checkout.details.calendar.today')
-                    : null,
-                  formatLongDate(day, locale),
-                  available ? null : t('checkout.details.calendar.unavailable'),
-                ]
-                  .filter((part): part is string => part !== null)
-                  .join(', ')}
-                onPress={() => {
-                  onChange(key);
-                }}
-                testID={`${testID}-day-${key}`}
-              />
-            );
-          })}
-        </ScrollRail>
-        <IconButton
-          icon="chevronRight"
-          accessibilityLabel={t('checkout.details.calendar.nextWeek')}
-          variant="surface"
-          disabled={disabled || !canStepForward}
-          onPress={() => {
-            stepWeek(1);
-          }}
-          testID={`${testID}-next-week`}
-        />
+        {days.map((day) => {
+          const key = dayKey(day);
+          const available = offered(day);
+          return (
+            <DayCell
+              key={key}
+              fill
+              weekday={formatWeekdayShort(day, locale)}
+              date={dayOfMonth(day)}
+              selected={selected !== null && isSameDay(day, selected)}
+              disabled={disabled || !available}
+              // Nothing on the cell says which day of which month it is, that
+              // it is today, or that it is out of the window — so the whole
+              // sentence is spelled out, as `DayCell` requires.
+              accessibilityLabel={[
+                todayDay !== null && isSameDay(day, todayDay)
+                  ? t('checkout.details.calendar.today')
+                  : null,
+                formatLongDate(day, locale),
+                available ? null : t('checkout.details.calendar.unavailable'),
+              ]
+                .filter((part): part is string => part !== null)
+                .join(', ')}
+              onPress={() => {
+                onChange(key);
+              }}
+              testID={`${testID}-day-${key}`}
+            />
+          );
+        })}
       </View>
 
       {hint === undefined ? null : (

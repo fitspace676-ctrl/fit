@@ -42,23 +42,20 @@
 // cannot serve. See that file for why.
 
 import {
-  AppBar,
   Alert as Advisory,
   Button,
   Chip,
   EmptyState,
-  IconButton,
   InlineNote,
   Money,
-  Pips,
   Screen,
   Segmented,
   Surface,
   SwitchRow,
   Text,
   Divider,
-  Eyebrow,
   spacing,
+  useThemeColors,
 } from '@fit/ui-mobile';
 import type { CheckoutProductType } from '@fit/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -71,6 +68,7 @@ import { useCoolDown } from '../../components/auth/use-cool-down';
 import { useIsOnline } from '../../components/auth/use-online';
 import { ChoiceCard } from '../../components/checkout/choice-card';
 import { DetailsStep } from '../../components/checkout/details-step';
+import { JoinHeader } from '../../components/checkout/join-header';
 import { classifyJoinFailure, type JoinFailure } from '../../components/checkout/join-failure';
 import {
   FREE_ACCOUNT_ID,
@@ -134,6 +132,7 @@ export default function JoinCheckoutScreen() {
   const queryClient = useQueryClient();
   const onboarding = useOnboarding();
   const coolDown = useCoolDown();
+  const colors = useThemeColors();
 
   const signedIn = session.status === 'signed-in';
   const gymId = gym.gymId;
@@ -350,31 +349,26 @@ export default function JoinCheckoutScreen() {
   // ── Chrome ───────────────────────────────────────────────────────────────
 
   const header = (
-    <AppBar
+    <JoinHeader
       testID="join-header"
-      eyebrow={t('checkout.title')}
-      // The screen's ONE `AppBar` title, and it changes with the step exactly
+      kicker={t('checkout.title')}
+      // The screen's ONE header title, and it changes with the step exactly
       // as web's does — the step IS the page here.
       title={t(STEP_TITLE_KEYS[state.step])}
       subtitle={t(STEP_SUBTITLE_KEYS[state.step])}
-      leading={
-        <IconButton
-          icon="chevronLeft"
-          accessibilityLabel={t('checkout.back')}
-          testID="join-back"
-          onPress={() => {
-            if (state.step > 0) {
-              goto((state.step - 1) as Step);
-              return;
-            }
-            // Step 1's Back leaves the funnel. `canGoBack` is false on a cold
-            // deep link straight into `/checkout`, and popping an empty stack
-            // is a no-op that reads as a dead button.
-            if (router.canGoBack()) router.back();
-            else router.replace('/');
-          }}
-        />
-      }
+      backLabel={t('checkout.back')}
+      backTestID="join-back"
+      onBack={() => {
+        if (state.step > 0) {
+          goto((state.step - 1) as Step);
+          return;
+        }
+        // Step 1's Back leaves the funnel. `canGoBack` is false on a cold
+        // deep link straight into `/checkout`, and popping an empty stack
+        // is a no-op that reads as a dead button.
+        if (router.canGoBack()) router.back();
+        else router.replace('/');
+      }}
     />
   );
 
@@ -389,14 +383,18 @@ export default function JoinCheckoutScreen() {
       reserveTabBar={false}
       footer={
         tenantMissing ? undefined : (
-          // Opaque — `Screen`'s footer wrapper is absolutely positioned over
-          // the scroll and paints nothing. See the rule on `ScreenProps.footer`.
-          <Surface
+          // Opaque, on the CANVAS colour rather than a card: the shared
+          // footer is a full-width band of the page's own ground down to the
+          // bottom edge (`Screen` paints the safe-area part under it), with
+          // `spacing[4]` above and below the button. See the rule on
+          // `ScreenProps.footer`.
+          <View
             testID="join-footer-plate"
-            tone="card"
-            radius="container"
-            padding={4}
-            style={{ gap: spacing[3] }}
+            style={{
+              paddingTop: spacing[4],
+              paddingBottom: spacing[4],
+              backgroundColor: colors.backgroundBody,
+            }}
           >
             {state.step === 3 ? (
               <Button
@@ -455,16 +453,26 @@ export default function JoinCheckoutScreen() {
                 // ==========================================================
                 disabled={state.step !== 2 && !canAdvance(state, context)}
                 onPress={() => {
-                  if (canAdvance(state, context)) goto((state.step + 1) as Step);
-                  else setShowErrors(true);
+                  if (canAdvance(state, context)) {
+                    goto((state.step + 1) as Step);
+                    return;
+                  }
+                  setShowErrors(true);
+                  // The summary of what is still owed sits at the TOP of the
+                  // form (audit #11) — so a buyer who pressed Continue from
+                  // halfway down is brought up to read it.
+                  scrollRef.current?.scrollTo({ y: 0, animated: true });
                 }}
               />
             )}
-          </Surface>
+          </View>
         )
       }
     >
-      <View style={{ gap: spacing[5] }}>
+      {/* `spacing[6]` under the last card on top of the footer's measured
+          height, which `Screen` already reserves — so the final card clears
+          the button band with room to spare. */}
+      <View style={{ gap: spacing[6], paddingBottom: spacing[6] }}>
         {/* Plan §6 item 4. TODO(i18n): there are no `offline` keys in either
             catalogue — see `components/auth/pending-copy.ts`. */}
         {online ? null : <OfflineNotice testID="join-offline" />}
@@ -638,6 +646,8 @@ export default function JoinCheckoutScreen() {
         <Segmented
           testID="join-product-tabs"
           label={t('checkout.packages.tabsLabel')}
+          // "სავარჯიშო პაკეტები" does not fit a third of 350pt on one line.
+          labelLines={2}
           value={productType}
           onChange={(next) => {
             dispatch({ type: 'productType', productType: next });
@@ -700,9 +710,9 @@ export default function JoinCheckoutScreen() {
             it is not one of the products, it is the alternative to buying one. */}
         {offerFree ? (
           <View style={{ gap: spacing[3] }}>
-            <Eyebrow size="label" color="textSecondary" testID="join-free-or">
+            <Text variant="caption" color="textSecondary" testID="join-free-or">
               {t('checkout.packages.free.or')}
-            </Eyebrow>
+            </Text>
             <ChoiceCard
               testID="join-product-free"
               title={freeTitle}
@@ -747,16 +757,16 @@ export default function JoinCheckoutScreen() {
     }
 
     return (
-      <View style={{ gap: spacing[4] }}>
+      <View style={{ gap: spacing[6] }}>
         <Surface tone="card" padding={5} testID="join-payment-summary">
           <View style={{ gap: spacing[3] }}>
             {branchName === undefined ? null : (
               <View
                 style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing[3] }}
               >
-                <Eyebrow size="label" color="textSecondary">
+                <Text variant="bodySmall" color="textSecondary">
                   {t('checkout.summary.branch')}
-                </Eyebrow>
+                </Text>
                 <Text variant="body" align="right" style={{ flex: 1 }}>
                   {branchName}
                 </Text>
@@ -765,9 +775,9 @@ export default function JoinCheckoutScreen() {
             <View
               style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing[3] }}
             >
-              <Eyebrow size="label" color="textSecondary">
+              <Text variant="bodySmall" color="textSecondary">
                 {t('checkout.payment.summary.package')}
-              </Eyebrow>
+              </Text>
               <Text variant="body" align="right" style={{ flex: 1 }}>
                 {isFree ? freeTitle : (chosen?.name ?? '')}
               </Text>
@@ -782,9 +792,9 @@ export default function JoinCheckoutScreen() {
                 justifyContent: 'space-between',
               }}
             >
-              <Eyebrow size="label" color="textSecondary">
+              <Text variant="bodySmall" color="textSecondary">
                 {t('checkout.payment.summary.total')}
-              </Eyebrow>
+              </Text>
               {isFree || chosen === null ? (
                 <Text variant="bodyLarge" testID="join-payment-total-free">
                   {t('checkout.packages.free.price')}
@@ -808,25 +818,27 @@ export default function JoinCheckoutScreen() {
           {isFree ? t('checkout.payment.freeNotice') : t('checkout.payment.notice')}
         </InlineNote>
 
-        <SwitchRow
-          testID="join-terms"
-          label={t('checkout.payment.terms')}
-          checked={state.terms}
-          disabled={submitting}
-          onChange={(next) => {
-            dispatch({ type: 'terms', terms: next });
-          }}
-        />
+        <View style={{ gap: spacing[3] }}>
+          <SwitchRow
+            testID="join-terms"
+            label={t('checkout.payment.terms')}
+            checked={state.terms}
+            disabled={submitting}
+            onChange={(next) => {
+              dispatch({ type: 'terms', terms: next });
+            }}
+          />
 
-        {/* The reason Pay refused, next to the thing that fixes it. `live`, via
-            `InlineNote`'s own region, because it appears as the RESULT of a
-            press: a buyer who has just pressed Pay and heard nothing has no way
-            to know why. */}
-        {showErrors && !state.terms ? (
-          <InlineNote icon="info" iconColor="error" live testID="join-terms-required">
-            {t('checkout.payment.termsRequired')}
-          </InlineNote>
-        ) : null}
+          {/* The reason Pay refused, next to the thing that fixes it. `live`,
+              via `InlineNote`'s own region, because it appears as the RESULT
+              of a press: a buyer who has just pressed Pay and heard nothing
+              has no way to know why. */}
+          {showErrors && !state.terms ? (
+            <InlineNote icon="info" iconColor="error" live testID="join-terms-required">
+              {t('checkout.payment.termsRequired')}
+            </InlineNote>
+          ) : null}
+        </View>
       </View>
     );
   }
@@ -852,20 +864,20 @@ export default function JoinCheckoutScreen() {
 /**
  * Where the buyer is, and how far back they may jump.
  *
- * Two elements doing two jobs, which is why neither one alone would do:
+ * ONE ROW OF FOUR EQUAL CHIPS, and nothing else. There used to be a `Pips`
+ * meter above two wrapped rows of label-width chips — three rows of progress
+ * before the first card (audit #9). Now each chip takes
+ * `(width − 3 × spacing[2]) / 4` (`Chip.stretch`) at the 44pt height, so all
+ * four fit on one line in both locales and the active step is never off the
+ * end.
  *
- *   * **`Pips`** is the glanceable progress meter — four segments at 390pt,
- *     which is what reads best there, and it is where `checkout.progressLabel`
- *     and `checkout.progress` ("Step 2 of 4") live. It is not pressable, and it
- *     does not need to be.
- *   * **The chip rail** is the NAVIGATION, and it is a rail of `Chip`s rather
- *     than a `Segmented` because `reachable(i)` is a per-option rule:
- *     `Segmented` has one `disabled` for the whole group, so it would let a
- *     buyer jump to the payment step with no product chosen. `Chip` is the
- *     design system's pressable with a per-item `disabled`, and a horizontal
- *     rail is what the artboard draws (`web-checkout.tsx:327-343`, a numbered
- *     step strip with a hairline between). At 390pt four Georgian step names do
- *     not fit on one line, so the rail scrolls rather than wraps.
+ * The chips are also the NAVIGATION — `onGoto` walks back to a completed step
+ * — and a `Chip` rather than a `Segmented` because `reachable(i)` is a
+ * per-option rule. A step not reachable yet is disabled but stays READABLE
+ * (`disabledLook="readable"`): the buyer should see where the funnel goes.
+ *
+ * The "step 2 of 4" reading the pips carried lives on the row itself now, as
+ * its accessibility label and value.
  */
 function StepIndicator({
   step,
@@ -882,57 +894,28 @@ function StepIndicator({
 }) {
   const { t } = useI18n();
   return (
-    <View style={{ gap: spacing[3] }}>
-      <Pips
-        testID={`${testID}-pips`}
-        filled={step + 1}
-        total={SECTIONS.length}
-        accessibilityLabel={t('checkout.progressLabel')}
-        accessibilityValueText={t('checkout.progress', {
-          current: step + 1,
-          total: SECTIONS.length,
-        })}
-      />
-      {/*
-        ====================================================================
-        FOUR CHIPS THAT WRAP, NOT A RAIL THAT SCROLLS.
-        //
-        This was a `ScrollRail`, and on step 4 the buyer could see the LEFT
-        EDGE of "გადახდა" and nothing else: the four labels overflow 335pt,
-        so the step they were actually on was the one off the end. It
-        overflows in English too — Location · Package · Your details ·
-        Review & pay — so it is a layout bug that Georgian widths made total
-        rather than a translation problem.
-        //
-        Neither of the two obvious fixes fits. `ScrollRail`'s `scrollToIndex`
-        needs a FIXED `itemWidth` (it is a `ScrollView`, not a `FlatList`, and
-        cannot measure a child it was not told about) and these chips are
-        label-width, all four different. Collapsing to "Step 4 of 4" beside
-        the pips would fit, but the chips are also NAVIGATION — `onGoto` walks
-        the buyer back to a step they have already completed — and a counter
-        cannot be pressed.
-        //
-        So the row wraps. Four chips become two rows on a narrow screen, all
-        four on screen, all four pressable, no scroll to discover and no
-        measurement pass to get wrong. The pips above already carry the
-        "4 of 4" reading for a screen reader (`checkout.progress`), so
-        nothing is lost by keeping the labels.
-        ====================================================================
-      */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] }} testID={testID}>
-        {SECTIONS.map((section, index) => (
-          <Chip
-            key={section}
-            testID={`${testID}-${section}`}
-            label={t(STEP_CHIP_KEYS[index] ?? 'checkout.steps.location')}
-            selected={index === step}
-            disabled={disabled || !reachable(done, index)}
-            onPress={() => {
-              onGoto(index as Step);
-            }}
-          />
-        ))}
-      </View>
+    <View
+      style={{ flexDirection: 'row', gap: spacing[2] }}
+      testID={testID}
+      accessibilityLabel={t('checkout.progressLabel')}
+      accessibilityValue={{
+        text: t('checkout.progress', { current: step + 1, total: SECTIONS.length }),
+      }}
+    >
+      {SECTIONS.map((section, index) => (
+        <Chip
+          key={section}
+          testID={`${testID}-${section}`}
+          label={t(STEP_CHIP_KEYS[index] ?? 'checkout.steps.location')}
+          selected={index === step}
+          stretch
+          disabledLook="readable"
+          disabled={disabled || !reachable(done, index)}
+          onPress={() => {
+            onGoto(index as Step);
+          }}
+        />
+      ))}
     </View>
   );
 }

@@ -29,7 +29,7 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import {
   Button,
-  Eyebrow,
+  FieldLabel,
   Icon,
   Sheet,
   Text,
@@ -117,14 +117,8 @@ function PickedBirthDate({
 
   return (
     <View testID={testID}>
-      <Eyebrow
-        size="micro"
-        color="textSecondary"
-        accessible={false}
-        style={{ marginBottom: spacing[2] }}
-      >
-        {label}
-      </Eyebrow>
+      {/* The same `FieldLabel` every `TextField` on the step draws. */}
+      <FieldLabel style={{ marginBottom: spacing[2] }}>{label}</FieldLabel>
 
       <Pressable
         testID={`${testID}-button`}

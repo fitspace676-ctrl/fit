@@ -40,12 +40,10 @@
 // and the way home.
 
 import {
-  AppBar,
   Alert as Advisory,
   Button,
   Divider,
   EmptyState,
-  Eyebrow,
   Money,
   Mono,
   Pill,
@@ -53,11 +51,13 @@ import {
   Surface,
   Text,
   spacing,
+  useThemeColors,
 } from '@fit/ui-mobile';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { OfflineNotice } from '../../components/auth/notices';
+import { JoinHeader } from '../../components/checkout/join-header';
 import { useIsOnline } from '../../components/auth/use-online';
 import { useMoney } from '../../components/shop/money';
 import { LoadFailed, RowSkeletons, useRetry } from '../../components/shop/states';
@@ -76,6 +76,7 @@ export default function JoinCheckoutSuccessScreen() {
   const online = useIsOnline();
   const session = useSession();
   const gymId = useGymId();
+  const colors = useThemeColors();
   const params = useLocalSearchParams<{ orderId?: string; subscriptionId?: string }>();
 
   const orderId =
@@ -102,28 +103,42 @@ export default function JoinCheckoutSuccessScreen() {
   /** There is no purchase here to confirm — see the file header. */
   const nothingFound = signedOut || noId || orderEmpty;
 
+  // The funnel's shared footer band: canvas-coloured, `spacing[4]` above and
+  // below the button — see `checkout.tsx`'s `join-footer-plate`.
   const home = (
-    <Button
-      testID="join-success-home"
-      variant="primary"
-      size="lg"
-      fullWidth
-      label={t('checkout.success.returnHome')}
-      onPress={() => {
-        // `replace`, not `push`: the funnel is finished and the buyer must not
-        // be able to walk back into a spent checkout.
-        router.replace(HOME_ROUTE);
+    <View
+      testID="join-success-footer-plate"
+      style={{
+        paddingTop: spacing[4],
+        paddingBottom: spacing[4],
+        backgroundColor: colors.backgroundBody,
       }}
-    />
+    >
+      <Button
+        testID="join-success-home"
+        variant="primary"
+        size="lg"
+        fullWidth
+        label={t('checkout.success.returnHome')}
+        onPress={() => {
+          // `replace`, not `push`: the funnel is finished and the buyer must
+          // not be able to walk back into a spent checkout.
+          router.replace(HOME_ROUTE);
+        }}
+      />
+    </View>
   );
 
+  // No back button on either branch: the funnel is spent, and the only way
+  // out is home. The navigation row keeps its height so the title sits where
+  // it does on every other screen of the funnel.
   const header = nothingFound ? (
     // The funnel's own name, not a verdict: the verdict is the empty state.
-    <AppBar testID="join-success-header" title={t('checkout.title')} />
+    <JoinHeader testID="join-success-header" title={t('checkout.title')} />
   ) : (
-    <AppBar
+    <JoinHeader
       testID="join-success-header"
-      eyebrow={t('checkout.title')}
+      kicker={t('checkout.title')}
       title={t('checkout.success.title')}
       subtitle={t('checkout.success.subtitle')}
     />
@@ -131,7 +146,7 @@ export default function JoinCheckoutSuccessScreen() {
 
   return (
     <Screen testID="join-success" header={header} reserveTabBar={false} footer={home}>
-      <View style={{ gap: spacing[5] }}>
+      <View style={{ gap: spacing[4], paddingBottom: spacing[6] }}>
         {/* Plan §6 item 4. TODO(i18n): no `offline` keys exist in either
             catalogue — see `components/auth/pending-copy.ts`. */}
         {online ? null : <OfflineNotice testID="join-success-offline" />}
@@ -208,9 +223,9 @@ export default function JoinCheckoutSuccessScreen() {
     return (
       <Surface tone="card" padding={5} testID="join-success-order">
         <View style={{ gap: spacing[3] }}>
-          <Eyebrow size="label" color="textSecondary">
+          <Text variant="bodySmall" color="textSecondary">
             {t('checkout.success.orderId', { id: summary.id })}
-          </Eyebrow>
+          </Text>
 
           {summary.items.map((item, index) => (
             <View
@@ -234,9 +249,9 @@ export default function JoinCheckoutSuccessScreen() {
           <View
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <Eyebrow size="label" color="textSecondary">
+            <Text variant="bodySmall" color="textSecondary">
               {t('checkout.success.total')}
-            </Eyebrow>
+            </Text>
             <Money
               variant="monoLarge"
               accessibilityLabel={money.spoken(summary.total, summary.currency)}
@@ -299,9 +314,9 @@ export default function JoinCheckoutSuccessScreen() {
           <Divider />
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing[3] }}>
-            <Eyebrow size="label" color="textSecondary">
+            <Text variant="bodySmall" color="textSecondary">
               {t('member.membership.nextBilling')}
-            </Eyebrow>
+            </Text>
             {/* An ISO calendar day, set in the mono face — NOT formatted. `Intl`
                 is banned in this app and `createDateTimeFormat` is UTC-only,
                 so a locale-aware date here would be a lie in one direction or
