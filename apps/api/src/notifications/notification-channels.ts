@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NotificationChannel } from '@fit/db';
 import { gymSettingsStoredSchema } from '@fit/types';
+import { tenantOrigin } from '@fit/utils';
 import { env } from '../config/env';
+import { buildMemberUrl } from '../common/console-url';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailerService } from '../mail/mailer.service';
 import { NotificationDispatchService } from './notification-dispatch.service';
@@ -79,7 +81,8 @@ export class InAppNotificationChannel implements NotificationChannelAdapter {
  * channel resolves the rest itself off the unscoped Prisma client: the recipient's
  * address + name, and the gym's display name + interface language (its
  * {@link gymSettingsStoredSchema} locale) for the sender wordmark and template
- * locale. An in-app `href` is expanded to an absolute web URL for the email CTA.
+ * locale. An in-app `href` is expanded to an absolute URL on the gym's own host
+ * for the email CTA.
  *
  * Delivery degrades exactly like the other transactional mail: when Resend is
  * unconfigured (dev / CI) the send is a logged no-op reported as `pending`, and a
@@ -113,7 +116,7 @@ export class EmailNotificationChannel implements NotificationChannelAdapter {
       }),
       this.prisma.client.gym.findUnique({
         where: { id: input.gymId },
-        select: { name: true, settings: true },
+        select: { name: true, slug: true, settings: true },
       }),
     ]);
 
@@ -135,7 +138,7 @@ export class EmailNotificationChannel implements NotificationChannelAdapter {
         category: input.category,
         title: input.title,
         body: input.body,
-        actionUrl: toAbsoluteWebUrl(input.href),
+        actionUrl: toAbsoluteWebUrl(input.href, gym.slug),
       },
       {
         locale: resolveEmailLocale(settings.locale.language),
@@ -156,15 +159,21 @@ export class EmailNotificationChannel implements NotificationChannelAdapter {
 
 /**
  * Expand a notification's in-app `href` into an absolute URL for an email CTA. An
- * already-absolute link is used as-is; a relative path is resolved against
- * `WEB_URL`, and when neither yields an absolute URL the button is dropped (the
- * email still renders, just without a CTA) rather than linking somewhere broken.
+ * already-absolute link is used as-is; a relative path is resolved against the
+ * gym's own tenant host ({@link buildMemberUrl}) — the member's session is
+ * host-only, so a link to the platform-wide `WEB_URL` would land them signed out —
+ * falling back to `WEB_URL`. When neither yields an absolute URL the button is
+ * dropped (the email still renders, just without a CTA) rather than linking
+ * somewhere broken.
  */
-function toAbsoluteWebUrl(href: string | null | undefined): string | null {
+function toAbsoluteWebUrl(
+  href: string | null | undefined,
+  gymSlug: string | null | undefined,
+): string | null {
   if (!href) return null;
   if (/^https?:\/\//i.test(href)) return href;
-  if (!env.WEB_URL) return null;
-  return `${env.WEB_URL.replace(/\/+$/, '')}/${href.replace(/^\/+/, '')}`;
+  if (!tenantOrigin(gymSlug, env.PLATFORM_ROOT_DOMAIN) && !env.WEB_URL) return null;
+  return buildMemberUrl(href.replace(/^\/+/, ''), gymSlug);
 }
 
 /**
