@@ -1116,8 +1116,8 @@ export class AuthService {
    *     their Downtown password on Riverside's site is a `401`, not a Riverside
    *     session; there is no password to check there, and answering otherwise
    *     would say which gyms an address belongs to.
-   *   • A platform super-admin always signs in with the platform credential
-   *     (`User.passwordHash`) and lands tenant-less, whichever host it uses.
+   *   • A super-admin with an active membership may use the named gym credential
+   *     for a member session; otherwise the platform credential stays tenant-less.
    *   • With no gym named at all (the mobile app, `app.<root>`), the password is
    *     checked against every credential in a live gym: one match signs in there;
    *     several — the same password at several gyms, which every account had the
@@ -1166,12 +1166,15 @@ export class AuthService {
 
     // The gym the session binds to: the one asked for, else the one whose
     // password matched (a platform credential names none).
-    const sessionSlug = user.isSuperAdmin ? undefined : (gymSlug ?? credential.gymSlug);
+    const sessionSlug = user.isSuperAdmin ? credential.gymSlug : (gymSlug ?? credential.gymSlug);
     await this.assertGymAccessNotSuspended(user.id, sessionSlug);
 
     return this.tokens.issueTokenPair(
       user.id,
-      await this.resolveSessionScope(user.id, sessionSlug, { signIn: true }),
+      await this.resolveSessionScope(user.id, sessionSlug, {
+        signIn: true,
+        gymCredential: Boolean(credential.gymSlug),
+      }),
     );
   }
 
@@ -1189,6 +1192,7 @@ export class AuthService {
    */
   private async matchCredential(
     user: {
+      id: string;
       passwordHash: string | null;
       emailVerifiedAt: Date | null;
       isSuperAdmin: boolean;
@@ -1209,6 +1213,16 @@ export class AuthService {
     }
 
     if (user.isSuperAdmin) {
+      const credential = user.credentials.find((c) => c.gym.slug === gymSlug);
+      if (credential?.passwordHash) {
+        const membership = await this.prisma.client.gymMember.findFirst({
+          where: { userId: user.id, gymId: credential.gymId, status: GymMemberStatus.ACTIVE },
+          select: { id: true },
+        });
+        if (membership && (await verify(credential.passwordHash))) {
+          return { gymSlug, emailVerifiedAt: credential.emailVerifiedAt };
+        }
+      }
       return (await verify(user.passwordHash)) ? { emailVerifiedAt: user.emailVerifiedAt } : null;
     }
 
@@ -1534,9 +1548,9 @@ export class AuthService {
    * sees everyone as a `MEMBER`. We pick that scope from the user's gym
    * memberships:
    *
-   *   • A platform `SUPER_ADMIN` (the `User.isSuperAdmin` flag) wins outright and
-   *     resolves to a tenant-less session (`gymId = null`): the role is
-   *     platform-wide, not gym-scoped, so it is never bound to one gym.
+   *   • A platform `SUPER_ADMIN` stays tenant-less unless a named gym credential
+   *     was matched, or a refresh token is already pinned to a gym. Those sessions
+   *     use the active membership role, just like any other member.
    *   • When `gymSlug` is supplied (the sign-in happened on a `<slug>.fit.ge`
    *     subdomain) and the user has an active membership in that active gym, the
    *     session binds to *that* gym — so a multi-gym user lands on the tenant they
@@ -1564,7 +1578,7 @@ export class AuthService {
   private async resolveSessionScope(
     userId: string,
     gymSlug?: string,
-    options: { pinned?: boolean; signIn?: boolean } = {},
+    options: { pinned?: boolean; signIn?: boolean; gymCredential?: boolean } = {},
   ): Promise<SessionClaims> {
     const [user, memberships] = await Promise.all([
       this.prisma.client.user.findUnique({
@@ -1584,7 +1598,7 @@ export class AuthService {
 
     const tokenVersion = user?.tokenVersion ?? 0;
 
-    if (user?.isSuperAdmin) {
+    if (user?.isSuperAdmin && !(gymSlug && (options.gymCredential || options.pinned))) {
       return { gymId: null, gymSlug: null, role: Role.SUPER_ADMIN, tokenVersion };
     }
 

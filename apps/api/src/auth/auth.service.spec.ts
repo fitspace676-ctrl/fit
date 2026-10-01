@@ -1687,7 +1687,113 @@ describe('AuthService', () => {
         );
       });
 
-      it('signs a super-admin in with the platform credential, whatever the host', async () => {
+      describe('super-admin gym credentials', () => {
+        beforeEach(() => {
+          ctx.findUnique.mockResolvedValue({ ...twoGymUser, isSuperAdmin: true });
+          ctx.gymMemberFindFirst.mockResolvedValue({ id: 'membership-1' });
+          ctx.gymMemberFindMany.mockResolvedValue([{ ...TWO_MEMBERSHIPS[1]!, role: Role.MEMBER }]);
+        });
+
+        it.each(['body', 'host'])(
+          'uses the gym role with a matching %s credential',
+          async (source) => {
+            argonVerify.mockResolvedValue(true);
+            await ctx.service.login(
+              { ...VALID_LOGIN, ...(source === 'body' ? { gymSlug: 'riverside' } : {}) },
+              source === 'host' ? 'riverside' : undefined,
+            );
+            expect(argonVerify).toHaveBeenCalledTimes(1);
+            expect(argonVerify).toHaveBeenCalledWith('riverside-hash', 'supersecret');
+            expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+              gymId: 'gym-riverside',
+              gymSlug: 'riverside',
+              role: Role.MEMBER,
+              tokenVersion: 0,
+            });
+            expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
+              where: { userId: 'user-1', gymId: 'gym-riverside', status: 'ACTIVE' },
+              select: { id: true },
+            });
+          },
+        );
+
+        it('falls back to the platform password when the gym password does not match', async () => {
+          argonVerify.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+          await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' });
+          expect(argonVerify).toHaveBeenNthCalledWith(2, 'stored-hash', 'supersecret');
+          expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-1', {
+            gymId: null,
+            gymSlug: null,
+            role: Role.SUPER_ADMIN,
+            tokenVersion: 0,
+          });
+        });
+
+        it('uses gym verification even when the platform account is verified', async () => {
+          ctx.findUnique.mockResolvedValue({
+            ...twoGymUser,
+            isSuperAdmin: true,
+            credentials: [{ ...RIVERSIDE_CRED, emailVerifiedAt: null }],
+          });
+          argonVerify.mockResolvedValue(true);
+          await expect(
+            ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' }),
+          ).rejects.toMatchObject({ response: { code: 'EMAIL_NOT_VERIFIED' } });
+          expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+        });
+
+        it('accepts verified gym credentials when the platform email is unverified', async () => {
+          ctx.findUnique.mockResolvedValue({
+            ...twoGymUser,
+            isSuperAdmin: true,
+            emailVerifiedAt: null,
+          });
+          argonVerify.mockResolvedValue(true);
+          await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' });
+          expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+            'user-1',
+            expect.objectContaining({ role: Role.MEMBER }),
+          );
+        });
+
+        it.each([null, 'missing'])(
+          'uses the platform password when the gym password is %s',
+          async (passwordHash) => {
+            ctx.findUnique.mockResolvedValue({
+              ...twoGymUser,
+              isSuperAdmin: true,
+              credentials: passwordHash === 'missing' ? [] : [{ ...RIVERSIDE_CRED, passwordHash }],
+            });
+            argonVerify.mockResolvedValue(true);
+            await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' });
+            expect(argonVerify).toHaveBeenCalledTimes(1);
+            expect(argonVerify).toHaveBeenCalledWith('stored-hash', 'supersecret');
+            expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+              'user-1',
+              expect.objectContaining({ role: Role.SUPER_ADMIN, gymId: null }),
+            );
+          },
+        );
+
+        it('keeps the operator login tenant-less even with gym memberships', async () => {
+          argonVerify.mockResolvedValue(true);
+          await ctx.service.login(VALID_LOGIN);
+          expect(argonVerify).toHaveBeenCalledWith('stored-hash', 'supersecret');
+          expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+            'user-1',
+            expect.objectContaining({ role: Role.SUPER_ADMIN, gymId: null }),
+          );
+        });
+
+        it('rejects a password that matches neither credential', async () => {
+          argonVerify.mockResolvedValue(false);
+          await expect(
+            ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' }),
+          ).rejects.toMatchObject({ response: { code: 'INVALID_CREDENTIALS' } });
+        });
+      });
+
+      it('signs a super-admin in with the platform credential, without active membership on the host', async () => {
         ctx.findUnique.mockResolvedValue({ ...twoGymUser, isSuperAdmin: true });
         argonVerify.mockResolvedValue(true);
 
@@ -2585,6 +2691,41 @@ describe('AuthService', () => {
         role: Role.OWNER,
         tokenVersion: 0,
       };
+
+      it.each([true, false])(
+        'preserves super-admin refresh scope (gym pinned: %s)',
+        async (pinned) => {
+          ctx.findUnique.mockResolvedValue({ id: 'user-1', isSuperAdmin: true });
+          ctx.sessionForRefreshToken.mockResolvedValue({
+            userId: 'user-1',
+            gymId: pinned ? 'gym-riverside' : null,
+          });
+          if (pinned) ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+          twoGyms();
+          await ctx.service.refresh({ refreshToken: 'rt-secret' }, 'downtown');
+          expect(ctx.rotateRefreshToken).toHaveBeenCalledWith(
+            'rt-secret',
+            pinned
+              ? RIVERSIDE
+              : {
+                  gymId: null,
+                  gymSlug: null,
+                  role: Role.SUPER_ADMIN,
+                  tokenVersion: 0,
+                },
+          );
+        },
+      );
+
+      it('rejects a super-admin gym refresh after active membership is removed', async () => {
+        ctx.findUnique.mockResolvedValue({ id: 'user-1', isSuperAdmin: true });
+        ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });
+        ctx.gymFindUnique.mockResolvedValueOnce({ slug: 'riverside' });
+        await expect(ctx.service.refresh({ refreshToken: 'rt-secret' })).rejects.toMatchObject({
+          response: { code: 'REFRESH_TOKEN_INVALID' },
+        });
+        expect(ctx.rotateRefreshToken).not.toHaveBeenCalled();
+      });
 
       it('keeps a session on its pinned, non-primary gym', async () => {
         ctx.sessionForRefreshToken.mockResolvedValue({ userId: 'user-1', gymId: 'gym-riverside' });

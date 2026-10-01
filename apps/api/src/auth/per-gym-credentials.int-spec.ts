@@ -1,8 +1,22 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { GymMemberStatus, GymStatus, Role } from '@fit/db';
 import { GYM_SELECTION_REQUIRED_CODE } from '@fit/types';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import type { NextFunction, Request, Response } from 'express';
+import { TenantMiddleware } from '../common/tenant/tenant.middleware';
+import { TenantContext } from '../common/tenant/tenant.context';
+import { TenantGuard } from '../common/tenant/tenant.guard';
+import { PermissionsGuard } from '../common/rbac/permissions.guard';
+import {
+  clearRequestAccessResolver,
+  registerRequestAccessResolver,
+} from '../common/rbac/request-access';
+import { defaultsRequestAccessResolver } from '../test/request-access-stub';
+import { CheckoutController } from '../catalogue/checkout.controller';
+import { CheckoutService } from '../catalogue/checkout.service';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
@@ -264,6 +278,111 @@ describe('per-gym credentials (integration)', () => {
       ]);
       expect(await prisma.gymCredential.count({ where: { user: { email } } })).toBe(2);
     });
+  });
+
+  describe('super-admin member checkout', () => {
+    let app: INestApplication;
+    let baseUrl: string;
+
+    beforeAll(async () => {
+      registerRequestAccessResolver(defaultsRequestAccessResolver());
+      const moduleRef = await Test.createTestingModule({
+        controllers: [CheckoutController],
+        providers: [
+          TenantContext,
+          TenantGuard,
+          PermissionsGuard,
+          {
+            provide: CheckoutService,
+            // Purchase mechanics have their own tests; exercise the real HTTP guards here.
+            useValue: {
+              checkout: () =>
+                Promise.resolve({
+                  productType: 'credit_pack',
+                  orderId: 'order-1',
+                  subscriptionId: null,
+                }),
+            },
+          },
+        ],
+      }).compile();
+      app = moduleRef.createNestApplication();
+      const middleware = new TenantMiddleware(h.tokens);
+      app.use((req: Request, res: Response, next: NextFunction) => middleware.use(req, res, next));
+      await app.listen(3005, '127.0.0.1');
+      baseUrl = await app.getUrl();
+    });
+
+    afterAll(async () => {
+      await app?.close();
+      clearRequestAccessResolver();
+    });
+
+    it('issues and refreshes a gym member session that passes POST /checkout', async () => {
+      await prisma.user.update({ where: { id: userId }, data: { isSuperAdmin: true } });
+      const gymSession = await h.auth.login({
+        email: EMAIL,
+        password: RIVERSIDE_PASSWORD,
+        gymSlug: 'riverside',
+      });
+      expect(claimsOf(gymSession.accessToken)).toMatchObject({
+        gymId: riversideId,
+        role: Role.MEMBER,
+      });
+      const refreshedGym = await h.auth.refresh(
+        { refreshToken: gymSession.refreshToken },
+        'downtown',
+      );
+      expect(claimsOf(refreshedGym.accessToken)).toMatchObject({
+        gymId: riversideId,
+        role: Role.MEMBER,
+      });
+      for (const session of [gymSession, refreshedGym]) {
+        const response = await fetch(`${baseUrl}/checkout`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${session.accessToken}`,
+          },
+          body: JSON.stringify({ productType: 'credit_pack', productId: 'prod-1' }),
+        });
+        expect(response.status).toBe(201);
+      }
+
+      const platformSession = await h.auth.login({
+        email: EMAIL,
+        password: DOWNTOWN_PASSWORD,
+        gymSlug: 'riverside',
+      });
+      const refreshedPlatform = await h.auth.refresh(
+        { refreshToken: platformSession.refreshToken },
+        'riverside',
+      );
+      for (const session of [platformSession, refreshedPlatform]) {
+        expect(claimsOf(session.accessToken)).toMatchObject({ role: Role.SUPER_ADMIN });
+        expect(claimsOf(session.accessToken).gymId).toBeUndefined();
+      }
+    });
+
+    it.each([GymMemberStatus.INVITED, GymMemberStatus.SUSPENDED, null])(
+      'falls back to platform credentials when membership is %s',
+      async (status) => {
+        await prisma.user.update({ where: { id: userId }, data: { isSuperAdmin: true } });
+        const where = { userId_gymId: { userId, gymId: riversideId } };
+        if (status) await prisma.gymMember.update({ where, data: { status } });
+        else await prisma.gymMember.delete({ where });
+        await expect(
+          h.auth.login({ email: EMAIL, password: RIVERSIDE_PASSWORD, gymSlug: 'riverside' }),
+        ).rejects.toBeInstanceOf(UnauthorizedException);
+        const session = await h.auth.login({
+          email: EMAIL,
+          password: DOWNTOWN_PASSWORD,
+          gymSlug: 'riverside',
+        });
+        expect(claimsOf(session.accessToken)).toMatchObject({ role: Role.SUPER_ADMIN });
+        expect(claimsOf(session.accessToken).gymId).toBeUndefined();
+      },
+    );
   });
 
   describe('login', () => {
