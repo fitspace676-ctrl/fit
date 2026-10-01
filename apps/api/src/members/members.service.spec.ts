@@ -29,7 +29,12 @@ interface MemberRecord {
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   medicalNotes: string | null;
-  user: { name: string | null; email: string; phone: string | null };
+  user: {
+    name: string | null;
+    email: string;
+    phone: string | null;
+    credentials?: { name: string | null; phone: string | null }[];
+  };
   invoices: { amount: number; currency: string }[];
   subscriptions: Array<{
     id: string;
@@ -201,16 +206,14 @@ function setup(overrides?: {
     Promise.resolve(overrides?.location === undefined ? { id: 'loc-default' } : overrides.location),
   );
 
-  // The per-gym name/phone (T1.25) written alongside the shared `User` fields.
-  const credentialUpdateMany = vi.fn<(args: WhereArgs) => Promise<{ count: number }>>(() =>
-    Promise.resolve({ count: 1 }),
+  // Name and phone are written only to the current gym credential.
+  const credentialUpsert = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'credential-1' }),
   );
-
-  const credentialUpsert = vi.fn(() => Promise.resolve({ id: 'cred-1' }));
 
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
-    gymCredential: { updateMany: credentialUpdateMany, upsert: credentialUpsert },
+    gymCredential: { upsert: credentialUpsert },
     gym: { findFirst: gymFindFirst },
     location: { findFirst: locationFindFirst },
     gymMember: {
@@ -291,7 +294,6 @@ function setup(overrides?: {
     gymMemberGroupBy,
     gymMemberCreate,
     gymMemberUpdate,
-    credentialUpdateMany,
     credentialUpsert,
     userFindUnique,
     userCreate,
@@ -560,6 +562,36 @@ describe('MembersService', () => {
     });
   });
 
+  it.each([
+    [[{ name: 'Gym Nino', phone: '777' }], 'Gym Nino', '777'],
+    [[], 'Global Nino', '555'],
+    [[{ name: null, phone: null }], 'Global Nino', '555'],
+  ])('uses gym display fields in list and detail (%j)', async (credentials, name, phone) => {
+    const member = row({
+      user: { name: 'Global Nino', email: 'nino@example.com', phone: '555', credentials },
+    });
+    const { service, findMany, findFirst } = setup({ findMany: [member], findFirst: member });
+    expect(
+      (await service.listMembers({ page: 1, limit: 20 } as ListMembersQuery)).data[0],
+    ).toMatchObject({ name, phone });
+    expect(await service.getMember('gm-1')).toMatchObject({ name, phone });
+    for (const query of [findMany, findFirst]) {
+      expect(query.mock.calls[0]?.[0]).toMatchObject({
+        select: {
+          user: {
+            select: {
+              credentials: {
+                where: { gymId: 'gym-1' },
+                select: { name: true, phone: true },
+                take: 1,
+              },
+            },
+          },
+        },
+      });
+    }
+  });
+
   describe('getMember', () => {
     it('returns the detail with the projected phone and the formacore fields', async () => {
       const { service } = setup({
@@ -682,32 +714,38 @@ describe('MembersService', () => {
   });
 
   describe('updateMember', () => {
-    it('updates the member’s user name + phone and returns the detail', async () => {
-      const { service, findFirst, userUpdate, credentialUpdateMany } = setup({
+    it('upserts only the gym credential and returns the detail', async () => {
+      const { service, findFirst, userUpdate, credentialUpsert } = setup({
         findFirst: row(),
       });
 
       const result = await service.updateMember('gm-1', { name: 'Renamed', phone: '777' });
 
       expect(findFirst.mock.calls[0]?.[0]?.where).toMatchObject({ id: 'gm-1', role: Role.MEMBER });
-      expect(userUpdate.mock.calls[0]?.[0]).toMatchObject({
-        where: { id: 'u-1' },
-        data: { name: 'Renamed', phone: '777' },
-      });
-      // …and THIS gym's credential, the per-gym record (T1.25) — never another gym's.
-      expect(credentialUpdateMany.mock.calls[0]?.[0]).toMatchObject({
-        where: { userId: 'u-1', gymId: 'gym-1' },
-        data: { name: 'Renamed', phone: '777' },
+      expect(userUpdate).not.toHaveBeenCalled();
+      expect(credentialUpsert).toHaveBeenCalledWith({
+        where: { userId_gymId: { userId: 'u-1', gymId: 'gym-1' } },
+        create: {
+          userId: 'u-1',
+          gymId: 'gym-1',
+          passwordHash: null,
+          name: 'Renamed',
+          phone: '777',
+        },
+        update: { name: 'Renamed', phone: '777' },
       });
       expect(result.id).toBe('gm-1');
     });
 
     it('clears the phone when passed null', async () => {
-      const { service, userUpdate } = setup({ findFirst: row() });
+      const { service, credentialUpsert, userUpdate } = setup({ findFirst: row() });
 
       await service.updateMember('gm-1', { name: 'Nino', phone: null });
 
-      expect(userUpdate.mock.calls[0]?.[0]?.data).toMatchObject({ phone: null });
+      expect(credentialUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { name: 'Nino', phone: null } }),
+      );
+      expect(userUpdate).not.toHaveBeenCalled();
     });
 
     it('throws 404 for an unknown / cross-tenant id', async () => {
@@ -1263,6 +1301,36 @@ describe('MembersService.sendMemberEmail', () => {
       ],
       _count: { subscriptions: 1, checkIns: 42 },
     });
+
+  it('uses the current gym name and phone in email merge fields', async () => {
+    const member = emailMember();
+    member.user.credentials = [{ name: 'Local Davit', phone: '777' }];
+    const { service, mailerSend, findFirst } = setup({ findFirst: member });
+    await service.sendMemberEmail('gm-1', {
+      subject: '{{full_name}}',
+      body: '{{phone}} / {{member_full_name}} / {{member_phone}}',
+    });
+    expect(mailerSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: member.user.email,
+        subject: 'Local Davit',
+        text: '777 / Local Davit / 777',
+      }),
+    );
+    expect(findFirst.mock.calls[0]?.[0]).toMatchObject({
+      select: {
+        user: {
+          select: {
+            credentials: {
+              where: { gymId: 'gym-1' },
+              select: { name: true, phone: true },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+  });
 
   it('sends a branded email to the member, interpolating merge fields for this member', async () => {
     const { service, mailerSend } = setup({ findFirst: emailMember() });

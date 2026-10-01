@@ -13,10 +13,9 @@ const PROFILE_SELECT = { id: true, name: true, email: true, phone: true } as con
 /**
  * Member-facing read/update of the caller's own profile (`/me/profile`).
  *
- * Profile fields (name, email, phone) are User attributes — they travel with the
- * person across the gyms they belong to — so this reads the raw
- * {@link PrismaService} keyed by the session's `userId`, not the tenant-scoped
- * client. The caller can only ever touch their own row.
+ * Name and phone belong to the current gym's credential, with legacy User
+ * values as a fallback. Platform accounts continue to use User directly.
+ * Email always comes from the shared User identity.
  */
 @Injectable()
 export class MeProfileService {
@@ -46,7 +45,21 @@ export class MeProfileService {
     if (!user) {
       throw new NotFoundException({ message: 'Profile not found', code: 'PROFILE_NOT_FOUND' });
     }
-    return { profile: { userId: user.id, name: user.name, email: user.email, phone: user.phone } };
+    const gymId = this.tenant.current?.gymId ?? null;
+    const credential = gymId
+      ? await this.prisma.client.gymCredential.findUnique({
+          where: { userId_gymId: { userId: id, gymId } },
+          select: { name: true, phone: true },
+        })
+      : null;
+    return {
+      profile: {
+        userId: user.id,
+        name: credential?.name ?? user.name,
+        email: user.email,
+        phone: credential?.phone ?? user.phone,
+      },
+    };
   }
 
   /** Patch the caller's profile — only the present fields are written. */
@@ -58,6 +71,15 @@ export class MeProfileService {
     }
     if (input.phone !== undefined) {
       data.phone = input.phone;
+    }
+    const gymId = this.tenant.current?.gymId ?? null;
+    if (gymId) {
+      await this.prisma.client.gymCredential.upsert({
+        where: { userId_gymId: { userId: id, gymId } },
+        create: { userId: id, gymId, passwordHash: null, ...data },
+        update: data,
+      });
+      return this.getMyProfile();
     }
     const user = await this.prisma.client.user.update({
       where: { id },

@@ -138,6 +138,17 @@ function invalidCredentials(): UnauthorizedException {
   });
 }
 
+/**
+ * The `403` a sign-in on a gym the account does not belong to gets — shared by
+ * the scope check and the social sign-ins that refuse before creating a user.
+ */
+function notAMember(): ForbiddenException {
+  return new ForbiddenException({
+    message: 'This account is not a member of this gym',
+    code: NOT_A_MEMBER_CODE,
+  });
+}
+
 /** The single `400` every dead emailed token collapses to. */
 function tokenInvalid(what: 'Verification' | 'Activation' | 'Reset'): BadRequestException {
   return new BadRequestException({
@@ -299,6 +310,7 @@ export class AuthService {
         input.name,
         locale ?? DEFAULT_EMAIL_LOCALE,
         redeemed?.gymSlug,
+        redeemed?.gymName,
       );
     } catch (error) {
       this.logger.error(
@@ -319,7 +331,7 @@ export class AuthService {
   ): Promise<RegisterResponse> {
     const gym = await this.prisma.client.gym.findFirst({
       where: { slug: input.gymSlug, status: GymStatus.ACTIVE },
-      select: { id: true, slug: true, settings: true },
+      select: { id: true, slug: true, name: true, settings: true },
     });
     if (!gym) {
       throw new BadRequestException({ message: 'Unknown gym', code: 'GYM_NOT_FOUND' });
@@ -393,6 +405,7 @@ export class AuthService {
         input.name,
         locale ?? resolveEmailLocale(gymLanguage),
         gym.slug,
+        gym.name,
       );
     } catch (error) {
       this.logger.error(
@@ -436,7 +449,7 @@ export class AuthService {
     // subdomain, so a bad value is a malformed request, not a missing resource.
     const gym = await this.prisma.client.gym.findFirst({
       where: { id: input.gymId, status: GymStatus.ACTIVE },
-      select: { id: true, slug: true, settings: true },
+      select: { id: true, slug: true, name: true, settings: true },
     });
     if (!gym) {
       throw new BadRequestException({ message: 'Unknown gym', code: 'GYM_NOT_FOUND' });
@@ -562,8 +575,10 @@ export class AuthService {
         input.name,
         locale ?? resolveEmailLocale(gymLanguage),
         // Verifying lands them back on the gym they just joined, not on
-        // whichever site the platform-wide WEB_URL points at.
+        // whichever site the platform-wide WEB_URL points at — and the gym, not
+        // the platform, is who the mail is from.
         gym.slug,
+        gym.name,
       );
     } catch (error) {
       this.logger.error(
@@ -955,7 +970,9 @@ export class AuthService {
       select: {
         id: true,
         name: true,
-        credentials: { select: { gymId: true, name: true, gym: { select: { slug: true } } } },
+        credentials: {
+          select: { gymId: true, name: true, gym: { select: { slug: true, name: true } } },
+        },
       },
     });
 
@@ -976,6 +993,7 @@ export class AuthService {
           target.name ?? user.name ?? undefined,
           locale ?? DEFAULT_EMAIL_LOCALE,
           target.gymSlug,
+          target.gymName,
         );
       } catch (error) {
         this.logger.error(
@@ -1247,7 +1265,7 @@ export class AuthService {
       });
     }
 
-    const userId = await this.resolveGoogleUser(profile);
+    const userId = await this.resolveGoogleUser(profile, input.gymSlug);
     // Gate suspended tenants here too — otherwise a suspended gym's members
     // could keep getting fresh sessions via social login while email/password
     // login and refresh are blocked.
@@ -1301,12 +1319,15 @@ export class AuthService {
    * with the same (Google-verified) email, which we link the `googleId` onto —
    * stamping `emailVerifiedAt` if it was never verified locally; else a brand-new
    * OAuth-only account (no password hash).
+   *
+   * A brand-new identity belongs to no gym, so on a gym's host (`gymSlug` given)
+   * the sign-in could only end in `403 NOT_A_MEMBER` — it is refused before the
+   * user row is written rather than leaving an orphaned account behind.
    */
-  private async resolveGoogleUser(profile: {
-    googleId: string;
-    email: string;
-    name?: string;
-  }): Promise<string> {
+  private async resolveGoogleUser(
+    profile: { googleId: string; email: string; name?: string },
+    gymSlug: string | null | undefined,
+  ): Promise<string> {
     const byGoogleId = await this.prisma.client.user.findUnique({
       where: { googleId: profile.googleId },
       select: { id: true },
@@ -1330,6 +1351,10 @@ export class AuthService {
         },
       });
       return byEmail.id;
+    }
+
+    if (gymSlug) {
+      throw notAMember();
     }
 
     const created = await this.prisma.client.user.create({
@@ -1359,7 +1384,7 @@ export class AuthService {
    */
   async loginWithApple(input: AppleAuthInput): Promise<TokenPair> {
     const profile = await this.apple.verifyIdToken(input.idToken);
-    const userId = await this.resolveAppleUser(profile, input.name);
+    const userId = await this.resolveAppleUser(profile, input.gymSlug, input.name);
     // Gate suspended tenants here too (see loginWithGoogle) so social login can't
     // sidestep a suspension that blocks email/password login and refresh.
     await this.assertGymAccessNotSuspended(userId, input.gymSlug);
@@ -1379,9 +1404,15 @@ export class AuthService {
    * the email Apple omits on later sign-ins is never needed. When no `appleId`
    * matches we *do* need the email: an Apple account that withholds it (or whose
    * address Apple reports unverified) can't be linked or created, so it is
-   * rejected rather than allowed to silently claim a local identity.
+   * rejected rather than allowed to silently claim a local identity. As with
+   * {@link resolveGoogleUser}, a brand-new identity on a gym's host is refused
+   * with `403 NOT_A_MEMBER` before any user row is written.
    */
-  private async resolveAppleUser(profile: AppleProfile, fallbackName?: string): Promise<string> {
+  private async resolveAppleUser(
+    profile: AppleProfile,
+    gymSlug: string | null | undefined,
+    fallbackName?: string,
+  ): Promise<string> {
     const byAppleId = await this.prisma.client.user.findUnique({
       where: { appleId: profile.appleId },
       select: { id: true },
@@ -1419,6 +1450,10 @@ export class AuthService {
         },
       });
       return byEmail.id;
+    }
+
+    if (gymSlug) {
+      throw notAMember();
     }
 
     const created = await this.prisma.client.user.create({
@@ -1613,10 +1648,7 @@ export class AuthService {
     });
 
     if (!membership && signIn) {
-      throw new ForbiddenException({
-        message: 'This account is not a member of this gym',
-        code: NOT_A_MEMBER_CODE,
-      });
+      throw notAMember();
     }
 
     if (membership && membership.status !== GymMemberStatus.ACTIVE) {
@@ -1765,14 +1797,14 @@ export class AuthService {
     email: string,
     token?: string,
     credential?: { passwordHash: string; name?: string },
-  ): Promise<{ gymId: string; gymSlug: string } | null> {
+  ): Promise<{ gymId: string; gymSlug: string; gymName: string } | null> {
     if (!token) {
       return null;
     }
     try {
       const invite = await this.prisma.client.staffInvite.findUnique({
         where: { token },
-        include: { gym: { select: { slug: true } } },
+        include: { gym: { select: { slug: true, name: true } } },
       });
       if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
         return null;
@@ -1843,7 +1875,7 @@ export class AuthService {
         return null;
       }
       this.logger.debug(`Redeemed staff invite ${invite.id} for user ${userId}`);
-      return { gymId: invite.gymId, gymSlug: invite.gym.slug };
+      return { gymId: invite.gymId, gymSlug: invite.gym.slug, gymName: invite.gym.name };
     } catch (error) {
       this.logger.error(
         `Failed to redeem staff invite for ${email}: ${
@@ -1862,18 +1894,30 @@ export class AuthService {
  * the whole identity, linked at the platform-wide reset page.
  */
 function resetTarget(
-  credentials: { gymId: string; name: string | null; gym: { slug: string } }[],
+  credentials: { gymId: string; name: string | null; gym: { slug: string; name: string } }[],
   gymSlug: string | null | undefined,
-): { gymId: string | null; gymSlug: string | null; name: string | null } | null {
+): {
+  gymId: string | null;
+  gymSlug: string | null;
+  gymName: string | null;
+  name: string | null;
+} | null {
   if (gymSlug) {
     const match = credentials.find((c) => c.gym.slug === gymSlug);
-    return match ? { gymId: match.gymId, gymSlug, name: match.name } : null;
+    return match
+      ? { gymId: match.gymId, gymSlug, gymName: match.gym.name, name: match.name }
+      : null;
   }
   if (credentials.length === 1) {
     const [only] = credentials;
-    return { gymId: only!.gymId, gymSlug: only!.gym.slug, name: only!.name };
+    return {
+      gymId: only!.gymId,
+      gymSlug: only!.gym.slug,
+      gymName: only!.gym.name,
+      name: only!.name,
+    };
   }
-  return { gymId: null, gymSlug: null, name: null };
+  return { gymId: null, gymSlug: null, gymName: null, name: null };
 }
 
 /**

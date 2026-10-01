@@ -34,7 +34,7 @@ const INPUT = {
 function setup(options: {
   configured?: boolean;
   user?: { email: string | null; name: string | null } | null;
-  gym?: { name: string; settings: unknown } | null;
+  gym?: { name: string; slug?: string; settings: unknown } | null;
 }) {
   const user = { findUnique: vi.fn().mockResolvedValue(options.user ?? null) };
   const gym = { findUnique: vi.fn().mockResolvedValue(options.gym ?? null) };
@@ -108,6 +108,37 @@ describe('EmailNotificationChannel', () => {
 
     expect(result).toEqual({ channel: NotificationChannel.EMAIL, ref: null, pending: true });
     expect(send).not.toHaveBeenCalled();
+  });
+
+  // A member's session is host-only, so the CTA must open the gym's own
+  // subdomain rather than the platform-wide WEB_URL, where they are signed out.
+  it('links the CTA to the gym’s own tenant host when a root domain is configured', async () => {
+    configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io' });
+    const { channel, gym, send } = setup({
+      user: { email: 'sam@example.com', name: 'Sam' },
+      gym: { name: 'Downtown', slug: 'downtown', settings: {} },
+    });
+
+    await channel.deliver({ ...INPUT, href: '/member/bookings' });
+
+    const query = gym.findUnique.mock.calls[0]![0] as { select: Record<string, boolean> };
+    expect(query.select.slug).toBe(true);
+    const message = send.mock.calls[0]![0] as { html: string };
+    expect(message.html).toContain('href="https://downtown.formacore.io/member/bookings"');
+    expect(message.html).not.toContain('https://app.fit/member/bookings');
+  });
+
+  it('keeps an already-absolute href as-is', async () => {
+    configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io' });
+    const { channel, send } = setup({
+      user: { email: 'sam@example.com', name: 'Sam' },
+      gym: { name: 'Downtown', slug: 'downtown', settings: {} },
+    });
+
+    await channel.deliver({ ...INPUT, href: 'https://example.com/x' });
+
+    const message = send.mock.calls[0]![0] as { html: string };
+    expect(message.html).toContain('https://example.com/x');
   });
 
   it('omits the CTA link when there is no WEB_URL to resolve a relative href against', async () => {
