@@ -109,11 +109,9 @@ export const FONT_FILES = {
  * Node's resolver and throw. Metro collects `require()` calls anywhere in a
  * module, nested or not, so the bundling behaviour is unchanged.
  *
- * NOTE: the six binaries are not in the repo (they cannot be — they are
- * upstream-licensed files, not source). Until a human drops them in, the Metro
- * build FAILS on the first of these lines. That failure is deliberate and loud:
- * the alternative, a silent system-font fallback, is exactly the class of thing
- * that shipped a "no emoji" design system with an emoji in it.
+ * The six binaries and their OFL notices are tracked in `assets/fonts/`.
+ * Metro fails at build time if a referenced file is missing; keep these static
+ * paths in sync with that directory and FONT_FILES.
  */
 export function fontAssetMap(): Record<string, number> {
   return {
@@ -174,8 +172,8 @@ export interface FontLoadState {
   /** True once every face above is registered and it is safe to hide the splash. */
   loaded: boolean;
   /**
-   * The load error, if any. Almost always "the binaries are not in
-   * `assets/fonts/` yet" — see that directory's README.
+   * A runtime font-loading error, if any. Missing static asset files instead
+   * fail at Metro build time — see that directory's README.
    */
   error: Error | null;
 }
