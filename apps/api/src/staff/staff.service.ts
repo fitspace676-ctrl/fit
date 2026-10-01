@@ -255,7 +255,8 @@ export class StaffService {
    * `passwordHash` (the console shows First/Last from the membership, so the
    * `User` only needs a name for other surfaces); an omitted email gets a unique
    * placeholder so the required+unique `User.email` still holds. A supplied email
-   * that already belongs to a user is a `409 EMAIL_IN_USE`. The selected
+   * already in this gym is a `409 EMAIL_IN_USE`; an identity from another gym
+   * is linked with a separate, password-less credential. The selected
    * specialties, assigned locations and weekly working hours are written in the
    * same transaction. Returns the new staff member.
    */
@@ -264,14 +265,17 @@ export class StaffService {
     const gymId = this.tenant.gymId;
     const email = input.email?.trim() ? input.email.trim().toLowerCase() : null;
 
-    if (email) {
-      const clash = await this.prisma.client.user.findUnique({
-        where: { email },
+    const existingUser = email
+      ? await this.prisma.client.user.findUnique({ where: { email }, select: { id: true } })
+      : null;
+    if (existingUser) {
+      const clash = await this.prisma.client.gymMember.findFirst({
+        where: { userId: existingUser.id, gymId },
         select: { id: true },
       });
       if (clash) {
         throw new ConflictException({
-          message: 'That email already belongs to a user',
+          message: 'That email already belongs to a member of this gym',
           code: 'EMAIL_IN_USE',
         });
       }
@@ -292,13 +296,26 @@ export class StaffService {
     this.assertLiveLocations(shiftLocationIds(input.workingHours), live);
 
     const memberId = await this.prisma.client.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          email: email ?? placeholderEmail(),
+      const user =
+        existingUser ??
+        (await tx.user.create({
+          data: {
+            email: email ?? placeholderEmail(),
+            name: displayName || null,
+            phone: input.phone?.trim() ? input.phone.trim() : null,
+          },
+          select: { id: true },
+        }));
+      await tx.gymCredential.upsert({
+        where: { userId_gymId: { userId: user.id, gymId } },
+        create: {
+          userId: user.id,
+          gymId,
+          passwordHash: null,
           name: displayName || null,
           phone: input.phone?.trim() ? input.phone.trim() : null,
         },
-        select: { id: true },
+        update: {},
       });
 
       // The BASE branch (`GymMember.locationId`), which partitions the payroll —

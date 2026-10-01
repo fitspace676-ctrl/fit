@@ -180,11 +180,21 @@ function setup() {
     updateMany: credentialUpdateMany,
     upsert: credentialUpsert,
   };
+  const userUpsert = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'user-1' }),
+  );
+  const gymMemberUpsert = vi.fn<(args: unknown) => Promise<{ id: string }>>(() =>
+    Promise.resolve({ id: 'gm-1' }),
+  );
   const transaction = vi.fn(
     <T>(
       fn: (tx: { user: unknown; gymMember: unknown; gymCredential: unknown }) => Promise<T>,
     ): Promise<T> =>
-      fn({ user: { create }, gymMember: { create: gymMemberCreate }, gymCredential }),
+      fn({
+        user: { create, upsert: userUpsert },
+        gymMember: { create: gymMemberCreate, upsert: gymMemberUpsert },
+        gymCredential,
+      }),
   );
   // Signup's home-branch lookups: the gym's default when the body names none, and
   // the named branch otherwise. Default to "the gym has a default, and any branch
@@ -251,6 +261,8 @@ function setup() {
     credentialUpdate,
     credentialUpdateMany,
     credentialUpsert,
+    userUpsert,
+    gymMemberUpsert,
   };
 }
 
@@ -376,6 +388,120 @@ describe('AuthService', () => {
       // The account + token were still persisted.
       expect(ctx.create).toHaveBeenCalled();
       expect(ctx.set).toHaveBeenCalled();
+    });
+  });
+
+  describe('register on a gym', () => {
+    const input = { email: 'a@b.com', name: 'Alice', password: 'supersecret', gymSlug: 'iron' };
+
+    it('creates a new identity, active membership and gym password without intake fields', async () => {
+      await expect(ctx.service.register(input)).resolves.toEqual({
+        message: 'verification email sent',
+      });
+      expect(ctx.userUpsert).toHaveBeenCalledWith({
+        where: { email: input.email },
+        create: { email: input.email, name: input.name, passwordHash: 'argon2-hash' },
+        update: {},
+        select: { id: true },
+      });
+      expect(ctx.gymMemberUpsert).toHaveBeenCalledWith({
+        where: { userId_gymId: { userId: 'user-1', gymId: 'gym-1' } },
+        create: {
+          userId: 'user-1',
+          gymId: 'gym-1',
+          role: 'MEMBER',
+          status: 'ACTIVE',
+          locationId: 'loc-default',
+        },
+        update: {},
+      });
+      expect(ctx.credentialCreate).toHaveBeenCalledWith({
+        data: { userId: 'user-1', gymId: 'gym-1', passwordHash: 'argon2-hash', name: 'Alice' },
+      });
+      expect(ctx.set).toHaveBeenCalledWith(
+        expect.any(String),
+        subject('user-1', 'gym-1'),
+        'EX',
+        86400,
+      );
+      expect(ctx.sendVerificationEmail).toHaveBeenCalledWith(
+        input.email,
+        expect.any(String),
+        'Alice',
+        expect.any(String),
+        'iron',
+      );
+      expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+    });
+
+    it('reuses another gym’s identity without changing that identity or revealing it', async () => {
+      ctx.userUpsert.mockResolvedValue({ id: 'other-gym-user' });
+      await expect(ctx.service.register(input)).resolves.toEqual({
+        message: 'verification email sent',
+      });
+      expect(ctx.credentialFindUnique).toHaveBeenCalledWith({
+        where: { userId_gymId: { userId: 'other-gym-user', gymId: 'gym-1' } },
+        select: { passwordHash: true },
+      });
+      expect(ctx.credentialCreate).toHaveBeenCalledWith({
+        data: {
+          userId: 'other-gym-user',
+          gymId: 'gym-1',
+          passwordHash: 'argon2-hash',
+          name: 'Alice',
+        },
+      });
+      expect(ctx.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses only a password already set in this gym', async () => {
+      ctx.credentialFindUnique.mockResolvedValue({ passwordHash: 'existing-hash' });
+      await expect(ctx.service.register(input)).rejects.toMatchObject({
+        response: { code: 'EMAIL_TAKEN' },
+      });
+      expect(ctx.credentialCreate).not.toHaveBeenCalled();
+      expect(ctx.credentialUpdateMany).not.toHaveBeenCalled();
+      expect(ctx.sendVerificationEmail).not.toHaveBeenCalled();
+    });
+
+    it.each([null, { passwordHash: null }])(
+      'sets the first password for a staff-added credential %j',
+      async (credential) => {
+        ctx.credentialFindUnique.mockResolvedValue(credential);
+        await expect(ctx.service.register(input)).resolves.toEqual({
+          message: 'verification email sent',
+        });
+        expect(ctx.gymMemberUpsert).toHaveBeenCalledWith(expect.objectContaining({ update: {} }));
+        if (credential) {
+          expect(ctx.credentialUpdateMany).toHaveBeenCalledWith({
+            where: { userId: 'user-1', gymId: 'gym-1', passwordHash: null },
+            data: { passwordHash: 'argon2-hash', name: 'Alice', emailVerifiedAt: null },
+          });
+        } else {
+          expect(ctx.credentialCreate).toHaveBeenCalled();
+        }
+        expect(ctx.sendVerificationEmail).toHaveBeenCalled();
+      },
+    );
+
+    it('does not overwrite a password set by a concurrent registration', async () => {
+      ctx.credentialFindUnique.mockResolvedValue({ passwordHash: null });
+      ctx.credentialUpdateMany.mockResolvedValue({ count: 0 });
+      await expect(ctx.service.register(input)).rejects.toMatchObject({
+        response: { code: 'EMAIL_TAKEN' },
+      });
+      expect(ctx.sendVerificationEmail).not.toHaveBeenCalled();
+    });
+
+    it('rejects unknown or suspended gyms instead of falling back to platform registration', async () => {
+      ctx.gymFindFirst.mockResolvedValue(null);
+      await expect(ctx.service.register(input)).rejects.toMatchObject({
+        response: { code: 'GYM_NOT_FOUND' },
+      });
+      expect(ctx.gymFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { slug: 'iron', status: 'ACTIVE' } }),
+      );
+      expect(ctx.userUpsert).not.toHaveBeenCalled();
     });
   });
 

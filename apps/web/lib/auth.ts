@@ -195,10 +195,11 @@ export async function registerWithCredentials(input: {
   /** Staff-invite token (T4.7), forwarded when the sign-up came from an invite link. */
   inviteToken?: string;
 }): Promise<{ message: string }> {
+  const gymSlug = currentGymSlug();
   const response = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: accountHeaders(),
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, ...(gymSlug ? { gymSlug } : {}) }),
   });
 
   if (!response.ok) {

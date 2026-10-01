@@ -506,7 +506,8 @@ export async function registerAccount(
   input: RegisterInput,
   options?: AuthCallOptions,
 ): Promise<{ message: string }> {
-  return deps.authApi.register(input, options);
+  const gymSlug = resolveGymSlug({ deepLinkSlug: input.gymSlug });
+  return deps.authApi.register({ ...input, ...(gymSlug ? { gymSlug } : {}) }, options);
 }
 
 /**

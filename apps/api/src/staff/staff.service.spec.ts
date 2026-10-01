@@ -113,6 +113,10 @@ function setup(overrides?: {
   const locationStaffCreateMany = vi.fn((_args: { data?: Record<string, unknown>[] }) =>
     Promise.resolve({ count: 0 }),
   );
+  const userFindUnique = vi.fn<(args: unknown) => Promise<{ id: string } | null>>(() =>
+    Promise.resolve(null),
+  );
+  const credentialUpsert = vi.fn(() => Promise.resolve({ id: 'cred-1' }));
   const userCreate = vi.fn(() => Promise.resolve({ id: 'u-new' }));
   const gymMemberCreate = vi.fn(
     (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
@@ -134,6 +138,7 @@ function setup(overrides?: {
       update: gymMemberUpdate,
       delete: gymMemberDelete,
     },
+    gymCredential: { upsert: credentialUpsert },
     staffInvite: {
       findMany: inviteFindMany,
       deleteMany: inviteDeleteMany,
@@ -143,7 +148,7 @@ function setup(overrides?: {
     user: {
       update: userUpdate,
       create: userCreate,
-      findUnique: vi.fn(() => Promise.resolve(null)),
+      findUnique: userFindUnique,
     },
     trainer: {
       findFirst: trainerFindFirst,
@@ -192,6 +197,9 @@ function setup(overrides?: {
     sendStaffInviteEmail,
     revokeAllForUser,
     userUpdate,
+    userCreate,
+    userFindUnique,
+    credentialUpsert,
     trainerFindFirst,
     trainerCreate,
     trainerUpdate,
@@ -307,6 +315,54 @@ describe('StaffService', () => {
       // not — the honest rendering of "nobody has said where they will work".
       const result = await service.listStaff({ locationId: 'loc-1' });
       expect(result.invites).toHaveLength(1);
+    });
+  });
+
+  describe('staff identities across gyms', () => {
+    const input = {
+      firstName: 'Nino',
+      lastName: 'Beridze',
+      email: 'nino@example.com',
+      role: 'MANAGER' as const,
+      status: 'ACTIVE' as const,
+      assignedLocationIds: [],
+      workingHours: [],
+    };
+
+    it('links another gym’s identity and creates a password-less credential', async () => {
+      const ctx = setup();
+      ctx.userFindUnique.mockResolvedValue({ id: 'other-user' });
+      ctx.gymMemberFindFirst.mockResolvedValueOnce(null);
+      await ctx.service.createStaff(input);
+      expect(ctx.userCreate).not.toHaveBeenCalled();
+      expect(ctx.userUpdate).not.toHaveBeenCalled();
+      expect(ctx.gymMemberCreate.mock.calls[0]?.[0]).toMatchObject({
+        data: { userId: 'other-user', gymId: 'gym-1' },
+      });
+      expect(ctx.credentialUpsert).toHaveBeenCalledWith({
+        where: { userId_gymId: { userId: 'other-user', gymId: 'gym-1' } },
+        create: {
+          userId: 'other-user',
+          gymId: 'gym-1',
+          passwordHash: null,
+          name: 'Nino Beridze',
+          phone: null,
+        },
+        update: {},
+      });
+    });
+
+    it('rejects an email only if it is already a member of this gym', async () => {
+      const ctx = setup();
+      ctx.userFindUnique.mockResolvedValue({ id: 'other-user' });
+      await expect(ctx.service.createStaff(input)).rejects.toMatchObject({
+        response: { code: 'EMAIL_IN_USE' },
+      });
+      expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
+        where: { userId: 'other-user', gymId: 'gym-1' },
+        select: { id: true },
+      });
+      expect(ctx.credentialUpsert).not.toHaveBeenCalled();
     });
   });
 

@@ -35,6 +35,7 @@ export const registerSchema = z.object({
   password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
   name: z.string().trim().min(1).max(100),
   inviteToken: inviteTokenSchema,
+  gymSlug: z.string().trim().toLowerCase().min(1).max(63).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

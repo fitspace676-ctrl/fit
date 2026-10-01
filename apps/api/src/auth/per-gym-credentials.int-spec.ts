@@ -158,6 +158,114 @@ describe('per-gym credentials (integration)', () => {
 
   afterAll(disconnect);
 
+  describe('register', () => {
+    it('registers one email in two gyms with separate passwords and verification', async () => {
+      const email = 'registered@example.com';
+      for (const [gymSlug, password] of [
+        ['downtown', DOWNTOWN_PASSWORD],
+        ['riverside', RIVERSIDE_PASSWORD],
+      ]) {
+        await expect(
+          h.auth.register({ email, name: `Member ${gymSlug}`, password: password!, gymSlug }),
+        ).resolves.toEqual({ message: 'verification email sent' });
+      }
+      const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(await prisma.gymMember.count({ where: { userId: user.id } })).toBe(2);
+      expect(await prisma.gymCredential.count({ where: { userId: user.id } })).toBe(2);
+      const riversideMail = h.lastMail('verify', email);
+      const downtownMail = h.lastMail('verify', email);
+      expect(riversideMail.gymSlug).toBe('riverside');
+      expect(downtownMail.gymSlug).toBe('downtown');
+      const downtown = await h.auth.verifyEmail(downtownMail.token);
+      expect(claimsOf(downtown.accessToken)).toMatchObject({ gymId: downtownId });
+      const stillUnverified = await prisma.gymCredential.findUniqueOrThrow({
+        where: { userId_gymId: { userId: user.id, gymId: riversideId } },
+      });
+      expect(stillUnverified.emailVerifiedAt).toBeNull();
+      await expect(
+        h.auth.login({ email, password: RIVERSIDE_PASSWORD }, 'riverside'),
+      ).rejects.toMatchObject({ response: { code: 'EMAIL_NOT_VERIFIED' } });
+      const riverside = await h.auth.verifyEmail(riversideMail.token);
+      expect(claimsOf(riverside.accessToken)).toMatchObject({ gymId: riversideId });
+      for (const [gymSlug, password, wrongPassword, gymId] of [
+        ['downtown', DOWNTOWN_PASSWORD, RIVERSIDE_PASSWORD, downtownId],
+        ['riverside', RIVERSIDE_PASSWORD, DOWNTOWN_PASSWORD, riversideId],
+      ]) {
+        const session = await h.auth.login({ email, password: password! }, gymSlug);
+        expect(claimsOf(session.accessToken)).toMatchObject({ gymId });
+        await expect(
+          h.auth.login({ email, password: wrongPassword! }, gymSlug),
+        ).rejects.toMatchObject({ response: { code: 'INVALID_CREDENTIALS' } });
+        await expect(
+          h.auth.register({ email, name: 'Duplicate', password: 'replacement-password', gymSlug }),
+        ).rejects.toMatchObject({ response: { code: 'EMAIL_TAKEN' } });
+      }
+    });
+
+    it.each([false, true])(
+      'activates a staff-added member with credential row %s without changing another gym',
+      async (hasCredential) => {
+        await prisma.gymCredential.delete({
+          where: { userId_gymId: { userId, gymId: riversideId } },
+        });
+        if (hasCredential)
+          await prisma.gymCredential.create({
+            data: { userId, gymId: riversideId, passwordHash: null, phone: '+995555000111' },
+          });
+        await prisma.gymMember.update({
+          where: { userId_gymId: { userId, gymId: riversideId } },
+          data: { role: Role.TRAINER },
+        });
+        const before = await prisma.gymCredential.findUniqueOrThrow({
+          where: { userId_gymId: { userId, gymId: downtownId } },
+        });
+        await h.auth.register({
+          email: EMAIL,
+          name: 'Sam Riverside',
+          password: 'new-riverside-password',
+          gymSlug: 'riverside',
+        });
+        await h.auth.verifyEmail(h.lastMail('verify', EMAIL).token);
+        const session = await h.auth.login(
+          { email: EMAIL, password: 'new-riverside-password' },
+          'riverside',
+        );
+        expect(claimsOf(session.accessToken)).toMatchObject({
+          gymId: riversideId,
+          role: Role.TRAINER,
+        });
+        expect(
+          await prisma.gymCredential.findUniqueOrThrow({
+            where: { userId_gymId: { userId, gymId: downtownId } },
+          }),
+        ).toEqual(before);
+      },
+    );
+
+    it('allows concurrent registrations of a new email in different gyms', async () => {
+      const email = 'concurrent@example.com';
+      const results = await Promise.all([
+        h.auth.register({
+          email,
+          name: 'Downtown',
+          password: DOWNTOWN_PASSWORD,
+          gymSlug: 'downtown',
+        }),
+        h.auth.register({
+          email,
+          name: 'Riverside',
+          password: RIVERSIDE_PASSWORD,
+          gymSlug: 'riverside',
+        }),
+      ]);
+      expect(results).toEqual([
+        { message: 'verification email sent' },
+        { message: 'verification email sent' },
+      ]);
+      expect(await prisma.gymCredential.count({ where: { user: { email } } })).toBe(2);
+    });
+  });
+
   describe('login', () => {
     it("each gym's host takes only that gym's password", async () => {
       const onDowntown = await h.auth.login(

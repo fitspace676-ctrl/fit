@@ -374,6 +374,18 @@ export class MembersService {
         select: { id: true },
       });
 
+      await tx.gymCredential.upsert({
+        where: { userId_gymId: { userId, gymId: this.tenant.gymId } },
+        create: {
+          userId,
+          gymId: this.tenant.gymId,
+          passwordHash: null,
+          name,
+          phone: phone ?? null,
+        },
+        update: {},
+      });
+
       // Optional plan enrolment (parity with the reference Add-Member form): a
       // staff-recorded ACTIVE subscription snapshotting the catalogue plan's
       // price/interval, no payment taken. A brand-new member holds no live
