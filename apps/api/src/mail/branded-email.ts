@@ -110,7 +110,7 @@ const PLATFORM_SENDER = 'FormaCore';
 /**
  * What the charcoal header band carries: the sender's initial on the lime block
  * beside their name for a gym, and the FormaCore dark-ground wordmark (white
- * "Forma", green "Core", the same PNG the portal serves) when the platform
+ * "Forma", blue "Core", the same PNG the portal serves) when the platform
  * itself is the sender and the web app's URL is known. Without a base URL the
  * platform falls back to the mark and name too, rather than a broken image.
  * `imageOnly` tells the shell the band carries no text, so it may pin the band
