@@ -88,3 +88,36 @@ export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
     return null;
   }
 }
+
+/**
+ * The colour the owner chose for the console under Settings, or `null` when it
+ * chose none (the console then keeps the default sky blue).
+ *
+ * Its own setting (`console.primaryColor`), independent of the member portal's
+ * colour, and the brand colour is not a fallback either: that one is set for
+ * invoices. Read from the public tenant lookup rather than `GET /gyms/settings`,
+ * because that endpoint is owner-only and a manager or a receptionist must see
+ * the console in the same colour as the owner.
+ *
+ * Never cached, so a colour saved in Settings shows on the next page load.
+ * Never throws: a failed lookup leaves the default colour, not a broken page.
+ */
+export async function getGymConsoleColor(slug: string | null): Promise<string | null> {
+  if (!slug) {
+    return null;
+  }
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as { portal?: Partial<GymPortalTheme> | null };
+    const color = body.portal?.consolePrimaryColor;
+    return typeof color === 'string' && HEX_COLOR.test(color) ? color : null;
+  } catch {
+    return null;
+  }
+}

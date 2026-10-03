@@ -149,6 +149,22 @@ describe('GymSettingsService', () => {
       expect(result.startDatePolicy).toEqual({ maxDaysAhead: 30, allowPast: true });
     });
 
+    it('stores the console colour on its own, leaving the portal colour alone', async () => {
+      const { service, update } = setup({
+        gym: { name: 'Iron Gym', settings: { memberPortal: { primaryColor: '#e548c8' } } },
+      });
+
+      const result = await service.updateSettings({ console: { primaryColor: '#dc2626' } });
+
+      const stored = update.mock.calls[0]?.[0]?.data?.settings as {
+        console: Record<string, unknown>;
+        memberPortal: Record<string, unknown>;
+      };
+      expect(stored.console).toEqual({ primaryColor: '#dc2626' });
+      expect(stored.memberPortal.primaryColor).toBe('#e548c8');
+      expect(result.console.primaryColor).toBe('#dc2626');
+    });
+
     it('merges a partial member-portal patch, leaving the untouched colours alone', async () => {
       const { service, update } = setup({
         gym: {

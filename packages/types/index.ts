@@ -24,6 +24,7 @@ export * from './src/dashboard-staff';
 export * from './src/dashboard-sales';
 export * from './src/gym-settings';
 export * from './src/join-card';
+export * from './src/portal-theme';
 export * from './src/gyms';
 export * from './src/invoices-admin';
 export * from './src/locations';

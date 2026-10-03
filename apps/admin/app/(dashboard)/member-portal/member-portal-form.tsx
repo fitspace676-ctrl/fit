@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { z } from 'zod';
 import {
+  DEFAULT_PORTAL_ACCENT,
   HEX_COLOR_PATTERN,
   JOIN_CARD_LIMITS,
   gymJoinCardSettingsSchema,
@@ -15,16 +16,8 @@ import {
   type JoinCardDefaults,
 } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
-import {
-  Controller,
-  Form,
-  Icon,
-  fieldErrorText,
-  useFormContext,
-  useToast,
-  useWatch,
-  useZodForm,
-} from '@/components/ui';
+import { Form, Icon, useFormContext, useToast, useWatch, useZodForm } from '@/components/ui';
+import { AccentColorField } from '@/components/accent-color-field';
 import type { SignedUploadResponse } from '@/lib/api';
 import {
   finalizePortalImageAction,
@@ -174,88 +167,10 @@ const styles = stylex.create({
   stack2: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
 
   /* ------------------------------ colour control ----------------------------- */
-  colorBlock: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-    borderRadius: 'var(--radius-container)',
-    backgroundColor: 'var(--color-background-muted)',
-    padding: '1rem',
-    boxShadow: 'inset 0 0 0 1px var(--color-border)',
-  },
-  colorHead: { display: 'flex', alignItems: 'center', gap: '0.5rem' },
-  colorLabel: {
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-primary)',
-  },
-  colorDesc: {
-    margin: 0,
-    fontSize: '0.75rem',
-    lineHeight: 1.5,
-    color: 'var(--color-text-secondary)',
-  },
   // "From brand" — the badge that says this colour is not the gym's own choice.
-  inheritBadge: {
-    marginLeft: 'auto',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent-muted)',
-    paddingInline: '0.5rem',
-    paddingBlock: '0.125rem',
-    fontSize: '0.6875rem',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-    color: 'var(--color-text-accent)',
-  },
-  colorRow: { display: 'flex', alignItems: 'center', gap: '0.625rem' },
   // The native colour well, stripped of its chrome so it reads as a swatch.
-  swatchInput: {
-    height: '2.5rem',
-    width: '2.75rem',
-    flexShrink: 0,
-    padding: '0.1875rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    cursor: 'pointer',
-  },
   // The inherited state's stand-in for it: a flat chip, deliberately NOT a
   // control, because the colour it shows is not this screen's to change.
-  swatchStatic: {
-    height: '2.5rem',
-    width: '2.75rem',
-    flexShrink: 0,
-    borderRadius: 'var(--radius-element)',
-    boxShadow: 'inset 0 0 0 1px var(--color-border)',
-  },
-  hexInput: {
-    height: '2.5rem',
-    flex: 1,
-    minWidth: 0,
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border)',
-      ':focus': 'var(--color-accent)',
-    },
-    backgroundColor: {
-      default: 'var(--color-background-surface)',
-      ':disabled': 'var(--color-background-muted)',
-    },
-    paddingInline: '0.625rem',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.875rem',
-    color: {
-      default: 'var(--color-text-primary)',
-      ':disabled': 'var(--color-text-secondary)',
-    },
-    outline: 'none',
-  },
-  hexInvalid: { borderColor: 'var(--color-error)' },
   linkBtn: {
     alignSelf: 'flex-start',
     borderStyle: 'none',
@@ -266,12 +181,6 @@ const styles = stylex.create({
     fontWeight: 600,
     textDecorationLine: { default: 'none', ':hover': 'underline' },
     color: 'var(--color-text-accent)',
-  },
-  fieldError: {
-    margin: 0,
-    fontSize: '0.75rem',
-    fontWeight: 500,
-    color: 'var(--color-error)',
   },
 
   /* -------------------------------- photograph ------------------------------- */
@@ -687,9 +596,6 @@ const styles = stylex.create({
   },
 });
 
-/** The two colours this screen edits — the keys `ColorControl` may bind to. */
-type ColorField = 'primaryColor';
-
 /**
  * The form's value shape — the `memberPortal` section verbatim.
  *
@@ -863,11 +769,12 @@ export function MemberPortalForm({
             <h2 {...stylex.props(styles.cardTitle)}>{t('colors.title')}</h2>
             <p {...stylex.props(styles.cardDesc)}>{t('colors.subtitle')}</p>
             <div {...stylex.props(styles.stack4)}>
-              <ColorControl
+              <AccentColorField
                 name="primaryColor"
                 label={t('colors.primaryLabel')}
                 description={t('colors.primaryDesc')}
-                inherited={initial.brand.primaryColor}
+                brand={initial.brand.primaryColor}
+                namespace="admin.memberPortal.colors"
               />
             </div>
           </Card>
@@ -903,7 +810,7 @@ export function MemberPortalForm({
             <p {...stylex.props(styles.cardDesc)}>{t('preview.subtitle')}</p>
             <PortalPreview
               gymName={initial.brand.name}
-              brandPrimary={initial.brand.primaryColor}
+              defaultPrimary={DEFAULT_PORTAL_ACCENT}
               brandLogoUrl={initial.brand.logoUrl}
               joinLocale={joinLocale}
               joinDefaults={joinDefaults[joinLocale]}
@@ -915,125 +822,6 @@ export function MemberPortalForm({
 
       <SaveBar />
     </Form>
-  );
-}
-
-/**
- * One colour, in either of its two states.
- *
- * INHERITED (`null`): the swatch and the hex box show the brand colour that is
- * standing in, the box is inert, a badge names where the value came from, and the
- * one action offered is to start choosing. Nothing here can be edited, because
- * the value being shown belongs to Settings → General, not to this screen.
- *
- * CHOSEN (a hex): the native colour well and the hex box are two views of the same
- * form value and stay in step through it — typing `#e4f26a` moves the well, and
- * dragging the well fills the box. The well is fed a *sanitised* value because a
- * half-typed `#e4f` is a perfectly reasonable intermediate state for the text box
- * and not a colour; the schema is what refuses it on submit, with the message
- * under the row.
- *
- * The way BACK to inherited is a plain button rather than a "clear" affordance on
- * the field: emptying a text box is how you express "no value", and `null` here is
- * not no value — it is a different, named source for one.
- */
-function ColorControl({
-  name,
-  label,
-  description,
-  inherited,
-}: {
-  name: ColorField;
-  label: string;
-  description: string;
-  /** The brand colour this field falls back to while it is `null`. */
-  inherited: string;
-}) {
-  const t = useTranslations('admin.memberPortal.colors');
-  const {
-    control,
-    setValue,
-    formState: { errors },
-  } = useFormContext<MemberPortalFormValues>();
-  const error = fieldErrorText(errors, name);
-
-  return (
-    <Controller
-      control={control}
-      name={name}
-      render={({ field }) => {
-        const inheriting = field.value === null;
-        const shown = field.value ?? inherited;
-        // The colour well rejects anything that is not `#rrggbb`, so an in-flight
-        // edit falls back to the inherited colour rather than blanking the well.
-        const swatch = HEX_COLOR_PATTERN.test(shown) ? shown : inherited;
-        return (
-          <div {...stylex.props(styles.colorBlock)}>
-            <div {...stylex.props(styles.colorHead)}>
-              <span {...stylex.props(styles.colorLabel)}>{label}</span>
-              {inheriting ? (
-                <span {...stylex.props(styles.inheritBadge)}>{t('inheritedBadge')}</span>
-              ) : null}
-            </div>
-            <p {...stylex.props(styles.colorDesc)}>{description}</p>
-
-            <div {...stylex.props(styles.colorRow)}>
-              {inheriting ? (
-                <span
-                  aria-hidden
-                  {...stylex.props(styles.swatchStatic, styles.tintBackground(swatch))}
-                />
-              ) : (
-                <input
-                  type="color"
-                  aria-label={t('pickerLabel', { label })}
-                  value={swatch}
-                  onChange={(event) => field.onChange(event.target.value)}
-                  {...stylex.props(styles.swatchInput)}
-                />
-              )}
-              <input
-                type="text"
-                aria-label={t('hexLabel', { label })}
-                value={shown}
-                disabled={inheriting}
-                spellCheck={false}
-                maxLength={7}
-                onChange={(event) => field.onChange(event.target.value)}
-                onBlur={field.onBlur}
-                {...stylex.props(styles.hexInput, Boolean(error) && styles.hexInvalid)}
-              />
-            </div>
-
-            {error ? <p {...stylex.props(styles.fieldError)}>{error}</p> : null}
-
-            {inheriting ? (
-              <>
-                <p {...stylex.props(styles.colorDesc)}>{t('inherited', { color: inherited })}</p>
-                <button
-                  type="button"
-                  // Seeded with the inherited colour rather than a platform
-                  // default: "use a different colour" starts from the one the
-                  // gym is looking at, so the first nudge is an adjustment.
-                  onClick={() => setValue(name, inherited, { shouldDirty: true })}
-                  {...stylex.props(styles.linkBtn)}
-                >
-                  {t('customise')}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setValue(name, null, { shouldDirty: true })}
-                {...stylex.props(styles.linkBtn)}
-              >
-                {t('reset')}
-              </button>
-            )}
-          </div>
-        );
-      }}
-    />
   );
 }
 
@@ -1447,14 +1235,14 @@ function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
  */
 function PortalPreview({
   gymName,
-  brandPrimary,
+  defaultPrimary,
   brandLogoUrl,
   joinLocale,
   joinDefaults,
 }: {
   gymName: string;
   /** The brand colours the portal's `null`s fall through to. */
-  brandPrimary: string;
+  defaultPrimary: string;
   /** The brand logo the portal's `null` wordmark falls through to. */
   brandLogoUrl: string | null;
   /** The language the join card is being edited in, which the mock shows. */
@@ -1490,7 +1278,7 @@ function PortalPreview({
   // also falls back, so the mock never paints itself with a broken value.
   const usable = (value: string | null, fallback: string): string =>
     value !== null && HEX_COLOR_PATTERN.test(value) ? value : fallback;
-  const primary = usable(primaryColor, brandPrimary);
+  const primary = usable(primaryColor, defaultPrimary);
   const photo = loginImageUrl ?? FALLBACK_PHOTO;
   // The same `memberPortal.logoUrl ?? brand.logoUrl` the API resolves. `null`
   // past both is the bundled mark, which over this dark panel is the white-inked

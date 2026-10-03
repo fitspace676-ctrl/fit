@@ -141,6 +141,7 @@ describe('GymsService.resolveBySubdomain', () => {
         chosenPrimaryColor: null,
         // The built-in join card: every line follows the portal's translations.
         joinCard: gymJoinCardSettingsSchema.parse({}),
+        consolePrimaryColor: null,
       },
     });
     expect(findUnique).toHaveBeenCalledWith(

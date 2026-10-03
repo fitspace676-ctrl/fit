@@ -5,7 +5,7 @@ import {
   gymJoinCardSettingsSchema,
   type GymPortalTheme,
   type GymPublicBrand,
-} from '@fit/types';
+} from './gym-settings';
 import {
   chosenPortalColors,
   contrastRatio,
@@ -77,6 +77,7 @@ function skinFor(
     logoUrl: null,
     primaryColor: DEFAULT_PRIMARY_COLOR,
     joinCard: gymJoinCardSettingsSchema.parse({}),
+    consolePrimaryColor: null,
     ...portal,
   };
   return chosenPortalColors(
@@ -268,6 +269,7 @@ describe('chosenPortalColors', () => {
       primaryColor: '#7C2D12',
       chosenPrimaryColor: '#7C2D12',
       joinCard: gymJoinCardSettingsSchema.parse({}),
+      consolePrimaryColor: null,
     };
     const brand = { primaryColor: '#7C2D12', secondaryColor: '#134E4A' };
     expect(chosenPortalColors(portal, brand)).toEqual({ primaryColor: '#7C2D12' });
@@ -281,6 +283,7 @@ describe('chosenPortalColors', () => {
       primaryColor: '#E11D48',
       chosenPrimaryColor: null,
       joinCard: gymJoinCardSettingsSchema.parse({}),
+      consolePrimaryColor: null,
     };
     expect(
       chosenPortalColors(portal, { primaryColor: '#111111', secondaryColor: '#222222' }),
