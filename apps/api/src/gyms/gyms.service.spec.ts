@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { GymStatus } from '@fit/db';
-import { DEFAULT_PRIMARY_COLOR, DEFAULT_SECONDARY_COLOR, DEFAULT_TIMEZONE } from '@fit/types';
+import {
+  DEFAULT_PRIMARY_COLOR,
+  DEFAULT_SECONDARY_COLOR,
+  DEFAULT_TIMEZONE,
+  gymJoinCardSettingsSchema,
+} from '@fit/types';
 import { GymsService } from './gyms.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -134,6 +139,8 @@ describe('GymsService.resolveBySubdomain', () => {
         // …and says so, so the member site can tell "never chose" from "chose
         // the brand's own colour" — the resolved value alone cannot.
         chosenPrimaryColor: null,
+        // The built-in join card: every line follows the portal's translations.
+        joinCard: gymJoinCardSettingsSchema.parse({}),
       },
     });
     expect(findUnique).toHaveBeenCalledWith(

@@ -2,6 +2,8 @@ import { headers } from 'next/headers';
 import { extractGymSlug } from '@fit/utils';
 import {
   DEFAULT_TIMEZONE,
+  gymJoinCardSettingsSchema,
+  type GymJoinCardSettings,
   type GymPortalTheme,
   type GymPublicBrand,
   type GymPublicContact,
@@ -29,6 +31,11 @@ export interface ActiveGymPortalSkin extends PortalColorChoice {
    * and there is nothing to undo.
    */
   logoUrl: string | null;
+  /**
+   * The sign-in join card as the gym stored it, `null` lines are the portal's
+   * own translations, resolved by `resolveJoinCard`.
+   */
+  joinCard: GymJoinCardSettings;
 }
 
 /**
@@ -241,6 +248,12 @@ export async function getActiveGymTimezone(): Promise<string> {
   }
 }
 
+/** The stored join card, or the all-defaults one when it is missing or malformed. */
+function parseJoinCard(value: unknown): GymJoinCardSettings {
+  const parsed = gymJoinCardSettingsSchema.safeParse(value ?? {});
+  return parsed.success ? parsed.data : gymJoinCardSettingsSchema.parse({});
+}
+
 /**
  * The active tenant's member-portal skin: the sign-in photograph and the gym's
  * own wordmark, plus the two colours **the gym actually chose** (`null` on either
@@ -291,6 +304,10 @@ export async function getActiveGymPortalSkin(): Promise<ActiveGymPortalSkin | nu
       // `<img src>` on the one screen rendered before anyone is authenticated,
       // and an API old enough to predate the field simply has no such key.
       logoUrl: typeof portal.logoUrl === 'string' ? portal.logoUrl : null,
+      // Parsed rather than cast: gym-written copy reaching a signed-out page. An
+      // API that predates the field, or a malformed value, reads as the default
+      // card instead of costing the gym its whole skin.
+      joinCard: parseJoinCard(portal.joinCard),
       ...chosenPortalColors(portal, body.brand ?? null),
     };
   } catch {

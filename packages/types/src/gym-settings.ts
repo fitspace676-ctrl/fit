@@ -156,10 +156,78 @@ export type GymBrandSettings = z.infer<typeof gymBrandSettingsSchema>;
  * until a gym uploads a file — so a brand logo reaching the portal is always one
  * the gym deliberately supplied.
  */
+/** Length ceilings for the sign-in join card's copy: see {@link gymJoinCardSettingsSchema}. */
+export const JOIN_CARD_LIMITS = {
+  title: 80,
+  subtitle: 200,
+  benefit: 100,
+  benefits: 5,
+  cta: 30,
+} as const;
+
+/**
+ * One line of join-card copy: a trimmed string, or `null` for "the built-in
+ * translation". A blank line is folded into `null` here rather than in each
+ * client, because clearing a field in the console sends `''` and that has to mean
+ * "back to the default" everywhere the value is read.
+ */
+const joinCardLine = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((value) => (value === '' ? null : value))
+    .nullable()
+    .default(null);
+
+/**
+ * The join card's copy in ONE language. `benefits` is `null` for the built-in
+ * three, and `[]` for a card with no ticks at all, two different choices, so
+ * the empty list is not folded into `null` the way a blank line is.
+ */
+export const gymJoinCardCopySchema = z.object({
+  title: joinCardLine(JOIN_CARD_LIMITS.title),
+  subtitle: joinCardLine(JOIN_CARD_LIMITS.subtitle),
+  benefits: z
+    .array(z.string().trim().min(1).max(JOIN_CARD_LIMITS.benefit))
+    .max(JOIN_CARD_LIMITS.benefits)
+    .nullable()
+    .default(null),
+  cta: joinCardLine(JOIN_CARD_LIMITS.cta),
+});
+
+/** One language's join-card copy: {@link gymJoinCardCopySchema}. */
+export type GymJoinCardCopy = z.infer<typeof gymJoinCardCopySchema>;
+
+/**
+ * The "not a member yet" card on the member sign-in screen (`AuthPhotoShell`):
+ * whether it shows, and what it says in each portal language.
+ *
+ * PER LANGUAGE, not one string. The portal is served in `ka` and `en`, and a gym
+ * that writes its own heading in Georgian must not have it shown to an English
+ * visitor. A language left all-`null` reads exactly as the product's own copy, so
+ * a gym can customise one and leave the other alone.
+ *
+ * A `title` may carry `{gym}`, which the portal replaces with the gym's name:
+ * the same token the built-in heading uses.
+ *
+ * The limits are layout limits: the card is a fixed panel over a photograph,
+ * and copy past them pushes the call to action off it.
+ */
+export const gymJoinCardSettingsSchema = z.object({
+  hidden: z.boolean().default(false),
+  ka: gymJoinCardCopySchema.default({}),
+  en: gymJoinCardCopySchema.default({}),
+});
+
+/** The sign-in join card: {@link gymJoinCardSettingsSchema}. */
+export type GymJoinCardSettings = z.infer<typeof gymJoinCardSettingsSchema>;
+
 export const gymMemberPortalSettingsSchema = z.object({
   loginImageUrl: z.string().url().nullable().default(null),
   logoUrl: z.string().url().nullable().default(null),
   primaryColor: z.string().regex(HEX_COLOR_PATTERN, HEX_COLOR_MESSAGE).nullable().default(null),
+  joinCard: gymJoinCardSettingsSchema.default({}),
 });
 
 /** The member portal's look — {@link gymMemberPortalSettingsSchema}. */
@@ -1081,6 +1149,11 @@ export interface GymPortalTheme {
    * comparison alone.
    */
   chosenPrimaryColor: string | null;
+  /**
+   * The sign-in screen's join card, as stored: `null` lines are the portal's
+   * own translations, which only the member app has, so they are resolved there.
+   */
+  joinCard: GymJoinCardSettings;
 }
 
 /**
@@ -1099,6 +1172,7 @@ export function gymPortalTheme(rawSettings: unknown): GymPortalTheme {
     logoUrl: stored.memberPortal.logoUrl ?? stored.brand.logoUrl,
     primaryColor: stored.memberPortal.primaryColor ?? stored.brand.primaryColor,
     chosenPrimaryColor: stored.memberPortal.primaryColor,
+    joinCard: stored.memberPortal.joinCard,
   };
 }
 

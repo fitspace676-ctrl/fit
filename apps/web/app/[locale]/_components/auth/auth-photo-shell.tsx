@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import * as stylex from '@stylexjs/stylex';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { gymJoinCardSettingsSchema, resolveJoinCard } from '@fit/types';
 import { getActiveGymName, getActiveGymPortalSkin } from '@/lib/active-gym';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
@@ -64,7 +65,7 @@ import { ThemeToggle } from '@/src/components/member/theme-toggle';
  */
 const FALLBACK_GYM_PHOTO = '/gym-hero.webp';
 
-/** The three selling points the join strip lists, in order. */
+/** The three built-in selling points the join strip lists, in order. */
 const BENEFIT_KEYS = ['branch', 'plan', 'instant'] as const;
 
 const styles = stylex.create({
@@ -390,12 +391,30 @@ export interface AuthPhotoShellProps {
 }
 
 export async function AuthPhotoShell({ title, subtitle, children, footer }: AuthPhotoShellProps) {
-  const [t, tShell, gymName, portal] = await Promise.all([
+  const [t, tShell, gymName, portal, locale] = await Promise.all([
     getTranslations('auth'),
     getTranslations('member.shell'),
     getActiveGymName(),
     getActiveGymPortalSkin(),
+    getLocale(),
   ]);
+  // The join strip's copy is the gym's own where it wrote some (Settings → Member
+  // portal), the built-in translation where it did not, and absent when it hid
+  // the strip. No skin at all (apex, preview, lookup failed) is the default card.
+  const join = resolveJoinCard(
+    portal?.joinCard ?? gymJoinCardSettingsSchema.parse({}),
+    locale,
+    {
+      title: t('join.title'),
+      // Kept as a template so `resolveJoinCard` fills `{gym}` the same way for
+      // the built-in heading and for one the gym wrote.
+      titleNamed: t.raw('join.titleNamed') as string,
+      subtitle: t('join.subtitle'),
+      benefits: BENEFIT_KEYS.map((key) => t(`join.benefits.${key}`)),
+      cta: t('join.cta'),
+    },
+    gymName,
+  );
   const photo = portal?.loginImageUrl ?? FALLBACK_GYM_PHOTO;
   // `null` here is "this gym has uploaded no mark at all" — the API has already
   // tried its portal logo and then its brand logo — so `PortalLogo` answers with
@@ -456,28 +475,30 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
             <ThemeToggle />
           </div>
 
-          <div {...stylex.props(styles.join)}>
-            <div {...stylex.props(styles.joinRow)}>
-              <div {...stylex.props(styles.joinText)}>
-                <p {...stylex.props(styles.joinTitle)}>
-                  {gymName ? t('join.titleNamed', { gym: gymName }) : t('join.title')}
-                </p>
-                <p {...stylex.props(styles.joinSub)}>{t('join.subtitle')}</p>
-                <ul {...stylex.props(styles.benefits)}>
-                  {BENEFIT_KEYS.map((key) => (
-                    <li key={key} {...stylex.props(styles.benefit)}>
-                      <Icon name="check" sw={2.6} {...stylex.props(styles.benefitIcon)} />
-                      {t(`join.benefits.${key}`)}
-                    </li>
-                  ))}
-                </ul>
+          {join ? (
+            <div {...stylex.props(styles.join)}>
+              <div {...stylex.props(styles.joinRow)}>
+                <div {...stylex.props(styles.joinText)}>
+                  <p {...stylex.props(styles.joinTitle)}>{join.title}</p>
+                  <p {...stylex.props(styles.joinSub)}>{join.subtitle}</p>
+                  {join.benefits.length > 0 ? (
+                    <ul {...stylex.props(styles.benefits)}>
+                      {join.benefits.map((benefit, index) => (
+                        <li key={index} {...stylex.props(styles.benefit)}>
+                          <Icon name="check" sw={2.6} {...stylex.props(styles.benefitIcon)} />
+                          {benefit}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+                <Link href="/member/checkout" {...stylex.props(styles.joinCta)}>
+                  {join.cta}
+                  <Icon name="chevronRight" sw={2.2} {...stylex.props(styles.joinCtaIcon)} />
+                </Link>
               </div>
-              <Link href="/member/checkout" {...stylex.props(styles.joinCta)}>
-                {t('join.cta')}
-                <Icon name="chevronRight" sw={2.2} {...stylex.props(styles.joinCtaIcon)} />
-              </Link>
             </div>
-          </div>
+          ) : null}
         </aside>
       </div>
     </main>

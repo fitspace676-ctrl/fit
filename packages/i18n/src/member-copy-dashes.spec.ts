@@ -70,6 +70,7 @@ const CONSOLE_NAMESPACES = [
   'admin.ptCalendar',
   'admin.trainers.addDrawer',
   'admin.trainers.clients',
+  'admin.memberPortal.joinCard',
 ] as const;
 
 /** The subtree at a dotted `path`, e.g. `admin.services`. */

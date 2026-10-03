@@ -102,6 +102,31 @@ describe('getActiveGymPortalSkin', () => {
     fetchMock.mockResolvedValue(gym({ primaryColor: '#111111' }));
     await expect(getActiveGymPortalSkin()).resolves.toMatchObject({ primaryColor: null });
   });
+
+  it('carries the join card the gym wrote', async () => {
+    fetchMock.mockResolvedValue(
+      gym({ primaryColor: '#111111', joinCard: { hidden: true, en: { cta: 'Join' } } }),
+    );
+    const skin = await getActiveGymPortalSkin();
+    expect(skin?.joinCard.hidden).toBe(true);
+    expect(skin?.joinCard.en.cta).toBe('Join');
+  });
+
+  // Gym-written copy on a signed-out page: a value the schema refuses, or an
+  // API that predates the field, is the default card, not a lost skin.
+  it('reads a missing or malformed join card as the default one', async () => {
+    fetchMock.mockResolvedValue(gym({ primaryColor: '#111111' }));
+    await expect(getActiveGymPortalSkin()).resolves.toMatchObject({
+      joinCard: { hidden: false, en: { title: null } },
+    });
+    fetchMock.mockResolvedValue(
+      gym({ primaryColor: '#111111', joinCard: { en: { cta: 'x'.repeat(500) } } }),
+    );
+    await expect(getActiveGymPortalSkin()).resolves.toMatchObject({
+      primaryColor: null,
+      joinCard: { en: { cta: null } },
+    });
+  });
 });
 
 describe('getActiveGymBrand', () => {

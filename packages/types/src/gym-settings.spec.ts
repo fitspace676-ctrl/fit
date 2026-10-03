@@ -7,6 +7,7 @@ import {
   enabledPaymentMethods,
   formatInvoiceNumber,
   gymInvoiceSettingsSchema,
+  gymJoinCardSettingsSchema,
   gymMemberIntakeSettingsSchema,
   gymMemberPortalSettingsSchema,
   gymPaymentMethodsSchema,
@@ -320,6 +321,11 @@ describe('gymMemberPortalSettingsSchema — the portal wordmark', () => {
       loginImageUrl: null,
       logoUrl: null,
       primaryColor: null,
+      joinCard: {
+        hidden: false,
+        ka: { title: null, subtitle: null, benefits: null, cta: null },
+        en: { title: null, subtitle: null, benefits: null, cta: null },
+      },
     });
   });
 
@@ -340,6 +346,84 @@ describe('gymMemberPortalSettingsSchema — the portal wordmark', () => {
     expect(updateGymSettingsSchema.parse({ memberPortal: { logoUrl: null } })).toEqual({
       memberPortal: { logoUrl: null },
     });
+  });
+});
+
+// The sign-in screen's "not a member yet" card. Every field is nullable because
+// `null` is "say what the product says", the translated default, so a gym that
+// never opened the card renders exactly as before, in either language.
+describe('gymJoinCardSettingsSchema, the sign-in join card', () => {
+  it('defaults to shown, with every line following the built-in copy', () => {
+    expect(gymJoinCardSettingsSchema.parse({})).toEqual({
+      hidden: false,
+      ka: { title: null, subtitle: null, benefits: null, cta: null },
+      en: { title: null, subtitle: null, benefits: null, cta: null },
+    });
+  });
+
+  it('keeps each language separately', () => {
+    const card = gymJoinCardSettingsSchema.parse({
+      ka: { title: 'მოდი {gym}-ში', benefits: ['უფასო პირველი ვარჯიში'] },
+      en: { cta: 'Join now' },
+    });
+    expect(card.ka).toEqual({
+      title: 'მოდი {gym}-ში',
+      subtitle: null,
+      benefits: ['უფასო პირველი ვარჯიში'],
+      cta: null,
+    });
+    expect(card.en.cta).toBe('Join now');
+    expect(card.en.title).toBeNull();
+  });
+
+  // A field cleared in the console arrives as '', that is "back to the default",
+  // not "render an empty heading".
+  it('reads a blank line as the default', () => {
+    expect(gymJoinCardSettingsSchema.parse({ en: { title: '   ', cta: '' } }).en).toMatchObject({
+      title: null,
+      cta: null,
+    });
+  });
+
+  // An empty list is a real choice, the card with no ticks, and must not
+  // collapse into `null`, which would bring the three defaults back.
+  it('tells an empty benefit list apart from the default one', () => {
+    expect(gymJoinCardSettingsSchema.parse({ ka: { benefits: [] } }).ka.benefits).toEqual([]);
+  });
+
+  // The card is a fixed-size panel over a photograph: past these the copy pushes
+  // the CTA off the strip, so the API refuses rather than rendering it broken.
+  it('refuses copy that would overflow the card', () => {
+    const tooLong = (n: number) => 'x'.repeat(n + 1);
+    for (const en of [
+      { title: tooLong(80) },
+      { subtitle: tooLong(200) },
+      { cta: tooLong(30) },
+      { benefits: [tooLong(100)] },
+      { benefits: ['1', '2', '3', '4', '5', '6'] },
+      { benefits: [' '] },
+    ]) {
+      expect(gymJoinCardSettingsSchema.safeParse({ en }).success).toBe(false);
+    }
+  });
+
+  it('round-trips through the settings PATCH body', () => {
+    const joinCard = { hidden: true, ka: { title: 'სათაური' } };
+    expect(updateGymSettingsSchema.parse({ memberPortal: { joinCard } })).toEqual({
+      memberPortal: {
+        joinCard: {
+          hidden: true,
+          ka: { title: 'სათაური', subtitle: null, benefits: null, cta: null },
+          en: { title: null, subtitle: null, benefits: null, cta: null },
+        },
+      },
+    });
+  });
+
+  it('reaches the public portal theme as stored', () => {
+    expect(gymPortalTheme({ memberPortal: { joinCard: { hidden: true } } }).joinCard.hidden).toBe(
+      true,
+    );
   });
 });
 
@@ -380,6 +464,7 @@ describe('gymPortalTheme — resolving the wordmark against the brand', () => {
       logoUrl: null,
       primaryColor: '#e4f26a',
       chosenPrimaryColor: '#e4f26a',
+      joinCard: gymJoinCardSettingsSchema.parse({}),
     });
   });
 
