@@ -63,17 +63,17 @@ export const ink = {
  * Anything sitting ON a lime fill is ink-950. White on lime is ~1.5:1.
  */
 export const brand = {
-  50: '#FBFEE9',
-  100: '#F6FCC9',
-  200: '#EFF9A2',
-  300: '#E4F26A',
-  400: '#D6E844',
-  500: '#C2D625',
-  600: '#A3B71C',
-  700: '#7D8C1B',
-  800: '#63701D',
-  900: '#525C1E',
-  950: '#2C330A',
+  50: '#EEF7FF',
+  100: '#DCEEFF',
+  200: '#B8DDFF',
+  300: '#7CC4FF',
+  400: '#3D95E0',
+  500: '#1A7FD6',
+  600: '#1570BF',
+  700: '#0B67A8',
+  800: '#0B5590',
+  900: '#0A4170',
+  950: '#0E2A42',
 };
 
 /**

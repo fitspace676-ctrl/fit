@@ -120,9 +120,9 @@ describe('3 — the shared Tailwind base config carries the design brand', () =>
   // import the `.mjs` config directly. Here we assert the value it must equal,
   // so a repaint that lands in the design source but not in the palette fails
   // in both places.
-  it('brand-300 is the lime block colour', () => {
-    expect(hex(palette.brand[300])).toBe(hex(designColors['brand']?.['300'] as string));
-    expect(hex(palette.brand[300])).toBe('#E4F26A');
+  it('brand-500 is the sky blue block colour', () => {
+    expect(hex(palette.brand[500])).toBe(hex(designColors['brand']?.['500'] as string));
+    expect(hex(palette.brand[500])).toBe('#1A7FD6');
   });
 });
 
@@ -163,11 +163,11 @@ describe('4 — every semantic value resolves to something nameable', () => {
     }
   });
 
-  it('never flips text-on-lime to white — it is ~1.5:1 and unreadable', () => {
-    expect(colorTuples.onAccent).toEqual([palette.ink[950], palette.ink[950]]);
+  it('puts white type on the blue block, in both modes', () => {
+    expect(colorTuples.onAccent).toEqual([palette.white, palette.white]);
   });
 
-  it('keeps the lime identical in both modes — the block does not change theme', () => {
+  it('keeps the block colour identical in both modes, the block does not change theme', () => {
     expect(colorTuples.accent[0]).toBe(colorTuples.accent[1]);
   });
 

@@ -16,7 +16,8 @@ import { TopLoader } from '@/components/top-loader';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/lib/theme';
 import { AstryxProvider } from '@/components/theme/astryx-provider';
-import { getActiveGymBrand } from '@/lib/active-gym';
+import { getActiveGymBrand, getActiveGymSlug } from '@/lib/active-gym';
+import { ConsoleThemeStyle } from '@/components/console-theme-style';
 import { gymMetadata, gymViewport } from '@/lib/gym-metadata';
 
 /**
@@ -77,6 +78,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       suppressHydrationWarning
     >
       <body className="min-h-screen font-sans antialiased">
+        {/* The owner's console colour, on every page the host names a gym for,
+            the sign-in page included. */}
+        <ConsoleThemeStyle slug={await getActiveGymSlug()} />
         <SentryInit />
         <TopLoader />
         <NextIntlClientProvider locale={locale} messages={messages}>

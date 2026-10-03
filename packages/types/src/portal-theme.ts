@@ -54,12 +54,19 @@
 // own toggle. Emitting the same construct means the override rides the existing
 // switch instead of racing it.
 
-import type { GymPortalTheme, GymPublicBrand } from '@fit/types';
+import type { GymPortalTheme, GymPublicBrand } from './gym-settings';
 
 /**
  * CSS custom properties, ready to spread into an inline `style`. Keyed by the
  * property name so the key itself documents what is being overridden.
  */
+/**
+ * The accent the portal and the console wear when a gym has chosen none: the
+ * formacore theme's block colour (`brand[500]` in `formacoreTheme.ts`). Named here
+ * so the console can show it as the default instead of the brand colour.
+ */
+export const DEFAULT_PORTAL_ACCENT = '#1A7FD6';
+
 export type PortalThemeVars = Record<`--${string}`, string>;
 
 /** An sRGB colour, 0–255 per channel. */

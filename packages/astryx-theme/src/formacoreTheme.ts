@@ -50,19 +50,20 @@ const ink = {
 } as const;
 
 /**
- * The lime — the product's only chromatic voice. `300` is the block colour that
- * carries the membership, the primary action and a confirmed booking; the deeper
- * stops exist so lime-on-light text stays legible (300 on white is ~1.3:1).
+ * The sky blue, the product's only chromatic voice (it replaced the lime). `500`
+ * is the block colour that carries the membership, the primary action and a
+ * confirmed booking, with white type on it. `300` is the same blue lifted for
+ * text and icons on the dark canvas; `700` is it deepened for text on light.
  */
 const brand = {
-  100: '#F6FCC9',
-  200: '#EFF9A2',
-  300: '#E4F26A',
-  400: '#D6E844',
-  500: '#C2D625',
-  700: '#7D8C1B',
-  800: '#63701D',
-  950: '#2C330A',
+  100: '#DCEEFF',
+  200: '#B8DDFF',
+  300: '#7CC4FF',
+  400: '#3D95E0',
+  500: '#1A7FD6',
+  700: '#0B67A8',
+  800: '#0B5590',
+  950: '#0E2A42',
 } as const;
 
 /**
@@ -129,8 +130,8 @@ const fcTokens = {
   // "press me" — tinted fill, deep lime text, lime hairline. Distinct from the
   // solid `--color-accent` CTA that offers the action in the first place.
   '--fc-booked': [brand[100], brand[950]],
-  '--fc-on-booked': [brand[800], brand[200]],
-  '--fc-booked-border': [brand[300], brand[800]],
+  '--fc-on-booked': [brand[700], brand[200]],
+  '--fc-booked-border': [brand[500], brand[700]],
 
   // Sticky header: the canvas at 95% behind a small blur, so content scrolling
   // under it stays sensed but never legible. This is the artboards' one
@@ -164,9 +165,10 @@ const fcTokens = {
   // no theme defines. An undefined custom property with no fallback is invalid
   // at computed-value time, so `background-color` fell back to its INITIAL value
   // (`transparent`) and the lime buttons went see-through on hover. The sign-in
-  // submit had already hardcoded `#EFF9A2` for the same state; this is that
+  // submit had already hardcoded `#B8DDFF` for the same state; this is that
   // value, named, so the two cannot drift.
-  '--fc-accent-hover': brand[200],
+  // With the blue, one step LIGHTER (400) still reads as "live" on hover.
+  '--fc-accent-hover': brand[400],
 
   // The focus ring, as one value every control shares. Authored here rather than
   // per component so a keyboard user meets exactly one ring in the product, and
@@ -241,11 +243,14 @@ export const formacoreTheme = defineTheme({
     // the first stop on the ramp that actually clears it. Dark mode was never at
     // risk: 300 on ink-900 is 13.7:1.
     // =========================================================================
-    '--color-accent': brand[300],
+    //
+    // With the sky blue the block colour is `500` and the ink on it is WHITE
+    // (about 4.2:1); text and icon accents are `700` on light and `300` on dark.
+    '--color-accent': brand[500],
     '--color-accent-muted': [brand[100], brand[950]],
-    '--color-on-accent': ink[950],
-    '--color-text-accent': [brand[800], brand[300]],
-    '--color-icon-accent': [brand[800], brand[300]],
+    '--color-on-accent': '#FFFFFF',
+    '--color-text-accent': [brand[700], brand[300]],
+    '--color-icon-accent': [brand[700], brand[300]],
 
     // =========================================================================
     // Text & icon ladders — three stops each, no more. The direction leans on
@@ -283,7 +288,7 @@ export const formacoreTheme = defineTheme({
     // =========================================================================
     '--color-success': [brand[500], brand[300]],
     '--color-success-muted': [brand[100], brand[950]],
-    '--color-on-success': ink[950],
+    '--color-on-success': '#FFFFFF',
 
     '--color-warning': [ink[500], ink[400]],
     '--color-warning-muted': [ink[100], ink[800]],

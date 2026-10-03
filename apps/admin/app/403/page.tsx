@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { ButtonLink } from '@/components/ui/button-link';
 import { getLocale } from 'next-intl/server';
-import { Badge, buttonSurfaceProps } from '@fit/ui-kit';
+import { Badge } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { isStaff } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
@@ -62,16 +62,15 @@ export default async function ForbiddenPage() {
         Your account doesn’t have permission to view this part of the admin console. If you think
         this is a mistake, contact your gym owner.
       </p>
-      {exit.external ? (
-        // A plain `<a>`, not `ButtonLink`: this href leaves the console
-        // entirely, and `next/link` would try to client-navigate it. It still
-        // wears the kit's surface, so the two exits are the same object.
-        <a href={exit.href} {...buttonSurfaceProps({ variant: 'secondary', size: 'card' })}>
-          {exit.label}
-        </a>
-      ) : (
-        <ButtonLink href={exit.href} variant="secondary" size="card" label={exit.label} />
-      )}
+      {/* `external` when the exit leaves the console entirely, so it is a plain
+          `<a>` rather than a client-side `next/link` navigation. */}
+      <ButtonLink
+        href={exit.href}
+        external={exit.external}
+        variant="secondary"
+        size="card"
+        label={exit.label}
+      />
     </main>
   );
 }

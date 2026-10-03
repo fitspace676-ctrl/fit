@@ -53,17 +53,17 @@ export default {
         // (`300` on white is ~1.3:1), which is why text and links take `800`.
         // Anything on a lime fill is `ink-950`.
         brand: {
-          50: '#FBFEE9',
-          100: '#F6FCC9',
-          200: '#EFF9A2',
-          300: '#E4F26A',
-          400: '#D6E844',
-          500: '#C2D625',
-          600: '#A3B71C',
-          700: '#7D8C1B',
-          800: '#63701D',
-          900: '#525C1E',
-          950: '#2C330A',
+          50: '#EEF7FF',
+          100: '#DCEEFF',
+          200: '#B8DDFF',
+          300: '#7CC4FF',
+          400: '#3D95E0',
+          500: '#1A7FD6',
+          600: '#1570BF',
+          700: '#0B67A8',
+          800: '#0B5590',
+          900: '#0A4170',
+          950: '#0E2A42',
         },
         // Retired by the direction — aliased to ink so surviving call sites go
         // neutral rather than reintroducing a second hue. Delete with them.
@@ -75,17 +75,17 @@ export default {
         // in an unmigrated screen renders as lime instead of a green that would
         // compete with the accent for the eye.
         success: {
-          50: '#FBFEE9',
-          100: '#F6FCC9',
-          200: '#EFF9A2',
-          300: '#E4F26A',
-          400: '#D6E844',
-          500: '#C2D625',
-          600: '#A3B71C',
-          700: '#7D8C1B',
-          800: '#63701D',
-          900: '#525C1E',
-          950: '#2C330A',
+          50: '#EEF7FF',
+          100: '#DCEEFF',
+          200: '#B8DDFF',
+          300: '#7CC4FF',
+          400: '#3D95E0',
+          500: '#1A7FD6',
+          600: '#1570BF',
+          700: '#0B67A8',
+          800: '#0B5590',
+          900: '#0A4170',
+          950: '#0E2A42',
         },
         warning: ink,
         danger: {

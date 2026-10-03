@@ -21,7 +21,8 @@ import {
   resolveActiveLocation,
 } from '@/lib/active-location';
 import { fetchActiveLocations } from '@/lib/active-location-server';
-import { getActiveGymSlug } from '@/lib/active-gym';
+import { getActiveGymSlug, getGymConsoleColor } from '@/lib/active-gym';
+import { consoleThemeCss } from '@/lib/console-theme';
 import { hasRoleAtLeast, ROLES, type Role } from '@/lib/auth-session';
 import { fetchCheckInStats, fetchGymSettings } from '@/lib/api';
 
@@ -131,10 +132,19 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // The gym prices in one currency (Settings → General). Read once here and shared
   // through context so no money surface has to invent a fallback of its own — the
   // POS till, the product form and the plan form all used to hardcode USD.
-  const currency = await fetchGymSettings().then(
-    (settings) => settings.locale.currency,
-    () => DEFAULT_CURRENCY,
-  );
+  //
+  // Beside it, the console colour the owner chose under Settings, for a bare host
+  // (local dev) only: on a gym's own host the root layout has already written it
+  // from the host's slug, and asking again would only duplicate the rule. The
+  // session's slug lets every role see the owner's choice there too.
+  const [currency, consoleColor] = await Promise.all([
+    fetchGymSettings().then(
+      (settings) => settings.locale.currency,
+      () => DEFAULT_CURRENCY,
+    ),
+    gymSlug ? Promise.resolve(null) : getGymConsoleColor(session?.gymSlug ?? null),
+  ]);
+  const themeCss = consoleThemeCss(consoleColor);
 
   // The top-bar branch switcher is populated from the gym's active locations,
   // NARROWED to the ones this operator may use. A role scoped to its assigned
@@ -165,6 +175,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <ConsolePermissionsProvider permissions={permissions}>
+      {/* The gym's colour over the theme default; see `lib/console-theme.ts`. */}
+      {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
       <GymCurrencyProvider currency={currency}>
         <ActiveLocationProvider initial={activeLocation} locations={locations} access={access}>
           <AdminShell

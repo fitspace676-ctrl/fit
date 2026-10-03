@@ -8,6 +8,7 @@ import * as stylex from '@stylexjs/stylex';
 import { z } from 'zod';
 import {
   DEFAULT_CURRENCY,
+  HEX_COLOR_PATTERN,
   DEFAULT_TIMEZONE,
   GYM_LOGO_MAX_WIDTH,
   REPORT_CATALOG,
@@ -35,7 +36,7 @@ import {
   type Weekday,
   type WeeklyHours,
 } from '@fit/types';
-import { Button, Card, Switch } from '@fit/ui-kit';
+import { Button, Card, Checkbox, Switch } from '@fit/ui-kit';
 import {
   Controller,
   Form,
@@ -48,6 +49,7 @@ import {
   type FieldErrors,
   type IconName,
 } from '@/components/ui';
+import { AccentColorField } from '@/components/accent-color-field';
 import { NumberField, SelectField, TextField } from '@/components/ui/form-fields';
 import {
   finalizeGymLogoAction,
@@ -695,6 +697,14 @@ function withCurrent(base: string[], current: string): string[] {
 /** The settings form value shape — one flat mirror of `GymSettings` the form edits. */
 interface SettingsFormValues {
   brand: { name: string; logoUrl: string | null };
+  /** The console's own colour; `null` is the default sky blue. */
+  console: { primaryColor: string | null };
+  /**
+   * Form-only: put the console colour on the member portal too. Not stored as a
+   * flag; it is derived on load from whether the two colours already match, and
+   * on save it writes the console colour into `memberPortal.primaryColor`.
+   */
+  syncMemberPortal: boolean;
   business: { address: string; phone: string; email: string; website: string };
   locale: { currency: string; timezone: string };
   hours: WeeklyHours;
@@ -803,7 +813,7 @@ const SECTIONS: { key: SectionKey; icon: IconName }[] = [
 
 /** Which rail section holds the first validation error, so a failed save jumps there. */
 function sectionForErrors(errors: FieldErrors<SettingsFormValues>): SectionKey | null {
-  if (errors.brand || errors.locale) return 'general';
+  if (errors.brand || errors.console || errors.locale) return 'general';
   if (errors.business) return 'business';
   if (errors.hours) return 'hours';
   // The start-date window sits in the Membership card, under the toggle it
@@ -907,6 +917,13 @@ export function SettingsForm({
         name: z.string().trim().min(1, t('errors.nameRequired')).max(100),
         logoUrl: z.string().url().nullable(),
       }),
+      console: z.object({
+        primaryColor: z
+          .string()
+          .regex(HEX_COLOR_PATTERN, t('general.consoleColor.invalid'))
+          .nullable(),
+      }),
+      syncMemberPortal: z.boolean(),
       business: z.object({
         address: z.string().trim().max(200),
         phone: z.string().trim().max(40),
@@ -998,6 +1015,11 @@ export function SettingsForm({
         name: values.brand.name,
         logoUrl: values.brand.logoUrl,
       },
+      console: values.console,
+      // Only when ticked: unticked leaves the member portal on its own colour.
+      ...(values.syncMemberPortal
+        ? { memberPortal: { primaryColor: values.console.primaryColor } }
+        : {}),
       business: {
         address: values.business.address.trim() || null,
         phone: values.business.phone.trim() || null,
@@ -1065,6 +1087,26 @@ export function SettingsForm({
                   label={t('general.nameLabel')}
                   autoComplete="off"
                   required
+                />
+                {/* The console's colour, separate from the member portal's
+                    (Member portal > Colours). Read by every staff role. */}
+                <AccentColorField
+                  name="console.primaryColor"
+                  label={t('general.consoleColor.label')}
+                  description={t('general.consoleColor.desc')}
+                  brand={initial.brand.primaryColor}
+                  namespace="admin.settings.general.consoleColor"
+                />
+                <Controller
+                  control={form.control}
+                  name="syncMemberPortal"
+                  render={({ field }) => (
+                    <Checkbox
+                      label={t('general.consoleColor.syncLabel')}
+                      checked={field.value}
+                      onChange={(event) => field.onChange(event.target.checked)}
+                    />
+                  )}
                 />
                 <div {...stylex.props(styles.subSection)}>
                   <p {...stylex.props(styles.legend)}>{t('general.localeLegend')}</p>
@@ -1362,12 +1404,23 @@ export function SettingsForm({
 }
 
 /** Map the API settings shape onto the flat form values (nullable senders → ''). */
+/** Two stored colours are the same, `null` (the default) included; case-insensitive. */
+function sameColor(a: string | null, b: string | null): boolean {
+  return (a?.toLowerCase() ?? null) === (b?.toLowerCase() ?? null);
+}
+
 function toFormValues(settings: GymSettings): SettingsFormValues {
   return {
     brand: {
       name: settings.brand.name,
       logoUrl: settings.brand.logoUrl,
     },
+    // Optional-chained: an API older than the field sends no `console` block.
+    console: { primaryColor: settings.console?.primaryColor ?? null },
+    syncMemberPortal: sameColor(
+      settings.console?.primaryColor ?? null,
+      settings.memberPortal.primaryColor,
+    ),
     business: {
       address: settings.business.address ?? '',
       phone: settings.business.phone ?? '',

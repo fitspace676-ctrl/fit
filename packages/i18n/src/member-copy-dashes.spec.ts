@@ -71,6 +71,8 @@ const CONSOLE_NAMESPACES = [
   'admin.trainers.addDrawer',
   'admin.trainers.clients',
   'admin.memberPortal.joinCard',
+  'admin.memberPortal.colors',
+  'admin.settings.general.consoleColor',
 ] as const;
 
 /** The subtree at a dotted `path`, e.g. `admin.services`. */

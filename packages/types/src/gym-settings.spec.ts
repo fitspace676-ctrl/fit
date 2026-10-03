@@ -7,6 +7,7 @@ import {
   enabledPaymentMethods,
   formatInvoiceNumber,
   gymInvoiceSettingsSchema,
+  gymConsoleSettingsSchema,
   gymJoinCardSettingsSchema,
   gymMemberIntakeSettingsSchema,
   gymMemberPortalSettingsSchema,
@@ -465,6 +466,7 @@ describe('gymPortalTheme — resolving the wordmark against the brand', () => {
       primaryColor: '#e4f26a',
       chosenPrimaryColor: '#e4f26a',
       joinCard: gymJoinCardSettingsSchema.parse({}),
+      consolePrimaryColor: null,
     });
   });
 
@@ -484,5 +486,44 @@ describe('gymPortalTheme — resolving the wordmark against the brand', () => {
       }),
     ).toMatchObject({ primaryColor: '#84cc16', chosenPrimaryColor: '#84cc16' });
     expect(gymPortalTheme({}).chosenPrimaryColor).toBeNull();
+  });
+});
+
+// The console's own colour, separate from the member portal's: an owner can
+// paint the staff console red and leave the member site alone, or the reverse.
+describe('gymConsoleSettingsSchema, the console colour', () => {
+  it('defaults to null, which is the shipped sky blue', () => {
+    expect(gymConsoleSettingsSchema.parse({})).toEqual({ primaryColor: null });
+    expect(gymSettingsStoredSchema.parse({}).console).toEqual({ primaryColor: null });
+  });
+
+  it('keeps a hex and refuses anything else', () => {
+    expect(gymConsoleSettingsSchema.parse({ primaryColor: '#dc2626' }).primaryColor).toBe(
+      '#dc2626',
+    );
+    expect(gymConsoleSettingsSchema.safeParse({ primaryColor: 'red' }).success).toBe(false);
+  });
+
+  it('is patched through the settings body, and clears back to null', () => {
+    expect(updateGymSettingsSchema.parse({ console: { primaryColor: '#dc2626' } })).toEqual({
+      console: { primaryColor: '#dc2626' },
+    });
+    expect(updateGymSettingsSchema.parse({ console: { primaryColor: null } })).toEqual({
+      console: { primaryColor: null },
+    });
+  });
+
+  // Every staff role reads it from the public lookup, so it travels on the
+  // portal theme, independent of the member portal colour.
+  it('reaches the public theme on its own, not mixed with the portal colour', () => {
+    const theme = gymPortalTheme({
+      memberPortal: { primaryColor: '#e548c8' },
+      console: { primaryColor: '#dc2626' },
+    });
+    expect(theme.consolePrimaryColor).toBe('#dc2626');
+    expect(theme.chosenPrimaryColor).toBe('#e548c8');
+    expect(
+      gymPortalTheme({ memberPortal: { primaryColor: '#e548c8' } }).consolePrimaryColor,
+    ).toBeNull();
   });
 });

@@ -57,7 +57,7 @@ export const RGBA_ALLOWLIST: ReadonlySet<string> = new Set([
   // The focus ring. On web this is a box-shadow built with `color-mix(... 40%)`;
   // RN has neither, so the mixed colour is written out and WP-5 draws it as a
   // 3px border/outline instead of a shadow.
-  'rgba(228, 242, 106, 0.40)', // brand-300 @ 40% — both modes
+  'rgba(26, 127, 214, 0.40)', // brand-500 @ 40%, both modes
   // The modal/sheet scrim. Mode-independent: a sheet dims the page it covers,
   // and dimming a light page with a light scrim does nothing.
   'rgba(19, 19, 18, 0.85)', // ink-950 @ 85% — both modes
@@ -115,7 +115,11 @@ export const colorTuples = {
   // the 13-14px text these actually are) and dark lifts to 300 (13.7:1 on
   // ink-900).
   // =========================================================================
-  accent: [brand[300], brand[300]],
+  //
+  // With the sky blue (which replaced the lime) the block colour is `500` with
+  // WHITE ink on it, the pressed state is one step lighter (`400`), and text /
+  // icon accents are `700` on light and `300` on dark.
+  accent: [brand[500], brand[500]],
   accentMuted: [brand[100], brand[950]],
   /**
    * Pressed state for anything filled with `accent`. One step UP the ramp, not
@@ -123,10 +127,10 @@ export const colorTuples = {
    * darkening it reads as "disabled" rather than "live". Web calls this
    * `--fc-accent-hover`; on a touch surface it is the pressed state.
    */
-  accentHover: [brand[200], brand[200]],
-  onAccent: [ink[950], ink[950]],
-  textAccent: [brand[800], brand[300]],
-  iconAccent: [brand[800], brand[300]],
+  accentHover: [brand[400], brand[400]],
+  onAccent: [white, white],
+  textAccent: [brand[700], brand[300]],
+  iconAccent: [brand[700], brand[300]],
 
   // =========================================================================
   // Text & icon ladders — three stops each, no more. The direction leans on
@@ -165,7 +169,7 @@ export const colorTuples = {
   // =========================================================================
   success: [brand[500], brand[300]],
   successMuted: [brand[100], brand[950]],
-  onSuccess: [ink[950], ink[950]],
+  onSuccess: [white, white],
 
   warning: [ink[500], ink[400]],
   warningMuted: [ink[100], ink[800]],
@@ -216,8 +220,8 @@ export const colorTuples = {
   // me" — tinted fill, deep lime text, lime hairline. Distinct from the solid
   // `accent` CTA that offers the action in the first place.
   booked: [brand[100], brand[950]],
-  onBooked: [brand[800], brand[200]],
-  bookedBorder: [brand[300], brand[800]],
+  onBooked: [brand[700], brand[200]],
+  bookedBorder: [brand[500], brand[700]],
 
   // Sticky header: the canvas at 95%. RN has no `backdrop-filter`, so on mobile
   // this is the pre-multiplied colour and WP-6 pairs it with `BlurView` only if
@@ -236,7 +240,7 @@ export const colorTuples = {
   // One ring for the whole product, so a keyboard/switch-control user meets
   // exactly one focus affordance. 40% stays visible on both the lime fills and
   // the charcoal panels without becoming a second border.
-  focusRing: ['rgba(228, 242, 106, 0.40)', 'rgba(228, 242, 106, 0.40)'],
+  focusRing: ['rgba(26, 127, 214, 0.40)', 'rgba(26, 127, 214, 0.40)'],
 
   // =========================================================================
   // Overlays.

@@ -2095,6 +2095,19 @@
         "title": "Gym profile",
         "subtitle": "Your gym’s brand and the locale members see.",
         "nameLabel": "Gym name",
+        "consoleColor": {
+          "label": "Console colour",
+          "desc": "Buttons, active tabs and highlights in this console, for every staff member. The member site has its own colour under Member portal.",
+          "hexLabel": "{label}, hex value",
+          "pickerLabel": "Pick {label}",
+          "inheritedBadge": "Default",
+          "inherited": "Uses the default FormaCore colour, {color}.",
+          "useBrand": "Use the brand colour ({color})",
+          "customise": "Use a different colour",
+          "reset": "Back to the default colour",
+          "invalid": "Enter a hex colour like #1a7fd6.",
+          "syncLabel": "Use this colour on the member portal too"
+        },
         "primaryColor": "Primary color",
         "secondaryColor": "Secondary color",
         "localeLegend": "Locale",
@@ -2411,16 +2424,17 @@
       "subtitle": "How the site your members sign in to looks — its logo, its colour and the photograph on the sign-in screen.",
       "colors": {
         "title": "Colours",
-        "subtitle": "This skins the member site only. Your brand colour still drives invoices, receipts and email, so a lime portal need not mean a lime invoice.",
+        "subtitle": "This colour skins the member site only. The console has its own colour under Settings, and your brand colour still drives invoices, receipts and email.",
         "primaryLabel": "Primary colour",
-        "primaryDesc": "The one action on a screen — the sign-in button, the field in focus.",
+        "primaryDesc": "Buttons, active tabs and highlights on the member site.",
         "hexLabel": "{label}, hex value",
         "pickerLabel": "Pick {label}",
-        "inheritedBadge": "From brand",
-        "inherited": "Following your brand colour, {color}.",
+        "inheritedBadge": "Default",
+        "inherited": "Uses the default FormaCore colour, {color}.",
+        "useBrand": "Use the brand colour ({color})",
         "customise": "Use a different colour",
-        "reset": "Follow the brand colour",
-        "invalid": "Enter a hex colour like #4f46e5."
+        "reset": "Back to the default colour",
+        "invalid": "Enter a hex colour like #1a7fd6."
       },
       "logo": {
         "title": "Portal logo",
