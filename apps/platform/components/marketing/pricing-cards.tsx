@@ -109,7 +109,7 @@ export const PricingCards = () => {
                 {tier.highlight ? (
                   // The featured tier carries the FormaCore brand mark (favicon).
                   <img
-                    src="/favicon.png"
+                    src="/FormaCore-icon.png"
                     alt="FormaCore"
                     className="h-11 w-11 rounded-btn object-contain"
                   />

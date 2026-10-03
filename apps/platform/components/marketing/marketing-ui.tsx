@@ -205,8 +205,8 @@ export const ThemeToggle = ({ className = '' }: { className?: string }) => {
 };
 
 /**
- * FormaCore wordmark lockup. The `public/logolight.png` (dark wordmark) and
- * `public/logodark.png` (light wordmark) variants are both rendered and toggled
+ * FormaCore wordmark lockup. The `public/FormaCore-light.png` (dark wordmark) and
+ * `public/FormaCore-dark.png` (light wordmark) variants are both rendered and toggled
  * by the `.dark` class via CSS, so the right one shows before first paint with
  * no JS / hydration flash. Pass a height utility (`h-8`, `h-10`, …); width is
  * derived from the 1024×500 intrinsic ratio.
@@ -214,14 +214,14 @@ export const ThemeToggle = ({ className = '' }: { className?: string }) => {
 export const Logo = ({ className = 'h-10' }: { className?: string }) => (
   <>
     <img
-      src="/logolight.png"
+      src="/FormaCore-light.png"
       alt="FormaCore"
       width={1024}
       height={500}
       className={`${className} w-auto dark:hidden`}
     />
     <img
-      src="/logodark.png"
+      src="/FormaCore-dark.png"
       alt="FormaCore"
       width={1024}
       height={500}
