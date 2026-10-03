@@ -5,7 +5,15 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { z } from 'zod';
-import { HEX_COLOR_PATTERN, type GymSettings } from '@fit/types';
+import {
+  HEX_COLOR_PATTERN,
+  JOIN_CARD_LIMITS,
+  gymJoinCardSettingsSchema,
+  resolveJoinCard,
+  type GymJoinCardCopy,
+  type GymSettings,
+  type JoinCardDefaults,
+} from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import {
   Controller,
@@ -26,6 +34,12 @@ import {
   updateMemberPortalAction,
   type ActionResult,
 } from './actions';
+import {
+  JoinCardField,
+  type JoinCardCopyValues,
+  type JoinCardLocale,
+  type JoinCardValues,
+} from './join-card-field';
 
 /**
  * This app's basePath behind the tenant proxy. Next prefixes navigation and
@@ -510,6 +524,25 @@ const styles = stylex.create({
     padding: '0.875rem',
   },
   previewJoinTitle: { margin: 0, fontSize: '0.8125rem', fontWeight: 700, color: '#FFFFFF' },
+  previewJoinSub: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.75rem',
+    lineHeight: 1.5,
+    color: 'rgba(255, 255, 255, 0.72)',
+  },
+  // Where the card would be, so "hidden" reads as a choice rather than a bug.
+  previewJoinHidden: {
+    position: 'relative',
+    margin: 0,
+    borderRadius: 'var(--radius-container)',
+    borderWidth: '1px',
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255, 255, 255, 0.32)',
+    padding: '0.875rem',
+    fontSize: '0.75rem',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
   previewBenefit: {
     display: 'flex',
     alignItems: 'flex-start',
@@ -669,6 +702,8 @@ interface MemberPortalFormValues {
   loginImageUrl: string | null;
   logoUrl: string | null;
   primaryColor: string | null;
+  /** The sign-in join card, as `JoinCardField` edits it. */
+  joinCard: JoinCardValues;
 }
 
 /**
@@ -690,12 +725,38 @@ function readableInk(hex: string): string {
   return luminance > 0.4 ? '#131312' : '#FFFFFF';
 }
 
+/** One language's stored copy as the form holds it: `null` lines become empty fields. */
+function toCopyValues(copy: GymJoinCardCopy): JoinCardCopyValues {
+  return {
+    title: copy.title ?? '',
+    subtitle: copy.subtitle ?? '',
+    benefits: copy.benefits,
+    cta: copy.cta ?? '',
+  };
+}
+
 /** Map the API settings shape onto the form's values. */
 function toFormValues(settings: GymSettings): MemberPortalFormValues {
+  // Parsed, so settings saved before the card existed still give the form a
+  // complete value to bind to.
+  const joinCard = gymJoinCardSettingsSchema.parse(settings.memberPortal.joinCard ?? {});
   return {
     loginImageUrl: settings.memberPortal.loginImageUrl,
     logoUrl: settings.memberPortal.logoUrl,
     primaryColor: settings.memberPortal.primaryColor,
+    joinCard: {
+      hidden: joinCard.hidden,
+      ka: toCopyValues(joinCard.ka),
+      en: toCopyValues(joinCard.en),
+    },
+  };
+}
+
+/** Drop the benefit rows left blank, so an empty row is not saved as a tick. */
+function withoutBlankBenefits(copy: JoinCardCopyValues): JoinCardCopyValues {
+  return {
+    ...copy,
+    benefits: copy.benefits?.map((line) => line.trim()).filter(Boolean) ?? null,
   };
 }
 
@@ -724,10 +785,29 @@ function toFormValues(settings: GymSettings): MemberPortalFormValues {
  * and the next Save keeps it. Removing sets the value back to `null` and persists
  * on Save, which is what makes the bundled `/gym-hero.webp` come back.
  */
-export function MemberPortalForm({ initial }: { initial: GymSettings }) {
+export function MemberPortalForm({
+  initial,
+  joinDefaults,
+}: {
+  initial: GymSettings;
+  /** The join card's built-in copy per language, read from the portal's catalogue. */
+  joinDefaults: Record<JoinCardLocale, JoinCardDefaults>;
+}) {
   const t = useTranslations('admin.memberPortal');
   const router = useRouter();
   const { toast } = useToast();
+  // The language being edited on the join card, which the preview also shows.
+  const [joinLocale, setJoinLocale] = useState<JoinCardLocale>('ka');
+
+  // The API's own limits, with the message in the console's language. Lines are
+  // trimmed first so trailing spaces do not count against the limit.
+  const line = (max: number) => z.string().trim().max(max, t('joinCard.tooLong', { max }));
+  const joinCopySchema = z.object({
+    title: line(JOIN_CARD_LIMITS.title),
+    subtitle: line(JOIN_CARD_LIMITS.subtitle),
+    benefits: z.array(line(JOIN_CARD_LIMITS.benefit)).max(JOIN_CARD_LIMITS.benefits).nullable(),
+    cta: line(JOIN_CARD_LIMITS.cta),
+  });
 
   // Built with a translated message so the inline hex error reads in the active
   // locale; the pattern itself is the contract's, so the form rejects exactly
@@ -736,12 +816,20 @@ export function MemberPortalForm({ initial }: { initial: GymSettings }) {
     loginImageUrl: z.string().url().nullable(),
     logoUrl: z.string().url().nullable(),
     primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('colors.invalid')).nullable(),
+    joinCard: z.object({ hidden: z.boolean(), ka: joinCopySchema, en: joinCopySchema }),
   });
 
   const form = useZodForm(schema, { defaultValues: toFormValues(initial) });
 
   async function handleSubmit(values: MemberPortalFormValues): Promise<void> {
-    const result = await updateMemberPortalAction(values);
+    const result = await updateMemberPortalAction({
+      ...values,
+      joinCard: {
+        hidden: values.joinCard.hidden,
+        ka: withoutBlankBenefits(values.joinCard.ka),
+        en: withoutBlankBenefits(values.joinCard.en),
+      },
+    });
     if (result.ok) {
       // Resync to the server's normalised truth, which also clears the dirty state.
       form.reset(toFormValues(result.data));
@@ -797,6 +885,16 @@ export function MemberPortalForm({ initial }: { initial: GymSettings }) {
             <p {...stylex.props(styles.cardDesc)}>{t('image.subtitle')}</p>
             <PhotoField />
           </Card>
+
+          <Card padding="none" xstyle={styles.card}>
+            <h2 {...stylex.props(styles.cardTitle)}>{t('joinCard.title')}</h2>
+            <p {...stylex.props(styles.cardDesc)}>{t('joinCard.subtitle')}</p>
+            <JoinCardField
+              locale={joinLocale}
+              onLocaleChange={setJoinLocale}
+              defaults={joinDefaults}
+            />
+          </Card>
         </div>
 
         <div {...stylex.props(styles.previewColumn)}>
@@ -807,6 +905,8 @@ export function MemberPortalForm({ initial }: { initial: GymSettings }) {
               gymName={initial.brand.name}
               brandPrimary={initial.brand.primaryColor}
               brandLogoUrl={initial.brand.logoUrl}
+              joinLocale={joinLocale}
+              joinDefaults={joinDefaults[joinLocale]}
             />
             <p {...stylex.props(styles.previewNote)}>{t('preview.note')}</p>
           </Card>
@@ -1349,18 +1449,41 @@ function PortalPreview({
   gymName,
   brandPrimary,
   brandLogoUrl,
+  joinLocale,
+  joinDefaults,
 }: {
   gymName: string;
   /** The brand colours the portal's `null`s fall through to. */
   brandPrimary: string;
   /** The brand logo the portal's `null` wordmark falls through to. */
   brandLogoUrl: string | null;
+  /** The language the join card is being edited in, which the mock shows. */
+  joinLocale: JoinCardLocale;
+  /** The built-in join copy in that language. */
+  joinDefaults: JoinCardDefaults;
 }) {
   const t = useTranslations('admin.memberPortal.preview');
+  const tJoin = useTranslations('admin.memberPortal.joinCard');
   const { control } = useFormContext<MemberPortalFormValues>();
   const primaryColor = useWatch({ control, name: 'primaryColor' });
   const loginImageUrl = useWatch({ control, name: 'loginImageUrl' });
   const logoUrl = useWatch({ control, name: 'logoUrl' });
+  const joinCard = useWatch({ control, name: 'joinCard' });
+  // The member site's own resolution, so the mock and the door cannot disagree.
+  // In-progress edits go through the schema leniently: a line over its limit
+  // shows the built-in text here until it fits, as it would after saving.
+  const parsedJoin = gymJoinCardSettingsSchema.safeParse({
+    hidden: joinCard.hidden,
+    [joinLocale]: withoutBlankBenefits(joinCard[joinLocale]),
+  });
+  const join = resolveJoinCard(
+    parsedJoin.success
+      ? parsedJoin.data
+      : gymJoinCardSettingsSchema.parse({ hidden: joinCard.hidden }),
+    joinLocale,
+    joinDefaults,
+    gymName,
+  );
 
   // The same resolution `gymPortalTheme` does server-side: a portal colour the
   // gym has not set falls through to the brand's. An in-flight, not-yet-valid hex
@@ -1387,20 +1510,27 @@ function PortalPreview({
         ) : (
           <img src={WORDMARK} alt="" {...stylex.props(styles.previewWordmark)} />
         )}
-        <div {...stylex.props(styles.previewJoin)}>
-          <p {...stylex.props(styles.previewJoinTitle)}>{t('joinTitle', { gym: gymName })}</p>
-          <p {...stylex.props(styles.previewBenefit)}>
-            {/* The gym's colour: the portal paints its accent type — links and
-                ticks — from the primary too, see `portal-theme.ts` in @fit/web. */}
-            <Icon
-              name="check"
-              sw={2.6}
-              {...stylex.props(styles.previewBenefitIcon, styles.tintText(primary))}
-            />
-            {t('joinBenefit')}
-          </p>
-          <span {...stylex.props(styles.previewJoinCta)}>{t('joinCta')}</span>
-        </div>
+        {join ? (
+          <div {...stylex.props(styles.previewJoin)}>
+            <p {...stylex.props(styles.previewJoinTitle)}>{join.title}</p>
+            <p {...stylex.props(styles.previewJoinSub)}>{join.subtitle}</p>
+            {join.benefits.map((benefit, index) => (
+              <p key={index} {...stylex.props(styles.previewBenefit)}>
+                {/* The gym's colour: the portal paints its accent type, links and
+                    ticks, from the primary too, see `portal-theme.ts` in @fit/web. */}
+                <Icon
+                  name="check"
+                  sw={2.6}
+                  {...stylex.props(styles.previewBenefitIcon, styles.tintText(primary))}
+                />
+                {benefit}
+              </p>
+            ))}
+            <span {...stylex.props(styles.previewJoinCta)}>{join.cta}</span>
+          </div>
+        ) : (
+          <p {...stylex.props(styles.previewJoinHidden)}>{tJoin('hiddenPreview')}</p>
+        )}
       </div>
 
       {/* ----------------------------- the form side ----------------------------- */}

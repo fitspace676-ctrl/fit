@@ -4,6 +4,8 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { ApiError, fetchGymSettings } from '@/lib/api';
 import { Icon } from '@/components/ui';
+import { messages } from '@fit/i18n';
+import type { JoinCardDefaults } from '@fit/types';
 import { MemberPortalForm } from './member-portal-form';
 
 export const metadata: Metadata = {
@@ -14,6 +16,27 @@ export const metadata: Metadata = {
 // The portal's look is live tenant state read with the staff session token, so
 // the page must never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
+
+/**
+ * The join card's built-in copy in each portal language, whatever language the
+ * console itself is in: the gym edits both, and each empty field shows the text
+ * members of THAT language will see. Read from the member portal's own
+ * catalogue (`auth.join`), so the placeholder is the real default.
+ */
+const JOIN_DEFAULTS: Record<'ka' | 'en', JoinCardDefaults> = {
+  ka: joinDefaultsFrom(messages.ka.auth.join),
+  en: joinDefaultsFrom(messages.en.auth.join),
+};
+
+function joinDefaultsFrom(join: (typeof messages)['en']['auth']['join']): JoinCardDefaults {
+  return {
+    title: join.title,
+    titleNamed: join.titleNamed,
+    subtitle: join.subtitle,
+    benefits: [join.benefits.branch, join.benefits.plan, join.benefits.instant],
+    cta: join.cta,
+  };
+}
 
 const styles = stylex.create({
   page: {
@@ -104,7 +127,7 @@ export default async function MemberPortalPage() {
   const t = await getTranslations('admin.memberPortal');
   try {
     const settings = await fetchGymSettings();
-    return <MemberPortalForm initial={settings} />;
+    return <MemberPortalForm initial={settings} joinDefaults={JOIN_DEFAULTS} />;
   } catch (error) {
     const message =
       error instanceof ApiError

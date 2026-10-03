@@ -4,7 +4,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { gymSettingsStoredSchema, weeklyHoursSchema } from '@fit/types';
+import { gymJoinCardSettingsSchema, gymSettingsStoredSchema, weeklyHoursSchema } from '@fit/types';
 import { GymSettingsService } from './gym-settings.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -165,13 +165,15 @@ describe('GymSettingsService', () => {
       const result = await service.updateSettings({ memberPortal: { primaryColor: '#84cc16' } });
 
       const stored = update.mock.calls[0]?.[0]?.data?.settings as {
-        memberPortal: Record<string, string | null>;
+        memberPortal: Record<string, unknown>;
       };
       expect(stored.memberPortal).toEqual({
         loginImageUrl: 'https://cdn.example.com/gym-1/logos/hero.jpg',
         // Never set, so it stays at its "inherit the brand's mark" default.
         logoUrl: null,
         primaryColor: '#84cc16',
+        // Never set either: the built-in sign-in join card.
+        joinCard: gymJoinCardSettingsSchema.parse({}),
       });
       expect(result.memberPortal.primaryColor).toBe('#84cc16');
     });

@@ -2460,9 +2460,34 @@
         "errorUpload": "Upload failed ({status}). Please try again.",
         "errorNetwork": "Could not upload the photograph. Check your connection and try again."
       },
+      "joinCard": {
+        "title": "Join card",
+        "subtitle": "The \"not a member yet\" block on the sign-in screen. Leave a field empty to keep the built-in text.",
+        "visibleLabel": "Show on the sign-in screen",
+        "visibleDesc": "Turn off to hide the block completely. Visitors can still sign in.",
+        "languageLabel": "Language",
+        "languages": {
+          "ka": "ქართული",
+          "en": "English"
+        },
+        "titleLabel": "Heading",
+        "titleHint": "Write {gym} to insert your gym's name.",
+        "subtitleLabel": "Subheading",
+        "benefitsLabel": "Benefits",
+        "benefitsDefault": "Showing the built-in list.",
+        "customiseBenefits": "Edit the list",
+        "resetBenefits": "Use the built-in list",
+        "addBenefit": "Add a benefit",
+        "removeBenefit": "Remove benefit {number}",
+        "benefitLabel": "Benefit {number}",
+        "noBenefits": "No benefits: the block shows without a list.",
+        "ctaLabel": "Button text",
+        "tooLong": "Up to {max} characters.",
+        "hiddenPreview": "The join card is hidden."
+      },
       "preview": {
         "title": "Preview",
-        "subtitle": "Roughly what a member meets at the door. The wording is a sample; the logo, the colour and the photograph are yours.",
+        "subtitle": "Roughly what a member meets at the door. The sign-in wording is a sample; the join card, the logo, the colour and the photograph are yours.",
         "signInTitle": "Sign in",
         "emailLabel": "Email",
         "emailSample": "member@example.com",

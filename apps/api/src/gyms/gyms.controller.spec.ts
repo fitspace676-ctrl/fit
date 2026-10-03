@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
-import type { GymBySubdomainResponse, ListGymsResponse } from '@fit/types';
+import {
+  gymJoinCardSettingsSchema,
+  type GymBySubdomainResponse,
+  type ListGymsResponse,
+} from '@fit/types';
 import { GymsController } from './gyms.controller';
 import type { GymsService } from './gyms.service';
 
@@ -31,6 +35,7 @@ function setup() {
         logoUrl: null,
         primaryColor: '#84cc16',
         chosenPrimaryColor: null,
+        joinCard: gymJoinCardSettingsSchema.parse({}),
       },
     }),
   );
@@ -74,6 +79,7 @@ describe('GymsController', () => {
           logoUrl: null,
           primaryColor: '#84cc16',
           chosenPrimaryColor: null,
+          joinCard: gymJoinCardSettingsSchema.parse({}),
         },
       });
     });

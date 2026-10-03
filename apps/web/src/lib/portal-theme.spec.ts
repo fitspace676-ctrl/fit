@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PRIMARY_COLOR,
   DEFAULT_SECONDARY_COLOR,
+  gymJoinCardSettingsSchema,
   type GymPortalTheme,
   type GymPublicBrand,
 } from '@fit/types';
@@ -75,6 +76,7 @@ function skinFor(
     // no platform default that could leak into the portal.
     logoUrl: null,
     primaryColor: DEFAULT_PRIMARY_COLOR,
+    joinCard: gymJoinCardSettingsSchema.parse({}),
     ...portal,
   };
   return chosenPortalColors(
@@ -265,6 +267,7 @@ describe('chosenPortalColors', () => {
       logoUrl: null,
       primaryColor: '#7C2D12',
       chosenPrimaryColor: '#7C2D12',
+      joinCard: gymJoinCardSettingsSchema.parse({}),
     };
     const brand = { primaryColor: '#7C2D12', secondaryColor: '#134E4A' };
     expect(chosenPortalColors(portal, brand)).toEqual({ primaryColor: '#7C2D12' });
@@ -277,6 +280,7 @@ describe('chosenPortalColors', () => {
       logoUrl: null,
       primaryColor: '#E11D48',
       chosenPrimaryColor: null,
+      joinCard: gymJoinCardSettingsSchema.parse({}),
     };
     expect(
       chosenPortalColors(portal, { primaryColor: '#111111', secondaryColor: '#222222' }),
