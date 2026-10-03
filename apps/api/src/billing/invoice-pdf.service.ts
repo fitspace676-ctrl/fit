@@ -50,16 +50,17 @@ const LOGO_MAX_HEIGHT = 60;
 
 /**
  * The palette — the console's LIGHT mode, lifted from `@fit/astryx-theme`'s
- * FormaCore "Lime Block" theme (`formacoreTheme.ts`): a warm charcoal ink ramp,
- * white paper, ink-50 inset tiles with an ink-200 hairline, and exactly one lime.
- * Text on the lime is always ink-950 — white on lime is unreadable.
+ * FormaCore theme (`formacoreTheme.ts`): a warm charcoal ink ramp, white paper,
+ * ink-50 inset tiles with an ink-200 hairline, and exactly one sky blue. Text on
+ * the blue is white.
  */
 const INK = '#131312'; // ink-950 — primary text
 const INK_SECONDARY = '#53534F'; // ink-600 — labels, secondary text
 const INK_MUTED = '#8F8F8B'; // ink-400 — footer
 const HAIRLINE = '#DCDCDA'; // ink-200 — dividers, tile borders
 const TILE = '#F7F7F6'; // ink-50 — the inset tile
-const LIME = '#E4F26A'; // brand-300 — the one block colour
+const BRAND = '#1A7FD6'; // brand-500, the one block colour
+const ON_BRAND = '#FFFFFF'; // type on the blue block
 
 /** The tile / block silhouette — the theme's "card" step of the radius ladder. */
 const RADIUS = 14;
@@ -118,7 +119,7 @@ function loadAssets(): InvoiceAssets {
  * Renders an {@link Invoice} to a single-page A4 PDF (T5.10) with `pdfkit`, entirely
  * in memory. Deliberately dependency-light — no headless browser — because an invoice
  * is a fixed layout: a logo + invoice header, the two party tiles, one billed line and
- * the lime total block. The settlement state is deliberately absent — the document
+ * the blue total block. The settlement state is deliberately absent: the document
  * records what is owed, not whether it has been paid, and a stale "PENDING" stamped
  * on a PDF the member keeps would outlive the payment. Stateless and pure: it takes a
  * flat {@link InvoicePdfData} snapshot and returns the bytes, so the caller owns
@@ -233,14 +234,14 @@ export class InvoicePdfService {
     hairline(doc, left, right, y);
     y += 24;
 
-    // ── Total: the lime block, the page's one colour ─────────────────────────
-    // The theme's signature — a solid lime block carrying a giant mono numeral —
+    // ── Total: the blue block, the page's one colour ─────────────────────────
+    // The theme's signature, a solid blue block carrying a giant mono numeral,
     // and the only thing on the page a reader must not miss.
     const blockWidth = 240;
     const blockHeight = 84;
     const blockX = right - blockWidth;
-    doc.roundedRect(blockX, y, blockWidth, blockHeight, RADIUS).fill(LIME);
-    label(doc, 'TOTAL', blockX + PAD, y + PAD, { color: INK });
+    doc.roundedRect(blockX, y, blockWidth, blockHeight, RADIUS).fill(BRAND);
+    label(doc, 'TOTAL', blockX + PAD, y + PAD, { color: ON_BRAND });
 
     const digits = formatAmount(data.amount);
     doc.font(FONT_MONO).fontSize(30);
@@ -250,7 +251,7 @@ export class InvoicePdfService {
     const amountRight = blockX + blockWidth - PAD;
     const amountY = y + PAD + 18;
     doc
-      .fillColor(INK)
+      .fillColor(ON_BRAND)
       .font(FONT_MONO)
       .fontSize(30)
       .text(digits, amountRight - digitsWidth - currencyWidth - 8, amountY, { lineBreak: false });

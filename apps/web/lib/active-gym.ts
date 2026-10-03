@@ -7,8 +7,9 @@ import {
   type GymPortalTheme,
   type GymPublicBrand,
   type GymPublicContact,
+  chosenPortalColors,
+  type PortalColorChoice,
 } from '@fit/types';
-import { chosenPortalColors, type PortalColorChoice } from '@/src/lib/portal-theme';
 import { env } from './env';
 
 /**

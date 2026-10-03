@@ -18,20 +18,19 @@ import { DEFAULT_EMAIL_LOCALE, type EmailLocale } from './email-locale';
 import { emailStrings } from './email-strings';
 
 /**
- * The formacore "Lime Block" tokens the transactional emails render with,
- * mirroring the member portal's sign-in screen: a warm charcoal ink ramp, one
- * lime, and nothing else chromatic. `brand` is the lime block colour; it only
- * ever appears as a fill (the header mark, the button) because lime text on
- * white is ~1.3:1 and unreadable. Text on the lime is always `ink` - white on
- * lime is ~1.5:1, so the button label is ink too. `link` is the lime *as ink*
- * (brand-700, the portal's text-accent token on light) for inline text links,
- * which is the only way lime can sit on the white card and still be read.
+ * The formacore tokens the transactional emails render with, mirroring the
+ * member portal's sign-in screen: a warm charcoal ink ramp, one sky blue, and
+ * nothing else chromatic. `brand` is the blue block colour, used as a fill (the
+ * header mark, the button) with `onBrand` (white) type on it. `link` is the
+ * deeper blue (brand-700, the portal's text-accent token on light) for inline
+ * text links on the white card.
  * Kept inline (email clients strip `<style>` blocks and don't load web fonts)
  * so the shell renders consistently.
  */
 export const EMAIL_BRAND = {
-  brand: '#E4F26A',
-  link: '#63701D',
+  brand: '#1A7FD6',
+  onBrand: '#FFFFFF',
+  link: '#0B67A8',
   ink: '#131312',
   body: '#3E3E3B',
   muted: '#6C6C68',
@@ -58,7 +57,7 @@ export function escapeHtml(value: string): string {
 
 /**
  * The single letter the header mark carries: the sender's first letter, upper-cased,
- * so a gym's emails open with its own initial in the lime block the way the
+ * so a gym's emails open with its own initial in the blue block the way the
  * FormaCore "F" mark does (Latin upper-cased, Georgian as written). Falls back
  * to "F" for a blank or symbol-only name.
  * `senderName` arrives already HTML-escaped, so an entity such as `&amp;` is
@@ -73,7 +72,7 @@ function senderInitial(senderName: string): string {
 }
 
 /**
- * The pre-rendered lime marks the web app serves at `/email-marks/u<hex>.png`:
+ * The pre-rendered blue marks the web app serves at `/email-marks/u<hex>.png`:
  * Latin capitals, digits and the Georgian alphabet, generated from the same
  * Noto Sans Georgian ExtraBold the invoices use. A letter outside the set falls
  * back to the FormaCore "F".
@@ -88,10 +87,10 @@ function markImagePath(initial: string): string {
 }
 
 /**
- * The header mark: the sender's initial on the lime block. Rendered as a hosted
+ * The header mark: the sender's initial on the blue block. Rendered as a hosted
  * PNG when the web app's URL is configured, because an image is the one thing
  * the Gmail app's dark mode never recolours (it inverts every text and
- * background colour, and ignores `color-scheme`), so the brand lime survives
+ * background colour, and ignores `color-scheme`), so the brand blue survives
  * there. Without a base URL (local dev, tests) the same block is drawn in CSS.
  */
 function renderMark(senderName: string, size: number, radius: number): string {
@@ -101,14 +100,14 @@ function renderMark(senderName: string, size: number, radius: number): string {
   if (base) {
     return `<img src="${base}${markImagePath(initial)}" width="${size}" height="${size}" alt="${initial}" style="display:block;width:${size}px;height:${size}px;border:0;border-radius:${radius}px;" />`;
   }
-  return `<div style="width:${size}px;height:${size}px;border-radius:${radius}px;background:${B.brand};color:${B.ink};font-size:${Math.round(size / 2)}px;line-height:${size}px;font-weight:800;text-align:center;letter-spacing:-0.02em;">${initial}</div>`;
+  return `<div style="width:${size}px;height:${size}px;border-radius:${radius}px;background:${B.brand};color:${B.onBrand};font-size:${Math.round(size / 2)}px;line-height:${size}px;font-weight:800;text-align:center;letter-spacing:-0.02em;">${initial}</div>`;
 }
 
 /** The platform's own name; the one sender whose band carries the logo. */
 const PLATFORM_SENDER = 'FormaCore';
 
 /**
- * What the charcoal header band carries: the sender's initial on the lime block
+ * What the charcoal header band carries: the sender's initial on the blue block
  * beside their name for a gym, and the FormaCore dark-ground wordmark (white
  * "Forma", blue "Core", the same PNG the portal serves) when the platform
  * itself is the sender and the web app's URL is known. Without a base URL the
@@ -140,7 +139,7 @@ function renderBandContent(senderName: string): { html: string; imageOnly: boole
  * The dark-mode palette, as a `<style>` block clients that honour
  * `prefers-color-scheme` (Apple Mail, iOS Mail, Outlook) apply on top of the
  * inline light styles. It is the portal's dark theme rather than an inversion:
- * a near-black canvas, a charcoal card, light ink, and the same lime with ink
+ * a near-black canvas, a charcoal card, light ink, and the same blue with white
  * type on the button, so the brand reads the same on both grounds. Every rule
  * carries `!important` because it must beat the inline style it overrides. The
  * `[data-ogsc]` / `[data-ogsb]` twins are Outlook.com's dark-mode hooks. The
@@ -156,9 +155,9 @@ const DARK_MODE_CSS =
   `.em-ink,.em-ink *{color:#F2F2EF !important;}` +
   `.em-body{color:#CFCFC9 !important;}` +
   `.em-muted{color:#9C9C96 !important;}` +
-  `.em-link{color:#E4F26A !important;}` +
+  `.em-link{color:#7CC4FF !important;}` +
   `.em-panel{background:#131312 !important;border-color:#2E2E2A !important;color:#CFCFC9 !important;}` +
-  `.em-button,.em-button a{background:#E4F26A !important;color:#131312 !important;}` +
+  `.em-button,.em-button a{background:#1A7FD6 !important;color:#FFFFFF !important;}` +
   `td,th{border-color:#2E2E2A !important;}` +
   `}` +
   `[data-ogsc] .em-ink,[data-ogsc] .em-ink *{color:#F2F2EF !important;}` +
@@ -166,11 +165,11 @@ const DARK_MODE_CSS =
   `[data-ogsc] .em-muted{color:#9C9C96 !important;}` +
   `[data-ogsb] .em-canvas{background:#0D0D0C !important;}` +
   `[data-ogsb] .em-card{background:#1B1B19 !important;}` +
-  `[data-ogsb] .em-button,[data-ogsb] .em-button a{background:#E4F26A !important;color:#131312 !important;}`;
+  `[data-ogsb] .em-button,[data-ogsb] .em-button a{background:#1A7FD6 !important;color:#FFFFFF !important;}`;
 
 /**
- * Wrap an email body in the shared branded shell (the formacore Lime Block
- * look): a charcoal header band carrying a lime block mark with the sender's
+ * Wrap an email body in the shared branded shell (the formacore sky blue
+ * look): a charcoal header band carrying a blue block mark with the sender's
  * initial beside the `senderName` wordmark, the same always-dark brand panel
  * the sign-in screen leads with, above a white card on the warm-grey canvas,
  * with an optional tracked uppercase `eyebrow`, a heavy tightly-tracked heading
@@ -239,7 +238,7 @@ export function renderBrandedEmail(options: {
     preheaderHtml +
     // The card.
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" class="em-card" style="width:100%;max-width:${CARD_WIDTH}px;margin:0 auto;border-collapse:separate;background:${B.card};border:1px solid ${B.border};border-radius:20px;overflow:hidden;">` +
-    // Header band: lime mark + wordmark on charcoal.
+    // Header band: blue mark + wordmark on charcoal.
     `<tr><td class="em-band" style="padding:22px 32px;background:${B.ink};${band.imageOnly ? `background-image:linear-gradient(${B.ink},${B.ink});` : ''}border-radius:19px 19px 0 0;">` +
     band.html +
     `</td></tr>` +
@@ -269,7 +268,7 @@ export function renderBrandedEmail(options: {
 
 /**
  * Render a call-to-action button as a table-wrapped, inline-styled anchor: the
- * lime block with ink type, exactly like the portal's primary action. Email
+ * blue block with white type, exactly like the portal's primary action. Email
  * clients don't honour `<button>` styling and Outlook ignores padding on `<a>`,
  * so the colour and rounding live on the cell and the anchor fills it. The
  * caller escapes `label`; `url` is a trusted absolute URL.
@@ -279,7 +278,7 @@ export function renderEmailButton(url: string, label: string): string {
   return (
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0 0;border-collapse:separate;">` +
     `<tr><td class="em-button" style="border-radius:12px;background:${B.brand};">` +
-    `<a href="${url}" style="display:inline-block;padding:14px 26px;border-radius:12px;background:${B.brand};color:${B.ink};font-size:15px;line-height:20px;font-weight:700;text-decoration:none;">${label}</a>` +
+    `<a href="${url}" style="display:inline-block;padding:14px 26px;border-radius:12px;background:${B.brand};color:${B.onBrand};font-size:15px;line-height:20px;font-weight:700;text-decoration:none;">${label}</a>` +
     `</td></tr></table>`
   );
 }
@@ -305,7 +304,7 @@ export function renderEmailLinkFallback(
 }
 
 /**
- * An inline text link in the lime-as-ink colour with an underline, for the
+ * An inline text link in the blue-as-ink colour with an underline, for the
  * secondary "view full reports"-style links that sit in running text. The
  * caller escapes `label`; `url` is a trusted absolute URL.
  */

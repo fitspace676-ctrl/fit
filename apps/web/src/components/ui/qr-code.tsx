@@ -22,9 +22,9 @@ const styles = stylex.create({
     padding: '0.25rem',
   },
   module: { fill: '#1E1E1C' },
-  // The three finder squares take the lime — the one place the brand appears
-  // inside the code without hurting its contrast against the white plate.
-  finder: { fill: '#63701D' },
+  // The three finder squares take the brand's dark accent ink, the one place the
+  // brand appears inside the code without hurting its contrast on the white plate.
+  finder: { fill: '#0B67A8' },
 });
 
 export interface QRCodeProps {

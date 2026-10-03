@@ -230,6 +230,19 @@ export const gymMemberPortalSettingsSchema = z.object({
   joinCard: gymJoinCardSettingsSchema.default({}),
 });
 
+/**
+ * The staff console's own look: one colour, separate from the member portal's,
+ * so an owner can paint the console and leave the member site alone (or the
+ * reverse). `null` is the shipped default, the theme's sky blue; the brand colour
+ * is not a fallback, because it is set for invoices and receipts.
+ */
+export const gymConsoleSettingsSchema = z.object({
+  primaryColor: z.string().regex(HEX_COLOR_PATTERN, HEX_COLOR_MESSAGE).nullable().default(null),
+});
+
+/** The console's look, {@link gymConsoleSettingsSchema}. */
+export type GymConsoleSettings = z.infer<typeof gymConsoleSettingsSchema>;
+
 /** The member portal's look — {@link gymMemberPortalSettingsSchema}. */
 export type GymMemberPortalSettings = z.infer<typeof gymMemberPortalSettingsSchema>;
 
@@ -909,6 +922,7 @@ export const gymSettingsStoredSchema = z.object({
   memberIntake: gymMemberIntakeSettingsSchema.default({}),
   startDatePolicy: gymStartDatePolicySchema.default({}),
   memberPortal: gymMemberPortalSettingsSchema.default({}),
+  console: gymConsoleSettingsSchema.default({}),
   staffDirectory: gymStaffDirectorySettingsSchema.default({}),
   reports: gymReportsSettingsSchema.default({}),
   payments: gymPaymentMethodsSchema.default({}),
@@ -944,6 +958,7 @@ export interface GymSettings {
   memberIntake: GymMemberIntakeSettings;
   startDatePolicy: GymStartDatePolicy;
   memberPortal: GymMemberPortalSettings;
+  console: GymConsoleSettings;
   staffDirectory: GymStaffDirectorySettings;
   reports: GymReportsSettings;
   payments: GymPaymentMethods;
@@ -996,6 +1011,7 @@ export const updateGymSettingsSchema = z
     memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional(),
     startDatePolicy: gymStartDatePolicySchema.partial().strict().optional(),
     memberPortal: gymMemberPortalSettingsSchema.partial().strict().optional(),
+    console: gymConsoleSettingsSchema.partial().strict().optional(),
     staffDirectory: gymStaffDirectorySettingsSchema.partial().strict().optional(),
     reports: gymReportsSettingsSchema.partial().strict().optional(),
     payments: gymPaymentMethodsSchema.partial().strict().optional(),
@@ -1154,6 +1170,13 @@ export interface GymPortalTheme {
    * own translations, which only the member app has, so they are resolved there.
    */
   joinCard: GymJoinCardSettings;
+  /**
+   * The staff console's colour (`console.primaryColor`), or `null` for the
+   * default. Carried on this public theme so every staff role, not just the owner
+   * who can read settings, sees the console in the colour the owner chose. It is
+   * a hex, nothing a visitor could not read off the console itself.
+   */
+  consolePrimaryColor: string | null;
 }
 
 /**
@@ -1173,6 +1196,7 @@ export function gymPortalTheme(rawSettings: unknown): GymPortalTheme {
     primaryColor: stored.memberPortal.primaryColor ?? stored.brand.primaryColor,
     chosenPrimaryColor: stored.memberPortal.primaryColor,
     joinCard: stored.memberPortal.joinCard,
+    consolePrimaryColor: stored.console.primaryColor,
   };
 }
 

@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import { portalThemeVars, type PortalColorChoice } from '@/src/lib/portal-theme';
+import { portalThemeVars, type PortalColorChoice } from '@fit/types';
 
 /**
  * The tenant's colours, painted onto the member portal before anything renders.
  *
  * The colours the gym CHOSE arrive with the tenant lookup the locale layout
  * already performs, and this wraps the whole portal in the CSS custom properties
- * they translate to (see `@/src/lib/portal-theme` for which tokens and why). Every
+ * they translate to (see `portal-theme.ts` in `@fit/types` for which tokens and why). Every
  * `var(--color-accent)` in the app — the submit blocks, the chips, the "booked"
  * pills, the focus rings — then resolves to the gym's colour with no component
  * touched. It is the first consumer of these settings; before it, `primaryColor`

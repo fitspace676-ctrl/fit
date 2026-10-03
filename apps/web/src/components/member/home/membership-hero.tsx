@@ -35,9 +35,18 @@ export interface MembershipHeroProps {
 // white "aura" blob, and the coloured drop shadow. The direction bans all three
 // — the block is flat, and its size is what gives it weight.
 
-/** The one lime, and the ink that is legible on it. Both mode-independent. */
+/**
+ * The accent fill, and the ink that is legible on it. Both come from the theme,
+ * so the block follows whatever accent the portal wears: near-black on the lime,
+ * white on a dark fill. Both stay mode-independent.
+ */
 const LIME = 'var(--color-accent)';
-const ON_LIME = '#131312';
+const ON_LIME = 'var(--color-on-accent)';
+/** The ink, softened toward the fill: secondary type on the block. */
+const ON_LIME_SOFT = 'color-mix(in srgb, var(--color-on-accent) 80%, var(--color-accent))';
+/** A translucent wash of the ink: tracks and quiet buttons on the block. */
+const inkWash = (percent: number) =>
+  `color-mix(in srgb, var(--color-on-accent) ${percent}%, transparent)`;
 
 const styles = stylex.create({
   card: {
@@ -69,7 +78,7 @@ const styles = stylex.create({
     letterSpacing: '0.16em',
     // Ink-800 rather than a lighter lime: a tint of the block colour muddies it,
     // while ink simply recedes.
-    color: '#2B2B29',
+    color: ON_LIME_SOFT,
   },
   // Solid ink carrying LIME type — not white. The artboards use the block's own
   // colour as the pill's ink, which ties the badge to the surface it sits on
@@ -110,7 +119,7 @@ const styles = stylex.create({
     marginTop: '0.75rem',
     fontSize: '0.875rem',
     fontWeight: 500,
-    color: '#2B2B29',
+    color: ON_LIME_SOFT,
   },
   // Ids are always mono in this product — the QR modal, the account menu and
   // reception's console all print the same string in the same face.
@@ -135,10 +144,10 @@ const styles = stylex.create({
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
-    color: '#2B2B29',
+    color: ON_LIME_SOFT,
   },
   progressPct: {
-    color: '#2B2B29',
+    color: ON_LIME_SOFT,
   },
   track: {
     height: '0.5rem',
@@ -146,7 +155,7 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-full)',
     // A darker lime, not a white/ink wash: the track has to stay part of the
     // block while the fill reads as ink against it.
-    backgroundColor: 'rgba(19, 19, 18, 0.15)',
+    backgroundColor: inkWash(15),
   },
   fill: {
     height: '100%',
@@ -168,7 +177,7 @@ const styles = stylex.create({
     height: '2.75rem',
     alignItems: 'center',
     borderRadius: 'var(--radius-element)',
-    backgroundColor: { default: ON_LIME, ':hover': '#2B2B29' },
+    backgroundColor: { default: ON_LIME, ':hover': ON_LIME_SOFT },
     color: LIME,
     paddingInline: '1.5rem',
     fontSize: '0.875rem',
@@ -183,8 +192,8 @@ const styles = stylex.create({
     alignItems: 'center',
     borderRadius: 'var(--radius-element)',
     backgroundColor: {
-      default: 'rgba(19, 19, 18, 0.10)',
-      ':hover': 'rgba(19, 19, 18, 0.16)',
+      default: inkWash(10),
+      ':hover': inkWash(16),
     },
     color: ON_LIME,
     paddingInline: '1.5rem',

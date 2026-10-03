@@ -10,7 +10,7 @@ vi.mock('./env', () => ({
   env: { NEXT_PUBLIC_ROOT_DOMAIN: 'formacore.io', NEXT_PUBLIC_API_URL: 'https://api.test/' },
 }));
 
-const { getActiveGymBrand } = await import('./active-gym');
+const { getActiveGymBrand, getGymConsoleColor } = await import('./active-gym');
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -76,5 +76,64 @@ describe('getActiveGymBrand', () => {
     host.value = 'formacore.io';
     await expect(getActiveGymBrand()).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('getGymConsoleColor', () => {
+  const lookup = (portal: Record<string, unknown>) =>
+    new Response(
+      JSON.stringify({
+        gymId: 'g1',
+        name: 'Downtown Strength',
+        brand: { name: 'Downtown Strength', primaryColor: '#e548c8', secondaryColor: '#222222' },
+        portal: { loginImageUrl: null, logoUrl: null, primaryColor: '#e548c8', ...portal },
+      }),
+      { status: 200 },
+    );
+
+  it('is the colour the owner chose for the console', async () => {
+    fetchMock.mockResolvedValue(lookup({ consolePrimaryColor: '#dc2626' }));
+    await expect(getGymConsoleColor('downtown')).resolves.toBe('#dc2626');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.test/gyms/by-subdomain/downtown');
+  });
+
+  // The two colours are separate settings: a pink member portal does not make a
+  // pink console, and neither does the brand colour.
+  it('ignores the member portal colour and the brand colour', async () => {
+    fetchMock.mockResolvedValue(
+      lookup({ chosenPrimaryColor: '#e548c8', consolePrimaryColor: null }),
+    );
+    await expect(getGymConsoleColor('downtown')).resolves.toBeNull();
+  });
+
+  it('reads an API that predates the field as no choice', async () => {
+    fetchMock.mockResolvedValue(lookup({}));
+    await expect(getGymConsoleColor('downtown')).resolves.toBeNull();
+  });
+
+  it('drops a value that is not a six-digit hex', async () => {
+    fetchMock.mockResolvedValue(lookup({ consolePrimaryColor: 'red' }));
+    await expect(getGymConsoleColor('downtown')).resolves.toBeNull();
+  });
+
+  // A colour saved in Settings must show on the next page load, not after a
+  // cache window.
+  it('is never served from the data cache', async () => {
+    fetchMock.mockResolvedValue(lookup({ consolePrimaryColor: '#dc2626' }));
+    await getGymConsoleColor('downtown');
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit & { next?: unknown };
+    expect(init.cache).toBe('no-store');
+  });
+
+  it('is null with no slug, without calling the API', async () => {
+    await expect(getGymConsoleColor(null)).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('is null when the lookup fails, without throwing', async () => {
+    fetchMock.mockResolvedValue(new Response('{}', { status: 404 }));
+    await expect(getGymConsoleColor('downtown')).resolves.toBeNull();
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    await expect(getGymConsoleColor('downtown')).resolves.toBeNull();
   });
 });

@@ -36,6 +36,7 @@ function setup() {
         primaryColor: '#84cc16',
         chosenPrimaryColor: null,
         joinCard: gymJoinCardSettingsSchema.parse({}),
+        consolePrimaryColor: null,
       },
     }),
   );
@@ -80,6 +81,7 @@ describe('GymsController', () => {
           primaryColor: '#84cc16',
           chosenPrimaryColor: null,
           joinCard: gymJoinCardSettingsSchema.parse({}),
+          consolePrimaryColor: null,
         },
       });
     });

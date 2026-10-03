@@ -5,15 +5,10 @@
 // A tiny set of outline (heroicons-style) glyphs keyed by `NavIcon`, kept inline
 // so the sidebar needs no icon dependency. Each is a 20×20 stroke path.
 //
-// The stroke's paint depends on the theme, matching the member portal's icon
-// accent pair: the raw brand lime (#E4F26A) in dark - the phosphor the whole
-// dark console glows in - and the theme's darker lime ink (#63701D, the
-// formacore `--color-icon-accent` light value) in light, where the raw lime is
-// invisible. Both stated as literals so neither an Astryx scope nor the
-// palette playground can shift them.
+// The stroke is the theme's `--color-icon-accent`, which already carries a
+// light/dark pair, so the glyphs follow whatever accent the console wears.
 
 import type { NavIcon as NavIconKey } from '@/lib/nav';
-import { useTheme } from '@/components/theme/theme-provider';
 
 /** SVG `d` paths per icon key. */
 const ICON_PATHS: Record<NavIconKey, string> = {
@@ -60,14 +55,11 @@ const ICON_PATHS: Record<NavIconKey, string> = {
 };
 
 /**
- * Render the inline glyph for `name`. Strokes the flat brand lime in dark mode
- * and the theme's darker lime ink in light mode - the member portal's pair.
+ * Render the inline glyph for `name`, stroked in the theme's icon accent.
  * `size` is the rendered square in px - the rail's rows use the 20px default,
  * chrome slots (the top bar's location pin) pass their own.
  */
 export function NavIcon({ name, size = 20 }: { name: NavIconKey; size?: number }) {
-  const { theme } = useTheme();
-
   return (
     <svg
       aria-hidden="true"
@@ -81,7 +73,7 @@ export function NavIcon({ name, size = 20 }: { name: NavIconKey; size?: number }
       strokeLinejoin="round"
       style={{ flexShrink: 0 }}
     >
-      <path d={ICON_PATHS[name]} stroke={theme === 'light' ? '#63701D' : '#E4F26A'} />
+      <path d={ICON_PATHS[name]} style={{ stroke: 'var(--color-icon-accent)' }} />
     </svg>
   );
 }

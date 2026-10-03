@@ -19,6 +19,7 @@ import { buttonSurfaceProps, ButtonContent, type ButtonLinkProps } from '@fit/ui
  * or focus ring — the two drifted apart the moment either changed.
  */
 export function ButtonLink({
+  external = false,
   href,
   label,
   children,
@@ -30,9 +31,16 @@ export function ButtonLink({
   fullWidth,
   xstyle,
   ...rest
-}: ButtonLinkProps) {
+}: ButtonLinkProps & {
+  /**
+   * The href leaves the console (another app or host). Renders a plain `<a>`,
+   * because `next/link` would try to client-navigate it inside this app.
+   */
+  external?: boolean;
+}) {
+  const Anchor = external ? 'a' : NextLink;
   return (
-    <NextLink
+    <Anchor
       href={href}
       aria-label={iconOnly ? label : undefined}
       {...rest}
@@ -41,6 +49,6 @@ export function ButtonLink({
       <ButtonContent label={label} icon={icon} iconOnly={iconOnly} endContent={endContent}>
         {children}
       </ButtonContent>
-    </NextLink>
+    </Anchor>
   );
 }
