@@ -59,11 +59,11 @@
  * the original method; the values above supersede that spec's palette.
  */
 :root {
-  --chart-series-1: light-dark(#285d43, #e4f26a);
+  --chart-series-1: light-dark(#0b67a8, #5fb4ff);
   --chart-series-2: light-dark(#0074e2, #5b9bff);
   /* The glow under series 1. The same pair, carried by opacity rather than a
      second colour, so it can never drift from the stroke it sits behind. */
-  --chart-glow-1: light-dark(rgb(40 93 67 / 0.28), rgb(228 242 106 / 0.3));
+  --chart-glow-1: light-dark(rgb(11 103 168 / 0.28), rgb(95 180 255 / 0.3));
   /* Reference lines, crosshairs and the grid: recessive by construction. */
   --chart-guide: light-dark(rgb(23 23 23 / 0.16), rgb(250 250 250 / 0.18));
 }
@@ -119,7 +119,7 @@
   /* The brand lime with near-black ink in both modes — the member portal's
      accent pairing. White ink was tried and rejected: on the lime it is ~1.5:1
      and unreadable. */
-  color: #131312 !important;
+  color: var(--color-on-accent) !important;
   background-color: var(--color-accent) !important;
 }
 

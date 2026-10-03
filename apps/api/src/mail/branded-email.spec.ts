@@ -18,8 +18,8 @@ import {
 } from './branded-email';
 
 describe('EMAIL_BRAND', () => {
-  it('carries the Lime Block palette, not the retired violet', () => {
-    expect(EMAIL_BRAND.brand).toBe('#E4F26A');
+  it('carries the sky blue palette, not the retired violet', () => {
+    expect(EMAIL_BRAND.brand).toBe('#1A7FD6');
     expect(EMAIL_BRAND.ink).toBe('#131312');
     expect(EMAIL_BRAND.muted).toBe('#6C6C68');
     expect(EMAIL_BRAND.border).toBe('#DCDCDA');
@@ -36,15 +36,15 @@ describe('renderBrandedEmail', () => {
     footerNote: 'Sent by FormaCore',
   });
 
-  it('renders the lime block mark with the sender initial beside the wordmark on the charcoal band', () => {
+  it('renders the blue block mark with the sender initial beside the wordmark on the charcoal band', () => {
     expect(html).toContain('Downtown Gym');
     expect(html).toContain(`background:${EMAIL_BRAND.ink}`);
-    expect(html).toMatch(/background:#E4F26A;color:#131312;[^>]*>D</);
+    expect(html).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>D</);
   });
 
   it('falls back to the FormaCore "F" when the sender name has no letter', () => {
     const bare = renderBrandedEmail({ senderName: '&amp;', heading: 'Hi', contentHtml: 'x' });
-    expect(bare).toMatch(/background:#E4F26A;color:#131312;[^>]*>F</);
+    expect(bare).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>F</);
   });
 
   it('renders the tracked uppercase eyebrow only when given', () => {
@@ -131,7 +131,7 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).toContain('@media (prefers-color-scheme:dark)');
     expect(html).toContain('.em-card{background:#1B1B19 !important;');
     expect(html).toContain(
-      '.em-button,.em-button a{background:#E4F26A !important;color:#131312 !important;}',
+      '.em-button,.em-button a{background:#1A7FD6 !important;color:#FFFFFF !important;}',
     );
     expect(html.endsWith('</body></html>')).toBe(true);
   });
@@ -139,7 +139,7 @@ describe('renderBrandedEmail as a document', () => {
   it('draws the mark in CSS when no web URL is configured', () => {
     const html = renderBrandedEmail({ senderName: 'Gym', heading: 'Hi', contentHtml: 'x' });
     expect(html).not.toContain('<img');
-    expect(html).toMatch(/background:#E4F26A;color:#131312;[^>]*>G</);
+    expect(html).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>G</);
   });
 
   it('serves the mark as a hosted PNG the Gmail app cannot recolour when WEB_URL is set', () => {
@@ -175,7 +175,7 @@ describe('renderBrandedEmail as a document', () => {
   it('falls back to the mark and name for the platform without a web URL', () => {
     const html = renderBrandedEmail({ senderName: 'FormaCore', heading: 'Hi', contentHtml: 'x' });
     expect(html).not.toContain('logodark.png');
-    expect(html).toMatch(/background:#E4F26A;color:#131312;[^>]*>F</);
+    expect(html).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>F</);
   });
 
   it('falls back to the FormaCore F image for an initial outside the glyph set', () => {
@@ -186,18 +186,17 @@ describe('renderBrandedEmail as a document', () => {
 });
 
 describe('renderEmailButton', () => {
-  it('renders a lime button with ink text (white on lime is unreadable)', () => {
+  it('renders a blue button with white text', () => {
     const button = renderEmailButton('https://app.fit/go', 'Open portal');
     expect(button).toContain('href="https://app.fit/go"');
     expect(button).toContain('Open portal');
     expect(button).toContain(`background:${EMAIL_BRAND.brand}`);
-    expect(button).toContain(`color:${EMAIL_BRAND.ink}`);
-    expect(button).not.toContain('color:#FFFFFF');
+    expect(button).toContain(`color:${EMAIL_BRAND.onBrand}`);
   });
 });
 
 describe('renderEmailLinkFallback', () => {
-  it('shows the escaped URL as a readable lime-ink link', () => {
+  it('shows the escaped URL as a readable deep-blue link', () => {
     const fallback = renderEmailLinkFallback('https://app.fit/go?token=a&b=c');
     expect(renderEmailLinkFallback('https://app.fit/go', 'ka')).toContain('დააკოპირეთ');
     expect(fallback).toContain('href="https://app.fit/go?token=a&b=c"');
@@ -208,7 +207,7 @@ describe('renderEmailLinkFallback', () => {
 });
 
 describe('renderEmailTextLink', () => {
-  it('never puts the block lime on white; text links use the lime-as-ink tone', () => {
+  it('never puts the block blue on white; text links use the deeper blue', () => {
     const link = renderEmailTextLink('https://app.fit/reports', 'View reports');
     expect(link).toContain(`color:${EMAIL_BRAND.link}`);
     expect(link).not.toContain(`color:${EMAIL_BRAND.brand}`);

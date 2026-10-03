@@ -196,7 +196,7 @@ const styles = stylex.create({
     backgroundColor: 'light-dark(var(--color-accent-muted), var(--color-overlay-hover))',
     // The chevron itself: quiet ink in light, the brand phosphor in dark - the
     // same treatment the nav glyphs on the left wear.
-    color: 'light-dark(var(--color-text-secondary), #E4F26A)',
+    color: 'light-dark(var(--color-text-secondary), var(--color-icon-accent))',
   },
   // Open: the soft brand gradient in light mode (the full-strength fill
   // overpowered the row); in dark the image resolves to none and the muted
