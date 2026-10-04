@@ -97,76 +97,6 @@ const ThankYou = ({ message, onClose }: { message: string; onClose: () => void }
   </div>
 );
 
-/** Free-trial signup form — captures name, work email, and gym/studio name. */
-export const TrialModal = ({ open, onClose }: LeadModalProps) => {
-  const { status, error, submit, close } = useLeadSubmit(
-    (form) => ({
-      type: 'trial',
-      name: field(form, 'name') ?? '',
-      email: field(form, 'email') ?? '',
-      business: field(form, 'business'),
-      website: field(form, 'website'),
-    }),
-    onClose,
-  );
-
-  return (
-    <AnimatedModal
-      open={open}
-      onClose={close}
-      title="Start your free trial"
-      description="14 days, full access, no card required."
-    >
-      {status === 'done' ? (
-        <ThankYou
-          message="You're in — check your inbox, we'll be in touch shortly to get your gym set up."
-          onClose={close}
-        />
-      ) : (
-        <form onSubmit={submit} className="space-y-4">
-          <Field label="Full name">
-            <input
-              className={inputCls}
-              type="text"
-              name="name"
-              placeholder="David Iobashvili"
-              required
-            />
-          </Field>
-          <Field label="Work email">
-            <input
-              className={inputCls}
-              type="email"
-              name="email"
-              placeholder="you@yourgym.com"
-              required
-            />
-          </Field>
-          <Field label="Gym / studio name">
-            <input
-              className={inputCls}
-              type="text"
-              name="business"
-              placeholder="IronWorks Fitness"
-              required
-            />
-          </Field>
-          <Honeypot />
-          <ErrorNote message={error} />
-          <div className="flex justify-end gap-2 pt-2">
-            <Btn v="glass" size="md" onClick={close}>
-              Cancel
-            </Btn>
-            <Btn v="primary" size="md" type="submit" disabled={status === 'submitting'}>
-              {status === 'submitting' ? 'Starting…' : 'Start free trial'}
-            </Btn>
-          </div>
-        </form>
-      )}
-    </AnimatedModal>
-  );
-};
-
 /** Book-a-demo request form — captures name, email, optional phone and message. */
 export const DemoModal = ({ open, onClose }: LeadModalProps) => {
   const { status, error, submit, close } = useLeadSubmit(
@@ -241,17 +171,17 @@ export const DemoModal = ({ open, onClose }: LeadModalProps) => {
 };
 
 /**
- * Pricing-request form — the plan prices are no longer published, so every
- * "Request pricing" button on the marketing site opens this instead of routing
- * to a price list. Deliberately the shortest form of the three: a name and an
- * email is all we need to send a quote back.
+ * Request-a-call form — the marketing site's second call to action. Name, email
+ * and phone are all required: the phone is what the team rings back on, and the
+ * email is where the follow-up lands if nobody picks up.
  */
-export const RequestPricingModal = ({ open, onClose }: LeadModalProps) => {
+export const CallModal = ({ open, onClose }: LeadModalProps) => {
   const { status, error, submit, close } = useLeadSubmit(
     (form) => ({
-      type: 'pricing',
+      type: 'call',
       name: field(form, 'name') ?? '',
       email: field(form, 'email') ?? '',
+      phone: field(form, 'phone'),
       website: field(form, 'website'),
     }),
     onClose,
@@ -261,12 +191,12 @@ export const RequestPricingModal = ({ open, onClose }: LeadModalProps) => {
     <AnimatedModal
       open={open}
       onClose={close}
-      title="Request pricing"
-      description="Leave your name and email and we'll send you a quote for your business."
+      title="Request a call"
+      description="Leave your details and someone from our team will call you back."
     >
       {status === 'done' ? (
         <ThankYou
-          message="Thanks — we've got your request and will get back to you shortly with pricing."
+          message="Thanks - we've got your request and will call you back shortly."
           onClose={close}
         />
       ) : (
@@ -277,6 +207,15 @@ export const RequestPricingModal = ({ open, onClose }: LeadModalProps) => {
               type="text"
               name="name"
               placeholder="David Iobashvili"
+              required
+            />
+          </Field>
+          <Field label="Phone">
+            <input
+              className={inputCls}
+              type="tel"
+              name="phone"
+              placeholder="+995 555 12 34 56"
               required
             />
           </Field>
@@ -296,7 +235,7 @@ export const RequestPricingModal = ({ open, onClose }: LeadModalProps) => {
               Cancel
             </Btn>
             <Btn v="primary" size="md" type="submit" disabled={status === 'submitting'}>
-              {status === 'submitting' ? 'Sending…' : 'Request pricing'}
+              {status === 'submitting' ? 'Sending…' : 'Request a call'}
             </Btn>
           </div>
         </form>

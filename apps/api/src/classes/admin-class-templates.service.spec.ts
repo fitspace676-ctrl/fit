@@ -388,11 +388,11 @@ describe('AdminClassTemplatesService', () => {
       const { service, create } = setup();
 
       const detail = await service.createClassTemplate(
-        createInput({ imageUrl: 'https://pub.example.com/gym/classes/cover.jpg' }),
+        createInput({ imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg' }),
       );
 
       expect(create.mock.calls[0]?.[0]?.data).toMatchObject({
-        imageUrl: 'https://pub.example.com/gym/classes/cover.jpg',
+        imageUrl: 'https://pub.example.com/gym-1/classes/cover.jpg',
       });
       // The mocked row carries imageUrl: null — the detail must pass it through.
       expect(detail.imageUrl).toBeNull();
@@ -432,6 +432,33 @@ describe('AdminClassTemplatesService', () => {
     });
   });
 
+  describe("the cover image must be one of this gym's uploads", () => {
+    const foreign = 'https://pub.example.com/gym-2/classes/cover.jpg';
+
+    it("refuses to create a class on another gym's cover, writing nothing", async () => {
+      const { service, create } = setup();
+      await expect(
+        service.createClassTemplate(createInput({ imageUrl: foreign })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("refuses to point a class at another gym's cover, writing nothing", async () => {
+      const { service, update } = setup({ findFirst: row() });
+      await expect(
+        service.updateClassTemplate('ct-1', updateInput({ imageUrl: foreign })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('lets an edit through that keeps the stored cover, even an older one', async () => {
+      const legacy = 'https://old-cdn.example/cover.jpg';
+      const { service, update } = setup({ findFirst: { ...row(), imageUrl: legacy } });
+      await service.updateClassTemplate('ct-1', updateInput({ imageUrl: legacy }));
+      expect(update).toHaveBeenCalled();
+    });
+  });
+
   describe('updateClassTemplate', () => {
     it('updates the profile fields (not status) and returns the detail', async () => {
       const { service, findFirst, update } = setup({ findFirst: row() });
@@ -458,11 +485,11 @@ describe('AdminClassTemplatesService', () => {
 
       await service.updateClassTemplate(
         'ct-1',
-        updateInput({ imageUrl: 'https://pub.example.com/gym/classes/new-cover.jpg' }),
+        updateInput({ imageUrl: 'https://pub.example.com/gym-1/classes/new-cover.jpg' }),
       );
 
       expect(update.mock.calls[0]?.[0]?.data).toMatchObject({
-        imageUrl: 'https://pub.example.com/gym/classes/new-cover.jpg',
+        imageUrl: 'https://pub.example.com/gym-1/classes/new-cover.jpg',
       });
     });
 

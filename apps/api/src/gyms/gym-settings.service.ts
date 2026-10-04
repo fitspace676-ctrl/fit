@@ -17,6 +17,8 @@ import {
   type UploadGymLogoResponse,
   type UploadGymPortalImageInput,
   type UploadGymPortalImageResponse,
+  type UploadGymPortalFaviconInput,
+  type UploadGymPortalFaviconResponse,
   type UploadGymPortalLogoInput,
   type UploadGymPortalLogoResponse,
 } from '@fit/types';
@@ -24,6 +26,7 @@ import { invalidateGymAccess } from '../common/rbac/request-access';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
+import { assertOwnedMedia } from '../storage/media-ownership';
 import { StorageService } from '../storage/storage.service';
 
 /** The columns the settings read/write needs off the gym row. */
@@ -113,6 +116,28 @@ export class GymSettingsService {
     // settlement method may not be switched off. Checked on the merged result,
     // not the patch: a body turning off the one method still standing is refused
     // even though, read alone, it only ever says "false".
+    // The image fields take only this gym's own uploads, by the same rule the
+    // product, trainer, location and banner forms apply (`assertOwnedMedia`):
+    // otherwise the portal could show another gym's image, and the old value of
+    // these fields is what media cleanup is later asked to free. A value equal to
+    // the stored one passes, so an older URL saved before this rule never blocks
+    // the form; `null` is the way back to the inherited image.
+    assertOwnedMedia(
+      this.tenant.gymId,
+      [
+        input.brand?.logoUrl,
+        input.memberPortal?.logoUrl,
+        input.memberPortal?.loginImageUrl,
+        input.memberPortal?.faviconUrl,
+      ],
+      [
+        current.brand.logoUrl,
+        current.memberPortal.logoUrl,
+        current.memberPortal.loginImageUrl,
+        current.memberPortal.faviconUrl,
+      ],
+    );
+
     if (enabledPaymentMethods(next.payments).length === 0) {
       throw new BadRequestException('At least one payment method must stay enabled');
     }
@@ -180,7 +205,7 @@ export class GymSettingsService {
 
     // The logo this one replaces is now referenced by nobody; free it. Best-effort
     // by design — the nightly sweep is the backstop.
-    await this.media.discardUnreferenced([current.brand?.logoUrl], [logoUrl]);
+    await this.media.discardUnreferenced(this.tenant.gymId, [current.brand?.logoUrl], [logoUrl]);
 
     return { logoUrl };
   }
@@ -227,7 +252,11 @@ export class GymSettingsService {
 
     // The photograph this one replaces is now referenced by nobody; free it.
     // Best-effort by design — the nightly sweep is the backstop.
-    await this.media.discardUnreferenced([current.memberPortal?.loginImageUrl], [loginImageUrl]);
+    await this.media.discardUnreferenced(
+      this.tenant.gymId,
+      [current.memberPortal?.loginImageUrl],
+      [loginImageUrl],
+    );
 
     return { loginImageUrl };
   }
@@ -281,9 +310,59 @@ export class GymSettingsService {
     // portal was inheriting a moment ago and invoices still print — so the
     // discard is a request, not a deletion: `MediaCleanupService` re-checks every
     // reference before it removes anything, and finds that one.
-    await this.media.discardUnreferenced([current.memberPortal?.logoUrl], [logoUrl]);
+    await this.media.discardUnreferenced(
+      this.tenant.gymId,
+      [current.memberPortal?.logoUrl],
+      [logoUrl],
+    );
 
     return { logoUrl };
+  }
+
+  /**
+   * `POST /gyms/settings/portal-favicon`: finalise the member site's tab icon.
+   * The same finalise flow and `{gymId}/logos/...` prefix as {@link setPortalLogo},
+   * writing `memberPortal.faviconUrl`. A wordmark shrunk to 16px is unreadable,
+   * which is why the tab has a field of its own; `null` keeps the logo there.
+   *
+   * The icon this one replaces is handed to `MediaCleanupService`, which deletes
+   * it only if no other setting still points at the same file.
+   *
+   * A key outside this gym's own prefix is a `400`; a `503` surfaces when no
+   * public base URL is configured (R2 disabled), mirroring the uploader.
+   */
+  async setPortalFavicon(
+    input: UploadGymPortalFaviconInput,
+  ): Promise<UploadGymPortalFaviconResponse> {
+    const gymId = this.tenant.gymId;
+    if (!input.photoKey.startsWith(`${gymId}/`)) {
+      throw new BadRequestException('photoKey does not belong to this gym');
+    }
+
+    const faviconUrl = this.storage.publicUrl(input.photoKey);
+    if (!faviconUrl) {
+      throw new ServiceUnavailableException('Object storage (R2) public URL is not configured');
+    }
+
+    const gym = await this.loadGym();
+    const current = gymSettingsStoredSchema.parse(gym.settings ?? {});
+    const next: GymSettingsStored = {
+      ...current,
+      memberPortal: { ...current.memberPortal, faviconUrl },
+    };
+
+    await this.prisma.client.gym.update({
+      where: { id: gymId },
+      data: { settings: next as unknown as Prisma.InputJsonValue },
+    });
+
+    await this.media.discardUnreferenced(
+      this.tenant.gymId,
+      [current.memberPortal?.faviconUrl],
+      [faviconUrl],
+    );
+
+    return { faviconUrl };
   }
 
   /** Load the caller's gym row, or `404 GYM_NOT_FOUND` (a deleted/odd session). */

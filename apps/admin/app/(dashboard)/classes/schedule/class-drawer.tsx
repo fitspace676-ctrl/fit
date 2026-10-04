@@ -657,7 +657,7 @@ export function ClassDrawer({
                 <DetailRow icon="calendar" text={formatDay(head.startsAt, locale, timeZone)} />
                 <DetailRow
                   icon="clock"
-                  text={`${formatTime(head.startsAt, locale, timeZone)}–${formatTime(head.endsAt, locale, timeZone)}`}
+                  text={`${formatTime(head.startsAt, locale, timeZone)}-${formatTime(head.endsAt, locale, timeZone)}`}
                 />
                 {head.trainerName ? <DetailRow icon="user" text={head.trainerName} /> : null}
                 {head.locationName || head.room ? (

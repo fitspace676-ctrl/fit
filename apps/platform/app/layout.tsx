@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Archivo, JetBrains_Mono, Manrope } from 'next/font/google';
 import './globals.css';
+import { LeadCtaProvider } from '@/components/marketing/lead-cta-provider';
+import { SiteLoader } from '@/components/marketing/site-loader';
 import { SentryInit } from './sentry-init';
 
 /**
@@ -44,6 +46,9 @@ export const metadata: Metadata = {
  */
 const themeScript = `(function(){try{var s=localStorage.getItem('theme');var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();`;
 
+/** Hide the splash before it paints when it has already played this session. */
+const splashScript = `(function(){try{if(sessionStorage.getItem('fcl-seen'))document.documentElement.classList.add('fcl-seen');}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
@@ -53,10 +58,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: splashScript }} />
+        <link rel="preload" as="image" href="/FormaCore-light.png" />
+        <link rel="preload" as="image" href="/FormaCore-dark.png" />
       </head>
       <body className="min-h-screen bg-surface font-sans text-fg antialiased">
         <SentryInit />
-        {children}
+        <SiteLoader />
+        <LeadCtaProvider>{children}</LeadCtaProvider>
       </body>
     </html>
   );

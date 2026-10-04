@@ -83,7 +83,7 @@ export function HubTabs({ items, ariaLabel }: { items: HubTab[]; ariaLabel: stri
             // accent ink + underline, exactly as before.
             className={`-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
               active
-                ? 'rounded-full border-transparent bg-[var(--color-accent)] font-bold text-[#131312] dark:rounded-none dark:border-brand-300 dark:bg-transparent dark:font-medium dark:text-brand-300'
+                ? 'rounded-full border-transparent bg-[var(--color-accent)] font-bold text-[var(--color-on-accent)] dark:rounded-none dark:border-brand-300 dark:bg-transparent dark:font-medium dark:text-brand-300'
                 : 'border-transparent text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200'
             }`}
           >

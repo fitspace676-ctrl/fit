@@ -321,6 +321,7 @@ describe('gymMemberPortalSettingsSchema — the portal wordmark', () => {
     expect(gymMemberPortalSettingsSchema.parse({})).toEqual({
       loginImageUrl: null,
       logoUrl: null,
+      faviconUrl: null,
       primaryColor: null,
       joinCard: {
         hidden: false,
@@ -463,6 +464,7 @@ describe('gymPortalTheme — resolving the wordmark against the brand', () => {
     expect(theme).toEqual({
       loginImageUrl: null,
       logoUrl: null,
+      faviconUrl: null,
       primaryColor: '#e4f26a',
       chosenPrimaryColor: '#e4f26a',
       joinCard: gymJoinCardSettingsSchema.parse({}),

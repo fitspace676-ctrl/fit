@@ -21,12 +21,16 @@ function setup() {
   const setPortalLogo = vi.fn(() =>
     Promise.resolve({ logoUrl: 'https://cdn/gym-1/logos/mark.webp' }),
   );
+  const setPortalFavicon = vi.fn(() =>
+    Promise.resolve({ faviconUrl: 'https://cdn/gym-1/logos/icon.png' }),
+  );
   const service = {
     getSettings,
     updateSettings,
     setLogo,
     setPortalImage,
     setPortalLogo,
+    setPortalFavicon,
   } as unknown as GymSettingsService;
   return {
     controller: new GymSettingsController(service),
@@ -35,6 +39,7 @@ function setup() {
     setLogo,
     setPortalImage,
     setPortalLogo,
+    setPortalFavicon,
   };
 }
 
@@ -124,6 +129,21 @@ describe('GymSettingsController', () => {
         BadRequestException,
       );
       expect(ctx.setPortalLogo).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /gyms/settings/portal-favicon', () => {
+    it('validates the body and delegates the photoKey', async () => {
+      const result = await ctx.controller.setPortalFavicon({ photoKey: 'gym-1/logos/icon.png' });
+      expect(ctx.setPortalFavicon).toHaveBeenCalledWith({ photoKey: 'gym-1/logos/icon.png' });
+      expect(result.faviconUrl).toBe('https://cdn/gym-1/logos/icon.png');
+    });
+
+    it('rejects an empty photoKey with a 400', async () => {
+      await expect(ctx.controller.setPortalFavicon({ photoKey: '' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(ctx.setPortalFavicon).not.toHaveBeenCalled();
     });
   });
 

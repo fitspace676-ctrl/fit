@@ -34,14 +34,21 @@ export class MediaCleanupService {
    * Only objects under an upload prefix are eligible (see `isSweepableKey`), and each
    * dropped reference is re-checked against the database first: an admin who puts the
    * same image on two products must not lose it when one of them drops it.
+   *
+   * Only objects under `gymId`'s own prefix are ever deleted. A stored reference is
+   * whatever a client sent (a settings PATCH accepts any URL), so without this a gym
+   * could save another tenant's object URL, replace it, and have that tenant's file
+   * deleted. A foreign reference is left alone; the nightly sweep, which checks every
+   * gym's references, remains the only thing that collects it.
    */
   async discardUnreferenced(
+    gymId: string,
     previous: readonly (string | null | undefined)[],
     next: readonly (string | null | undefined)[],
   ): Promise<void> {
     const kept = new Set(next.filter(isPresent));
     const dropped = [...new Set(previous.filter(isPresent))].filter(
-      (reference) => !kept.has(reference) && isDeletable(reference),
+      (reference) => !kept.has(reference) && isDeletable(reference, gymId),
     );
     if (dropped.length === 0) return;
 
@@ -73,27 +80,33 @@ export class MediaCleanupService {
    * looser rule because it compares a *bucket key* against a stored URL.)
    */
   private async isStillReferenced(reference: string): Promise<boolean> {
-    const [products, trainers, locations, logos, portalImages, portalLogos] = await Promise.all([
-      this.prisma.client.product.count({ where: { images: { has: reference } } }),
-      this.prisma.client.trainer.count({ where: { photoUrl: reference } }),
-      this.prisma.client.location.count({ where: { photoUrl: reference } }),
-      this.prisma.client.gym.count({
-        where: { settings: { path: ['brand', 'logoUrl'], equals: reference } },
-      }),
-      // The portal's sign-in photograph shares the logo's upload prefix, so a gym
-      // that used one image as both would otherwise lose it the moment either side
-      // moved on — the exact case this whole re-check exists to prevent.
-      this.prisma.client.gym.count({
-        where: { settings: { path: ['memberPortal', 'loginImageUrl'], equals: reference } },
-      }),
-      // The portal WORDMARK, on that same prefix, and the sharpest version of the
-      // same case: a gym whose portal inherits `brand.logoUrl` holds one file
-      // under two settings paths, so replacing either would drop the other's
-      // image if only one path were counted.
-      this.prisma.client.gym.count({
-        where: { settings: { path: ['memberPortal', 'logoUrl'], equals: reference } },
-      }),
-    ]);
+    const [products, trainers, locations, logos, portalImages, portalLogos, portalFavicons] =
+      await Promise.all([
+        this.prisma.client.product.count({ where: { images: { has: reference } } }),
+        this.prisma.client.trainer.count({ where: { photoUrl: reference } }),
+        this.prisma.client.location.count({ where: { photoUrl: reference } }),
+        this.prisma.client.gym.count({
+          where: { settings: { path: ['brand', 'logoUrl'], equals: reference } },
+        }),
+        // The portal's sign-in photograph shares the logo's upload prefix, so a gym
+        // that used one image as both would otherwise lose it the moment either side
+        // moved on: the exact case this whole re-check exists to prevent.
+        this.prisma.client.gym.count({
+          where: { settings: { path: ['memberPortal', 'loginImageUrl'], equals: reference } },
+        }),
+        // The portal WORDMARK, on that same prefix, and the sharpest version of the
+        // same case: a gym whose portal inherits `brand.logoUrl` holds one file
+        // under two settings paths, so replacing either would drop the other's
+        // image if only one path were counted.
+        this.prisma.client.gym.count({
+          where: { settings: { path: ['memberPortal', 'logoUrl'], equals: reference } },
+        }),
+        // The tab icon, on the same prefix. A gym may upload its logo file as the
+        // icon too, so this path has to count before either one is freed.
+        this.prisma.client.gym.count({
+          where: { settings: { path: ['memberPortal', 'faviconUrl'], equals: reference } },
+        }),
+      ]);
 
     return (
       products > 0 ||
@@ -101,7 +114,8 @@ export class MediaCleanupService {
       locations > 0 ||
       logos > 0 ||
       portalImages > 0 ||
-      portalLogos > 0
+      portalLogos > 0 ||
+      portalFavicons > 0
     );
   }
 }
@@ -111,8 +125,8 @@ function isPresent(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
-/** True when a reference resolves to an object key cleanup is allowed to delete. */
-function isDeletable(reference: string): boolean {
+/** True when a reference resolves to an object key this gym's cleanup may delete. */
+function isDeletable(reference: string, gymId: string): boolean {
   const key = toObjectKey(reference);
-  return key !== null && isSweepableKey(key);
+  return key !== null && key.startsWith(`${gymId}/`) && isSweepableKey(key);
 }

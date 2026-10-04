@@ -143,7 +143,7 @@ describe('StaffConsole branch filter', () => {
     navigationMock.reset();
   });
 
-  describe('the roster — "who can work here"', () => {
+  describe('the roster - "who can work here"', () => {
     const vakeOnly = staffMember({ id: 'gm-1', name: 'Nino Beridze' });
     const saburtaloOnly = staffMember({
       id: 'gm-2',
@@ -212,7 +212,7 @@ describe('StaffConsole branch filter', () => {
     });
   });
 
-  describe('"Who\'s Working Now" — "who is behind this door"', () => {
+  describe('"Who\'s Working Now" - "who is behind this door"', () => {
     it("narrows on the shift's own branch, not the person's roster", () => {
       // Rostered at Vake (see `staffMember`), but working a Saburtalo shift today.
       mocks.locationId.current = 'loc-vake';
@@ -226,7 +226,7 @@ describe('StaffConsole branch filter', () => {
     it('keeps a shift at the selected branch', () => {
       mocks.locationId.current = 'loc-vake';
       renderConsole({ workingNow: [workingNowRow()] });
-      expect(screen.getByText('09:00 – 17:00')).toBeTruthy();
+      expect(screen.getByText('09:00 - 17:00')).toBeTruthy();
     });
 
     // Nothing knows where an unattributed shift is, so it shows gym-wide and under
@@ -236,7 +236,7 @@ describe('StaffConsole branch filter', () => {
 
       // Empty roster, so the only dash on screen is the card's own placeholder.
       const all = renderConsole({ staff: [], workingNow: [shift] });
-      expect(screen.getByText('09:00 – 17:00')).toBeTruthy();
+      expect(screen.getByText('09:00 - 17:00')).toBeTruthy();
       // No branch, so the placeholder rather than a blank.
       expect(screen.getByText('-')).toBeTruthy();
       all.unmount();

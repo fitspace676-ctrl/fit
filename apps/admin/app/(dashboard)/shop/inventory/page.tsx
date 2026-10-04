@@ -286,11 +286,11 @@ export default async function InventoryPage({
             <span {...stylex.props(styles.scopeValue)}>{branchName ?? 'All locations'}</span>
             {branchNotApplied ? (
               <span {...stylex.props(styles.scopeCaveat)}>
-                Not narrowed to the selected branch — these are gym-wide totals
+                Not narrowed to the selected branch - these are gym-wide totals
               </span>
             ) : branchName === null ? (
               <span {...stylex.props(styles.scopeCaveat)}>
-                Counts are gym-wide totals — pick a branch to see where the stock actually is
+                Counts are gym-wide totals - pick a branch to see where the stock actually is
               </span>
             ) : (
               <span {...stylex.props(styles.scopeCaveat)}>

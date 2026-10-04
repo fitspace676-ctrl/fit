@@ -328,6 +328,8 @@ export interface ActiveGymBrand {
   name: string;
   /** `memberPortal.logoUrl ?? brand.logoUrl`, or `null` for the bundled FormaCore icon. */
   logoUrl: string | null;
+  /** The tab icon the gym uploaded (`memberPortal.faviconUrl`), or `null` to use the logo. */
+  faviconUrl: string | null;
   /**
    * The portal colour the gym actually chose, or `null` when it chose none — the
    * same distinction {@link getActiveGymPortalSkin} draws, so the tab is never
@@ -371,11 +373,18 @@ export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
         : typeof brand?.logoUrl === 'string'
           ? brand.logoUrl
           : null;
+    // Guarded like the logo: an API that predates the field has no such key.
+    const faviconUrl = typeof portal?.faviconUrl === 'string' ? portal.faviconUrl : null;
     const chosen =
       portal && typeof portal.primaryColor === 'string'
         ? chosenPortalColors(portal, brand).primaryColor
         : null;
-    return { name, logoUrl, themeColor: chosen && HEX_COLOR.test(chosen) ? chosen : null };
+    return {
+      name,
+      logoUrl,
+      faviconUrl,
+      themeColor: chosen && HEX_COLOR.test(chosen) ? chosen : null,
+    };
   } catch {
     return null;
   }

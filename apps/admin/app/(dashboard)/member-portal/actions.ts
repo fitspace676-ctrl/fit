@@ -14,6 +14,7 @@ import {
   ApiError,
   createUpload,
   updateGymSettings,
+  uploadGymPortalFavicon,
   uploadGymPortalImage,
   uploadGymPortalLogo,
   type SignedUploadResponse,
@@ -195,6 +196,27 @@ export async function finalizePortalLogoAction(
     const result = await uploadGymPortalLogo({ photoKey });
     revalidatePath('/member-portal');
     revalidatePath('/settings');
+    return { ok: true, data: result };
+  } catch (error) {
+    return { ok: false, error: await toMessage(error) };
+  }
+}
+
+/**
+ * Finalise the member site's tab icon: the API checks the uploaded object's
+ * `photoKey` belongs to this gym, stores its public URL as
+ * `memberPortal.faviconUrl` and returns it. The bytes go up through
+ * {@link requestPortalLogoUploadAction}: same prefix, same presign.
+ */
+export async function finalizePortalFaviconAction(
+  photoKey: string,
+): Promise<ActionResult<{ faviconUrl: string }>> {
+  if (!(await requireGymManage())) {
+    return notAuthorized();
+  }
+  try {
+    const result = await uploadGymPortalFavicon({ photoKey });
+    revalidatePath('/member-portal');
     return { ok: true, data: result };
   } catch (error) {
     return { ok: false, error: await toMessage(error) };

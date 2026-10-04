@@ -8,16 +8,17 @@ import { z } from 'zod';
  * `POST /platform/leads`. This is the wire contract shared between that Next.js
  * client and the NestJS controller: the discriminating `type`, the always-required
  * contact fields, and the form-specific optionals (`business` for a trial,
- * `phone` / `message` for a demo; the pricing form asks for name and email only).
+ * `phone` / `message` for a demo; the pricing form asks for name and email only;
+ * the call request requires a `phone` on top of name and email).
  */
 
 /** The marketing form a lead came from. */
-export const PLATFORM_LEAD_TYPES = ['trial', 'demo', 'pricing'] as const;
+export const PLATFORM_LEAD_TYPES = ['trial', 'demo', 'pricing', 'call'] as const;
 
 /** Lead source — a member of {@link PLATFORM_LEAD_TYPES}. */
 export const platformLeadTypeSchema = z.enum(PLATFORM_LEAD_TYPES);
 
-/** The wire-level lead source (`'trial' | 'demo' | 'pricing'`). */
+/** The wire-level lead source (`'trial' | 'demo' | 'pricing' | 'call'`). */
 export type PlatformLeadType = z.infer<typeof platformLeadTypeSchema>;
 
 /**
@@ -39,14 +40,19 @@ const optionalText = (max: number) =>
  * forms; `business`, `phone` and `message` are optional (present on one form or
  * the other) and trimmed, with empty strings normalised to absent.
  */
-export const createPlatformLeadSchema = z.object({
-  type: platformLeadTypeSchema,
-  name: z.string().trim().min(1, 'Name is required').max(120),
-  email: z.string().trim().toLowerCase().email('A valid email is required').max(200),
-  business: optionalText(160),
-  phone: optionalText(40),
-  message: optionalText(2000),
-});
+export const createPlatformLeadSchema = z
+  .object({
+    type: platformLeadTypeSchema,
+    name: z.string().trim().min(1, 'Name is required').max(120),
+    email: z.string().trim().toLowerCase().email('A valid email is required').max(200),
+    business: optionalText(160),
+    phone: optionalText(40),
+    message: optionalText(2000),
+  })
+  .refine((lead) => lead.type !== 'call' || lead.phone !== undefined, {
+    message: 'A phone number is required',
+    path: ['phone'],
+  });
 
 /** Validated `POST /platform/leads` payload. */
 export type CreatePlatformLeadInput = z.infer<typeof createPlatformLeadSchema>;

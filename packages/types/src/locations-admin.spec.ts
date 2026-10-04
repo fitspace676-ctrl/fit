@@ -80,7 +80,7 @@ describe('createLocationSchema', () => {
 describe('formatDayHours', () => {
   it('renders an open day as an en-dashed range', () => {
     expect(formatDayHours(dayHoursSchema.parse({ open: '06:00', close: '23:00' }))).toBe(
-      '06:00\u201323:00',
+      '06:00-23:00',
     );
   });
 
@@ -89,7 +89,7 @@ describe('formatDayHours', () => {
     // while the public projection rendered `06:00-24:00` for the same branch.
     // `00:00` is the storage encoding; on a card it reads as ending before it starts.
     expect(formatDayHours(dayHoursSchema.parse({ open: '06:00', close: MIDNIGHT_CLOSE }))).toBe(
-      `06:00\u2013${MIDNIGHT_CLOSE_LABEL}`,
+      `06:00-${MIDNIGHT_CLOSE_LABEL}`,
     );
   });
 
@@ -101,6 +101,6 @@ describe('formatDayHours', () => {
   });
 
   it('renders a defaulted day, so a bare {} still has a label', () => {
-    expect(formatDayHours(dayHoursSchema.parse({}))).toBe('09:00\u201317:00');
+    expect(formatDayHours(dayHoursSchema.parse({}))).toBe('09:00-17:00');
   });
 });

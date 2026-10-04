@@ -225,9 +225,20 @@ function readableOn(color: Rgb, background: Rgb, minimum: number): Rgb {
  * whichever the eye can actually read. Never an in-between: `--color-on-accent`
  * carries button labels, and a half-mixed grey on a saturated block is the one
  * result worse than either pole.
+ *
+ * A pole that clears AA wins outright (at most one can). Mid-tones clear it with
+ * neither (the sky blue is ~4.25:1 on white, ~4.36:1 on the ink), and there a
+ * bare "higher ratio wins" flips saturated brand fills to near-black labels by a
+ * hair. White is preferred there as long as it still clears 3:1, the floor for
+ * the bold labels these fills carry; below that the higher ratio decides.
  */
 function inkOn(color: Rgb): Rgb {
-  return contrastRatio(color, INK) >= contrastRatio(color, PAPER) ? INK : PAPER;
+  const onInk = contrastRatio(color, INK);
+  const onPaper = contrastRatio(color, PAPER);
+  if (onPaper >= TEXT_CONTRAST) return PAPER;
+  if (onInk >= TEXT_CONTRAST) return INK;
+  if (onPaper >= EDGE_CONTRAST) return PAPER;
+  return onInk >= onPaper ? INK : PAPER;
 }
 
 /** One value per theme, collapsed to a plain colour when both agree. */

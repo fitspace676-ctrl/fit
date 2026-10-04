@@ -5,12 +5,12 @@ import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
 /**
  * Pricing surface (`formacore.io/pricing`) — the dedicated plan-comparison page
  * the homepage nav and footer point at. Shares the "Aurora Glass" identity and
- * chrome with the marketing homepage; every trial CTA funnels into the
- * owner-signup flow at `/register-gym`.
+ * chrome with the marketing homepage, and the same two calls to action ("Book a
+ * demo" and "Request a call").
  *
  * The page is the same whether or not {@link SHOW_PUBLIC_PRICING} is on: plans,
  * badges and the full feature comparison. Only the figures depend on the flag —
- * with it off each card offers a "Request pricing" quote form instead.
+ * with it off the amount row is simply left out.
  */
 export const metadata: Metadata = {
   title: 'Pricing - FormaCore',

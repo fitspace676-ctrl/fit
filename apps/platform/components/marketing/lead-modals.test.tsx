@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RequestPricingModal } from './lead-modals';
+import { CallModal } from './lead-modals';
 
 /** Stub `fetch` with a JSON response and hand back the spy. */
 function stubFetch(status: number, payload: unknown) {
@@ -15,13 +15,14 @@ function stubFetch(status: number, payload: unknown) {
   return fetchMock;
 }
 
-/** Fill both required fields of the pricing form. */
+/** Fill all three required fields of the call form. */
 async function fillForm(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.type(screen.getByLabelText('Full name'), 'Giorgi');
+  await user.type(screen.getByLabelText('Phone'), '+995 555 12 34 56');
   await user.type(screen.getByLabelText('Work email'), 'giorgi@gym.ge');
 }
 
-describe('RequestPricingModal', () => {
+describe('CallModal', () => {
   beforeEach(() => vi.unstubAllGlobals());
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -29,45 +30,49 @@ describe('RequestPricingModal', () => {
   });
 
   it('renders nothing until it is opened', () => {
-    render(<RequestPricingModal open={false} onClose={vi.fn()} />);
+    render(<CallModal open={false} onClose={vi.fn()} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('asks for a name and an email, and nothing else', () => {
-    render(<RequestPricingModal open onClose={vi.fn()} />);
+  it('requires a name, a phone and an email, and asks nothing else', () => {
+    render(<CallModal open onClose={vi.fn()} />);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByLabelText('Full name')).toBeRequired();
+    expect(screen.getByLabelText('Phone')).toBeRequired();
+    expect(screen.getByLabelText('Phone')).toHaveAttribute('type', 'tel');
+    expect(screen.getByLabelText('Work email')).toBeRequired();
     expect(screen.getByLabelText('Work email')).toHaveAttribute('type', 'email');
-    expect(screen.queryByLabelText('Phone')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('textbox')).toHaveLength(3);
   });
 
   it('posts the lead and swaps to the thank-you view', async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch(201, { id: 'lead-1' });
-    render(<RequestPricingModal open onClose={vi.fn()} />);
+    render(<CallModal open onClose={vi.fn()} />);
 
     await fillForm(user);
-    await user.click(screen.getByRole('button', { name: 'Request pricing' }));
+    await user.click(screen.getByRole('button', { name: 'Request a call' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit];
     expect(url).toBe('/api/leads');
     expect(JSON.parse(init.body as string)).toMatchObject({
-      type: 'pricing',
+      type: 'call',
       name: 'Giorgi',
+      phone: '+995 555 12 34 56',
       email: 'giorgi@gym.ge',
     });
-    expect(await screen.findByText(/get back to you shortly with pricing/i)).toBeVisible();
+    expect(await screen.findByText(/will call you back shortly/i)).toBeVisible();
   });
 
   it('keeps the form up and shows the reason when the submission fails', async () => {
     const user = userEvent.setup();
     stubFetch(429, { message: 'Too many requests — please slow down.' });
-    render(<RequestPricingModal open onClose={vi.fn()} />);
+    render(<CallModal open onClose={vi.fn()} />);
 
     await fillForm(user);
-    await user.click(screen.getByRole('button', { name: 'Request pricing' }));
+    await user.click(screen.getByRole('button', { name: 'Request a call' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Too many requests');
     // Still the form, not the thank-you — so the visitor can correct and retry.
@@ -82,10 +87,10 @@ describe('RequestPricingModal', () => {
     });
     const fetchMock = vi.fn().mockReturnValue(pending);
     vi.stubGlobal('fetch', fetchMock);
-    render(<RequestPricingModal open onClose={vi.fn()} />);
+    render(<CallModal open onClose={vi.fn()} />);
 
     await fillForm(user);
-    const submit = screen.getByRole('button', { name: 'Request pricing' });
+    const submit = screen.getByRole('button', { name: 'Request a call' });
     await user.click(submit);
     await waitFor(() => expect(submit).toBeDisabled());
     await user.click(submit);
@@ -97,7 +102,7 @@ describe('RequestPricingModal', () => {
   it('closes on Escape', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<RequestPricingModal open onClose={onClose} />);
+    render(<CallModal open onClose={onClose} />);
 
     await user.keyboard('{Escape}');
 

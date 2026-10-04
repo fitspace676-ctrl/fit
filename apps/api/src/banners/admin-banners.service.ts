@@ -17,6 +17,7 @@ import type {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
+import { assertOwnedMedia } from '../storage/media-ownership';
 import { StorageService } from '../storage/storage.service';
 
 /**
@@ -68,6 +69,9 @@ export class AdminBannersService {
    * reel rather than silently on top of whatever sits at 0.
    */
   async createBanner(input: CreateBannerInput): Promise<BannerResponse> {
+    // Artwork sent as a URL must be one of this gym's own uploads, the rule the
+    // product, trainer and location forms already apply.
+    assertOwnedMedia(this.tenant.gymId, [input.imageUrl]);
     const sortOrder = input.sortOrder ?? (await this.nextSortOrder());
     const created = await this.prisma.client.banner.create({
       data: {
@@ -94,6 +98,9 @@ export class AdminBannersService {
    */
   async updateBanner(id: string, input: UpdateBannerInput): Promise<BannerResponse> {
     const current = await this.requireBanner(id);
+    // Checked before the write, so a foreign URL never lands on the row. The
+    // stored artwork passes as is, so a banner saved before this rule stays editable.
+    assertOwnedMedia(this.tenant.gymId, [input.imageUrl], [current.imageUrl]);
 
     const startsAt = input.startsAt !== undefined ? toDate(input.startsAt) : current.startsAt;
     const endsAt = input.endsAt !== undefined ? toDate(input.endsAt) : current.endsAt;
@@ -117,7 +124,11 @@ export class AdminBannersService {
     // An edit that replaces the artwork by URL drops the old object's last
     // reference; free it. Best-effort by design — the nightly sweep is the backstop.
     if (input.imageUrl !== undefined && input.imageUrl !== current.imageUrl) {
-      await this.media.discardUnreferenced([current.imageUrl], [updated.imageUrl]);
+      await this.media.discardUnreferenced(
+        this.tenant.gymId,
+        [current.imageUrl],
+        [updated.imageUrl],
+      );
     }
 
     return { banner: toBanner(updated) };
@@ -130,7 +141,7 @@ export class AdminBannersService {
   async deleteBanner(id: string): Promise<void> {
     const current = await this.requireBanner(id);
     await this.prisma.client.banner.delete({ where: { id } });
-    await this.media.discardUnreferenced([current.imageUrl], []);
+    await this.media.discardUnreferenced(this.tenant.gymId, [current.imageUrl], []);
   }
 
   /**
@@ -158,7 +169,7 @@ export class AdminBannersService {
 
     const current = await this.requireBanner(id);
     const updated = await this.prisma.client.banner.update({ where: { id }, data: { imageUrl } });
-    await this.media.discardUnreferenced([current.imageUrl], [imageUrl]);
+    await this.media.discardUnreferenced(this.tenant.gymId, [current.imageUrl], [imageUrl]);
 
     return { banner: toBanner(updated) };
   }

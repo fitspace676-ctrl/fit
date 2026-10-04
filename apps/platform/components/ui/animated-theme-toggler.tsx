@@ -120,7 +120,7 @@ const MoonIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
 export interface AnimatedThemeTogglerProps {
   /** Clip-path shape of the reveal. Defaults to `circle`. */
   variant?: ThemeTogglerVariant;
-  /** Reveal duration in ms. Defaults to 700. */
+  /** Reveal duration in ms. Defaults to 450, short enough to stay smooth on older machines. */
   duration?: number;
   /** Expand from the viewport centre instead of the button. */
   fromCenter?: boolean;
@@ -129,7 +129,7 @@ export interface AnimatedThemeTogglerProps {
 
 export const AnimatedThemeToggler = ({
   variant = 'circle',
-  duration = 700,
+  duration = 450,
   fromCenter = false,
   className = '',
 }: AnimatedThemeTogglerProps) => {
@@ -170,7 +170,7 @@ export const AnimatedThemeToggler = ({
     // reveal and a shorter duration so the transition stays smooth.
     const isMobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
     const effVariant: ThemeTogglerVariant = isMobile ? 'circle' : variant;
-    const effDuration = isMobile ? Math.min(duration, 450) : duration;
+    const effDuration = isMobile ? Math.min(duration, 350) : duration;
 
     let cx = window.innerWidth / 2;
     let cy = window.innerHeight / 2;

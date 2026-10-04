@@ -19,8 +19,8 @@ const SEARCH_DEBOUNCE_MS = 200;
  * sortable column headers, so this is the catalog's one sort control.
  */
 const SORT_OPTIONS: ReadonlyArray<{ sort: ProductSort; dir: SortDir; label: string }> = [
-  { sort: 'name', dir: 'asc', label: 'Name (A–Z)' },
-  { sort: 'name', dir: 'desc', label: 'Name (Z–A)' },
+  { sort: 'name', dir: 'asc', label: 'Name (A-Z)' },
+  { sort: 'name', dir: 'desc', label: 'Name (Z-A)' },
   { sort: 'price', dir: 'asc', label: 'Price (low → high)' },
   { sort: 'price', dir: 'desc', label: 'Price (high → low)' },
   { sort: 'createdAt', dir: 'desc', label: 'Newest first' },

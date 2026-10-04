@@ -15,7 +15,7 @@ import { PortalLogo } from './portal-logo';
  * the bundled pair never stops using it.
  *
  * StyleX is shimmed to a pass-through under Vitest (see `test/stylex-mock.ts`),
- * so the plate's own styles are not observable here — the class names are. What
+ * so the mark's own styles are not observable here, the class names are. What
  * is observable, and is what actually matters, is which files are emitted and
  * whether the theme-swap classes are on them.
  */
@@ -54,6 +54,15 @@ describe('PortalLogo', () => {
   describe('with a tenant mark', () => {
     const LOGO = 'https://cdn.example.com/gym-1/logos/mark.webp';
 
+    // No white plate or other wrapper: the gym's file is drawn straight onto
+    // the surface.
+    it('draws the uploaded file with nothing behind it', () => {
+      const { container } = render(<PortalLogo logoUrl={LOGO} />);
+
+      expect(container.children).toHaveLength(1);
+      expect(container.firstElementChild?.tagName).toBe('IMG');
+    });
+
     it('renders the uploaded file once, and never through the two-file swap', () => {
       const { container } = render(<PortalLogo logoUrl={LOGO} />);
 
@@ -66,10 +75,8 @@ describe('PortalLogo', () => {
       expect(rendered[0]?.className).not.toContain('member-logo-light');
     });
 
-    // The plate is the tenant mark's ground, and it is the SAME ground on the
-    // themed headers and over the photograph — that invariance is the contract
-    // the console states to the gym ("shown on a white plate"), so `onPhoto` must
-    // not quietly change what a tenant mark renders as.
+    // The console tells the gym its logo is shown as uploaded, everywhere, so
+    // `onPhoto` must not quietly change what a tenant mark renders as.
     it('renders identically over the photograph as on a themed surface', () => {
       const themed = render(<PortalLogo logoUrl={LOGO} />);
       const onPhoto = render(<PortalLogo logoUrl={LOGO} onPhoto />);

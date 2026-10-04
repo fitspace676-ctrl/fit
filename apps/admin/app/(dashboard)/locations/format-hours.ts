@@ -98,7 +98,7 @@ export function formatHoursSummary(hours: LocationHours): string {
       const range =
         group.start === group.end
           ? SHORT[group.start]
-          : `${SHORT[group.start]}–${SHORT[group.end]}`;
+          : `${SHORT[group.start]}-${SHORT[group.end]}`;
       return `${range} ${group.text}`;
     })
     .join(', ');

@@ -60,7 +60,7 @@ describe('formatHoursSummary', () => {
 
     // The same strings the public `GET /locations` projection publishes for this
     // week — the roster cell and the visitor's card must not disagree.
-    expect(formatHoursSummary(hours)).toBe('Mon\u2013Fri 06:00\u201324:00, Sat 08:00\u201322:00');
+    expect(formatHoursSummary(hours)).toBe('Mon-Fri 06:00-24:00, Sat 08:00-22:00');
   });
 
   it('reports a week with every day shut', () => {

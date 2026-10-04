@@ -6,11 +6,12 @@ import { escapeHtml, renderBrandedEmail } from '../mail/branded-email';
 import { MailerService } from '../mail/mailer.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** Map the wire lead source (`'trial' | 'demo'`) onto the stored Prisma enum. */
+/** Map the wire lead source (`'trial' | 'demo' | 'pricing' | 'call'`) onto the stored Prisma enum. */
 const LEAD_TYPE_BY_WIRE: Record<CreatePlatformLeadInput['type'], PlatformLeadType> = {
   trial: PlatformLeadType.TRIAL,
   demo: PlatformLeadType.DEMO,
   pricing: PlatformLeadType.PRICING,
+  call: PlatformLeadType.CALL,
 };
 
 /** Human label for each lead source, for the team-notification copy. */
@@ -18,11 +19,12 @@ const LEAD_TYPE_LABEL: Record<PlatformLeadType, string> = {
   [PlatformLeadType.TRIAL]: 'Free-trial signup',
   [PlatformLeadType.DEMO]: 'Demo request',
   [PlatformLeadType.PRICING]: 'Pricing request',
+  [PlatformLeadType.CALL]: 'Call request',
 };
 
 /**
  * Platform sales-lead capture (T8.2) — the backend the marketing site's trial,
- * demo and pricing-request forms post to, replacing their frontend-only
+ * demo, pricing-request and call-request forms post to, replacing their frontend-only
  * placeholder submit.
  *
  * A lead belongs to no gym (the prospect has no tenant yet), so this runs on the

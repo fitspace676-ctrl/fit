@@ -343,7 +343,7 @@ export function TrainerAvailabilityEditor({
                         {...stylex.props(styles.timeInput)}
                       />
                       <span aria-hidden {...stylex.props(styles.dash)}>
-                        –
+                        -
                       </span>
                       <input
                         type="time"

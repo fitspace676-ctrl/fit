@@ -110,7 +110,7 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-page)',
     backgroundColor: 'var(--color-accent)',
     padding: '1.75rem',
-    color: '#131312',
+    color: 'var(--color-on-accent)',
   },
   planTop: {
     position: 'relative',
@@ -124,7 +124,7 @@ const styles = stylex.create({
     height: '2.25rem',
     width: '2.25rem',
     borderRadius: 'var(--radius-inner)',
-    backgroundColor: 'rgba(19, 19, 18, 0.12)',
+    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 12%, transparent)',
   },
   planTileIcon: {
     height: '1.25rem',
@@ -136,8 +136,8 @@ const styles = stylex.create({
   // draw it.
   planBadge: {
     marginLeft: 'auto',
-    backgroundColor: '#131312',
-    color: '#FFFFFF',
+    backgroundColor: 'var(--color-on-accent)',
+    color: 'var(--color-accent)',
     borderColor: 'transparent',
   },
   // NOTE — every `<p>` / heading on a lime block must state its colour.
@@ -149,7 +149,7 @@ const styles = stylex.create({
     position: 'relative',
     margin: 0,
     marginTop: '1.5rem',
-    color: '#131312',
+    color: 'var(--color-on-accent)',
     fontFamily: 'var(--font-family-heading)',
     fontSize: 'clamp(2.25rem, 5vw, 3rem)',
     fontWeight: 900,
@@ -162,7 +162,7 @@ const styles = stylex.create({
     margin: 0,
     marginTop: '0.625rem',
     fontSize: '0.875rem',
-    color: 'rgba(19, 19, 18, 0.76)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 76%, transparent)',
   },
   planMetaRow: {
     position: 'relative',
@@ -178,12 +178,12 @@ const styles = stylex.create({
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.14em',
-    color: 'rgba(19, 19, 18, 0.62)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 62%, transparent)',
   },
   metaValue: {
     margin: 0,
     marginTop: '0.25rem',
-    color: '#131312',
+    color: 'var(--color-on-accent)',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.9375rem',
     fontWeight: 600,
@@ -192,7 +192,7 @@ const styles = stylex.create({
     margin: 0,
     marginTop: '0.125rem',
     fontSize: '0.75rem',
-    color: 'rgba(19, 19, 18, 0.62)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 62%, transparent)',
   },
   metrics: {
     display: 'grid',

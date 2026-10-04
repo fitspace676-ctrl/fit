@@ -395,7 +395,7 @@ export default async function LowStockPage({
             <span {...stylex.props(styles.scopeValue)}>{reportedBranch ?? 'All locations'}</span>
             {branchNotApplied ? (
               <span {...stylex.props(styles.scopeCaveat)}>
-                Not narrowed to {activeBranchName} — these are gym-wide totals
+                Not narrowed to {activeBranchName} - these are gym-wide totals
               </span>
             ) : reportedBranch === null ? (
               <span {...stylex.props(styles.scopeCaveat)}>

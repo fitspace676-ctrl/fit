@@ -85,7 +85,7 @@ async function selectRole(name: string): Promise<void> {
   await userEvent.click(screen.getByRole('button', { name: new RegExp('^' + name) }));
 }
 
-describe('RolePermissionsSection — OWNER is locked', () => {
+describe('RolePermissionsSection - OWNER is locked', () => {
   it('opens on OWNER and disables every control on it', () => {
     renderEditor();
     const boxes = screen.getAllByRole('checkbox');
@@ -105,7 +105,7 @@ describe('RolePermissionsSection — OWNER is locked', () => {
     expect(screen.getByText(en.admin.settings.permissions.ownerNoticeTitle)).toBeInTheDocument();
   });
 
-  it('offers no reset on OWNER — there is nothing to reset it to but itself', () => {
+  it('offers no reset on OWNER - there is nothing to reset it to but itself', () => {
     renderEditor();
     expect(screen.queryByText(en.admin.settings.permissions.reset)).not.toBeInTheDocument();
   });
@@ -127,7 +127,7 @@ describe('RolePermissionsSection — OWNER is locked', () => {
   });
 });
 
-describe('RolePermissionsSection — the matrix', () => {
+describe('RolePermissionsSection - the matrix', () => {
   it('gives a single-column resource one wide toggle, not a greyed second cell', async () => {
     renderEditor();
     await selectRole('Manager');
@@ -135,12 +135,12 @@ describe('RolePermissionsSection — the matrix', () => {
     // trail — so it draws one control spanning both columns rather than a live
     // checkbox beside a greyed ghost, which would read as a Manage the gym is not
     // allowed rather than a Manage that does not exist.
-    expect(screen.getByLabelText('Audit log — Full access')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Audit log — View')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Audit log — Manage')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Audit log - Full access')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Audit log - View')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Audit log - Manage')).not.toBeInTheDocument();
     // …and a two-column resource still has both.
-    expect(screen.getByLabelText('Members — View')).toBeInTheDocument();
-    expect(screen.getByLabelText('Members — Manage')).toBeInTheDocument();
+    expect(screen.getByLabelText('Members - View')).toBeInTheDocument();
+    expect(screen.getByLabelText('Members - Manage')).toBeInTheDocument();
   });
 
   it('names each capability on an action row, and offers it no View/Manage pair', async () => {
@@ -151,10 +151,10 @@ describe('RolePermissionsSection — the matrix', () => {
     // specification hands a receptionist exactly three of them. Borrowing the View
     // and Manage headings here would have made "Manage POS" mean "may refund".
     for (const action of ['Open the till', 'Take payment', 'Apply discounts', 'Refund']) {
-      expect(screen.getByLabelText(`POS — ${action}`)).toBeInTheDocument();
+      expect(screen.getByLabelText(`POS - ${action}`)).toBeInTheDocument();
     }
-    expect(screen.queryByLabelText('POS — View')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('POS — Manage')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('POS - View')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('POS - Manage')).not.toBeInTheDocument();
   });
 
   it('renders one control per editable capability and no control without one', async () => {
@@ -169,31 +169,31 @@ describe('RolePermissionsSection — the matrix', () => {
   });
 });
 
-describe('RolePermissionsSection — editing round-trips', () => {
+describe('RolePermissionsSection - editing round-trips', () => {
   it('un-ticks a capability out of the row the form will send', async () => {
     const editor = renderEditor();
     expect(editor.isDirty()).toBe(false);
     await selectRole('Manager');
     expect(editor.grants('MANAGER')).toContain(Permission.MemberWrite);
 
-    await userEvent.click(screen.getByLabelText('Members — Manage'));
+    await userEvent.click(screen.getByLabelText('Members - Manage'));
 
     expect(editor.grants('MANAGER')).not.toContain(Permission.MemberWrite);
     // View is untouched: the coupling only runs downhill.
     expect(editor.grants('MANAGER')).toContain(Permission.MemberRead);
     expect(editor.isDirty()).toBe(true);
-    expect(screen.getByLabelText('Members — Manage')).not.toBeChecked();
+    expect(screen.getByLabelText('Members - Manage')).not.toBeChecked();
   });
 
-  it('takes Manage with it when View goes off — and brings it back with Manage', async () => {
+  it('takes Manage with it when View goes off - and brings it back with Manage', async () => {
     const editor = renderEditor();
     await selectRole('Manager');
 
-    await userEvent.click(screen.getByLabelText('Members — View'));
+    await userEvent.click(screen.getByLabelText('Members - View'));
     expect(editor.grants('MANAGER')).not.toContain(Permission.MemberRead);
     expect(editor.grants('MANAGER')).not.toContain(Permission.MemberWrite);
 
-    await userEvent.click(screen.getByLabelText('Members — Manage'));
+    await userEvent.click(screen.getByLabelText('Members - Manage'));
     expect(editor.grants('MANAGER')).toContain(Permission.MemberWrite);
     expect(editor.grants('MANAGER')).toContain(Permission.MemberRead);
   });
@@ -203,7 +203,7 @@ describe('RolePermissionsSection — editing round-trips', () => {
     await selectRole('Manager');
     expect(editor.grants('MANAGER')).toContain(Permission.AuditRead);
 
-    await userEvent.click(screen.getByLabelText('Audit log — Full access'));
+    await userEvent.click(screen.getByLabelText('Audit log - Full access'));
     expect(editor.grants('MANAGER')).not.toContain(Permission.AuditRead);
   });
 
@@ -216,7 +216,7 @@ describe('RolePermissionsSection — editing round-trips', () => {
     const siblings = [Permission.PosAccess, Permission.PaymentProcess, Permission.DiscountApply];
     expect(editor.grants('MANAGER')).toContain(Permission.PaymentRefund);
 
-    await userEvent.click(screen.getByLabelText('POS — Refund'));
+    await userEvent.click(screen.getByLabelText('POS - Refund'));
 
     expect(editor.grants('MANAGER')).not.toContain(Permission.PaymentRefund);
     for (const sibling of siblings) {
@@ -228,7 +228,7 @@ describe('RolePermissionsSection — editing round-trips', () => {
     const editor = renderEditor();
     const before = [...editor.grants('TRAINER')];
     await selectRole('Manager');
-    await userEvent.click(screen.getByLabelText('Members — Manage'));
+    await userEvent.click(screen.getByLabelText('Members - Manage'));
     expect(editor.grants('TRAINER')).toEqual(before);
   });
 
@@ -250,7 +250,7 @@ describe('RolePermissionsSection — editing round-trips', () => {
     await selectRole('Receptionist');
     const before = [...editor.grants('RECEPTIONIST')];
 
-    await userEvent.click(screen.getByLabelText('Members — View'));
+    await userEvent.click(screen.getByLabelText('Members - View'));
     expect(editor.grants('RECEPTIONIST')).not.toEqual(before);
 
     await userEvent.click(screen.getByText(en.admin.settings.permissions.reset));
@@ -258,7 +258,7 @@ describe('RolePermissionsSection — editing round-trips', () => {
   });
 });
 
-describe('RolePermissionsSection — the staff head-count', () => {
+describe('RolePermissionsSection - the staff head-count', () => {
   it('renders the roster tally beside each role', () => {
     renderEditor({ OWNER: 1, MANAGER: 2, RECEPTIONIST: 0, TRAINER: 4 });
     expect(screen.getByRole('button', { name: /^Owner .*1 staff member\b/ })).toBeInTheDocument();

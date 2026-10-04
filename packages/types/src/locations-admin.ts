@@ -88,7 +88,7 @@ export const MIDNIGHT_CLOSE_LABEL = '24:00';
 export const CLOSED_LABEL = 'Closed';
 
 /** The en dash a `06:00–23:00` range is written with. */
-const HOURS_SEPARATOR = '–';
+const HOURS_SEPARATOR = '-';
 
 /**
  * Whether a day's `open`/`close` pair describes a real window. Times are

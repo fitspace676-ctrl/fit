@@ -624,7 +624,7 @@
         "sat": "Sat"
       },
       "branchScope": {
-        "staff": "Utilization is not split by branch — a trainer's availability covers their whole week, at every branch"
+        "staff": "Utilization is not split by branch - a trainer's availability covers their whole week, at every branch"
       }
     },
     "analytics": {
@@ -925,7 +925,7 @@
       "errorUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
       "guest": "Guest",
       "pager": {
-        "range": "{from}–{to} of {total}",
+        "range": "{from}-{to} of {total}",
         "previous": "Previous",
         "next": "Next"
       },
@@ -964,7 +964,7 @@
         "error": "Could not load the audit log ({status}): {message}",
         "errorUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
         "pager": {
-          "range": "{from}–{to} of {total}",
+          "range": "{from}-{to} of {total}",
           "previous": "Previous",
           "next": "Next"
         }
@@ -1231,7 +1231,7 @@
         "rowActions": "Actions",
         "openMember": "Open {name}",
         "noPlan": "No plan",
-        "showing": "Showing {from}–{to} of {total} members",
+        "showing": "Showing {from}-{to} of {total} members",
         "previous": "Previous",
         "next": "Next",
         "selectRow": "Select {name}"
@@ -1566,7 +1566,7 @@
         "emptyHintCanWrite": "Add your first coach to build the roster.",
         "emptyHint": "Your gym has no trainers on the roster yet.",
         "noMatch": "No coaches match this filter.",
-        "pageRange": "{from}–{to} of {total}",
+        "pageRange": "{from}-{to} of {total}",
         "previous": "Previous",
         "next": "Next"
       },
@@ -2277,7 +2277,7 @@
         "subtitle": "Which start dates a member may actually pick. Only in force while the start-date field above is switched on.",
         "maxDaysAheadLabel": "How far ahead a membership may start",
         "maxDaysAheadHint": "Whole days from today, counted in your gym’s time zone. A member may pick any day up to this far out.",
-        "maxDaysAheadToday": "0 means today only — a membership begins the day it is sold.",
+        "maxDaysAheadToday": "0 means today only - a membership begins the day it is sold.",
         "maxDaysAheadDays": "Today through {days} days out.",
         "allowPastLabel": "Allow a start date in the past",
         "allowPastDesc": "Backdating reaches as far back as the window above reaches forward. Off, the earliest a membership may begin is today.",
@@ -2285,7 +2285,7 @@
       },
       "freeAccount": {
         "title": "Free account",
-        "subtitle": "Let a visitor create an account without buying a package. Nothing is charged and no plan is assigned — the member picks one later.",
+        "subtitle": "Let a visitor create an account without buying a package. Nothing is charged and no plan is assigned - the member picks one later.",
         "enabledLabel": "Offer a free account",
         "enabledDescription": "When on, the join screen offers a free account alongside the paid plans.",
         "nameLabel": "Name",
@@ -2386,7 +2386,7 @@
         "rolesLabel": "Staff roles",
         "lockedAria": "Locked",
         "ownerNoticeTitle": "Owner is a system role",
-        "ownerNoticeBody": "Owner always holds every capability across every branch, and cannot be edited. If it could, an owner could revoke their own access to this screen and nobody — including them — could give it back.",
+        "ownerNoticeBody": "Owner always holds every capability across every branch, and cannot be edited. If it could, an owner could revoke their own access to this screen and nobody - including them - could give it back.",
         "granted": "{granted}/{total} granted",
         "grantedAria": "{granted} of {total} capabilities granted",
         "reset": "Reset to defaults",
@@ -2408,7 +2408,7 @@
           "view": "View",
           "manage": "Manage",
           "access": "Full access",
-          "cellLabel": "{resource} — {column}",
+          "cellLabel": "{resource} - {column}",
           "pairHint": "Manage includes View: switching Manage on switches View on, and switching View off switches Manage off. A role that may change what it cannot open would get a hidden page over a working API.",
           "singleHint": "Staff, gym settings and reports have one switch rather than two, because a single capability covers reading and changing them together."
         }
@@ -2421,7 +2421,7 @@
         "current": "Member portal"
       },
       "title": "Member portal",
-      "subtitle": "How the site your members sign in to looks — its logo, its colour and the photograph on the sign-in screen.",
+      "subtitle": "How the site your members sign in to looks - its logo, its colour and the photograph on the sign-in screen.",
       "colors": {
         "title": "Colours",
         "subtitle": "This colour skins the member site only. The console has its own colour under Settings, and your brand colour still drives invoices, receipts and email.",
@@ -2438,7 +2438,7 @@
       },
       "logo": {
         "title": "Portal logo",
-        "subtitle": "The mark your members see in the portal’s header — on the join wizard, on the sign-in screen, and on every page behind it.",
+        "subtitle": "The mark your members see in the portal’s header: on the join wizard, on the sign-in screen, and on every page behind it.",
         "label": "Logo",
         "choose": "Upload a logo",
         "replace": "Replace logo",
@@ -2447,15 +2447,36 @@
         "uploading": "Uploading…",
         "fromBrandBadge": "From brand",
         "builtInBadge": "Built-in",
-        "inheritedBrand": "Following your brand logo. Upload one here to use a different mark on the member site — what prints on your invoices stays as it is.",
+        "inheritedBrand": "Following your brand logo. Upload one here to use a different mark on the member site; what prints on your invoices stays as it is.",
         "inheritedNone": "You have not uploaded a logo yet, so members see the built-in FormaCore mark.",
         "resetToBrand": "Follow the brand logo",
         "resetToBuiltIn": "Use the built-in logo",
-        "hint": "JPEG, PNG or WebP, up to 2 MB. Your logo is shown on a white plate everywhere in the portal — including over the sign-in photograph — so upload the version drawn for a light background.",
+        "hint": "JPEG, PNG or WebP, up to 2 MB. Best size: a wide logo about 600 × 150 px (4:1); the portal shows it at up to 148 × 36 px. It is shown exactly as uploaded, with nothing behind it, over the sign-in photograph and on the light and dark pages, so a transparent PNG that reads on both light and dark works best.",
         "errorType": "Choose a JPEG, PNG or WebP image.",
         "errorSize": "That image is larger than 2 MB. Choose a smaller file.",
         "errorUpload": "Upload failed ({status}). Please try again.",
         "errorNetwork": "Could not upload the logo. Check your connection and try again."
+      },
+      "favicon": {
+        "title": "Browser tab icon (favicon)",
+        "subtitle": "The small square icon in the browser tab and in bookmarks of your member site. A logo shrunk to tab size is hard to read, so give the tab a simple square mark of its own.",
+        "label": "Favicon",
+        "choose": "Upload an icon",
+        "replace": "Replace icon",
+        "drop": "Drop to upload",
+        "alt": "The member site's tab icon",
+        "uploading": "Uploading…",
+        "fromLogoBadge": "From logo",
+        "builtInBadge": "Built-in",
+        "inheritedLogo": "No icon uploaded yet, so the browser tab shows your portal logo shrunk down. A square icon reads much better there.",
+        "inheritedNone": "No icon uploaded yet, so the tab shows the built-in FormaCore icon.",
+        "resetToLogo": "Use the logo instead",
+        "resetToBuiltIn": "Use the built-in icon",
+        "hint": "PNG or ICO, up to 1 MB. Best size: 512 × 512 px, square, on a transparent background (at least 192 × 192 px). Keep it to one bold symbol or letter: at 16 px small text and thin lines disappear.",
+        "errorType": "Choose a PNG or ICO image.",
+        "errorSize": "That image is larger than 1 MB. Choose a smaller file.",
+        "errorUpload": "Upload failed ({status}). Please try again.",
+        "errorNetwork": "Could not upload the icon. Check your connection and try again."
       },
       "image": {
         "title": "Sign-in photograph",
@@ -2574,7 +2595,7 @@
       "list": {
         "tablistLabel": "Automation rules",
         "addRule": "New automation",
-        "showing": "Showing {from}–{to} of {total}",
+        "showing": "Showing {from}-{to} of {total}",
         "previous": "Previous",
         "next": "Next",
         "delete": "Delete",
@@ -2785,7 +2806,7 @@
         "channelFilterLabel": "Filter campaigns by channel",
         "channelAll": "All channels",
         "newCampaign": "New campaign",
-        "showing": "Showing {from}–{to} of {total}",
+        "showing": "Showing {from}-{to} of {total}",
         "previous": "Previous",
         "next": "Next",
         "edit": "Edit",
@@ -3077,15 +3098,15 @@
         "addSubmit": "Create banner",
         "editSubmit": "Save changes",
         "titleLabel": "Headline",
-        "titleHint": "Optional — drawn over the image in the app. Leave blank for artwork alone.",
-        "titlePlaceholder": "e.g. Summer membership — 20% off",
+        "titleHint": "Optional - drawn over the image in the app. Leave blank for artwork alone.",
+        "titlePlaceholder": "e.g. Summer membership - 20% off",
         "linkLabel": "Destination",
-        "linkHint": "Optional. An in-app screen — /shop, /classes, /services, /trainers — or a full https:// address. Leave blank and the slide isn’t tappable.",
+        "linkHint": "Optional. An in-app screen - /shop, /classes, /services, /trainers - or a full https:// address. Leave blank and the slide isn’t tappable.",
         "linkPlaceholder": "/shop",
         "startsAtLabel": "Starts",
-        "startsAtHint": "Optional — runs from this day. Leave blank to start straight away.",
+        "startsAtHint": "Optional - runs from this day. Leave blank to start straight away.",
         "endsAtLabel": "Ends",
-        "endsAtHint": "Optional — runs to the end of this day. Leave blank to run until switched off.",
+        "endsAtHint": "Optional - runs to the end of this day. Leave blank to run until switched off.",
         "activeLabel": "Show on the home screen",
         "activeHint": "Off keeps the banner here without showing it to members.",
         "image": {
@@ -3095,7 +3116,7 @@
           "choose": "Choose an image",
           "replace": "Replace image",
           "discard": "Discard",
-          "hint": "JPEG, PNG or WebP, up to 5 MB. 1600×800 (2:1) fits the phone’s carousel — anything else is cropped to that shape. A banner with no artwork stays a draft and is never shown to members.",
+          "hint": "JPEG, PNG or WebP, up to 5 MB. 1600×800 (2:1) fits the phone’s carousel - anything else is cropped to that shape. A banner with no artwork stays a draft and is never shown to members.",
           "errorType": "Choose a JPEG, PNG or WebP image.",
           "errorSize": "That image is larger than 5 MB. Choose a smaller file.",
           "errorUpload": "Upload failed ({status}). Please try the image again.",
@@ -3237,7 +3258,7 @@
         "statusFilterLabel": "Filter by status",
         "typeFilterLabel": "Filter by reward type",
         "typeAll": "All reward types",
-        "showing": "{from}–{to} of {total}",
+        "showing": "{from}-{to} of {total}",
         "previous": "Previous",
         "next": "Next",
         "caption": "Redemptions",
@@ -4683,7 +4704,7 @@
     "getStarted": "Get started",
     "classes": {
       "title": "Find your next class",
-      "body": "Browse the weekly schedule and book a spot in seconds — right from your phone."
+      "body": "Browse the weekly schedule and book a spot in seconds - right from your phone."
     },
     "qr": {
       "title": "Check in with QR",
@@ -4710,10 +4731,10 @@
     "scanner": {
       "title": "Scan a code",
       "hint": "Point the camera at a QR code.",
-      "note": "A test scanner — the code is shown here and sent nowhere.",
+      "note": "A test scanner - the code is shown here and sent nowhere.",
       "close": "Close the scanner",
       "permissionTitle": "Camera access",
-      "permissionBody": "The scanner needs your camera. The code stays on this screen — nothing is uploaded.",
+      "permissionBody": "The scanner needs your camera. The code stays on this screen - nothing is uploaded.",
       "permissionAction": "Allow camera",
       "deniedTitle": "Camera is off",
       "deniedBody": "Camera access is turned off for this app. Turn it on in Settings to scan.",
@@ -4972,7 +4993,7 @@
     "subtitle": "Train one-on-one with a coach. Choose a package and track your upcoming sessions.",
     "retry": "Try again",
     "packages": {
-      "boughtToast": "{name} is yours — settle up at reception.",
+      "boughtToast": "{name} is yours - settle up at reception.",
       "buy": "Buy this plan",
       "buying": "Purchasing…",
       "cancel": "Cancel",

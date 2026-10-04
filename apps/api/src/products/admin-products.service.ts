@@ -1144,7 +1144,7 @@ export class AdminProductsService {
 
     // Free the storage behind images this edit dropped from the gallery. After the
     // commit and best-effort by design — the nightly sweep is the backstop.
-    await this.media.discardUnreferenced(previousImages, input.images);
+    await this.media.discardUnreferenced(this.tenant.gymId, previousImages, input.images);
 
     return this.getProduct(id);
   }

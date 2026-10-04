@@ -195,7 +195,7 @@ export function WhosWorkingCard({
                 <div {...stylex.props(styles.meta)}>
                   <Badge tone={ROLE_TONES[shift.role]} label={t(`roles.${shift.role}`)} />
                   <span {...stylex.props(styles.hours)}>
-                    {shift.startTime} – {shift.endTime}
+                    {shift.startTime} - {shift.endTime}
                   </span>
                 </div>
                 {/*

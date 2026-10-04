@@ -72,6 +72,8 @@ const CONSOLE_NAMESPACES = [
   'admin.trainers.clients',
   'admin.memberPortal.joinCard',
   'admin.memberPortal.colors',
+  'admin.memberPortal.logo',
+  'admin.memberPortal.favicon',
   'admin.settings.general.consoleColor',
 ] as const;
 

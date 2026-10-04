@@ -310,7 +310,7 @@ export class AdminTrainersService {
 
     // A replaced portrait leaves its predecessor behind; free it once the edit is
     // committed. Best-effort by design — the nightly sweep is the backstop.
-    await this.media.discardUnreferenced([existing.photoUrl], [input.photoUrl]);
+    await this.media.discardUnreferenced(this.tenant.gymId, [existing.photoUrl], [input.photoUrl]);
 
     return this.getTrainer(id);
   }

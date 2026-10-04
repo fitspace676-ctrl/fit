@@ -24,6 +24,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { assertOwnedMedia } from '../storage/media-ownership';
 
 /**
  * The columns the roster/detail queries select off `ClassTemplate`. The default
@@ -152,6 +153,7 @@ export class AdminClassTemplatesService {
    * a `400`). Returns the new template's detail (`201`).
    */
   async createClassTemplate(input: CreateClassTemplateData): Promise<CreateClassTemplateResponse> {
+    assertOwnedMedia(this.tenant.gymId, [input.imageUrl]);
     await this.assertRelations(input.trainerId, input.locationId);
 
     const row = await this.prisma.client.classTemplate.create({
@@ -218,7 +220,10 @@ export class AdminClassTemplatesService {
     id: string,
     input: UpdateClassTemplateData,
   ): Promise<UpdateClassTemplateResponse> {
-    const { status } = await this.requireClassTemplate(id);
+    const { status, imageUrl: storedImageUrl } = await this.requireClassTemplate(id);
+    // The cover is an upload under this gym's `classes/` prefix; the stored one
+    // passes as is, so a class saved before this rule stays editable.
+    assertOwnedMedia(this.tenant.gymId, [input.imageUrl], [storedImageUrl]);
     await this.assertRelations(input.trainerId, input.locationId);
 
     const validFrom = fromDateString(input.validFrom);
@@ -448,10 +453,10 @@ export class AdminClassTemplatesService {
    */
   private async requireClassTemplate(
     id: string,
-  ): Promise<{ id: string; status: ClassTemplateStatus }> {
+  ): Promise<{ id: string; status: ClassTemplateStatus; imageUrl: string | null }> {
     const template = await this.prisma.client.classTemplate.findFirst({
       where: { id },
-      select: { id: true, status: true },
+      select: { id: true, status: true, imageUrl: true },
     });
     if (!template) {
       throw this.notFound();

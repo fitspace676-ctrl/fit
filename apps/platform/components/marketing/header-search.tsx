@@ -8,7 +8,7 @@ import { I, Icon } from './marketing-ui';
    Header search  ·  "Aurora Glass"
    A search icon in the nav that expands into a glass field with a brand
    "halo" glow (a radial highlight that tracks the pointer and blooms on
-   focus — the violet→pink of the primary CTA). Everything is painted with
+   focus — the cyan→blue of the primary CTA). Everything is painted with
    the semantic theme tokens (surface / fg / faint / overlay), so it reads
    correctly in both light and dark with no per-theme branches.
    ──────────────────────────────────────────────────────────────────────── */
@@ -69,7 +69,7 @@ export const HeaderSearch = ({ className = '' }: { className?: string }) => {
           className="search-drop absolute right-0 top-full mt-3 z-50 w-[min(460px,calc(100vw-2rem))]"
           style={{ animation: 'search-drop 180ms cubic-bezier(0.16,1,0.3,1)' }}
         >
-          <div className="rounded-2xl border border-overlay/10 bg-surface/90 p-2.5 shadow-[0_24px_60px_-20px_rgba(8,9,16,0.55)] backdrop-blur-xl backdrop-saturate-150">
+          <div className="nav-panel text-fg rounded-2xl border border-overlay/10 bg-surface/90 p-2.5 shadow-[0_24px_60px_-20px_rgba(8,9,16,0.55)] backdrop-blur-xl backdrop-saturate-150">
             <form onSubmit={submit} onMouseMove={trackPointer} className="group relative">
               {/* Outer bloom — soft brand glow that wakes up on focus. */}
               <div
@@ -77,7 +77,7 @@ export const HeaderSearch = ({ className = '' }: { className?: string }) => {
                 className="pointer-events-none absolute -inset-1.5 rounded-[22px] opacity-0 blur-lg transition-opacity duration-300 group-focus-within:opacity-100"
                 style={{
                   background:
-                    'radial-gradient(220px circle at var(--mx,50%) var(--my,50%), rgba(124,58,237,0.45), rgba(236,72,153,0.32) 45%, transparent 72%)',
+                    'radial-gradient(220px circle at var(--mx,50%) var(--my,50%), rgba(26,127,214,0.45), rgba(34,184,230,0.32) 45%, transparent 72%)',
                 }}
               />
               {/* Gradient ring — 1px halo border revealed by the surface inset. */}
@@ -87,7 +87,7 @@ export const HeaderSearch = ({ className = '' }: { className?: string }) => {
                   className="pointer-events-none absolute inset-0 rounded-[15px] opacity-50 transition-opacity duration-300 group-hover:opacity-90 group-focus-within:opacity-100"
                   style={{
                     background:
-                      'radial-gradient(180px circle at var(--mx,50%) var(--my,50%), rgba(124,58,237,0.9), rgba(236,72,153,0.7) 42%, rgb(var(--overlay) / 0.14) 76%)',
+                      'radial-gradient(180px circle at var(--mx,50%) var(--my,50%), rgba(26,127,214,0.9), rgba(34,184,230,0.7) 42%, rgb(var(--overlay) / 0.14) 76%)',
                   }}
                 />
                 <div className="relative flex h-12 items-center gap-2.5 rounded-[14px] bg-surface px-3.5">

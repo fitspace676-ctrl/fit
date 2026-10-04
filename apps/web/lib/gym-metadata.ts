@@ -22,7 +22,9 @@ export function gymMetadata(brand: ActiveGymBrand | null): Metadata {
   const description = brand
     ? `Classes, bookings and membership at ${brand.name}.`
     : 'FormaCore web application.';
-  const icon = brand?.logoUrl ?? DEFAULT_ICON;
+  // The tab icon the gym uploaded, else its logo, else the bundled mark. The
+  // share card keeps the logo: it is drawn large, where a wordmark reads fine.
+  const icon = brand?.faviconUrl ?? brand?.logoUrl ?? DEFAULT_ICON;
 
   return {
     title: { default: name, template: `%s · ${name}` },

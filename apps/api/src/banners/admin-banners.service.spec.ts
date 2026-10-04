@@ -198,11 +198,12 @@ describe('AdminBannersService.updateBanner', () => {
   it('frees the replaced image when the artwork URL changes', async () => {
     const { service, discardUnreferenced } = setup();
 
-    await service.updateBanner('banner-1', { imageUrl: 'https://cdn/autumn.jpg' });
+    await service.updateBanner('banner-1', { imageUrl: 'https://cdn/gym-1/banners/autumn.jpg' });
 
     expect(discardUnreferenced).toHaveBeenCalledWith(
+      'gym-1',
       ['https://cdn/summer.jpg'],
-      ['https://cdn/autumn.jpg'],
+      ['https://cdn/gym-1/banners/autumn.jpg'],
     );
   });
 
@@ -231,7 +232,7 @@ describe('AdminBannersService.deleteBanner', () => {
     await service.deleteBanner('banner-1');
 
     expect(del).toHaveBeenCalledWith({ where: { id: 'banner-1' } });
-    expect(discardUnreferenced).toHaveBeenCalledWith(['https://cdn/summer.jpg'], []);
+    expect(discardUnreferenced).toHaveBeenCalledWith('gym-1', ['https://cdn/summer.jpg'], []);
   });
 
   it('404s on a miss without deleting anything', async () => {
@@ -254,6 +255,7 @@ describe('AdminBannersService.setImage', () => {
       imageUrl: 'https://pub-test.r2.dev/gym-1/banners/new.jpg',
     });
     expect(discardUnreferenced).toHaveBeenCalledWith(
+      'gym-1',
       ['https://cdn/summer.jpg'],
       ['https://pub-test.r2.dev/gym-1/banners/new.jpg'],
     );
@@ -306,5 +308,39 @@ describe('AdminBannersService.reorderBanners', () => {
 
     expect(error).toBeInstanceOf(NotFoundException);
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe("AdminBannersService: artwork URLs must be this gym's own uploads", () => {
+  const own = 'https://pub-test.r2.dev/gym-1/banners/summer.jpg';
+  const foreign = 'https://pub-test.r2.dev/gym-2/banners/summer.jpg';
+
+  it('creates a banner with its own artwork', async () => {
+    const { service, create } = setup();
+    await service.createBanner({ imageUrl: own, isActive: true });
+    expect(create).toHaveBeenCalled();
+  });
+
+  it("refuses to create a banner on another gym's artwork, writing nothing", async () => {
+    const { service, create } = setup();
+    await expect(
+      service.createBanner({ imageUrl: foreign, isActive: true }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("refuses to point an existing banner at another gym's artwork", async () => {
+    const { service, update, discardUnreferenced } = setup();
+    await expect(service.updateBanner('b1', { imageUrl: foreign })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(update).not.toHaveBeenCalled();
+    expect(discardUnreferenced).not.toHaveBeenCalled();
+  });
+
+  it('lets an edit through that leaves the stored artwork as it is', async () => {
+    const { service, update } = setup();
+    await service.updateBanner('b1', { title: 'Autumn', imageUrl: row.imageUrl });
+    expect(update).toHaveBeenCalled();
   });
 });

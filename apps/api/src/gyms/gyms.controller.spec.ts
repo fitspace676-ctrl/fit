@@ -33,6 +33,7 @@ function setup() {
       portal: {
         loginImageUrl: null,
         logoUrl: null,
+        faviconUrl: null,
         primaryColor: '#84cc16',
         chosenPrimaryColor: null,
         joinCard: gymJoinCardSettingsSchema.parse({}),
@@ -78,6 +79,7 @@ describe('GymsController', () => {
         portal: {
           loginImageUrl: null,
           logoUrl: null,
+          faviconUrl: null,
           primaryColor: '#84cc16',
           chosenPrimaryColor: null,
           joinCard: gymJoinCardSettingsSchema.parse({}),
