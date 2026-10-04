@@ -1,91 +1,59 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { AnimatedTabs } from '@/components/ui/animated-tabs';
+import { AuroraBackground } from '@/components/ui/aurora-background';
 import { AuroraText } from '@/components/ui/aurora-text';
-import { ContainerScroll } from '@/components/ui/container-scroll';
+import { CardStack } from '@/components/ui/card-stack';
 import { LiquidGlassCard } from '@/components/ui/liquid-glass';
-import { SplineScene } from '@/components/ui/spline-scene';
 import { Marquee } from '@/registry/magicui/marquee';
 import { BUILT_FOR } from '@/data/built-for';
-import { PricingCards } from './pricing-cards';
+import { FEATURES } from '@/data/features';
 import { cn } from '@/lib/utils';
-import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
-import { DemoModal, TrialModal } from './lead-modals';
+import { AudienceBadge, AudienceEmblem } from './audience-badge';
+import { HeroDevices } from './hero-devices';
+import { useLeadCta } from './lead-cta-context';
+import { ProductTour } from './product-tour';
 import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — Platform overview  ·  "Aurora Glass"
-   A product page selling FormaCore's modules to gym & studio owners.
-   Interactive module explorer: pick a pillar on the left, the detailed
-   mock + capability list updates on the right. Same dark aurora identity.
+   A product page selling FormaCore's modules to gym & studio owners: the
+   hero, the capability marquee, the product tour, the audience tabs and contact.
 
    Faithful port of the "Marketing / platform" design. Shared chrome (nav,
-   footer, buttons, icon set) lives in `./marketing-ui`. Every signup CTA
-   funnels into the owner-signup flow (`/register-gym`); "Book a demo" opens a
-   lead form that posts to `/api/leads`. The pricing band always shows the plan
-   grid — whether the figures on it are printed is `@/lib/pricing-visibility`.
+   footer, buttons, icon set) lives in `./marketing-ui`. The site has two
+   calls to action, "Book a demo" and "Request a call"; both open a lead form
+   (`./lead-cta-provider`) that posts to `/api/leads`. The plans live on their
+   own `/pricing` page, reached from the nav and footer; the homepage carries no
+   pricing band.
    ──────────────────────────────────────────────────────────────────────── */
 
 /* ---- module mock screens ---- */
 /* Capability marquee — the platform's modules scroll past in two rows.
    Themed to the platform tokens (overlay glass + semantic text); icons reuse
    the shared `I` set. The Marquee primitive lives in `registry/magicui/marquee`. */
-const features = [
-  {
-    icon: I.grid,
-    title: 'Manager Core',
-    body: 'The full admin panel — members, staff, classes, billing, automation, and reports.',
-  },
-  {
-    icon: I.globe,
-    title: 'Member Portal',
-    body: 'Branded self-service web portal for members.',
-  },
-  {
-    icon: I.calendar,
-    title: 'Online Booking & Scheduling',
-    body: 'Class timetable, bookings, and waitlists.',
-  },
-  {
-    icon: I.pos,
-    title: 'Reception POS',
-    body: 'Front desk application — check-in and sales.',
-  },
-  {
-    icon: I.phone,
-    title: 'Mobile App',
-    body: 'White-label member app.',
-  },
-  {
-    icon: I.chart,
-    title: 'Analytics & Reporting',
-    body: 'Dashboards, retention data, and reports.',
-  },
-  {
-    icon: I.spark,
-    title: 'AI Assistant',
-    body: 'Your operations co-pilot.',
-  },
-];
+const features = FEATURES.map((f) => ({
+  icon: f.icon,
+  title: f.name,
+  body: f.summary ?? f.subline,
+}));
 
 const firstRow = features.slice(0, features.length / 2);
 const secondRow = features.slice(features.length / 2);
 
-/* "Built for" — audience-specific value props shown in the animated stacked
-   tabs. The data is the single source of truth in `@/data/built-for` (it also
-   feeds the dedicated /built-for/<slug> pages and the nav dropdown); the tabs
-   read the `eyebrow / headline / subline / stats / panelClassName` fields off
-   each entry. The bold per-card gradients are intentional here (the cards fan
-   out behind each other) — self-contained dark gradients with white text, so
-   they read in both themes. */
+/* "Built for" — audience-specific value props, one card per audience in a
+   scroll-driven stack. The data is the single source of truth in
+   `@/data/built-for` (it also feeds the dedicated /built-for/<slug> pages and
+   the nav dropdown); the cards read the `name / icon / headline / subline /
+   stats / panelClassName` fields off each entry. The bold per-card gradients are
+   intentional (the cards pile up on each other) — self-contained dark
+   gradients with white text, so they read in both themes. */
 const audiences = BUILT_FOR;
 
 /* Contact form field styling — mirrors the lead-modal inputs but taller, to
    match the dedicated contact panel. */
 const contactInputCls =
-  'mt-2 w-full h-12 rounded-btn border border-violet-500/25 bg-violet-500/[0.05] dark:border-white/15 dark:bg-white/[0.05] px-4 text-sm text-fg placeholder:text-faint outline-none transition focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/25';
+  'mt-2 w-full h-12 rounded-btn border border-brand-500/25 bg-brand-500/[0.05] dark:border-white/15 dark:bg-white/[0.05] px-4 text-sm text-fg placeholder:text-faint outline-none transition focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/25';
 
 const FeatureCard = ({
   icon,
@@ -134,28 +102,21 @@ export default function PlatformLanding() {
   // member app's animated hero element without pulling in a motion dependency.
   const [showcaseIn, setShowcaseIn] = useState(false);
   useEffect(() => setShowcaseIn(true), []);
-  // Which CTA form modal is open (null = none).
-  const [modal, setModal] = useState<null | 'trial' | 'demo'>(null);
+  // Opens the shared "Book a demo" / "Request a call" forms.
+  const openLead = useLeadCta();
 
   return (
-    <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
+    <div className="font-sans bg-surface text-fg antialiased relative overflow-x-clip selection:bg-brand-500/30">
       <Aurora />
 
-      <MarketingNav active="Core" overlay />
+      <MarketingNav active="Core" overlay forceDark />
 
-      {/* hero — LIGHT mode: herolight photo backdrop, copy on the left, the
-          elementlight product shot on the right easing in on mount. Hidden in
-          dark mode, which keeps the original centred aurora hero below. */}
-      <section className="relative z-10 isolate overflow-hidden dark:hidden min-h-screen flex items-center">
-        {/* full-bleed photo backdrop, lightened on the left for legibility */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-          <img
-            src="/herolight.webp"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-right"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/70 to-surface/20" />
-        </div>
+      {/* hero — LIGHT mode: deep brand-blue aurora backdrop with white
+          type, copy on the left, the
+          live product recording on the right easing in on mount. Hidden in
+          dark mode, which shows the dark hero below. */}
+      <section className="relative z-10 isolate overflow-hidden dark:hidden min-h-screen flex items-center text-white">
+        <AuroraBackground tone="deep" />
 
         <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-10">
           <div className="grid items-center gap-10 lg:grid-cols-2">
@@ -167,60 +128,47 @@ export default function PlatformLanding() {
             >
               <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
                 Built For The Businesses{' '}
-                <AuroraText colors={['#5044D2', '#7A5AF8', '#2342EB']}>
+                <AuroraText colors={['#B8DDFF', '#67D9F8', '#7CC4FF']}>
                   That Move People.
                 </AuroraText>
               </h1>
-              <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
+              <p className="mt-6 text-lg text-white/80 max-w-xl leading-relaxed">
                 Every great fitness business runs on something. Members who stay, staff who know
                 what to do, numbers that tell the truth. FormaCore pulls it all together.
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-9">
-                <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('trial')}>
-                  Start 14-day trial
+                <Btn v="onBlue" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
+                  Book a demo
                 </Btn>
                 <Btn
-                  v="glass"
+                  v="glassOnBlue"
                   size="lg"
-                  onClick={() => setModal('demo')}
+                  icon={I.handset}
+                  onClick={() => openLead('call')}
                   ripple
-                  rippleColor="#6257E3"
+                  rippleColor="#7CC4FF"
                 >
-                  Book a demo
+                  Request a call
                 </Btn>
               </div>
             </div>
 
-            {/* right: visual — slides in from the right (linear) */}
-            <div
-              className={`relative transition-all duration-1000 ease-linear ${
-                showcaseIn ? 'translate-x-0 opacity-100' : 'translate-x-16 opacity-0'
-              }`}
-            >
-              <img
-                src="/lptlight.webp"
-                alt="The FormaCore back-office and member app, side by side"
-                draggable={false}
-                className="w-[125%] -ml-[12%] max-w-none lg:w-[192%] lg:-ml-[22%] lg:-mt-[4.5rem] select-none drop-shadow-2xl"
-              />
+            {/* right: the product showcase, with its own entrance animation.
+                On phones it comes first, above the copy. */}
+            <div className="relative order-first lg:order-none">
+              <div className="w-full max-w-none lg:w-[100%] min-[1400px]:w-[110%]">
+                <HeroDevices theme="light" />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* hero — DARK mode: herodark photo backdrop, copy on the left, the
-          lptdark product shot on the right easing in on mount. Hidden in
-          light mode, which shows the herolight hero above. */}
+      {/* hero — DARK mode: brand aurora backdrop, copy on the left, the
+          live product recording on the right easing in on mount. Hidden in
+          light mode, which shows the light hero above. */}
       <section className="relative z-10 isolate overflow-hidden hidden dark:flex min-h-screen items-center">
-        {/* full-bleed photo backdrop, darkened on the left for legibility */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-          <img
-            src="/herodark.webp"
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover object-right"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-surface via-surface/70 to-surface/20" />
-        </div>
+        <AuroraBackground />
 
         <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-10">
           <div className="grid items-center gap-10 lg:grid-cols-2">
@@ -232,7 +180,7 @@ export default function PlatformLanding() {
             >
               <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
                 Built For The Businesses{' '}
-                <AuroraText colors={['#9184F1', '#9B8AFB', '#96B2FF']}>
+                <AuroraText colors={['#7CC4FF', '#67D9F8', '#93B4FD']}>
                   That Move People.
                 </AuroraText>
               </h1>
@@ -241,93 +189,29 @@ export default function PlatformLanding() {
                 what to do, numbers that tell the truth. FormaCore pulls it all together.
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-9">
-                <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('trial')}>
-                  Start 14-day trial
+                <Btn v="primary" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
+                  Book a demo
                 </Btn>
                 <Btn
                   v="glass"
                   size="lg"
-                  onClick={() => setModal('demo')}
+                  icon={I.handset}
+                  onClick={() => openLead('call')}
                   ripple
-                  rippleColor="#6257E3"
+                  rippleColor="#1A7FD6"
                 >
-                  Book a demo
+                  Request a call
                 </Btn>
               </div>
             </div>
 
-            {/* right: visual — slides in from the right (linear) */}
-            <div
-              className={`relative transition-all duration-1000 ease-linear ${
-                showcaseIn ? 'translate-x-0 opacity-100' : 'translate-x-16 opacity-0'
-              }`}
-            >
-              <img
-                src="/lptdark.webp"
-                alt="The FormaCore back-office and member app, side by side"
-                draggable={false}
-                className="w-[125%] -ml-[12%] max-w-none lg:w-[192%] lg:-ml-[22%] lg:-mt-[4.5rem] select-none drop-shadow-2xl"
-              />
+            {/* right: the product showcase, with its own entrance animation.
+                On phones it comes first, above the copy. */}
+            <div className="relative order-first lg:order-none">
+              <div className="w-full max-w-none lg:w-[100%] min-[1400px]:w-[110%]">
+                <HeroDevices theme="dark" />
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* scroll-reveal — the product flattens into view as you scroll */}
-      <section className="relative z-10 flex flex-col overflow-hidden">
-        <ContainerScroll
-          titleComponent={
-            <h2 className="mx-auto max-w-3xl text-2xl font-semibold text-fg md:text-3xl">
-              Your members feel it. Your staff lives it. You see it in the numbers.
-              <span className="mt-3 block text-5xl font-black leading-[1.05] md:text-[4rem]">
-                <AuroraText colors={['#6257E3', '#7A5AF8', '#2342EB']}>
-                  FormaCore connects all three
-                </AuroraText>
-              </span>
-            </h2>
-          }
-        >
-          {/* light theme dashboard */}
-          <img
-            src="/dashlight.webp"
-            alt="FormaCore dashboard"
-            draggable={false}
-            height={720}
-            width={1400}
-            className="mx-auto h-full w-full rounded-2xl object-cover object-[50%_22%] dark:hidden"
-          />
-          {/* dark theme dashboard */}
-          <img
-            src="/dashdark.webp"
-            alt="FormaCore dashboard"
-            draggable={false}
-            height={720}
-            width={1400}
-            className="mx-auto hidden h-full w-full rounded-2xl object-cover object-[50%_22%] dark:block"
-          />
-        </ContainerScroll>
-      </section>
-
-      {/* spline 3D scene (left) + copy (right) */}
-      <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 py-8 md:py-12">
-        <div className="grid items-center gap-10 lg:grid-cols-2">
-          {/* left: spline animation (Spline logo stripped in SplineScene) */}
-          <div className="relative">
-            <SplineScene
-              sceneUrl="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-              className="h-[400px] w-full md:h-[520px]"
-            />
-          </div>
-
-          {/* right: copy */}
-          <div className="text-left">
-            <h2 className="font-display text-4xl font-black tracking-tight text-fg lg:text-[3rem] leading-[0.98]">
-              The platform that thinks with your business.
-            </h2>
-            <p className="mt-5 text-lg text-muted leading-relaxed">
-              FormaCore brings analytics, financial flow and retention into one AI-powered platform,
-              so you don&apos;t just see what&apos;s happening, you know what to do next.
-            </p>
           </div>
         </div>
       </section>
@@ -356,43 +240,25 @@ export default function PlatformLanding() {
         </div>
       </section>
 
-      {/* pricing — the three plans, shared with the /pricing page. The figures
-          themselves only print while prices are published (see
-          `@/lib/pricing-visibility`); the cards are the same either way. */}
-      <section
-        id="pricing"
-        className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-8"
-      >
-        <div className="mb-10 max-w-2xl">
-          <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
-            {SHOW_PUBLIC_PRICING ? 'One platform. One simple price.' : 'One platform. Three plans.'}
-          </h2>
-          <p className="mt-4 text-lg text-muted leading-relaxed">
-            {SHOW_PUBLIC_PRICING
-              ? 'Every plan is the full platform - pick the tier that fits where your business is today.'
-              : "Every plan is the full platform - pick the tier that fits where your business is today, and we'll send you a quote for it."}
-          </p>
-        </div>
-        <PricingCards />
-        <div className="mt-10 flex justify-center">
-          <Btn v="glass" size="md" icon={I.arrow} href="/pricing">
-            {SHOW_PUBLIC_PRICING ? 'See full pricing & comparison' : 'Compare all plans'}
-          </Btn>
-        </div>
-      </section>
+      {/* product tour — the console and the portal, scene by scene */}
+      <ProductTour />
 
-      {/* built for — audience-specific value props in animated stacked tabs */}
+      {/* built for — one card per audience, stacking up as you scroll */}
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-24">
         <div className="mb-10 max-w-2xl">
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
             Built for how you actually run.
           </h2>
           <p className="mt-4 text-lg text-muted leading-relaxed">
-            Whatever shape your business takes, FormaCore fits the way you work — pick yours.
+            Whatever shape your business takes, FormaCore fits the way you work.
           </p>
         </div>
 
-        <AnimatedTabs tabs={audiences} autoAdvanceMs={6000}>
+        <CardStack
+          items={audiences}
+          getKey={(a) => a.slug}
+          cardClassName="flex min-h-[43rem] md:h-[37rem] md:min-h-0"
+        >
           {(a) => (
             <div
               className={cn(
@@ -400,53 +266,41 @@ export default function PlatformLanding() {
                 a.panelClassName,
               )}
             >
-              {/* decorative glow + oversized corner icon */}
-              <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-              {a.iconImage ? (
-                <img
-                  src={a.iconImage}
-                  alt=""
-                  aria-hidden
-                  className="pointer-events-none absolute -bottom-10 -right-10 h-56 w-56 object-contain opacity-[0.06] brightness-0 invert"
-                />
-              ) : (
-                <Icon
-                  d={a.icon}
-                  c="pointer-events-none absolute -bottom-10 -right-10 h-56 w-56 text-white/[0.06]"
-                  sw={1.5}
-                />
-              )}
+              {/* decorative glows (radial gradients, no blur filter, so the
+                  stack can scale the card without re-blurring) */}
+              <div className="pointer-events-none absolute -right-24 -top-28 h-96 w-96 bg-[radial-gradient(closest-side,rgba(124,196,255,0.28),transparent)]" />
+              <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-[28rem] bg-[radial-gradient(closest-side,rgba(34,184,230,0.22),transparent)]" />
+              <AudienceEmblem audience={a} />
 
               <div className="relative flex h-full flex-col">
-                <span className="inline-flex w-fit items-center rounded-pill bg-white/15 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-white/90 ring-1 ring-inset ring-white/20">
-                  {a.eyebrow}
-                </span>
-                <h3 className="mt-5 max-w-2xl font-display text-2xl font-black leading-[1.05] tracking-tight text-white sm:text-3xl md:text-[2.5rem]">
+                <AudienceBadge audience={a} />
+                <h3 className="mt-4 sm:mt-5 max-w-2xl md:max-w-[min(42rem,calc(100%-21rem))] font-display text-2xl font-black leading-[1.05] tracking-tight text-white sm:text-3xl md:text-[2.5rem]">
                   {a.headline}
                 </h3>
-                <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base md:text-lg">
+                <p className="mt-4 max-w-xl md:max-w-[min(36rem,calc(100%-21rem))] text-sm leading-relaxed text-white/85 sm:text-base md:text-lg">
                   {a.subline}
                 </p>
 
-                <div className="mt-6 flex flex-wrap items-center gap-3">
+                <div className="mt-5 sm:mt-6 flex flex-wrap items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setModal('demo')}
+                    onClick={() => openLead('demo')}
                     className="inline-flex h-11 items-center gap-2 rounded-btn bg-white px-5 text-sm font-semibold text-neutral-900 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] transition hover:bg-white/90 active:bg-white/80"
                   >
-                    Book a free demo
+                    Book a demo
                   </button>
-                  <Link
-                    href="/pricing"
+                  <button
+                    type="button"
+                    onClick={() => openLead('call')}
                     className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
                   >
-                    {SHOW_PUBLIC_PRICING ? 'See pricing' : 'See plans'}
-                    <Icon d={I.arrow} c="h-4 w-4" />
-                  </Link>
+                    <Icon d={I.handset} c="h-4 w-4" />
+                    Request a call
+                  </button>
                 </div>
 
                 {/* stats strip */}
-                <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-5 pt-6 md:grid-cols-4">
+                <div className="mt-auto grid grid-cols-2 gap-x-6 gap-y-4 pt-5 sm:gap-y-5 sm:pt-6 md:grid-cols-4">
                   {a.stats.map((s) => (
                     <div key={s.label}>
                       <div className="font-display text-2xl font-black tracking-tight text-white md:text-3xl">
@@ -459,7 +313,7 @@ export default function PlatformLanding() {
               </div>
             </div>
           )}
-        </AnimatedTabs>
+        </CardStack>
       </section>
 
       {/* contact */}
@@ -467,7 +321,7 @@ export default function PlatformLanding() {
         <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-16">
           {/* left: copy + map */}
           <div>
-            <span className="grid h-12 w-12 place-items-center rounded-card bg-gradient-to-br from-violet-600/35 to-pink-500/30 ring-1 ring-inset ring-violet-600/25 shadow-[0_10px_30px_-8px_rgba(124,58,237,0.45)]">
+            <span className="grid h-12 w-12 place-items-center rounded-card bg-gradient-to-br from-brand-600/35 to-accent-500/30 ring-1 ring-inset ring-brand-600/25 shadow-[0_10px_30px_-8px_rgba(26,127,214,0.45)]">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -475,7 +329,7 @@ export default function PlatformLanding() {
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="h-6 w-6 text-violet-600 dark:text-violet-300"
+                className="h-6 w-6 text-brand-600 dark:text-brand-300"
               >
                 <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
                 <path d="m3 6.5 9 6 9-6" />
@@ -489,15 +343,24 @@ export default function PlatformLanding() {
               let us know how we can help you.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-strong">
-              <a href="mailto:contact@formacore.io" className="transition hover:text-fg">
+              <a
+                href="mailto:contact@formacore.io"
+                className="-my-3 inline-block py-3 transition hover:text-fg"
+              >
                 contact@formacore.io
               </a>
               <span className="text-dim">•</span>
-              <a href="tel:+995322000000" className="transition hover:text-fg">
+              <a
+                href="tel:+995322000000"
+                className="-my-3 inline-block py-3 transition hover:text-fg"
+              >
                 +995 (32) 2 00 00 00
               </a>
               <span className="text-dim">•</span>
-              <a href="mailto:support@formacore.io" className="transition hover:text-fg">
+              <a
+                href="mailto:support@formacore.io"
+                className="-my-3 inline-block py-3 transition hover:text-fg"
+              >
                 support@formacore.io
               </a>
             </div>
@@ -522,11 +385,11 @@ export default function PlatformLanding() {
                 style={{ left: '62%', top: '32%' }}
               >
                 {/* beam */}
-                <span className="absolute bottom-2 left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-t from-violet-500/0 to-violet-500/80" />
+                <span className="absolute bottom-2 left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-t from-brand-500/0 to-brand-500/80" />
                 {/* glowing pin */}
                 <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-500 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-violet-500 shadow-[0_0_14px_3px_rgba(124,58,237,0.7)]" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_14px_3px_rgba(26,127,214,0.7)]" />
                 </span>
                 {/* label */}
                 <div className="absolute bottom-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-overlay/[0.08] px-2.5 py-1 text-xs font-medium text-fg ring-1 ring-inset ring-overlay/15 backdrop-blur">
@@ -541,8 +404,8 @@ export default function PlatformLanding() {
             {/* colored backdrop so the glass refraction reads — kept small and
                 soft so it tints the panel without bleeding out */}
             <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[2rem]">
-              <div className="absolute -right-4 -top-4 h-40 w-40 rounded-full bg-violet-400/[0.16] blur-[60px]" />
-              <div className="absolute -bottom-4 -left-4 h-40 w-40 rounded-full bg-pink-400/[0.12] blur-[60px]" />
+              <div className="absolute -right-4 -top-4 h-40 w-40 rounded-full bg-brand-400/[0.16] blur-[60px]" />
+              <div className="absolute -bottom-4 -left-4 h-40 w-40 rounded-full bg-accent-400/[0.12] blur-[60px]" />
             </div>
             <LiquidGlassCard
               glowIntensity="md"
@@ -607,14 +470,14 @@ export default function PlatformLanding() {
                 <label className="block">
                   <span className="text-sm font-medium text-fg">Message</span>
                   <textarea
-                    className="mt-2 h-40 w-full resize-none rounded-btn border border-violet-500/25 bg-violet-500/[0.05] dark:border-white/15 dark:bg-white/[0.05] px-4 py-3 text-sm text-fg placeholder:text-faint outline-none transition focus:border-violet-500/60 focus:ring-2 focus:ring-violet-500/25"
+                    className="mt-2 h-40 w-full resize-none rounded-btn border border-brand-500/25 bg-brand-500/[0.05] dark:border-white/15 dark:bg-white/[0.05] px-4 py-3 text-sm text-fg placeholder:text-faint outline-none transition focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/25"
                     name="message"
                     placeholder="Type your message here"
                   />
                 </label>
                 <button
                   type="submit"
-                  className="rounded-btn bg-[linear-gradient(135deg,#7C3AED,#EC4899)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_-6px_rgba(124,58,237,0.7)] ring-1 ring-inset ring-white/15 transition hover:brightness-110"
+                  className="rounded-btn bg-[linear-gradient(135deg,#22B8E6,#2557EB)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_-6px_rgba(26,127,214,0.7)] ring-1 ring-inset ring-white/15 transition hover:brightness-110"
                 >
                   Submit
                 </button>
@@ -625,11 +488,6 @@ export default function PlatformLanding() {
       </section>
 
       <MarketingFooter />
-
-      {/* CTA form modals — opened by the trial / demo buttons throughout. The
-          pricing-request form is carried by the plan cards themselves. */}
-      <TrialModal open={modal === 'trial'} onClose={() => setModal(null)} />
-      <DemoModal open={modal === 'demo'} onClose={() => setModal(null)} />
     </div>
   );
 }

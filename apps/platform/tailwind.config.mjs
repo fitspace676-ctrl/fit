@@ -32,8 +32,8 @@ const safelist = DYNAMIC_TONES.flatMap((tone) => [
 
 /**
  * Platform Tailwind config — the apex marketing surface (formacore.io) follows
- * the dedicated "Marketing / platform" design rather than the shared @fit blue
- * brand, so the design's own token set (indigo `brand`, `accent`, `ink`, the
+ * the dedicated "Marketing / platform" design, so the design's own token set
+ * (sky `brand`, cyan `accent`, deep blue `iris`, `ink`, the
  * status ramps, and the Manrope/Archivo type pairing) is layered on top of the
  * shared preset here. The preset still supplies `px-gutter` and anything not
  * overridden below.
@@ -70,31 +70,33 @@ export default {
         dim: 'rgb(var(--dim) / <alpha-value>)', // faintest text
         overlay: 'rgb(var(--overlay) / <alpha-value>)', // glass fills / hairlines
         panel: 'rgb(var(--panel) / <alpha-value>)', // inset / mock surfaces
+        // The product sky blue (same ramp as the shared preset and the console).
         brand: {
-          50: '#F2F1FE',
-          100: '#E8E6FD',
-          200: '#D3CFFB',
-          300: '#B5AEF7',
-          400: '#9184F1',
-          500: '#6257E3',
-          600: '#5044D2',
-          700: '#4536B5',
-          800: '#392E92',
-          900: '#312A74',
-          950: '#1E1A45',
+          50: '#EEF7FF',
+          100: '#DCEEFF',
+          200: '#B8DDFF',
+          300: '#7CC4FF',
+          400: '#3D95E0',
+          500: '#1A7FD6',
+          600: '#1570BF',
+          700: '#0B67A8',
+          800: '#0B5590',
+          900: '#0A4170',
+          950: '#0E2A42',
         },
+        // Cyan: the light end of the logo's gradient.
         accent: {
-          50: '#ECF1FF',
-          100: '#DCE6FF',
-          200: '#C0D2FF',
-          300: '#96B2FF',
-          400: '#6589FF',
-          500: '#3B5EF5',
-          600: '#2342EB',
-          700: '#1B33D8',
-          800: '#1C2DAE',
-          900: '#1D2C89',
-          950: '#151B52',
+          50: '#ECFBFF',
+          100: '#CFF4FE',
+          200: '#A5EAFC',
+          300: '#67D9F8',
+          400: '#2EC2EC',
+          500: '#12A8D6',
+          600: '#0A87B4',
+          700: '#0E6C91',
+          800: '#145976',
+          900: '#154A63',
+          950: '#072F42',
         },
         ink: {
           50: '#F6F7F9',
@@ -161,18 +163,20 @@ export default {
           900: '#194185',
           950: '#102A56',
         },
+        // Deep blue: the dark end of the logo's gradient (was violet; the name
+        // stays because tones are referenced by name across the marketing data).
         iris: {
-          50: '#F4F3FF',
-          100: '#EBE9FE',
-          200: '#D9D6FE',
-          300: '#BDB4FE',
-          400: '#9B8AFB',
-          500: '#7A5AF8',
-          600: '#6938EF',
-          700: '#5925DC',
-          800: '#4A1FB8',
-          900: '#3E1C96',
-          950: '#27115F',
+          50: '#EDF5FF',
+          100: '#D6E9FF',
+          200: '#B0D4FF',
+          300: '#7DB8FB',
+          400: '#4A98F2',
+          500: '#2A7BE4',
+          600: '#1D63CC',
+          700: '#1A50A8',
+          800: '#1A4387',
+          900: '#1A3A6E',
+          950: '#12253F',
         },
         flame: {
           50: '#FEF6EE',

@@ -7,9 +7,8 @@ import { I } from '@/components/marketing/icons';
        eyebrow / headline / subline / stats / panelClassName), and
      • the dedicated per-audience pages at /built-for/<slug> + the nav dropdown.
 
-   Hero / footer CTA buttons are fixed in the page template (Book a free demo →
-   demo modal, See pricing / See all plans → /pricing), so they aren't stored
-   here. Keep every `slug` unique.
+   Hero / footer CTA buttons are fixed in the page template (Book a demo and
+   Request a call, the site's two lead forms), so they aren't stored here. Keep every `slug` unique.
    ──────────────────────────────────────────────────────────────────────── */
 
 export type Stat = { value: string; label: string };
@@ -33,19 +32,21 @@ export type AudiencePage = {
   name: string;
   /** AnimatedTab label - kept equal to `name`. */
   title: string;
-  /** Label shown in the "Built For" nav dropdown, e.g. "For Fitness Clubs". */
+  /** Label shown in the "Built For" nav dropdown, e.g. "Fitness Clubs". */
   navLabel: string;
-  /** Short uppercase eyebrow. */
+  /** Short uppercase eyebrow (no longer shown on the panels; the badge uses `name`). */
   eyebrow: string;
   /** Icon path key from the shared `I` set. */
   icon: string;
-  /** Optional raster icon (in /public) used instead of `icon` for the watermark. */
-  iconImage?: string;
-  /** Tailwind gradient stops for the hero panel background. */
+  /** Tailwind gradient stops for the hero panel background, all on the brand ramps. */
   panelClassName: string;
   headline: string;
   subline: string;
+  /** One-line description, for the homepage capability cards (features only). */
+  summary?: string;
   stats: Stat[];
+  /** Short capability chips shown in place of the stat strip when `stats` is empty. */
+  highlights?: string[];
   /** The marketed feature blocks, rendered as alternating rows. */
   features: Feature[];
   /** Optional "recommended plan" highlight band. */
@@ -60,10 +61,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'fitness-clubs',
     name: 'Fitness Clubs',
     title: 'Fitness Clubs',
-    navLabel: 'For Fitness Clubs',
+    navLabel: 'Fitness Clubs',
     eyebrow: 'Fitness Clubs',
     icon: I.members,
-    panelClassName: 'from-violet-700 to-indigo-950',
+    panelClassName: 'from-brand-600 via-brand-800 to-[#061634]',
     headline: "Most members quit within 90 days. Here's how you keep them.",
     subline:
       "Retention is the real business of running a fitness club. Get the visibility, tools, and automation to spot who's at risk, re-engage them before they leave, and build a club that members actually stay in.",
@@ -138,7 +139,7 @@ export const BUILT_FOR: AudiencePage[] = [
     footerCta: {
       headline: 'Ready to stop losing members you worked hard to get?',
       subline:
-        "Book a free demo - we'll show you exactly how to retain more members, month after month.",
+        "Book a demo - we'll show you exactly how to retain more members, month after month.",
     },
   },
   {
@@ -146,10 +147,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'training-studios',
     name: 'Training Studios',
     title: 'Training Studios',
-    navLabel: 'For Training Studios',
+    navLabel: 'Training Studios',
     eyebrow: 'Training Studios',
     icon: I.flame,
-    panelClassName: 'from-fuchsia-700 to-purple-950',
+    panelClassName: 'from-iris-600 via-iris-800 to-[#061634]',
     headline: 'Small studio. Every member matters.',
     subline:
       "Training studios run on personal relationships. When a member starts drifting, you need to know before they've already decided to leave. Stay close to every member - even as your studio grows.",
@@ -212,7 +213,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: "Ready to keep every member you've worked hard to attract?",
-      subline: 'Book a free demo and see how to retain more members, month after month.',
+      subline: 'Book a demo and see how to retain more members, month after month.',
     },
   },
   {
@@ -220,10 +221,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'yoga-studios',
     name: 'Yoga Studios',
     title: 'Yoga Studios',
-    navLabel: 'For Yoga Studios',
+    navLabel: 'Yoga Studios',
     eyebrow: 'Yoga Studios',
     icon: I.stretching,
-    panelClassName: 'from-purple-700 to-violet-950',
+    panelClassName: 'from-accent-600 via-brand-800 to-[#061634]',
     headline: 'The habit is fragile. We make sure nothing breaks it.',
     subline:
       "Your members come for the practice. They stay because of the routine. Protect that routine - removing every friction point that could interrupt a member's habit before it becomes permanent.",
@@ -287,7 +288,7 @@ export const BUILT_FOR: AudiencePage[] = [
     footerCta: {
       headline: 'Ready to protect the habits your members are building?',
       subline:
-        'Book a free demo and see how to keep yoga studio members coming back, class after class.',
+        'Book a demo and see how to keep yoga studio members coming back, class after class.',
     },
   },
   {
@@ -295,10 +296,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'pilates-studios',
     name: 'Pilates Studios',
     title: 'Pilates Studios',
-    navLabel: 'For Pilates Studios',
+    navLabel: 'Pilates Studios',
     eyebrow: 'Pilates Studios',
     icon: I.stretching2,
-    panelClassName: 'from-indigo-700 to-violet-950',
+    panelClassName: 'from-brand-500 via-iris-800 to-[#061634]',
     headline: "They came for results. Show them they're getting them.",
     subline:
       "Pilates members are goal-driven. They signed up to feel stronger, move better, recover faster. When they can't see their progress - or feel like the studio has stopped paying attention - they leave. Make progress visible and keep every member engaged.",
@@ -364,8 +365,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: "Ready to show your members the progress they're making?",
-      subline:
-        'Book a free demo and see how to keep Pilates members committed, session after session.',
+      subline: 'Book a demo and see how to keep Pilates members committed, session after session.',
     },
   },
   {
@@ -373,10 +373,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'crossfit',
     name: 'CrossFit',
     title: 'CrossFit',
-    navLabel: 'For CrossFit',
+    navLabel: 'CrossFit',
     eyebrow: 'CrossFit',
     icon: I.barbell,
-    panelClassName: 'from-blue-700 to-indigo-950',
+    panelClassName: 'from-brand-600 via-brand-800 to-[#061634]',
     headline: 'The workout brings them in. The community keeps them.',
     subline:
       'CrossFit retention is community retention. When athletes miss a few WODs and feel disconnected from the box, they drift. Stay close to every athlete - so nobody quietly disappears from the whiteboard.',
@@ -439,8 +439,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: 'Ready to keep every athlete on the whiteboard?',
-      subline:
-        'Book a free demo and see how to keep CrossFit athletes coming back, month after month.',
+      subline: 'Book a demo and see how to keep CrossFit athletes coming back, month after month.',
     },
   },
   {
@@ -448,10 +447,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'martial-arts',
     name: 'Martial Arts',
     title: 'Martial Arts',
-    navLabel: 'For Martial Arts',
+    navLabel: 'Martial Arts',
     eyebrow: 'Martial Arts',
     icon: I.karate,
-    panelClassName: 'from-pink-700 to-fuchsia-950',
+    panelClassName: 'from-iris-600 via-iris-800 to-[#061634]',
     headline: 'Every student is on a journey. Make sure nothing stops them mid-way.',
     subline:
       "Martial arts retention is built on progression. Students stay because they're working toward something - their next belt, their next grading, their next level. Keep that journey on track and make sure no student quietly drops out between milestones.",
@@ -514,7 +513,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: 'Ready to keep every student on the path to their next belt?',
-      subline: 'Book a free demo and see how to retain more students, grading after grading.',
+      subline: 'Book a demo and see how to retain more students, grading after grading.',
     },
   },
   {
@@ -522,10 +521,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'swimming-schools',
     name: 'Swimming Schools',
     title: 'Swimming Schools',
-    navLabel: 'For Swimming Schools',
+    navLabel: 'Swimming Schools',
     eyebrow: 'Swimming Schools',
     icon: I.swimming,
-    panelClassName: 'from-sky-700 to-blue-950',
+    panelClassName: 'from-accent-600 via-brand-800 to-[#061634]',
     headline: 'Parents pay. Kids swim. Progress keeps both coming back.',
     subline:
       'In a swimming school, the parent is the buyer and the child is the student. Retention depends on one thing - parents believing their child is progressing. Give your team the tools to communicate that progress clearly and keep every family enrolled term after term.',
@@ -588,7 +587,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: 'Ready to keep every family enrolled term after term?',
-      subline: 'Book a free demo and see how to retain more students, every term.',
+      subline: 'Book a demo and see how to retain more students, every term.',
     },
   },
   {
@@ -596,10 +595,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'dance-schools',
     name: 'Dance Schools',
     title: 'Dance Schools',
-    navLabel: 'For Dance Schools',
+    navLabel: 'Dance Schools',
     eyebrow: 'Dance Schools',
     icon: I.vinyl,
-    panelClassName: 'from-fuchsia-700 to-pink-950',
+    panelClassName: 'from-brand-500 via-iris-800 to-[#061634]',
     headline: "Between terms is where you lose them. We make sure you don't.",
     subline:
       'Dance school retention breaks down between terms. When nobody follows up, students drift - and re-enrolment never happens. Automate the entire re-enrolment process so your next term fills up before the current one ends.',
@@ -662,7 +661,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: 'Ready to fill next term before this one ends?',
-      subline: 'Book a free demo and see how to retain more students, term after term.',
+      subline: 'Book a demo and see how to retain more students, term after term.',
     },
   },
   {
@@ -670,11 +669,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'padel',
     name: 'Padel',
     title: 'Padel',
-    navLabel: 'For Padel',
+    navLabel: 'Padel',
     eyebrow: 'Padel',
     icon: I.padel,
-    iconImage: '/padel-icon.png',
-    panelClassName: 'from-indigo-700 to-blue-950',
+    panelClassName: 'from-brand-600 via-brand-800 to-[#061634]',
     headline: 'One player drops out. The whole group follows.',
     subline:
       'Padel is a social sport. Members play in pairs and groups - and when one person stops booking, the dynamic breaks. Keep every player active, every court booked, and every group intact.',
@@ -737,7 +735,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: 'Ready to keep every player on the court?',
-      subline: 'Book a free demo and see how to retain more members, month after month.',
+      subline: 'Book a demo and see how to retain more members, month after month.',
     },
   },
   {
@@ -745,11 +743,10 @@ export const BUILT_FOR: AudiencePage[] = [
     value: 'tennis-clubs',
     name: 'Tennis Clubs',
     title: 'Tennis Clubs',
-    navLabel: 'For Tennis Clubs',
+    navLabel: 'Tennis Clubs',
     eyebrow: 'Tennis Clubs',
-    icon: I.card,
-    iconImage: '/tennis-icon.png',
-    panelClassName: 'from-violet-700 to-purple-950',
+    icon: I.tennis,
+    panelClassName: 'from-iris-600 via-iris-800 to-[#061634]',
     headline: 'A club membership should feel like belonging. Not just a direct debit.',
     subline:
       'Tennis club members stay when they feel connected - to the club, the community, and the value of their membership. Keep that connection alive with consistent communication, easy self-service, and a membership experience that feels worth renewing.',
@@ -815,7 +812,7 @@ export const BUILT_FOR: AudiencePage[] = [
     },
     footerCta: {
       headline: 'Ready to make your members proud to belong?',
-      subline: 'Book a free demo and see how to retain more members, season after season.',
+      subline: 'Book a demo and see how to retain more members, season after season.',
     },
   },
 ];

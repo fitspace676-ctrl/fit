@@ -4,9 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import Link from 'next/link';
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
-import { BUILT_FOR } from '@/data/built-for';
+import { BUILT_FOR, type AudiencePage } from '@/data/built-for';
+import { FEATURES } from '@/data/features';
+import { cn } from '@/lib/utils';
 import { I, Icon } from './icons';
 import { HeaderSearch } from './header-search';
+import { useLeadCta } from './lead-cta-context';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — shared marketing primitives  ·  "Aurora Glass"
@@ -16,17 +19,12 @@ import { HeaderSearch } from './header-search';
    pricing page both compose these — change the chrome once, here.
    ──────────────────────────────────────────────────────────────────────── */
 
-/** Where every "start / trial" button sends the visitor. */
-export const SIGNUP_HREF = '/register-gym';
-/** Secondary "Book a demo" / "Talk to sales" destination. */
-export const DEMO_HREF = 'mailto:hello@formacore.io';
-
 // `I` (icon path dictionary) and `Icon` (renderer) now live in `./icons` so plain
 // data modules can use them without importing this client chrome. Re-exported
 // here to keep existing `import { I, Icon } from './marketing-ui'` call sites working.
 export { I, Icon };
 
-type BtnVariant = 'primary' | 'white' | 'glass' | 'glassGradient';
+type BtnVariant = 'primary' | 'white' | 'glass' | 'glassGradient' | 'onBlue' | 'glassOnBlue';
 type BtnSize = 'sm' | 'md' | 'lg';
 
 export const Btn = ({
@@ -40,7 +38,7 @@ export const Btn = ({
   type = 'button',
   disabled = false,
   ripple = false,
-  rippleColor = '#6257E3',
+  rippleColor = '#1A7FD6',
 }: {
   children: ReactNode;
   v?: BtnVariant;
@@ -70,13 +68,18 @@ export const Btn = ({
   };
   const vs: Record<BtnVariant, string> = {
     primary:
-      'bg-[linear-gradient(135deg,#7C3AED,#EC4899)] text-white hover:brightness-110 active:brightness-95 shadow-[0_8px_30px_-6px_rgba(124,58,237,0.7)] focus-visible:ring-brand-500/40',
+      'bg-[linear-gradient(135deg,#22B8E6,#2557EB)] text-white hover:brightness-110 active:brightness-95 shadow-[0_8px_30px_-6px_rgba(26,127,214,0.7)] focus-visible:ring-brand-500/40',
     white: 'bg-fg text-surface hover:opacity-90 active:opacity-80 focus-visible:ring-overlay/40',
+    // For a deep brand-blue surface (the light-theme homepage hero).
+    onBlue:
+      'bg-white text-brand-900 hover:bg-white/90 active:bg-white/80 shadow-[0_8px_30px_-8px_rgba(2,11,46,0.6)] focus-visible:ring-white/40',
+    glassOnBlue:
+      'bg-white/10 text-white border border-white/25 backdrop-blur hover:bg-white/20 active:bg-white/25 focus-visible:ring-white/30',
     glass:
       'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-overlay/[0.13] active:bg-overlay/[0.18] focus-visible:ring-overlay/30',
     // Glass at rest, but morphs into the primary gradient on hover.
     glassGradient:
-      'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-[linear-gradient(135deg,#7C3AED,#EC4899)] hover:text-white hover:border-transparent hover:shadow-[0_8px_30px_-6px_rgba(124,58,237,0.7)] active:brightness-95 focus-visible:ring-brand-500/40',
+      'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-[linear-gradient(135deg,#22B8E6,#2557EB)] hover:text-white hover:border-transparent hover:shadow-[0_8px_30px_-6px_rgba(26,127,214,0.7)] active:brightness-95 focus-visible:ring-brand-500/40',
   };
   const className = `relative inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${ripple ? 'overflow-hidden' : ''} ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
   const style: CSSProperties | undefined = size === 'lg' ? { height: '3.25rem' } : undefined;
@@ -205,30 +208,48 @@ export const ThemeToggle = ({ className = '' }: { className?: string }) => {
 };
 
 /**
- * FormaCore wordmark lockup. The `public/FormaCore-light.png` (dark wordmark) and
- * `public/FormaCore-dark.png` (light wordmark) variants are both rendered and toggled
+ * FormaCore wordmark lockup. The `public/FormaCore-light.webp` (dark wordmark) and
+ * `public/FormaCore-dark.webp` (light wordmark) variants are both rendered and toggled
  * by the `.dark` class via CSS, so the right one shows before first paint with
  * no JS / hydration flash. Pass a height utility (`h-8`, `h-10`, …); width is
- * derived from the 1024×500 intrinsic ratio.
+ * derived from the 1024×500 intrinsic ratio. The WebP files are 600px wide, enough
+ * for the tallest use (`h-20`) on a 3x screen and about a fifth of the PNG's bytes;
+ * the PNGs stay in `public/` for anything that links to them directly.
  */
-export const Logo = ({ className = 'h-10' }: { className?: string }) => (
-  <>
+export const Logo = ({
+  className = 'h-10',
+  whiteInk = false,
+}: {
+  className?: string;
+  /** Always the light (white-inked) wordmark, for a bar over a dark hero. */
+  whiteInk?: boolean;
+}) =>
+  whiteInk ? (
     <img
-      src="/FormaCore-light.png"
+      src="/FormaCore-dark.webp"
       alt="FormaCore"
       width={1024}
       height={500}
-      className={`${className} w-auto dark:hidden`}
+      className={`${className} w-auto`}
     />
-    <img
-      src="/FormaCore-dark.png"
-      alt="FormaCore"
-      width={1024}
-      height={500}
-      className={`${className} w-auto hidden dark:block`}
-    />
-  </>
-);
+  ) : (
+    <>
+      <img
+        src="/FormaCore-light.webp"
+        alt="FormaCore"
+        width={1024}
+        height={500}
+        className={`${className} w-auto dark:hidden`}
+      />
+      <img
+        src="/FormaCore-dark.webp"
+        alt="FormaCore"
+        width={1024}
+        height={500}
+        className={`${className} w-auto hidden dark:block`}
+      />
+    </>
+  );
 
 /** The shared "Aurora Glass" backdrop — three blurred colour fields behind every page. */
 export const Aurora = () => (
@@ -248,19 +269,25 @@ export const Aurora = () => (
  * the plans either way, with the figures replaced by a quote request while
  * `SHOW_PUBLIC_PRICING` is off.
  */
-const NAV_ITEMS = ['Core', 'Built For', 'Pricing', 'Resources'] as const;
+const NAV_ITEMS = ['Core', 'Features', 'Built For', 'Pricing', 'Resources'] as const;
 type NavItem = (typeof NAV_ITEMS)[number];
 
-// Mobile bottom dock — navigation icons + CTAs, fixed to the bottom of the
-// viewport on small screens (hidden from `lg` up, where the top nav shows).
-const DOCK_NAV: { label: NavItem; icon: string; href: string }[] = [
-  { label: 'Core', icon: I.layers, href: '/' },
-  { label: 'Built For', icon: I.members, href: '#' },
-  { label: 'Pricing', icon: I.card, href: '/pricing' },
-  { label: 'Resources', icon: I.box, href: '#' },
-];
+/**
+ * Nav items that open a dropdown: features and audiences. `base` is where each
+ * entry links to; without it the entries are a plain list (the feature pages
+ * are not written yet, so Features lists the modules without linking).
+ */
+const DROPDOWNS: Partial<Record<NavItem, { base?: string; items: AudiencePage[] }>> = {
+  Features: { items: FEATURES },
+  'Built For': { base: '/built-for', items: BUILT_FOR },
+};
 
-export const MobileDock = ({ active }: { active?: NavItem }) => {
+// Mobile bottom dock: one row, fixed to the bottom of the viewport below `lg`
+// (where the top nav takes over). The header scrolls away, so the dock carries
+// the way back to the menu plus the two calls to action. A single row keeps it
+// to about 70px, so it does not sit over a fifth of a phone screen.
+export const MobileDock = ({ onMenu }: { onMenu: () => void }) => {
+  const openLead = useLeadCta();
   // Hidden at the top of the page; slides up once the header has scrolled away.
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -278,88 +305,86 @@ export const MobileDock = ({ active }: { active?: NavItem }) => {
         shown ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-[120%] opacity-0'
       }`}
     >
-      <div className="mx-auto max-w-md rounded-2xl border border-overlay/10 bg-surface/85 p-2 shadow-[0_10px_40px_-8px_rgba(8,9,16,0.35)] backdrop-blur-xl backdrop-saturate-150">
-        <nav className="flex items-stretch gap-1">
-          {DOCK_NAV.map((it) => {
-            const cls = `flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-semibold transition ${
-              it.label === active ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg'
-            }`;
-            return it.href.startsWith('/') ? (
-              <Link key={it.label} href={it.href} className={cls}>
-                <Icon d={it.icon} c="w-5 h-5" />
-                {it.label}
-              </Link>
-            ) : (
-              <a key={it.label} href={it.href} onClick={(e) => e.preventDefault()} className={cls}>
-                <Icon d={it.icon} c="w-5 h-5" />
-                {it.label}
-              </a>
-            );
-          })}
-        </nav>
-        <div className="mt-1.5 flex gap-2">
-          <Btn v="primary" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
-            Start free
-          </Btn>
-          <Btn v="glass" size="md" href={DEMO_HREF}>
-            Demo
+      <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-overlay/10 bg-surface/85 p-2 shadow-[0_10px_40px_-8px_rgba(8,9,16,0.35)] backdrop-blur-xl backdrop-saturate-150">
+        <button
+          type="button"
+          onClick={onMenu}
+          aria-label="Open menu"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-fg transition hover:bg-overlay/[0.07]"
+        >
+          <Icon d={I.menu} c="w-5 h-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <Btn v="primary" size="md" full icon={I.arrow} onClick={() => openLead('demo')}>
+            Book a demo
           </Btn>
         </div>
+        <button
+          type="button"
+          onClick={() => openLead('call')}
+          aria-label="Request a call"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-overlay/15 bg-overlay/[0.07] text-fg transition hover:bg-overlay/[0.13]"
+        >
+          <Icon d={I.handset} c="w-5 h-5" />
+        </button>
       </div>
     </div>
   );
 };
 
 /**
- * Desktop "Built For" nav item — the label links to the /built-for hub, and
- * hovering (or keyboard-focusing) reveals a glass dropdown of every audience,
- * each linking to its dedicated /built-for/<slug> page. Pure CSS visibility via
- * `group-hover` / `group-focus-within`; the `pt-2` on the panel keeps the hover
- * bridge intact so the menu doesn't vanish as the pointer crosses the gap.
+ * Desktop dropdown nav item ("Features", "Built For"): hovering or focusing the
+ * label reveals a glass panel of its pages, each linking to its own page.
+ * Pure CSS visibility via `group-hover` / `group-focus-within`; the `pt-2` on the
+ * panel keeps the hover bridge intact so the menu doesn't vanish as the pointer
+ * crosses the gap.
  */
-const BuiltForNavItem = ({ className }: { className: string }) => (
+const DropdownNavItem = ({
+  label,
+  base,
+  items,
+  className,
+}: {
+  label: string;
+  base?: string;
+  items: AudiencePage[];
+  className: string;
+}) => (
   <div className="group relative">
     <button type="button" className={className} aria-haspopup="true">
-      Built For
+      {label}
       <Icon
         d={I.chevron}
         c="ml-0.5 h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180"
       />
     </button>
     <div className="invisible absolute left-0 top-full z-40 -translate-y-1 pt-2 opacity-0 transition-all duration-200 ease-out group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-      <div className="w-[460px] rounded-2xl border border-overlay/10 bg-surface/95 p-2 shadow-[0_24px_70px_-24px_rgba(8,9,16,0.5)] backdrop-blur-xl backdrop-saturate-150">
+      <div className="nav-panel text-fg w-[500px] rounded-2xl border border-overlay/10 bg-surface/95 p-2 shadow-[0_24px_70px_-24px_rgba(8,9,16,0.5)] backdrop-blur-xl backdrop-saturate-150">
         <div className="grid grid-cols-2 gap-0.5">
-          {BUILT_FOR.map((a) => (
-            <Link
-              key={a.slug}
-              href={`/built-for/${a.slug}`}
-              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-strong transition hover:bg-overlay/[0.06] hover:text-fg"
-            >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-gradient-to-br from-brand-400/20 to-iris-600/15 ring-1 ring-inset ring-brand-500/15">
-                {a.iconImage ? (
-                  // Raster icon tinted to the brand colour via a mask so it
-                  // matches the stroke icons instead of showing its own colours.
-                  <span
-                    aria-hidden
-                    className="h-4 w-4 bg-brand-600 dark:bg-brand-300"
-                    style={{
-                      maskImage: `url(${a.iconImage})`,
-                      WebkitMaskImage: `url(${a.iconImage})`,
-                      maskSize: 'contain',
-                      WebkitMaskSize: 'contain',
-                      maskRepeat: 'no-repeat',
-                      WebkitMaskRepeat: 'no-repeat',
-                      maskPosition: 'center',
-                      WebkitMaskPosition: 'center',
-                    }}
-                  />
-                ) : (
+          {items.map((a) => {
+            const inner = (
+              <>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-gradient-to-br from-brand-400/20 to-iris-600/15 ring-1 ring-inset ring-brand-500/15">
                   <Icon d={a.icon} c="h-4 w-4 text-brand-600 dark:text-brand-300" />
-                )}
-              </span>
-              <span className="font-medium">{a.navLabel}</span>
-            </Link>
-          ))}
+                </span>
+                <span className="font-medium">{a.navLabel}</span>
+              </>
+            );
+            const cls = 'flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-strong';
+            return base ? (
+              <Link
+                key={a.slug}
+                href={`${base}/${a.slug}`}
+                className={`${cls} transition hover:bg-overlay/[0.06] hover:text-fg`}
+              >
+                {inner}
+              </Link>
+            ) : (
+              <div key={a.slug} className={cls}>
+                {inner}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -369,13 +394,22 @@ const BuiltForNavItem = ({ className }: { className: string }) => (
 export const MarketingNav = ({
   active,
   overlay = false,
+  forceDark = false,
 }: {
   active?: NavItem;
   overlay?: boolean;
+  /**
+   * Render the bar with the dark-theme tokens in either theme, for an overlay
+   * that sits on a dark hero (the homepage's deep-blue light hero): white type
+   * and the white-inked logo. Only the bar: its drop-down panels and the mobile
+   * drawer keep the page theme (`.nav-on-dark` in globals.css).
+   */
+  forceDark?: boolean;
 }) => {
   const [menu, setMenu] = useState(false);
-  // Mobile drawer: whether the "Built For" audience sub-list is expanded.
-  const [builtForOpen, setBuiltForOpen] = useState(false);
+  const openLead = useLeadCta();
+  // Mobile drawer: which dropdown's sub-list is expanded, if any.
+  const [openGroup, setOpenGroup] = useState<NavItem | null>(null);
 
   // Lock background scroll while the mobile drawer is open.
   useEffect(() => {
@@ -436,47 +470,57 @@ export const MarketingNav = ({
   return (
     <>
       <header
-        className={
+        className={cn(
           overlay
             ? // Glass overlay: sits on top of the hero so the section shows through
               // the frosted bar instead of reading as a separate solid strip.
               'absolute inset-x-0 top-0 z-30 bg-surface/5 backdrop-blur-md backdrop-saturate-150 border-b border-overlay/5'
-            : 'relative z-30'
-        }
+            : 'relative z-30',
+          forceDark && 'nav-on-dark text-fg',
+        )}
       >
         <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
           <div className="flex items-center gap-3 h-24">
             <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
-              <Logo className="h-20" />
+              <Logo className="h-20" whiteInk={forceDark} />
             </Link>
             <nav className="hidden lg:flex items-center gap-1 ml-6">
-              {NAV_ITEMS.map((n) =>
-                n === 'Built For' ? (
-                  <BuiltForNavItem key={n} className={desktopClass(n)} />
+              {NAV_ITEMS.map((n) => {
+                const group = DROPDOWNS[n];
+                return group ? (
+                  <DropdownNavItem
+                    key={n}
+                    label={n}
+                    base={group.base}
+                    items={group.items}
+                    className={desktopClass(n)}
+                  />
                 ) : (
                   renderItem(n, desktopClass(n))
-                ),
-              )}
+                );
+              })}
             </nav>
             <div className="ml-auto hidden sm:flex items-center gap-2">
               <HeaderSearch />
-              <AnimatedThemeToggler variant="square" />
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                className="px-3.5 h-10 inline-flex items-center rounded-btn text-sm font-semibold text-strong hover:text-fg hover:bg-overlay/5 transition"
-              >
-                Sign in
-              </a>
-              <Btn v="white" size="md" icon={I.arrow} href={SIGNUP_HREF}>
-                Start free
+              <AnimatedThemeToggler />
+              <Btn v="primary" size="md" icon={I.arrow} onClick={() => openLead('demo')}>
+                Book a demo
               </Btn>
-            </div>
-            <div className="ml-auto flex items-center gap-1 sm:hidden">
-              <AnimatedThemeToggler variant="square" />
               <button
                 type="button"
                 onClick={() => setMenu((value) => !value)}
+                aria-label={menu ? 'Close menu' : 'Open menu'}
+                className="lg:hidden w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
+              >
+                <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
+              </button>
+            </div>
+            <div className="ml-auto flex items-center gap-1 sm:hidden">
+              <AnimatedThemeToggler />
+              <button
+                type="button"
+                onClick={() => setMenu((value) => !value)}
+                aria-label={menu ? 'Close menu' : 'Open menu'}
                 className="w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
               >
                 <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
@@ -488,7 +532,7 @@ export const MarketingNav = ({
 
       {/* mobile bottom-sheet drawer — slides up from the bottom with a grabber */}
       <div
-        className={`sm:hidden fixed inset-0 z-50 ${menu ? '' : 'pointer-events-none'}`}
+        className={`lg:hidden fixed inset-0 z-50 ${menu ? '' : 'pointer-events-none'}`}
         aria-hidden={!menu}
       >
         {/* backdrop */}
@@ -521,54 +565,84 @@ export const MarketingNav = ({
           </div>
           <nav className="px-6 pt-4">
             <ul className="space-y-4">
-              {NAV_ITEMS.map((n) =>
-                n === 'Built For' ? (
+              {NAV_ITEMS.map((n) => {
+                const group = DROPDOWNS[n];
+                if (!group) return <li key={n}>{renderDrawerItem(n)}</li>;
+                const open = openGroup === n;
+                return (
                   <li key={n}>
                     <button
                       type="button"
-                      onClick={() => setBuiltForOpen((v) => !v)}
-                      aria-expanded={builtForOpen}
+                      onClick={() => setOpenGroup(open ? null : n)}
+                      aria-expanded={open}
                       className="flex w-full items-center justify-between py-1 text-2xl font-semibold uppercase tracking-tight text-strong transition-colors hover:text-fg"
                     >
                       {n}
                       <Icon
                         d={I.chevron}
-                        c={`h-5 w-5 transition-transform duration-200 ${builtForOpen ? 'rotate-180' : ''}`}
+                        c={`h-5 w-5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
                       />
                     </button>
                     <ul
                       className={`overflow-hidden border-l border-overlay/15 pl-4 transition-all duration-300 ${
-                        builtForOpen ? 'mt-3 max-h-[32rem] opacity-100' : 'max-h-0 opacity-0'
+                        open ? 'mt-3 max-h-[32rem] opacity-100' : 'max-h-0 opacity-0'
                       }`}
                     >
-                      {BUILT_FOR.map((a) => (
+                      {group.items.map((a) => (
                         <li key={a.slug}>
-                          <Link
-                            href={`/built-for/${a.slug}`}
-                            onClick={() => setMenu(false)}
-                            className="block py-1.5 text-base font-medium text-strong transition-colors hover:text-fg"
-                          >
-                            {a.navLabel}
-                          </Link>
+                          {group.base ? (
+                            <Link
+                              href={`${group.base}/${a.slug}`}
+                              onClick={() => setMenu(false)}
+                              className="block py-1.5 text-base font-medium text-strong transition-colors hover:text-fg"
+                            >
+                              {a.navLabel}
+                            </Link>
+                          ) : (
+                            <span className="block py-1.5 text-base font-medium text-strong">
+                              {a.navLabel}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
                   </li>
-                ) : (
-                  <li key={n}>{renderDrawerItem(n)}</li>
-                ),
-              )}
+                );
+              })}
             </ul>
           </nav>
           <div className="px-6 pt-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
-            <Btn v="primary" size="md" full icon={I.arrow} href={SIGNUP_HREF}>
-              Start free
-            </Btn>
+            <div className="flex flex-col gap-2">
+              <Btn
+                v="primary"
+                size="md"
+                full
+                icon={I.arrow}
+                onClick={() => {
+                  setMenu(false);
+                  openLead('demo');
+                }}
+              >
+                Book a demo
+              </Btn>
+              <Btn
+                v="glass"
+                size="md"
+                full
+                icon={I.handset}
+                onClick={() => {
+                  setMenu(false);
+                  openLead('call');
+                }}
+              >
+                Request a call
+              </Btn>
+            </div>
           </div>
         </div>
       </div>
 
-      <MobileDock active={active} />
+      <MobileDock onMenu={() => setMenu(true)} />
     </>
   );
 };
@@ -581,15 +655,12 @@ export const MarketingFooter = () => (
       </Link>
       <span className="font-mono text-xs text-subtle">© 2026 FormaCore · Tbilisi, Georgia</span>
       <div className="flex items-center gap-5 text-xs text-subtle">
-        <Link href="/" className="hover:text-muted">
+        <Link href="/" className="-my-3 inline-block py-3 hover:text-muted">
           Core
         </Link>
-        <Link href="/pricing" className="hover:text-muted">
+        <Link href="/pricing" className="-my-3 inline-block py-3 hover:text-muted">
           Pricing
         </Link>
-        <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-muted">
-          Privacy
-        </a>
       </div>
     </div>
   </footer>

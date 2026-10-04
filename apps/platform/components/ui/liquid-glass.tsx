@@ -11,19 +11,19 @@ const blurMap: Record<Intensity, string> = {
   lg: 'backdrop-blur-2xl',
 };
 
-// Violet-tinted depth shadow (#7C3AED) — reads on both light and dark.
+// Blue-tinted depth shadow (#1A7FD6) — reads on both light and dark.
 const shadowMap: Record<Intensity, string> = {
-  sm: 'shadow-[0_6px_22px_-14px_rgba(124,58,237,0.22)]',
-  md: 'shadow-[0_14px_40px_-24px_rgba(124,58,237,0.28)]',
-  lg: 'shadow-[0_24px_60px_-34px_rgba(124,58,237,0.3)]',
+  sm: 'shadow-[0_6px_22px_-14px_rgba(26,127,214,0.22)]',
+  md: 'shadow-[0_14px_40px_-24px_rgba(26,127,214,0.28)]',
+  lg: 'shadow-[0_24px_60px_-34px_rgba(26,127,214,0.3)]',
 };
 
 // Diagonal sheen strength, keyed off `glowIntensity`. Violet tint in light mode,
 // white in dark.
 const sheenMap: Record<Intensity, string> = {
-  sm: 'from-violet-300/20 dark:from-white/[0.06]',
-  md: 'from-violet-300/30 dark:from-white/[0.12]',
-  lg: 'from-violet-200/40 dark:from-white/[0.18]',
+  sm: 'from-brand-300/20 dark:from-white/[0.06]',
+  md: 'from-brand-300/30 dark:from-white/[0.12]',
+  lg: 'from-brand-200/40 dark:from-white/[0.18]',
 };
 
 export interface LiquidGlassCardProps {
@@ -60,7 +60,7 @@ export function LiquidGlassCard({
     <div
       draggable={draggable}
       className={cn(
-        'relative overflow-hidden border border-violet-400/20 bg-violet-400/[0.05] dark:border-white/15 dark:bg-white/[0.06]',
+        'relative overflow-hidden border border-brand-400/20 bg-brand-400/[0.05] dark:border-white/15 dark:bg-white/[0.06]',
         blurMap[blurIntensity],
         shadowMap[shadowIntensity],
         className,
@@ -68,7 +68,7 @@ export function LiquidGlassCard({
       style={{ borderRadius, ...style }}
     >
       {/* specular top edge */}
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/70 to-transparent dark:via-white/50" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-300/70 to-transparent dark:via-white/50" />
       {/* diagonal sheen */}
       <span
         className={cn(
@@ -77,7 +77,7 @@ export function LiquidGlassCard({
         )}
       />
       {/* inset hairline */}
-      <span className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-violet-400/25 dark:ring-white/10" />
+      <span className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-brand-400/25 dark:ring-white/10" />
       <div className="relative">{children}</div>
     </div>
   );

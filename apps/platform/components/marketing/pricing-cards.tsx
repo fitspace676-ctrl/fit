@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Btn, I, Icon, SIGNUP_HREF } from './marketing-ui';
-import { RequestPricingModal } from './lead-modals';
+import { useLeadCta } from './lead-cta-context';
+import { Btn, I, Icon } from './marketing-ui';
 import { GradientBorder } from '@/components/ui/gradient-border';
 import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
 
@@ -14,8 +13,8 @@ import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
    others are plain glass cards. All stretch to equal height.
 
    While `SHOW_PUBLIC_PRICING` is off the cards are unchanged apart from the
-   figure: the amount row goes, and a "Request pricing" button under each tier's
-   own CTA opens the lead form instead.
+   figure: the amount row goes. Every card closes on the site's two calls to
+   action, "Book a demo" and "Request a call".
    ──────────────────────────────────────────────────────────────────────── */
 
 export interface Tier {
@@ -26,9 +25,7 @@ export interface Tier {
   /** Monthly price in GEL (₾). Only printed while {@link SHOW_PUBLIC_PRICING}. */
   monthly: number;
   features: string[];
-  cta: string;
-  /** When set, the CTA links here (e.g. sales) instead of the signup flow. */
-  ctaHref?: string;
+  /** Look of the tier's "Book a demo" button: the featured tier gets the solid one. */
   ctaVariant: 'primary' | 'glassGradient';
   highlight?: boolean;
   badge?: string;
@@ -52,7 +49,6 @@ export const tiers: Tier[] = [
       'Automation Center (pre-built templates)',
       'Analytics Dashboard',
     ],
-    cta: 'Start free trial',
     ctaVariant: 'glassGradient',
   },
   {
@@ -68,7 +64,6 @@ export const tiers: Tier[] = [
       'Online & Recurring Payments',
       'Standard Reports',
     ],
-    cta: 'Start free trial',
     ctaVariant: 'primary',
     highlight: true,
     badge: 'Most popular',
@@ -87,130 +82,121 @@ export const tiers: Tier[] = [
       'Named Support Contact',
       'Custom Roles & Permissions',
     ],
-    cta: 'Start free trial',
     ctaVariant: 'glassGradient',
   },
 ];
 
 /** The three-up plan card grid on desktop; a swipeable snap-carousel on mobile. */
 export const PricingCards = () => {
-  // The quote form the "Request pricing" buttons open while prices are hidden.
-  // It lives here so every surface that renders the grid gets it for free,
-  // without having to wire a callback through.
-  const [requesting, setRequesting] = useState(false);
+  // Opens the shared "Book a demo" / "Request a call" forms.
+  const openLead = useLeadCta();
 
   return (
-    <>
-      <div className="flex snap-x snap-mandatory items-stretch gap-5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
-        {tiers.map((tier) => {
-          const body = (
-            <div className="relative flex h-full flex-col rounded-[inherit] bg-panel p-7">
-              <div className="flex items-center justify-between">
-                {tier.highlight ? (
-                  // The featured tier carries the FormaCore brand mark (favicon).
-                  <img
-                    src="/FormaCore-icon.png"
-                    alt="FormaCore"
-                    className="h-11 w-11 rounded-btn object-contain"
+    <div className="flex snap-x snap-mandatory items-stretch gap-5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0">
+      {tiers.map((tier) => {
+        const body = (
+          <div className="relative flex h-full flex-col rounded-[inherit] bg-panel p-7">
+            <div className="flex items-center justify-between">
+              {tier.highlight ? (
+                // The featured tier carries the FormaCore brand mark (favicon).
+                <img
+                  src="/FormaCore-icon.png"
+                  alt="FormaCore"
+                  className="h-11 w-11 rounded-btn object-contain"
+                />
+              ) : (
+                <span
+                  className={`w-11 h-11 rounded-btn grid place-items-center bg-gradient-to-br from-${tier.tone}-400/30 to-${tier.tone}-600/15 ring-1 ring-inset ring-overlay/10`}
+                >
+                  <Icon
+                    d={I.bolt}
+                    c={`w-[22px] h-[22px] text-${tier.tone}-700 dark:text-${tier.tone}-300`}
+                    sw={2.2}
                   />
-                ) : (
+                </span>
+              )}
+              {tier.badge && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-brand-500/15 ring-1 ring-inset ring-brand-500/25 text-[11px] font-semibold text-brand-700 dark:text-brand-300">
+                  <Icon d={I.star} c="w-3 h-3" sw={2.2} />
+                  {tier.badge}
+                </span>
+              )}
+            </div>
+
+            <h2 className="font-display text-2xl font-extrabold tracking-tight mt-5">
+              {tier.name}
+            </h2>
+            <p className="text-sm text-faint mt-1.5 leading-relaxed min-h-[2.5rem]">
+              {tier.tagline}
+            </p>
+
+            {SHOW_PUBLIC_PRICING && (
+              <div className="flex items-baseline gap-1.5 mt-6">
+                <span className="font-display text-[2.75rem] font-black tracking-tight tabular-nums leading-none">
+                  ₾{tier.monthly.toLocaleString('en-US')}
+                </span>
+                <span className="text-sm font-semibold text-subtle">/mo</span>
+              </div>
+            )}
+            <p
+              className={`font-mono text-[11px] text-subtle h-4 ${SHOW_PUBLIC_PRICING ? 'mt-2' : 'mt-6'}`}
+            >
+              billed monthly · cancel any time
+            </p>
+
+            <ul className="mt-6 grow space-y-3 border-t border-overlay/10 pt-6">
+              {tier.features.map((f) => (
+                <li key={f} className="flex items-start gap-2.5 text-sm">
                   <span
-                    className={`w-11 h-11 rounded-btn grid place-items-center bg-gradient-to-br from-${tier.tone}-400/30 to-${tier.tone}-600/15 ring-1 ring-inset ring-overlay/10`}
+                    className={`shrink-0 mt-0.5 w-5 h-5 rounded-full grid place-items-center bg-${tier.tone}-500/15 ring-1 ring-inset ring-${tier.tone}-500/25`}
                   >
                     <Icon
-                      d={I.bolt}
-                      c={`w-[22px] h-[22px] text-${tier.tone}-700 dark:text-${tier.tone}-300`}
-                      sw={2.2}
+                      d={I.check}
+                      c={`w-3 h-3 text-${tier.tone}-700 dark:text-${tier.tone}-300`}
+                      sw={3}
                     />
                   </span>
-                )}
-                {tier.badge && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pill bg-brand-500/15 ring-1 ring-inset ring-brand-500/25 text-[11px] font-semibold text-brand-700 dark:text-brand-300">
-                    <Icon d={I.star} c="w-3 h-3" sw={2.2} />
-                    {tier.badge}
-                  </span>
-                )}
-              </div>
+                  <span className="text-strong">{f}</span>
+                </li>
+              ))}
+            </ul>
 
-              <h2 className="font-display text-2xl font-extrabold tracking-tight mt-5">
-                {tier.name}
-              </h2>
-              <p className="text-sm text-faint mt-1.5 leading-relaxed min-h-[2.5rem]">
-                {tier.tagline}
-              </p>
-
-              {SHOW_PUBLIC_PRICING && (
-                <div className="flex items-baseline gap-1.5 mt-6">
-                  <span className="font-display text-[2.75rem] font-black tracking-tight tabular-nums leading-none">
-                    ₾{tier.monthly.toLocaleString('en-US')}
-                  </span>
-                  <span className="text-sm font-semibold text-subtle">/mo</span>
-                </div>
-              )}
-              <p
-                className={`font-mono text-[11px] text-subtle h-4 ${SHOW_PUBLIC_PRICING ? 'mt-2' : 'mt-6'}`}
-              >
-                billed monthly · cancel any time
-              </p>
-
-              <ul className="mt-6 grow space-y-3 border-t border-overlay/10 pt-6">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm">
-                    <span
-                      className={`shrink-0 mt-0.5 w-5 h-5 rounded-full grid place-items-center bg-${tier.tone}-500/15 ring-1 ring-inset ring-${tier.tone}-500/25`}
-                    >
-                      <Icon
-                        d={I.check}
-                        c={`w-3 h-3 text-${tier.tone}-700 dark:text-${tier.tone}-300`}
-                        sw={3}
-                      />
-                    </span>
-                    <span className="text-strong">{f}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {/* The buttons close every card. `grow` on the list above absorbs
+            {/* The buttons close every card. `grow` on the list above absorbs
                   the slack, so they line up across tiers of different lengths. */}
-              <div className="mt-6 space-y-2.5 border-t border-overlay/10 pt-6">
-                <Btn
-                  v={tier.ctaVariant}
-                  size="md"
-                  full
-                  icon={I.arrow}
-                  href={tier.ctaHref ?? SIGNUP_HREF}
-                >
-                  {tier.cta}
-                </Btn>
-                {!SHOW_PUBLIC_PRICING && (
-                  <Btn v="glass" size="md" full onClick={() => setRequesting(true)}>
-                    Request pricing
-                  </Btn>
-                )}
-              </div>
+            <div className="mt-6 space-y-2.5 border-t border-overlay/10 pt-6">
+              <Btn
+                v={tier.ctaVariant}
+                size="md"
+                full
+                icon={I.arrow}
+                onClick={() => openLead('demo')}
+              >
+                Book a demo
+              </Btn>
+              <Btn v="glass" size="md" full icon={I.handset} onClick={() => openLead('call')}>
+                Request a call
+              </Btn>
             </div>
-          );
+          </div>
+        );
 
-          return tier.highlight ? (
-            <GradientBorder
-              key={tier.id}
-              className="w-[82%] shrink-0 self-stretch snap-start rounded-[1.5rem] shadow-[0_40px_100px_-40px_rgba(124,58,237,0.6)] sm:w-[60%] lg:w-auto lg:-translate-y-3"
-            >
-              {body}
-            </GradientBorder>
-          ) : (
-            <div
-              key={tier.id}
-              className="relative w-[82%] shrink-0 self-stretch snap-start overflow-hidden rounded-[1.5rem] ring-1 ring-inset ring-overlay/10 transition hover:ring-overlay/20 shadow-[0_18px_60px_-28px_rgba(16,18,33,0.45)] sm:w-[60%] lg:w-auto"
-            >
-              {body}
-            </div>
-          );
-        })}
-      </div>
-
-      <RequestPricingModal open={requesting} onClose={() => setRequesting(false)} />
-    </>
+        return tier.highlight ? (
+          <GradientBorder
+            key={tier.id}
+            className="w-[82%] shrink-0 self-stretch snap-start rounded-[1.5rem] shadow-[0_40px_100px_-40px_rgba(26,127,214,0.6)] sm:w-[60%] lg:w-auto lg:-translate-y-3"
+          >
+            {body}
+          </GradientBorder>
+        ) : (
+          <div
+            key={tier.id}
+            className="relative w-[82%] shrink-0 self-stretch snap-start overflow-hidden rounded-[1.5rem] ring-1 ring-inset ring-overlay/10 transition hover:ring-overlay/20 shadow-[0_18px_60px_-28px_rgba(16,18,33,0.45)] sm:w-[60%] lg:w-auto"
+          >
+            {body}
+          </div>
+        );
+      })}
+    </div>
   );
 };
 

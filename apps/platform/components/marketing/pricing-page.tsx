@@ -5,25 +5,16 @@ import type { CSSProperties } from 'react';
 import { PricingCards, tiers } from './pricing-cards';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
-import {
-  Aurora,
-  Btn,
-  DEMO_HREF,
-  Eyebrow,
-  I,
-  Icon,
-  MarketingFooter,
-  MarketingNav,
-  SIGNUP_HREF,
-} from './marketing-ui';
+import { useLeadCta } from './lead-cta-context';
+import { Aurora, Btn, Eyebrow, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore - Pricing  ·  "Aurora Glass"
    The /pricing surface. Same dark aurora identity and shared chrome as the
    homepage. A platform-capability grid, the three tiers (Starter / Growth /
    Pro), a grouped feature-comparison table, a "which plan is right for you"
-   guide and the implementation timeline. Every trial CTA funnels into the
-   owner-signup flow (`/register-gym`); the sales / demo CTA opens a mail draft.
+   guide and the implementation timeline. The two calls to action, "Book a
+   demo" and "Request a call", open the shared lead forms.
    The tier figures only print while `@/lib/pricing-visibility` says so.
    ──────────────────────────────────────────────────────────────────────── */
 
@@ -186,6 +177,8 @@ const AnimatedCheck = ({ delay = 0 }: { delay?: number }) => {
 };
 
 export default function PricingPage() {
+  // Opens the shared "Book a demo" / "Request a call" forms.
+  const openLead = useLeadCta();
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
       <Aurora />
@@ -344,18 +337,17 @@ export default function PricingPage() {
           <div className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-[420px] h-[260px] bg-white/20 blur-[100px]" />
           <div className="relative">
             <h2 className="font-display text-4xl lg:text-[3.25rem] font-black tracking-tight leading-[0.95] max-w-2xl mx-auto text-white">
-              Start free. Pay when it pays off.
+              See it with your business in mind.
             </h2>
             <p className="mt-5 text-lg text-white/80 max-w-xl mx-auto">
-              Spin up a free trial with your real timetable - no card required - or book a guided
-              demo with our team.
+              Book a guided demo with our team, or leave your number and we&apos;ll call you back.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3 mt-9">
-              <Btn v="white" size="lg" icon={I.arrow} href={SIGNUP_HREF}>
-                Start free trial
-              </Btn>
-              <Btn v="glass" size="lg" href={DEMO_HREF}>
+              <Btn v="white" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
                 Book a demo
+              </Btn>
+              <Btn v="glass" size="lg" icon={I.handset} onClick={() => openLead('call')}>
+                Request a call
               </Btn>
             </div>
           </div>

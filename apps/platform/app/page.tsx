@@ -8,8 +8,8 @@ export const metadata: Metadata = {
 /**
  * Marketing homepage — the apex (`formacore.io`) acquisition surface. A faithful
  * build of the "Marketing / platform" design: a dark "Aurora Glass" product page
- * with an interactive module explorer. Every signup CTA funnels into the
- * owner-signup flow at `/register-gym`.
+ * with an interactive module explorer. Its two calls to action are "Book a demo"
+ * and "Request a call".
  */
 export default function HomePage() {
   return <PlatformLanding />;

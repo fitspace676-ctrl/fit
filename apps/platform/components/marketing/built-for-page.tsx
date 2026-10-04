@@ -1,12 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
 import type { AudiencePage } from '@/data/built-for';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { cn } from '@/lib/utils';
-import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
-import { DemoModal, RequestPricingModal, TrialModal } from './lead-modals';
+import { AudienceBadge, AudienceEmblem } from './audience-badge';
+import { useLeadCta } from './lead-cta-context';
 import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -16,19 +14,30 @@ import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing
    the retention angle + stat strip, a stack of alternating feature blocks (each
    with supporting bullets), an optional "recommended plan" band, and a closing
    CTA. Reuses the marketing chrome so it reads identically to the homepage and
-   pricing page. "Book a free demo" opens the demo modal; "See pricing" routes
-   to /pricing.
+   pricing page. "Book a demo" and "Request a call" open the shared lead forms.
    ──────────────────────────────────────────────────────────────────────── */
 
-export function BuiltForPage({ audience }: { audience: AudiencePage }) {
-  // Which CTA form modal is open (null = none) — mirrors the landing page.
-  const [modal, setModal] = useState<null | 'trial' | 'demo' | 'pricing'>(null);
+export function BuiltForPage({
+  audience,
+  section = 'Built For',
+}: {
+  audience: AudiencePage;
+  /** Which nav item this page belongs to: an audience or a product feature. */
+  section?: 'Built For' | 'Features';
+}) {
+  // Opens the shared "Book a demo" / "Request a call" forms.
+  const openLead = useLeadCta();
+  // The product card on the right only shows when there is a stat to put on it,
+  // so the copy only needs to make room for it then.
+  const hasStats = audience.stats.length > 0;
+  const room = hasStats ? 'md:max-w-[min(48rem,calc(100%-21rem))]' : '';
+  const roomBody = hasStats ? 'md:max-w-[min(42rem,calc(100%-21rem))]' : '';
 
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-hidden selection:bg-brand-500/30">
       <Aurora />
 
-      <MarketingNav active="Built For" />
+      <MarketingNav active={section} />
 
       {/* hero — the audience's gradient panel, matching the landing tabs */}
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-12 lg:pt-16 pb-12">
@@ -38,53 +47,72 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
             audience.panelClassName,
           )}
         >
-          {/* decorative glow + oversized corner icon */}
-          <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-          {audience.iconImage ? (
-            <img
-              src={audience.iconImage}
-              alt=""
-              aria-hidden
-              className="pointer-events-none absolute -bottom-12 -right-12 h-64 w-64 object-contain opacity-[0.06] brightness-0 invert"
-            />
-          ) : (
-            <Icon
-              d={audience.icon}
-              c="pointer-events-none absolute -bottom-12 -right-12 h-64 w-64 text-white/[0.06]"
-              sw={1.5}
-            />
-          )}
+          {/* decorative glows */}
+          <div className="pointer-events-none absolute -right-24 -top-28 h-96 w-96 bg-[radial-gradient(closest-side,rgba(124,196,255,0.28),transparent)]" />
+          <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-[28rem] bg-[radial-gradient(closest-side,rgba(34,184,230,0.22),transparent)]" />
+          <AudienceEmblem audience={audience} />
 
           <div className="relative">
-            <span className="inline-flex w-fit items-center rounded-pill bg-white/15 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-white/90 ring-1 ring-inset ring-white/20">
-              {audience.eyebrow}
-            </span>
-            <h1 className="mt-5 max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]">
+            <AudienceBadge audience={audience} />
+            <h1
+              className={cn(
+                'mt-5 max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]',
+                room,
+              )}
+            >
               {audience.headline}
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg">
+            <p
+              className={cn(
+                'mt-5 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg',
+                roomBody,
+              )}
+            >
               {audience.subline}
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setModal('demo')}
+                onClick={() => openLead('demo')}
                 className="inline-flex h-11 items-center gap-2 rounded-btn bg-white px-5 text-sm font-semibold text-neutral-900 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] transition hover:bg-white/90 active:bg-white/80"
               >
-                Book a free demo
+                Book a demo
               </button>
-              <Link
-                href="/pricing"
+              <button
+                type="button"
+                onClick={() => openLead('call')}
                 className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
               >
-                {SHOW_PUBLIC_PRICING ? 'See pricing' : 'See plans'}
-                <Icon d={I.arrow} c="h-4 w-4" />
-              </Link>
+                <Icon d={I.handset} c="h-4 w-4" />
+                Request a call
+              </button>
             </div>
 
+            {/* highlights, for pages with no figures to quote */}
+            {!hasStats && audience.highlights && (
+              <ul className="mt-10 flex flex-wrap gap-2.5">
+                {audience.highlights.map((h) => (
+                  <li
+                    key={h}
+                    className="inline-flex items-center gap-2 rounded-pill bg-white/10 py-2 pl-2.5 pr-4 text-sm font-medium text-white ring-1 ring-inset ring-white/20"
+                  >
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-brand-700">
+                      <Icon d={I.check} c="h-3 w-3" sw={3} />
+                    </span>
+                    {h}
+                  </li>
+                ))}
+              </ul>
+            )}
+
             {/* stats strip */}
-            <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-6 md:grid-cols-4">
+            <div
+              className={cn(
+                'mt-10 grid grid-cols-2 gap-x-6 gap-y-6 md:grid-cols-4',
+                !hasStats && 'hidden',
+              )}
+            >
               {audience.stats.map((s) => (
                 <div key={s.label}>
                   <div className="font-display text-2xl font-black tracking-tight text-white md:text-3xl">
@@ -170,18 +198,12 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
                 {audience.footerCta.subline}
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Btn v="primary" size="lg" icon={I.arrow} onClick={() => setModal('demo')}>
-                  Book a free demo
+                <Btn v="primary" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
+                  Book a demo
                 </Btn>
-                {SHOW_PUBLIC_PRICING ? (
-                  <Btn v="glass" size="lg" href="/pricing">
-                    See all plans
-                  </Btn>
-                ) : (
-                  <Btn v="glass" size="lg" onClick={() => setModal('pricing')}>
-                    Request pricing
-                  </Btn>
-                )}
+                <Btn v="glass" size="lg" icon={I.handset} onClick={() => openLead('call')}>
+                  Request a call
+                </Btn>
               </div>
             </div>
           </div>
@@ -189,11 +211,6 @@ export function BuiltForPage({ audience }: { audience: AudiencePage }) {
       </section>
 
       <MarketingFooter />
-
-      {/* CTA form modals — opened by the demo / pricing buttons throughout. */}
-      <TrialModal open={modal === 'trial'} onClose={() => setModal(null)} />
-      <DemoModal open={modal === 'demo'} onClose={() => setModal(null)} />
-      <RequestPricingModal open={modal === 'pricing'} onClose={() => setModal(null)} />
     </div>
   );
 }
