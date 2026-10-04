@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import { AuroraBackground } from '@/components/ui/aurora-background';
 import { TOUR_SCENES, type TourScene } from '@/data/product-tour';
 import { cn } from '@/lib/utils';
-import { useActiveTheme, usePrefersReducedMotion } from './hero-devices';
+import { useActiveTheme, useIsPhone, usePrefersReducedMotion } from './hero-devices';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore - product tour
@@ -15,8 +15,8 @@ import { useActiveTheme, usePrefersReducedMotion } from './hero-devices';
 
    Cheap by construction: no clip is fetched until the card is close to the
    viewport, only the active scene holds a <video> (the rest show posters), and
-   the clip pauses while the card is off screen. With reduced motion every
-   scene is its poster and the tabs only change on a click.
+   the clip pauses while the card is off screen. On phones and with reduced
+   motion every scene is its still and the tabs only change on a tap.
    ──────────────────────────────────────────────────────────────────────── */
 
 const RING = 2 * Math.PI * 9;
@@ -132,6 +132,8 @@ export function ProductTour() {
   const [near, setNear] = useState(false);
   const [inView, setInView] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
+  // Phones show each scene's still and change scene on a tap (see `useIsPhone`).
+  const phone = useIsPhone();
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -196,7 +198,7 @@ export function ProductTour() {
     tabRefs.current[next]?.focus();
   };
 
-  const playing = near && !reducedMotion;
+  const playing = near && !reducedMotion && phone === false;
   const scene = TOUR_SCENES[active]!;
 
   return (

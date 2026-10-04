@@ -34,7 +34,7 @@ const SPRING =
   'linear(0, 0.167, 0.34, 0.504, 0.649, 0.77, 0.867, 0.939, 0.991, 1.025, 1.044, 1.054, 1.056, 1.052, 1.046, 1.038, 1.03, 1.023, 1.016, 1.011, 1.006, 1.003, 1, 0.999, 0.998, 0.998, 0.997, 0.998, 0.998, 0.998, 0.999, 0.999, 1)';
 
 const CSS = `
-.fcl { clip-path: inset(0 0 0 0); animation: fcl-lift 560ms cubic-bezier(.76,0,.24,1) 2450ms both; }
+.fcl { clip-path: inset(0 0 0 0); animation: fcl-lift 560ms cubic-bezier(.76,0,.24,1) 2450ms both, fcl-gone 1ms linear 3020ms both; }
 .fcl-stack { animation: fcl-stack-out 420ms cubic-bezier(.5,0,.75,0) 2410ms both; }
 .fcl-mark { animation: fcl-settle 540ms cubic-bezier(.7,0,.2,1) 1650ms both; }
 .fcl-p { animation: fcl-in 850ms both; animation-timing-function: cubic-bezier(.2,1.25,.4,1); animation-timing-function: ${SPRING}; }
@@ -47,7 +47,7 @@ const CSS = `
 /* The "FormaCore" line of the brand lockup PNG (x 339-999, y 195-306 of 1024x500). */
 .fcl-word span { display: block; width: 200px; height: 34px; background-repeat: no-repeat; background-size: 310px auto; background-position: -103px -59px; }
 html.fcl-seen .fcl, html.fcl-seen .fcl-edge { display: none; }
-.fcl-edge { animation: fcl-edge 560ms cubic-bezier(.76,0,.24,1) 2450ms both; }
+.fcl-edge { animation: fcl-edge 560ms cubic-bezier(.76,0,.24,1) 2450ms both, fcl-gone 1ms linear 3020ms both; }
 .fcl-edge::before {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
   background: linear-gradient(90deg, transparent, #22B8E6 25%, #1A7FD6 50%, #2557EB 75%, transparent);
@@ -75,10 +75,21 @@ html.fcl-seen .fcl, html.fcl-seen .fcl-edge { display: none; }
   100% { transform: translateY(-100%); opacity: 0; }
 }
 @keyframes fcl-fade { to { opacity: 0; } }
+/* Safety net: whatever happens to the exit animation or to hydration, the
+   overlay stops covering and catching the page at the end of the timeline. */
+@keyframes fcl-gone { to { opacity: 0; transform: translateY(-200vh); } }
+.fcl, .fcl-edge { animation-fill-mode: both; }
+/* Phones: leave on opacity alone. A clip-path animation runs on the main
+   thread, and a phone still busy rendering the page can stall it mid-way,
+   leaving the overlay over the landing. Opacity runs on the compositor. */
+@media (max-width: 767px) {
+  .fcl { animation: fcl-fade 380ms ease-out 2450ms both, fcl-gone 1ms linear 2840ms both; }
+  .fcl-edge { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .fcl-stack, .fcl-mark, .fcl-p, .fcl-shine, .fcl-word { animation: none; }
   .fcl-shine, .fcl-edge { display: none; }
-  .fcl { animation: fcl-fade 240ms linear 700ms both; }
+  .fcl { animation: fcl-fade 240ms linear 700ms both, fcl-gone 1ms linear 950ms both; }
 }
 `;
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AuroraBackground } from '@/components/ui/aurora-background';
 import { AuroraText } from '@/components/ui/aurora-text';
 import { CardStack } from '@/components/ui/card-stack';
@@ -49,6 +50,8 @@ const secondRow = features.slice(features.length / 2);
    intentional (the cards pile up on each other) — self-contained dark
    gradients with white text, so they read in both themes. */
 const audiences = BUILT_FOR;
+/** How many audience cards the landing stacks before "See all" (the rest live on /built-for). */
+const LANDING_AUDIENCES = 4;
 
 /* Contact form field styling — mirrors the lead-modal inputs but taller, to
    match the dedicated contact panel. */
@@ -255,7 +258,7 @@ export default function PlatformLanding() {
         </div>
 
         <CardStack
-          items={audiences}
+          items={audiences.slice(0, LANDING_AUDIENCES)}
           getKey={(a) => a.slug}
           cardClassName="flex min-h-[43rem] md:h-[37rem] md:min-h-0"
         >
@@ -314,6 +317,34 @@ export default function PlatformLanding() {
             </div>
           )}
         </CardStack>
+
+        <div className="mt-10 flex justify-center">
+          <Link
+            href="/built-for"
+            className="group relative inline-flex h-14 items-center gap-3 overflow-hidden rounded-pill bg-[linear-gradient(135deg,#22B8E6,#1A7FD6_45%,#2557EB)] py-2 pl-2 pr-2 text-sm font-semibold text-white shadow-[0_14px_34px_-12px_rgba(26,127,214,0.75)] ring-1 ring-inset ring-white/20 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-14px_rgba(26,127,214,0.9)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/50"
+          >
+            {/* light sweeping across on hover */}
+            <span className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-[420%]" />
+            {/* the next few audiences, stacked */}
+            <span className="relative flex -space-x-2">
+              {audiences.slice(LANDING_AUDIENCES, LANDING_AUDIENCES + 3).map((a) => (
+                <span
+                  key={a.slug}
+                  className="grid h-9 w-9 place-items-center rounded-full bg-white text-brand-700 ring-2 ring-[#1A7FD6]"
+                >
+                  <Icon d={a.icon} c="h-4 w-4" sw={2} />
+                </span>
+              ))}
+            </span>
+            <span className="relative">See all {audiences.length} business types</span>
+            <span className="relative grid h-10 w-10 place-items-center rounded-full bg-white/15 ring-1 ring-inset ring-white/30 transition duration-300 group-hover:bg-white group-hover:text-brand-700">
+              <Icon
+                d={I.arrow}
+                c="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
+              />
+            </span>
+          </Link>
+        </div>
       </section>
 
       {/* contact */}
