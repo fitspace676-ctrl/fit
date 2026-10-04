@@ -333,32 +333,61 @@ export const MobileDock = ({ onMenu }: { onMenu: () => void }) => {
 };
 
 /**
- * Desktop dropdown nav item ("Features", "Built For"): hovering or focusing the
- * label reveals a glass panel of its pages, each linking to its own page.
- * Pure CSS visibility via `group-hover` / `group-focus-within`; the `pt-2` on the
- * panel keeps the hover bridge intact so the menu doesn't vanish as the pointer
- * crosses the gap.
+ * Desktop dropdown nav item ("Features", "Built For"): a glass panel of its
+ * pages, each linking to its own page. The nav owns which one is open, so at
+ * most one is ever open: hover or a click opens it; leaving, Escape or a click
+ * elsewhere closes it. (It used to be pure CSS hover +
+ * focus-within, which left a clicked menu open after the pointer moved on to
+ * the next one, so two showed at once.) The `pt-2` on the panel keeps the hover
+ * bridge intact so the menu doesn't vanish as the pointer crosses the gap.
  */
 const DropdownNavItem = ({
   label,
   base,
   items,
   className,
+  open,
+  onOpenChange,
 }: {
   label: string;
   base?: string;
   items: AudiencePage[];
   className: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) => (
-  <div className="group relative">
-    <button type="button" className={className} aria-haspopup="true">
+  <div
+    className="relative"
+    onMouseEnter={() => onOpenChange(true)}
+    onMouseLeave={() => onOpenChange(false)}
+    onBlur={(e) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) onOpenChange(false);
+    }}
+    onKeyDown={(e) => {
+      if (e.key === 'Escape') onOpenChange(false);
+    }}
+  >
+    <button
+      type="button"
+      className={className}
+      aria-haspopup="true"
+      aria-expanded={open}
+      // Opens only: on desktop the pointer has usually opened it already, and a
+      // click there must not snap it shut. It closes on leave, Escape or a click
+      // outside the nav.
+      onClick={() => onOpenChange(true)}
+    >
       {label}
       <Icon
         d={I.chevron}
-        c="ml-0.5 h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180"
+        c={`ml-0.5 h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
       />
     </button>
-    <div className="invisible absolute left-0 top-full z-40 -translate-y-1 pt-2 opacity-0 transition-all duration-200 ease-out group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+    <div
+      className={`absolute left-0 top-full z-40 pt-2 transition-all duration-200 ease-out ${
+        open ? 'visible translate-y-0 opacity-100' : 'invisible -translate-y-1 opacity-0'
+      }`}
+    >
       <div className="nav-panel text-fg w-[500px] rounded-2xl border border-overlay/10 bg-surface/95 p-2 shadow-[0_24px_70px_-24px_rgba(8,9,16,0.5)] backdrop-blur-xl backdrop-saturate-150">
         <div className="grid grid-cols-2 gap-0.5">
           {items.map((a) => {
@@ -386,6 +415,15 @@ const DropdownNavItem = ({
             );
           })}
         </div>
+        {base && (
+          <Link
+            href={base}
+            className="mt-1 flex items-center justify-between rounded-xl border-t border-overlay/10 px-3 pb-1.5 pt-3 text-sm font-semibold text-brand-700 transition hover:text-brand-600 dark:text-brand-300 dark:hover:text-brand-200"
+          >
+            See all {label.toLowerCase() === 'built for' ? 'business types' : label.toLowerCase()}
+            <Icon d={I.arrow} c="h-4 w-4" />
+          </Link>
+        )}
       </div>
     </div>
   </div>
@@ -410,6 +448,18 @@ export const MarketingNav = ({
   const openLead = useLeadCta();
   // Mobile drawer: which dropdown's sub-list is expanded, if any.
   const [openGroup, setOpenGroup] = useState<NavItem | null>(null);
+  // Desktop: which dropdown is open. One state, so opening one closes the other.
+  const [openDropdown, setOpenDropdown] = useState<NavItem | null>(null);
+
+  // Close the open dropdown on a click anywhere outside the nav.
+  useEffect(() => {
+    if (!openDropdown) return;
+    const onPointer = (e: PointerEvent): void => {
+      if (!(e.target as Element | null)?.closest?.('[data-nav-dropdowns]')) setOpenDropdown(null);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    return () => document.removeEventListener('pointerdown', onPointer);
+  }, [openDropdown]);
 
   // Lock background scroll while the mobile drawer is open.
   useEffect(() => {
@@ -484,7 +534,7 @@ export const MarketingNav = ({
             <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
               <Logo className="h-20" whiteInk={forceDark} />
             </Link>
-            <nav className="hidden lg:flex items-center gap-1 ml-6">
+            <nav data-nav-dropdowns className="hidden lg:flex items-center gap-1 ml-6">
               {NAV_ITEMS.map((n) => {
                 const group = DROPDOWNS[n];
                 return group ? (
@@ -494,6 +544,10 @@ export const MarketingNav = ({
                     base={group.base}
                     items={group.items}
                     className={desktopClass(n)}
+                    open={openDropdown === n}
+                    onOpenChange={(next) =>
+                      setOpenDropdown((cur) => (next ? n : cur === n ? null : cur))
+                    }
                   />
                 ) : (
                   renderItem(n, desktopClass(n))
@@ -605,6 +659,17 @@ export const MarketingNav = ({
                           )}
                         </li>
                       ))}
+                      {group.base && (
+                        <li>
+                          <Link
+                            href={group.base}
+                            onClick={() => setMenu(false)}
+                            className="block py-1.5 text-base font-semibold text-brand-700 transition-colors hover:text-brand-600 dark:text-brand-300"
+                          >
+                            See all
+                          </Link>
+                        </li>
+                      )}
                     </ul>
                   </li>
                 );
