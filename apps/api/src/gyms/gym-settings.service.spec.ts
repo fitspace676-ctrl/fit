@@ -79,7 +79,7 @@ describe('GymSettingsService', () => {
 
     it.each([
       ['another gym', `${CDN}/gym-2/banners/hero.jpg`],
-      ['another host', 'https://evil.example/gym-1/logos/icon.png'],
+      ['a path that climbs out of its prefix', `${CDN}/gym-1/../gym-2/logos/icon.png`],
       ['a lookalike prefix', `${CDN}/gym-10/logos/icon.png`],
     ])('refuses a URL from %s with a 400, writing nothing', async (_case, url) => {
       const { service, update } = setup({ publicBase: CDN });
