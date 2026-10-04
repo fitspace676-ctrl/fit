@@ -77,3 +77,40 @@ describe('assertOwnedMedia', () => {
     );
   });
 });
+
+describe('assertOwnedMedia: a new URL must be on the public media host', () => {
+  const BASE = 'https://pub-test.r2.dev';
+
+  it('accepts an own upload on the configured host', () => {
+    expect(() =>
+      assertOwnedMedia('gym-1', [`${BASE}/gym-1/logos/icon.png`], [], BASE),
+    ).not.toThrow();
+  });
+
+  it("refuses another host even when the path reads as this gym's", () => {
+    expect(() =>
+      assertOwnedMedia('gym-1', ['https://evil.example/gym-1/logos/icon.png'], [], BASE),
+    ).toThrow(BadRequestException);
+  });
+
+  it('refuses a lookalike host that only starts with the media host', () => {
+    expect(() =>
+      assertOwnedMedia('gym-1', ['https://pub-test.r2.dev.evil.example/gym-1/a.png'], [], BASE),
+    ).toThrow(BadRequestException);
+  });
+
+  it('keeps a stored URL on an old host valid, so a moved domain never blocks an edit', () => {
+    const old = 'https://old-media.example/gym-1/logos/icon.png';
+    expect(() => assertOwnedMedia('gym-1', [old], [old], BASE)).not.toThrow();
+  });
+
+  it('accepts a bare key, which cannot load from a foreign host', () => {
+    expect(() => assertOwnedMedia('gym-1', ['gym-1/logos/icon.png'], [], BASE)).not.toThrow();
+  });
+
+  it('skips the host rule when no public host is configured', () => {
+    expect(() =>
+      assertOwnedMedia('gym-1', ['https://anything.example/gym-1/a.png'], [], undefined),
+    ).not.toThrow();
+  });
+});
