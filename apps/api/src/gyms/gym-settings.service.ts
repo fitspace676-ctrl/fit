@@ -115,6 +115,29 @@ export class GymSettingsService {
     // settlement method may not be switched off. Checked on the merged result,
     // not the patch: a body turning off the one method still standing is refused
     // even though, read alone, it only ever says "false".
+    // The image fields take only this gym's own uploads. They are written by the
+    // finalise routes, which mint the URL from a key under the gym's prefix, so a
+    // value arriving here is either that URL echoed back by the form or `null`.
+    // Anything else (another tenant's object, another host) is refused: the
+    // portal would show another gym's image, and the old value of these fields is
+    // what media cleanup is later asked to free. A value equal to the stored one
+    // passes, so an older URL saved before this rule never blocks the form.
+    const imageFields: [string, string | null | undefined, string | null][] = [
+      ['brand.logoUrl', input.brand?.logoUrl, current.brand.logoUrl],
+      ['memberPortal.logoUrl', input.memberPortal?.logoUrl, current.memberPortal.logoUrl],
+      [
+        'memberPortal.loginImageUrl',
+        input.memberPortal?.loginImageUrl,
+        current.memberPortal.loginImageUrl,
+      ],
+      ['memberPortal.faviconUrl', input.memberPortal?.faviconUrl, current.memberPortal.faviconUrl],
+    ];
+    for (const [field, value, stored] of imageFields) {
+      if (typeof value === 'string' && value !== stored && !this.isOwnUpload(value)) {
+        throw new BadRequestException(`${field} must be an image uploaded to this gym`);
+      }
+    }
+
     if (enabledPaymentMethods(next.payments).length === 0) {
       throw new BadRequestException('At least one payment method must stay enabled');
     }
@@ -340,6 +363,28 @@ export class GymSettingsService {
     );
 
     return { faviconUrl };
+  }
+
+  /**
+   * True when `url` is a public URL of an object under this gym's own upload
+   * prefix: the exact shape `storage.publicUrl` gives the finalise routes.
+   * Compared on the parsed URL (origin plus a path starting `/{gymId}/`), so
+   * `gym-10` is not mistaken for `gym-1` and a `..` segment cannot climb out.
+   */
+  private isOwnUpload(url: string): boolean {
+    const base = this.storage.publicUrl(`${this.tenant.gymId}/`);
+    if (!base) return false;
+    try {
+      const candidate = new URL(url);
+      const expected = new URL(base);
+      return (
+        candidate.origin === expected.origin &&
+        candidate.pathname.startsWith(expected.pathname) &&
+        !decodeURIComponent(candidate.pathname).split('/').includes('..')
+      );
+    } catch {
+      return false;
+    }
   }
 
   /** Load the caller's gym row, or `404 GYM_NOT_FOUND` (a deleted/odd session). */

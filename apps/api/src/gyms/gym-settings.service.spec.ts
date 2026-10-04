@@ -21,7 +21,12 @@ interface UpdateArgs {
   data?: Record<string, unknown>;
 }
 
-function setup(overrides?: { gym?: GymRow | null; publicUrl?: string | null }) {
+function setup(overrides?: {
+  gym?: GymRow | null;
+  publicUrl?: string | null;
+  /** A real `publicUrl`: `${publicBase}/${key}`. */
+  publicBase?: string;
+}) {
   const findFirst = vi.fn<(args: unknown) => Promise<GymRow | null>>(() =>
     Promise.resolve(
       overrides?.gym === undefined ? { name: 'Iron Gym', settings: null } : overrides.gym,
@@ -33,7 +38,9 @@ function setup(overrides?: { gym?: GymRow | null; publicUrl?: string | null }) {
       settings: args.data?.settings ?? null,
     }),
   );
-  const publicUrl = vi.fn<(key: string) => string | null>(() => overrides?.publicUrl ?? null);
+  const publicUrl = vi.fn<(key: string) => string | null>((key) =>
+    overrides?.publicBase ? `${overrides.publicBase}/${key}` : (overrides?.publicUrl ?? null),
+  );
 
   const prisma = { client: { gym: { findFirst, update } } } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
@@ -54,6 +61,50 @@ function setup(overrides?: { gym?: GymRow | null; publicUrl?: string | null }) {
 
 describe('GymSettingsService', () => {
   afterEach(() => vi.clearAllMocks());
+
+  describe("updateSettings: image fields only take this gym's own uploads", () => {
+    const CDN = 'https://cdn.example.com';
+    const own = `${CDN}/gym-1/logos/icon.png`;
+
+    it.each([
+      ['brand.logoUrl', { brand: { logoUrl: own } }],
+      ['memberPortal.logoUrl', { memberPortal: { logoUrl: own } }],
+      ['memberPortal.loginImageUrl', { memberPortal: { loginImageUrl: own } }],
+      ['memberPortal.faviconUrl', { memberPortal: { faviconUrl: own } }],
+    ])("accepts an upload under the gym's own prefix (%s)", async (_field, patch) => {
+      const { service, update } = setup({ publicBase: CDN });
+      await service.updateSettings(patch);
+      expect(update).toHaveBeenCalled();
+    });
+
+    it.each([
+      ['another gym', `${CDN}/gym-2/banners/hero.jpg`],
+      ['another host', 'https://evil.example/gym-1/logos/icon.png'],
+      ['a lookalike prefix', `${CDN}/gym-10/logos/icon.png`],
+    ])('refuses a URL from %s with a 400, writing nothing', async (_case, url) => {
+      const { service, update } = setup({ publicBase: CDN });
+      await expect(
+        service.updateSettings({ memberPortal: { faviconUrl: url } }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('lets an unchanged stored value through, so an old URL does not block the form', async () => {
+      const legacy = 'https://old-cdn.example/legacy-logo.png';
+      const { service, update } = setup({
+        publicBase: CDN,
+        gym: { name: 'Iron Gym', settings: { memberPortal: { logoUrl: legacy } } },
+      });
+      await service.updateSettings({ memberPortal: { logoUrl: legacy, primaryColor: '#123456' } });
+      expect(update).toHaveBeenCalled();
+    });
+
+    it('accepts null, the way back to the inherited image', async () => {
+      const { service, update } = setup({ publicBase: CDN });
+      await service.updateSettings({ memberPortal: { faviconUrl: null } });
+      expect(update).toHaveBeenCalled();
+    });
+  });
 
   describe('getSettings', () => {
     it('returns a complete, defaulted settings object for a gym with no stored settings', async () => {
