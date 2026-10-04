@@ -14,8 +14,8 @@ type Theme = 'light' | 'dark';
  * classes, so each instance is told which theme it belongs to. Both copies keep
  * their `<video>` mounted and only the active theme's plays (the hidden one
  * loads metadata only), so switching themes resumes a ready element instead of
- * mounting and loading a new one. Visitors who prefer reduced motion get the
- * posters instead.
+ * mounting and loading a new one. Phones and visitors who prefer reduced
+ * motion get the stills instead (see `useIsPhone`).
  *
  * The entrance animation plays on load and again on every theme switch: a
  * `display: none` section restarts its CSS animations when it is shown. That
@@ -35,6 +35,23 @@ export function useActiveTheme(): Theme | null {
     () => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),
     () => null,
   );
+}
+
+/**
+ * True on a phone-sized screen, null before hydration. Phones get stills
+ * instead of screen recordings: a few hundred KB of video per screen is slow
+ * to fetch on mobile data and heavy to decode while the page is coming in.
+ */
+export function useIsPhone(): boolean | null {
+  const [phone, setPhone] = useState<boolean | null>(null);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const sync = () => setPhone(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+  return phone;
 }
 
 export function usePrefersReducedMotion(): boolean {
@@ -90,7 +107,11 @@ function Screen({
 export function HeroDevices({ theme }: { theme: Theme }) {
   const active = useActiveTheme();
   const reducedMotion = usePrefersReducedMotion();
+  const phone = useIsPhone();
   const play = active === theme && !reducedMotion;
+  // A still until we know this is not a phone: the server render and a phone
+  // never mount a <video>, so a phone never starts fetching one.
+  const still = reducedMotion || phone !== false;
 
   return (
     <div
@@ -103,7 +124,7 @@ export function HeroDevices({ theme }: { theme: Theme }) {
         <div className="relative origin-bottom rounded-[2.4%/3.6%] motion-safe:animate-[hero-lid-open_1.2s_cubic-bezier(0.22,1,0.36,1)_0.25s_both] bg-gradient-to-b from-[#2b2e34] to-[#0f1114] p-[1.4%] shadow-[0_30px_60px_-20px_rgba(2,10,40,0.55)] ring-1 ring-inset ring-white/15">
           <div className="absolute left-1/2 top-0 z-10 h-[2.6%] w-[15%] -translate-x-1/2 rounded-b-[8px] bg-[#0f1114]" />
           <div className="relative aspect-[16/10] overflow-hidden rounded-[1.2%/1.9%] bg-black">
-            <Screen name="admin" theme={theme} play={play} still={reducedMotion} />
+            <Screen name="admin" theme={theme} play={play} still={still} />
           </div>
         </div>
         <div className="h-[0.9%] min-h-[4px] w-full bg-gradient-to-b from-[#3a3e45] to-[#8a9099]" />
@@ -142,7 +163,7 @@ export function HeroDevices({ theme }: { theme: Theme }) {
               </div>
             </div>
             <div className="relative flex-1">
-              <Screen name="member" theme={theme} play={play} still={reducedMotion} />
+              <Screen name="member" theme={theme} play={play} still={still} />
             </div>
           </div>
         </div>
