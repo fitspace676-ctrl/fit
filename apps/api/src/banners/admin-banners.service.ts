@@ -117,7 +117,11 @@ export class AdminBannersService {
     // An edit that replaces the artwork by URL drops the old object's last
     // reference; free it. Best-effort by design — the nightly sweep is the backstop.
     if (input.imageUrl !== undefined && input.imageUrl !== current.imageUrl) {
-      await this.media.discardUnreferenced([current.imageUrl], [updated.imageUrl]);
+      await this.media.discardUnreferenced(
+        this.tenant.gymId,
+        [current.imageUrl],
+        [updated.imageUrl],
+      );
     }
 
     return { banner: toBanner(updated) };
@@ -130,7 +134,7 @@ export class AdminBannersService {
   async deleteBanner(id: string): Promise<void> {
     const current = await this.requireBanner(id);
     await this.prisma.client.banner.delete({ where: { id } });
-    await this.media.discardUnreferenced([current.imageUrl], []);
+    await this.media.discardUnreferenced(this.tenant.gymId, [current.imageUrl], []);
   }
 
   /**
@@ -158,7 +162,7 @@ export class AdminBannersService {
 
     const current = await this.requireBanner(id);
     const updated = await this.prisma.client.banner.update({ where: { id }, data: { imageUrl } });
-    await this.media.discardUnreferenced([current.imageUrl], [imageUrl]);
+    await this.media.discardUnreferenced(this.tenant.gymId, [current.imageUrl], [imageUrl]);
 
     return { banner: toBanner(updated) };
   }

@@ -182,7 +182,7 @@ export class GymSettingsService {
 
     // The logo this one replaces is now referenced by nobody; free it. Best-effort
     // by design — the nightly sweep is the backstop.
-    await this.media.discardUnreferenced([current.brand?.logoUrl], [logoUrl]);
+    await this.media.discardUnreferenced(this.tenant.gymId, [current.brand?.logoUrl], [logoUrl]);
 
     return { logoUrl };
   }
@@ -229,7 +229,11 @@ export class GymSettingsService {
 
     // The photograph this one replaces is now referenced by nobody; free it.
     // Best-effort by design — the nightly sweep is the backstop.
-    await this.media.discardUnreferenced([current.memberPortal?.loginImageUrl], [loginImageUrl]);
+    await this.media.discardUnreferenced(
+      this.tenant.gymId,
+      [current.memberPortal?.loginImageUrl],
+      [loginImageUrl],
+    );
 
     return { loginImageUrl };
   }
@@ -283,7 +287,11 @@ export class GymSettingsService {
     // portal was inheriting a moment ago and invoices still print — so the
     // discard is a request, not a deletion: `MediaCleanupService` re-checks every
     // reference before it removes anything, and finds that one.
-    await this.media.discardUnreferenced([current.memberPortal?.logoUrl], [logoUrl]);
+    await this.media.discardUnreferenced(
+      this.tenant.gymId,
+      [current.memberPortal?.logoUrl],
+      [logoUrl],
+    );
 
     return { logoUrl };
   }
@@ -325,7 +333,11 @@ export class GymSettingsService {
       data: { settings: next as unknown as Prisma.InputJsonValue },
     });
 
-    await this.media.discardUnreferenced([current.memberPortal?.faviconUrl], [faviconUrl]);
+    await this.media.discardUnreferenced(
+      this.tenant.gymId,
+      [current.memberPortal?.faviconUrl],
+      [faviconUrl],
+    );
 
     return { faviconUrl };
   }

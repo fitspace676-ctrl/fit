@@ -55,10 +55,20 @@ function setup(counts: Counts = {}) {
 }
 
 describe('MediaCleanupService.discardUnreferenced', () => {
+  it("never deletes another gym's object, even one this gym's settings pointed at", async () => {
+    const { service, deleteObjects } = setup();
+    await service.discardUnreferenced(
+      'gym-1',
+      [`${BASE}/gym-2/banners/hero.jpg`, `${BASE}/gym-2/logos/mark.png`],
+      [],
+    );
+    expect(deleteObjects).not.toHaveBeenCalled();
+  });
+
   it('deletes the object behind a reference the edit dropped', async () => {
     const { service, deleteObjects } = setup();
 
-    await service.discardUnreferenced([IMAGE, OTHER], [OTHER]);
+    await service.discardUnreferenced('gym-1', [IMAGE, OTHER], [OTHER]);
 
     expect(deleteObjects).toHaveBeenCalledWith(['gym-1/products/a.png']);
   });
@@ -66,7 +76,7 @@ describe('MediaCleanupService.discardUnreferenced', () => {
   it('keeps an image another row still points at', async () => {
     const { service, deleteObjects } = setup({ products: 1 });
 
-    await service.discardUnreferenced([IMAGE], []);
+    await service.discardUnreferenced('gym-1', [IMAGE], []);
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
   });
@@ -77,7 +87,7 @@ describe('MediaCleanupService.discardUnreferenced', () => {
   it('keeps an image the member portal still points at', async () => {
     const { service, deleteObjects } = setup({ portalImages: 1 });
 
-    await service.discardUnreferenced([`${BASE}/gym-1/logos/hero.jpg`], []);
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/logos/hero.jpg`], []);
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
   });
@@ -88,7 +98,7 @@ describe('MediaCleanupService.discardUnreferenced', () => {
   it('keeps an image the portal wordmark still points at', async () => {
     const { service, deleteObjects } = setup({ portalLogos: 1 });
 
-    await service.discardUnreferenced([`${BASE}/gym-1/logos/mark.webp`], []);
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/logos/mark.webp`], []);
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
   });
@@ -96,7 +106,7 @@ describe('MediaCleanupService.discardUnreferenced', () => {
   it('does nothing when the reference is merely reordered', async () => {
     const { service, deleteObjects } = setup();
 
-    await service.discardUnreferenced([IMAGE, OTHER], [OTHER, IMAGE]);
+    await service.discardUnreferenced('gym-1', [IMAGE, OTHER], [OTHER, IMAGE]);
 
     expect(deleteObjects).not.toHaveBeenCalled();
   });
@@ -104,7 +114,7 @@ describe('MediaCleanupService.discardUnreferenced', () => {
   it('ignores null and blank column values', async () => {
     const { service, deleteObjects } = setup();
 
-    await service.discardUnreferenced([null, '   ', undefined], [null]);
+    await service.discardUnreferenced('gym-1', [null, '   ', undefined], [null]);
 
     expect(deleteObjects).not.toHaveBeenCalled();
   });
@@ -112,7 +122,7 @@ describe('MediaCleanupService.discardUnreferenced', () => {
   it('refuses to touch keys outside the upload prefixes', async () => {
     const { service, deleteObjects } = setup();
 
-    await service.discardUnreferenced([`${BASE}/gym-1/invoices/2026/INV-001.pdf`], []);
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/invoices/2026/INV-001.pdf`], []);
 
     expect(deleteObjects).not.toHaveBeenCalled();
   });
@@ -121,13 +131,13 @@ describe('MediaCleanupService.discardUnreferenced', () => {
     const { service, deleteObjects } = setup();
     vi.mocked(deleteObjects).mockRejectedValueOnce(new Error('R2 unreachable'));
 
-    await expect(service.discardUnreferenced([IMAGE], [])).resolves.toBeUndefined();
+    await expect(service.discardUnreferenced('gym-1', [IMAGE], [])).resolves.toBeUndefined();
   });
 
   it('deletes a replaced photo once per key, even if listed twice', async () => {
     const { service, deleteObjects } = setup();
 
-    await service.discardUnreferenced([IMAGE, IMAGE], []);
+    await service.discardUnreferenced('gym-1', [IMAGE, IMAGE], []);
 
     expect(deleteObjects).toHaveBeenCalledWith(['gym-1/products/a.png']);
   });

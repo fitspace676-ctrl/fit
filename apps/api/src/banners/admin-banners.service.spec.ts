@@ -201,6 +201,7 @@ describe('AdminBannersService.updateBanner', () => {
     await service.updateBanner('banner-1', { imageUrl: 'https://cdn/autumn.jpg' });
 
     expect(discardUnreferenced).toHaveBeenCalledWith(
+      'gym-1',
       ['https://cdn/summer.jpg'],
       ['https://cdn/autumn.jpg'],
     );
@@ -231,7 +232,7 @@ describe('AdminBannersService.deleteBanner', () => {
     await service.deleteBanner('banner-1');
 
     expect(del).toHaveBeenCalledWith({ where: { id: 'banner-1' } });
-    expect(discardUnreferenced).toHaveBeenCalledWith(['https://cdn/summer.jpg'], []);
+    expect(discardUnreferenced).toHaveBeenCalledWith('gym-1', ['https://cdn/summer.jpg'], []);
   });
 
   it('404s on a miss without deleting anything', async () => {
@@ -254,6 +255,7 @@ describe('AdminBannersService.setImage', () => {
       imageUrl: 'https://pub-test.r2.dev/gym-1/banners/new.jpg',
     });
     expect(discardUnreferenced).toHaveBeenCalledWith(
+      'gym-1',
       ['https://cdn/summer.jpg'],
       ['https://pub-test.r2.dev/gym-1/banners/new.jpg'],
     );

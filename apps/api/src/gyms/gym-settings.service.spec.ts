@@ -355,6 +355,7 @@ describe('GymSettingsService', () => {
       await service.setPortalImage({ photoKey: 'gym-1/logos/hero.jpg' });
 
       expect(discardUnreferenced).toHaveBeenCalledWith(
+        'gym-1',
         ['https://cdn.example.com/old.jpg'],
         ['https://cdn.example.com/gym-1/logos/hero.jpg'],
       );
@@ -413,6 +414,7 @@ describe('GymSettingsService', () => {
       await service.setPortalFavicon({ photoKey: 'gym-1/logos/icon.png' });
 
       expect(discardUnreferenced).toHaveBeenCalledWith(
+        'gym-1',
         ['https://cdn.example.com/old-icon.png'],
         ['https://cdn.example.com/gym-1/logos/icon.png'],
       );
@@ -478,6 +480,7 @@ describe('GymSettingsService', () => {
       await service.setPortalLogo({ photoKey: 'gym-1/logos/mark.webp' });
 
       expect(discardUnreferenced).toHaveBeenCalledWith(
+        'gym-1',
         ['https://cdn.example.com/old-mark.png'],
         ['https://cdn.example.com/gym-1/logos/mark.webp'],
       );

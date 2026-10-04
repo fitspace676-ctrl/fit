@@ -34,14 +34,21 @@ export class MediaCleanupService {
    * Only objects under an upload prefix are eligible (see `isSweepableKey`), and each
    * dropped reference is re-checked against the database first: an admin who puts the
    * same image on two products must not lose it when one of them drops it.
+   *
+   * Only objects under `gymId`'s own prefix are ever deleted. A stored reference is
+   * whatever a client sent (a settings PATCH accepts any URL), so without this a gym
+   * could save another tenant's object URL, replace it, and have that tenant's file
+   * deleted. A foreign reference is left alone; the nightly sweep, which checks every
+   * gym's references, remains the only thing that collects it.
    */
   async discardUnreferenced(
+    gymId: string,
     previous: readonly (string | null | undefined)[],
     next: readonly (string | null | undefined)[],
   ): Promise<void> {
     const kept = new Set(next.filter(isPresent));
     const dropped = [...new Set(previous.filter(isPresent))].filter(
-      (reference) => !kept.has(reference) && isDeletable(reference),
+      (reference) => !kept.has(reference) && isDeletable(reference, gymId),
     );
     if (dropped.length === 0) return;
 
@@ -118,8 +125,8 @@ function isPresent(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
-/** True when a reference resolves to an object key cleanup is allowed to delete. */
-function isDeletable(reference: string): boolean {
+/** True when a reference resolves to an object key this gym's cleanup may delete. */
+function isDeletable(reference: string, gymId: string): boolean {
   const key = toObjectKey(reference);
-  return key !== null && isSweepableKey(key);
+  return key !== null && key.startsWith(`${gymId}/`) && isSweepableKey(key);
 }
