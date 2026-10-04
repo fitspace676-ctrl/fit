@@ -20,6 +20,7 @@ import { Form, Icon, useFormContext, useToast, useWatch, useZodForm } from '@/co
 import { AccentColorField } from '@/components/accent-color-field';
 import type { SignedUploadResponse } from '@/lib/api';
 import {
+  finalizePortalFaviconAction,
   finalizePortalImageAction,
   finalizePortalLogoAction,
   requestPortalImageUploadAction,
@@ -58,9 +59,8 @@ const WORDMARK = `${BASE_PATH}/logodark.png`;
  * The DARK-inked half of that same bundled pair.
  *
  * The member site swaps between the two off the light/dark theme; the logo card's
- * thumbnail cannot, because it draws every mark on the one white plate the portal
- * gives a tenant logo (see `PortalLogo` in `apps/web`). On white, this is the
- * correct half — and it is the file a member on the light theme actually sees.
+ * thumbnail is a fixed white frame, and on white this is the correct half, the
+ * file a member on the light theme actually sees.
  */
 const WORDMARK_ON_LIGHT = `${BASE_PATH}/logolight.png`;
 
@@ -93,6 +93,18 @@ const ACCEPTED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
  * refusing it here says so before the upload rather than after.
  */
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Accepted tab-icon formats. PNG and ICO are the two every browser shows in a tab
+ * and on a bookmark; WebP is left out because Safari does not use it as a favicon.
+ */
+const ACCEPTED_FAVICON_TYPES = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon'];
+
+/** Client-side size ceiling (bytes) for the tab icon: a 512px square PNG is well under it. */
+const MAX_FAVICON_BYTES = 1024 * 1024;
+
+/** The bundled FormaCore icon the member site shows in the tab when a gym has no mark at all. */
+const BUILT_IN_ICON = `${BASE_PATH}/icon.png`;
 
 const styles = stylex.create({
   /** Icon size inside a kit `Button`. */
@@ -317,15 +329,11 @@ const styles = stylex.create({
 
   /* --------------------------------- wordmark -------------------------------- */
   /**
-   * The logo thumbnail — the plate itself, at card width.
-   *
-   * WHITE, in both console themes, because the member portal draws a tenant mark
-   * on a fixed white plate in all three of its headers (see `PortalLogo` in
-   * `apps/web` for why one uploaded file cannot use the two-file theme swap the
-   * bundled wordmark does). A preview that followed the CONSOLE's theme would be
-   * showing a ground members never see, and would hide exactly the mistake this
-   * card exists to catch: a white-inked logo, invisible where it will actually be
-   * rendered. So the thumbnail is the contract, drawn.
+   * The logo thumbnail, at card width, on a fixed white frame in both console
+   * themes so the file reads the same whichever theme the owner works in. The
+   * member portal draws the upload with nothing behind it (see `PortalLogo` in
+   * `apps/web`); the live preview beside this card shows it over the actual
+   * sign-in photograph.
    *
    * `contain` and generous padding rather than the photograph's `cover` crop: a
    * logo cropped to fill a frame is not a preview of anything.
@@ -354,6 +362,31 @@ const styles = stylex.create({
     maxWidth: '100%',
     objectFit: 'contain',
   },
+
+  /* --------------------------------- tab icon -------------------------------- */
+  // The icon at the sizes a browser actually draws it, beside the large preview:
+  // a mark that reads at 64px can still be a smudge at 16px, and this is where
+  // the owner finds out.
+  faviconSizes: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '1.25rem',
+  },
+  faviconSize: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.375rem',
+    color: 'var(--color-text-secondary)',
+    fontSize: '0.75rem',
+  },
+  faviconImg: {
+    display: 'block',
+    objectFit: 'contain',
+  },
+  favicon64: { width: '4rem', height: '4rem' },
+  favicon32: { width: '2rem', height: '2rem' },
+  favicon16: { width: '1rem', height: '1rem' },
 
   /* --------------------------------- preview --------------------------------- */
   // The frame. `overflow: hidden` + a rounded border makes the mock read as a
@@ -398,23 +431,12 @@ const styles = stylex.create({
       'linear-gradient(180deg, rgba(19,19,18,0.74) 0%, rgba(19,19,18,0.26) 40%, rgba(19,19,18,0.34) 64%, rgba(19,19,18,0.68) 100%)',
   },
   previewWordmark: { position: 'relative', width: '6.5rem', height: 'auto', objectFit: 'contain' },
-  // The tenant mark's plate, as the member door actually draws it: a fixed white
-  // ground that does not follow the theme, so the one uploaded file has one
-  // background to be designed against. `relative` to clear the scrim, like every
-  // other element on this panel.
-  previewLogoPlate: {
+  // The tenant mark as the member door draws it: the uploaded file straight on
+  // the photograph, no plate. `relative` to clear the scrim, like every other
+  // element on this panel.
+  previewLogoMark: {
     position: 'relative',
     alignSelf: 'flex-start',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: '#FFFFFF',
-    boxShadow: 'inset 0 0 0 1px rgba(19, 19, 18, 0.10)',
-    paddingInline: '0.5rem',
-    paddingBlock: '0.3125rem',
-  },
-  previewLogoMark: {
     display: 'block',
     width: 'auto',
     height: 'auto',
@@ -607,6 +629,7 @@ const styles = stylex.create({
 interface MemberPortalFormValues {
   loginImageUrl: string | null;
   logoUrl: string | null;
+  faviconUrl: string | null;
   primaryColor: string | null;
   /** The sign-in join card, as `JoinCardField` edits it. */
   joinCard: JoinCardValues;
@@ -649,6 +672,7 @@ function toFormValues(settings: GymSettings): MemberPortalFormValues {
   return {
     loginImageUrl: settings.memberPortal.loginImageUrl,
     logoUrl: settings.memberPortal.logoUrl,
+    faviconUrl: settings.memberPortal.faviconUrl ?? null,
     primaryColor: settings.memberPortal.primaryColor,
     joinCard: {
       hidden: joinCard.hidden,
@@ -721,6 +745,7 @@ export function MemberPortalForm({
   const schema = z.object({
     loginImageUrl: z.string().url().nullable(),
     logoUrl: z.string().url().nullable(),
+    faviconUrl: z.string().url().nullable(),
     primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('colors.invalid')).nullable(),
     joinCard: z.object({ hidden: z.boolean(), ka: joinCopySchema, en: joinCopySchema }),
   });
@@ -785,6 +810,12 @@ export function MemberPortalForm({
             <h2 {...stylex.props(styles.cardTitle)}>{t('logo.title')}</h2>
             <p {...stylex.props(styles.cardDesc)}>{t('logo.subtitle')}</p>
             <LogoField brandLogoUrl={initial.brand.logoUrl} />
+          </Card>
+
+          <Card padding="none" xstyle={styles.card}>
+            <h2 {...stylex.props(styles.cardTitle)}>{t('favicon.title')}</h2>
+            <p {...stylex.props(styles.cardDesc)}>{t('favicon.subtitle')}</p>
+            <FaviconField brandLogoUrl={initial.brand.logoUrl} />
           </Card>
 
           <Card padding="none" xstyle={styles.card}>
@@ -1111,13 +1142,10 @@ function PhotoField() {
  *   inheriting, with none          → the bundled FormaCore mark, badged "Built-in"
  *   chosen                         → the gym's own upload, and a way back
  *
- * THE THUMBNAIL IS WHITE ON PURPOSE, in both console themes — see `logoFrame`. A
- * gym uploads ONE file where the bundled wordmark is a light/dark PAIR, so the
- * member portal gives a tenant mark a fixed white plate rather than a swap it
- * cannot participate in (`PortalLogo` in `apps/web` argues that out in full). The
- * hint states that contract in words; this frame states it in pixels, which is
- * what makes a white-inked upload fail here — visibly, next to the sentence
- * explaining it — instead of on a member's phone.
+ * The thumbnail is a fixed white frame in both console themes (see `logoFrame`).
+ * The member portal itself draws the upload as is, with no plate behind it, and
+ * the hint says so; the live preview shows the mark over the sign-in photograph,
+ * which is where a logo that only reads on white would disappear.
  */
 function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
   const t = useTranslations('admin.memberPortal.logo');
@@ -1215,6 +1243,121 @@ function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
 }
 
 /**
+ * The member site's browser-tab icon: current icon at the sizes a tab draws it,
+ * upload, and the way back to using the logo.
+ *
+ * `null` means "no icon of its own", and the member site then puts the portal
+ * logo in the tab (`memberPortal.logoUrl ?? brand.logoUrl`), and with no logo at
+ * all the bundled FormaCore icon. That chain is what is shown while inheriting,
+ * badged with where it comes from, the same three-state shape as `LogoField`.
+ */
+function FaviconField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
+  const t = useTranslations('admin.memberPortal.favicon');
+  const { control, setValue } = useFormContext<MemberPortalFormValues>();
+  const faviconUrl = useWatch({ control, name: 'faviconUrl' });
+  const logoUrl = useWatch({ control, name: 'logoUrl' });
+
+  const { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers } =
+    useImageUpload({
+      accept: ACCEPTED_FAVICON_TYPES,
+      maxBytes: MAX_FAVICON_BYTES,
+      messages: {
+        errorType: t('errorType'),
+        errorSize: t('errorSize'),
+        errorUpload: (status) => t('errorUpload', { status }),
+        errorNetwork: t('errorNetwork'),
+      },
+      // Same `logos` prefix and the same presign as the wordmark.
+      presign: requestPortalLogoUploadAction,
+      finalize: async (photoKey) => {
+        const result = await finalizePortalFaviconAction(photoKey);
+        return result.ok ? { ok: true, data: result.data.faviconUrl } : result;
+      },
+      onUploaded: (url) => setValue('faviconUrl', url, { shouldDirty: true }),
+    });
+
+  const inheriting = faviconUrl === null;
+  const tenantLogo = logoUrl ?? brandLogoUrl;
+  const shown = faviconUrl ?? tenantLogo ?? BUILT_IN_ICON;
+  const sizes = [
+    { px: 64, xstyle: styles.favicon64 },
+    { px: 32, xstyle: styles.favicon32 },
+    { px: 16, xstyle: styles.favicon16 },
+  ];
+
+  return (
+    <div {...stylex.props(styles.stack2)}>
+      <div
+        {...dropHandlers}
+        {...stylex.props(styles.photoRow, dragging && styles.photoRowDragging)}
+      >
+        <div {...stylex.props(styles.logoFrame, dragging && styles.photoFrameDragging)}>
+          <div {...stylex.props(styles.faviconSizes)}>
+            {sizes.map(({ px, xstyle }) => (
+              <span key={px} {...stylex.props(styles.faviconSize)}>
+                <img
+                  src={shown}
+                  alt={px === 64 ? t('alt') : ''}
+                  {...stylex.props(styles.faviconImg, xstyle)}
+                />
+                {px} px
+              </span>
+            ))}
+          </div>
+          {inheriting && !dragging ? (
+            <span {...stylex.props(styles.builtInTag)}>
+              {tenantLogo ? t('fromLogoBadge') : t('builtInBadge')}
+            </span>
+          ) : null}
+          {dragging ? (
+            <span aria-hidden {...stylex.props(styles.dropOverlay)}>
+              {t('drop')}
+            </span>
+          ) : null}
+        </div>
+        <div {...stylex.props(styles.photoControls)}>
+          <div {...stylex.props(styles.photoActions)}>
+            <label {...stylex.props(styles.uploadLabel, disabled && styles.uploadLabelBusy)}>
+              <Icon name="camera" sw={2.2} width={14} height={14} />
+              {uploading ? t('uploading') : inheriting ? t('choose') : t('replace')}
+              <input
+                ref={inputRef}
+                type="file"
+                accept={ACCEPTED_FAVICON_TYPES.join(',')}
+                aria-label={t('label')}
+                onChange={onInputChange}
+                disabled={disabled}
+                {...stylex.props(styles.srOnly)}
+              />
+            </label>
+            {!inheriting && !uploading ? (
+              <button
+                type="button"
+                onClick={() => setValue('faviconUrl', null, { shouldDirty: true })}
+                {...stylex.props(styles.linkBtn)}
+              >
+                {tenantLogo ? t('resetToLogo') : t('resetToBuiltIn')}
+              </button>
+            ) : null}
+          </div>
+          {inheriting ? (
+            <p {...stylex.props(styles.photoHint)}>
+              {tenantLogo ? t('inheritedLogo') : t('inheritedNone')}
+            </p>
+          ) : null}
+          <p {...stylex.props(styles.photoHint)}>{t('hint')}</p>
+        </div>
+      </div>
+      {uploadError ? (
+        <p role="alert" {...stylex.props(styles.uploadError)}>
+          {uploadError}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * A mock of the member sign-in screen, painted in the values currently in the form.
  *
  * WHAT IT COVERS: the two-column frame `AuthPhotoShell` renders — the photograph
@@ -1282,7 +1425,7 @@ function PortalPreview({
   const photo = loginImageUrl ?? FALLBACK_PHOTO;
   // The same `memberPortal.logoUrl ?? brand.logoUrl` the API resolves. `null`
   // past both is the bundled mark, which over this dark panel is the white-inked
-  // half of the pair and needs no plate — the tenant case is what needs one.
+  // half of the pair.
   const tenantLogo = logoUrl ?? brandLogoUrl;
 
   return (
@@ -1292,9 +1435,7 @@ function PortalPreview({
         <img src={photo} alt="" {...stylex.props(styles.previewPhoto)} />
         <span aria-hidden {...stylex.props(styles.previewScrim)} />
         {tenantLogo ? (
-          <span {...stylex.props(styles.previewLogoPlate)}>
-            <img src={tenantLogo} alt="" {...stylex.props(styles.previewLogoMark)} />
-          </span>
+          <img src={tenantLogo} alt="" {...stylex.props(styles.previewLogoMark)} />
         ) : (
           <img src={WORDMARK} alt="" {...stylex.props(styles.previewWordmark)} />
         )}

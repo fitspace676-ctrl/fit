@@ -38,7 +38,7 @@ function renderTable(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) 
   return render(<DataTable rowKey={(r) => r.id} columns={columns} rows={rows} {...props} />);
 }
 
-describe('DataTable — sorting', () => {
+describe('DataTable - sorting', () => {
   it('fires onSort with the column sortKey when a sortable header is clicked', () => {
     const onSort = vi.fn();
     renderTable({ onSort, sort: 'name', dir: 'asc' });
@@ -71,7 +71,7 @@ describe('DataTable — sorting', () => {
   });
 });
 
-describe('DataTable — selection', () => {
+describe('DataTable - selection', () => {
   function selection(overrides: Partial<TableSelection> = {}): TableSelection {
     return {
       selectedIds: new Set<string>(),
@@ -105,7 +105,7 @@ describe('DataTable — selection', () => {
   });
 });
 
-describe('DataTable — loading & empty states', () => {
+describe('DataTable - loading & empty states', () => {
   it('draws the requested number of skeleton rows while loading (not the data)', () => {
     const { container } = renderTable({ loading: true, skeletonRows: 3 });
     expect(container.querySelectorAll('tbody tr')).toHaveLength(3);
@@ -155,7 +155,7 @@ describe('TablePager', () => {
       <TablePager page={1} limit={20} total={45} onPageChange={onPageChange} noun="members" />,
     );
 
-    expect(screen.getByText(/showing 1–20 of 45 members/i)).toBeInTheDocument();
+    expect(screen.getByText(/showing 1-20 of 45 members/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: /next/i }));

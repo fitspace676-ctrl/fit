@@ -235,7 +235,7 @@ export default async function ProductsPage({
               <span {...stylex.props(styles.scopeLabel)}>Location</span>
               <span {...stylex.props(styles.scopeValue)}>{branchName}</span>
               <span {...stylex.props(styles.scopeCaveat)}>
-                The catalogue is gym-wide, and so are the stock figures on it —{' '}
+                The catalogue is gym-wide, and so are the stock figures on it -{' '}
                 <Link href="/shop/inventory" {...stylex.props(styles.scopeLink)}>
                   Inventory
                 </Link>{' '}

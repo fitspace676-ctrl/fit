@@ -14,7 +14,7 @@ const ITEMS: TabItem[] = [
 ];
 
 const PANELS: Record<string, string> = {
-  overview: 'A summary of the account — the landing panel.',
+  overview: 'A summary of the account - the landing panel.',
   activity: 'Recent check-ins, bookings and orders.',
   billing: 'Invoices, plans and payment methods.',
 };

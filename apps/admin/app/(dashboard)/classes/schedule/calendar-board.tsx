@@ -1854,7 +1854,7 @@ function EventCard<E extends CalendarEvent>({
       type="button"
       onClick={() => onOpen(instance)}
       aria-label={t('card.viewAria', { title: instance.title, time: start })}
-      title={`${start}–${end} · ${instance.title}`}
+      title={`${start}-${end} · ${instance.title}`}
       {...stylex.props(styles.card, canceled && styles.cardCanceled)}
     >
       <span
@@ -1866,7 +1866,7 @@ function EventCard<E extends CalendarEvent>({
       <div {...stylex.props(styles.timeRow)}>
         <Icon name="clock" sw={2} {...stylex.props(styles.smallIcon)} />
         <span {...stylex.props(styles.mono)}>
-          {start}–{end}
+          {start}-{end}
         </span>
       </div>
 
@@ -2044,7 +2044,7 @@ function formatRange(start: Date, end: Date, locale: string): string {
     year: 'numeric',
     timeZone: 'UTC',
   });
-  return `${dayMonth.format(start)} – ${withYear.format(end)}`;
+  return `${dayMonth.format(start)} - ${withYear.format(end)}`;
 }
 
 /** "July 2026" for the month header, in UTC. */

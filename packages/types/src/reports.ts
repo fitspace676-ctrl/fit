@@ -465,7 +465,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     key: 'sales-by-payment-method',
     segment: 'sales',
     name: 'Sales by payment method',
-    description: 'How sales were settled — cash, card, or a member account.',
+    description: 'How sales were settled - cash, card, or a member account.',
     columns: [
       { key: 'method', label: 'Method', type: 'text' },
       { key: 'orders', label: 'Orders', type: 'number' },
@@ -805,7 +805,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'revenue',
     name: 'Refunds (accounting)',
     description:
-      'Refunds per period against the takings they reverse — the books view. Chargebacks are not included: no dispute data reaches the system yet.',
+      'Refunds per period against the takings they reverse - the books view. Chargebacks are not included: no dispute data reaches the system yet.',
     columns: [
       { key: 'period', label: 'Period', type: 'date' },
       { key: 'refunds', label: 'Refunds', type: 'number' },
@@ -928,7 +928,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'classes',
     name: 'Class utilization',
     description:
-      'Seats booked against seats offered per class — which sessions run full and which run empty.',
+      'Seats booked against seats offered per class - which sessions run full and which run empty.',
     columns: [
       { key: 'class', label: 'Class', type: 'text' },
       { key: 'sessions', label: 'Sessions', type: 'number' },
@@ -961,7 +961,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'classes',
     name: 'Waitlist demand',
     description:
-      'How often a class filled up and how many were turned away — where another session would pay.',
+      'How often a class filled up and how many were turned away - where another session would pay.',
     columns: [
       { key: 'class', label: 'Class', type: 'text' },
       { key: 'sessions', label: 'Sessions', type: 'number' },
@@ -1045,7 +1045,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     segment: 'staff',
     name: 'Trainer performance',
     description:
-      'Sessions delivered per trainer — group classes and personal training — with how full their classes ran.',
+      'Sessions delivered per trainer - group classes and personal training - with how full their classes ran.',
     columns: [
       { key: 'trainer', label: 'Trainer', type: 'text' },
       { key: 'classes', label: 'Classes', type: 'number' },

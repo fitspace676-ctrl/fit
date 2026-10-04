@@ -417,7 +417,7 @@ export function DateField({
                 onClick={() => setYearView((previous) => !previous)}
                 {...stylex.props(styles.title, focus.ring)}
               >
-                {yearView ? `${yearPageStart}–${yearPageStart + YEAR_PAGE - 1}` : monthLabel}
+                {yearView ? `${yearPageStart}-${yearPageStart + YEAR_PAGE - 1}` : monthLabel}
                 <Icon name="chevronDown" sw={2.2} {...stylex.props(styles.navGlyph)} />
               </button>
 

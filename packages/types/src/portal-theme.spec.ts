@@ -75,6 +75,7 @@ function skinFor(
     // no "did the gym choose this?" problem to undo, because `brand.logoUrl` has
     // no platform default that could leak into the portal.
     logoUrl: null,
+    faviconUrl: null,
     primaryColor: DEFAULT_PRIMARY_COLOR,
     joinCard: gymJoinCardSettingsSchema.parse({}),
     consolePrimaryColor: null,
@@ -138,6 +139,15 @@ describe('portalThemeVars', () => {
   it('picks the theme ink on a light brand and its paper on a dark one', () => {
     expect(varsFor('#FAFAF5')['--color-on-accent']).toBe('#131312');
     expect(varsFor('#0B0B0C')['--color-on-accent']).toBe('#FFFFFF');
+  });
+
+  it('labels a mid-tone brand in white when neither pole clears AA', () => {
+    // The sky blue is ~4.25:1 against white and ~4.36:1 against the ink; a
+    // bare "higher contrast wins" put near-black labels on the console's blue
+    // buttons. White clears 3:1 there and is the colour the brand is drawn in.
+    expect(varsFor('#1A7FD6')['--color-on-accent']).toBe('#FFFFFF');
+    // A light brand where the ink clears AA keeps the ink.
+    expect(varsFor('#E4F26A')['--color-on-accent']).toBe('#131312');
   });
 
   it('emits one value per theme only where the two differ', () => {
@@ -266,6 +276,7 @@ describe('chosenPortalColors', () => {
     const portal: GymPortalTheme = {
       loginImageUrl: null,
       logoUrl: null,
+      faviconUrl: null,
       primaryColor: '#7C2D12',
       chosenPrimaryColor: '#7C2D12',
       joinCard: gymJoinCardSettingsSchema.parse({}),
@@ -280,6 +291,7 @@ describe('chosenPortalColors', () => {
     const portal: GymPortalTheme = {
       loginImageUrl: null,
       logoUrl: null,
+      faviconUrl: null,
       primaryColor: '#E11D48',
       chosenPrimaryColor: null,
       joinCard: gymJoinCardSettingsSchema.parse({}),

@@ -4,6 +4,7 @@ import { gymMetadata, gymViewport } from './gym-metadata';
 const downtown = {
   name: 'Downtown Strength',
   logoUrl: 'https://media.test/g1/brand/logo.png',
+  faviconUrl: null,
   themeColor: '#ff5500',
 };
 
@@ -21,6 +22,13 @@ describe('gymMetadata', () => {
       siteName: 'Downtown Strength',
       images: [downtown.logoUrl],
     });
+  });
+
+  it('uses the uploaded tab icon in the tab, and keeps the logo on the share card', () => {
+    const icon = 'https://media.test/g1/logos/icon.png';
+    const metadata = gymMetadata({ ...downtown, faviconUrl: icon });
+    expect(metadata.icons).toEqual({ icon, apple: icon });
+    expect(metadata.openGraph).toMatchObject({ images: [downtown.logoUrl] });
   });
 
   it('keeps the FormaCore icon for a gym that has uploaded no mark', () => {

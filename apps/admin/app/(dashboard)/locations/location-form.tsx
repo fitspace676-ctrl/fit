@@ -602,7 +602,7 @@ export function LocationForm(props: Props) {
                         onChange={(event) => setDay(day, { open: event.target.value })}
                         {...stylex.props(styles.timeInput)}
                       />
-                      <span {...stylex.props(styles.dash)}>–</span>
+                      <span {...stylex.props(styles.dash)}>-</span>
                       <input
                         type="time"
                         aria-label={`${label} closing time`}

@@ -17,6 +17,8 @@ import {
   type UploadGymLogoResponse,
   type UploadGymPortalImageInput,
   type UploadGymPortalImageResponse,
+  type UploadGymPortalFaviconInput,
+  type UploadGymPortalFaviconResponse,
   type UploadGymPortalLogoInput,
   type UploadGymPortalLogoResponse,
 } from '@fit/types';
@@ -284,6 +286,48 @@ export class GymSettingsService {
     await this.media.discardUnreferenced([current.memberPortal?.logoUrl], [logoUrl]);
 
     return { logoUrl };
+  }
+
+  /**
+   * `POST /gyms/settings/portal-favicon`: finalise the member site's tab icon.
+   * The same finalise flow and `{gymId}/logos/...` prefix as {@link setPortalLogo},
+   * writing `memberPortal.faviconUrl`. A wordmark shrunk to 16px is unreadable,
+   * which is why the tab has a field of its own; `null` keeps the logo there.
+   *
+   * The icon this one replaces is handed to `MediaCleanupService`, which deletes
+   * it only if no other setting still points at the same file.
+   *
+   * A key outside this gym's own prefix is a `400`; a `503` surfaces when no
+   * public base URL is configured (R2 disabled), mirroring the uploader.
+   */
+  async setPortalFavicon(
+    input: UploadGymPortalFaviconInput,
+  ): Promise<UploadGymPortalFaviconResponse> {
+    const gymId = this.tenant.gymId;
+    if (!input.photoKey.startsWith(`${gymId}/`)) {
+      throw new BadRequestException('photoKey does not belong to this gym');
+    }
+
+    const faviconUrl = this.storage.publicUrl(input.photoKey);
+    if (!faviconUrl) {
+      throw new ServiceUnavailableException('Object storage (R2) public URL is not configured');
+    }
+
+    const gym = await this.loadGym();
+    const current = gymSettingsStoredSchema.parse(gym.settings ?? {});
+    const next: GymSettingsStored = {
+      ...current,
+      memberPortal: { ...current.memberPortal, faviconUrl },
+    };
+
+    await this.prisma.client.gym.update({
+      where: { id: gymId },
+      data: { settings: next as unknown as Prisma.InputJsonValue },
+    });
+
+    await this.media.discardUnreferenced([current.memberPortal?.faviconUrl], [faviconUrl]);
+
+    return { faviconUrl };
   }
 
   /** Load the caller's gym row, or `404 GYM_NOT_FOUND` (a deleted/odd session). */

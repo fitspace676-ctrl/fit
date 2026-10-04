@@ -74,22 +74,26 @@ const styles = stylex.create({
     color: 'var(--color-on-error)',
   },
   /**
-   * For a button sitting ON the lime block. The lime is the surface there, so a
-   * lime button would vanish into it; this inverts — solid ink carrying lime
-   * type, which is the same move the block's status pill makes. Mode-independent
-   * literals, because the block itself does not change between themes.
+   * For a button sitting ON the accent block. The accent is the surface there,
+   * so an accent button would vanish into it; this inverts — a fill of the ink
+   * the block is labelled in (`--color-on-accent`) carrying accent type. Both
+   * come from the theme, so a gym colour that wants near-black labels gets a
+   * near-black button and a mid-tone blue gets a white one.
    */
   onAccent: {
-    backgroundColor: { default: '#131312', ':hover': '#2B2B29' },
+    backgroundColor: {
+      default: 'var(--color-on-accent)',
+      ':hover': 'color-mix(in srgb, var(--color-on-accent) 88%, var(--color-accent))',
+    },
     color: 'var(--color-accent)',
   },
-  /** The quiet counterpart to `onAccent` — a 10% ink wash on the lime block. */
+  /** The quiet counterpart to `onAccent` — a 10% wash of the block's ink on the accent block. */
   onAccentQuiet: {
     backgroundColor: {
-      default: 'rgba(19, 19, 18, 0.10)',
-      ':hover': 'rgba(19, 19, 18, 0.16)',
+      default: 'color-mix(in srgb, var(--color-on-accent) 10%, transparent)',
+      ':hover': 'color-mix(in srgb, var(--color-on-accent) 16%, transparent)',
     },
-    color: '#131312',
+    color: 'var(--color-on-accent)',
   },
 
   /* -------------------------------- states -------------------------------- */

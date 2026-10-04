@@ -245,7 +245,7 @@ export function StockPanel({
       </Card>
 
       <p {...stylex.props(styles.note)}>
-        These are gym-wide totals. For one branch’s shelf — and to record a stocktake against it —
+        These are gym-wide totals. For one branch’s shelf - and to record a stocktake against it -
         open{' '}
         <Link href="/shop/inventory" {...stylex.props(styles.link)}>
           Inventory

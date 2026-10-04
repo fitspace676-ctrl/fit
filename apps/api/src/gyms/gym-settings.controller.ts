@@ -15,11 +15,13 @@ import {
   updateGymSettingsSchema,
   uploadGymLogoSchema,
   uploadGymPortalImageSchema,
+  uploadGymPortalFaviconSchema,
   uploadGymPortalLogoSchema,
   type GetGymSettingsResponse,
   type UpdateGymSettingsResponse,
   type UploadGymLogoResponse,
   type UploadGymPortalImageResponse,
+  type UploadGymPortalFaviconResponse,
   type UploadGymPortalLogoResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
@@ -111,6 +113,18 @@ export class GymSettingsController {
   @RequirePermissions(Permission.GymManage)
   async setPortalLogo(@Body() body: unknown): Promise<UploadGymPortalLogoResponse> {
     return this.settings.setPortalLogo(parse(uploadGymPortalLogoSchema, body));
+  }
+
+  /**
+   * `POST /gyms/settings/portal-favicon`: finalise the member site's tab icon by
+   * its R2 `photoKey`, storing the public URL under `memberPortal.faviconUrl` and
+   * returning it. Same guard and upload flow as {@link setPortalLogo}.
+   */
+  @Post('settings/portal-favicon')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.GymManage)
+  async setPortalFavicon(@Body() body: unknown): Promise<UploadGymPortalFaviconResponse> {
+    return this.settings.setPortalFavicon(parse(uploadGymPortalFaviconSchema, body));
   }
 }
 

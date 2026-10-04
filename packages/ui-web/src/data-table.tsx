@@ -528,7 +528,7 @@ export function TablePager({
       className={`flex items-center justify-between text-sm text-ink-500 dark:text-ink-400 ${className}`.trim()}
     >
       <span className="font-mono tabular-nums">
-        Showing {from}–{to} of {total} {noun}
+        Showing {from}-{to} of {total} {noun}
       </span>
       <div className="flex gap-2">
         <Btn

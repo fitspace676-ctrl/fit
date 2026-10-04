@@ -184,7 +184,7 @@ export function PackagePlansTable({
       {/* Pager. */}
       <div className="flex items-center justify-between text-sm text-ink-500 dark:text-ink-400">
         <span className="font-mono tabular-nums">
-          {from}–{to} of {total}
+          {from}-{to} of {total}
         </span>
         <div className="flex gap-2">
           <Button

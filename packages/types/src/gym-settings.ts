@@ -226,6 +226,12 @@ export type GymJoinCardSettings = z.infer<typeof gymJoinCardSettingsSchema>;
 export const gymMemberPortalSettingsSchema = z.object({
   loginImageUrl: z.string().url().nullable().default(null),
   logoUrl: z.string().url().nullable().default(null),
+  /**
+   * The browser-tab icon of the member site, or `null` to keep using the logo.
+   * A wordmark squeezed into a 16px tab is unreadable, so a gym can give the tab
+   * a square mark of its own without touching the logo in the portal's chrome.
+   */
+  faviconUrl: z.string().url().nullable().default(null),
   primaryColor: z.string().regex(HEX_COLOR_PATTERN, HEX_COLOR_MESSAGE).nullable().default(null),
   joinCard: gymJoinCardSettingsSchema.default({}),
 });
@@ -281,6 +287,23 @@ export type UploadGymPortalLogoInput = z.infer<typeof uploadGymPortalLogoSchema>
 /** Successful `POST /gyms/settings/portal-logo` response. */
 export interface UploadGymPortalLogoResponse {
   logoUrl: string;
+}
+
+/**
+ * Body for `POST /gyms/settings/portal-favicon`: the R2 object `photoKey` of an
+ * already-uploaded tab icon. Its own route for the reason the logo has one: each
+ * finalise route writes exactly one settings field.
+ */
+export const uploadGymPortalFaviconSchema = z.object({
+  photoKey: z.string().trim().min(1),
+});
+
+/** Validated `POST /gyms/settings/portal-favicon` body. */
+export type UploadGymPortalFaviconInput = z.infer<typeof uploadGymPortalFaviconSchema>;
+
+/** Successful `POST /gyms/settings/portal-favicon` response. */
+export interface UploadGymPortalFaviconResponse {
+  faviconUrl: string;
 }
 
 /**
@@ -1155,6 +1178,11 @@ export function gymPublicStartDatePolicy(rawSettings: unknown): GymStartDatePoli
 export interface GymPortalTheme {
   loginImageUrl: string | null;
   logoUrl: string | null;
+  /**
+   * The tab icon the gym uploaded, or `null`. Not resolved against anything: the
+   * member site falls back to `logoUrl` and then to its bundled icon itself.
+   */
+  faviconUrl: string | null;
   primaryColor: string;
   /**
    * The colour the gym set under Settings → Member portal itself, or `null` when
@@ -1193,6 +1221,7 @@ export function gymPortalTheme(rawSettings: unknown): GymPortalTheme {
   return {
     loginImageUrl: stored.memberPortal.loginImageUrl,
     logoUrl: stored.memberPortal.logoUrl ?? stored.brand.logoUrl,
+    faviconUrl: stored.memberPortal.faviconUrl,
     primaryColor: stored.memberPortal.primaryColor ?? stored.brand.primaryColor,
     chosenPrimaryColor: stored.memberPortal.primaryColor,
     joinCard: stored.memberPortal.joinCard,

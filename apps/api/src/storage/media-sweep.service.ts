@@ -205,11 +205,12 @@ export class MediaSweepService {
     for (const gym of gyms) {
       const settings = gym.settings as {
         brand?: { logoUrl?: unknown };
-        memberPortal?: { loginImageUrl?: unknown; logoUrl?: unknown };
+        memberPortal?: { loginImageUrl?: unknown; logoUrl?: unknown; faviconUrl?: unknown };
       } | null;
       add(settings?.brand?.logoUrl);
       add(settings?.memberPortal?.loginImageUrl);
       add(settings?.memberPortal?.logoUrl);
+      add(settings?.memberPortal?.faviconUrl);
     }
 
     return keys;

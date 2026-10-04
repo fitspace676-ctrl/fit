@@ -369,7 +369,7 @@ export function ProductsGrid({
       {/* Pager. */}
       <div {...stylex.props(styles.pagerRow)}>
         <span {...stylex.props(styles.pagerCount)}>
-          {from}–{to} of {total}
+          {from}-{to} of {total}
         </span>
         <div {...stylex.props(styles.pagerBtns)}>
           <Button

@@ -149,7 +149,7 @@ const styles = stylex.create({
       default: '1.5rem',
       '@media (min-width: 640px)': '1.75rem 2rem',
     },
-    color: '#131312',
+    color: 'var(--color-on-accent)',
   },
   heroRow: {
     position: 'relative',
@@ -173,7 +173,7 @@ const styles = stylex.create({
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.16em',
-    color: 'rgba(19, 19, 18, 0.62)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 62%, transparent)',
   },
   // NOTE — every `<p>` / heading on a lime block must state its colour.
   // The theme's reset carries `:where(p) { color: var(--color-text-primary) }`,
@@ -182,7 +182,7 @@ const styles = stylex.create({
   // block's ink: it goes white on lime (~1.5:1) unless told otherwise.
   heroClock: {
     margin: 0,
-    color: '#131312',
+    color: 'var(--color-on-accent)',
     fontFamily: 'var(--font-family-code)',
     fontSize: 'clamp(2.5rem, 6vw, 3.75rem)',
     fontWeight: 700,
@@ -196,7 +196,7 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
     fontWeight: 600,
-    color: 'rgba(19, 19, 18, 0.62)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 62%, transparent)',
   },
   // A hairline between the numeral and the class it belongs to. Ink at 18%, not
   // a border token: the block is lime, and every theme border reads as a smudge
@@ -210,7 +210,7 @@ const styles = stylex.create({
     alignSelf: 'stretch',
     width: '1px',
     flexShrink: 0,
-    backgroundColor: 'rgba(19, 19, 18, 0.18)',
+    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 18%, transparent)',
   },
   heroBody: {
     minWidth: '14rem',
@@ -222,12 +222,12 @@ const styles = stylex.create({
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.16em',
-    color: 'rgba(19, 19, 18, 0.62)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 62%, transparent)',
   },
   heroTitle: {
     margin: 0,
     marginTop: '0.25rem',
-    color: '#131312',
+    color: 'var(--color-on-accent)',
     fontFamily: 'var(--font-family-heading)',
     fontSize: 'clamp(1.5rem, 3vw, 1.875rem)',
     fontWeight: 900,
@@ -242,7 +242,7 @@ const styles = stylex.create({
     columnGap: '1rem',
     rowGap: '0.25rem',
     fontSize: '0.875rem',
-    color: 'rgba(19, 19, 18, 0.76)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 76%, transparent)',
   },
   heroMetaItem: {
     display: 'inline-flex',
@@ -258,10 +258,10 @@ const styles = stylex.create({
   // cannot be it too.
   heroAction: {
     backgroundColor: {
-      default: '#131312',
-      ':hover': '#2B2B29',
+      default: 'var(--color-on-accent)',
+      ':hover': 'color-mix(in srgb, var(--color-on-accent) 88%, var(--color-accent))',
     },
-    color: '#FFFFFF',
+    color: 'var(--color-accent)',
     borderColor: 'transparent',
   },
 });

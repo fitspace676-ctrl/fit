@@ -74,7 +74,7 @@ export default function AstryxPrimitivesPage() {
         </p>
       </header>
 
-      <Section title="Btn — variants">
+      <Section title="Btn - variants">
         <div className="flex flex-wrap items-center gap-3">
           <Btn v="primary">Primary</Btn>
           <Btn v="white">White</Btn>
@@ -101,7 +101,7 @@ export default function AstryxPrimitivesPage() {
         </div>
       </Section>
 
-      <Section title="Badge — tones">
+      <Section title="Badge - tones">
         <div className="flex flex-wrap items-center gap-2">
           {TONES.map((tone) => (
             <Badge key={tone} tone={tone}>

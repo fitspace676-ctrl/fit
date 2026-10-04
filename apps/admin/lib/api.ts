@@ -47,6 +47,8 @@ import type {
   UploadGymLogoResponse,
   UploadGymPortalImageInput,
   UploadGymPortalImageResponse,
+  UploadGymPortalFaviconInput,
+  UploadGymPortalFaviconResponse,
   UploadGymPortalLogoInput,
   UploadGymPortalLogoResponse,
   GetAdminLocationResponse,
@@ -1910,6 +1912,23 @@ export async function uploadGymPortalLogo(
     cache: 'no-store',
   });
   return unwrap<UploadGymPortalLogoResponse>(res);
+}
+
+/**
+ * `POST /gyms/settings/portal-favicon`: finalise the member site's tab icon by its
+ * R2 `photoKey`. Same flow as {@link uploadGymPortalLogo}; the API stores the
+ * public URL under `memberPortal.faviconUrl` and returns it.
+ */
+export async function uploadGymPortalFavicon(
+  input: UploadGymPortalFaviconInput,
+): Promise<UploadGymPortalFaviconResponse> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/settings/portal-favicon`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<UploadGymPortalFaviconResponse>(res);
 }
 
 // ── Audit log (T4.9) ──────────────────────────────────────────────────────────

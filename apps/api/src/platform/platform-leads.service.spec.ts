@@ -38,6 +38,13 @@ const PRICING: CreatePlatformLeadInput = {
   email: 'giorgi@crossfit.ge',
 };
 
+const CALL: CreatePlatformLeadInput = {
+  type: 'call',
+  name: 'Ana K',
+  email: 'ana@boxing.ge',
+  phone: '+995 599 11 22 33',
+};
+
 function setup() {
   const create = vi.fn().mockResolvedValue({ id: 'lead-1' });
   const prisma = { client: { platformLead: { create } } } as unknown as PrismaService;
@@ -100,6 +107,29 @@ describe('PlatformLeadsService.create', () => {
         message: null,
       },
     });
+  });
+
+  it('persists a call request mapped to the CALL enum, with its phone', async () => {
+    const { service, create } = setup();
+
+    await service.create(CALL);
+
+    expect(create.mock.calls[0]![0]).toMatchObject({
+      data: {
+        type: PlatformLeadType.CALL,
+        name: 'Ana K',
+        email: 'ana@boxing.ge',
+        phone: '+995 599 11 22 33',
+        business: null,
+        message: null,
+      },
+    });
+  });
+
+  it('labels a call request in the team notification', () => {
+    const { subject } = buildLeadNotificationEmail(CALL, PlatformLeadType.CALL);
+
+    expect(subject).toContain('Call request');
   });
 
   it('notifies the sales inbox about a pricing request', async () => {

@@ -267,7 +267,7 @@ export default async function ClassTemplateDetailPage({
         <div {...stylex.props(styles.stat)}>
           <span {...stylex.props(styles.statLabel)}>Runs</span>
           <span {...stylex.props(styles.statValue)}>
-            {formatDate(template.validFrom)} –{' '}
+            {formatDate(template.validFrom)} -{' '}
             {template.validUntil ? formatDate(template.validUntil) : 'open-ended'}
           </span>
         </div>

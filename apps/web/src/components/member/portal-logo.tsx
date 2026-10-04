@@ -28,40 +28,22 @@ import * as stylex from '@stylexjs/stylex';
  * There is no single ink that survives all three grounds, so the ground is what
  * changes instead.
  *
- * ═══ THE ANSWER: THE MARK BRINGS ITS OWN SURFACE ═══
+ * ═══ THE ANSWER: THE GYM'S FILE, AS UPLOADED ═══
  *
- * A tenant logo is drawn on a fixed near-white plate — the SAME plate in light
- * mode, in dark mode, and over the photograph. It is not themed, because theming
- * it would recreate the very problem: a plate that follows the canvas gives the
- * uploaded file two grounds again, and only one of them can be the right one.
- *
- * That reduces the whole question to a single contract the console can actually
- * state to a gym, and does state, in the upload hint on the Member portal screen:
- * *your logo is shown on a white plate*. A brand's primary asset is drawn for a
- * light ground — that is what a logo kit's default file IS — so the overwhelmingly
- * common upload is correct by construction, and the uncommon one (a white-inked
- * variant) fails visibly and immediately in the console's own preview, next to the
- * sentence explaining why, rather than silently on a member's phone at 6am.
- *
- * The two alternatives were weighed and rejected. A `drop-shadow` halo only where
- * the mark meets the photo leaves the light/dark headers unsolved and turns a
- * flat mark into an embossed one. Keeping the theme swap and feeding it one file
- * twice is the coin toss above. Neither gives a gym a background it can design
- * against.
- *
- * The plate carries a hairline inset edge so it still reads as a deliberate chip
- * on the light canvas, where plate and page are nearly the same white — without
- * it, a light-mode header looked like a logo floating with a stray rectangle of
- * padding around it.
+ * A tenant logo is drawn exactly as the gym uploaded it, with no plate or chip
+ * behind it, the same file on every surface. Choosing a mark that reads on the
+ * grounds it lands on is the gym's call: the console's upload hint says the logo
+ * is shown as is, over the sign-in photograph and on the light and dark headers,
+ * and its live preview draws it over the photograph so a mark that disappears
+ * there is caught before a member sees it. (An earlier version put every tenant
+ * mark on a fixed white plate; gyms read the plate as a stray white box.)
  *
  * ═══ THE FALLBACK KEEPS THE SWAP ═══
  *
  * When there is no tenant mark, the bundled pair renders exactly as it did before
  * this component existed: the `.member-logo` theme swap on the two themed
  * surfaces, and the white-inked file alone over the photograph, where the scrim is
- * dark in both themes. It has two files, so it does not need a plate — and giving
- * it one would put a white chip on a screen the product's own art direction never
- * asked for.
+ * dark in both themes.
  */
 
 const styles = stylex.create({
@@ -78,25 +60,7 @@ const styles = stylex.create({
     objectFit: 'contain',
   },
   /**
-   * The tenant plate — a fixed light ground the uploaded file can be designed
-   * against, identical on every surface. Not a token: `--color-background-*`
-   * follows the theme, and following the theme is the one thing this must not do.
-   */
-  plate: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 'var(--radius-inner)',
-    backgroundColor: '#FFFFFF',
-    // The hairline that keeps the plate legible as a chip on the light canvas,
-    // where it is otherwise white on near-white. `inset` rather than a border so
-    // the plate's box does not grow and shift the header's baseline.
-    boxShadow: 'inset 0 0 0 1px rgba(19, 19, 18, 0.10)',
-    paddingInline: '0.625rem',
-    paddingBlock: '0.375rem',
-  },
-  /**
-   * The uploaded file inside the plate.
+   * The uploaded file, drawn straight onto the surface.
    *
    * Bounded on BOTH axes and never stretched: a gym's mark may be a wide wordmark
    * or a square badge, and the header has to survive either without the bar
@@ -107,8 +71,8 @@ const styles = stylex.create({
     display: 'block',
     width: 'auto',
     height: 'auto',
-    maxHeight: '1.75rem',
-    maxWidth: '8.5rem',
+    maxHeight: '2.25rem',
+    maxWidth: '9.25rem',
     objectFit: 'contain',
   },
 });
@@ -122,8 +86,8 @@ export interface PortalLogoProps {
   logoUrl: string | null;
   /**
    * True where the mark sits on the sign-in panel's photograph rather than on a
-   * themed surface. It changes only the BUNDLED rendering — a tenant mark carries
-   * its own ground and looks the same everywhere, which is the whole point.
+   * themed surface. It changes only the BUNDLED rendering; a tenant mark is the
+   * one uploaded file, the same everywhere.
    */
   onPhoto?: boolean;
 }
@@ -135,11 +99,7 @@ export interface PortalLogoProps {
  */
 export function PortalLogo({ logoUrl, onPhoto = false }: PortalLogoProps) {
   if (logoUrl) {
-    return (
-      <span {...stylex.props(styles.plate)}>
-        <img src={logoUrl} alt="" {...stylex.props(styles.tenantMark)} />
-      </span>
-    );
+    return <img src={logoUrl} alt="" {...stylex.props(styles.tenantMark)} />;
   }
 
   if (onPhoto) {

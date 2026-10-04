@@ -32,7 +32,7 @@ const row = (over?: Partial<LocationRecord>): LocationRecord => ({
   address: '12 Rustaveli Ave',
   photoUrl: 'https://cdn.example.com/main.jpg',
   amenities: ['Showers', 'Parking'],
-  hours: { mon: '06:00–23:00', sun: 'Closed' },
+  hours: { mon: '06:00-23:00', sun: 'Closed' },
   gym: { slug: 'downtown' },
   ...over,
 });
@@ -96,7 +96,7 @@ describe('LocationsService', () => {
           address: '12 Rustaveli Ave',
           photoUrl: 'https://cdn.example.com/main.jpg',
           amenities: ['Showers', 'Parking'],
-          hours: { mon: '06:00–23:00', sun: 'Closed' },
+          hours: { mon: '06:00-23:00', sun: 'Closed' },
         },
       ]);
     });
@@ -136,12 +136,12 @@ describe('LocationsService', () => {
 
     it('drops non-string hours values so a richer stored shape can never break the wire', async () => {
       const { service } = setup([
-        row({ hours: { mon: '06:00–23:00', tue: { open: '06:00' }, wed: null } }),
+        row({ hours: { mon: '06:00-23:00', tue: { open: '06:00' }, wed: null } }),
       ]);
 
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 
-      expect(locations[0]?.hours).toEqual({ mon: '06:00–23:00' });
+      expect(locations[0]?.hours).toEqual({ mon: '06:00-23:00' });
     });
 
     it('projects the structured admin hours shape into display strings', async () => {
@@ -150,12 +150,12 @@ describe('LocationsService', () => {
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 
       expect(locations[0]?.hours).toEqual({
-        mon: '06:00–24:00',
-        tue: '06:00–24:00',
-        wed: '06:00–24:00',
-        thu: '06:00–24:00',
-        fri: '06:00–24:00',
-        sat: '08:00–22:00',
+        mon: '06:00-24:00',
+        tue: '06:00-24:00',
+        wed: '06:00-24:00',
+        thu: '06:00-24:00',
+        fri: '06:00-24:00',
+        sat: '08:00-22:00',
         sun: 'Closed',
       });
     });
@@ -165,7 +165,7 @@ describe('LocationsService', () => {
 
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 
-      expect(locations[0]?.hours).toEqual({ mon: '09:00–17:00', sun: 'Closed' });
+      expect(locations[0]?.hours).toEqual({ mon: '09:00-17:00', sun: 'Closed' });
     });
 
     it('renders a midnight close as the end of the day, not 00:00', async () => {
@@ -173,7 +173,7 @@ describe('LocationsService', () => {
 
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 
-      expect(locations[0]?.hours).toEqual({ mon: '06:00–24:00' });
+      expect(locations[0]?.hours).toEqual({ mon: '06:00-24:00' });
     });
 
     it('omits a day missing from the stored hours rather than inventing one', async () => {
@@ -181,7 +181,7 @@ describe('LocationsService', () => {
 
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 
-      expect(locations[0]?.hours).toEqual({ mon: '06:00–23:00' });
+      expect(locations[0]?.hours).toEqual({ mon: '06:00-23:00' });
     });
 
     it('emits the week Monday-first whatever order jsonb hands the keys back in', async () => {
@@ -216,13 +216,13 @@ describe('LocationsService', () => {
 
     it('passes a legacy flat display string through untouched', async () => {
       const { service } = setup([
-        row({ hours: { mon: '06:00–23:00', monday: 'All day', sun: closedDay() } }),
+        row({ hours: { mon: '06:00-23:00', monday: 'All day', sun: closedDay() } }),
       ]);
 
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 
       expect(locations[0]?.hours).toEqual({
-        mon: '06:00–23:00',
+        mon: '06:00-23:00',
         sun: 'Closed',
         monday: 'All day',
       });
@@ -243,7 +243,7 @@ describe('LocationsService', () => {
 
       const { locations } = await service.listLocations({ gymId: 'gym-1' });
 
-      expect(locations[0]?.hours).toEqual({ fri: '06:00–23:00' });
+      expect(locations[0]?.hours).toEqual({ fri: '06:00-23:00' });
     });
   });
 });

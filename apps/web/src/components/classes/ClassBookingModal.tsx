@@ -85,7 +85,7 @@ const styles = stylex.create({
     borderRadius: 'var(--radius-page)',
     backgroundColor: 'var(--color-accent)',
     padding: '1.25rem',
-    color: '#131312',
+    color: 'var(--color-on-accent)',
   },
   heroTime: {
     flexShrink: 0,
@@ -97,7 +97,7 @@ const styles = stylex.create({
   // (~1.5:1) unless told otherwise.
   heroClock: {
     margin: 0,
-    color: '#131312',
+    color: 'var(--color-on-accent)',
     fontFamily: 'var(--font-family-code)',
     fontSize: 'clamp(2.25rem, 9vw, 2.75rem)',
     fontWeight: 700,
@@ -111,7 +111,7 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
     fontWeight: 600,
-    color: 'rgba(19, 19, 18, 0.62)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 62%, transparent)',
   },
   // Ink at 18%, not a border token: on lime every theme border reads as a
   // smudge. Hidden once the row wraps, where a vertical rule separates nothing.
@@ -123,7 +123,7 @@ const styles = stylex.create({
     alignSelf: 'stretch',
     width: '1px',
     flexShrink: 0,
-    backgroundColor: 'rgba(19, 19, 18, 0.18)',
+    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 18%, transparent)',
   },
   heroFacts: {
     minWidth: '10rem',
@@ -133,7 +133,7 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '0.25rem',
     fontSize: '0.875rem',
-    color: 'rgba(19, 19, 18, 0.82)',
+    color: 'color-mix(in srgb, var(--color-on-accent) 82%, transparent)',
   },
   heroFact: {
     display: 'flex',

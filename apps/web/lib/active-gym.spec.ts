@@ -152,6 +152,7 @@ describe('getActiveGymBrand', () => {
     await expect(getActiveGymBrand()).resolves.toEqual({
       name: 'Downtown Strength',
       logoUrl: 'https://media.test/g1/brand/logo.png',
+      faviconUrl: null,
       themeColor: '#ff5500',
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.test/gyms/by-subdomain/downtown');
@@ -170,7 +171,24 @@ describe('getActiveGymBrand', () => {
     await expect(getActiveGymBrand()).resolves.toEqual({
       name: 'Downtown Strength',
       logoUrl: 'https://media.test/portal.png',
+      faviconUrl: null,
       themeColor: null,
+    });
+  });
+
+  it('carries the tab icon the gym uploaded', async () => {
+    fetchMock.mockResolvedValue(
+      gym({
+        portal: {
+          loginImageUrl: null,
+          logoUrl: null,
+          faviconUrl: 'https://media.test/g1/logos/icon.png',
+          primaryColor: '#ff5500',
+        },
+      }),
+    );
+    await expect(getActiveGymBrand()).resolves.toMatchObject({
+      faviconUrl: 'https://media.test/g1/logos/icon.png',
     });
   });
 

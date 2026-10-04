@@ -20,6 +20,8 @@ describe('consoleThemeCss', () => {
   it('picks legible ink for the button text', () => {
     expect(consoleThemeCss('#991b1b')).toContain('--color-on-accent:#FFFFFF;');
     expect(consoleThemeCss('#f9a8d4')).toContain('--color-on-accent:#131312;');
+    // The default sky blue, saved explicitly, keeps white labels like the theme.
+    expect(consoleThemeCss('#1A7FD6')).toContain('--color-on-accent:#FFFFFF;');
   });
 
   it('writes nothing for a value that is not a six-digit hex', () => {
