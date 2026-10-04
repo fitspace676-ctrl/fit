@@ -4,7 +4,7 @@
 // real admin console and member portal of the seeded `downtown` demo gym. Frames
 // come from Chrome's screencast (sharper than Playwright's built-in recorder) and
 // a drawn cursor is injected so the viewer can follow the clicks; ffmpeg turns
-// the frames into an H.264 mp4, a VP9 webm and a JPEG poster per clip.
+// the frames into an H.264 mp4, a half-size phone mp4 and WebP posters per clip.
 //
 // Needs the local stack running (api :3000, web :3001, admin :3002), a seeded
 // database (`pnpm db:seed` and `pnpm db:generate-instances`), system Chrome and
@@ -328,27 +328,43 @@ function encode(name, theme, frames, dir) {
     '-an',
     `${base}.mp4`,
   ]);
+  // The phone cut: half size, a third of the bytes, served below 768px. No VP9
+  // webm: on these recordings it came out no smaller than H.264.
   run([
-    '-f',
-    'concat',
-    '-safe',
-    '0',
     '-i',
-    list,
+    `${base}.mp4`,
     '-vf',
-    even,
+    'scale=trunc(iw/4)*2:-2',
     '-c:v',
-    'libvpx-vp9',
+    'libx264',
+    '-preset',
+    'veryslow',
     '-crf',
-    '36',
-    '-b:v',
-    '0',
-    '-row-mt',
-    '1',
+    '27',
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
     '-an',
-    `${base}.webm`,
+    `${base}-m.mp4`,
   ]);
-  run(['-ss', '0.3', '-i', `${base}.mp4`, '-frames:v', '1', '-q:v', '3', `${base}.jpg`]);
+  // Posters as WebP (full and half size). The bundled ffmpeg has no WebP
+  // encoder, so a PNG frame goes through `cwebp` (brew install webp).
+  const frame = `${base}.poster.png`;
+  run(['-ss', '0.3', '-i', `${base}.mp4`, '-frames:v', '1', frame]);
+  execFileSync('cwebp', ['-quiet', '-q', '80', frame, '-o', `${base}.webp`]);
+  execFileSync('cwebp', [
+    '-quiet',
+    '-q',
+    '80',
+    '-resize',
+    String(w / 2),
+    '0',
+    frame,
+    '-o',
+    `${base}-m.webp`,
+  ]);
+  rmSync(frame);
   console.log(`${name}-${theme}: ${frames.length} frames`);
 }
 

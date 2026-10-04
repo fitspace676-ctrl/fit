@@ -2,7 +2,7 @@
    FormaCore - product tour scenes
    The homepage's tabbed tour of the staff console and the member portal. Each
    scene is a real screen recording of the seeded demo gym, in
-   `public/tour/<clip>-<light|dark>.{mp4,webm,jpg}`, made by
+   `public/tour/<clip>-<light|dark>[-m].{mp4,webp}` (`-m` is the half-size phone cut), made by
    `node apps/e2e/scripts/record-product-tour.mjs`. Re-run that after a UI change
    so the tour keeps showing the product as it is.
    ──────────────────────────────────────────────────────────────────────── */

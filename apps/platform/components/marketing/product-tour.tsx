@@ -21,30 +21,30 @@ import { useActiveTheme, usePrefersReducedMotion } from './hero-devices';
 
 const RING = 2 * Math.PI * 9;
 
+/** Below this width the card is phone-sized, and the half-size media is enough. */
+const PHONE_MEDIA = '(max-width: 767px)';
+
 /**
  * Light and dark poster, swapped by the `.dark` class so the first paint is right.
  * Lazy, so neither loads until the tour nears the viewport, and the hidden theme's
- * (`display: none`) is not fetched at all.
+ * (`display: none`) is not fetched at all. Phones take the half-size WebP.
  */
 function Poster({ clip, className }: { clip: string; className: string }) {
   return (
     <>
-      <img
-        src={`/tour/${clip}-light.jpg`}
-        alt=""
-        draggable={false}
-        loading="lazy"
-        decoding="async"
-        className={cn(className, 'dark:hidden')}
-      />
-      <img
-        src={`/tour/${clip}-dark.jpg`}
-        alt=""
-        draggable={false}
-        loading="lazy"
-        decoding="async"
-        className={cn(className, 'hidden dark:block')}
-      />
+      {(['light', 'dark'] as const).map((theme) => (
+        <img
+          key={theme}
+          src={`/tour/${clip}-${theme}.webp`}
+          srcSet={`/tour/${clip}-${theme}-m.webp 800w, /tour/${clip}-${theme}.webp 1600w`}
+          sizes={`${PHONE_MEDIA} 100vw, 1040px`}
+          alt=""
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          className={cn(className, theme === 'light' ? 'dark:hidden' : 'hidden dark:block')}
+        />
+      ))}
     </>
   );
 }
@@ -71,7 +71,7 @@ function Clip({
       key={src}
       ref={videoRef}
       className={media}
-      poster={`${src}.jpg`}
+      poster={`${src}.webp`}
       autoPlay
       muted
       playsInline
@@ -83,7 +83,11 @@ function Clip({
       }}
       onEnded={onEnded}
     >
-      <source src={`${src}.webm`} type="video/webm" />
+      {/* H.264 only: VP9 came out no smaller on these screen recordings, and as
+          the first source it was what every browser downloaded. Phones get the
+          800px cut, a third of the bytes; a browser that ignores `media` on a
+          <source> falls through to the full one. */}
+      <source src={`${src}-m.mp4`} type="video/mp4" media={PHONE_MEDIA} />
       <source src={`${src}.mp4`} type="video/mp4" />
     </video>
   );
