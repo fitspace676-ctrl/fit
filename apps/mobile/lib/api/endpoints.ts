@@ -353,6 +353,11 @@ export const ENDPOINTS = {
    * whole-platform roster, and `Gym` is not a tenant-scoped model — without that
    * guard any authenticated user could read every gym on the platform.
    */
+  getMobileAppSettings: {
+    method: 'GET',
+    path: '/gyms/by-subdomain/:slug/app-settings',
+    permission: 'public',
+  },
   getGymBySubdomain: {
     method: 'GET',
     path: '/gyms/by-subdomain/:slug',

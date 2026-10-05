@@ -113,6 +113,7 @@ export const ROUTE_PERMISSIONS: readonly RouteGuard[] = [
   // read `minRole: MANAGER` until recently and let a manager onto a page that
   // answered every read and every save with a 403.
   { prefix: '/settings', permission: Permission.GymManage },
+  { prefix: '/app-settings', permission: Permission.GymManage },
   { prefix: '/member-portal', permission: Permission.GymManage },
 
   // ---- Open to all staff --------------------------------------------------

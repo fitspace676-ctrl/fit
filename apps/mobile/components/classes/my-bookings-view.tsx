@@ -93,6 +93,7 @@ import {
   useToast,
 } from '@fit/ui-mobile';
 
+import { AppFeature } from '../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../auth/notices';
 import { useIsOnline } from '../auth/use-online';
 import { bookingErrorKey } from './booking-errors';
@@ -251,276 +252,282 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
       <View style={{ gap: layout.sectionGap }}>
         {online ? null : <OfflineNotice testID="bookings-offline" />}
 
-        {/* ── Counters ───────────────────────────────────────────────────── */}
-        {phase === 'ready' ? (
-          <TileGrid testID="bookings-stats" columns={2} gap={3}>
-            <StatTile
-              testID="bookings-stat-upcoming"
-              label={t('account.bookings.stats.upcoming')}
-              value={String(counts.upcoming)}
-              accessibilityLabel={`${t('account.bookings.stats.upcoming')}: ${String(counts.upcoming)}`}
-            />
-            <StatTile
-              testID="bookings-stat-attended"
-              label={t('account.bookings.stats.attended')}
-              value={String(counts.attended)}
-              accessibilityLabel={`${t('account.bookings.stats.attended')}: ${String(counts.attended)}`}
-            />
-            <StatTile
-              testID="bookings-stat-waitlist"
-              label={t('account.bookings.stats.waitlist')}
-              value={String(counts.waitlist)}
-              accessibilityLabel={`${t('account.bookings.stats.waitlist')}: ${String(counts.waitlist)}`}
-            />
-            <StatTile
-              testID="bookings-stat-total"
-              label={t('account.bookings.stats.total')}
-              value={String(counts.total)}
-              accessibilityLabel={`${t('account.bookings.stats.total')}: ${String(counts.total)}`}
-            />
-          </TileGrid>
-        ) : null}
-
-        {/* ── Upcoming / past ────────────────────────────────────────────── */}
-        <View style={{ gap: spacing[3.5] }}>
-          <Segmented
-            testID="bookings-view"
-            label={t('account.bookings.viewLabel')}
-            value={half}
-            onChange={setHalf}
-            options={[
-              { value: 'upcoming', label: t('account.bookings.upcoming') },
-              { value: 'past', label: t('account.bookings.past') },
-            ]}
-          />
-
-          {phase === 'loading' ? (
-            <View
-              testID="bookings-loading"
-              accessible
-              accessibilityLabel={t('account.bookings.loading')}
-              style={{ gap: spacing[3] }}
-            >
-              <Skeleton height={72} radius={22} />
-              <Skeleton height={72} radius={22} />
-              <Skeleton height={72} radius={22} />
-            </View>
-          ) : null}
-
-          {phase === 'error' ? (
-            <EmptyState
-              testID="bookings-error"
-              icon="info"
-              title={t('account.bookings.error')}
-              action={{
-                label: t('account.bookings.retry'),
-                onPress: retry,
-                variant: 'secondary',
-                testID: 'bookings-retry',
-              }}
-            />
-          ) : null}
-
+        <AppFeature name="classes">
+          {/* ── Counters ───────────────────────────────────────────────────── */}
           {phase === 'ready' ? (
-            visible.length === 0 ? (
-              rows.length === 0 ? (
-                // Never booked anything at all — a different question from
-                // "nothing in this half of the history", and the only one whose
-                // next action is "go and browse".
-                <EmptyState
-                  testID="bookings-empty"
-                  icon="calendar"
-                  title={t('account.bookings.empty.title')}
-                  body={t('account.bookings.empty.subtitle')}
-                  action={{
-                    label: t('account.bookings.empty.action'),
-                    onPress: browse,
-                    variant: 'primary',
-                    testID: 'bookings-browse',
-                  }}
-                />
+            <TileGrid testID="bookings-stats" columns={2} gap={3}>
+              <StatTile
+                testID="bookings-stat-upcoming"
+                label={t('account.bookings.stats.upcoming')}
+                value={String(counts.upcoming)}
+                accessibilityLabel={`${t('account.bookings.stats.upcoming')}: ${String(counts.upcoming)}`}
+              />
+              <StatTile
+                testID="bookings-stat-attended"
+                label={t('account.bookings.stats.attended')}
+                value={String(counts.attended)}
+                accessibilityLabel={`${t('account.bookings.stats.attended')}: ${String(counts.attended)}`}
+              />
+              <StatTile
+                testID="bookings-stat-waitlist"
+                label={t('account.bookings.stats.waitlist')}
+                value={String(counts.waitlist)}
+                accessibilityLabel={`${t('account.bookings.stats.waitlist')}: ${String(counts.waitlist)}`}
+              />
+              <StatTile
+                testID="bookings-stat-total"
+                label={t('account.bookings.stats.total')}
+                value={String(counts.total)}
+                accessibilityLabel={`${t('account.bookings.stats.total')}: ${String(counts.total)}`}
+              />
+            </TileGrid>
+          ) : null}
+
+          {/* ── Upcoming / past ────────────────────────────────────────────── */}
+          <View style={{ gap: spacing[3.5] }}>
+            <Segmented
+              testID="bookings-view"
+              label={t('account.bookings.viewLabel')}
+              value={half}
+              onChange={setHalf}
+              options={[
+                { value: 'upcoming', label: t('account.bookings.upcoming') },
+                { value: 'past', label: t('account.bookings.past') },
+              ]}
+            />
+
+            {phase === 'loading' ? (
+              <View
+                testID="bookings-loading"
+                accessible
+                accessibilityLabel={t('account.bookings.loading')}
+                style={{ gap: spacing[3] }}
+              >
+                <Skeleton height={72} radius={22} />
+                <Skeleton height={72} radius={22} />
+                <Skeleton height={72} radius={22} />
+              </View>
+            ) : null}
+
+            {phase === 'error' ? (
+              <EmptyState
+                testID="bookings-error"
+                icon="info"
+                title={t('account.bookings.error')}
+                action={{
+                  label: t('account.bookings.retry'),
+                  onPress: retry,
+                  variant: 'secondary',
+                  testID: 'bookings-retry',
+                }}
+              />
+            ) : null}
+
+            {phase === 'ready' ? (
+              visible.length === 0 ? (
+                rows.length === 0 ? (
+                  // Never booked anything at all — a different question from
+                  // "nothing in this half of the history", and the only one whose
+                  // next action is "go and browse".
+                  <EmptyState
+                    testID="bookings-empty"
+                    icon="calendar"
+                    title={t('account.bookings.empty.title')}
+                    body={t('account.bookings.empty.subtitle')}
+                    action={{
+                      label: t('account.bookings.empty.action'),
+                      onPress: browse,
+                      variant: 'primary',
+                      testID: 'bookings-browse',
+                    }}
+                  />
+                ) : (
+                  <EmptyState
+                    testID={`bookings-empty-${half}`}
+                    icon="clock"
+                    title={
+                      half === 'upcoming'
+                        ? t('account.bookings.noUpcoming')
+                        : t('account.bookings.noPast')
+                    }
+                    body={
+                      half === 'upcoming'
+                        ? t('account.bookings.noUpcomingHint')
+                        : t('account.bookings.noPastHint')
+                    }
+                  />
+                )
               ) : (
-                <EmptyState
-                  testID={`bookings-empty-${half}`}
-                  icon="clock"
-                  title={
-                    half === 'upcoming'
-                      ? t('account.bookings.noUpcoming')
-                      : t('account.bookings.noPast')
-                  }
-                  body={
-                    half === 'upcoming'
-                      ? t('account.bookings.noUpcomingHint')
-                      : t('account.bookings.noPastHint')
-                  }
-                />
-              )
-            ) : (
-              <View style={{ gap: spacing[3] }} testID="bookings-list">
-                {visible.map((entry) => {
-                  const instance = entry.classInstance;
-                  const when = `${formatDayHeading(locale, instance.startsAt)} · ${formatTime(
-                    locale,
-                    instance.startsAt,
-                  )}`;
-                  const status =
-                    entry.status === 'WAITLIST' && entry.waitlistPosition !== null
-                      ? t('account.bookings.waitlistPosition', {
-                          position: entry.waitlistPosition,
-                        })
-                      : t(`account.bookings.status.${entry.status}`);
-                  const cancellable =
-                    half === 'upcoming' &&
-                    (entry.status === 'BOOKED' || entry.status === 'WAITLIST');
+                <View style={{ gap: spacing[3] }} testID="bookings-list">
+                  {visible.map((entry) => {
+                    const instance = entry.classInstance;
+                    const when = `${formatDayHeading(locale, instance.startsAt)} · ${formatTime(
+                      locale,
+                      instance.startsAt,
+                    )}`;
+                    const status =
+                      entry.status === 'WAITLIST' && entry.waitlistPosition !== null
+                        ? t('account.bookings.waitlistPosition', {
+                            position: entry.waitlistPosition,
+                          })
+                        : t(`account.bookings.status.${entry.status}`);
+                    const cancellable =
+                      half === 'upcoming' &&
+                      (entry.status === 'BOOKED' || entry.status === 'WAITLIST');
 
-                  return (
-                    <Surface key={entry.bookingId} tone="card" padding={4} radius={22}>
-                      <View style={{ gap: spacing[3] }}>
-                        <ListRow
-                          testID={`bookings-row-${entry.bookingId}`}
-                          icon="calendar"
-                          title={instance.title}
-                          hint={`${when} · ${instance.trainerName}`}
-                          onPress={() => {
-                            router.push(`/classes/${instance.id}`);
-                          }}
-                          accessibilityLabel={`${instance.title}, ${when}, ${status}`}
-                          accessibilityHint={t('account.bookings.viewClass')}
-                          trailing={
-                            <View
-                              accessible={false}
-                              accessibilityElementsHidden
-                              importantForAccessibility="no-hide-descendants"
-                            >
-                              <Pill tone={entry.status === 'BOOKED' ? 'booked' : 'quiet'} size="sm">
-                                {status}
-                              </Pill>
-                            </View>
-                          }
-                        />
-                        {cancellable ? (
-                          <Button
-                            testID={`bookings-cancel-${entry.bookingId}`}
-                            label={t('account.bookings.cancel')}
-                            variant="secondary"
-                            size="sm"
-                            busy={cancel.isPending && confirming?.bookingId === entry.bookingId}
+                    return (
+                      <Surface key={entry.bookingId} tone="card" padding={4} radius={22}>
+                        <View style={{ gap: spacing[3] }}>
+                          <ListRow
+                            testID={`bookings-row-${entry.bookingId}`}
+                            icon="calendar"
+                            title={instance.title}
+                            hint={`${when} · ${instance.trainerName}`}
                             onPress={() => {
-                              setSheet({ kind: 'cancel', entry });
+                              router.push(`/classes/${instance.id}`);
                             }}
+                            accessibilityLabel={`${instance.title}, ${when}, ${status}`}
+                            accessibilityHint={t('account.bookings.viewClass')}
+                            trailing={
+                              <View
+                                accessible={false}
+                                accessibilityElementsHidden
+                                importantForAccessibility="no-hide-descendants"
+                              >
+                                <Pill
+                                  tone={entry.status === 'BOOKED' ? 'booked' : 'quiet'}
+                                  size="sm"
+                                >
+                                  {status}
+                                </Pill>
+                              </View>
+                            }
                           />
-                        ) : null}
+                          {cancellable ? (
+                            <Button
+                              testID={`bookings-cancel-${entry.bookingId}`}
+                              label={t('account.bookings.cancel')}
+                              variant="secondary"
+                              size="sm"
+                              busy={cancel.isPending && confirming?.bookingId === entry.bookingId}
+                              onPress={() => {
+                                setSheet({ kind: 'cancel', entry });
+                              }}
+                            />
+                          ) : null}
 
-                        {/* The review affordance, offered ONLY where the API
+                          {/* The review affordance, offered ONLY where the API
                             will accept one. `ATTENDED` is the whole condition
                             — see the header — so a member never meets `403
                             NOT_ATTENDED` from a control this view drew. */}
-                        {entry.status === 'ATTENDED' ? (
-                          reviewed.includes(instance.id) ? (
-                            <InlineNote
-                              testID={`bookings-reviewed-${entry.bookingId}`}
-                              icon="check"
-                            >
-                              {t('member.reviews.already')}
-                            </InlineNote>
-                          ) : (
-                            <Button
-                              testID={`bookings-review-${entry.bookingId}`}
-                              label={t('member.reviews.rate')}
-                              variant="secondary"
-                              size="sm"
-                              icon="star"
-                              onPress={() => {
-                                setSheet({ kind: 'review', entry });
-                              }}
-                            />
-                          )
-                        ) : null}
-                      </View>
-                    </Surface>
-                  );
-                })}
-              </View>
-            )
-          ) : null}
-        </View>
-
+                          {entry.status === 'ATTENDED' ? (
+                            reviewed.includes(instance.id) ? (
+                              <InlineNote
+                                testID={`bookings-reviewed-${entry.bookingId}`}
+                                icon="check"
+                              >
+                                {t('member.reviews.already')}
+                              </InlineNote>
+                            ) : (
+                              <Button
+                                testID={`bookings-review-${entry.bookingId}`}
+                                label={t('member.reviews.rate')}
+                                variant="secondary"
+                                size="sm"
+                                icon="star"
+                                onPress={() => {
+                                  setSheet({ kind: 'review', entry });
+                                }}
+                              />
+                            )
+                          ) : null}
+                        </View>
+                      </Surface>
+                    );
+                  })}
+                </View>
+              )
+            ) : null}
+          </View>
+        </AppFeature>
         {/* ── Personal-training sessions ─────────────────────────────────── */}
-        <View style={{ gap: spacing[3.5] }} testID="bookings-sessions">
-          <SectionHeader
-            title={t('account.bookings.sessions.title')}
-            subtitle={t('account.bookings.sessions.subtitle')}
-            size="md"
-            action={{
-              label: t('account.bookings.sessions.action'),
-              onPress: () => {
-                router.push('/services');
-              },
-              testID: 'bookings-sessions-book',
-            }}
-          />
-
-          {sessionsPhase === 'loading' ? (
-            <View
-              testID="bookings-sessions-loading"
-              accessible
-              accessibilityLabel={t('account.bookings.loading')}
-            >
-              <Skeleton height={72} radius={22} />
-            </View>
-          ) : null}
-
-          {sessionsPhase === 'error' ? (
-            <EmptyState
-              testID="bookings-sessions-error"
-              icon="info"
-              title={t('account.bookings.error')}
+        <AppFeature name="services">
+          <View style={{ gap: spacing[3.5] }} testID="bookings-sessions">
+            <SectionHeader
+              title={t('account.bookings.sessions.title')}
+              subtitle={t('account.bookings.sessions.subtitle')}
+              size="md"
               action={{
-                label: t('account.bookings.retry'),
+                label: t('account.bookings.sessions.action'),
                 onPress: () => {
-                  void queryClient.invalidateQueries({
-                    queryKey: queryKeys.myServiceSessions(scoped).slice(0, 2),
-                  });
+                  router.push('/services');
                 },
-                variant: 'secondary',
-                testID: 'bookings-sessions-retry',
+                testID: 'bookings-sessions-book',
               }}
             />
-          ) : null}
 
-          {sessionsPhase === 'ready' ? (
-            upcomingSessions.length === 0 ? (
+            {sessionsPhase === 'loading' ? (
+              <View
+                testID="bookings-sessions-loading"
+                accessible
+                accessibilityLabel={t('account.bookings.loading')}
+              >
+                <Skeleton height={72} radius={22} />
+              </View>
+            ) : null}
+
+            {sessionsPhase === 'error' ? (
               <EmptyState
-                testID="bookings-sessions-empty"
-                icon="dumbbell"
-                title={t('account.bookings.sessions.noUpcoming')}
-                body={t('account.bookings.sessions.empty')}
+                testID="bookings-sessions-error"
+                icon="info"
+                title={t('account.bookings.error')}
+                action={{
+                  label: t('account.bookings.retry'),
+                  onPress: () => {
+                    void queryClient.invalidateQueries({
+                      queryKey: queryKeys.myServiceSessions(scoped).slice(0, 2),
+                    });
+                  },
+                  variant: 'secondary',
+                  testID: 'bookings-sessions-retry',
+                }}
               />
-            ) : (
-              <Surface tone="card" padVertical={1}>
-                {upcomingSessions.map((session) => {
-                  const when = `${formatDayHeading(locale, session.startsAt)} · ${formatTime(
-                    locale,
-                    session.startsAt,
-                  )}`;
-                  return (
-                    <ListRow
-                      key={session.id}
-                      testID={`bookings-session-${session.id}`}
-                      icon="dumbbell"
-                      title={session.serviceName}
-                      hint={`${when} · ${session.staffName}`}
-                      // NO onPress and NO cancel: a member can book a session
-                      // and cannot release one — `admin/service-sessions/:id/
-                      // cancel` is `ClassWrite`. See the header.
-                      accessibilityLabel={`${session.serviceName}, ${when}, ${session.staffName}`}
-                    />
-                  );
-                })}
-              </Surface>
-            )
-          ) : null}
-        </View>
+            ) : null}
+
+            {sessionsPhase === 'ready' ? (
+              upcomingSessions.length === 0 ? (
+                <EmptyState
+                  testID="bookings-sessions-empty"
+                  icon="dumbbell"
+                  title={t('account.bookings.sessions.noUpcoming')}
+                  body={t('account.bookings.sessions.empty')}
+                />
+              ) : (
+                <Surface tone="card" padVertical={1}>
+                  {upcomingSessions.map((session) => {
+                    const when = `${formatDayHeading(locale, session.startsAt)} · ${formatTime(
+                      locale,
+                      session.startsAt,
+                    )}`;
+                    return (
+                      <ListRow
+                        key={session.id}
+                        testID={`bookings-session-${session.id}`}
+                        icon="dumbbell"
+                        title={session.serviceName}
+                        hint={`${when} · ${session.staffName}`}
+                        // NO onPress and NO cancel: a member can book a session
+                        // and cannot release one — `admin/service-sessions/:id/
+                        // cancel` is `ClassWrite`. See the header.
+                        accessibilityLabel={`${session.serviceName}, ${when}, ${session.staffName}`}
+                      />
+                    );
+                  })}
+                </Surface>
+              )
+            ) : null}
+          </View>
+        </AppFeature>
       </View>
 
       <ConfirmSheet

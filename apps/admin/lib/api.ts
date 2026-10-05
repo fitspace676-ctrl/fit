@@ -11,6 +11,8 @@
 import { cookies } from 'next/headers';
 import { getLocale } from 'next-intl/server';
 import type {
+  MobileAppSettings,
+  UpdateMobileAppSettingsInput,
   BulkExportMembersInput,
   BulkExportMembersResponse,
   CreateLocationData,
@@ -3401,4 +3403,23 @@ export async function fetchMyPermissions(): Promise<unknown> {
     cache: 'no-store',
   });
   return unwrap<unknown>(res);
+}
+
+export async function fetchMobileAppSettings(): Promise<MobileAppSettings> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/app-settings`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<MobileAppSettings>(res);
+}
+export async function updateMobileAppSettings(
+  input: UpdateMobileAppSettingsInput,
+): Promise<MobileAppSettings> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/app-settings`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<MobileAppSettings>(res);
 }

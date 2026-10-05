@@ -46,6 +46,7 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   // shape (photograph on one side, form on the other), which is exactly what
   // this destination previews. Deliberately not a paint palette or a swatch:
   // those read as "theme editor", and the page is about ONE surface.
+  appSettings: 'M7 2h10a2 2 0 012 2v16a2 2 0 01-2 2H7a2 2 0 01-2-2V4a2 2 0 012-2zM10 18h4',
   memberPortal: 'M3 4h18a1 1 0 011 1v14a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1zM2 9h20M10 9v11',
   // Sliders, not a cog — and the same glyph `@fit/ui-web`'s `settings` icon uses,
   // so the rail and every in-page Settings affordance read as one thing. The

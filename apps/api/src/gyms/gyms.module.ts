@@ -5,6 +5,8 @@ import { GymSettingsController } from './gym-settings.controller';
 import { GymSettingsService } from './gym-settings.service';
 import { GymsController } from './gyms.controller';
 import { GymsService } from './gyms.service';
+import { MobileAppSettingsController } from './mobile-app-settings.controller';
+import { MobileAppSettingsService } from './mobile-app-settings.service';
 
 /**
  * Gyms: platform-wide tenant management (`GET /gyms`) plus the staff console's
@@ -21,8 +23,14 @@ import { GymsService } from './gyms.service';
  * `StorageModule`, so it only registers its own controllers + services.
  */
 @Module({
-  controllers: [GymsController, GymSettingsController],
-  providers: [GymsService, GymSettingsService, GymLocaleService, GymMemberIntakeService],
+  controllers: [MobileAppSettingsController, GymsController, GymSettingsController],
+  providers: [
+    MobileAppSettingsService,
+    GymsService,
+    GymSettingsService,
+    GymLocaleService,
+    GymMemberIntakeService,
+  ],
   // Exported so the reporting surfaces can read the gym's currency + timezone
   // from settings instead of guessing them from the data they are reporting on,
   // and so member creation can enforce the intake fields the gym asked for

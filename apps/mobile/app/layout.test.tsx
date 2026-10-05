@@ -207,14 +207,18 @@ describe('RootLayout', () => {
     it('mounts it once they have loaded', () => {
       renderApp(<RootLayout />);
 
-      expect(layoutOf()({ children: scene })).toBe(scene);
+      expect(layoutOf()({ children: scene })).toEqual(
+        expect.objectContaining({ props: { children: scene } }),
+      );
     });
 
     it('mounts it on an ERRORED load too — the system fallback, not a blank app', () => {
       fonts.mockReturnValue([false, new Error('font asset missing')]);
       renderApp(<RootLayout />);
 
-      expect(layoutOf()({ children: scene })).toBe(scene);
+      expect(layoutOf()({ children: scene })).toEqual(
+        expect.objectContaining({ props: { children: scene } }),
+      );
     });
 
     it('opens the gate when the load settles mid-flight', () => {
@@ -225,7 +229,9 @@ describe('RootLayout', () => {
       fonts.mockReturnValue([true, null]);
       view.rerender(<RootLayout />);
 
-      expect(layoutOf()({ children: scene })).toBe(scene);
+      expect(layoutOf()({ children: scene })).toEqual(
+        expect.objectContaining({ props: { children: scene } }),
+      );
     });
   });
 

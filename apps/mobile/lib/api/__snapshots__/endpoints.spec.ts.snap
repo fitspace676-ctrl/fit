@@ -45,5 +45,6 @@ markNotificationsRead: POST /notifications/mark-read [notification:manage]
 registerPushToken: POST /notifications/push-token [notification:manage]
 unregisterPushToken: DELETE /notifications/push-token/:deviceId [notification:manage]
 listBanners: GET /banners [public]
+getMobileAppSettings: GET /gyms/by-subdomain/:slug/app-settings [public]
 getGymBySubdomain: GET /gyms/by-subdomain/:slug [public]"
 `;

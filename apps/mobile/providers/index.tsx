@@ -24,6 +24,7 @@ import { AUTH_GROUP, HOME_ROUTE, resolveRedirect } from '../lib/route-policy';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useSession } from '../hooks/useSession';
 import { bootThemePreference } from '../lib/theme-preference';
+import { AppFeaturesProvider } from './AppFeaturesProvider';
 import { I18nProvider } from './I18nProvider';
 import { ThemePreferenceProvider } from './ThemePreferenceProvider';
 
@@ -65,7 +66,9 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ThemePreferenceProvider>
         <QueryClientProvider client={queryClient}>
           <I18nProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <AppFeaturesProvider>{children}</AppFeaturesProvider>
+            </ToastProvider>
           </I18nProvider>
         </QueryClientProvider>
       </ThemePreferenceProvider>

@@ -64,6 +64,7 @@ import {
   useToast,
 } from '@fit/ui-mobile';
 
+import { AppFeature, useAppFeatures } from '../../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';
 import { HomeSection, sectionPhase } from '../../../components/home/section';
@@ -90,6 +91,7 @@ type OpenSheet = 'freeze' | 'plan' | 'credits' | null;
 export default function MembershipScreen() {
   const { t, locale } = useI18n();
   const router = useRouter();
+  const features = useAppFeatures();
   const queryClient = useQueryClient();
   const toast = useToast();
   const online = useIsOnline();
@@ -177,7 +179,7 @@ export default function MembershipScreen() {
               // No live plan ⇒ the only write available is enrolment. A live
               // plan ⇒ no primary button at all, because switching has no
               // member route (see the header).
-              hideManageAction={live}
+              hideManageAction={live || !features.billing}
               manageLabel={t('member.membership.choosePlan')}
               // D10: this screen is `member.membership`, Profile is
               // `member.profile.mobile`. Both sets exist; the component takes
@@ -284,13 +286,17 @@ export default function MembershipScreen() {
         <HomeSection
           testID="membership-credits"
           title={t('member.membership.credits.title')}
-          action={{
-            label: t('member.membership.credits.buyMore'),
-            onPress: () => {
-              setSheet('credits');
-            },
-            testID: 'membership-credits-buy',
-          }}
+          action={
+            features.billing
+              ? {
+                  label: t('member.membership.credits.buyMore'),
+                  onPress: () => {
+                    setSheet('credits');
+                  },
+                  testID: 'membership-credits-buy',
+                }
+              : undefined
+          }
           phase={creditsPhase}
           onRetry={() => {
             invalidate(queryKeys.creditPacks(scoped));
@@ -311,17 +317,19 @@ export default function MembershipScreen() {
         </HomeSection>
 
         {/* ── Invoices live on Billing ───────────────────────────────────── */}
-        <Surface tone="card" padVertical={1}>
-          <ListRow
-            icon="card"
-            title={t('member.membership.invoices')}
-            hint={t('billing.subtitle')}
-            onPress={() => {
-              router.push('/profile/billing');
-            }}
-            testID="membership-invoices-link"
-          />
-        </Surface>
+        <AppFeature name="billing">
+          <Surface tone="card" padVertical={1}>
+            <ListRow
+              icon="card"
+              title={t('member.membership.invoices')}
+              hint={t('billing.subtitle')}
+              onPress={() => {
+                router.push('/profile/billing');
+              }}
+              testID="membership-invoices-link"
+            />
+          </Surface>
+        </AppFeature>
       </View>
 
       <FreezeSheet
@@ -332,27 +340,31 @@ export default function MembershipScreen() {
         subscription={subscription}
         now={now}
       />
-      <PlanSheet
-        open={sheet === 'plan'}
-        onClose={() => {
-          setSheet(null);
-          // The chooser's own error branch closes the sheet rather than
-          // retrying in place — it holds no key of its own. Invalidating here
-          // is what makes reopening it a fresh read.
-          invalidate(queryKeys.catalogue(scoped));
-        }}
-        currentPlanName={subscription?.planName ?? null}
-      />
-      <CreditsSheet
-        open={sheet === 'credits'}
-        onClose={() => {
-          setSheet(null);
-          // Same reason as the chooser above: the sheet holds no key, so its
-          // error branch closes and the refresh happens here. A purchase has
-          // already invalidated both roots through the mutation matrix.
-          invalidate(queryKeys.packCatalogue(scoped));
-        }}
-      />
+      <AppFeature name="billing">
+        <PlanSheet
+          open={sheet === 'plan'}
+          onClose={() => {
+            setSheet(null);
+            // The chooser's own error branch closes the sheet rather than
+            // retrying in place — it holds no key of its own. Invalidating here
+            // is what makes reopening it a fresh read.
+            invalidate(queryKeys.catalogue(scoped));
+          }}
+          currentPlanName={subscription?.planName ?? null}
+        />
+      </AppFeature>
+      <AppFeature name="billing">
+        <CreditsSheet
+          open={sheet === 'credits'}
+          onClose={() => {
+            setSheet(null);
+            // Same reason as the chooser above: the sheet holds no key, so its
+            // error branch closes and the refresh happens here. A purchase has
+            // already invalidated both roots through the mutation matrix.
+            invalidate(queryKeys.packCatalogue(scoped));
+          }}
+        />
+      </AppFeature>
     </Screen>
   );
 }

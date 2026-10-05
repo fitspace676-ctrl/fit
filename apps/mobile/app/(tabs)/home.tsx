@@ -113,9 +113,15 @@ import {
   spacing,
 } from '@fit/ui-mobile';
 
+import { appPathVisible } from '../../lib/app-feature-policy';
+import { AppFeature, useAppFeatures } from '../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../components/auth/notices';
 import { useIsOnline } from '../../components/auth/use-online';
-import { HomeBannerSlider, type BannerTarget } from '../../components/home/banner-slider';
+import {
+  HomeBannerSlider,
+  bannerTarget,
+  type BannerTarget,
+} from '../../components/home/banner-slider';
 import {
   SERVICES_LIMIT,
   SHOP_RAIL_LIMIT,
@@ -228,7 +234,11 @@ export default function HomeScreen() {
    * drawn when there is something to draw and is absent otherwise. That is why
    * this query is not fed into a `sectionPhase` like the six sections are.
    */
-  const bannerSlides = banners.data?.banners ?? [];
+  const features = useAppFeatures();
+  const bannerSlides = (banners.data?.banners ?? []).filter((banner) => {
+    const target = bannerTarget(banner.linkUrl);
+    return target?.kind !== 'route' || appPathVisible(target.path, features);
+  });
 
   /**
    * Follow a slide.
@@ -302,15 +312,17 @@ export default function HomeScreen() {
             />
           }
           trailing={
-            <IconButton
-              icon="bell"
-              accessibilityLabel={t('member.profile.mobile.notificationsA11y')}
-              onPress={() => {
-                router.push('/profile/notifications');
-              }}
-              {...(unreadCount > 0 ? { badge: { count: unreadCount } } : {})}
-              testID="home-notifications"
-            />
+            <AppFeature name={'notifications'}>
+              <IconButton
+                icon="bell"
+                accessibilityLabel={t('member.profile.mobile.notificationsA11y')}
+                onPress={() => {
+                  router.push('/profile/notifications');
+                }}
+                {...(unreadCount > 0 ? { badge: { count: unreadCount } } : {})}
+                testID="home-notifications"
+              />
+            </AppFeature>
           }
         />
       }
@@ -329,88 +341,94 @@ export default function HomeScreen() {
         <HomeBannerSlider banners={bannerSlides} onPressBanner={openBanner} testID="home-banners" />
 
         {/* ── Membership ─────────────────────────────────────────────────── */}
-        <HomeSection
-          testID="home-membership"
-          phase={membershipPhase}
-          onRetry={() => {
-            invalidate(queryKeys.membership(scoped));
-          }}
-          skeleton={<Skeleton height={196} radius="page" />}
-        >
-          {membership.data === undefined ? null : (
-            <HomeMembershipCard
-              data={membership.data}
-              now={now}
-              coverUrl={coverUrl}
-              onManage={() => {
-                router.push('/profile/membership');
-              }}
-            />
-          )}
-        </HomeSection>
+        <AppFeature name={'membership'}>
+          <HomeSection
+            testID="home-membership"
+            phase={membershipPhase}
+            onRetry={() => {
+              invalidate(queryKeys.membership(scoped));
+            }}
+            skeleton={<Skeleton height={196} radius="page" />}
+          >
+            {membership.data === undefined ? null : (
+              <HomeMembershipCard
+                data={membership.data}
+                now={now}
+                coverUrl={coverUrl}
+                onManage={() => {
+                  router.push('/profile/membership');
+                }}
+              />
+            )}
+          </HomeSection>
+        </AppFeature>
 
         {/* ── Counters ───────────────────────────────────────────────────── */}
-        <HomeSection
-          testID="home-stat-strip"
-          phase={statsPhase}
-          onRetry={() => {
-            invalidate(queryKeys.bookings(scoped));
-            invalidate(queryKeys.creditPacks(scoped));
-          }}
-          skeleton={<Skeleton height={92} radius={26} />}
-        >
-          <HomeStatStrip upcomingCount={upcoming.length} credits={credits} />
-        </HomeSection>
+        <AppFeature name={['bookings', 'membership']}>
+          <HomeSection
+            testID="home-stat-strip"
+            phase={statsPhase}
+            onRetry={() => {
+              invalidate(queryKeys.bookings(scoped));
+              invalidate(queryKeys.creditPacks(scoped));
+            }}
+            skeleton={<Skeleton height={92} radius={26} />}
+          >
+            <HomeStatStrip upcomingCount={upcoming.length} credits={credits} />
+          </HomeSection>
+        </AppFeature>
 
         {/* ── Upcoming bookings ──────────────────────────────────────────── */}
         {/* Directly under the counters, and the ONLY class-booking surface on
             Home: a member opens this screen to see what they have booked, and
             discovering new classes is the classes tab's job — which is where
             both the section action and the empty state's CTA go. */}
-        <HomeSection
-          testID="home-upcoming"
-          title={t('member.home.upcomingBookings')}
-          action={{
-            label: t('member.home.myBookings'),
-            onPress: () => {
-              router.push('/profile/bookings');
-            },
-            testID: 'home-upcoming-all',
-          }}
-          phase={upcomingPhase}
-          onRetry={() => {
-            invalidate(queryKeys.bookings(scoped));
-          }}
-        >
-          {upcoming.length === 0 ? (
-            <EmptyState
-              testID="home-upcoming-empty"
-              icon="clock"
-              title={t('member.home.noClasses')}
-              action={{
-                label: t('member.home.browseClasses'),
-                onPress: () => {
-                  router.push('/classes');
-                },
-                variant: 'secondary',
-                testID: 'home-upcoming-browse',
-              }}
-            />
-          ) : (
-            <Surface tone="card" padVertical={1}>
-              {upcoming.slice(0, UPCOMING_LIMIT).map((entry) => (
-                <UpcomingBookingRow
-                  key={entry.bookingId}
-                  entry={entry}
-                  onPress={() => {
-                    router.push(`/classes/${entry.classInstance.id}`);
-                  }}
-                  testID={`home-booking-${entry.bookingId}`}
-                />
-              ))}
-            </Surface>
-          )}
-        </HomeSection>
+        <AppFeature name={['bookings', 'classes']}>
+          <HomeSection
+            testID="home-upcoming"
+            title={t('member.home.upcomingBookings')}
+            action={{
+              label: t('member.home.myBookings'),
+              onPress: () => {
+                router.push('/profile/bookings');
+              },
+              testID: 'home-upcoming-all',
+            }}
+            phase={upcomingPhase}
+            onRetry={() => {
+              invalidate(queryKeys.bookings(scoped));
+            }}
+          >
+            {upcoming.length === 0 ? (
+              <EmptyState
+                testID="home-upcoming-empty"
+                icon="clock"
+                title={t('member.home.noClasses')}
+                action={{
+                  label: t('member.home.browseClasses'),
+                  onPress: () => {
+                    router.push('/classes');
+                  },
+                  variant: 'secondary',
+                  testID: 'home-upcoming-browse',
+                }}
+              />
+            ) : (
+              <Surface tone="card" padVertical={1}>
+                {upcoming.slice(0, UPCOMING_LIMIT).map((entry) => (
+                  <UpcomingBookingRow
+                    key={entry.bookingId}
+                    entry={entry}
+                    onPress={() => {
+                      router.push(`/classes/${entry.classInstance.id}`);
+                    }}
+                    testID={`home-booking-${entry.bookingId}`}
+                  />
+                ))}
+              </Surface>
+            )}
+          </HomeSection>
+        </AppFeature>
 
         {/* ── Services ───────────────────────────────────────────────────── */}
         {/* A GYM WITH NO SERVICES GETS NO SECTION — not a heading over "no
@@ -426,52 +444,56 @@ export default function HomeScreen() {
         {servicesPhase === 'ready' &&
         nextSession === null &&
         (services.data?.services ?? []).length === 0 ? null : (
-          <HomeSection
-            testID="home-services"
-            title={t('member.home.services')}
-            action={{
-              label: t('member.home.viewServices'),
-              onPress: () => {
-                router.push('/services');
-              },
-              testID: 'home-services-all',
-            }}
-            phase={servicesPhase}
-            onRetry={() => {
-              invalidate(['services', scoped]);
-              invalidate(queryKeys.myServiceSessions(scoped).slice(0, 2));
-            }}
-          >
-            <View style={{ gap: spacing[2] }}>
-              {nextSession === null ? null : (
-                <NextSessionRow
-                  session={nextSession}
-                  onPress={() => {
-                    router.push('/profile/bookings');
-                  }}
-                  testID="home-next-session"
-                />
-              )}
+          <AppFeature name={'services'}>
+            <HomeSection
+              testID="home-services"
+              title={t('member.home.services')}
+              action={{
+                label: t('member.home.viewServices'),
+                onPress: () => {
+                  router.push('/services');
+                },
+                testID: 'home-services-all',
+              }}
+              phase={servicesPhase}
+              onRetry={() => {
+                invalidate(['services', scoped]);
+                invalidate(queryKeys.myServiceSessions(scoped).slice(0, 2));
+              }}
+            >
+              <View style={{ gap: spacing[2] }}>
+                {nextSession === null ? null : (
+                  <AppFeature name="bookings">
+                    <NextSessionRow
+                      session={nextSession}
+                      onPress={() => {
+                        router.push('/profile/bookings');
+                      }}
+                      testID="home-next-session"
+                    />
+                  </AppFeature>
+                )}
 
-              {/* Empty AND a booked session is a state the API allows — a
+                {/* Empty AND a booked session is a state the API allows — a
                   session survives its service being retired — so the list is
                   still guarded rather than assumed non-empty. */}
-              {(services.data?.services ?? []).length === 0 ? null : (
-                <Surface tone="card" padVertical={1}>
-                  {(services.data?.services ?? []).slice(0, SERVICES_LIMIT).map((service) => (
-                    <ServiceRow
-                      key={service.id}
-                      service={service}
-                      onPress={() => {
-                        router.push(`/services/${service.id}`);
-                      }}
-                      testID={`home-service-${service.id}`}
-                    />
-                  ))}
-                </Surface>
-              )}
-            </View>
-          </HomeSection>
+                {(services.data?.services ?? []).length === 0 ? null : (
+                  <Surface tone="card" padVertical={1}>
+                    {(services.data?.services ?? []).slice(0, SERVICES_LIMIT).map((service) => (
+                      <ServiceRow
+                        key={service.id}
+                        service={service}
+                        onPress={() => {
+                          router.push(`/services/${service.id}`);
+                        }}
+                        testID={`home-service-${service.id}`}
+                      />
+                    ))}
+                  </Surface>
+                )}
+              </View>
+            </HomeSection>
+          </AppFeature>
         )}
 
         {/* ── Trainers ───────────────────────────────────────────────────── */}
@@ -482,102 +504,110 @@ export default function HomeScreen() {
             relationship, so "your" was a claim the wire cannot support, and the
             plan's own §7 lists it. Tapping a row opens the coach's SHEET rather
             than navigating — see `components/home/rows.tsx`. */}
-        <HomeSection
-          testID="home-trainer"
-          title={t('member.home.trainers')}
-          phase={trainersPhase}
-          onRetry={() => {
-            invalidate(queryKeys.trainers(scoped));
-          }}
-          skeleton={<Skeleton height={84} radius={26} />}
-        >
-          {trainerRows.length === 0 ? (
-            <EmptyState
-              testID="home-trainer-empty"
-              icon="users"
-              title={t('member.trainers.empty.title')}
-            />
-          ) : (
-            <View style={{ gap: spacing[3] }}>
-              {trainerRows.map((trainer) => (
-                <TrainerRow
-                  key={trainer.id}
-                  trainer={trainer}
-                  // The noun is copy, the name is data. `PersonRow`'s pressable
-                  // shape requires the whole sentence — the row is one stop.
-                  accessibilityLabel={`${t('member.home.trainers')}, ${trainer.name}`}
+        <AppFeature name={'trainers'}>
+          <HomeSection
+            testID="home-trainer"
+            title={t('member.home.trainers')}
+            phase={trainersPhase}
+            onRetry={() => {
+              invalidate(queryKeys.trainers(scoped));
+            }}
+            skeleton={<Skeleton height={84} radius={26} />}
+          >
+            {trainerRows.length === 0 ? (
+              <EmptyState
+                testID="home-trainer-empty"
+                icon="users"
+                title={t('member.trainers.empty.title')}
+              />
+            ) : (
+              <View style={{ gap: spacing[3] }}>
+                {trainerRows.map((trainer) => (
+                  <TrainerRow
+                    key={trainer.id}
+                    trainer={trainer}
+                    // The noun is copy, the name is data. `PersonRow`'s pressable
+                    // shape requires the whole sentence — the row is one stop.
+                    accessibilityLabel={`${t('member.home.trainers')}, ${trainer.name}`}
+                    onPress={() => {
+                      setTrainerSheetId(trainer.id);
+                    }}
+                    testID={`home-trainer-${trainer.id}`}
+                  />
+                ))}
+
+                <Button
+                  label={t('member.home.viewAll')}
+                  variant="secondary"
+                  fullWidth
                   onPress={() => {
-                    setTrainerSheetId(trainer.id);
+                    router.push('/trainers');
                   }}
-                  testID={`home-trainer-${trainer.id}`}
+                  testID="home-trainer-all"
                 />
-              ))}
+              </View>
+            )}
+          </HomeSection>
+        </AppFeature>
+
+        {/* ── For your training ──────────────────────────────────────────── */}
+        <AppFeature name={'shop'}>
+          <HomeSection
+            testID="home-shop"
+            title={t('member.home.forTraining')}
+            phase={productsPhase}
+            onRetry={() => {
+              invalidate(['products', scoped]);
+            }}
+          >
+            <View style={{ gap: spacing[3] }}>
+              {/* The artboard's lime "−10%" chip. Copy, not a computed discount:
+                `member.home.membersGet` is a fixed marketing string and no
+                endpoint returns a member discount rate. */}
+              <View style={{ flexDirection: 'row' }}>
+                <Pill tone="accent" size="sm">
+                  {t('member.home.membersGet')}
+                </Pill>
+              </View>
+
+              {(products.data?.products ?? []).length === 0 ? (
+                <EmptyState
+                  testID="home-shop-empty"
+                  icon="bag"
+                  title={t('member.home.noProducts')}
+                />
+              ) : (
+                // A rail, not a stack: the section is a teaser for the shop, and
+                // side by side it costs one screen-height instead of four. The
+                // section already sits inside the screen gutter, so the rail adds
+                // no edge padding of its own — `edgePadding` defaults to the
+                // gutter and would double it.
+                <ScrollRail testID="home-shop-rail" edgePadding={0} gap={3}>
+                  {(products.data?.products ?? []).slice(0, SHOP_RAIL_LIMIT).map((product) => (
+                    <ShopRailRow
+                      key={product.id}
+                      product={product}
+                      onPress={() => {
+                        router.push(`/shop/product/${product.id}`);
+                      }}
+                      testID={`home-product-${product.id}`}
+                    />
+                  ))}
+                </ScrollRail>
+              )}
 
               <Button
-                label={t('member.home.viewAll')}
+                label={t('member.home.visitShop')}
                 variant="secondary"
                 fullWidth
                 onPress={() => {
-                  router.push('/trainers');
+                  router.push('/shop');
                 }}
-                testID="home-trainer-all"
+                testID="home-visit-shop"
               />
             </View>
-          )}
-        </HomeSection>
-
-        {/* ── For your training ──────────────────────────────────────────── */}
-        <HomeSection
-          testID="home-shop"
-          title={t('member.home.forTraining')}
-          phase={productsPhase}
-          onRetry={() => {
-            invalidate(['products', scoped]);
-          }}
-        >
-          <View style={{ gap: spacing[3] }}>
-            {/* The artboard's lime "−10%" chip. Copy, not a computed discount:
-                `member.home.membersGet` is a fixed marketing string and no
-                endpoint returns a member discount rate. */}
-            <View style={{ flexDirection: 'row' }}>
-              <Pill tone="accent" size="sm">
-                {t('member.home.membersGet')}
-              </Pill>
-            </View>
-
-            {(products.data?.products ?? []).length === 0 ? (
-              <EmptyState testID="home-shop-empty" icon="bag" title={t('member.home.noProducts')} />
-            ) : (
-              // A rail, not a stack: the section is a teaser for the shop, and
-              // side by side it costs one screen-height instead of four. The
-              // section already sits inside the screen gutter, so the rail adds
-              // no edge padding of its own — `edgePadding` defaults to the
-              // gutter and would double it.
-              <ScrollRail testID="home-shop-rail" edgePadding={0} gap={3}>
-                {(products.data?.products ?? []).slice(0, SHOP_RAIL_LIMIT).map((product) => (
-                  <ShopRailRow
-                    key={product.id}
-                    product={product}
-                    onPress={() => {
-                      router.push(`/shop/product/${product.id}`);
-                    }}
-                    testID={`home-product-${product.id}`}
-                  />
-                ))}
-              </ScrollRail>
-            )}
-
-            <Button
-              label={t('member.home.visitShop')}
-              variant="secondary"
-              fullWidth
-              onPress={() => {
-                router.push('/shop');
-              }}
-              testID="home-visit-shop"
-            />
-          </View>
-        </HomeSection>
+          </HomeSection>
+        </AppFeature>
       </View>
 
       {/*
