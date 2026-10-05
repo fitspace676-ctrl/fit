@@ -39,6 +39,12 @@ jest.mock('../../lib/auth/session', () => ({
   resolveGymSlug: () => mockResolveGymSlug(),
 }));
 
+let mockLoginImage: string | null = null;
+jest.mock('../../providers/AppFeaturesProvider', () => ({
+  ...jest.requireActual<Record<string, unknown>>('../../providers/AppFeaturesProvider'),
+  useAppLoginImage: () => mockLoginImage,
+}));
+
 /** A promise that never settles — the "request in flight" state. */
 function pending(): Promise<never> {
   return new Promise<never>(() => undefined);
@@ -53,6 +59,7 @@ function fillCredentials(): void {
 beforeEach(() => {
   jest.clearAllMocks();
   onlineManager.setOnline(true);
+  mockLoginImage = null;
 });
 
 afterEach(() => {
@@ -60,6 +67,36 @@ afterEach(() => {
 });
 
 describe('login screen', () => {
+  it('draws no hero when the gym has no sign-in photo', () => {
+    renderApp(<LoginScreen />);
+
+    expect(screen.queryByTestId('login-hero')).toBeNull();
+    expect(screen.getByTestId('login-header')).toBeTruthy();
+  });
+
+  it('draws the sign-in photo as a hero band above the unchanged form', () => {
+    mockLoginImage = 'https://pub-test.r2.dev/gym-a/logos/hero.jpg';
+    renderApp(<LoginScreen />);
+
+    expect(screen.getByTestId('login-hero-image').props.source).toEqual({
+      uri: 'https://pub-test.r2.dev/gym-a/logos/hero.jpg',
+    });
+    expect(screen.getByTestId('login-brand')).toBeTruthy();
+    expect(screen.getByTestId('login-email-input')).toBeTruthy();
+    expect(screen.getByTestId('login-submit')).toBeTruthy();
+    expect(screen.getAllByRole('header')).toHaveLength(1);
+  });
+
+  it('falls back to the plain screen when the photo fails to load', () => {
+    mockLoginImage = 'https://pub-test.r2.dev/gym-a/logos/broken.jpg';
+    renderApp(<LoginScreen />);
+
+    fireEvent(screen.getByTestId('login-hero-image'), 'error');
+
+    expect(screen.queryByTestId('login-hero')).toBeNull();
+    expect(screen.getByTestId('login-brand')).toBeTruthy();
+  });
+
   it('renders the form, with exactly one header', () => {
     renderApp(<LoginScreen />);
 

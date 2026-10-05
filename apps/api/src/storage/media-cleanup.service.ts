@@ -80,33 +80,44 @@ export class MediaCleanupService {
    * looser rule because it compares a *bucket key* against a stored URL.)
    */
   private async isStillReferenced(reference: string): Promise<boolean> {
-    const [products, trainers, locations, logos, portalImages, portalLogos, portalFavicons] =
-      await Promise.all([
-        this.prisma.client.product.count({ where: { images: { has: reference } } }),
-        this.prisma.client.trainer.count({ where: { photoUrl: reference } }),
-        this.prisma.client.location.count({ where: { photoUrl: reference } }),
-        this.prisma.client.gym.count({
-          where: { settings: { path: ['brand', 'logoUrl'], equals: reference } },
-        }),
-        // The portal's sign-in photograph shares the logo's upload prefix, so a gym
-        // that used one image as both would otherwise lose it the moment either side
-        // moved on: the exact case this whole re-check exists to prevent.
-        this.prisma.client.gym.count({
-          where: { settings: { path: ['memberPortal', 'loginImageUrl'], equals: reference } },
-        }),
-        // The portal WORDMARK, on that same prefix, and the sharpest version of the
-        // same case: a gym whose portal inherits `brand.logoUrl` holds one file
-        // under two settings paths, so replacing either would drop the other's
-        // image if only one path were counted.
-        this.prisma.client.gym.count({
-          where: { settings: { path: ['memberPortal', 'logoUrl'], equals: reference } },
-        }),
-        // The tab icon, on the same prefix. A gym may upload its logo file as the
-        // icon too, so this path has to count before either one is freed.
-        this.prisma.client.gym.count({
-          where: { settings: { path: ['memberPortal', 'faviconUrl'], equals: reference } },
-        }),
-      ]);
+    const [
+      products,
+      trainers,
+      locations,
+      logos,
+      portalImages,
+      portalLogos,
+      portalFavicons,
+      appLoginImages,
+    ] = await Promise.all([
+      this.prisma.client.product.count({ where: { images: { has: reference } } }),
+      this.prisma.client.trainer.count({ where: { photoUrl: reference } }),
+      this.prisma.client.location.count({ where: { photoUrl: reference } }),
+      this.prisma.client.gym.count({
+        where: { settings: { path: ['brand', 'logoUrl'], equals: reference } },
+      }),
+      // The portal's sign-in photograph shares the logo's upload prefix, so a gym
+      // that used one image as both would otherwise lose it the moment either side
+      // moved on: the exact case this whole re-check exists to prevent.
+      this.prisma.client.gym.count({
+        where: { settings: { path: ['memberPortal', 'loginImageUrl'], equals: reference } },
+      }),
+      // The portal WORDMARK, on that same prefix, and the sharpest version of the
+      // same case: a gym whose portal inherits `brand.logoUrl` holds one file
+      // under two settings paths, so replacing either would drop the other's
+      // image if only one path were counted.
+      this.prisma.client.gym.count({
+        where: { settings: { path: ['memberPortal', 'logoUrl'], equals: reference } },
+      }),
+      // The tab icon, on the same prefix. A gym may upload its logo file as the
+      // icon too, so this path has to count before either one is freed.
+      this.prisma.client.gym.count({
+        where: { settings: { path: ['memberPortal', 'faviconUrl'], equals: reference } },
+      }),
+      // The mobile app's sign-in photo, on the same prefix. It may be the very
+      // file the portal shows, so neither side may free it while the other holds it.
+      this.prisma.client.gym.count({ where: { mobileAppLoginImageUrl: reference } }),
+    ]);
 
     return (
       products > 0 ||
@@ -115,7 +126,8 @@ export class MediaCleanupService {
       logos > 0 ||
       portalImages > 0 ||
       portalLogos > 0 ||
-      portalFavicons > 0
+      portalFavicons > 0 ||
+      appLoginImages > 0
     );
   }
 }

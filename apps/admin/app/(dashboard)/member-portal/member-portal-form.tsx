@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -18,7 +18,11 @@ import {
 import { Button, Card } from '@fit/ui-kit';
 import { Form, Icon, useFormContext, useToast, useWatch, useZodForm } from '@/components/ui';
 import { AccentColorField } from '@/components/accent-color-field';
-import type { SignedUploadResponse } from '@/lib/api';
+import {
+  MAX_PHOTO_UPLOAD_BYTES,
+  PHOTO_UPLOAD_TYPES,
+  useImageUpload as useSharedImageUpload,
+} from '@/components/use-image-upload';
 import {
   finalizePortalFaviconAction,
   finalizePortalImageAction,
@@ -26,7 +30,6 @@ import {
   requestPortalImageUploadAction,
   requestPortalLogoUploadAction,
   updateMemberPortalAction,
-  type ActionResult,
 } from './actions';
 import {
   JoinCardField,
@@ -70,10 +73,10 @@ const WORDMARK_ON_LIGHT = `${BASE_PATH}/logolight.png`;
  * this image is only ever rendered by a browser, so WebP — the format the
  * bundled default itself is in — is allowed.
  */
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ACCEPTED_IMAGE_TYPES = PHOTO_UPLOAD_TYPES;
 
 /** Client-side size ceiling (bytes) — a friendly guard before the signed PUT. */
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_BYTES = MAX_PHOTO_UPLOAD_BYTES;
 
 /**
  * Accepted wordmark MIME types — the photograph's list, and for the same reason:
@@ -856,172 +859,14 @@ export function MemberPortalForm({
   );
 }
 
-/** The translated strings {@link useImageUpload} needs to report a rejected file. */
-interface ImageUploadMessages {
-  /** The file is not one of the accepted MIME types. */
-  errorType: string;
-  /** The file is over the ceiling. */
-  errorSize: string;
-  /** The signed `PUT` came back non-2xx — takes the HTTP status. */
-  errorUpload: (status: number) => string;
-  /** Anything threw: offline, DNS, a blocked request. */
-  errorNetwork: string;
-}
-
 /**
- * The presign → `PUT` → finalise flow, plus the drag-and-drop that feeds it.
- *
- * SHARED BY BOTH UPLOADS ON THIS SCREEN, not duplicated per control. The two are
- * the same machine pointed at different settings fields: same three steps, same
- * two gates, same drop behaviour, same error surface — and the parts that are
- * genuinely fiddly (the `relatedTarget` containment below, resetting the input so
- * re-picking the same file re-fires `change`) are exactly the parts that rot when
- * they exist twice. What differs is the accepted formats, the ceiling and which
- * field the resulting URL lands in, so those are the arguments.
- *
- * The three steps are unchanged from the brand logo's: mint a presigned R2 URL
- * (`POST /uploads`), `PUT` the bytes straight there from the browser, then hand
- * the object key to a server action that checks it belongs to this gym and turns
- * it into a public URL (`POST /gyms/settings/portal-image` or `.../portal-logo`).
- * Only that last step needs a server, which is why it is the only one that is an
- * action rather than a `fetch`.
+ * The shared presign → `PUT` → finalise flow (`@/components/use-image-upload`),
+ * held while this form is saving. Every upload on this screen resolves to the
+ * stored public URL, which is then written into the form.
  */
-function useImageUpload({
-  accept,
-  maxBytes,
-  messages,
-  presign,
-  finalize,
-  onUploaded,
-}: {
-  /** Accepted MIME types — both the `accept` attribute and the client-side gate. */
-  accept: readonly string[];
-  /** Client-side size ceiling in bytes, checked before anything is signed. */
-  maxBytes: number;
-  messages: ImageUploadMessages;
-  presign: (input: {
-    contentType: string;
-    contentLength: number;
-    fileName?: string;
-  }) => Promise<ActionResult<SignedUploadResponse>>;
-  /** Finalise the uploaded key, resolving to the stored public URL. */
-  finalize: (photoKey: string) => Promise<ActionResult<string>>;
-  /** Write the finalised URL into the form. */
-  onUploaded: (url: string) => void;
-}) {
+function useImageUpload(options: Omit<Parameters<typeof useSharedImageUpload<string>>[0], 'busy'>) {
   const { formState } = useFormContext<MemberPortalFormValues>();
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const disabled = uploading || formState.isSubmitting;
-
-  // Clearing the input is what lets the same file be picked twice: without it the
-  // second pick sets an identical value and `change` never fires.
-  function resetFileInput(): void {
-    if (inputRef.current) inputRef.current.value = '';
-  }
-
-  /**
-   * Validate one file and put it on R2. Shared by the picker and the drop zone so
-   * a dropped file cannot take a shorter route than a chosen one — same type and
-   * size gates, same presign/PUT/finalise, same error surface.
-   */
-  async function upload(file: File): Promise<void> {
-    setUploadError(null);
-
-    if (!accept.includes(file.type)) {
-      setUploadError(messages.errorType);
-      resetFileInput();
-      return;
-    }
-    if (file.size > maxBytes) {
-      setUploadError(messages.errorSize);
-      resetFileInput();
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const signed = await presign({
-        contentType: file.type,
-        contentLength: file.size,
-        fileName: file.name,
-      });
-      if (!signed.ok) {
-        setUploadError(signed.error);
-        return;
-      }
-      const put = await fetch(signed.data.url, {
-        method: 'PUT',
-        headers: { 'content-type': signed.data.contentType },
-        body: file,
-      });
-      if (!put.ok) {
-        setUploadError(messages.errorUpload(put.status));
-        return;
-      }
-      const finalized = await finalize(signed.data.key);
-      if (!finalized.ok) {
-        setUploadError(finalized.error);
-        return;
-      }
-      onUploaded(finalized.data);
-    } catch {
-      setUploadError(messages.errorNetwork);
-    } finally {
-      setUploading(false);
-      resetFileInput();
-    }
-  }
-
-  function onInputChange(event: React.ChangeEvent<HTMLInputElement>): void {
-    const file = event.target.files?.[0];
-    if (file) void upload(file);
-  }
-
-  /** Spread onto the block that answers a drop — the whole control, not the thumbnail. */
-  const dropHandlers = {
-    onDragEnter(event: React.DragEvent<HTMLDivElement>): void {
-      if (disabled || !event.dataTransfer.types.includes('Files')) return;
-      event.preventDefault();
-      setDragging(true);
-    },
-    onDragOver(event: React.DragEvent<HTMLDivElement>): void {
-      if (disabled || !event.dataTransfer.types.includes('Files')) return;
-      // Without this the browser navigates to the dropped file and the drop event
-      // never reaches React at all.
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'copy';
-    },
-    /**
-     * `dragleave` also fires each time the pointer crosses onto a CHILD of the
-     * zone — the thumbnail, the button, the hint — so it cannot be taken at face
-     * value or the highlight flickers off while the file is still over the block.
-     *
-     * `relatedTarget` is what it is entering. Inside the zone → ignore; outside,
-     * or `null` because the drag left the window entirely, → clear. Counting
-     * enter/leave pairs instead would be one dropped event away from a highlight
-     * that never goes out.
-     */
-    onDragLeave(event: React.DragEvent<HTMLDivElement>): void {
-      const entering = event.relatedTarget;
-      if (entering instanceof Node && event.currentTarget.contains(entering)) return;
-      setDragging(false);
-    },
-    onDrop(event: React.DragEvent<HTMLDivElement>): void {
-      event.preventDefault();
-      setDragging(false);
-      if (disabled) return;
-      // Only the first file: this is one image, and silently uploading the last
-      // of five dropped ones would be a coin toss the user did not call.
-      const file = event.dataTransfer.files?.[0];
-      if (file) void upload(file);
-    },
-  };
-
-  return { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers };
+  return useSharedImageUpload<string>({ ...options, busy: formState.isSubmitting });
 }
 
 /**

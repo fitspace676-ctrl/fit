@@ -427,6 +427,9 @@ model Gym {
   mobileAppEnabled Boolean @default(false)
   /// Optional mobile feature visibility, defaulted by resolveMobileAppFeatures.
   mobileAppFeatures Json @default("{}")
+  /// The mobile app's own sign-in photograph (R2 public URL under `{gymId}/logos/`).
+  /// Null inherits `settings.memberPortal.loginImageUrl`; see resolveMobileAppLoginImage.
+  mobileAppLoginImageUrl String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
