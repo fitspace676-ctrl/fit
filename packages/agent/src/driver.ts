@@ -113,6 +113,34 @@ export function toStructured(output: string): Record<string, unknown> {
 }
 
 /**
+ * Whether a tool only reads (`readOnlyHint: true` in its MCP annotations) or may
+ * change data. A tool without annotations counts as a write — it is gated.
+ */
+export type AgentToolKind = 'read' | 'write';
+
+/** Lifecycle of one tool call as the chat UI shows it. */
+export type AgentToolStatus = 'running' | 'complete' | 'error' | 'awaiting_approval' | 'rejected';
+
+/**
+ * The operator's decision on one write call the agent paused on. The UI echoes
+ * the `call` back exactly as the `awaiting_approval` event carried it —
+ * `signature` included, since Gemini refuses a replayed call without it.
+ */
+export interface AgentApproval {
+  call: AgentToolCall;
+  decision: 'approve' | 'reject';
+}
+
+/** Stable short codes for a failed turn; the provider's raw message stays in the log. */
+export type AgentErrorCode =
+  | 'agent_not_configured'
+  | 'provider_error'
+  | 'rate_limited'
+  | 'invalid_request'
+  | 'unknown_tool'
+  | 'agent_failed';
+
+/**
  * One NDJSON event the agent streams to the chat UI. This is the wire protocol
  * shared with the admin client's parser (components/agent/types.ts) — keep the
  * two shapes in sync.
@@ -123,9 +151,16 @@ export type AgentStreamEvent =
       t: 'tool';
       id: string;
       name: string;
-      status: 'pending' | 'running' | 'complete' | 'error';
+      title?: string;
+      kind: AgentToolKind;
+      destructive?: boolean;
+      status: AgentToolStatus;
       target?: string;
+      input?: Record<string, unknown>;
+      signature?: string;
+      resultSummary?: string;
       errorMessage?: string;
+      durationMs?: number;
     }
-  | { t: 'error'; message: string }
+  | { t: 'error'; message: string; code?: AgentErrorCode }
   | { t: 'done' };

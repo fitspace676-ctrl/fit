@@ -1,6 +1,6 @@
 // @fit/mcp-server — standalone HTTP host for the Fit MCP server.
 //
-// Serves the same 91-tool Fit MCP (from @fit/mcp) over the MCP Streamable HTTP
+// Serves the same tenant-scoped Fit MCP (from @fit/mcp) over the MCP Streamable HTTP
 // transport so external clients (Claude Desktop, the Messages-API MCP connector,
 // other LLMs) can reach it. Auth is a bearer token: the client sends the
 // operator's fit access token as `Authorization: Bearer <token>`, and every tool

@@ -11,13 +11,16 @@
     "build": "echo '[@fit/mcp] build: nothing to do yet'",
     "lint": "eslint . --max-warnings 0",
     "type-check": "tsc --noEmit",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "@fit/types": "workspace:*"
   },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "vitest": "^3.0.0"
   }
 }

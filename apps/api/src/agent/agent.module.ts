@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AgentChatController } from './agent-chat.controller';
+import { AgentContextService } from './agent-context.service';
 import { AgentSessionsController } from './agent-sessions.controller';
 import { AgentSessionsService } from './agent-sessions.service';
 
@@ -17,6 +18,6 @@ import { AgentSessionsService } from './agent-sessions.service';
  */
 @Module({
   controllers: [AgentChatController, AgentSessionsController],
-  providers: [AgentSessionsService],
+  providers: [AgentSessionsService, AgentContextService],
 })
 export class AgentModule {}
