@@ -1,4 +1,3 @@
-import { AppFeature } from '../../providers/AppFeaturesProvider';
 // The member's own bookings — the list, the counters, the cancel, the review.
 //
 // ===========================================================================
@@ -94,6 +93,7 @@ import {
   useToast,
 } from '@fit/ui-mobile';
 
+import { AppFeature } from '../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../auth/notices';
 import { useIsOnline } from '../auth/use-online';
 import { bookingErrorKey } from './booking-errors';

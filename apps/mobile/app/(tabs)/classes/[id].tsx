@@ -1,4 +1,3 @@
-import { AppFeature } from '../../../providers/AppFeaturesProvider';
 // Class detail. `mobile-class-detail.tsx`, on `GET /class-instances/:id`.
 //
 // ===========================================================================
@@ -88,6 +87,7 @@ import {
   type ClassCardStatus,
 } from '@fit/ui-mobile';
 
+import { AppFeature } from '../../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';
 import { BookingFailureNotice } from '../../../components/classes/booking-notice';

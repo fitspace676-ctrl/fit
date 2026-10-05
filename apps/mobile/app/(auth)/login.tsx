@@ -1,4 +1,3 @@
-import { AppFeature } from '../../providers/AppFeaturesProvider';
 // Sign in — email + password.
 //
 // ## This screen does not navigate
@@ -35,6 +34,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View, type TextInput } from 'react-native';
 
+import { AppFeature } from '../../providers/AppFeaturesProvider';
 import { AuthScreen } from '../../components/auth/auth-screen';
 import { authErrorKey } from '../../components/auth/auth-error';
 import { AuthField } from '../../components/auth/field';

@@ -1,4 +1,3 @@
-import { AppFeature } from '../../../providers/AppFeaturesProvider';
 // Profile — the whole account surface, on one screen.
 //
 // ===========================================================================
@@ -103,6 +102,7 @@ import {
 } from '@fit/ui-mobile';
 import type { Locale } from '@fit/i18n';
 
+import { AppFeature } from '../../../providers/AppFeaturesProvider';
 import appJson from '../../../app.json';
 import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';

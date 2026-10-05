@@ -1,5 +1,3 @@
-import { appPathVisible } from '../../lib/app-feature-policy';
-import { AppFeature, useAppFeatures } from '../../providers/AppFeaturesProvider';
 // Home — `mobile-home-v2.tsx`, on real data. Built LAST, on purpose.
 //
 // ===========================================================================
@@ -115,6 +113,8 @@ import {
   spacing,
 } from '@fit/ui-mobile';
 
+import { appPathVisible } from '../../lib/app-feature-policy';
+import { AppFeature, useAppFeatures } from '../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../components/auth/notices';
 import { useIsOnline } from '../../components/auth/use-online';
 import {

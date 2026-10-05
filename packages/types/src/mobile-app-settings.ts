@@ -42,6 +42,6 @@ export interface MobileAppSettings {
 }
 /** Legacy rows start with all features visible; malformed values never escape the API. */
 export function resolveMobileAppFeatures(raw: unknown): MobileAppFeatures {
-  const stored = mobileAppFeaturesSchema.partial().parse(raw ?? {});
-  return { ...DEFAULT_MOBILE_APP_FEATURES, ...stored };
+  const stored = mobileAppFeaturesSchema.partial().safeParse(raw ?? {});
+  return { ...DEFAULT_MOBILE_APP_FEATURES, ...(stored.success ? stored.data : {}) };
 }

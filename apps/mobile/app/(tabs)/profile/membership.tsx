@@ -1,4 +1,3 @@
-import { AppFeature, useAppFeatures } from '../../../providers/AppFeaturesProvider';
 // `/profile/membership` — the plan, the period, the freeze, the facts.
 //
 // ===========================================================================
@@ -65,6 +64,7 @@ import {
   useToast,
 } from '@fit/ui-mobile';
 
+import { AppFeature, useAppFeatures } from '../../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';
 import { HomeSection, sectionPhase } from '../../../components/home/section';

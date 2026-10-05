@@ -1,4 +1,3 @@
-import { memberMessages as localeMessages } from '@fit/i18n/member';
 // Home — six sections, six branch sets, and one test with teeth.
 //
 // ===========================================================================
@@ -42,6 +41,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { onlineManager } from '@tanstack/react-query';
 import { fireEvent, waitFor } from '@testing-library/react-native';
+import { memberMessages as localeMessages } from '@fit/i18n/member';
 import type {
   ClassInstanceCard,
   GetMeSubscriptionResponse,

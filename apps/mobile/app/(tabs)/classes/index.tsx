@@ -1,4 +1,3 @@
-import { AppFeature, useAppFeatures } from '../../../providers/AppFeaturesProvider';
 // Classes — the schedule. `mobile-classes.tsx`, on real data.
 //
 // ===========================================================================
@@ -115,6 +114,7 @@ import {
   useThemeColors,
 } from '@fit/ui-mobile';
 
+import { AppFeature, useAppFeatures } from '../../../providers/AppFeaturesProvider';
 import { BookingFailureNotice } from '../../../components/classes/booking-notice';
 import { ClassBookingSheet } from '../../../components/classes/booking-sheet';
 import { ClassListCard } from '../../../components/classes/class-list-card';

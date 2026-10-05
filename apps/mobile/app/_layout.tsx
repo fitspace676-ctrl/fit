@@ -5,12 +5,12 @@
 // every `className` on the tree below silently resolves to nothing.
 import '../global.css';
 
-import { AppFeatureScreen } from '../providers/AppFeaturesProvider';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, type ReactElement } from 'react';
 
 import { AppProviders, RouteGuard, useAppBootstrap } from '../providers';
+import { AppFeatureScreen } from '../providers/AppFeaturesProvider';
 
 // Called at module scope, before the first render, because by the time an effect
 // runs the splash has already auto-hidden and the launch flash has happened. It

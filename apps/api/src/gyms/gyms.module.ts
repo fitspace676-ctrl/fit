@@ -1,5 +1,3 @@
-import { MobileAppSettingsController } from './mobile-app-settings.controller';
-import { MobileAppSettingsService } from './mobile-app-settings.service';
 import { Module } from '@nestjs/common';
 import { GymLocaleService } from './gym-locale.service';
 import { GymMemberIntakeService } from './gym-member-intake.service';
@@ -7,6 +5,8 @@ import { GymSettingsController } from './gym-settings.controller';
 import { GymSettingsService } from './gym-settings.service';
 import { GymsController } from './gyms.controller';
 import { GymsService } from './gyms.service';
+import { MobileAppSettingsController } from './mobile-app-settings.controller';
+import { MobileAppSettingsService } from './mobile-app-settings.service';
 
 /**
  * Gyms: platform-wide tenant management (`GET /gyms`) plus the staff console's

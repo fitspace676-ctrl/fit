@@ -1,4 +1,3 @@
-import { AppFeature } from '../../../providers/AppFeaturesProvider';
 // Cart — the server-side cart, and the one screen in this app that takes money.
 //
 // ===========================================================================
@@ -94,6 +93,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
+import { AppFeature } from '../../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';
 import { CartLine } from '../../../components/shop/cart-line';

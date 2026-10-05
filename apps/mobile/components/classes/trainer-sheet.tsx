@@ -1,4 +1,3 @@
-import { AppFeature, useAppFeatures } from '../../providers/AppFeaturesProvider';
 // @fit/mobile — a trainer's WHOLE profile, in a bottom sheet.
 //
 // ===========================================================================
@@ -80,6 +79,7 @@ import {
   spacing,
 } from '@fit/ui-mobile';
 
+import { AppFeature, useAppFeatures } from '../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../auth/notices';
 import { useIsOnline } from '../auth/use-online';
 import { sectionPhase, type SectionPhase } from '../home/section';
