@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Redirect, usePathname } from 'expo-router';
 import {
@@ -8,6 +8,7 @@ import {
   type MobileAppFeatures,
 } from '@fit/types';
 import { getMobileAppSettings } from '../lib/api/app-settings';
+import { rememberAppAccent } from '../lib/app-accent';
 import { resolveGymSlug } from '../lib/auth/session';
 import { useSession } from '../hooks/useSession';
 import { appFeaturesForPath, appPathVisible } from '../lib/app-feature-policy';
@@ -38,6 +39,16 @@ export function AppFeaturesProvider({ children }: { children: ReactNode }) {
   const features = settings.data?.enabled ? settings.data.features : HIDDEN_FEATURES;
   // Already resolved API-side: the app's own photo, else the member portal's.
   const loginImageUrl = settings.data?.enabled ? (settings.data.loginImageUrl ?? null) : null;
+  // The accent rides the same read. Only a successful answer moves it: a failed
+  // or offline read keeps the colour remembered from the last one.
+  const primaryColor = settings.data
+    ? settings.data.enabled
+      ? (settings.data.primaryColor ?? null)
+      : null
+    : undefined;
+  useEffect(() => {
+    if (slug && primaryColor !== undefined) void rememberAppAccent(slug, primaryColor);
+  }, [slug, primaryColor]);
   return (
     <AppFeaturesContext.Provider
       value={{ features, ready: !slug || !settings.isPending, loginImageUrl }}

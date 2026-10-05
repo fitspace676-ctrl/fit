@@ -16,15 +16,33 @@ const SELECT = {
   mobileAppEnabled: true,
   mobileAppFeatures: true,
   mobileAppLoginImageUrl: true,
+  mobileAppPrimaryColor: true,
   settings: true,
 };
+const NO_COLOR = {
+  primaryColor: null,
+  primaryColorSource: null,
+  inheritedPrimaryColor: null,
+  inheritedPrimaryColorSource: null,
+  onPrimaryColor: null,
+};
 
-function setup(enabled = true, own: string | null = null, portal: string | null = null) {
+function setup(
+  enabled = true,
+  own: string | null = null,
+  portal: string | null = null,
+  colors: { app?: string | null; portal?: string; brand?: string } = {},
+) {
   const findUnique = vi.fn().mockResolvedValue({
     mobileAppEnabled: enabled,
     mobileAppFeatures: { shop: false },
     mobileAppLoginImageUrl: own,
-    settings: { memberPortal: { loginImageUrl: portal }, payments: { secret: 'x' } },
+    mobileAppPrimaryColor: colors.app ?? null,
+    settings: {
+      memberPortal: { loginImageUrl: portal, primaryColor: colors.portal },
+      brand: { primaryColor: colors.brand },
+      payments: { secret: 'x' },
+    },
   });
   const update = vi.fn().mockResolvedValue({});
   const discardUnreferenced = vi.fn().mockResolvedValue(undefined);
@@ -60,6 +78,7 @@ describe('mobile app settings isolation', () => {
       features,
       loginImageUrl: null,
       loginImageSource: null,
+      ...NO_COLOR,
     });
     expect(ctx.update).toHaveBeenCalledWith({
       where: { id: 'gym-a', mobileAppEnabled: true },
@@ -89,6 +108,7 @@ describe('mobile app settings isolation', () => {
       features: { ...DEFAULT_MOBILE_APP_FEATURES, shop: false },
       loginImageUrl: null,
       loginImageSource: null,
+      ...NO_COLOR,
     });
     expect(ctx.findUnique).toHaveBeenCalledWith({
       where: { slug: 'downtown', status: 'ACTIVE' },
@@ -162,6 +182,58 @@ describe('mobile app settings isolation', () => {
       data: { mobileAppLoginImageUrl: null },
     });
     expect(ctx.discardUnreferenced).toHaveBeenCalledWith('gym-a', [own], [null]);
+  });
+  it('resolves the app colour: its own, then the portal, then a brand the gym set', async () => {
+    const own = await setup(true, null, null, {
+      app: '#facc15',
+      portal: '#e548c8',
+      brand: '#0f766e',
+    }).controller.bySlug('downtown');
+    expect(own).toMatchObject({
+      primaryColor: '#facc15',
+      primaryColorSource: 'app',
+      inheritedPrimaryColor: '#e548c8',
+      onPrimaryColor: '#131312',
+    });
+    expect(
+      await setup(true, null, null, { portal: '#e548c8', brand: '#0f766e' }).service.get(),
+    ).toMatchObject({ primaryColor: '#e548c8', primaryColorSource: 'portal' });
+    expect(await setup(true, null, null, { brand: '#0f766e' }).service.get()).toMatchObject({
+      primaryColor: '#0f766e',
+      primaryColorSource: 'brand',
+      onPrimaryColor: '#FFFFFF',
+    });
+    // The schema's default brand colour was never a choice for this surface.
+    expect(await setup(true, null, null, { brand: '#4F46E5' }).service.get()).toMatchObject(
+      NO_COLOR,
+    );
+    // No app, no colour — even one the gym once saved.
+    expect(await setup(false, null, null, { app: '#facc15' }).service.get()).toMatchObject(
+      NO_COLOR,
+    );
+  });
+  it('saves the colour alone for the session tenant, and clears it back to the portal', async () => {
+    const ctx = setup(true, null, null, { portal: '#e548c8' });
+    expect(await ctx.controller.update({ primaryColor: '#1e3a8a' })).toMatchObject({
+      primaryColor: '#1e3a8a',
+      primaryColorSource: 'app',
+      onPrimaryColor: '#FFFFFF',
+      features: { ...DEFAULT_MOBILE_APP_FEATURES, shop: false },
+    });
+    expect(ctx.update).toHaveBeenCalledWith({
+      where: { id: 'gym-a', mobileAppEnabled: true },
+      data: { mobileAppPrimaryColor: '#1e3a8a' },
+    });
+    expect(await ctx.controller.update({ primaryColor: null })).toMatchObject({
+      primaryColor: '#e548c8',
+      primaryColorSource: 'portal',
+    });
+    for (const body of [{}, { primaryColor: 'red' }, { primaryColor: '#1e3a8a', gymId: 'gym-b' }]) {
+      expect(() => ctx.controller.update(body)).toThrow(BadRequestException);
+    }
+    await expect(setup(false).service.update({ primaryColor: '#1e3a8a' })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
   it('requires GymManage on every staff endpoint', () => {
     for (const method of ['get', 'update', 'setLoginImage', 'clearLoginImage'] as const) {

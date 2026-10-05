@@ -77,6 +77,7 @@ export {
   useTheme,
   useThemeColors,
   type Theme,
+  type ThemeAccent,
   type ThemeProviderProps,
   type ThemeScheme,
 } from './theme';

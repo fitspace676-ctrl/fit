@@ -40,7 +40,8 @@
 // where `Appearance.setColorScheme` is not implemented, and a hard call there
 // would take the whole tree down over a cosmetic sync.
 
-import { ThemeProvider } from '@fit/ui-mobile';
+import { mobileAccentPalette } from '@fit/types';
+import { ThemeProvider, type ThemeAccent } from '@fit/ui-mobile';
 import { Appearance } from 'react-native';
 import {
   createContext,
@@ -50,8 +51,13 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
+
+import { appAccentFor, getAppAccent, subscribeAppAccent } from '../lib/app-accent';
+import { resolveGymSlug } from '../lib/auth/session';
+import { useSession } from '../hooks/useSession';
 
 import {
   bootThemePreference,
@@ -85,12 +91,26 @@ export interface ThemePreferenceProviderProps {
   initialPreference?: ThemePreference;
 }
 
-/** Owns the appearance choice and hands the kit's `ThemeProvider` its scheme. */
+/**
+ * The gym's accent for the kit's theme: the colour `AppFeaturesProvider` last
+ * received with the app settings (or, before that, remembered from the previous
+ * launch), for this gym's slug only. `null` keeps the built-in accent.
+ */
+function useGymAccent(): ThemeAccent | null {
+  // Re-render when hydration resolves the remembered slug, as AppFeaturesProvider does.
+  useSession();
+  const stored = useSyncExternalStore(subscribeAppAccent, getAppAccent, getAppAccent);
+  const color = appAccentFor(stored, resolveGymSlug());
+  return useMemo(() => mobileAccentPalette(color), [color]);
+}
+
+/** Owns the appearance choice and hands the kit's `ThemeProvider` its scheme and accent. */
 export function ThemePreferenceProvider({
   children,
   initialPreference = defaultThemePreference,
 }: ThemePreferenceProviderProps) {
   const [preference, setPreferenceState] = useState<ThemePreference>(initialPreference);
+  const accent = useGymAccent();
 
   // Set the instant the user picks a mode, and never unset. A ref, not state:
   // the hydration callback has to read the value at the moment it resolves, and
@@ -140,7 +160,9 @@ export function ThemePreferenceProvider({
     <ThemePreferenceContext.Provider value={value}>
       {/* Never `"system"`. The preference IS the answer, and letting the OS in
           behind it would mean the switch says one thing and the phone another. */}
-      <ThemeProvider scheme={preference}>{children}</ThemeProvider>
+      <ThemeProvider scheme={preference} accent={accent}>
+        {children}
+      </ThemeProvider>
     </ThemePreferenceContext.Provider>
   );
 }
