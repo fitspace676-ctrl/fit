@@ -8,6 +8,7 @@ import {
 import {
   resolveMobileAppFeatures,
   resolveMobileAppLoginImage,
+  resolveMobileAppPrimaryColor,
   type MobileAppSettings,
   type UpdateMobileAppSettingsInput,
   type UploadMobileAppLoginImageInput,
@@ -17,12 +18,14 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
 import { StorageService } from '../storage/storage.service';
 
-// `settings` is read for one field only: the member portal's sign-in photo the
-// app falls back to. The blob itself never leaves this service.
+// `settings` is read for the fields the app falls back to: the member portal's
+// sign-in photo and its colour, then the brand colour. The blob itself never
+// leaves this service.
 const select = {
   mobileAppEnabled: true,
   mobileAppFeatures: true,
   mobileAppLoginImageUrl: true,
+  mobileAppPrimaryColor: true,
   settings: true,
 } as const;
 
@@ -30,6 +33,7 @@ interface GymRow {
   mobileAppEnabled: boolean;
   mobileAppFeatures: unknown;
   mobileAppLoginImageUrl: string | null;
+  mobileAppPrimaryColor: string | null;
   settings: unknown;
 }
 
@@ -40,6 +44,7 @@ function toSettings(gym: GymRow): MobileAppSettings {
     enabled: gym.mobileAppEnabled,
     features: resolveMobileAppFeatures(gym.mobileAppFeatures),
     ...resolveMobileAppLoginImage(gym.mobileAppEnabled, gym.mobileAppLoginImageUrl, portal),
+    ...resolveMobileAppPrimaryColor(gym.mobileAppEnabled, gym.mobileAppPrimaryColor, gym.settings),
   };
 }
 
@@ -58,13 +63,17 @@ export class MobileAppSettingsService {
 
   async update(input: UpdateMobileAppSettingsInput): Promise<MobileAppSettings> {
     // Gym is the tenant root: pin both the read and write explicitly to the verified session.
-    const current = await this.get();
-    if (!current.enabled) throw new ForbiddenException('MOBILE_APP_NOT_ENABLED');
+    const gym = await this.loadOwnGym();
+    if (!gym.mobileAppEnabled) throw new ForbiddenException('MOBILE_APP_NOT_ENABLED');
+    const data = {
+      ...(input.features !== undefined ? { mobileAppFeatures: input.features } : {}),
+      ...(input.primaryColor !== undefined ? { mobileAppPrimaryColor: input.primaryColor } : {}),
+    };
     await this.prisma.client.gym.update({
       where: { id: this.tenant.gymId, mobileAppEnabled: true },
-      data: { mobileAppFeatures: input.features },
+      data,
     });
-    return { ...current, features: input.features };
+    return toSettings({ ...gym, ...data });
   }
 
   /**

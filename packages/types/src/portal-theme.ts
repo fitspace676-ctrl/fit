@@ -403,3 +403,10 @@ export const PORTAL_SURFACES = { LIGHT_SURFACE, DARK_SURFACE, INK, PAPER } as co
 
 /** `#RRGGBB` → channels, for the spec's contrast assertions. Returns `null` otherwise. */
 export const parsePortalHex = parseHex;
+
+/**
+ * The colour arithmetic above, for the mobile app's accent (`mobile-app-theme.ts`),
+ * so both surfaces correct a gym colour the same way. One object rather than six
+ * loose exports, because the package barrel re-exports everything here.
+ */
+export const portalColorMath = { parseHex, toHex, mix, luminance, readableOn } as const;

@@ -64,3 +64,4 @@ export * from './src/trainers';
 export * from './src/trainers-admin';
 
 export * from './src/mobile-app-settings';
+export * from './src/mobile-app-theme';

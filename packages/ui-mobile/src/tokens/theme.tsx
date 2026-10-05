@@ -28,7 +28,7 @@ import { useColorScheme } from 'react-native';
 import { radii, clampRadius, type SurfaceRadius } from './radii';
 import { shadowsFor, type Shadows } from './shadows';
 import { layout, spacing } from './spacing';
-import { themeColors, type ThemeColors } from './semantic';
+import { themeColors, type ColorRole, type ThemeColors } from './semantic';
 import { type as typeRoles } from './typography';
 
 /** Everything a component needs to draw itself. */
@@ -54,10 +54,22 @@ export interface Theme {
 /** How the provider chooses a mode. */
 export type ThemeScheme = 'light' | 'dark' | 'system';
 
-function buildTheme(isDark: boolean): Theme {
+/**
+ * A gym's own accent, already derived per mode — the accent roles of
+ * `semantic.ts` it replaces, nothing else. The kit does not know where it came
+ * from: `apps/mobile` resolves it from the gym's settings (`mobileAccentPalette`
+ * in `@fit/types`), which is also where its contrast is guaranteed.
+ */
+export interface ThemeAccent {
+  light: Partial<Record<ColorRole, string>>;
+  dark: Partial<Record<ColorRole, string>>;
+}
+
+function buildTheme(isDark: boolean, accent?: ThemeAccent | null): Theme {
+  const base = themeColors(isDark);
   return {
     isDark,
-    colors: themeColors(isDark),
+    colors: accent ? { ...base, ...(isDark ? accent.dark : accent.light) } : base,
     radii,
     clampRadius,
     spacing,
@@ -94,19 +106,27 @@ export interface ThemeProviderProps {
    * `'system'` to follow the OS via `useColorScheme()`.
    */
   scheme?: ThemeScheme;
+  /**
+   * The gym's accent, or `null`/absent for the built-in one. Keep its identity
+   * stable: a new object is a new theme, and every themed component re-renders.
+   */
+  accent?: ThemeAccent | null;
 }
 
 /** Wrap the app once, at the root layout, above the navigator. */
-export function ThemeProvider({ children, scheme = 'dark' }: ThemeProviderProps) {
+export function ThemeProvider({ children, scheme = 'dark', accent = null }: ThemeProviderProps) {
   // Called unconditionally — hooks cannot be skipped — but its result is only
   // consulted for `scheme="system"`. On iOS this re-renders when the user flips
   // Appearance; with `userInterfaceStyle: "dark"` in app.json it never fires.
   const osScheme = useColorScheme();
 
   const theme = useMemo(() => {
-    if (scheme === 'system') return osScheme === 'light' ? LIGHT_THEME : DARK_THEME;
-    return scheme === 'light' ? LIGHT_THEME : DARK_THEME;
-  }, [scheme, osScheme]);
+    const isDark = scheme === 'system' ? osScheme !== 'light' : scheme !== 'light';
+    // Without an accent the two module-level themes, so the common case keeps
+    // its stable identity; with one, a theme built once per accent and mode.
+    if (accent) return buildTheme(isDark, accent);
+    return isDark ? DARK_THEME : LIGHT_THEME;
+  }, [scheme, osScheme, accent]);
 
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }

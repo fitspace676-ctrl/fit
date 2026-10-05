@@ -5,6 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Button, Card, Switch } from '@fit/ui-kit';
 import { MOBILE_APP_FEATURES, type MobileAppSettings } from '@fit/types';
 import { updateAppSettingsAction } from './actions';
+import { AppColorField } from './app-color-field';
 import { LoginImageField } from './login-image-field';
 
 const styles = stylex.create({
@@ -51,6 +52,7 @@ export function AppSettingsForm({ initial }: { initial: MobileAppSettings }) {
         </Card>
       ) : (
         <>
+          <AppColorField initial={initial} />
           <LoginImageField initial={initial} />
           <form
             onSubmit={(event) => {

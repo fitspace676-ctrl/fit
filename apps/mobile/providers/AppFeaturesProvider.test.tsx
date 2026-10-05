@@ -2,6 +2,7 @@ import { Text as MockText } from 'react-native';
 import { render, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DEFAULT_MOBILE_APP_FEATURES, type MobileAppSettings } from '@fit/types';
+import { getAppAccent, rememberAppAccent, resetAppAccent } from '../lib/app-accent';
 import {
   AppFeature,
   AppFeatureScreen,
@@ -9,7 +10,14 @@ import {
   useAppLoginImage,
 } from './AppFeaturesProvider';
 
-const NO_PHOTO = { loginImageUrl: null, loginImageSource: null } as const;
+const NO_COLOR = {
+  primaryColor: null,
+  primaryColorSource: null,
+  inheritedPrimaryColor: null,
+  inheritedPrimaryColorSource: null,
+  onPrimaryColor: null,
+} as const;
+const NO_PHOTO = { loginImageUrl: null, loginImageSource: null, ...NO_COLOR } as const;
 const PHOTO = 'https://pub-test.r2.dev/gym-a/logos/hero.jpg';
 
 function LoginImageProbe() {
@@ -53,6 +61,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockPath = '/shop';
   mockSlug = 'downtown';
+  resetAppAccent();
 });
 it('hides a disabled tab and redirects a direct link after loading API settings', async () => {
   mockGetSettings.mockResolvedValue({
@@ -108,6 +117,7 @@ it('hands the resolved sign-in photo to the login screen', async () => {
     features: DEFAULT_MOBILE_APP_FEATURES,
     loginImageUrl: PHOTO,
     loginImageSource: 'portal',
+    ...NO_COLOR,
   });
   setup();
   await waitFor(() => expect(screen.getByTestId('login-image').props.children).toBe(PHOTO));
@@ -118,8 +128,40 @@ it('shows no sign-in photo for a gym without an app', async () => {
     features: DEFAULT_MOBILE_APP_FEATURES,
     loginImageUrl: PHOTO,
     loginImageSource: 'app',
+    primaryColor: '#facc15',
+    primaryColorSource: 'app',
+    inheritedPrimaryColor: null,
+    inheritedPrimaryColorSource: null,
+    onPrimaryColor: '#131312',
   });
   setup();
   await waitFor(() => expect(mockGetSettings).toHaveBeenCalled());
   expect(screen.getByTestId('login-image').props.children).toBe('none');
+});
+it("hands the gym's colour to the theme, for this gym's slug", async () => {
+  mockGetSettings.mockResolvedValue({
+    enabled: true,
+    features: DEFAULT_MOBILE_APP_FEATURES,
+    loginImageUrl: null,
+    loginImageSource: null,
+    primaryColor: '#1e3a8a',
+    primaryColorSource: 'app',
+    inheritedPrimaryColor: null,
+    inheritedPrimaryColorSource: null,
+    onPrimaryColor: '#FFFFFF',
+  });
+  setup();
+  await waitFor(() => expect(getAppAccent()).toEqual({ slug: 'downtown', color: '#1e3a8a' }));
+});
+it('drops the colour for a gym without an app', async () => {
+  mockGetSettings.mockResolvedValue({
+    enabled: false,
+    features: DEFAULT_MOBILE_APP_FEATURES,
+    ...NO_PHOTO,
+    primaryColor: '#1e3a8a',
+  });
+  await rememberAppAccent('downtown', '#0f766e');
+  setup();
+  await waitFor(() => expect(mockGetSettings).toHaveBeenCalled());
+  await waitFor(() => expect(getAppAccent()).toBeNull());
 });
