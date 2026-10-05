@@ -53,11 +53,8 @@
 //
 // DECISION 6 — ONE FRAME, TOP TO BOTTOM (the 2026-09-30 pre-login layout).
 //   · A navigation row in `Screen`'s static header slot: a back `IconButton`
-//     on the left where the screen already had a way back, and the app icon on
-//     login and register only — on the RIGHT beside a back button (register),
-//     on the LEFT above the title where there is none (login), rather than
-//     hanging alone at the far edge. The row keeps its 44pt height when it is
-//     empty, so the title never jumps between screens.
+//     on the left where the screen already had a way back. Login and register
+//     show the full, centred FormaCore logo below any navigation controls.
 //   · The title block scrolls WITH the form rather than staying pinned. With
 //     the keyboard up on a small phone, a pinned two-line title takes the room
 //     the focused field needs.
@@ -70,14 +67,14 @@
 //     `forgot-password` mockup keeps them together).
 // ===========================================================================
 
-import { Heading, IconButton, Screen, Text, spacing } from '@fit/ui-mobile';
+import { Heading, IconButton, Screen, Text, spacing, useTheme } from '@fit/ui-mobile';
 import type { ReactNode } from 'react';
 import { Image, View } from 'react-native';
 
 import { useI18n } from '../../providers/I18nProvider';
 
 /**
- * The transparent FormaCore mark from the shared brand assets.
+ * The full FormaCore logos, cropped to their visible bounds (989 × 288).
  *
  * `require`, not `import`: the `*.png` module declaration lives in Expo's
  * generated `expo-env.d.ts`, which is gitignored, so an `import` type-checks
@@ -85,10 +82,12 @@ import { useI18n } from '../../providers/I18nProvider';
  * Metro resolves both to the same asset id.
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const APP_ICON = require('../../assets/brand-mark.png') as number;
+const LOGO_DARK = require('../../assets/logo-dark.png') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const LOGO_LIGHT = require('../../assets/logo-light.png') as number;
 
-/** `spacing[10]` — the brand mark's side. */
-const BRAND_SIZE = spacing[10];
+const BRAND_WIDTH = 200;
+const BRAND_ASPECT_RATIO = 989 / 288;
 
 /** The nav row's height: the back button's 44pt target, kept when it is empty. */
 const NAV_ROW = spacing[11];
@@ -96,40 +95,56 @@ const NAV_ROW = spacing[11];
 /** The rhythm between fields. */
 const BODY_GAP = spacing[4];
 
-/** The brand mark, 40pt, without a tile on either theme. Decorative. */
+/** The full logo, with lettering selected for the active theme. Decorative. */
 export function BrandMark({ testID }: { testID?: string }) {
+  const { isDark } = useTheme();
   return (
     <Image
       testID={testID}
-      source={APP_ICON}
+      source={isDark ? LOGO_DARK : LOGO_LIGHT}
       // The title beside it already names the product; a screen reader gains
       // nothing from hearing a picture of the same name.
       accessible={false}
       accessibilityIgnoresInvertColors
-      style={{ width: BRAND_SIZE, height: BRAND_SIZE }}
+      resizeMode="contain"
+      style={{
+        width: BRAND_WIDTH,
+        height: BRAND_WIDTH / BRAND_ASPECT_RATIO,
+        alignSelf: 'center',
+      }}
     />
   );
 }
 
 /**
- * The navigation row every pre-login screen opens with: something on the left,
- * something on the right, 44pt tall whether or not either is there.
+ * Keep the logo centred independently of back/skip controls. Separate rows
+ * prevent long translated controls from overlapping it on a narrow phone.
  */
-export function NavRow({ leading, trailing }: { leading?: ReactNode; trailing?: ReactNode }) {
+export function NavRow({
+  leading,
+  trailing,
+  brand,
+}: {
+  leading?: ReactNode;
+  trailing?: ReactNode;
+  brand?: ReactNode;
+}) {
   return (
-    <View
-      style={{
-        minHeight: NAV_ROW,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-      }}
-    >
-      {/* An empty slot still takes its side, so a lone trailing item stays right.
-          `flexShrink: 0`: a slot sized by its content must not be squeezed by
-          the row — a shrunk slot ellipsised onboarding's "Skip" label. */}
-      <View style={{ flexShrink: 0 }}>{leading}</View>
-      <View style={{ flexShrink: 0 }}>{trailing}</View>
+    <View style={{ gap: spacing[3] }}>
+      {leading || trailing || !brand ? (
+        <View
+          style={{
+            minHeight: NAV_ROW,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <View style={{ flexShrink: 0 }}>{leading}</View>
+          <View style={{ flexShrink: 0 }}>{trailing}</View>
+        </View>
+      ) : null}
+      {brand}
     </View>
   );
 }
@@ -162,7 +177,7 @@ export interface AuthScreenProps {
    * action made findable, not a new destination.
    */
   onBack?: () => void;
-  /** The app icon — beside the back button, or in its place. Login and register only. */
+  /** Centred full logo above the title. Login and register only. */
   brand?: boolean;
   /** Forwarded to `Screen`; `${testID}-header`, `-scroll`, `-footer`, `-nav-back`, `-brand` follow. */
   testID: string;
@@ -189,9 +204,7 @@ export function AuthScreen({
       header={
         <NavRow
           leading={
-            onBack === undefined ? (
-              brandMark
-            ) : (
+            onBack === undefined ? null : (
               <IconButton
                 icon="chevronLeft"
                 variant="surface"
@@ -201,7 +214,7 @@ export function AuthScreen({
               />
             )
           }
-          trailing={onBack === undefined ? null : brandMark}
+          brand={brandMark}
         />
       }
       footer={

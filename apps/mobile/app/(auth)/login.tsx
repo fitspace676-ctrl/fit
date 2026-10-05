@@ -168,8 +168,7 @@ export default function LoginScreen() {
       testID="login"
       title={t('auth.login.title')}
       subtitle={t('auth.login.subtitle')}
-      // The front door: nothing to go back to, so the brand mark takes the
-      // back button's place, above the title.
+      // The front door: the full logo is centred above the left-aligned title.
       brand
     >
       {/* TODO(i18n): `common.offline.title` / `common.offline.body` — plan §6
