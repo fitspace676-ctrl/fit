@@ -68,11 +68,29 @@
 //   · Title, subtitle and the prose around the form are centred under the
 //     centred logo; field labels and inline links stay left, on the fields'
 //     own edge.
+//
+// DECISION 7 — THE SIGN-IN HERO (2026-10-05), login only.
+//   A gym may give its app a sign-in photo (admin → App settings; the member
+//   portal's photo stands in when it has none). It is drawn as a full-bleed band
+//   at the top, under the status bar, with a soft dark fade at its foot so the
+//   logo set on it reads in both themes. The form below is untouched and sits on
+//   the ordinary canvas, which is what keeps it readable in light and dark. No
+//   photo, or one that fails to load, is exactly the layout above.
 // ===========================================================================
 
-import { Heading, IconButton, Screen, Text, spacing, useTheme } from '@fit/ui-mobile';
-import type { ReactNode } from 'react';
-import { Image, View } from 'react-native';
+import {
+  Heading,
+  IconButton,
+  SCREEN_GUTTER,
+  Screen,
+  Text,
+  spacing,
+  useSafeInsets,
+  useTheme,
+} from '@fit/ui-mobile';
+import { useState, type ReactNode } from 'react';
+import { Image, StatusBar, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { useI18n } from '../../providers/I18nProvider';
 
@@ -99,12 +117,13 @@ const NAV_ROW = spacing[11];
 const BODY_GAP = spacing[4];
 
 /** The full logo, with lettering selected for the active theme. Decorative. */
-export function BrandMark({ testID }: { testID?: string }) {
+export function BrandMark({ testID, onPhoto = false }: { testID?: string; onPhoto?: boolean }) {
   const { isDark } = useTheme();
   return (
     <Image
       testID={testID}
-      source={isDark ? LOGO_DARK : LOGO_LIGHT}
+      // Over the hero's dark fade the light lettering is right in either theme.
+      source={isDark || onPhoto ? LOGO_DARK : LOGO_LIGHT}
       // The title beside it already names the product; a screen reader gains
       // nothing from hearing a picture of the same name.
       accessible={false}
@@ -152,6 +171,81 @@ export function NavRow({
   );
 }
 
+/** The hero's photo height below the status bar: a band, never the whole screen. */
+function heroHeight(windowHeight: number): number {
+  return Math.round(Math.min(300, Math.max(200, windowHeight * 0.32)));
+}
+
+/**
+ * The sign-in photo as a full-bleed band. Two fades over it: a light one at the
+ * top so the status bar's light glyphs read, and the soft dark one at its foot
+ * that the logo sits on. Decorative — the title below names the screen.
+ */
+function AuthHero({
+  uri,
+  brand,
+  leading,
+  onError,
+  testID,
+}: {
+  uri: string;
+  brand: ReactNode;
+  leading: ReactNode;
+  onError: () => void;
+  testID: string;
+}) {
+  const insets = useSafeInsets();
+  const { height } = useWindowDimensions();
+  return (
+    <View
+      testID={testID}
+      style={{
+        // Bleed past the screen gutter to both edges.
+        marginHorizontal: -SCREEN_GUTTER,
+        height: insets.top + heroHeight(height),
+        overflow: 'hidden',
+        borderBottomLeftRadius: spacing[6],
+        borderBottomRightRadius: spacing[6],
+        justifyContent: 'flex-end',
+      }}
+    >
+      <StatusBar barStyle="light-content" animated />
+      <Image
+        testID={`${testID}-image`}
+        source={{ uri }}
+        accessible={false}
+        accessibilityIgnoresInvertColors
+        resizeMode="cover"
+        onError={onError}
+        style={StyleSheet.absoluteFill}
+      />
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
+        <Defs>
+          <LinearGradient id="auth-hero-fade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#0B1220" stopOpacity={0.35} />
+            <Stop offset="0.28" stopColor="#0B1220" stopOpacity={0} />
+            <Stop offset="0.4" stopColor="#0B1220" stopOpacity={0} />
+            <Stop offset="1" stopColor="#0B1220" stopOpacity={0.82} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#auth-hero-fade)" />
+      </Svg>
+      {leading ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: insets.top + spacing[2],
+            left: SCREEN_GUTTER,
+          }}
+        >
+          {leading}
+        </View>
+      ) : null}
+      <View style={{ paddingHorizontal: SCREEN_GUTTER, paddingBottom: spacing[5] }}>{brand}</View>
+    </View>
+  );
+}
+
 export interface AuthScreenProps {
   /**
    * The screen title, as a `Heading` — which carries
@@ -182,6 +276,8 @@ export interface AuthScreenProps {
   onBack?: () => void;
   /** Centred full logo above the title. Login and register only. */
   brand?: boolean;
+  /** The gym's sign-in photo, drawn as the top hero band (decision 7). */
+  hero?: string | null;
   /** Forwarded to `Screen`; `${testID}-header`, `-scroll`, `-footer`, `-nav-back`, `-brand` follow. */
   testID: string;
 }
@@ -194,38 +290,49 @@ export function AuthScreen({
   footer,
   onBack,
   brand = false,
+  hero = null,
   testID,
 }: AuthScreenProps) {
   const { t } = useI18n();
-  const brandMark = brand ? <BrandMark testID={`${testID}-brand`} /> : null;
+  // Keyed by URL: a new photo gets a fresh chance after an old one failed.
+  const [failedHero, setFailedHero] = useState<string | null>(null);
+  const showHero = hero !== null && hero !== '' && failedHero !== hero;
+  const brandMark = brand ? <BrandMark testID={`${testID}-brand`} onPhoto={showHero} /> : null;
+  const leading =
+    onBack === undefined ? null : (
+      <IconButton
+        icon="chevronLeft"
+        variant="surface"
+        accessibilityLabel={t('notifications.back')}
+        onPress={onBack}
+        testID={`${testID}-nav-back`}
+      />
+    );
 
   return (
     <Screen
       testID={testID}
       // No tab bar under the auth stack — see decision 1.
       reserveTabBar={false}
-      header={
-        <NavRow
-          leading={
-            onBack === undefined ? null : (
-              <IconButton
-                icon="chevronLeft"
-                variant="surface"
-                accessibilityLabel={t('notifications.back')}
-                onPress={onBack}
-                testID={`${testID}-nav-back`}
-              />
-            )
-          }
-          brand={brandMark}
-        />
-      }
+      // With a hero the photo owns the status bar's band, so the screen's own
+      // top inset (added when there is no header) is taken back.
+      style={showHero ? { paddingTop: 0 } : undefined}
+      header={showHero ? undefined : <NavRow leading={leading} brand={brandMark} />}
       footer={
         footer === undefined ? undefined : (
           <View style={{ paddingTop: spacing[4], gap: spacing[3] }}>{footer}</View>
         )
       }
     >
+      {showHero ? (
+        <AuthHero
+          uri={hero}
+          brand={brandMark}
+          leading={leading}
+          onError={() => setFailedHero(hero)}
+          testID={`${testID}-hero`}
+        />
+      ) : null}
       <View style={{ paddingTop: spacing[5], paddingBottom: spacing[6] }}>
         <View style={{ marginBottom: spacing[6] }}>
           <Heading level={2} align="center">

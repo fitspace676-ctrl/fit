@@ -5,6 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { Button, Card, Switch } from '@fit/ui-kit';
 import { MOBILE_APP_FEATURES, type MobileAppSettings } from '@fit/types';
 import { updateAppSettingsAction } from './actions';
+import { LoginImageField } from './login-image-field';
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '56rem' },
@@ -49,67 +50,70 @@ export function AppSettingsForm({ initial }: { initial: MobileAppSettings }) {
           />
         </Card>
       ) : (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void (async () => {
-              setPending(true);
-              setMessage('');
-              try {
-                const result = await updateAppSettingsAction({ features });
-                setError(!result.ok);
-                if (result.ok) {
-                  setSaved(result.data.features);
-                  setFeatures(result.data.features);
-                  setMessage(t('saved'));
-                } else setMessage(result.error);
-              } catch {
-                setError(true);
-                setMessage(t('saveError'));
-              } finally {
-                setPending(false);
-              }
-            })();
-          }}
-        >
-          <Card padding="none" xstyle={styles.card}>
-            <p {...stylex.props(styles.message)}>{t('alwaysVisible')}</p>
-            {MOBILE_APP_FEATURES.map((key) => (
-              <Switch
-                key={key}
-                label={t(`features.${key}`)}
-                description={t(`hints.${key}`)}
-                checked={features[key]}
-                disabled={pending}
-                onChange={(checked) => {
-                  setFeatures((current) => ({ ...current, [key]: checked }));
-                  setMessage('');
-                }}
-                xstyle={styles.row}
-              />
-            ))}
-            <div {...stylex.props(styles.actions)}>
-              <Button
-                type="submit"
-                variant="primary"
-                size="inline"
-                label={pending ? t('saving') : t('save')}
-                disabled={!dirty || pending}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="inline"
-                label={t('discard')}
-                disabled={!dirty || pending}
-                onClick={() => {
-                  setFeatures(saved);
-                  setMessage('');
-                }}
-              />
-            </div>
-          </Card>
-        </form>
+        <>
+          <LoginImageField initial={initial} />
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void (async () => {
+                setPending(true);
+                setMessage('');
+                try {
+                  const result = await updateAppSettingsAction({ features });
+                  setError(!result.ok);
+                  if (result.ok) {
+                    setSaved(result.data.features);
+                    setFeatures(result.data.features);
+                    setMessage(t('saved'));
+                  } else setMessage(result.error);
+                } catch {
+                  setError(true);
+                  setMessage(t('saveError'));
+                } finally {
+                  setPending(false);
+                }
+              })();
+            }}
+          >
+            <Card padding="none" xstyle={styles.card}>
+              <p {...stylex.props(styles.message)}>{t('alwaysVisible')}</p>
+              {MOBILE_APP_FEATURES.map((key) => (
+                <Switch
+                  key={key}
+                  label={t(`features.${key}`)}
+                  description={t(`hints.${key}`)}
+                  checked={features[key]}
+                  disabled={pending}
+                  onChange={(checked) => {
+                    setFeatures((current) => ({ ...current, [key]: checked }));
+                    setMessage('');
+                  }}
+                  xstyle={styles.row}
+                />
+              ))}
+              <div {...stylex.props(styles.actions)}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="inline"
+                  label={pending ? t('saving') : t('save')}
+                  disabled={!dirty || pending}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="inline"
+                  label={t('discard')}
+                  disabled={!dirty || pending}
+                  onClick={() => {
+                    setFeatures(saved);
+                    setMessage('');
+                  }}
+                />
+              </div>
+            </Card>
+          </form>
+        </>
       )}
       {message && (
         <p role={error ? 'alert' : 'status'} {...stylex.props(styles.message)}>

@@ -29,7 +29,7 @@ interface Rows {
   classTemplates?: { imageUrl: string | null }[];
   services?: { coverUrl: string | null }[];
   banners?: { imageUrl: string }[];
-  gyms?: { settings: unknown }[];
+  gyms?: { settings: unknown; mobileAppLoginImageUrl?: string | null }[];
 }
 
 /** Wire the service to fake storage + Prisma rows; returns the deletion spy. */
@@ -164,6 +164,24 @@ describe('MediaSweepService.sweep', () => {
     await service.sweep(NOW);
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
+  // A column rather than a settings path, on the same `logos` prefix: a sweep
+  // that missed it would delete a live app's sign-in hero overnight.
+  it("keeps the mobile app's active sign-in photograph", async () => {
+    const { service, deleteObjects } = setup(
+      [object('gym-1/logos/app-hero.jpg'), object('gym-1/logos/replaced.jpg')],
+      {
+        gyms: [
+          { settings: null, mobileAppLoginImageUrl: `${PUBLIC_BASE}/gym-1/logos/app-hero.jpg` },
+        ],
+      },
+    );
+
+    const summary = await service.sweep(NOW);
+
+    expect(deleteObjects).toHaveBeenCalledWith(['gym-1/logos/replaced.jpg']);
+    expect(summary).toMatchObject({ referenced: 1, orphaned: 1, deleted: 1 });
   });
 
   it('matches references by path, so a changed public host does not orphan the library', async () => {

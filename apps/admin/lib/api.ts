@@ -13,6 +13,7 @@ import { getLocale } from 'next-intl/server';
 import type {
   MobileAppSettings,
   UpdateMobileAppSettingsInput,
+  UploadMobileAppLoginImageInput,
   BulkExportMembersInput,
   BulkExportMembersResponse,
   CreateLocationData,
@@ -3419,6 +3420,27 @@ export async function updateMobileAppSettings(
     method: 'PATCH',
     headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<MobileAppSettings>(res);
+}
+/** `POST /gyms/app-settings/login-image` — finalise the app's own sign-in photo. */
+export async function uploadMobileAppLoginImage(
+  input: UploadMobileAppLoginImageInput,
+): Promise<MobileAppSettings> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/app-settings/login-image`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<MobileAppSettings>(res);
+}
+/** `DELETE /gyms/app-settings/login-image` — fall back to the portal's photo. */
+export async function clearMobileAppLoginImage(): Promise<MobileAppSettings> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/app-settings/login-image`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
     cache: 'no-store',
   });
   return unwrap<MobileAppSettings>(res);

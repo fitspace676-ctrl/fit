@@ -11,6 +11,12 @@ describe('app settings translations', () => {
     }
     expect(copy.requestConfirmation.length).toBeGreaterThan(0);
   });
+  it('carries the same sign-in photo copy in both locales', () => {
+    expect(Object.keys(ka.admin.appSettings.loginImage).sort()).toEqual(
+      Object.keys(en.admin.appSettings.loginImage).sort(),
+    );
+    expect(ka.admin.appSettings.loginImage.fromPortal).toBe('პორტალიდან');
+  });
   it('uses Georgian without Mtavruli display letters', () => {
     expect(JSON.stringify(ka.admin.appSettings)).not.toMatch(/[\u1c90-\u1cbf]/u);
   });

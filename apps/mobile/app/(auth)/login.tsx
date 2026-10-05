@@ -34,7 +34,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View, type TextInput } from 'react-native';
 
-import { AppFeature } from '../../providers/AppFeaturesProvider';
+import { AppFeature, useAppLoginImage } from '../../providers/AppFeaturesProvider';
 import { AuthScreen } from '../../components/auth/auth-screen';
 import { authErrorKey } from '../../components/auth/auth-error';
 import { AuthField } from '../../components/auth/field';
@@ -75,6 +75,8 @@ export default function LoginScreen() {
   const router = useRouter();
   const online = useIsOnline();
   const coolDown = useCoolDown();
+  // The gym's sign-in photo (app's own, else the member portal's), or none.
+  const heroImage = useAppLoginImage();
 
   // The chain's target. See `components/auth/field.tsx` — the ref reaches the
   // `TextInput` because React 19 passes `ref` to a function component as a prop.
@@ -171,6 +173,7 @@ export default function LoginScreen() {
       subtitle={t('auth.login.subtitle')}
       // The front door: the full logo is centred above the left-aligned title.
       brand
+      hero={heroImage}
     >
       {/* TODO(i18n): `common.offline.title` / `common.offline.body` — plan §6
           state 4 has no copy in either catalogue. See `pending-copy.ts`. */}

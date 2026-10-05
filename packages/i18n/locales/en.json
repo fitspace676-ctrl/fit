@@ -105,6 +105,30 @@
         "activity": "Visit and training activity.",
         "goals": "Personal training goals.",
         "notifications": "Inbox and notification preferences."
+      },
+      "loginImage": {
+        "title": "Sign-in screen photo",
+        "subtitle": "Shown as a band across the top of the app's sign-in screen. Without one, the app uses the member portal's sign-in photo.",
+        "label": "Sign-in screen photo",
+        "choose": "Upload a photo",
+        "replace": "Replace photo",
+        "drop": "Drop to upload",
+        "none": "No photo. The sign-in screen shows the form only.",
+        "fromPortal": "From portal",
+        "alt": "The mobile app's sign-in screen photo",
+        "uploading": "Uploading…",
+        "hint": "JPEG, PNG or WebP, up to 5 MB. A landscape shot works best; the bottom of the photo fades into the screen.",
+        "remove": "Remove the app's photo",
+        "removing": "Removing…",
+        "saved": "Photo saved. The app shows it the next time it refreshes its settings.",
+        "removed": "Photo removed. The app now uses the member portal's photo, if it has one.",
+        "errorType": "Choose a JPEG, PNG or WebP image.",
+        "errorSize": "That image is larger than 5 MB. Choose a smaller file.",
+        "errorUpload": "Upload failed ({status}). Please try again.",
+        "errorNetwork": "Could not upload the photo. Check your connection and try again.",
+        "notEnabled": "Your gym does not have its own mobile app.",
+        "storageUnavailable": "File storage is not available right now. Please try again later.",
+        "saveError": "Could not save the photo. Please try again."
       }
     },
     "login": {

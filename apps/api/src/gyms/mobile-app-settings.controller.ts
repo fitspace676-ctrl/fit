@@ -2,13 +2,22 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
-import { Permission, gymSlugSchema, updateMobileAppSettingsSchema } from '@fit/types';
+import {
+  Permission,
+  gymSlugSchema,
+  updateMobileAppSettingsSchema,
+  uploadMobileAppLoginImageSchema,
+} from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -33,6 +42,23 @@ export class MobileAppSettingsController {
     const parsed = updateMobileAppSettingsSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     return this.settings.update(parsed.data);
+  }
+
+  @Post('app-settings/login-image')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(TenantGuard, PermissionsGuard)
+  @RequirePermissions(Permission.GymManage)
+  setLoginImage(@Body() body: unknown) {
+    const parsed = uploadMobileAppLoginImageSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.settings.setLoginImage(parsed.data);
+  }
+
+  @Delete('app-settings/login-image')
+  @UseGuards(TenantGuard, PermissionsGuard)
+  @RequirePermissions(Permission.GymManage)
+  clearLoginImage() {
+    return this.settings.clearLoginImage();
   }
 
   @Get('by-subdomain/:slug/app-settings')

@@ -15,7 +15,11 @@ import { appFeaturesForPath, appPathVisible } from '../lib/app-feature-policy';
 const HIDDEN_FEATURES = Object.fromEntries(
   MOBILE_APP_FEATURES.map((key) => [key, false]),
 ) as MobileAppFeatures;
-const AppFeaturesContext = createContext({ features: DEFAULT_MOBILE_APP_FEATURES, ready: true });
+const AppFeaturesContext = createContext<{
+  features: MobileAppFeatures;
+  ready: boolean;
+  loginImageUrl: string | null;
+}>({ features: DEFAULT_MOBILE_APP_FEATURES, ready: true, loginImageUrl: null });
 
 export function AppFeaturesProvider({ children }: { children: ReactNode }) {
   // Re-render when hydration resolves the remembered slug. A white-label build
@@ -32,14 +36,22 @@ export function AppFeaturesProvider({ children }: { children: ReactNode }) {
   // Hide optional features until configuration arrives; failed initial reads
   // cannot briefly expose a feature the gym disabled. Cached reads survive offline.
   const features = settings.data?.enabled ? settings.data.features : HIDDEN_FEATURES;
+  // Already resolved API-side: the app's own photo, else the member portal's.
+  const loginImageUrl = settings.data?.enabled ? (settings.data.loginImageUrl ?? null) : null;
   return (
-    <AppFeaturesContext.Provider value={{ features, ready: !slug || !settings.isPending }}>
+    <AppFeaturesContext.Provider
+      value={{ features, ready: !slug || !settings.isPending, loginImageUrl }}
+    >
       {children}
     </AppFeaturesContext.Provider>
   );
 }
 export function useAppFeatures() {
   return useContext(AppFeaturesContext).features;
+}
+/** The gym's sign-in hero photo, or `null` for the plain sign-in screen. */
+export function useAppLoginImage(): string | null {
+  return useContext(AppFeaturesContext).loginImageUrl;
 }
 export function AppFeature({
   name,
