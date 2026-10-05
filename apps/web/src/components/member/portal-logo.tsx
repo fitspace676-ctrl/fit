@@ -1,4 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
+import type { PortalLogoSize } from '@fit/types';
 
 /**
  * The mark in the member portal's chrome — the tenant's own, or the bundled
@@ -44,6 +45,17 @@ import * as stylex from '@stylexjs/stylex';
  * this component existed: the `.member-logo` theme swap on the two themed
  * surfaces, and the white-inked file alone over the photograph, where the scrim is
  * dark in both themes.
+ *
+ * ═══ THE SIZE IS THE GYM'S, WITHIN BOUNDS WE CHOSE ═══
+ *
+ * `memberPortal.logoSize` picks one of three presets, and each preset is a pair
+ * of bounds per surface rather than a number the gym types, so no setting can
+ * push a header out of shape. The headers are a fixed 5rem bar, so their bounds
+ * stay well inside it; the photograph has room to spare, so its bounds are
+ * larger. `sm` is the size every tenant mark had before the setting existed.
+ * The bundled wordmark ignores the preset: it is FormaCore's mark, its file
+ * carries generous transparent padding that already fills most of the bar, and
+ * the setting is for the gym's own logo.
  */
 
 const styles = stylex.create({
@@ -71,11 +83,44 @@ const styles = stylex.create({
     display: 'block',
     width: 'auto',
     height: 'auto',
-    maxHeight: '2.25rem',
-    maxWidth: '9.25rem',
     objectFit: 'contain',
   },
+  // ── the presets on the themed headers (join, sign-in on a phone, signed in) ──
+  // Each height leaves the 5rem bar at least 1.75rem of air. Below 640px the
+  // width is also capped by the viewport: the theme and language switches take
+  // about 16rem of a phone-width bar with its padding, so on a 390px screen a
+  // wide wordmark gets what is left rather than pushing the switches off the
+  // edge (which even the original 9.25rem did). A compact mark is bounded by
+  // its height first, so the three presets still differ there.
+  headerSm: {
+    maxHeight: '2.25rem',
+    maxWidth: {
+      default: 'min(9.25rem, calc(100vw - 16rem))',
+      '@media (min-width: 640px)': '9.25rem',
+    },
+  },
+  headerMd: {
+    maxHeight: '2.75rem',
+    maxWidth: {
+      default: 'min(10rem, calc(100vw - 16rem))',
+      '@media (min-width: 640px)': '11.25rem',
+    },
+  },
+  headerLg: {
+    maxHeight: '3.25rem',
+    maxWidth: {
+      default: 'min(11rem, calc(100vw - 16rem))',
+      '@media (min-width: 640px)': '13.5rem',
+    },
+  },
+  // ── the presets over the sign-in photograph (from `lg`, where it is a column) ──
+  photoSm: { maxHeight: '2.25rem', maxWidth: '9.25rem' },
+  photoMd: { maxHeight: '3.5rem', maxWidth: '14.5rem' },
+  photoLg: { maxHeight: '4.5rem', maxWidth: '18.5rem' },
 });
+
+const HEADER_SIZES = { sm: styles.headerSm, md: styles.headerMd, lg: styles.headerLg } as const;
+const PHOTO_SIZES = { sm: styles.photoSm, md: styles.photoMd, lg: styles.photoLg } as const;
 
 export interface PortalLogoProps {
   /**
@@ -90,6 +135,8 @@ export interface PortalLogoProps {
    * one uploaded file, the same everywhere.
    */
   onPhoto?: boolean;
+  /** The gym's size preset (`memberPortal.logoSize`); tenant marks only. */
+  size?: PortalLogoSize;
 }
 
 /**
@@ -97,9 +144,10 @@ export interface PortalLogoProps {
  * a link that already carries the accessible name, so a second announcement here
  * would read the brand twice.
  */
-export function PortalLogo({ logoUrl, onPhoto = false }: PortalLogoProps) {
+export function PortalLogo({ logoUrl, onPhoto = false, size = 'md' }: PortalLogoProps) {
   if (logoUrl) {
-    return <img src={logoUrl} alt="" {...stylex.props(styles.tenantMark)} />;
+    const bounds = (onPhoto ? PHOTO_SIZES : HEADER_SIZES)[size];
+    return <img src={logoUrl} alt="" {...stylex.props(styles.tenantMark, bounds)} />;
   }
 
   if (onPhoto) {

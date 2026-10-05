@@ -223,9 +223,27 @@ export const gymJoinCardSettingsSchema = z.object({
 /** The sign-in join card: {@link gymJoinCardSettingsSchema}. */
 export type GymJoinCardSettings = z.infer<typeof gymJoinCardSettingsSchema>;
 
+/**
+ * How large the portal draws the gym's logo, as one of three presets rather than
+ * a pixel value: each preset is a pair of bounds per surface (the headers, and
+ * the sign-in photograph) that the member site has checked against its layouts,
+ * so no setting can push a header out of shape. `sm` is the original size.
+ */
+export const PORTAL_LOGO_SIZES = ['sm', 'md', 'lg'] as const;
+
+/** One of {@link PORTAL_LOGO_SIZES}. */
+export type PortalLogoSize = (typeof PORTAL_LOGO_SIZES)[number];
+
+export const portalLogoSizeSchema = z.enum(PORTAL_LOGO_SIZES);
+
 export const gymMemberPortalSettingsSchema = z.object({
   loginImageUrl: z.string().url().nullable().default(null),
   logoUrl: z.string().url().nullable().default(null),
+  /**
+   * The logo's size preset. Defaults to `md`, so gyms saved before the field
+   * existed get the larger mark too; only an explicit `sm` keeps the old size.
+   */
+  logoSize: portalLogoSizeSchema.default('md'),
   /**
    * The browser-tab icon of the member site, or `null` to keep using the logo.
    * A wordmark squeezed into a 16px tab is unreadable, so a gym can give the tab
@@ -1178,6 +1196,8 @@ export function gymPublicStartDatePolicy(rawSettings: unknown): GymStartDatePoli
 export interface GymPortalTheme {
   loginImageUrl: string | null;
   logoUrl: string | null;
+  /** The logo's size preset (`memberPortal.logoSize`). */
+  logoSize: PortalLogoSize;
   /**
    * The tab icon the gym uploaded, or `null`. Not resolved against anything: the
    * member site falls back to `logoUrl` and then to its bundled icon itself.
@@ -1221,6 +1241,7 @@ export function gymPortalTheme(rawSettings: unknown): GymPortalTheme {
   return {
     loginImageUrl: stored.memberPortal.loginImageUrl,
     logoUrl: stored.memberPortal.logoUrl ?? stored.brand.logoUrl,
+    logoSize: stored.memberPortal.logoSize,
     faviconUrl: stored.memberPortal.faviconUrl,
     primaryColor: stored.memberPortal.primaryColor ?? stored.brand.primaryColor,
     chosenPrimaryColor: stored.memberPortal.primaryColor,

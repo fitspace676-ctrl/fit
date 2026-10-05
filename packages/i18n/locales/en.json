@@ -2517,7 +2517,14 @@
         "inheritedNone": "You have not uploaded a logo yet, so members see the built-in FormaCore mark.",
         "resetToBrand": "Follow the brand logo",
         "resetToBuiltIn": "Use the built-in logo",
-        "hint": "JPEG, PNG or WebP, up to 2 MB. Best size: a wide logo about 600 × 150 px (4:1); the portal shows it at up to 148 × 36 px. It is shown exactly as uploaded, with nothing behind it, over the sign-in photograph and on the light and dark pages, so a transparent PNG that reads on both light and dark works best.",
+        "hint": "JPEG, PNG or WebP, up to 2 MB. Best size: a wide logo about 800 × 200 px (4:1). In the portal’s headers it is shown at up to 148 × 36 px (Small), 180 × 44 px (Medium) or 216 × 52 px (Large), and larger over the sign-in photograph. It is shown exactly as uploaded, with nothing behind it, over the photograph and on the light and dark pages, so a transparent PNG that reads on both light and dark works best.",
+        "sizeLabel": "Logo size",
+        "sizes": {
+          "sm": "Small",
+          "md": "Medium",
+          "lg": "Large"
+        },
+        "sizeHint": "How large your logo appears on the sign-in screen and in the portal’s headers. On a phone it is kept a little narrower, so the header still fits. The built-in FormaCore mark keeps its own size.",
         "errorType": "Choose a JPEG, PNG or WebP image.",
         "errorSize": "That image is larger than 2 MB. Choose a smaller file.",
         "errorUpload": "Upload failed ({status}). Please try again.",
