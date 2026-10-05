@@ -321,6 +321,7 @@ describe('gymMemberPortalSettingsSchema — the portal wordmark', () => {
     expect(gymMemberPortalSettingsSchema.parse({})).toEqual({
       loginImageUrl: null,
       logoUrl: null,
+      logoSize: 'md',
       faviconUrl: null,
       primaryColor: null,
       joinCard: {
@@ -348,6 +349,30 @@ describe('gymMemberPortalSettingsSchema — the portal wordmark', () => {
     expect(updateGymSettingsSchema.parse({ memberPortal: { logoUrl: null } })).toEqual({
       memberPortal: { logoUrl: null },
     });
+  });
+});
+
+// The size is a preset, not a number: the member site has sized each one against
+// its headers, so the contract must refuse anything else rather than pass it on.
+describe('gymMemberPortalSettingsSchema — the logo size', () => {
+  it('gives a gym saved before the field the medium preset', () => {
+    expect(gymMemberPortalSettingsSchema.parse({ logoUrl: null }).logoSize).toBe('md');
+    expect(gymPortalTheme({}).logoSize).toBe('md');
+  });
+
+  it('keeps each preset, and refuses anything that is not one', () => {
+    for (const logoSize of ['sm', 'md', 'lg'] as const) {
+      expect(gymPortalTheme({ memberPortal: { logoSize } }).logoSize).toBe(logoSize);
+      expect(updateGymSettingsSchema.parse({ memberPortal: { logoSize } })).toEqual({
+        memberPortal: { logoSize },
+      });
+    }
+    expect(updateGymSettingsSchema.safeParse({ memberPortal: { logoSize: 'xl' } }).success).toBe(
+      false,
+    );
+    expect(updateGymSettingsSchema.safeParse({ memberPortal: { logoSize: 48 } }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -464,6 +489,7 @@ describe('gymPortalTheme — resolving the wordmark against the brand', () => {
     expect(theme).toEqual({
       loginImageUrl: null,
       logoUrl: null,
+      logoSize: 'md',
       faviconUrl: null,
       primaryColor: '#e4f26a',
       chosenPrimaryColor: '#e4f26a',

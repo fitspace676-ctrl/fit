@@ -9,13 +9,16 @@ import {
   DEFAULT_PORTAL_ACCENT,
   HEX_COLOR_PATTERN,
   JOIN_CARD_LIMITS,
+  PORTAL_LOGO_SIZES,
   gymJoinCardSettingsSchema,
+  portalLogoSizeSchema,
   resolveJoinCard,
   type GymJoinCardCopy,
   type GymSettings,
   type JoinCardDefaults,
+  type PortalLogoSize,
 } from '@fit/types';
-import { Button, Card } from '@fit/ui-kit';
+import { Button, Card, SegmentedControl } from '@fit/ui-kit';
 import { Form, Icon, useFormContext, useToast, useWatch, useZodForm } from '@/components/ui';
 import { AccentColorField } from '@/components/accent-color-field';
 import {
@@ -387,6 +390,14 @@ const styles = stylex.create({
     display: 'block',
     objectFit: 'contain',
   },
+  // The size picker under the logo upload: a label, the three presets, a note.
+  sizeBlock: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' },
+  sizeLabel: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
   favicon64: { width: '4rem', height: '4rem' },
   favicon32: { width: '2rem', height: '2rem' },
   favicon16: { width: '1rem', height: '1rem' },
@@ -443,10 +454,14 @@ const styles = stylex.create({
     display: 'block',
     width: 'auto',
     height: 'auto',
-    maxHeight: '1.375rem',
-    maxWidth: '6.5rem',
     objectFit: 'contain',
   },
+  // The member site's three presets over the photograph (`PortalLogo`'s
+  // `photoSm`/`photoMd`/`photoLg`), at the mock's scale of roughly 0.7 so the
+  // steps between them read the same as at the door.
+  previewLogoSm: { maxHeight: '1.375rem', maxWidth: '6.5rem' },
+  previewLogoMd: { maxHeight: '2.375rem', maxWidth: '10rem' },
+  previewLogoLg: { maxHeight: '3.125rem', maxWidth: '13rem' },
   previewJoin: {
     position: 'relative',
     borderRadius: 'var(--radius-container)',
@@ -632,6 +647,7 @@ const styles = stylex.create({
 interface MemberPortalFormValues {
   loginImageUrl: string | null;
   logoUrl: string | null;
+  logoSize: PortalLogoSize;
   faviconUrl: string | null;
   primaryColor: string | null;
   /** The sign-in join card, as `JoinCardField` edits it. */
@@ -675,6 +691,8 @@ function toFormValues(settings: GymSettings): MemberPortalFormValues {
   return {
     loginImageUrl: settings.memberPortal.loginImageUrl,
     logoUrl: settings.memberPortal.logoUrl,
+    // Settings saved before the field existed have no value; the contract's default.
+    logoSize: settings.memberPortal.logoSize ?? 'md',
     faviconUrl: settings.memberPortal.faviconUrl ?? null,
     primaryColor: settings.memberPortal.primaryColor,
     joinCard: {
@@ -748,6 +766,7 @@ export function MemberPortalForm({
   const schema = z.object({
     loginImageUrl: z.string().url().nullable(),
     logoUrl: z.string().url().nullable(),
+    logoSize: portalLogoSizeSchema,
     faviconUrl: z.string().url().nullable(),
     primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('colors.invalid')).nullable(),
     joinCard: z.object({ hidden: z.boolean(), ka: joinCopySchema, en: joinCopySchema }),
@@ -996,6 +1015,7 @@ function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
   const t = useTranslations('admin.memberPortal.logo');
   const { control, setValue } = useFormContext<MemberPortalFormValues>();
   const logoUrl = useWatch({ control, name: 'logoUrl' });
+  const logoSize = useWatch({ control, name: 'logoSize' });
 
   const { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers } =
     useImageUpload({
@@ -1083,9 +1103,28 @@ function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
           {uploadError}
         </p>
       ) : null}
+      {/* Three presets rather than a pixel value: the member site has sized each
+          one against its headers, so no choice here can break a layout. The
+          preview beside this card repaints on every change. */}
+      <div {...stylex.props(styles.sizeBlock)}>
+        <p {...stylex.props(styles.sizeLabel)}>{t('sizeLabel')}</p>
+        <SegmentedControl
+          label={t('sizeLabel')}
+          value={logoSize}
+          onChange={(value) => setValue('logoSize', value, { shouldDirty: true })}
+          options={PORTAL_LOGO_SIZES.map((value) => ({ value, label: t(`sizes.${value}`) }))}
+        />
+        <p {...stylex.props(styles.photoHint)}>{t('sizeHint')}</p>
+      </div>
     </div>
   );
 }
+
+const PREVIEW_LOGO_SIZES = {
+  sm: styles.previewLogoSm,
+  md: styles.previewLogoMd,
+  lg: styles.previewLogoLg,
+} as const;
 
 /**
  * The member site's browser-tab icon: current icon at the sizes a tab draws it,
@@ -1244,6 +1283,7 @@ function PortalPreview({
   const primaryColor = useWatch({ control, name: 'primaryColor' });
   const loginImageUrl = useWatch({ control, name: 'loginImageUrl' });
   const logoUrl = useWatch({ control, name: 'logoUrl' });
+  const logoSize = useWatch({ control, name: 'logoSize' });
   const joinCard = useWatch({ control, name: 'joinCard' });
   // The member site's own resolution, so the mock and the door cannot disagree.
   // In-progress edits go through the schema leniently: a line over its limit
@@ -1280,7 +1320,11 @@ function PortalPreview({
         <img src={photo} alt="" {...stylex.props(styles.previewPhoto)} />
         <span aria-hidden {...stylex.props(styles.previewScrim)} />
         {tenantLogo ? (
-          <img src={tenantLogo} alt="" {...stylex.props(styles.previewLogoMark)} />
+          <img
+            src={tenantLogo}
+            alt=""
+            {...stylex.props(styles.previewLogoMark, PREVIEW_LOGO_SIZES[logoSize])}
+          />
         ) : (
           <img src={WORDMARK} alt="" {...stylex.props(styles.previewWordmark)} />
         )}

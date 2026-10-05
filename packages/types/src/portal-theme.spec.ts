@@ -75,6 +75,7 @@ function skinFor(
     // no "did the gym choose this?" problem to undo, because `brand.logoUrl` has
     // no platform default that could leak into the portal.
     logoUrl: null,
+    logoSize: 'md',
     faviconUrl: null,
     primaryColor: DEFAULT_PRIMARY_COLOR,
     joinCard: gymJoinCardSettingsSchema.parse({}),
@@ -276,6 +277,7 @@ describe('chosenPortalColors', () => {
     const portal: GymPortalTheme = {
       loginImageUrl: null,
       logoUrl: null,
+      logoSize: 'md',
       faviconUrl: null,
       primaryColor: '#7C2D12',
       chosenPrimaryColor: '#7C2D12',
@@ -291,6 +293,7 @@ describe('chosenPortalColors', () => {
     const portal: GymPortalTheme = {
       loginImageUrl: null,
       logoUrl: null,
+      logoSize: 'md',
       faviconUrl: null,
       primaryColor: '#E11D48',
       chosenPrimaryColor: null,

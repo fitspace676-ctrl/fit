@@ -9,6 +9,8 @@ import {
   type GymPublicContact,
   chosenPortalColors,
   type PortalColorChoice,
+  portalLogoSizeSchema,
+  type PortalLogoSize,
 } from '@fit/types';
 import { env } from './env';
 
@@ -32,6 +34,8 @@ export interface ActiveGymPortalSkin extends PortalColorChoice {
    * and there is nothing to undo.
    */
   logoUrl: string | null;
+  /** The logo's size preset, `md` when the API predates the field. */
+  logoSize: PortalLogoSize;
   /**
    * The sign-in join card as the gym stored it, `null` lines are the portal's
    * own translations, resolved by `resolveJoinCard`.
@@ -305,6 +309,8 @@ export async function getActiveGymPortalSkin(): Promise<ActiveGymPortalSkin | nu
       // `<img src>` on the one screen rendered before anyone is authenticated,
       // and an API old enough to predate the field simply has no such key.
       logoUrl: typeof portal.logoUrl === 'string' ? portal.logoUrl : null,
+      // An API that predates the field, or a value it does not know, is the default.
+      logoSize: portalLogoSizeSchema.catch('md').parse(portal.logoSize),
       // Parsed rather than cast: gym-written copy reaching a signed-out page. An
       // API that predates the field, or a malformed value, reads as the default
       // card instead of costing the gym its whole skin.

@@ -238,6 +238,8 @@ describe('GymSettingsService', () => {
         loginImageUrl: 'https://cdn.example.com/gym-1/logos/hero.jpg',
         // Never set, so it stays at its "inherit the brand's mark" default.
         logoUrl: null,
+        // Never set: the medium preset every gym gets by default.
+        logoSize: 'md',
         faviconUrl: null,
         primaryColor: '#84cc16',
         // Never set either: the built-in sign-in join card.

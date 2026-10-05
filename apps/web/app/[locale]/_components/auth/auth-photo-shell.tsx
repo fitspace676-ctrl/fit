@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations } from 'next-intl/server';
-import { gymJoinCardSettingsSchema, resolveJoinCard } from '@fit/types';
+import { gymJoinCardSettingsSchema, resolveJoinCard, type PortalLogoSize } from '@fit/types';
 import { getActiveGymName, getActiveGymPortalSkin } from '@/lib/active-gym';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
@@ -367,14 +367,16 @@ function Brand({
   label,
   onPhoto,
   logoUrl,
+  logoSize,
 }: {
   label: string;
   onPhoto: boolean;
   logoUrl: string | null;
+  logoSize: PortalLogoSize;
 }) {
   return (
     <Link href="/" aria-label={label} {...stylex.props(styles.brand, !onPhoto && styles.phoneOnly)}>
-      <PortalLogo logoUrl={logoUrl} onPhoto={onPhoto} />
+      <PortalLogo logoUrl={logoUrl} onPhoto={onPhoto} size={logoSize} />
     </Link>
   );
 }
@@ -420,6 +422,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
   // tried its portal logo and then its brand logo — so `PortalLogo` answers with
   // the bundled wordmark.
   const logoUrl = portal?.logoUrl ?? null;
+  const logoSize = portal?.logoSize ?? 'md';
 
   return (
     <main {...stylex.props(styles.page)}>
@@ -427,7 +430,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
         {/* ---------------------------- the form side --------------------------- */}
         <section {...stylex.props(styles.form)}>
           <div {...stylex.props(styles.formTop)}>
-            <Brand label={tShell('brand')} onPhoto={false} logoUrl={logoUrl} />
+            <Brand label={tShell('brand')} onPhoto={false} logoUrl={logoUrl} logoSize={logoSize} />
             <div {...stylex.props(styles.formTopActions)}>
               <div {...stylex.props(styles.phoneOnly)}>
                 <ThemeToggle />
@@ -471,7 +474,7 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
           <span aria-hidden {...stylex.props(styles.scrim)} />
 
           <div {...stylex.props(styles.topRow)}>
-            <Brand label={tShell('brand')} onPhoto logoUrl={logoUrl} />
+            <Brand label={tShell('brand')} onPhoto logoUrl={logoUrl} logoSize={logoSize} />
             <ThemeToggle />
           </div>
 
