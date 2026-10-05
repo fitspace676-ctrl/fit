@@ -422,6 +422,8 @@ model Gym {
   /// single JSON blob validated by `gymSettingsStoredSchema` in `@fit/types`;
   /// the gym's display name stays on `name` (the single source of truth) and is
   /// surfaced as `brand.name`. Null until the owner first saves settings.
+  mobileAppEnabled Boolean @default(false)
+  mobileAppFeatures Json @default("{}")
   settings        Json?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

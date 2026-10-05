@@ -1,3 +1,4 @@
+import { memberMessages as localeMessages } from '@fit/i18n/member';
 // Home — six sections, six branch sets, and one test with teeth.
 //
 // ===========================================================================
@@ -831,7 +832,7 @@ describe('copy', () => {
     await ka.findByTestId('home-membership-block', {}, WAIT);
     const tree = JSON.stringify(ka.toJSON());
 
-    expect(ka.getByText('კეთილი დაბრუნება')).toBeTruthy();
+    expect(ka.getByText(localeMessages.ka.member.home.greeting)).toBeTruthy();
     expect(ka.queryByText('Welcome back')).toBeNull();
     expect(tree).not.toMatch(/member\.home\./);
     expect(tree).not.toMatch(/member\.membership\./);

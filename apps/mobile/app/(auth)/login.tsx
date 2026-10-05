@@ -1,3 +1,4 @@
+import { AppFeature } from '../../providers/AppFeaturesProvider';
 // Sign in — email + password.
 //
 // ## This screen does not navigate
@@ -296,36 +297,38 @@ export default function LoginScreen() {
         `/register` is still a route, reachable from the verify and invite
         flows — it just no longer competes with the funnel here.
       */}
-      <View testID="login-join" style={{ marginTop: spacing[4], gap: spacing[3] }}>
-        <View style={{ gap: spacing[1] }}>
-          <Text variant="section" align="center">
-            {t('auth.join.title')}
-          </Text>
-          <Text variant="bodyRegular" color="textSecondary" align="center">
-            {t('auth.join.subtitle')}
-          </Text>
-        </View>
-        <Button
-          variant="secondary"
-          size="md"
-          fullWidth
-          testID="login-join-link"
-          label={t('auth.join.cta')}
-          onPress={() => {
-            router.push('/checkout');
-          }}
-        />
-        {/*
+      <AppFeature name={['membership', 'billing']}>
+        <View testID="login-join" style={{ marginTop: spacing[4], gap: spacing[3] }}>
+          <View style={{ gap: spacing[1] }}>
+            <Text variant="section" align="center">
+              {t('auth.join.title')}
+            </Text>
+            <Text variant="bodyRegular" color="textSecondary" align="center">
+              {t('auth.join.subtitle')}
+            </Text>
+          </View>
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            testID="login-join-link"
+            label={t('auth.join.cta')}
+            onPress={() => {
+              router.push('/checkout');
+            }}
+          />
+          {/*
           `caption`, NOT `micro`. `micro` is 10px / 600 UPPERCASE with 0.10em
           tracking — an eyebrow role. A full sentence set in it renders in
           Georgian as MTAVRULI, a display alphabet: Georgian has no sentence
           case, so uppercasing prose changes the script the reader is reading.
           `caption` (12 / 500, sentence case) is the role for helper text.
         */}
-        <Text variant="caption" color="textSecondary" align="center" testID="login-join-note">
-          {t('auth.join.ctaNote')}
-        </Text>
-      </View>
+          <Text variant="caption" color="textSecondary" align="center" testID="login-join-note">
+            {t('auth.join.ctaNote')}
+          </Text>
+        </View>
+      </AppFeature>
     </AuthScreen>
   );
 }

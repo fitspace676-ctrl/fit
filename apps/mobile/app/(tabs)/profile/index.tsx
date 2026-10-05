@@ -1,3 +1,4 @@
+import { AppFeature } from '../../../providers/AppFeaturesProvider';
 // Profile — the whole account surface, on one screen.
 //
 // ===========================================================================
@@ -232,15 +233,17 @@ export default function ProfileScreen() {
           // The screen's one AppBar heading. Sections add their own.
           title={t('member.profile.mobile.title')}
           trailing={
-            <IconButton
-              icon="bell"
-              accessibilityLabel={t('member.profile.mobile.notificationsA11y')}
-              onPress={() => {
-                router.push('/profile/notifications');
-              }}
-              {...(unreadCount > 0 ? { badge: { count: unreadCount } } : {})}
-              testID="profile-notifications"
-            />
+            <AppFeature name={'notifications'}>
+              <IconButton
+                icon="bell"
+                accessibilityLabel={t('member.profile.mobile.notificationsA11y')}
+                onPress={() => {
+                  router.push('/profile/notifications');
+                }}
+                {...(unreadCount > 0 ? { badge: { count: unreadCount } } : {})}
+                testID="profile-notifications"
+              />
+            </AppFeature>
           }
         />
       }
@@ -339,47 +342,51 @@ export default function ProfileScreen() {
         </HomeSection>
 
         {/* ── 2 · Membership ─────────────────────────────────────────────── */}
-        <HomeSection
-          testID="profile-membership"
-          phase={membershipPhase}
-          onRetry={() => {
-            invalidate(queryKeys.membership(scoped));
-          }}
-          skeleton={<Skeleton height={230} radius="page" />}
-        >
-          {membership.data === undefined ? null : (
-            <ProfileMembershipCard
-              data={membership.data}
-              now={now}
-              busy={unfreeze.isPending}
-              onFreeze={() => {
-                setFreezeOpen(true);
-              }}
-              onResume={resume}
-              onManage={() => {
-                router.push('/profile/membership');
-              }}
-            />
-          )}
-        </HomeSection>
+        <AppFeature name={'membership'}>
+          <HomeSection
+            testID="profile-membership"
+            phase={membershipPhase}
+            onRetry={() => {
+              invalidate(queryKeys.membership(scoped));
+            }}
+            skeleton={<Skeleton height={230} radius="page" />}
+          >
+            {membership.data === undefined ? null : (
+              <ProfileMembershipCard
+                data={membership.data}
+                now={now}
+                busy={unfreeze.isPending}
+                onFreeze={() => {
+                  setFreezeOpen(true);
+                }}
+                onResume={resume}
+                onManage={() => {
+                  router.push('/profile/membership');
+                }}
+              />
+            )}
+          </HomeSection>
+        </AppFeature>
 
         {/* ── 3 · PT credits ─────────────────────────────────────────────── */}
-        <HomeSection
-          testID="profile-credits"
-          phase={creditsPhase}
-          onRetry={() => {
-            invalidate(queryKeys.creditPacks(scoped));
-          }}
-          skeleton={<Skeleton height={110} radius={26} />}
-        >
-          <ProfilePtStrip
-            remaining={credits.remaining}
-            hasPacks={credits.hasPacks}
-            onBuy={() => {
-              router.push('/profile/billing');
+        <AppFeature name={['membership', 'billing']}>
+          <HomeSection
+            testID="profile-credits"
+            phase={creditsPhase}
+            onRetry={() => {
+              invalidate(queryKeys.creditPacks(scoped));
             }}
-          />
-        </HomeSection>
+            skeleton={<Skeleton height={110} radius={26} />}
+          >
+            <ProfilePtStrip
+              remaining={credits.remaining}
+              hasPacks={credits.hasPacks}
+              onBuy={() => {
+                router.push('/profile/billing');
+              }}
+            />
+          </HomeSection>
+        </AppFeature>
 
         {/* ── 4–6 · The menu, three rows long ────────────────────────────
 
@@ -388,25 +395,29 @@ export default function ProfileScreen() {
             above the row: "პარამეტრები" over "პარამეტრები". Three rows under
             three blocks need no label to be found. ────────────────────── */}
         <Surface tone="card" padVertical={1}>
-          <ListRow
-            icon="card"
-            title={t('member.profile.mobile.menu.payments')}
-            hint={t('member.profile.mobile.menu.billingHint')}
-            onPress={() => {
-              router.push('/profile/billing');
-            }}
-            testID="profile-row-payments"
-          />
+          <AppFeature name={'billing'}>
+            <ListRow
+              icon="card"
+              title={t('member.profile.mobile.menu.payments')}
+              hint={t('member.profile.mobile.menu.billingHint')}
+              onPress={() => {
+                router.push('/profile/billing');
+              }}
+              testID="profile-row-payments"
+            />
+          </AppFeature>
 
-          <ListRow
-            icon="bell"
-            title={t('member.profile.mobile.menu.notificationSettings')}
-            hint={t('member.profile.mobile.menu.notificationsHint')}
-            onPress={() => {
-              router.push('/profile/notification-settings');
-            }}
-            testID="profile-row-notification-settings"
-          />
+          <AppFeature name={'notifications'}>
+            <ListRow
+              icon="bell"
+              title={t('member.profile.mobile.menu.notificationSettings')}
+              hint={t('member.profile.mobile.menu.notificationsHint')}
+              onPress={() => {
+                router.push('/profile/notification-settings');
+              }}
+              testID="profile-row-notification-settings"
+            />
+          </AppFeature>
 
           {/* The counters and the achievement rail used to be a section on this
               screen, between the PT strip and the menu. They are two numbers a
@@ -415,15 +426,17 @@ export default function ProfileScreen() {
               door. It carries no figure: a live count here would need
               `useMyBookings('all')` back on this screen for a number nobody
               asked to see, and a stale one is worse than none. */}
-          <ListRow
-            icon="chart"
-            title={t('member.profile.mobile.menu.activity')}
-            hint={t('member.profile.mobile.menu.activityHint')}
-            onPress={() => {
-              router.push('/profile/activity');
-            }}
-            testID="profile-row-activity"
-          />
+          <AppFeature name={'activity'}>
+            <ListRow
+              icon="chart"
+              title={t('member.profile.mobile.menu.activity')}
+              hint={t('member.profile.mobile.menu.activityHint')}
+              onPress={() => {
+                router.push('/profile/activity');
+              }}
+              testID="profile-row-activity"
+            />
+          </AppFeature>
         </Surface>
 
         {/* ── 7 · Account details ────────────────────────────────────────── */}

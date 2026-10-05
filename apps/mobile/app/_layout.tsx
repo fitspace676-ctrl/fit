@@ -5,6 +5,7 @@
 // every `className` on the tree below silently resolves to nothing.
 import '../global.css';
 
+import { AppFeatureScreen } from '../providers/AppFeaturesProvider';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, type ReactElement } from 'react';
@@ -60,7 +61,8 @@ export default function RootLayout() {
   // A new function when the gate flips is what makes the navigator re-render
   // its descriptors and mount the scene it has been holding.
   const screenLayout = useCallback(
-    ({ children }: { children: ReactElement }): ReactElement => (fontsSettled ? children : <></>),
+    ({ children }: { children: ReactElement }): ReactElement =>
+      fontsSettled ? <AppFeatureScreen>{children}</AppFeatureScreen> : <></>,
     [fontsSettled],
   );
 

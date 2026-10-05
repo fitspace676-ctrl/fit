@@ -46,6 +46,7 @@ import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { StackActions } from 'expo-router/react-navigation';
 import { FloatingTabBar, type IconName, type TabItem } from '@fit/ui-mobile';
 
+import { useAppFeatures } from '../../providers/AppFeaturesProvider';
 import { useI18n } from '../../providers/I18nProvider';
 
 /** The first tab shown on a cold launch into the shell. */
@@ -117,6 +118,7 @@ function nestedStackToReset(route: { state?: { key?: string; index?: number } })
 /** The floating capsule, wired to the navigator. Mounted ONCE, here. */
 export function AppTabBar({ state, navigation }: BottomTabBarProps) {
   const { t } = useI18n();
+  const features = useAppFeatures();
   // The bar's ONE piece of navigation authority outside the navigator, and it
   // is the centre action's alone — `/qr` lives at the app root, so the tab
   // navigator cannot reach it.
@@ -149,7 +151,7 @@ export function AppTabBar({ state, navigation }: BottomTabBarProps) {
   return (
     <FloatingTabBar
       testID="tab"
-      items={items}
+      items={items.filter(({ key }) => key === 'home' || key === 'profile' || features[key])}
       activeKey={activeKey}
       accessibilityLabel={t('member.shell.primaryNav')}
       // ====================================================================

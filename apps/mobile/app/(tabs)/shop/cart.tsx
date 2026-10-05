@@ -1,3 +1,4 @@
+import { AppFeature } from '../../../providers/AppFeaturesProvider';
 // Cart — the server-side cart, and the one screen in this app that takes money.
 //
 // ===========================================================================
@@ -503,33 +504,35 @@ export default function CartScreen() {
         // `ScreenProps.footer`. A bare `View` here let the cart's own rows
         // ("1 კალათაში", "აირჩიე აღების ლოკაცია") draw straight through the
         // band, glyph on glyph, at the default scroll position.
-        <Surface
-          testID="cart-footer-plate"
-          tone="card"
-          radius="container"
-          padding={4}
-          style={{ gap: spacing[2] }}
-        >
-          {branchOwed ? (
-            <InlineNote testID="cart-pickup-required" icon="info">
-              {t('member.cart.pickLocation')}
-            </InlineNote>
-          ) : null}
-          <Button
-            label={t('member.shop.checkout.place')}
-            busyLabel={t('member.shop.checkout.processing')}
-            busy={checkout.isPending}
-            disabled={!canPay}
-            variant="primary"
-            size="lg"
-            fullWidth
-            onPress={placeOrder}
-            testID="cart-place-order"
-          />
-          <Text variant="caption" color="textSecondary" align="center">
-            {t('member.shop.cart.secure')}
-          </Text>
-        </Surface>
+        <AppFeature name="billing">
+          <Surface
+            testID="cart-footer-plate"
+            tone="card"
+            radius="container"
+            padding={4}
+            style={{ gap: spacing[2] }}
+          >
+            {branchOwed ? (
+              <InlineNote testID="cart-pickup-required" icon="info">
+                {t('member.cart.pickLocation')}
+              </InlineNote>
+            ) : null}
+            <Button
+              label={t('member.shop.checkout.place')}
+              busyLabel={t('member.shop.checkout.processing')}
+              busy={checkout.isPending}
+              disabled={!canPay}
+              variant="primary"
+              size="lg"
+              fullWidth
+              onPress={placeOrder}
+              testID="cart-place-order"
+            />
+            <Text variant="caption" color="textSecondary" align="center">
+              {t('member.shop.cart.secure')}
+            </Text>
+          </Surface>
+        </AppFeature>
       }
     >
       <View style={{ gap: spacing[6] }}>

@@ -1,3 +1,4 @@
+import { AppFeature, useAppFeatures } from '../../providers/AppFeaturesProvider';
 // @fit/mobile — a trainer's WHOLE profile, in a bottom sheet.
 //
 // ===========================================================================
@@ -151,7 +152,8 @@ export function TrainerSheet({
   const reviews = useQuery(trainerReviewsQueryOptions(gymId, id));
   const trainer = profile.data?.trainer;
 
-  if (id === null) return null;
+  const features = useAppFeatures();
+  if (id === null || !features.trainers) return null;
 
   // A 404 is a dead end with a way out, not a failure with a retry — see the
   // header. It is checked BEFORE the phase so the error branch never claims it.
@@ -315,18 +317,20 @@ export function TrainerSheet({
                   </Surface>
                 ) : null}
 
-                <TrainerScheduleSection
-                  locale={locale}
-                  schedule={trainer.schedule}
-                  copy={{
-                    title: t('member.trainers.detail.schedule.title'),
-                    empty: t('member.trainers.detail.schedule.empty'),
-                    // `trainers.detail.schedule.book` — the member set has no
-                    // `book` under `schedule` (D10's fallback).
-                    book: t('trainers.detail.schedule.book'),
-                  }}
-                  onOpenService={openService}
-                />
+                <AppFeature name="services">
+                  <TrainerScheduleSection
+                    locale={locale}
+                    schedule={trainer.schedule}
+                    copy={{
+                      title: t('member.trainers.detail.schedule.title'),
+                      empty: t('member.trainers.detail.schedule.empty'),
+                      // `trainers.detail.schedule.book` — the member set has no
+                      // `book` under `schedule` (D10's fallback).
+                      book: t('trainers.detail.schedule.book'),
+                    }}
+                    onOpenService={openService}
+                  />
+                </AppFeature>
 
                 <TrainerReviewsSection
                   locale={locale}
