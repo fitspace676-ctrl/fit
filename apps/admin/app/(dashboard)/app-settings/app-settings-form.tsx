@@ -2,10 +2,11 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Card, Switch } from '@fit/ui-kit';
+import { Button, Card } from '@fit/ui-kit';
 import { MOBILE_APP_FEATURES, type MobileAppSettings } from '@fit/types';
 import { updateAppSettingsAction } from './actions';
 import { AppColorField } from './app-color-field';
+import { FeatureCard } from './feature-card';
 import { LoginImageField } from './login-image-field';
 
 const styles = stylex.create({
@@ -19,7 +20,14 @@ const styles = stylex.create({
   },
   subtitle: { margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--color-text-secondary)' },
   card: { display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.5rem' },
-  row: { paddingBottom: '1rem', borderBottom: '1px solid var(--color-border)' },
+  features: { display: 'flex', flexDirection: 'column', gap: '1.25rem' },
+  // auto-fill keeps one column on a phone, two on a tablet and three at the
+  // page's full width without a breakpoint per layout.
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 16rem), 1fr))',
+    gap: '1rem',
+  },
   actions: { display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' },
   message: { margin: 0, fontSize: '0.875rem', color: 'var(--color-text-secondary)' },
 });
@@ -77,22 +85,25 @@ export function AppSettingsForm({ initial }: { initial: MobileAppSettings }) {
               })();
             }}
           >
-            <Card padding="none" xstyle={styles.card}>
+            <section {...stylex.props(styles.features)}>
               <p {...stylex.props(styles.message)}>{t('alwaysVisible')}</p>
-              {MOBILE_APP_FEATURES.map((key) => (
-                <Switch
-                  key={key}
-                  label={t(`features.${key}`)}
-                  description={t(`hints.${key}`)}
-                  checked={features[key]}
-                  disabled={pending}
-                  onChange={(checked) => {
-                    setFeatures((current) => ({ ...current, [key]: checked }));
-                    setMessage('');
-                  }}
-                  xstyle={styles.row}
-                />
-              ))}
+              <div {...stylex.props(styles.grid)}>
+                {MOBILE_APP_FEATURES.map((key) => (
+                  <FeatureCard
+                    key={key}
+                    feature={key}
+                    title={t(`features.${key}`)}
+                    description={t(`hints.${key}`)}
+                    illustrationAlt={t(`illustrations.${key}`)}
+                    checked={features[key]}
+                    disabled={pending}
+                    onChange={(checked) => {
+                      setFeatures((current) => ({ ...current, [key]: checked }));
+                      setMessage('');
+                    }}
+                  />
+                ))}
+              </div>
               <div {...stylex.props(styles.actions)}>
                 <Button
                   type="submit"
@@ -113,7 +124,7 @@ export function AppSettingsForm({ initial }: { initial: MobileAppSettings }) {
                   }}
                 />
               </div>
-            </Card>
+            </section>
           </form>
         </>
       )}
