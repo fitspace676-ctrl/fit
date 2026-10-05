@@ -15,6 +15,13 @@ const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: 'var(--color-border)',
   },
+  illustrationPanel: {
+    margin: '0.75rem 0.75rem 0',
+    borderRadius: 'var(--radius-element)',
+    overflow: 'hidden',
+    colorScheme: 'light',
+    backgroundColor: 'var(--color-background-muted)',
+  },
   illustration: {
     display: 'block',
     width: '100%',
@@ -79,14 +86,18 @@ export function FeatureCard({
 
   return (
     <Card padding="none" clip xstyle={styles.card}>
-      <Image
-        src={`${basePath}/app-settings/${feature}.webp`}
-        alt={illustrationAlt}
-        width={640}
-        height={400}
-        sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
-        {...stylex.props(styles.illustration, !checked && styles.illustrationOff)}
-      />
+      {/* The illustrations intentionally keep a light canvas in both themes.
+          Inset rounded panels separate that canvas from the card surface. */}
+      <div {...stylex.props(styles.illustrationPanel)}>
+        <Image
+          src={`${basePath}/app-settings/${feature}.webp`}
+          alt={illustrationAlt}
+          width={640}
+          height={400}
+          sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+          {...stylex.props(styles.illustration, !checked && styles.illustrationOff)}
+        />
+      </div>
       <div {...stylex.props(styles.content)}>
         <div {...stylex.props(styles.heading)}>
           <h3 {...stylex.props(styles.title)}>{title}</h3>
