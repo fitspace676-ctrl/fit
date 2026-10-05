@@ -1,0 +1,19 @@
+<!-- Square, opaque app tile. iOS supplies its own rounded corners.
+     F geometry: apps/platform/components/marketing/site-loader.tsx.
+     White mark on blue tile: apps/platform/public/FormaCore-dark.png. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320">
+  <defs>
+    <linearGradient id="background" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#1BB8E0" />
+      <stop offset=".5" stop-color="#278CFF" />
+      <stop offset="1" stop-color="#244CEF" />
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" fill="url(#background)" />
+  <g transform="translate(31 32)">
+    <polygon fill="#F4FCFF" points="59.8,154 127.1,154 80,240.5 46.5,178.5" />
+    <polygon fill="#D7F5FF" points="88,105 211,105 181.1,157 58.1,157" />
+    <polygon fill="#FFFFFF" points="52.5,62 110.4,62 85.65,105 27.75,105" />
+    <polygon fill="#FFFFFF" points="79.5,15 229.5,15 199.6,67 49.6,67" />
+  </g>
+</svg>

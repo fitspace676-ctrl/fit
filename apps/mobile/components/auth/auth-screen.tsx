@@ -70,14 +70,14 @@
 //     `forgot-password` mockup keeps them together).
 // ===========================================================================
 
-import { Heading, IconButton, Screen, Text, radii, spacing } from '@fit/ui-mobile';
+import { Heading, IconButton, Screen, Text, spacing } from '@fit/ui-mobile';
 import type { ReactNode } from 'react';
 import { Image, View } from 'react-native';
 
 import { useI18n } from '../../providers/I18nProvider';
 
 /**
- * The app icon itself — the asset the home screen shows, not a redrawing.
+ * The transparent FormaCore mark from the shared brand assets.
  *
  * `require`, not `import`: the `*.png` module declaration lives in Expo's
  * generated `expo-env.d.ts`, which is gitignored, so an `import` type-checks
@@ -85,7 +85,7 @@ import { useI18n } from '../../providers/I18nProvider';
  * Metro resolves both to the same asset id.
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const APP_ICON = require('../../assets/icon.png') as number;
+const APP_ICON = require('../../assets/brand-mark.png') as number;
 
 /** `spacing[10]` — the brand mark's side. */
 const BRAND_SIZE = spacing[10];
@@ -96,7 +96,7 @@ const NAV_ROW = spacing[11];
 /** The rhythm between fields. */
 const BODY_GAP = spacing[4];
 
-/** The app icon, 40pt, rounded like the icon it is. Decorative. */
+/** The brand mark, 40pt, without a tile on either theme. Decorative. */
 export function BrandMark({ testID }: { testID?: string }) {
   return (
     <Image
@@ -106,7 +106,7 @@ export function BrandMark({ testID }: { testID?: string }) {
       // nothing from hearing a picture of the same name.
       accessible={false}
       accessibilityIgnoresInvertColors
-      style={{ width: BRAND_SIZE, height: BRAND_SIZE, borderRadius: radii.inner }}
+      style={{ width: BRAND_SIZE, height: BRAND_SIZE }}
     />
   );
 }

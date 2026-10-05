@@ -1,0 +1,23 @@
+<!-- FormaCore geometry and gradients from apps/platform/components/marketing/site-loader.tsx. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 10 214 236">
+  <defs>
+    <linearGradient id="top" gradientUnits="userSpaceOnUse" x1="30" y1="105" x2="229" y2="15">
+      <stop offset="0" stop-color="#1BB8E0" />
+      <stop offset=".5" stop-color="#278CFF" />
+      <stop offset="1" stop-color="#244CEF" />
+    </linearGradient>
+    <linearGradient id="mid" gradientUnits="userSpaceOnUse" x1="58" y1="157" x2="211" y2="105">
+      <stop offset="0" stop-color="#31C0E8" />
+      <stop offset=".45" stop-color="#2AA6F2" />
+      <stop offset="1" stop-color="#2678F4" />
+    </linearGradient>
+    <linearGradient id="tail" gradientUnits="userSpaceOnUse" x1="52" y1="160" x2="96" y2="238">
+      <stop offset="0" stop-color="#2784F1" />
+      <stop offset="1" stop-color="#2350E8" />
+    </linearGradient>
+  </defs>
+  <polygon fill="url(#tail)" points="59.8,154 127.1,154 80,240.5 46.5,178.5" />
+  <polygon fill="url(#mid)" points="88,105 211,105 181.1,157 58.1,157" />
+  <polygon fill="url(#top)" points="52.5,62 110.4,62 85.65,105 27.75,105" />
+  <polygon fill="url(#top)" points="79.5,15 229.5,15 199.6,67 49.6,67" />
+</svg>
