@@ -1,173 +1,199 @@
-// @fit/admin — AI Agent chat state + streaming hook.
-//
-// Owns the visible transcript and drives one request/response turn against
-// `/api/agent/chat`. It POSTs the running conversation, reads the NDJSON stream,
-// and folds each event into the assistant turn as it arrives — text deltas
-// append, tool events attach/update tool calls (Phase 3), `done`/`error` end the
-// turn. `stop()` aborts an in-flight turn.
-
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import type { AgentMessage, AgentStreamEvent, AgentToolCall, ChatAttachment } from './types';
+import { useLocale, useTranslations } from 'next-intl';
+import { useActiveLocation } from '../active-location';
+import { approvalPayload, errorKey, foldEvent, restoreTranscript } from './chat-state';
+import type { AgentApproval, AgentMessage, AgentStreamEvent, ChatAttachment } from './types';
 
-/** Base path (`/admin` behind the tenant proxy); Next does not prefix `fetch`. */
-const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '';
-const ENDPOINT = `${BASE_PATH}/api/agent/chat`;
-
-/** Monotonic id source for transcript entries (no crypto dependency needed). */
+const ENDPOINT = `${process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? ''}/api/agent/chat`;
 let seq = 0;
-const nextId = (prefix: string): string => `${prefix}-${(seq += 1)}-${Date.now()}`;
-
-export interface UseAgentChat {
-  messages: AgentMessage[];
-  isStreaming: boolean;
-  error: string | null;
-  send: (text: string, model?: string, attachments?: ChatAttachment[]) => void;
-  stop: () => void;
-  reset: () => void;
-  /** Replace the transcript with a saved session's messages (resume). */
-  loadTranscript: (messages: AgentMessage[]) => void;
+const nextId = (prefix: string) => `${prefix}-${++seq}-${Date.now()}`;
+interface Turn {
+  id: string;
+  body: {
+    messages: { role: 'user' | 'assistant'; content: string }[];
+    model?: string;
+    attachments?: ChatAttachment[];
+    locale: 'ka' | 'en';
+    locationId?: string;
+    approvals?: AgentApproval[];
+  };
 }
 
-export function useAgentChat(): UseAgentChat {
+export function useAgentChat() {
+  const locale = useLocale();
+  const t = useTranslations('admin.agent');
+  const { locationId } = useActiveLocation();
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-
-  /** Patch a single message by id. */
+  const turnRef = useRef<Turn | null>(null);
+  const transcriptRef = useRef(messages);
+  transcriptRef.current = messages;
+  const retryBaseRef = useRef<AgentMessage | null>(null);
+  const decisionsRef = useRef<Record<string, AgentApproval['decision']>>({});
+  const pendingApprovals = messages
+    .flatMap((m) => m.toolCalls ?? [])
+    .filter((c) => c.status === 'awaiting_approval');
   const patch = useCallback((id: string, fn: (m: AgentMessage) => AgentMessage) => {
     setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));
   }, []);
 
-  const send = useCallback(
-    (text: string, model?: string, attachments?: ChatAttachment[]) => {
-      const trimmed = text.trim();
-      if ((!trimmed && !attachments?.length) || isStreaming) return;
-
-      setError(null);
-      const userMsg: AgentMessage = {
-        id: nextId('u'),
-        role: 'user',
-        content: trimmed,
-        ...(attachments?.length ? { attachments: attachments.map((a) => a.name) } : {}),
-      };
-      const assistantId = nextId('a');
-      const assistantMsg: AgentMessage = {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        streaming: true,
-      };
-
-      // Snapshot the wire history *before* this turn for the request body.
-      const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
-      setMessages((prev) => [...prev, userMsg, assistantMsg]);
-      setIsStreaming(true);
-
+  const run = useCallback(
+    (turn: Turn, retrying = false) => {
+      if (abortRef.current) return;
+      turnRef.current = turn;
+      if (!retrying)
+        retryBaseRef.current = transcriptRef.current.find((m) => m.id === turn.id) ?? {
+          id: turn.id,
+          role: 'assistant',
+          content: '',
+        };
       const controller = new AbortController();
       abortRef.current = controller;
-
+      setError(null);
+      setIsStreaming(true);
+      patch(turn.id, (m) => ({ ...m, streaming: true }));
       void (async () => {
         try {
           const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              messages: history,
-              ...(model ? { model } : {}),
-              ...(attachments?.length ? { attachments } : {}),
-            }),
+            body: JSON.stringify(turn.body),
             signal: controller.signal,
           });
-
           if (!res.ok || !res.body) {
-            throw new Error(`agent_http_${res.status}`);
+            const data = (await res.json().catch(() => ({}))) as { code?: string };
+            if (abortRef.current === controller) setError(t(errorKey(data.code)));
+            return;
           }
-
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let buffer = '';
-
-          const handle = (event: AgentStreamEvent): void => {
-            switch (event.t) {
-              case 'delta':
-                patch(assistantId, (m) => ({ ...m, content: m.content + event.v }));
-                break;
-              case 'tool':
-                patch(assistantId, (m) => {
-                  const call: AgentToolCall = {
-                    id: event.id,
-                    name: event.name,
-                    status: event.status,
-                    target: event.target,
-                    errorMessage: event.errorMessage,
-                  };
-                  const existing = m.toolCalls ?? [];
-                  const idx = existing.findIndex((c) => c.id === event.id);
-                  const toolCalls =
-                    idx === -1
-                      ? [...existing, call]
-                      : existing.map((c, i) => (i === idx ? { ...c, ...call } : c));
-                  return { ...m, toolCalls };
-                });
-                break;
-              case 'error':
-                setError(event.message);
-                break;
-              case 'done':
-                break;
+          const handle = (raw: string) => {
+            if (!raw.trim() || abortRef.current !== controller) return;
+            let event: AgentStreamEvent;
+            try {
+              event = JSON.parse(raw) as AgentStreamEvent;
+            } catch {
+              return;
             }
+            if (event.t === 'error') setError(t(errorKey(event.code)));
+            else patch(turn.id, (m) => foldEvent(m, event));
           };
-
-          // NDJSON: split on newlines, keep the trailing partial in the buffer.
           for (;;) {
             const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            let nl: number;
-            while ((nl = buffer.indexOf('\n')) !== -1) {
-              const raw = buffer.slice(0, nl).trim();
-              buffer = buffer.slice(nl + 1);
-              if (!raw) continue;
-              try {
-                handle(JSON.parse(raw) as AgentStreamEvent);
-              } catch {
-                // Ignore malformed lines rather than dropping the whole turn.
-              }
+            buffer += decoder.decode(value, { stream: !done });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() ?? '';
+            lines.forEach(handle);
+            if (done) {
+              handle(buffer);
+              break;
             }
           }
         } catch (err) {
-          if (!(err instanceof DOMException && err.name === 'AbortError')) {
-            setError(err instanceof Error ? err.message : 'agent_failed');
-          }
+          if (
+            abortRef.current === controller &&
+            !(err instanceof Error && err.name === 'AbortError')
+          )
+            setError(t('error'));
         } finally {
-          patch(assistantId, (m) => ({ ...m, streaming: false }));
-          setIsStreaming(false);
-          abortRef.current = null;
+          if (abortRef.current === controller) {
+            patch(turn.id, (m) => ({ ...m, streaming: false }));
+            abortRef.current = null;
+            setIsStreaming(false);
+          }
         }
       })();
     },
-    [isStreaming, messages, patch],
+    [patch, t],
+  );
+
+  const send = useCallback(
+    (text: string, model?: string, attachments?: ChatAttachment[]) => {
+      if ((!text.trim() && !attachments?.length) || abortRef.current || pendingApprovals.length)
+        return;
+      const user: AgentMessage = {
+        id: nextId('u'),
+        role: 'user',
+        content: text.trim(),
+        attachments: attachments?.map((a) => a.name),
+      };
+      const id = nextId('a');
+      decisionsRef.current = {};
+      setMessages((prev) => [
+        ...prev,
+        user,
+        { id, role: 'assistant', content: '', streaming: true },
+      ]);
+      run({
+        id,
+        body: {
+          messages: [...messages, user].map(({ role, content }) => ({ role, content })),
+          model,
+          attachments,
+          locationId,
+          locale: locale === 'ka' ? 'ka' : 'en',
+        },
+      });
+    },
+    [messages, pendingApprovals.length, run, locationId, locale],
+  );
+
+  const decide = useCallback(
+    (decisions: Record<string, AgentApproval['decision']>) => {
+      if (abortRef.current || !turnRef.current) return;
+      const valid = Object.fromEntries(
+        Object.entries(decisions).filter(([id]) => pendingApprovals.some((c) => c.id === id)),
+      );
+      decisionsRef.current = { ...decisionsRef.current, ...valid };
+      patch(turnRef.current.id, (m) => ({
+        ...m,
+        toolCalls: m.toolCalls?.map((c) => (valid[c.id] ? { ...c, decision: valid[c.id] } : c)),
+      }));
+      const approvals = approvalPayload(pendingApprovals, decisionsRef.current);
+      if (!approvals) return;
+      decisionsRef.current = {};
+      run({ ...turnRef.current, body: { ...turnRef.current.body, approvals } });
+    },
+    [patch, pendingApprovals, run],
   );
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
-
-  const reset = useCallback(() => {
-    abortRef.current?.abort();
-    setMessages([]);
-    setError(null);
-  }, []);
-
   const loadTranscript = useCallback((next: AgentMessage[]) => {
     abortRef.current?.abort();
+    abortRef.current = null;
+    turnRef.current = null;
+    decisionsRef.current = {};
+    setIsStreaming(false);
     setError(null);
-    // Clear any lingering streaming flag from a saved turn.
-    setMessages(next.map((m) => (m.streaming ? { ...m, streaming: false } : m)));
+    setMessages(restoreTranscript(next));
   }, []);
-
-  return { messages, isStreaming, error, send, stop, reset, loadTranscript };
+  const reset = useCallback(() => loadTranscript([]), [loadTranscript]);
+  const retry = useCallback(() => {
+    if (turnRef.current && !abortRef.current) {
+      if (retryBaseRef.current) {
+        const baseline = retryBaseRef.current;
+        patch(turnRef.current.id, () => baseline);
+      }
+      run(turnRef.current, true);
+    }
+  }, [patch, run]);
+  return {
+    messages,
+    isStreaming,
+    error,
+    send,
+    stop,
+    reset,
+    loadTranscript,
+    pendingApprovals,
+    decide,
+    retry,
+  };
 }

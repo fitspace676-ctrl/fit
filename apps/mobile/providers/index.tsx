@@ -24,6 +24,8 @@ import { AUTH_GROUP, HOME_ROUTE, resolveRedirect } from '../lib/route-policy';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useSession } from '../hooks/useSession';
 import { bootThemePreference } from '../lib/theme-preference';
+import { bootAppAccent } from '../lib/app-accent';
+import { AppFeaturesProvider } from './AppFeaturesProvider';
 import { I18nProvider } from './I18nProvider';
 import { ThemePreferenceProvider } from './ThemePreferenceProvider';
 
@@ -65,7 +67,9 @@ export function AppProviders({ children }: AppProvidersProps) {
       <ThemePreferenceProvider>
         <QueryClientProvider client={queryClient}>
           <I18nProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <AppFeaturesProvider>{children}</AppFeaturesProvider>
+            </ToastProvider>
           </I18nProvider>
         </QueryClientProvider>
       </ThemePreferenceProvider>
@@ -195,7 +199,10 @@ export function useAppBootstrap(): BootstrapState {
     // `lib/theme-preference.ts` makes this a join, not a second read. Its
     // *value* is the provider's business; all the splash needs is that it has
     // landed, so the frame it uncovers is already in the member's own mode.
-    void bootThemePreference().then(() => {
+    // The gym's remembered accent rides the same gate, for the same reason: the
+    // first uncovered frame is already in the gym's colour, not the built-in
+    // blue repainting a moment later. One AsyncStorage read, never rejecting.
+    void Promise.all([bootThemePreference(), bootAppAccent()]).then(() => {
       if (!cancelled) {
         setThemed(true);
       }

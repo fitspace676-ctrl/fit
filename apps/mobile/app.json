@@ -13,7 +13,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "io.formacore.app",
       "usesAppleSignIn": true,
-      "buildNumber": "5",
+      "buildNumber": "8",
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -22,7 +22,7 @@
       "package": "com.fit.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#131312"
+        "backgroundColor": "#1A7FD6"
       }
     },
     "web": {
@@ -41,7 +41,8 @@
         {
           "image": "./assets/splash.png",
           "resizeMode": "contain",
-          "backgroundColor": "#131312"
+          "backgroundColor": "#131312",
+          "imageWidth": 160
         }
       ],
       [

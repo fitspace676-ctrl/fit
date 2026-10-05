@@ -187,7 +187,9 @@ export class MediaSweepService {
         // reads as "no reference" — so an empty string here costs nothing and the
         // column needs no filter.
         this.prisma.client.banner.findMany({ select: { imageUrl: true } }),
-        this.prisma.client.gym.findMany({ select: { settings: true } }),
+        this.prisma.client.gym.findMany({
+          select: { settings: true, mobileAppLoginImageUrl: true },
+        }),
       ]);
 
     for (const product of products) for (const image of product.images) add(image);
@@ -211,6 +213,8 @@ export class MediaSweepService {
       add(settings?.memberPortal?.loginImageUrl);
       add(settings?.memberPortal?.logoUrl);
       add(settings?.memberPortal?.faviconUrl);
+      // The mobile app's own sign-in photo: a column, but on the same prefix.
+      add(gym.mobileAppLoginImageUrl);
     }
 
     return keys;

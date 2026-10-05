@@ -76,7 +76,8 @@ describe('PortalLogo', () => {
     });
 
     // The console tells the gym its logo is shown as uploaded, everywhere, so
-    // `onPhoto` must not quietly change what a tenant mark renders as.
+    // `onPhoto` must not quietly change what a tenant mark renders as. (Only its
+    // size bounds differ there, which live in StyleX and are not observable here.)
     it('renders identically over the photograph as on a themed surface', () => {
       const themed = render(<PortalLogo logoUrl={LOGO} />);
       const onPhoto = render(<PortalLogo logoUrl={LOGO} onPhoto />);

@@ -8,7 +8,22 @@
 export interface AgentToolCall {
   id: string;
   name: string;
-  status: 'pending' | 'running' | 'complete' | 'error';
+  status:
+    | 'pending'
+    | 'running'
+    | 'complete'
+    | 'error'
+    | 'awaiting_approval'
+    | 'rejected'
+    | 'cancelled';
+  title?: string;
+  kind?: 'read' | 'write';
+  destructive?: boolean;
+  input?: Record<string, unknown>;
+  signature?: string;
+  resultSummary?: string;
+  durationMs?: number;
+  decision?: 'approve' | 'reject';
   /** Human-readable target of the action (e.g. a member name, a class id). */
   target?: string;
   errorMessage?: string;
@@ -37,13 +52,11 @@ export interface AgentMessage {
 /** One NDJSON event streamed back from the agent endpoint. */
 export type AgentStreamEvent =
   | { t: 'delta'; v: string }
-  | {
-      t: 'tool';
-      id: string;
-      name: string;
-      status: AgentToolCall['status'];
-      target?: string;
-      errorMessage?: string;
-    }
-  | { t: 'error'; message: string }
+  | ({ t: 'tool' } & Omit<AgentToolCall, 'decision'>)
+  | { t: 'error'; message: string; code?: string }
   | { t: 'done' };
+
+export interface AgentApproval {
+  call: { id: string; name: string; input: Record<string, unknown>; signature?: string };
+  decision: 'approve' | 'reject';
+}

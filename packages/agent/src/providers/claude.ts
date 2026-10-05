@@ -10,6 +10,7 @@ import {
   decodeText,
   isTextAttachment,
   type AgentAttachment,
+  type AgentHistoryMessage,
   type AgentToolCall,
   type ModelDriver,
   type RunTurnArgs,
@@ -42,6 +43,40 @@ function attachmentBlocks(a: AgentAttachment): Anthropic.ContentBlockParam[] {
   return [{ type: 'text', text: `(unsupported attachment "${a.name}", ${a.mimeType})` }];
 }
 
+/**
+ * Translate the neutral history to Anthropic messages. An assistant turn with no
+ * text (a replayed approval) becomes `tool_use` blocks alone.
+ */
+export function toAnthropicMessages(history: AgentHistoryMessage[]): Anthropic.MessageParam[] {
+  return history.map((m): Anthropic.MessageParam => {
+    if (m.role === 'user') {
+      if (!m.attachments || m.attachments.length === 0) {
+        return { role: 'user', content: m.text };
+      }
+      const content: Anthropic.ContentBlockParam[] = [{ type: 'text', text: m.text }];
+      for (const a of m.attachments) content.push(...attachmentBlocks(a));
+      return { role: 'user', content };
+    }
+    if (m.role === 'assistant') {
+      const content: Anthropic.ContentBlockParam[] = [];
+      if (m.text) content.push({ type: 'text', text: m.text });
+      for (const tc of m.toolCalls) {
+        content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
+      }
+      return { role: 'assistant', content };
+    }
+    return {
+      role: 'user',
+      content: m.results.map((r) => ({
+        type: 'tool_result' as const,
+        tool_use_id: r.id,
+        content: r.output,
+        is_error: r.isError,
+      })),
+    };
+  });
+}
+
 export function createClaudeDriver(modelId: string): ModelDriver {
   const anthropic = new Anthropic(); // reads ANTHROPIC_API_KEY from the environment
 
@@ -54,33 +89,7 @@ export function createClaudeDriver(modelId: string): ModelDriver {
         ...(i === tools.length - 1 ? { cache_control: { type: 'ephemeral' as const } } : {}),
       }));
 
-      const messages: Anthropic.MessageParam[] = history.map((m) => {
-        if (m.role === 'user') {
-          if (!m.attachments || m.attachments.length === 0) {
-            return { role: 'user', content: m.text };
-          }
-          const content: Anthropic.ContentBlockParam[] = [{ type: 'text', text: m.text }];
-          for (const a of m.attachments) content.push(...attachmentBlocks(a));
-          return { role: 'user', content };
-        }
-        if (m.role === 'assistant') {
-          const content: Anthropic.ContentBlockParam[] = [];
-          if (m.text) content.push({ type: 'text', text: m.text });
-          for (const tc of m.toolCalls) {
-            content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
-          }
-          return { role: 'assistant', content };
-        }
-        return {
-          role: 'user',
-          content: m.results.map((r) => ({
-            type: 'tool_result' as const,
-            tool_use_id: r.id,
-            content: r.output,
-            is_error: r.isError,
-          })),
-        };
-      });
+      const messages = toAnthropicMessages(history);
 
       const stream = anthropic.messages.stream({
         model: modelId,

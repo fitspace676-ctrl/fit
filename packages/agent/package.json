@@ -10,6 +10,7 @@
   "scripts": {
     "build": "echo '[@fit/agent] build: nothing to do yet'",
     "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint . --fix"
   },
@@ -21,6 +22,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@fit/config": "workspace:*"
+    "@fit/config": "workspace:*",
+    "vitest": "^3.0.0"
   }
 }

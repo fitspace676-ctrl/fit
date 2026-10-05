@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -9,16 +9,23 @@ import {
   DEFAULT_PORTAL_ACCENT,
   HEX_COLOR_PATTERN,
   JOIN_CARD_LIMITS,
+  PORTAL_LOGO_SIZES,
   gymJoinCardSettingsSchema,
+  portalLogoSizeSchema,
   resolveJoinCard,
   type GymJoinCardCopy,
   type GymSettings,
   type JoinCardDefaults,
+  type PortalLogoSize,
 } from '@fit/types';
-import { Button, Card } from '@fit/ui-kit';
+import { Button, Card, SegmentedControl } from '@fit/ui-kit';
 import { Form, Icon, useFormContext, useToast, useWatch, useZodForm } from '@/components/ui';
 import { AccentColorField } from '@/components/accent-color-field';
-import type { SignedUploadResponse } from '@/lib/api';
+import {
+  MAX_PHOTO_UPLOAD_BYTES,
+  PHOTO_UPLOAD_TYPES,
+  useImageUpload as useSharedImageUpload,
+} from '@/components/use-image-upload';
 import {
   finalizePortalFaviconAction,
   finalizePortalImageAction,
@@ -26,7 +33,6 @@ import {
   requestPortalImageUploadAction,
   requestPortalLogoUploadAction,
   updateMemberPortalAction,
-  type ActionResult,
 } from './actions';
 import {
   JoinCardField,
@@ -70,10 +76,10 @@ const WORDMARK_ON_LIGHT = `${BASE_PATH}/logolight.png`;
  * this image is only ever rendered by a browser, so WebP — the format the
  * bundled default itself is in — is allowed.
  */
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ACCEPTED_IMAGE_TYPES = PHOTO_UPLOAD_TYPES;
 
 /** Client-side size ceiling (bytes) — a friendly guard before the signed PUT. */
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_BYTES = MAX_PHOTO_UPLOAD_BYTES;
 
 /**
  * Accepted wordmark MIME types — the photograph's list, and for the same reason:
@@ -384,6 +390,14 @@ const styles = stylex.create({
     display: 'block',
     objectFit: 'contain',
   },
+  // The size picker under the logo upload: a label, the three presets, a note.
+  sizeBlock: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.5rem' },
+  sizeLabel: {
+    margin: 0,
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+  },
   favicon64: { width: '4rem', height: '4rem' },
   favicon32: { width: '2rem', height: '2rem' },
   favicon16: { width: '1rem', height: '1rem' },
@@ -440,10 +454,14 @@ const styles = stylex.create({
     display: 'block',
     width: 'auto',
     height: 'auto',
-    maxHeight: '1.375rem',
-    maxWidth: '6.5rem',
     objectFit: 'contain',
   },
+  // The member site's three presets over the photograph (`PortalLogo`'s
+  // `photoSm`/`photoMd`/`photoLg`), at the mock's scale of roughly 0.7 so the
+  // steps between them read the same as at the door.
+  previewLogoSm: { maxHeight: '1.375rem', maxWidth: '6.5rem' },
+  previewLogoMd: { maxHeight: '2.375rem', maxWidth: '10rem' },
+  previewLogoLg: { maxHeight: '3.125rem', maxWidth: '13rem' },
   previewJoin: {
     position: 'relative',
     borderRadius: 'var(--radius-container)',
@@ -629,6 +647,7 @@ const styles = stylex.create({
 interface MemberPortalFormValues {
   loginImageUrl: string | null;
   logoUrl: string | null;
+  logoSize: PortalLogoSize;
   faviconUrl: string | null;
   primaryColor: string | null;
   /** The sign-in join card, as `JoinCardField` edits it. */
@@ -672,6 +691,8 @@ function toFormValues(settings: GymSettings): MemberPortalFormValues {
   return {
     loginImageUrl: settings.memberPortal.loginImageUrl,
     logoUrl: settings.memberPortal.logoUrl,
+    // Settings saved before the field existed have no value; the contract's default.
+    logoSize: settings.memberPortal.logoSize ?? 'md',
     faviconUrl: settings.memberPortal.faviconUrl ?? null,
     primaryColor: settings.memberPortal.primaryColor,
     joinCard: {
@@ -745,6 +766,7 @@ export function MemberPortalForm({
   const schema = z.object({
     loginImageUrl: z.string().url().nullable(),
     logoUrl: z.string().url().nullable(),
+    logoSize: portalLogoSizeSchema,
     faviconUrl: z.string().url().nullable(),
     primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('colors.invalid')).nullable(),
     joinCard: z.object({ hidden: z.boolean(), ka: joinCopySchema, en: joinCopySchema }),
@@ -856,172 +878,14 @@ export function MemberPortalForm({
   );
 }
 
-/** The translated strings {@link useImageUpload} needs to report a rejected file. */
-interface ImageUploadMessages {
-  /** The file is not one of the accepted MIME types. */
-  errorType: string;
-  /** The file is over the ceiling. */
-  errorSize: string;
-  /** The signed `PUT` came back non-2xx — takes the HTTP status. */
-  errorUpload: (status: number) => string;
-  /** Anything threw: offline, DNS, a blocked request. */
-  errorNetwork: string;
-}
-
 /**
- * The presign → `PUT` → finalise flow, plus the drag-and-drop that feeds it.
- *
- * SHARED BY BOTH UPLOADS ON THIS SCREEN, not duplicated per control. The two are
- * the same machine pointed at different settings fields: same three steps, same
- * two gates, same drop behaviour, same error surface — and the parts that are
- * genuinely fiddly (the `relatedTarget` containment below, resetting the input so
- * re-picking the same file re-fires `change`) are exactly the parts that rot when
- * they exist twice. What differs is the accepted formats, the ceiling and which
- * field the resulting URL lands in, so those are the arguments.
- *
- * The three steps are unchanged from the brand logo's: mint a presigned R2 URL
- * (`POST /uploads`), `PUT` the bytes straight there from the browser, then hand
- * the object key to a server action that checks it belongs to this gym and turns
- * it into a public URL (`POST /gyms/settings/portal-image` or `.../portal-logo`).
- * Only that last step needs a server, which is why it is the only one that is an
- * action rather than a `fetch`.
+ * The shared presign → `PUT` → finalise flow (`@/components/use-image-upload`),
+ * held while this form is saving. Every upload on this screen resolves to the
+ * stored public URL, which is then written into the form.
  */
-function useImageUpload({
-  accept,
-  maxBytes,
-  messages,
-  presign,
-  finalize,
-  onUploaded,
-}: {
-  /** Accepted MIME types — both the `accept` attribute and the client-side gate. */
-  accept: readonly string[];
-  /** Client-side size ceiling in bytes, checked before anything is signed. */
-  maxBytes: number;
-  messages: ImageUploadMessages;
-  presign: (input: {
-    contentType: string;
-    contentLength: number;
-    fileName?: string;
-  }) => Promise<ActionResult<SignedUploadResponse>>;
-  /** Finalise the uploaded key, resolving to the stored public URL. */
-  finalize: (photoKey: string) => Promise<ActionResult<string>>;
-  /** Write the finalised URL into the form. */
-  onUploaded: (url: string) => void;
-}) {
+function useImageUpload(options: Omit<Parameters<typeof useSharedImageUpload<string>>[0], 'busy'>) {
   const { formState } = useFormContext<MemberPortalFormValues>();
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const disabled = uploading || formState.isSubmitting;
-
-  // Clearing the input is what lets the same file be picked twice: without it the
-  // second pick sets an identical value and `change` never fires.
-  function resetFileInput(): void {
-    if (inputRef.current) inputRef.current.value = '';
-  }
-
-  /**
-   * Validate one file and put it on R2. Shared by the picker and the drop zone so
-   * a dropped file cannot take a shorter route than a chosen one — same type and
-   * size gates, same presign/PUT/finalise, same error surface.
-   */
-  async function upload(file: File): Promise<void> {
-    setUploadError(null);
-
-    if (!accept.includes(file.type)) {
-      setUploadError(messages.errorType);
-      resetFileInput();
-      return;
-    }
-    if (file.size > maxBytes) {
-      setUploadError(messages.errorSize);
-      resetFileInput();
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const signed = await presign({
-        contentType: file.type,
-        contentLength: file.size,
-        fileName: file.name,
-      });
-      if (!signed.ok) {
-        setUploadError(signed.error);
-        return;
-      }
-      const put = await fetch(signed.data.url, {
-        method: 'PUT',
-        headers: { 'content-type': signed.data.contentType },
-        body: file,
-      });
-      if (!put.ok) {
-        setUploadError(messages.errorUpload(put.status));
-        return;
-      }
-      const finalized = await finalize(signed.data.key);
-      if (!finalized.ok) {
-        setUploadError(finalized.error);
-        return;
-      }
-      onUploaded(finalized.data);
-    } catch {
-      setUploadError(messages.errorNetwork);
-    } finally {
-      setUploading(false);
-      resetFileInput();
-    }
-  }
-
-  function onInputChange(event: React.ChangeEvent<HTMLInputElement>): void {
-    const file = event.target.files?.[0];
-    if (file) void upload(file);
-  }
-
-  /** Spread onto the block that answers a drop — the whole control, not the thumbnail. */
-  const dropHandlers = {
-    onDragEnter(event: React.DragEvent<HTMLDivElement>): void {
-      if (disabled || !event.dataTransfer.types.includes('Files')) return;
-      event.preventDefault();
-      setDragging(true);
-    },
-    onDragOver(event: React.DragEvent<HTMLDivElement>): void {
-      if (disabled || !event.dataTransfer.types.includes('Files')) return;
-      // Without this the browser navigates to the dropped file and the drop event
-      // never reaches React at all.
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'copy';
-    },
-    /**
-     * `dragleave` also fires each time the pointer crosses onto a CHILD of the
-     * zone — the thumbnail, the button, the hint — so it cannot be taken at face
-     * value or the highlight flickers off while the file is still over the block.
-     *
-     * `relatedTarget` is what it is entering. Inside the zone → ignore; outside,
-     * or `null` because the drag left the window entirely, → clear. Counting
-     * enter/leave pairs instead would be one dropped event away from a highlight
-     * that never goes out.
-     */
-    onDragLeave(event: React.DragEvent<HTMLDivElement>): void {
-      const entering = event.relatedTarget;
-      if (entering instanceof Node && event.currentTarget.contains(entering)) return;
-      setDragging(false);
-    },
-    onDrop(event: React.DragEvent<HTMLDivElement>): void {
-      event.preventDefault();
-      setDragging(false);
-      if (disabled) return;
-      // Only the first file: this is one image, and silently uploading the last
-      // of five dropped ones would be a coin toss the user did not call.
-      const file = event.dataTransfer.files?.[0];
-      if (file) void upload(file);
-    },
-  };
-
-  return { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers };
+  return useSharedImageUpload<string>({ ...options, busy: formState.isSubmitting });
 }
 
 /**
@@ -1151,6 +1015,7 @@ function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
   const t = useTranslations('admin.memberPortal.logo');
   const { control, setValue } = useFormContext<MemberPortalFormValues>();
   const logoUrl = useWatch({ control, name: 'logoUrl' });
+  const logoSize = useWatch({ control, name: 'logoSize' });
 
   const { uploading, uploadError, dragging, disabled, inputRef, onInputChange, dropHandlers } =
     useImageUpload({
@@ -1238,9 +1103,28 @@ function LogoField({ brandLogoUrl }: { brandLogoUrl: string | null }) {
           {uploadError}
         </p>
       ) : null}
+      {/* Three presets rather than a pixel value: the member site has sized each
+          one against its headers, so no choice here can break a layout. The
+          preview beside this card repaints on every change. */}
+      <div {...stylex.props(styles.sizeBlock)}>
+        <p {...stylex.props(styles.sizeLabel)}>{t('sizeLabel')}</p>
+        <SegmentedControl
+          label={t('sizeLabel')}
+          value={logoSize}
+          onChange={(value) => setValue('logoSize', value, { shouldDirty: true })}
+          options={PORTAL_LOGO_SIZES.map((value) => ({ value, label: t(`sizes.${value}`) }))}
+        />
+        <p {...stylex.props(styles.photoHint)}>{t('sizeHint')}</p>
+      </div>
     </div>
   );
 }
+
+const PREVIEW_LOGO_SIZES = {
+  sm: styles.previewLogoSm,
+  md: styles.previewLogoMd,
+  lg: styles.previewLogoLg,
+} as const;
 
 /**
  * The member site's browser-tab icon: current icon at the sizes a tab draws it,
@@ -1399,6 +1283,7 @@ function PortalPreview({
   const primaryColor = useWatch({ control, name: 'primaryColor' });
   const loginImageUrl = useWatch({ control, name: 'loginImageUrl' });
   const logoUrl = useWatch({ control, name: 'logoUrl' });
+  const logoSize = useWatch({ control, name: 'logoSize' });
   const joinCard = useWatch({ control, name: 'joinCard' });
   // The member site's own resolution, so the mock and the door cannot disagree.
   // In-progress edits go through the schema leniently: a line over its limit
@@ -1435,7 +1320,11 @@ function PortalPreview({
         <img src={photo} alt="" {...stylex.props(styles.previewPhoto)} />
         <span aria-hidden {...stylex.props(styles.previewScrim)} />
         {tenantLogo ? (
-          <img src={tenantLogo} alt="" {...stylex.props(styles.previewLogoMark)} />
+          <img
+            src={tenantLogo}
+            alt=""
+            {...stylex.props(styles.previewLogoMark, PREVIEW_LOGO_SIZES[logoSize])}
+          />
         ) : (
           <img src={WORDMARK} alt="" {...stylex.props(styles.previewWordmark)} />
         )}

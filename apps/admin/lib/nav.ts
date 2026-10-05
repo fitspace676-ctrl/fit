@@ -74,6 +74,7 @@ export type NavIcon =
   | 'activity'
   | 'audit'
   | 'memberPortal'
+  | 'appSettings'
   | 'settings';
 
 /**
@@ -171,6 +172,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: Permission.GymManage,
   },
   {
+    labelKey: 'appSettings.title',
+    href: '/app-settings',
+    icon: 'appSettings',
+    permission: Permission.GymManage,
+  },
+  {
     // Gym configuration, gated on `GymManage` — which is what every endpoint
     // behind the screen (`GET`/`PATCH /gyms/settings`) requires. The route guard
     // says the same thing, so a manager can no longer type the URL and collect a
@@ -204,7 +211,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/services', '/pos'] },
   { labelKey: 'navGroups.growth', hrefs: ['/automation', '/marketing'] },
   { labelKey: 'navGroups.insights', hrefs: ['/reports'] },
-  { labelKey: 'navGroups.system', hrefs: ['/member-portal', '/settings'] },
+  { labelKey: 'navGroups.system', hrefs: ['/member-portal', '/app-settings', '/settings'] },
 ];
 
 /**

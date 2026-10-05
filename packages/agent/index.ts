@@ -6,7 +6,8 @@
 // graphs, e.g. @google/genai, blow up the API's classic-resolution tsc). The API
 // loads it through a `require` boundary in its chat controller.
 
-export { runAgent } from './src/run-agent';
+export { runAgent, type RunAgentOptions } from './src/run-agent';
+export { buildSystemPrompt, type AgentContext } from './src/system-prompt';
 export {
   resolveModel,
   availableModels,
@@ -14,4 +15,11 @@ export {
   type AgentModel,
   type AgentProvider,
 } from './src/models';
-export type { AgentStreamEvent } from './src/driver';
+export type {
+  AgentApproval,
+  AgentErrorCode,
+  AgentStreamEvent,
+  AgentToolCall,
+  AgentToolKind,
+  AgentToolStatus,
+} from './src/driver';

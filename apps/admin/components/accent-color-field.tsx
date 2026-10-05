@@ -120,6 +120,10 @@ const styles = stylex.create({
  * `namespace` names the translation block holding this field's copy (`badge`,
  * `inherited`, `useBrand`, `customise`, `reset`, `hexLabel`, `pickerLabel`), so
  * each screen keeps its own wording.
+ *
+ * A screen whose default is not the shipped blue (the mobile app inherits the
+ * portal's colour) passes `fallback`, and `inheritedHint` to say where it is
+ * from; without `brand` there is no one-click brand choice.
  */
 export function AccentColorField({
   name,
@@ -127,14 +131,20 @@ export function AccentColorField({
   description,
   brand,
   namespace,
+  fallback = DEFAULT_PORTAL_ACCENT,
+  inheritedHint,
 }: {
   /** Dot path of the colour in the form, e.g. `console.primaryColor`. */
   name: string;
   label: string;
   description: string;
   /** The gym's brand colour, offered as a one-click choice. */
-  brand: string;
+  brand?: string;
   namespace: string;
+  /** The colour shown, inert, while the field is `null`. */
+  fallback?: string;
+  /** Replaces the `inherited` line while the field is `null`. */
+  inheritedHint?: string;
 }) {
   const t = useTranslations(namespace);
   const {
@@ -143,9 +153,10 @@ export function AccentColorField({
     formState: { errors },
   } = useFormContext();
   const error = fieldErrorText(errors, name);
-  const fallback = DEFAULT_PORTAL_ACCENT;
   const brandIsUsable =
-    HEX_COLOR_PATTERN.test(brand) && brand.toLowerCase() !== fallback.toLowerCase();
+    brand !== undefined &&
+    HEX_COLOR_PATTERN.test(brand) &&
+    brand.toLowerCase() !== fallback.toLowerCase();
   const choose = (value: string | null) => setValue(name, value, { shouldDirty: true });
 
   return (
@@ -198,7 +209,9 @@ export function AccentColorField({
 
             {inheriting ? (
               <>
-                <p {...stylex.props(styles.desc)}>{t('inherited', { color: fallback })}</p>
+                <p {...stylex.props(styles.desc)}>
+                  {inheritedHint ?? t('inherited', { color: fallback })}
+                </p>
                 {brandIsUsable ? (
                   <button
                     type="button"

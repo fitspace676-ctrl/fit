@@ -33,6 +33,7 @@ function setup() {
       portal: {
         loginImageUrl: null,
         logoUrl: null,
+        logoSize: 'md',
         faviconUrl: null,
         primaryColor: '#84cc16',
         chosenPrimaryColor: null,
@@ -79,6 +80,7 @@ describe('GymsController', () => {
         portal: {
           loginImageUrl: null,
           logoUrl: null,
+          logoSize: 'md',
           faviconUrl: null,
           primaryColor: '#84cc16',
           chosenPrimaryColor: null,

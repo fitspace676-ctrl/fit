@@ -2,6 +2,7 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
+import type { PortalLogoSize } from '@fit/types';
 import { Link } from '@/src/i18n/navigation';
 import { LocaleSwitcher } from '@/src/components/LocaleSwitcher';
 import { PortalLogo } from './portal-logo';
@@ -87,10 +88,18 @@ const styles = stylex.create({
  * has uploaded none — linking home. See `PortalLogo` for why one uploaded file
  * cannot use the swap the bundled pair does.
  */
-function Logo({ label, logoUrl }: { label: string; logoUrl: string | null }) {
+function Logo({
+  label,
+  logoUrl,
+  logoSize,
+}: {
+  label: string;
+  logoUrl: string | null;
+  logoSize: PortalLogoSize;
+}) {
   return (
     <Link href="/member/home" aria-label={label} {...stylex.props(styles.logo)}>
-      <PortalLogo logoUrl={logoUrl} />
+      <PortalLogo logoUrl={logoUrl} size={logoSize} />
     </Link>
   );
 }
@@ -108,16 +117,18 @@ export interface MemberHeaderProps {
    * that would also flash the wrong mark on first paint.
    */
   logoUrl?: string | null;
+  /** The gym's logo size preset (`memberPortal.logoSize`). */
+  logoSize?: PortalLogoSize;
 }
 
 /** Persistent member-portal header: the brand mark, and the theme and language switches. */
-export function MemberHeader({ logoUrl = null }: MemberHeaderProps) {
+export function MemberHeader({ logoUrl = null, logoSize = 'md' }: MemberHeaderProps) {
   const t = useTranslations('member');
 
   return (
     <header {...stylex.props(styles.header)}>
       <div {...stylex.props(styles.bar)}>
-        <Logo label={t('shell.brand')} logoUrl={logoUrl} />
+        <Logo label={t('shell.brand')} logoUrl={logoUrl} logoSize={logoSize} />
 
         <div {...stylex.props(styles.actions)}>
           <ThemeToggle />

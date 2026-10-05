@@ -22,9 +22,9 @@ import { ChatMessageList } from '@astryxdesign/core/Chat';
 import { ChatMessage } from '@astryxdesign/core/Chat';
 import { ChatMessageBubble } from '@astryxdesign/core/Chat';
 import { ChatComposer } from '@astryxdesign/core/Chat';
-import { ChatToolCalls } from '@astryxdesign/core/Chat';
+import { AgentToolCalls } from './tool-calls';
 import { Markdown } from '@astryxdesign/core/Markdown';
-import { Icon } from '@/components/ui';
+import { Icon, Btn, Input, Modal, ConfirmDialog } from '@/components/ui';
 import { useAgentChat } from './use-agent-chat';
 import { newSessionId, sessionTitle, useSessions, type AgentSessionMeta } from './use-sessions';
 import type { ChatAttachment } from './types';
@@ -334,6 +334,7 @@ const styles = stylex.create({
     fontSize: '0.6875rem',
     color: 'var(--color-text-red)',
   },
+  transcript: { paddingBlockEnd: '6rem' },
   body: {
     flex: 1,
     minHeight: 0,
@@ -411,7 +412,18 @@ export function AgentChat() {
   const t = useTranslations('admin.agent');
   const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const { messages, isStreaming, error, send, stop, reset, loadTranscript } = useAgentChat();
+  const {
+    messages,
+    isStreaming,
+    error,
+    send,
+    stop,
+    reset,
+    loadTranscript,
+    pendingApprovals,
+    decide,
+    retry,
+  } = useAgentChat();
   const { sessions, save: saveSession, remove: removeSession, load: loadSession } = useSessions();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -419,6 +431,13 @@ export function AgentChat() {
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachWarn, setAttachWarn] = useState<string>('');
   const [showHistory, setShowHistory] = useState(false);
+  const sessionTitleRef = useRef<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<AgentSessionMeta | null>(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [sessionError, setSessionError] = useState(false);
   const [dragging, setDragging] = useState(false);
   // Nested elements fire dragenter/dragleave; count them so the overlay doesn't flicker.
   const dragDepth = useRef(0);
@@ -436,7 +455,7 @@ export function AgentChat() {
     if (!sessionIdRef.current) sessionIdRef.current = newSessionId();
     saveSession({
       id: sessionIdRef.current,
-      title: sessionTitle(messages) || t('untitled'),
+      title: sessionTitleRef.current || sessionTitle(messages) || t('untitled'),
       messages,
     });
   }, [messages, isStreaming, saveSession, t]);
@@ -444,6 +463,7 @@ export function AgentChat() {
   // Start a fresh conversation (keeps the old one saved in history).
   const startNewChat = useCallback(() => {
     sessionIdRef.current = null;
+    sessionTitleRef.current = null;
     reset();
     setShowHistory(false);
   }, [reset]);
@@ -454,6 +474,7 @@ export function AgentChat() {
       const msgs = await loadSession(session.id);
       if (!msgs) return;
       sessionIdRef.current = session.id;
+      sessionTitleRef.current = session.title;
       loadTranscript(msgs);
       setShowHistory(false);
     },
@@ -466,6 +487,7 @@ export function AgentChat() {
       removeSession(id);
       if (sessionIdRef.current === id) {
         sessionIdRef.current = null;
+        sessionTitleRef.current = null;
         reset();
       }
     },
@@ -473,6 +495,17 @@ export function AgentChat() {
   );
 
   /** Short localized timestamp for a session row. */
+  const dateGroup = (timestamp: string) => {
+    const date = new Date(timestamp).toDateString();
+    const today = new Date();
+    if (date === today.toDateString()) return 'today';
+    today.setDate(today.getDate() - 1);
+    return date === today.toDateString() ? 'yesterday' : 'earlier';
+  };
+  const filteredSessions = sessions.filter((s) =>
+    s.title.toLocaleLowerCase(locale).includes(search.toLocaleLowerCase(locale)),
+  );
+
   const formatTime = useCallback(
     (ts: string): string =>
       createDateTimeFormat(locale, {
@@ -487,7 +520,7 @@ export function AgentChat() {
   // Read picked files into base64 attachments, enforcing the count/size caps.
   const onFilesPicked = useCallback(
     async (fileList: FileList | null) => {
-      if (!fileList || fileList.length === 0) return;
+      if (!fileList || fileList.length === 0 || pendingApprovals.length || isStreaming) return;
       setAttachWarn('');
       const picked = Array.from(fileList);
       const accepted: ChatAttachment[] = [];
@@ -506,7 +539,7 @@ export function AgentChat() {
       if (accepted.length) setAttachments((prev) => [...prev, ...accepted]);
       if (rejected) setAttachWarn(t('attachLimit', { max: MAX_FILES }));
     },
-    [attachments.length, t],
+    [attachments.length, t, pendingApprovals.length, isStreaming],
   );
 
   const removeAttachment = useCallback((index: number) => {
@@ -550,12 +583,13 @@ export function AgentChat() {
 
   const handleSubmit = useCallback(
     (value: string) => {
+      if (isStreaming || pendingApprovals.length) return;
       // Model is chosen server-side (cheapest available) — no selector in the UI.
       send(value, undefined, attachments.length ? attachments : undefined);
       setAttachments([]);
       setAttachWarn('');
     },
-    [send, attachments],
+    [send, attachments, isStreaming, pendingApprovals.length],
   );
 
   // Close on Escape while open.
@@ -651,31 +685,61 @@ export function AgentChat() {
 
         {showHistory ? (
           <div {...stylex.props(styles.body)}>
-            {sessions.length === 0 ? (
+            <Input
+              aria-label={t('searchSessions')}
+              placeholder={t('searchSessions')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {filteredSessions.length === 0 ? (
               <div {...stylex.props(styles.empty)}>
                 <Icon name="clock" {...stylex.props(styles.emptyIcon)} />
-                <span {...stylex.props(styles.emptyTitle)}>{t('noSessions')}</span>
+                <span {...stylex.props(styles.emptyTitle)}>
+                  {t(sessions.length ? 'noSearchResults' : 'noSessions')}
+                </span>
               </div>
             ) : (
               <ul {...stylex.props(styles.sessionList)}>
-                {sessions.map((s) => (
-                  <li key={s.id} {...stylex.props(styles.sessionRow)}>
-                    <button
-                      type="button"
-                      onClick={() => void openSession(s)}
-                      {...stylex.props(styles.sessionOpen)}
-                    >
-                      <span {...stylex.props(styles.sessionTitle)}>{s.title || t('untitled')}</span>
-                      <span {...stylex.props(styles.sessionTime)}>{formatTime(s.updatedAt)}</span>
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={t('deleteSession')}
-                      onClick={() => deleteSession(s.id)}
-                      {...stylex.props(styles.sessionDelete)}
-                    >
-                      <Icon name="trash" {...stylex.props(styles.headerButtonIcon)} />
-                    </button>
+                {filteredSessions.map((s, index) => (
+                  <li key={s.id}>
+                    {(index === 0 ||
+                      dateGroup(filteredSessions[index - 1]!.updatedAt) !==
+                        dateGroup(s.updatedAt)) && (
+                      <h3 {...stylex.props(styles.sessionTime)}>{t(dateGroup(s.updatedAt))}</h3>
+                    )}
+                    <div {...stylex.props(styles.sessionRow)}>
+                      <button
+                        type="button"
+                        disabled={isStreaming || sessionBusy}
+                        onClick={() => void openSession(s)}
+                        {...stylex.props(styles.sessionOpen)}
+                      >
+                        <span {...stylex.props(styles.sessionTitle)}>
+                          {s.title || t('untitled')}
+                        </span>
+                        <span {...stylex.props(styles.sessionTime)}>{formatTime(s.updatedAt)}</span>
+                      </button>
+                      <Btn
+                        size="sm"
+                        v="outline"
+                        disabled={isStreaming || sessionBusy}
+                        onClick={() => {
+                          setRenaming(s);
+                          setRenameTitle(s.title);
+                        }}
+                      >
+                        {t('rename')}
+                      </Btn>
+                      <button
+                        type="button"
+                        disabled={isStreaming || sessionBusy}
+                        aria-label={t('deleteSession')}
+                        onClick={() => setDeleting(s.id)}
+                        {...stylex.props(styles.sessionDelete)}
+                      >
+                        <Icon name="trash" {...stylex.props(styles.headerButtonIcon)} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -684,7 +748,14 @@ export function AgentChat() {
         ) : null}
 
         <div {...stylex.props(styles.body, showHistory && styles.hidden)}>
-          {error && <div {...stylex.props(styles.errorBar)}>{t('error')}</div>}
+          {error && (
+            <div role="alert" {...stylex.props(styles.errorBar)}>
+              {error}
+              <Btn size="sm" v="outline" disabled={isStreaming} onClick={retry}>
+                {t('retry')}
+              </Btn>
+            </div>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -703,14 +774,14 @@ export function AgentChat() {
                 onSubmit={handleSubmit}
                 onStop={stop}
                 isStopShown={isStreaming}
-                isDisabled={!open}
+                isDisabled={!open || pendingApprovals.length > 0}
                 placeholder={t('placeholder')}
                 footerActions={
                   <button
                     type="button"
                     aria-label={t('attach')}
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isStreaming}
+                    disabled={isStreaming || pendingApprovals.length > 0}
                     {...stylex.props(styles.attachBtn)}
                   >
                     <Icon name="plus" {...stylex.props(styles.attachIcon)} />
@@ -747,19 +818,11 @@ export function AgentChat() {
             }
           >
             {messages.length > 0 && (
-              <ChatMessageList>
+              <ChatMessageList xstyle={styles.transcript} isStreaming={isStreaming}>
                 {messages.map((m) => (
                   <ChatMessage key={m.id} sender={m.role}>
                     {m.toolCalls && m.toolCalls.length > 0 && (
-                      <ChatToolCalls
-                        calls={m.toolCalls.map((c) => ({
-                          key: c.id,
-                          name: c.name,
-                          status: c.status,
-                          target: c.target,
-                          errorMessage: c.errorMessage,
-                        }))}
-                      />
+                      <AgentToolCalls calls={m.toolCalls} busy={isStreaming} decide={decide} />
                     )}
                     <ChatMessageBubble variant={m.role === 'user' ? 'filled' : 'ghost'}>
                       {m.role === 'assistant' ? (
@@ -785,6 +848,57 @@ export function AgentChat() {
           </ChatLayout>
         </div>
       </aside>
+      <ConfirmDialog
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting) deleteSession(deleting);
+          setDeleting(null);
+        }}
+        title={t('deleteSession')}
+        message={t('deleteConfirm')}
+        confirmLabel={t('deleteSession')}
+        cancelLabel={t('cancel')}
+        danger
+      />
+      <Modal
+        open={renaming !== null}
+        onClose={() => {
+          if (!sessionBusy) setRenaming(null);
+        }}
+        title={t('rename')}
+        footer={
+          <Btn
+            disabled={sessionBusy || !renameTitle.trim()}
+            onClick={() => {
+              if (!renaming) return;
+              setSessionBusy(true);
+              setSessionError(false);
+              void loadSession(renaming.id)
+                .then((saved) => {
+                  if (!saved) {
+                    setSessionError(true);
+                    return;
+                  }
+                  const title = renameTitle.trim();
+                  if (sessionIdRef.current === renaming.id) sessionTitleRef.current = title;
+                  saveSession({ id: renaming.id, title, messages: saved });
+                  setRenaming(null);
+                })
+                .finally(() => setSessionBusy(false));
+            }}
+          >
+            {t('save')}
+          </Btn>
+        }
+      >
+        <Input
+          aria-label={t('sessionTitle')}
+          value={renameTitle}
+          onChange={(e) => setRenameTitle(e.target.value)}
+        />
+        {sessionError && <p role="alert">{t('error')}</p>}
+      </Modal>
     </>
   );
 }

@@ -87,6 +87,7 @@ import {
   type ClassCardStatus,
 } from '@fit/ui-mobile';
 
+import { AppFeature } from '../../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';
 import { BookingFailureNotice } from '../../../components/classes/booking-notice';
@@ -515,20 +516,22 @@ function ClassBody({
           The person comes first, the four remaining facts about the occurrence
           come second, and `class-fact-trainer` is gone rather than duplicated.
       ===================================================================== */}
-      {instance.trainerName === '' ? null : trainerId === null ? (
-        <PersonRow {...trainerRow} />
-      ) : (
-        <PersonRow
-          {...trainerRow}
-          onPress={() => {
-            onOpenTrainer(trainerId);
-          }}
-          // The row announces ONCE, as what it is for. `PersonRow` requires the
-          // name because it is copy; the hint is what the press does.
-          accessibilityLabel={`${t('classes.detail.trainer')}: ${instance.trainerName}`}
-          accessibilityHint={t('classes.detail.trainerSheet.hint')}
-        />
-      )}
+      <AppFeature name="trainers">
+        {instance.trainerName === '' ? null : trainerId === null ? (
+          <PersonRow {...trainerRow} />
+        ) : (
+          <PersonRow
+            {...trainerRow}
+            onPress={() => {
+              onOpenTrainer(trainerId);
+            }}
+            // The row announces ONCE, as what it is for. `PersonRow` requires the
+            // name because it is copy; the hint is what the press does.
+            accessibilityLabel={`${t('classes.detail.trainer')}: ${instance.trainerName}`}
+            accessibilityHint={t('classes.detail.trainerSheet.hint')}
+          />
+        )}
+      </AppFeature>
 
       {/* =====================================================================
           THREE FACTS: A PAIR, THEN ONE ACROSS.

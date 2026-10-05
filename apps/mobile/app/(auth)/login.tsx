@@ -34,6 +34,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { View, type TextInput } from 'react-native';
 
+import { AppFeature, useAppLoginImage } from '../../providers/AppFeaturesProvider';
 import { AuthScreen } from '../../components/auth/auth-screen';
 import { authErrorKey } from '../../components/auth/auth-error';
 import { AuthField } from '../../components/auth/field';
@@ -74,6 +75,8 @@ export default function LoginScreen() {
   const router = useRouter();
   const online = useIsOnline();
   const coolDown = useCoolDown();
+  // The gym's sign-in photo (app's own, else the member portal's), or none.
+  const heroImage = useAppLoginImage();
 
   // The chain's target. See `components/auth/field.tsx` — the ref reaches the
   // `TextInput` because React 19 passes `ref` to a function component as a prop.
@@ -168,9 +171,9 @@ export default function LoginScreen() {
       testID="login"
       title={t('auth.login.title')}
       subtitle={t('auth.login.subtitle')}
-      // The front door: nothing to go back to, so the brand mark takes the
-      // back button's place, above the title.
+      // The front door: the full logo is centred above the left-aligned title.
       brand
+      hero={heroImage}
     >
       {/* TODO(i18n): `common.offline.title` / `common.offline.body` — plan §6
           state 4 has no copy in either catalogue. See `pending-copy.ts`. */}
@@ -297,34 +300,38 @@ export default function LoginScreen() {
         `/register` is still a route, reachable from the verify and invite
         flows — it just no longer competes with the funnel here.
       */}
-      <View testID="login-join" style={{ marginTop: spacing[4], gap: spacing[3] }}>
-        <View style={{ gap: spacing[1] }}>
-          <Text variant="section">{t('auth.join.title')}</Text>
-          <Text variant="bodyRegular" color="textSecondary">
-            {t('auth.join.subtitle')}
-          </Text>
-        </View>
-        <Button
-          variant="secondary"
-          size="md"
-          fullWidth
-          testID="login-join-link"
-          label={t('auth.join.cta')}
-          onPress={() => {
-            router.push('/checkout');
-          }}
-        />
-        {/*
+      <AppFeature name={['membership', 'billing']}>
+        <View testID="login-join" style={{ marginTop: spacing[4], gap: spacing[3] }}>
+          <View style={{ gap: spacing[1] }}>
+            <Text variant="section" align="center">
+              {t('auth.join.title')}
+            </Text>
+            <Text variant="bodyRegular" color="textSecondary" align="center">
+              {t('auth.join.subtitle')}
+            </Text>
+          </View>
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            testID="login-join-link"
+            label={t('auth.join.cta')}
+            onPress={() => {
+              router.push('/checkout');
+            }}
+          />
+          {/*
           `caption`, NOT `micro`. `micro` is 10px / 600 UPPERCASE with 0.10em
           tracking — an eyebrow role. A full sentence set in it renders in
           Georgian as MTAVRULI, a display alphabet: Georgian has no sentence
           case, so uppercasing prose changes the script the reader is reading.
           `caption` (12 / 500, sentence case) is the role for helper text.
         */}
-        <Text variant="caption" color="textSecondary" testID="login-join-note">
-          {t('auth.join.ctaNote')}
-        </Text>
-      </View>
+          <Text variant="caption" color="textSecondary" align="center" testID="login-join-note">
+            {t('auth.join.ctaNote')}
+          </Text>
+        </View>
+      </AppFeature>
     </AuthScreen>
   );
 }

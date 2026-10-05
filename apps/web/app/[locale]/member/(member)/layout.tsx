@@ -61,7 +61,7 @@ export default async function MemberLayout({
     <ToastProvider>
       <SkipLink>{t('skipToContent')}</SkipLink>
       <div {...stylex.props(styles.frame)}>
-        <MemberHeader logoUrl={portal?.logoUrl ?? null} />
+        <MemberHeader logoUrl={portal?.logoUrl ?? null} logoSize={portal?.logoSize ?? 'md'} />
         <main id="main-content" {...stylex.props(styles.main)}>
           {children}
         </main>

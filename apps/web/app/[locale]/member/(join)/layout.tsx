@@ -97,7 +97,7 @@ export default async function JoinLayout({
           <div {...stylex.props(styles.bar)}>
             {/* Home, not `/member/home`: a signed-out visitor has no member home to land on. */}
             <Link href="/" aria-label={t('brand')} {...stylex.props(styles.logo)}>
-              <PortalLogo logoUrl={portal?.logoUrl ?? null} />
+              <PortalLogo logoUrl={portal?.logoUrl ?? null} size={portal?.logoSize ?? 'md'} />
             </Link>
             <div {...stylex.props(styles.switches)}>
               <ThemeToggle />

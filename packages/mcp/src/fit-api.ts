@@ -33,8 +33,10 @@ export class FitApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    message = `${status} ${code}`,
+    readonly details?: unknown,
   ) {
-    super(`${status} ${code}`);
+    super(message);
     this.name = 'FitApiError';
   }
 }
@@ -46,26 +48,48 @@ async function unwrap(res: Response): Promise<unknown> {
     return res.json();
   }
   let code = `HTTP_${res.status}`;
+  let message = code;
+  let details: unknown;
   try {
-    const body = (await res.json()) as { code?: string; message?: string };
-    code = body.code ?? body.message ?? code;
+    const body = (await res.json()) as {
+      code?: string;
+      message?: unknown;
+      details?: unknown;
+      errors?: unknown;
+    };
+    code = typeof body.code === 'string' ? body.code : code;
+    message =
+      typeof body.message === 'string'
+        ? body.message
+        : Array.isArray(body.message)
+          ? body.message.join('; ')
+          : code;
+    details =
+      body.details ?? body.errors ?? (Array.isArray(body.message) ? body.message : undefined);
   } catch {
-    // Non-JSON error body — keep the synthetic code.
+    // A proxy may return HTML or an empty error response.
   }
-  throw new FitApiError(res.status, code);
+  throw new FitApiError(res.status, code, message, details);
 }
 
 /** Build a client bound to one operator's access token. */
 export function createFitApiClient(token: string): FitApiClient {
+  const request = async (url: string, init: RequestInit) => {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
+    } catch {
+      throw new FitApiError(0, 'TEMPORARY_FAILURE', 'Network request failed or timed out');
+    }
+  };
   const base = apiBaseUrl();
   const auth = { authorization: `Bearer ${token}` };
   return {
     async get(path) {
-      return unwrap(await fetch(`${base}${path}`, { headers: auth }));
+      return unwrap(await request(`${base}${path}`, { headers: auth }));
     },
     async post(path, body) {
       return unwrap(
-        await fetch(`${base}${path}`, {
+        await request(`${base}${path}`, {
           method: 'POST',
           headers: body === undefined ? auth : { 'content-type': 'application/json', ...auth },
           body: body === undefined ? undefined : JSON.stringify(body),
@@ -74,7 +98,7 @@ export function createFitApiClient(token: string): FitApiClient {
     },
     async patch(path, body) {
       return unwrap(
-        await fetch(`${base}${path}`, {
+        await request(`${base}${path}`, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json', ...auth },
           body: JSON.stringify(body),
@@ -83,7 +107,7 @@ export function createFitApiClient(token: string): FitApiClient {
     },
     async put(path, body) {
       return unwrap(
-        await fetch(`${base}${path}`, {
+        await request(`${base}${path}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json', ...auth },
           body: JSON.stringify(body),
@@ -91,7 +115,7 @@ export function createFitApiClient(token: string): FitApiClient {
       );
     },
     async del(path) {
-      return unwrap(await fetch(`${base}${path}`, { method: 'DELETE', headers: auth }));
+      return unwrap(await request(`${base}${path}`, { method: 'DELETE', headers: auth }));
     },
   };
 }

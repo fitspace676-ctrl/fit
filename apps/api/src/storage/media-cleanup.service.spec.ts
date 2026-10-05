@@ -18,11 +18,13 @@ interface Counts {
   portalImages?: number;
   /** Gyms whose member-portal wordmark is this reference. */
   portalLogos?: number;
+  /** Gyms whose mobile app sign-in photograph is this reference. */
+  appLoginImages?: number;
 }
 
 /** The `settings` JSON path a gym reference query filters on. */
 interface GymCountArgs {
-  where: { settings: { path: string[] } };
+  where: { settings?: { path: string[] }; mobileAppLoginImageUrl?: string };
 }
 
 function setup(counts: Counts = {}) {
@@ -41,7 +43,9 @@ function setup(counts: Counts = {}) {
       // not its first segment, since two of the three sit under `memberPortal`.
       gym: {
         count: vi.fn((args: GymCountArgs) => {
-          const path = args.where.settings.path.join('.');
+          if (args.where.mobileAppLoginImageUrl !== undefined)
+            return Promise.resolve(counts.appLoginImages ?? 0);
+          const path = args.where.settings?.path.join('.');
           if (path === 'memberPortal.loginImageUrl')
             return Promise.resolve(counts.portalImages ?? 0);
           if (path === 'memberPortal.logoUrl') return Promise.resolve(counts.portalLogos ?? 0);
@@ -101,6 +105,34 @@ describe('MediaCleanupService.discardUnreferenced', () => {
     await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/logos/mark.webp`], []);
 
     expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
+  // The app falls back to the portal's photo, so one file can sit under both
+  // references. Replacing the portal photo must not take the app's hero with it.
+  it('keeps a portal photo the mobile app still points at', async () => {
+    const { service, deleteObjects } = setup({ appLoginImages: 1 });
+
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/logos/hero.jpg`], []);
+
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
+  // And the other way round: the app dropping its own photo must not delete a
+  // file the member portal still shows.
+  it('keeps an app photo the member portal still points at', async () => {
+    const { service, deleteObjects } = setup({ portalImages: 1 });
+
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/logos/app.jpg`], [null]);
+
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+
+  it('frees an app photo nothing else points at', async () => {
+    const { service, deleteObjects } = setup();
+
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/logos/app.jpg`], [null]);
+
+    expect(deleteObjects).toHaveBeenCalledWith(['gym-1/logos/app.jpg']);
   });
 
   it('does nothing when the reference is merely reordered', async () => {

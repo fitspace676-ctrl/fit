@@ -78,7 +78,7 @@
 //
 //   · The filter button belongs to the SCHEDULE. Left in the AppBar on the
 //     bookings tab it opens a sheet whose chips narrow a list that is not on
-//     screen, so it is rendered only for `tab === 'classes'`.
+//     screen, so it is rendered only for `visibleTab === 'classes'`.
 //   · The two class sheets are unmounted with their tab, and `setTab` closes
 //     the filter sheet on the way out — `Sheet` is single-instance per screen
 //     and the bookings view brings two of its own.
@@ -114,6 +114,7 @@ import {
   useThemeColors,
 } from '@fit/ui-mobile';
 
+import { AppFeature, useAppFeatures } from '../../../providers/AppFeaturesProvider';
 import { BookingFailureNotice } from '../../../components/classes/booking-notice';
 import { ClassBookingSheet } from '../../../components/classes/booking-sheet';
 import { ClassListCard } from '../../../components/classes/class-list-card';
@@ -183,6 +184,8 @@ export default function ClassesScreen() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [tab, setTab] = useState<ClassesTab>('classes');
+  const features = useAppFeatures();
+  const visibleTab = features.bookings ? tab : 'classes';
   const switchTab = useCallback((next: ClassesTab) => {
     // The filter sheet belongs to the schedule and the bookings view brings two
     // sheets of its own — `Sheet` is single-instance per screen, so the one on
@@ -327,14 +330,16 @@ export default function ClassesScreen() {
         <AppBar
           gutter
           eyebrow={
-            tab === 'classes' ? formatMonth(selectedDay, locale) : t('account.bookings.eyebrow')
+            visibleTab === 'classes'
+              ? formatMonth(selectedDay, locale)
+              : t('account.bookings.eyebrow')
           }
           // The screen's first `role="header"`; the period groups add the rest.
           title={t('member.classes.title')}
           trailing={
             // The filter narrows the SCHEDULE. On the bookings tab it would
             // open a sheet of chips against a list that is not on screen.
-            tab === 'classes' ? (
+            visibleTab === 'classes' ? (
               <IconButton
                 icon="filter"
                 accessibilityLabel={t('classes.filters.groupLabel')}
@@ -354,19 +359,21 @@ export default function ClassesScreen() {
     >
       <View style={{ gap: layout.sectionGap }}>
         <View style={{ paddingHorizontal: layout.screenGutter }}>
-          <Segmented
-            testID="classes-tabs"
-            label={t('member.classes.viewLabel')}
-            value={tab}
-            onChange={switchTab}
-            options={[
-              { value: 'classes', label: t('member.classes.title') },
-              { value: 'bookings', label: t('member.classes.myBookings') },
-            ]}
-          />
+          <AppFeature name="bookings">
+            <Segmented
+              testID="classes-tabs"
+              label={t('member.classes.viewLabel')}
+              value={tab}
+              onChange={switchTab}
+              options={[
+                { value: 'classes', label: t('member.classes.title') },
+                { value: 'bookings', label: t('member.classes.myBookings') },
+              ]}
+            />
+          </AppFeature>
         </View>
 
-        {tab === 'bookings' ? (
+        {visibleTab === 'bookings' ? (
           <View style={{ paddingHorizontal: layout.screenGutter }}>
             {/* From the bookings TAB, "browse classes" is the tab beside it —
                 `router.push('/classes')` would push the route the member is
@@ -587,7 +594,7 @@ export default function ClassesScreen() {
 
       {/* Both belong to the schedule, and both are `Modal`s — so they leave
           with their tab rather than sitting invisibly under the other one. */}
-      {tab === 'classes' ? (
+      {visibleTab === 'classes' ? (
         <>
           <ClassFilterSheet
             open={filtersOpen}

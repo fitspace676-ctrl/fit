@@ -423,6 +423,16 @@ model Gym {
   /// the gym's display name stays on `name` (the single source of truth) and is
   /// surfaced as `brand.name`. Null until the owner first saves settings.
   settings        Json?
+  /// Whether a white-label mobile app has been provisioned for this gym.
+  mobileAppEnabled Boolean @default(false)
+  /// Optional mobile feature visibility, defaulted by resolveMobileAppFeatures.
+  mobileAppFeatures Json @default("{}")
+  /// The mobile app's own sign-in photograph (R2 public URL under `{gymId}/logos/`).
+  /// Null inherits `settings.memberPortal.loginImageUrl`; see resolveMobileAppLoginImage.
+  mobileAppLoginImageUrl String?
+  /// The mobile app's own accent colour (`#rrggbb`). Null inherits the member
+  /// portal's, then the brand's; see resolveMobileAppPrimaryColor.
+  mobileAppPrimaryColor String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

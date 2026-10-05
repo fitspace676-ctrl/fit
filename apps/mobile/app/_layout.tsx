@@ -10,6 +10,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, type ReactElement } from 'react';
 
 import { AppProviders, RouteGuard, useAppBootstrap } from '../providers';
+import { AppFeatureScreen } from '../providers/AppFeaturesProvider';
 
 // Called at module scope, before the first render, because by the time an effect
 // runs the splash has already auto-hidden and the launch flash has happened. It
@@ -60,7 +61,8 @@ export default function RootLayout() {
   // A new function when the gate flips is what makes the navigator re-render
   // its descriptors and mount the scene it has been holding.
   const screenLayout = useCallback(
-    ({ children }: { children: ReactElement }): ReactElement => (fontsSettled ? children : <></>),
+    ({ children }: { children: ReactElement }): ReactElement =>
+      fontsSettled ? <AppFeatureScreen>{children}</AppFeatureScreen> : <></>,
     [fontsSettled],
   );
 

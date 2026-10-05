@@ -41,6 +41,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { onlineManager } from '@tanstack/react-query';
 import { fireEvent, waitFor } from '@testing-library/react-native';
+import { memberMessages as localeMessages } from '@fit/i18n/member';
 import type {
   ClassInstanceCard,
   GetMeSubscriptionResponse,
@@ -831,7 +832,7 @@ describe('copy', () => {
     await ka.findByTestId('home-membership-block', {}, WAIT);
     const tree = JSON.stringify(ka.toJSON());
 
-    expect(ka.getByText('კეთილი დაბრუნება')).toBeTruthy();
+    expect(ka.getByText(localeMessages.ka.member.home.greeting)).toBeTruthy();
     expect(ka.queryByText('Welcome back')).toBeNull();
     expect(tree).not.toMatch(/member\.home\./);
     expect(tree).not.toMatch(/member\.membership\./);
