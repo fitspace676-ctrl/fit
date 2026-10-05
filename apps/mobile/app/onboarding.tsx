@@ -117,12 +117,11 @@ export default function OnboardingScreen() {
       testID="onboarding-screen"
       // No tab bar behind the intro, so there is nothing to reserve space for.
       reserveTabBar={false}
-      // The same top row as the auth screens, with the brand on the LEFT: the
-      // right-hand slot is Skip's, and Skip is the one control here that must
-      // not move between slides.
+      // The full logo is centred below the navigation controls, so Skip keeps
+      // its position without shifting or overlapping the logo.
       header={
         <NavRow
-          leading={<BrandMark testID="onboarding-brand" />}
+          brand={<BrandMark testID="onboarding-brand" />}
           trailing={
             <Button
               label={t('onboarding.skip')}

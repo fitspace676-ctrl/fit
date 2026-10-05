@@ -277,6 +277,7 @@ export default function RegisterScreen() {
       <Text
         variant="caption"
         color="textSecondary"
+        align="center"
         testID="register-terms"
         style={{ marginTop: spacing[2] }}
       >
