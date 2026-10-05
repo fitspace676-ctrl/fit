@@ -8,6 +8,7 @@
 // session's full transcript is fetched on demand when the operator resumes it.
 
 import { useCallback, useEffect, useState } from 'react';
+import { restoreTranscript } from './chat-state';
 import type { AgentMessage } from './types';
 
 /** Base path (`/admin` behind the tenant proxy); Next does not prefix `fetch`. */
@@ -53,7 +54,11 @@ export function useSessions(): UseSessions {
       const res = await fetch(ENDPOINT, { cache: 'no-store' });
       if (!res.ok) return;
       const data = (await res.json()) as { sessions?: AgentSessionMeta[] };
-      setSessions(Array.isArray(data.sessions) ? data.sessions : []);
+      setSessions(
+        Array.isArray(data.sessions)
+          ? [...data.sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          : [],
+      );
     } catch {
       // Offline / API down — leave the list as-is.
     }
@@ -92,7 +97,7 @@ export function useSessions(): UseSessions {
       const res = await fetch(`${ENDPOINT}/${encodeURIComponent(id)}`, { cache: 'no-store' });
       if (!res.ok) return null;
       const data = (await res.json()) as { messages?: AgentMessage[] };
-      return Array.isArray(data.messages) ? data.messages : [];
+      return Array.isArray(data.messages) ? restoreTranscript(data.messages) : [];
     } catch {
       return null;
     }
