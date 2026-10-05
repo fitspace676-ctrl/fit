@@ -8,6 +8,7 @@ describe('app settings translations', () => {
     for (const key of MOBILE_APP_FEATURES) {
       expect(copy.features[key].length).toBeGreaterThan(0);
       expect(copy.hints[key].length).toBeGreaterThan(0);
+      expect(copy.illustrations[key].length).toBeGreaterThan(0);
     }
     expect(copy.requestConfirmation.length).toBeGreaterThan(0);
   });

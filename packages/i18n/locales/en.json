@@ -106,6 +106,19 @@
         "goals": "Personal training goals.",
         "notifications": "Inbox and notification preferences."
       },
+      "illustrations": {
+        "classes": "Three people stretching in a group class beside a calendar",
+        "shop": "A shopping basket with a water bottle, a yoga mat and a dumbbell",
+        "qr": "A phone showing a QR code next to an entry turnstile",
+        "services": "A massage table with a rolled mat and folded towels",
+        "trainers": "A trainer holding a clipboard beside a dumbbell",
+        "membership": "A member card with a profile photo and a fitness band",
+        "billing": "A bank card in front of a payment receipt",
+        "bookings": "A calendar with a checked date and a clock",
+        "activity": "A smartwatch showing an activity chart beside a running shoe",
+        "goals": "An arrow in the centre of a target beside a rising chart and a flag",
+        "notifications": "A ringing bell with a new-notification dot"
+      },
       "color": {
         "title": "App colour",
         "subtitle": "One colour for buttons, active tabs and highlights in your mobile app. The app picks a readable text colour for it and adjusts it where it would be hard to see in light or dark mode.",
