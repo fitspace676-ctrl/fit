@@ -298,8 +298,10 @@ export default function LoginScreen() {
       */}
       <View testID="login-join" style={{ marginTop: spacing[4], gap: spacing[3] }}>
         <View style={{ gap: spacing[1] }}>
-          <Text variant="section">{t('auth.join.title')}</Text>
-          <Text variant="bodyRegular" color="textSecondary">
+          <Text variant="section" align="center">
+            {t('auth.join.title')}
+          </Text>
+          <Text variant="bodyRegular" color="textSecondary" align="center">
             {t('auth.join.subtitle')}
           </Text>
         </View>
@@ -320,7 +322,7 @@ export default function LoginScreen() {
           case, so uppercasing prose changes the script the reader is reading.
           `caption` (12 / 500, sentence case) is the role for helper text.
         */}
-        <Text variant="caption" color="textSecondary" testID="login-join-note">
+        <Text variant="caption" color="textSecondary" align="center" testID="login-join-note">
           {t('auth.join.ctaNote')}
         </Text>
       </View>

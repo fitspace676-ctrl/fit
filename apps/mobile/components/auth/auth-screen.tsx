@@ -65,6 +65,9 @@
 //     every screen — short ones included. Centring a single field in the space
 //     left over parted it from the sentence that asks for it (the approved
 //     `forgot-password` mockup keeps them together).
+//   · Title, subtitle and the prose around the form are centred under the
+//     centred logo; field labels and inline links stay left, on the fields'
+//     own edge.
 // ===========================================================================
 
 import { Heading, IconButton, Screen, Text, spacing, useTheme } from '@fit/ui-mobile';
@@ -225,9 +228,16 @@ export function AuthScreen({
     >
       <View style={{ paddingTop: spacing[5], paddingBottom: spacing[6] }}>
         <View style={{ marginBottom: spacing[6] }}>
-          <Heading level={2}>{title}</Heading>
+          <Heading level={2} align="center">
+            {title}
+          </Heading>
           {subtitle ? (
-            <Text variant="bodyRegular" color="textSecondary" style={{ marginTop: spacing[2] }}>
+            <Text
+              variant="bodyRegular"
+              color="textSecondary"
+              align="center"
+              style={{ marginTop: spacing[2] }}
+            >
               {subtitle}
             </Text>
           ) : null}
