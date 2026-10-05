@@ -6,7 +6,7 @@ type Theme = 'light' | 'dark';
 
 /**
  * The hero's product showcase: a laptop running the staff console and a phone
- * running the member portal, standing side by side. Each screen is a real
+ * running the member mobile app, standing side by side. Each screen is a real
  * screen recording of the app (`public/hero/*.mp4`, captured from a seeded
  * demo gym), in the variant that matches the page theme.
  *
@@ -72,7 +72,7 @@ function Screen({
   play,
   still,
 }: {
-  name: 'admin' | 'member';
+  name: 'admin' | 'app';
   theme: Theme;
   play: boolean;
   still: boolean;
@@ -116,7 +116,7 @@ export function HeroDevices({ theme }: { theme: Theme }) {
   return (
     <div
       role="img"
-      aria-label="The FormaCore staff console on a laptop and the member portal on a phone"
+      aria-label="The FormaCore staff console on a laptop and the member app on a phone"
       className="relative select-none pb-[3%]"
     >
       {/* laptop: the staff console. It rises in and its lid opens. */}
@@ -133,12 +133,12 @@ export function HeroDevices({ theme }: { theme: Theme }) {
         </div>
       </div>
 
-      {/* phone: the member portal, standing in front of the laptop's left edge.
+      {/* phone: the member mobile app, standing in front of the laptop's left edge.
           It slides up once the lid is open. */}
       <div className="absolute bottom-0 left-0 z-10 w-[19%] motion-safe:animate-[hero-phone-in_0.9s_cubic-bezier(0.34,1.4,0.64,1)_1s_both]">
         <div className="relative rounded-[17%/8%] bg-gradient-to-br from-[#3a3f47] via-[#15171b] to-[#2c3037] p-[3.4%] shadow-[0_30px_50px_-14px_rgba(2,10,40,0.6),-18px_10px_40px_-10px_rgba(2,10,40,0.35)] ring-1 ring-inset ring-white/20">
           {/* The recording is the bare 390x844 viewport, so a status bar in the
-              portal's own page colour sits above it rather than over its header. */}
+              app's own background colour sits above it rather than over its header. */}
           <div
             className={`relative flex aspect-[390/891] flex-col overflow-hidden rounded-[14%/6.5%] ${
               theme === 'dark' ? 'bg-[#131311] text-white' : 'bg-[#eeeeec] text-[#0f1b2d]'
@@ -163,7 +163,7 @@ export function HeroDevices({ theme }: { theme: Theme }) {
               </div>
             </div>
             <div className="relative flex-1">
-              <Screen name="member" theme={theme} play={play} still={still} />
+              <Screen name="app" theme={theme} play={play} still={still} />
             </div>
           </div>
         </div>
