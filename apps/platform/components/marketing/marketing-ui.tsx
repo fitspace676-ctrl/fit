@@ -208,6 +208,36 @@ export const ThemeToggle = ({ className = '' }: { className?: string }) => {
 };
 
 /**
+ * Decorative FormaCore "F" for closing CTA cards: an oversized, tilted mark
+ * bleeding off the bottom-right corner over a soft brand glow. The parent
+ * needs `relative overflow-hidden`, and its content `relative` to sit above.
+ */
+export const CtaMark = () => (
+  <div aria-hidden className="pointer-events-none absolute inset-0">
+    <div className="absolute -bottom-24 -right-16 h-80 w-80 rounded-full bg-gradient-to-br from-accent-400/25 via-brand-500/25 to-iris-600/25 blur-[80px]" />
+    {/* The "F" from the app icon (apps/mobile/assets/icon.png), as vectors so it
+        stays crisp at this size. */}
+    <svg
+      viewBox="150 130 720 760"
+      className="absolute -bottom-12 -right-10 h-56 w-56 rotate-[-10deg] opacity-[0.16] sm:-bottom-10 sm:right-2 sm:h-72 sm:w-72 dark:opacity-25"
+    >
+      <defs>
+        <linearGradient id="cta-mark" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="#22b8e6" />
+          <stop offset="0.5" stopColor="#1a7fd6" />
+          <stop offset="1" stopColor="#2557eb" />
+        </linearGradient>
+      </defs>
+      <g fill="url(#cta-mark)">
+        <path d="M353 150H833L738 317H443L373 438H188Z" />
+        <path d="M380 438H774L679 604H287Z" opacity="0.8" />
+        <path d="M287 604H500L355 871L248 673Z" opacity="0.6" />
+      </g>
+    </svg>
+  </div>
+);
+
+/**
  * FormaCore wordmark lockup. The `public/FormaCore-light.webp` (dark wordmark) and
  * `public/FormaCore-dark.webp` (light wordmark) variants are both rendered and toggled
  * by the `.dark` class via CSS, so the right one shows before first paint with
@@ -278,7 +308,7 @@ type NavItem = (typeof NAV_ITEMS)[number];
  * are not written yet, so Features lists the modules without linking).
  */
 const DROPDOWNS: Partial<Record<NavItem, { base?: string; items: AudiencePage[] }>> = {
-  Features: { items: FEATURES },
+  Features: { base: '/features', items: FEATURES },
   'Built For': { base: '/built-for', items: BUILT_FOR },
 };
 
@@ -718,13 +748,22 @@ export const MarketingFooter = () => (
       <Link href="/" className="flex items-center" aria-label="FormaCore home">
         <Logo className="h-16" />
       </Link>
-      <span className="font-mono text-xs text-subtle">© 2026 FormaCore · Tbilisi, Georgia</span>
-      <div className="flex items-center gap-5 text-xs text-subtle">
-        <Link href="/" className="-my-3 inline-block py-3 hover:text-muted">
+      <span className="font-mono text-xs text-subtle">
+        © {new Date().getFullYear()} <span className="font-semibold text-fg">Forma</span>
+        <span className="bg-gradient-to-r from-accent-500 via-brand-500 to-iris-600 bg-clip-text font-semibold text-transparent">
           Core
+        </span>{' '}
+        · Tbilisi, Georgia
+      </span>
+      <div className="flex items-center gap-5 text-xs text-subtle">
+        <Link href="/terms" className="-my-3 inline-block py-3 hover:text-muted">
+          Terms &amp; Conditions
         </Link>
-        <Link href="/pricing" className="-my-3 inline-block py-3 hover:text-muted">
-          Pricing
+        <Link href="/privacy" className="-my-3 inline-block py-3 hover:text-muted">
+          Privacy Policy
+        </Link>
+        <Link href="/dpa" className="-my-3 inline-block py-3 hover:text-muted">
+          DPA
         </Link>
       </div>
     </div>

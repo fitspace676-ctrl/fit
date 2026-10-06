@@ -2,10 +2,11 @@
 
 import type { AudiencePage } from '@/data/built-for';
 import { Reveal } from '@/components/ui/scroll-reveal';
+import { FlowBackground } from '@/components/ui/flow-background';
 import { cn } from '@/lib/utils';
 import { AudienceBadge, AudienceEmblem } from './audience-badge';
 import { useLeadCta } from './lead-cta-context';
-import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
+import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — "Built For" audience page  ·  "Aurora Glass"
@@ -43,13 +44,12 @@ export function BuiltForPage({
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-12 lg:pt-16 pb-12">
         <div
           className={cn(
-            'relative overflow-hidden rounded-[2rem] bg-gradient-to-br p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14',
+            'relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14',
             audience.panelClassName,
           )}
         >
-          {/* decorative glows */}
-          <div className="pointer-events-none absolute -right-24 -top-28 h-96 w-96 bg-[radial-gradient(closest-side,rgba(124,196,255,0.28),transparent)]" />
-          <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-[28rem] bg-[radial-gradient(closest-side,rgba(34,184,230,0.22),transparent)]" />
+          {/* living backdrop: drifting light and rolling waves */}
+          <FlowBackground />
           <AudienceEmblem audience={audience} />
 
           <div className="relative">
@@ -172,6 +172,7 @@ export function BuiltForPage({
         <Reveal>
           <div className="relative overflow-hidden rounded-[2rem] border border-overlay/10 bg-panel/70 p-8 backdrop-blur-xl sm:p-12 dark:bg-overlay/[0.03]">
             <div className="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-brand-500/20 blur-[90px]" />
+            <CtaMark />
 
             {audience.planRecommendation && (
               <>
