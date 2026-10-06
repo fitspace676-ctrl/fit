@@ -3,11 +3,8 @@ import type { AudiencePage } from './built-for';
 
 /* ────────────────────────────────────────────────────────────────────────
    "Features" - one page per product module (single source of truth)
-   Feeds the "Features" nav dropdown. The /features/<slug> pages are switched
-   off until their copy is final. To bring them back, add
-   `app/features/[slug]/page.tsx` rendering `<BuiltForPage audience={feature}
-   section="Features" />` (as `app/built-for/[slug]` does) and give the
-   Features dropdown a `base: '/features'` in `marketing-ui.tsx`. Feature pages carry no stats:
+   Feeds the "Features" nav dropdown, the homepage capability cards and the
+   /features/<slug> pages (the /built-for template). Feature pages carry no stats:
    there are no measured figures to quote, so the hero shows `highlights`
    (what the module does) where an audience page shows its stat strip.
 
@@ -36,67 +33,6 @@ const page = (input: FeatureInput, index: number): AudiencePage => ({
 });
 
 const INPUTS: FeatureInput[] = [
-  {
-    slug: 'manager-core',
-    name: 'Manager Core',
-    icon: I.grid,
-    panelClassName: '',
-    summary: 'The full admin panel: members, staff, classes, billing, automation and reports.',
-    headline: 'The whole gym, run from one admin panel.',
-    subline:
-      'Members, staff, classes, billing, automation and reports in one place. Every screen talks to the same data, so what happens at the desk shows up everywhere else at once.',
-    highlights: ['Members & staff', 'Classes & PT', 'Billing & invoices', 'Multi-branch'],
-    features: [
-      {
-        icon: I.members,
-        eyebrow: 'Members',
-        headline: 'Every member, one profile.',
-        body: 'Plan, payments, visits, invoices and purchases on a single profile, with the whole member base filterable by status, plan and branch.',
-        bullets: [
-          'Search by name, email or phone and open a full profile in one click',
-          'Plan mix, guests, inactive, frozen and trash views at a glance',
-          'Export the member list whenever you need it',
-        ],
-      },
-      {
-        icon: I.calendar,
-        eyebrow: 'Classes & staff',
-        headline: 'Your timetable and your team, side by side.',
-        body: 'Set up class types once, place them on the schedule, and assign coaches. Staff get console logins with fixed roles, so everyone sees what their job needs.',
-        bullets: [
-          'Class types with capacity, duration, pricing and a colour',
-          'Week and month schedule across trainers and branches, plus a PT calendar',
-          'Owner, manager, receptionist and trainer roles',
-        ],
-      },
-      {
-        icon: I.card,
-        eyebrow: 'Billing',
-        headline: 'Plans, invoices and payments in one ledger.',
-        body: 'Sell memberships, session packs and services, issue invoices, and see who has paid and who is due, without a separate accounting tool for the day to day.',
-        bullets: [
-          'Membership plans and credit packs with their own rules',
-          'Invoices issued and tracked per member',
-          'Every sale feeds the member profile and the reports',
-        ],
-      },
-      {
-        icon: I.globe,
-        eyebrow: 'Branches',
-        headline: 'One account, every location.',
-        body: 'Run several branches from the same console. Switch the location filter and every screen, from the schedule to the reports, narrows to that site.',
-        bullets: [
-          'Location picker on every screen',
-          'Classes, check-ins, stock and sales attributed to a branch',
-          'Staff rostered to the branches they work at',
-        ],
-      },
-    ],
-    footerCta: {
-      headline: 'See the whole console in one walkthrough.',
-      subline: "Book a demo and we'll set it up with your plans, classes and team.",
-    },
-  },
   {
     slug: 'member-portal',
     name: 'Member Portal',

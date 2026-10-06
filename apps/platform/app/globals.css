@@ -244,6 +244,28 @@
     }
   }
 
+  /* FlowBackground: drifting light pools and rolling waves (transform only). */
+  @keyframes flow-a {
+    to {
+      transform: translate3d(18%, 12%, 0) scale(1.15);
+    }
+  }
+  @keyframes flow-b {
+    to {
+      transform: translate3d(-16%, 14%, 0) scale(0.9);
+    }
+  }
+  @keyframes flow-c {
+    to {
+      transform: translate3d(-20%, -18%, 0) scale(1.2);
+    }
+  }
+  @keyframes flow-wave {
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
   /* Material-style ripple for Btn (RippleButton effect). */
   @keyframes btn-ripple {
     to {
