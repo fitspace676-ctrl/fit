@@ -265,7 +265,7 @@ const SLICE_DATA: Record<
       ['You', 'Who hasn’t visited in 3 weeks?', 'Question'],
       ['Assistant', '7 members, listed as a table', 'Answer'],
     ],
-    note: 'Available on the Pro plan',
+    note: 'Available on the Core plan',
   },
   insight: {
     title: 'Why did revenue drop?',
@@ -617,7 +617,7 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
               {page.subline}
             </p>
 
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="mt-7 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
               <button
                 type="button"
                 onClick={() => openLead('demo')}
@@ -625,7 +625,7 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
               >
                 Book a free demo
               </button>
-              <PricingLink onDark />
+              <PricingLink onDark className="max-sm:-ml-4" />
             </div>
 
             {feature?.highlights && (
@@ -770,7 +770,7 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
                 </div>
                 {page.plans && (
                   <ul className="grid content-center gap-3">
-                    {(['Starter', 'Growth', 'Pro'] as const).map((tier) => {
+                    {(['Studio', 'Club', 'Core'] as const).map((tier) => {
                       const included = page.plans?.includes(tier);
                       return (
                         <li
@@ -818,11 +818,11 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
               <p className="mt-6 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">
                 {page.footerCta.subline}
               </p>
-              <div className="mt-9 flex flex-wrap items-center gap-2">
+              <div className="mt-9 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <Btn v="onBlue" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
                   Book a free demo
                 </Btn>
-                <PricingLink onDark />
+                <PricingLink onDark className="max-sm:-ml-4" />
               </div>
             </div>
           </div>

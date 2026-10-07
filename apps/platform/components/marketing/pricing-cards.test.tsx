@@ -36,8 +36,8 @@ describe('PricingCards', () => {
     renderCards();
 
     for (const tier of tiers) {
-      // The h2 is a direct child of the card body, so its parent is the card.
-      const card = screen.getByRole('heading', { name: tier.name }).parentElement!;
+      // The h2 sits in the card's header row (beside the badge), so the card is its grandparent.
+      const card = screen.getByRole('heading', { name: tier.name }).parentElement!.parentElement!;
       const features = within(card).getByRole('list');
       const footer = card.lastElementChild!;
 
@@ -77,7 +77,7 @@ describe('PricingCards', () => {
     await user.click(screen.getAllByRole('button', { name: 'Book a demo' })[0]!);
 
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('What would you like to see?')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Active members')).toBeInTheDocument();
   });
 
   it('sends a call request from a card as a call lead', async () => {
@@ -93,9 +93,10 @@ describe('PricingCards', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Request a call' })[0]!);
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Full name'), 'Giorgi');
-    await user.type(within(dialog).getByLabelText('Phone'), '+995 555 12 34 56');
-    await user.type(within(dialog).getByLabelText('Work email'), 'giorgi@gym.ge');
+    await user.type(within(dialog).getByLabelText('Name'), 'Giorgi');
+    await user.type(within(dialog).getByLabelText('Surname'), 'Beridze');
+    await user.type(within(dialog).getByLabelText('Phone'), '555 12 34 56');
+    await user.type(within(dialog).getByLabelText('Email'), 'giorgi@gym.ge');
     await user.click(within(dialog).getByRole('button', { name: 'Request a call' }));
 
     expect(await screen.findByText(/will call you back shortly/i)).toBeVisible();
@@ -103,7 +104,7 @@ describe('PricingCards', () => {
     expect(url).toBe('/api/leads');
     expect(JSON.parse(init.body as string)).toMatchObject({
       type: 'call',
-      name: 'Giorgi',
+      name: 'Giorgi Beridze',
       phone: '+995 555 12 34 56',
       email: 'giorgi@gym.ge',
     });

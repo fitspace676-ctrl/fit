@@ -266,28 +266,22 @@
     }
   }
 
+  /* "Most popular" badge: a light sweep crosses the pill, then rests (transform only). */
+  @keyframes badge-shine {
+    0% {
+      transform: translateX(0);
+    }
+    55%,
+    100% {
+      transform: translateX(400%);
+    }
+  }
+
   /* Material-style ripple for Btn (RippleButton effect). */
   @keyframes btn-ripple {
     to {
       transform: scale(2);
       opacity: 0;
-    }
-  }
-
-  /* Header search panel reveal — drops in from under the nav bar. */
-  @keyframes search-drop {
-    from {
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .search-drop {
-      animation: none !important;
     }
   }
 
