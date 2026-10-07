@@ -121,7 +121,7 @@ export default function PlatformLanding() {
       <section className="relative z-10 isolate overflow-hidden dark:hidden min-h-screen flex items-center text-white">
         <AuroraBackground tone="deep" />
 
-        <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-10">
+        <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-36 lg:pb-10">
           <div className="grid items-center gap-10 lg:grid-cols-2">
             {/* left: copy — slides in from the left (linear) */}
             <div
@@ -352,21 +352,7 @@ export default function PlatformLanding() {
         <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-16">
           {/* left: copy + map */}
           <div>
-            <span className="grid h-12 w-12 place-items-center rounded-card bg-gradient-to-br from-brand-600/35 to-accent-500/30 ring-1 ring-inset ring-brand-600/25 shadow-[0_10px_30px_-8px_rgba(26,127,214,0.45)]">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-6 w-6 text-brand-600 dark:text-brand-300"
-              >
-                <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
-                <path d="m3 6.5 9 6 9-6" />
-              </svg>
-            </span>
-            <h2 className="mt-7 font-display text-4xl lg:text-[3.25rem] font-black tracking-tight leading-[0.95]">
+            <h2 className="font-display text-4xl lg:text-[3.25rem] font-black tracking-tight leading-[0.95]">
               Contact us
             </h2>
             <p className="mt-5 max-w-md text-lg text-muted leading-relaxed">
@@ -375,24 +361,17 @@ export default function PlatformLanding() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-strong">
               <a
-                href="mailto:contact@formacore.io"
+                href="mailto:info@formacore.io"
                 className="-my-3 inline-block py-3 transition hover:text-fg"
               >
-                contact@formacore.io
+                info@formacore.io
               </a>
               <span className="text-dim">•</span>
               <a
-                href="tel:+995322000000"
+                href="tel:+995593100733"
                 className="-my-3 inline-block py-3 transition hover:text-fg"
               >
-                +995 (32) 2 00 00 00
-              </a>
-              <span className="text-dim">•</span>
-              <a
-                href="mailto:support@formacore.io"
-                className="-my-3 inline-block py-3 transition hover:text-fg"
-              >
-                support@formacore.io
+                +995 593 10 07 33
               </a>
             </div>
 
@@ -465,28 +444,42 @@ export default function PlatformLanding() {
                     const val = fd.get(k);
                     return typeof val === 'string' ? val : '';
                   };
-                  const body = `Name: ${v('name')}\nEmail: ${v('email')}\nCompany: ${v('company')}\n\n${v('message')}`;
-                  window.location.href = `mailto:hello@formacore.io?subject=${encodeURIComponent(
-                    `Contact: ${v('name') || 'Website'}`,
+                  const name = `${v('name')} ${v('surname')}`.trim();
+                  const body = `Name: ${name}\nEmail: ${v('email')}\nCompany: ${v('company')}\n\n${v('message')}`;
+                  window.location.href = `mailto:info@formacore.io?subject=${encodeURIComponent(
+                    `Contact: ${name || 'Website'}`,
                   )}&body=${encodeURIComponent(body)}`;
                 }}
               >
-                <label className="block">
-                  <span className="text-sm font-medium text-fg">Full name</span>
-                  <input
-                    className={contactInputCls}
-                    type="text"
-                    name="name"
-                    placeholder="David Iobashvili"
-                  />
-                </label>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-medium text-fg">Name</span>
+                    <input
+                      className={contactInputCls}
+                      type="text"
+                      name="name"
+                      autoComplete="given-name"
+                      placeholder="David"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-medium text-fg">Surname</span>
+                    <input
+                      className={contactInputCls}
+                      type="text"
+                      name="surname"
+                      autoComplete="family-name"
+                      placeholder="Iobashvili"
+                    />
+                  </label>
+                </div>
                 <label className="block">
                   <span className="text-sm font-medium text-fg">Email Address</span>
                   <input
                     className={contactInputCls}
                     type="email"
                     name="email"
-                    placeholder="support@formacore.io"
+                    placeholder="name@example.com"
                   />
                 </label>
                 <label className="block">
@@ -495,7 +488,7 @@ export default function PlatformLanding() {
                     className={contactInputCls}
                     type="text"
                     name="company"
-                    placeholder="FormaCore Labs LLC"
+                    placeholder="FormaCore LLC"
                   />
                 </label>
                 <label className="block">

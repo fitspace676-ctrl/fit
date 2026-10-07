@@ -8,7 +8,6 @@ import { BUILT_FOR, type AudiencePage } from '@/data/built-for';
 import { FEATURES } from '@/data/features';
 import { cn } from '@/lib/utils';
 import { I, Icon } from './icons';
-import { HeaderSearch } from './header-search';
 import { useLeadCta } from './lead-cta-context';
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -585,7 +584,6 @@ export const MarketingNav = ({
               })}
             </nav>
             <div className="ml-auto hidden sm:flex items-center gap-2">
-              <HeaderSearch />
               <AnimatedThemeToggler />
               <Btn v="primary" size="md" icon={I.arrow} onClick={() => openLead('demo')}>
                 Book a demo
@@ -756,13 +754,13 @@ export const MarketingFooter = () => (
         · Tbilisi, Georgia
       </span>
       <div className="flex items-center gap-5 text-xs text-subtle">
-        <Link href="/terms" className="-my-3 inline-block py-3 hover:text-muted">
+        <Link href="/terms" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
           Terms &amp; Conditions
         </Link>
-        <Link href="/privacy" className="-my-3 inline-block py-3 hover:text-muted">
+        <Link href="/privacy" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
           Privacy Policy
         </Link>
-        <Link href="/dpa" className="-my-3 inline-block py-3 hover:text-muted">
+        <Link href="/dpa" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
           DPA
         </Link>
       </div>
