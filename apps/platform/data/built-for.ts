@@ -133,8 +133,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'The clubs that keep members longest are on Growth.',
-      body: 'The Growth plan adds the member portal and mobile app to everything in Starter - giving your members a reason to stay connected to your club between visits. That daily touchpoint is what separates the clubs with 85% retention from the ones at 60%.',
+      headline: 'The clubs that keep members longest are on the Club plan.',
+      body: 'The Club plan adds the member portal and mobile app to everything in Studio - giving your members a reason to stay connected to your club between visits. That daily touchpoint is what separates the clubs with 85% retention from the ones at 60%.',
     },
     footerCta: {
       headline: 'Ready to stop losing members you worked hard to get?',
@@ -208,8 +208,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Most training studios start with Growth.',
-      body: 'The Growth plan adds the member portal and mobile app to everything in Starter - reducing friction for members and giving you the retention tools that small studios need most.',
+      headline: 'Most training studios start with the Club plan.',
+      body: 'The Club plan adds the member portal and mobile app to everything in Studio - reducing friction for members and giving you the retention tools that small studios need most.',
     },
     footerCta: {
       headline: "Ready to keep every member you've worked hard to attract?",
@@ -282,8 +282,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Yoga studios that retain best are on Growth.',
-      body: 'The member portal and mobile app in the Growth plan are what make the habit stick. Easy rebooking, push reminders, and self-service membership management - all the friction points that break habits, removed.',
+      headline: 'Yoga studios that retain best are on the Club plan.',
+      body: 'The member portal and mobile app in the Club plan are what make the habit stick. Easy rebooking, push reminders, and self-service membership management - all the friction points that break habits, removed.',
     },
     footerCta: {
       headline: 'Ready to protect the habits your members are building?',
@@ -360,8 +360,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Pilates studios that retain best are on Growth.',
-      body: "The Growth plan's member portal and app give your members visibility into their own progress - and make rebooking effortless. That combination keeps goal-driven members engaged long after the first few sessions.",
+      headline: 'Pilates studios that retain best are on the Club plan.',
+      body: "The Club plan's member portal and app give your members visibility into their own progress - and make rebooking effortless. That combination keeps goal-driven members engaged long after the first few sessions.",
     },
     footerCta: {
       headline: "Ready to show your members the progress they're making?",
@@ -434,8 +434,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'CrossFit boxes that retain best are on Growth.',
-      body: 'The Growth plan gives your athletes a branded app to book WODs, track their membership, and stay connected to your box between sessions. That daily touchpoint is what keeps the community alive.',
+      headline: 'CrossFit boxes that retain best are on the Club plan.',
+      body: 'The Club plan gives your athletes a branded app to book WODs, track their membership, and stay connected to your box between sessions. That daily touchpoint is what keeps the community alive.',
     },
     footerCta: {
       headline: 'Ready to keep every athlete on the whiteboard?',
@@ -508,8 +508,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Most martial arts academies start with Starter.',
-      body: "The Starter plan gives you everything you need to manage students, track progression, schedule classes, and run billing - all in one place. Upgrade to Growth when you're ready to give students and parents a self-service portal and mobile app.",
+      headline: 'Most martial arts academies start with the Studio plan.',
+      body: "The Studio plan gives you everything you need to manage students, track progression, schedule classes, and run billing - all in one place. Upgrade to Club when you're ready to give students and parents a self-service portal and mobile app.",
     },
     footerCta: {
       headline: 'Ready to keep every student on the path to their next belt?',
@@ -582,8 +582,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Most swimming schools start with Growth.',
-      body: "The Growth plan gives parents a branded portal and mobile app to manage their child's schedule, track attendance, and pay fees - reducing admin for your staff and keeping families engaged between terms.",
+      headline: 'Most swimming schools start with the Club plan.',
+      body: "The Club plan gives parents a branded portal and mobile app to manage their child's schedule, track attendance, and pay fees - reducing admin for your staff and keeping families engaged between terms.",
     },
     footerCta: {
       headline: 'Ready to keep every family enrolled term after term?',
@@ -656,8 +656,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Dance schools that re-enrol best are on Growth.',
-      body: "The Growth plan's member portal and app give parents the self-service tools to re-enrol and pay online - making the term gap a non-event instead of a dropout window.",
+      headline: 'Dance schools that re-enrol best are on the Club plan.',
+      body: "The Club plan's member portal and app give parents the self-service tools to re-enrol and pay online - making the term gap a non-event instead of a dropout window.",
     },
     footerCta: {
       headline: 'Ready to fill next term before this one ends?',
@@ -730,8 +730,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Most padel clubs start with Growth.',
-      body: "The Growth plan's member app makes court booking frictionless - reducing the main reason padel players go inactive. When booking is easy, players book more, groups stay intact, and retention follows.",
+      headline: 'Most padel clubs start with the Club plan.',
+      body: "The Club plan's member app makes court booking frictionless - reducing the main reason padel players go inactive. When booking is easy, players book more, groups stay intact, and retention follows.",
     },
     footerCta: {
       headline: 'Ready to keep every player on the court?',
@@ -807,8 +807,8 @@ export const BUILT_FOR: AudiencePage[] = [
     ],
     planRecommendation: {
       eyebrow: 'Recommended plan',
-      headline: 'Most tennis clubs start with Growth.',
-      body: 'The Growth plan gives your members a branded portal and mobile app - making membership feel tangible, court booking effortless, and renewal a natural decision rather than a friction point.',
+      headline: 'Most tennis clubs start with the Club plan.',
+      body: 'The Club plan gives your members a branded portal and mobile app - making membership feel tangible, court booking effortless, and renewal a natural decision rather than a friction point.',
     },
     footerCta: {
       headline: 'Ready to make your members proud to belong?',

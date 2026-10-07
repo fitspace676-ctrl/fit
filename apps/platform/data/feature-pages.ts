@@ -20,7 +20,7 @@ export type FeaturePageCopy = {
   subline: string;
   intro: { headline: string; body: string };
   blocks: FeatureBlock[];
-  plans?: ('Starter' | 'Growth' | 'Pro')[];
+  plans?: ('Studio' | 'Club' | 'Core')[];
   plan: { eyebrow: string; headline: string; body: string };
   footerCta: { headline: string; subline: string };
 };
@@ -28,7 +28,7 @@ export type FeaturePageCopy = {
 export const FEATURE_PAGES: FeaturePageCopy[] = [
   {
     slug: 'member-portal',
-    plans: ['Growth', 'Pro'],
+    plans: ['Club', 'Core'],
     eyebrow: 'Member Portal',
     heroImage: '/features/member-portal-hero.webp',
     headline: "Your gym, open 24/7. Even when you're not.",
@@ -81,9 +81,9 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
       },
     ],
     plan: {
-      eyebrow: 'Available from Growth',
-      headline: 'Member Portal is included in Growth and Pro.',
-      body: 'Upgrade from Starter to Growth to give your members a fully branded self-service portal - reducing admin for your staff, opening a 24/7 sales channel, and giving members the autonomy that keeps them engaged.',
+      eyebrow: 'Available from Club',
+      headline: 'Member Portal is included in Club and Core.',
+      body: 'Upgrade from Studio to Club to give your members a fully branded self-service portal - reducing admin for your staff, opening a 24/7 sales channel, and giving members the autonomy that keeps them engaged.',
     },
     footerCta: {
       headline: 'Ready to give your members the portal they deserve?',
@@ -93,7 +93,7 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
   },
   {
     slug: 'booking-scheduling',
-    plans: ['Growth', 'Pro'],
+    plans: ['Club', 'Core'],
     eyebrow: 'Online Booking & Scheduling',
     heroImage: '/features/booking-scheduling-hero.webp',
     headline: 'More classes booked. Your schedule, always right.',
@@ -147,8 +147,8 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
     ],
     plan: {
       eyebrow: 'Included in every plan',
-      headline: 'Scheduling in every plan. Self-service booking from Growth.',
-      body: 'The Starter plan gives you full class and PT scheduling in the admin panel. Upgrade to Growth to unlock self-service booking for members via the member portal and mobile app, reducing the manual work it takes to keep your schedule full.',
+      headline: 'Scheduling in every plan. Self-service booking from Club.',
+      body: 'The Studio plan gives you full class and PT scheduling in the admin panel. Upgrade to Club to unlock self-service booking for members via the member portal and mobile app, reducing the manual work it takes to keep your schedule full.',
     },
     footerCta: {
       headline: 'Ready to fill your classes without the back-and-forth?',
@@ -157,7 +157,7 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
   },
   {
     slug: 'reception-pos',
-    plans: ['Starter', 'Growth', 'Pro'],
+    plans: ['Studio', 'Club', 'Core'],
     eyebrow: 'Reception POS',
     heroImage: '/features/reception-pos-hero.webp',
     headline: 'Everything your front desk needs. One screen.',
@@ -212,7 +212,7 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
     plan: {
       eyebrow: 'Included in every plan',
       headline: 'Reception POS is included in every plan.',
-      body: 'Every plan - Starter, Growth, and Pro - includes full access to the Reception POS. Member check-in, walk-in sales, new member registration, and product sales are available from day one.',
+      body: 'Every plan - Studio, Club, and Core - includes full access to the Reception POS. Member check-in, walk-in sales, new member registration, and product sales are available from day one.',
     },
     footerCta: {
       headline: 'Ready to give your front desk the tool it actually needs?',
@@ -222,7 +222,7 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
   },
   {
     slug: 'mobile-app',
-    plans: ['Growth', 'Pro'],
+    plans: ['Club', 'Core'],
     eyebrow: 'Mobile App',
     heroImage: '/features/mobile-app-hero.webp',
     headline: 'Your brand in their pocket. Every single day.',
@@ -285,9 +285,9 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
       },
     ],
     plan: {
-      eyebrow: 'Available from Growth',
-      headline: 'The mobile app is included in Growth and Pro.',
-      body: 'Upgrade from Starter to Growth to give your members a fully branded mobile app. Your club in their pocket, your brand on their screen, every single day.',
+      eyebrow: 'Available from Club',
+      headline: 'The mobile app is included in Club and Core.',
+      body: 'Upgrade from Studio to Club to give your members a fully branded mobile app. Your club in their pocket, your brand on their screen, every single day.',
     },
     footerCta: {
       headline: "Ready to put your brand in your members' pockets?",
@@ -297,7 +297,7 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
   },
   {
     slug: 'analytics-reporting',
-    plans: ['Starter', 'Growth', 'Pro'],
+    plans: ['Studio', 'Club', 'Core'],
     eyebrow: 'Analytics & Reporting',
     heroImage: '/features/analytics-reporting-hero.webp',
     headline: 'Your business in numbers. Right now.',
@@ -341,17 +341,17 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
       {
         title: 'AI-powered Reporting',
         headline: 'Prefer to just ask, instead of building a report?',
-        body: 'On Pro, the AI Assistant sits on top of these same analytics - ask a plain-language question and get an answer, no report to build. See the AI Assistant page for the full picture.',
+        body: 'On the Core plan, the AI Assistant sits on top of these same analytics - ask a plain-language question and get an answer, no report to build. See the AI Assistant page for the full picture.',
         bullets: [
           'Ask a question about your business data instead of building a report',
-          'Available exclusively on the Pro plan, as part of the AI Assistant',
+          'Available exclusively on the Core plan, as part of the AI Assistant',
         ],
       },
     ],
     plan: {
       eyebrow: 'Available in all plans',
-      headline: 'Dashboard in every plan. Full reporting from Growth. AI reporting in Pro.',
-      body: 'Every plan includes the live analytics dashboard. Upgrade to Growth for the full pre-built report library with scheduling and export. Upgrade to Pro to unlock AI-powered custom reporting through the AI Assistant.',
+      headline: 'Dashboard in every plan. Full reporting from Club. AI reporting in Core.',
+      body: 'Every plan includes the live analytics dashboard. Upgrade to Club for the full pre-built report library with scheduling and export. Upgrade to Core to unlock AI-powered custom reporting through the AI Assistant.',
     },
     footerCta: {
       headline: 'Ready to run your business on real numbers?',
@@ -360,7 +360,7 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
   },
   {
     slug: 'ai-assistant',
-    plans: ['Pro'],
+    plans: ['Core'],
     eyebrow: 'AI Assistant',
     heroImage: '/features/ai-assistant-hero.webp',
     headline: 'Ask your business anything. Get an answer right away.',
@@ -413,9 +413,9 @@ export const FEATURE_PAGES: FeaturePageCopy[] = [
       },
     ],
     plan: {
-      eyebrow: 'Available in Pro',
-      headline: 'The AI Assistant is a Pro plan feature.',
-      body: 'The AI Assistant is included exclusively in the Pro plan, giving serious operators the intelligence layer to run a data-driven business without the overhead of a dedicated analyst.',
+      eyebrow: 'Available in Core',
+      headline: 'The AI Assistant is a Core plan feature.',
+      body: 'The AI Assistant is included exclusively in the Core plan, giving serious operators the intelligence layer to run a data-driven business without the overhead of a dedicated analyst.',
     },
     footerCta: {
       headline: 'Ready to run a smarter business?',
