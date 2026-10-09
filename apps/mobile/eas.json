@@ -27,11 +27,21 @@
       "env": {
         "EXPO_PUBLIC_SENTRY_DSN": "https://bce0bf6077b1639b5277e43a756145e2@o4511490272133121.ingest.de.sentry.io/4511490545483856",
         "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "production",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_API_URL": "https://api-production-a2f4.up.railway.app",
+        "EXPO_PUBLIC_GYM_SLUG": "demo"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }

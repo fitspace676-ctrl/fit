@@ -19,7 +19,7 @@
       }
     },
     "android": {
-      "package": "com.fit.app",
+      "package": "io.formacore.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A7FD6"
