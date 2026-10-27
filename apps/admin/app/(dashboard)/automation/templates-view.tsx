@@ -6,6 +6,8 @@ import * as stylex from '@stylexjs/stylex';
 import type { AutomationRuleRow } from '@fit/types';
 import { Badge, Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import type { BuilderCatalog } from './condition-builder';
+import { timingLabel } from './timing-field';
 import { RuleFormDialog } from './rule-form-dialog';
 import { ACTION_ICONS, CATEGORY_KEY, CATEGORY_TONES, triggerCategory } from './automation-meta';
 
@@ -112,9 +114,11 @@ const styles = stylex.create({
 export function TemplatesView({
   templates,
   canManage,
+  catalog,
 }: {
   templates: AutomationRuleRow[];
   canManage: boolean;
+  catalog: BuilderCatalog;
 }) {
   const t = useTranslations('admin.automation');
   const [seed, setSeed] = useState<AutomationRuleRow | null>(null);
@@ -149,6 +153,13 @@ export function TemplatesView({
                   tone={CATEGORY_TONES[category]}
                   label={t(`categories.${CATEGORY_KEY[category]}`)}
                 />
+                <Badge tone="neutral" label={timingLabel(template.timingOffset, t)} />
+                {template.conditions.length > 0 && (
+                  <Badge
+                    tone="neutral"
+                    label={t('conditions.count', { count: template.conditions.length })}
+                  />
+                )}
                 <span {...stylex.props(styles.action)}>
                   <Icon
                     name={ACTION_ICONS[template.actionType]}
@@ -172,7 +183,9 @@ export function TemplatesView({
         })}
       </div>
 
-      {seed ? <RuleFormDialog mode="create" seed={seed} onClose={() => setSeed(null)} /> : null}
+      {seed ? (
+        <RuleFormDialog catalog={catalog} mode="create" seed={seed} onClose={() => setSeed(null)} />
+      ) : null}
     </>
   );
 }

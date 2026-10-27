@@ -2745,7 +2745,7 @@
         "message": "Message",
         "messageHint": "Insert merge fields below to personalise the message.",
         "messagePlaceholder": "Enter your message…",
-        "mergeHint": "Click to insert a merge field:",
+        "mergeHint": "Variables available for this trigger",
         "active": "Active",
         "activeHint": "Inactive rules never fire.",
         "addTitle": "Create automation",
@@ -2757,7 +2757,16 @@
         "addSubmit": "Create automation",
         "editSubmit": "Save changes",
         "created": "Automation created.",
-        "updated": "Automation updated."
+        "updated": "Automation updated.",
+        "conditions": "Conditions",
+        "conditionsEmpty": "This rule runs for all members",
+        "conditionsAnd": "AND",
+        "conditionsField": "Field",
+        "conditionsOperator": "Operator",
+        "conditionsValue": "Value",
+        "conditionsChoose": "Choose a value",
+        "conditionsRemove": "Remove condition",
+        "conditionsAdd": "Add condition"
       },
       "categories": {
         "members": "Members",
@@ -2811,7 +2820,11 @@
       "mergeGroups": {
         "member": "Member",
         "membership": "Membership",
-        "business": "Business"
+        "business": "Business",
+        "class": "Class",
+        "invoice": "Invoice",
+        "order": "Order",
+        "session": "Session"
       },
       "mergeVars": {
         "memberFirstName": "First name",
@@ -2833,7 +2846,32 @@
         "businessPhone": "Gym phone",
         "businessAddress": "Gym address",
         "businessEmail": "Gym email",
-        "businessWebsite": "Gym website"
+        "businessWebsite": "Gym website",
+        "memberGender": "Gender",
+        "memberAge": "Age",
+        "memberTags": "Tags",
+        "memberBranchName": "Branch name",
+        "memberBranchAddress": "Branch address",
+        "memberBranchPhone": "Branch phone",
+        "memberLastCheckinDate": "Last check-in date",
+        "memberPlanPrice": "Plan price",
+        "memberSubscriptionStatus": "Subscription status",
+        "memberPeriodStart": "Period start",
+        "memberFrozenUntil": "Frozen until",
+        "className": "Class name",
+        "classDate": "Class date",
+        "classTime": "Class time",
+        "classTrainerName": "Class trainer",
+        "classLocation": "Class location",
+        "invoiceNumber": "Invoice number",
+        "invoiceAmount": "Invoice amount",
+        "invoiceDate": "Invoice date",
+        "orderTotal": "Order total",
+        "orderItems": "Order items",
+        "sessionName": "Session name",
+        "sessionDate": "Session date",
+        "sessionTime": "Session time",
+        "sessionTrainerName": "Session trainer"
       },
       "templates": {
         "saved": "Template saved.",
@@ -2854,13 +2892,91 @@
         "unexpected": "Something went wrong. Please try again.",
         "loadRules": "Couldn’t load automations ({status}): {message}",
         "loadTemplates": "Couldn’t load templates ({status}): {message}",
-        "apiUnreachable": "The API is unreachable. Please try again shortly."
+        "apiUnreachable": "The API is unreachable. Please try again shortly.",
+        "conditionsInvalid": "Complete the conditions with values matching each field and operator."
       },
       "stats": {
         "active": "Active automations",
         "totalRuns": "Total runs",
         "messagesSent": "Messages sent",
         "last30": "Sent (30 days)"
+      },
+      "conditionFields": {
+        "member_gender": "Gender",
+        "member_age": "Age",
+        "member_status": "Member status",
+        "member_kind": "Member kind",
+        "member_branch": "Branch",
+        "member_tags": "Tags",
+        "member_joined_days_ago": "Days since joining",
+        "member_last_checkin_days_ago": "Days since last check-in",
+        "member_checkin_count": "Check-in count",
+        "subscription_plan": "Membership plan",
+        "subscription_status": "Subscription status",
+        "subscription_days_until_expiry": "Days until expiry"
+      },
+      "conditionOperators": {
+        "eq": "Equals",
+        "neq": "Does not equal",
+        "in": "Is one of",
+        "not_in": "Is not one of",
+        "is_empty": "Is empty",
+        "is_not_empty": "Is not empty",
+        "gt": "Greater than",
+        "gte": "At least",
+        "lt": "Less than",
+        "lte": "At most",
+        "contains": "Contains",
+        "not_contains": "Does not contain"
+      },
+      "conditionGroups": {
+        "member": "Member",
+        "subscription": "Subscription"
+      },
+      "conditionValues": {
+        "member_gender": {
+          "MALE": "Male",
+          "FEMALE": "Female",
+          "OTHER": "Other"
+        },
+        "member_status": {
+          "ACTIVE": "Active",
+          "INVITED": "Invited",
+          "SUSPENDED": "Suspended"
+        },
+        "member_kind": {
+          "MEMBER": "Member",
+          "GUEST": "Guest",
+          "INACTIVE": "Inactive"
+        },
+        "subscription_status": {
+          "TRIAL": "Trial",
+          "ACTIVE": "Active",
+          "PAST_DUE": "Past due",
+          "FROZEN": "Frozen",
+          "CANCELED": "Canceled",
+          "EXPIRED": "Expired"
+        }
+      },
+      "timing": {
+        "now": "At the event",
+        "before": "{count} {unit} before",
+        "after": "{count} {unit} after",
+        "days": "days",
+        "hours": "hours",
+        "preset": "Quick preset",
+        "custom": "Custom timing",
+        "direction": "Direction",
+        "direction_now": "At the event",
+        "direction_before": "Before",
+        "direction_after": "After",
+        "amount": "Amount",
+        "unit": "Unit",
+        "eventHint": "Runs at the event or the specified number of days or hours afterwards.",
+        "invalid": "Enter a whole number: 0-365 days or 0-8760 hours."
+      },
+      "conditions": {
+        "count": "{count, plural, one {# condition} other {# conditions}}"
       }
     },
     "marketing": {

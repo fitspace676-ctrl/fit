@@ -5,17 +5,26 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import {
-  AUTOMATION_TIMING_CATALOG,
+  automationConditionsSchema,
+  mergeFieldsForTrigger,
+  type AutomationCondition,
   AUTOMATION_TRIGGER_CATALOG,
   type AutomationActionType,
   type AutomationRuleRow,
-  type AutomationTimingOffset,
   type AutomationTriggerType,
   AUTOMATION_MERGE_FIELDS,
   AUTOMATION_MERGE_GROUPS,
 } from '@fit/types';
 import { Button, Drawer, Field, FieldGroup, SelectField, TextareaField } from '@fit/ui-kit';
 import { Icon, useToast } from '@/components/ui';
+import { ConditionBuilder, type BuilderCatalog } from './condition-builder';
+import {
+  TimingField,
+  timingState,
+  timingOffset,
+  validTiming,
+  type TimingState,
+} from './timing-field';
 import { createAutomationRuleAction, updateAutomationRuleAction } from './actions';
 import {
   ACTION_ICONS,
@@ -213,11 +222,11 @@ const styles = stylex.create({
 });
 
 /** The controlled form state — inputs as the browser hands them over. */
-interface FormState {
+interface FormState extends TimingState {
   name: string;
   triggerType: AutomationTriggerType | '';
   days: string;
-  timingOffset: AutomationTimingOffset;
+  conditions: AutomationCondition[];
   actionType: AutomationActionType;
   subject: string;
   body: string;
@@ -230,7 +239,11 @@ function seedForm(seed: RuleFormSeed): FormState {
     name: seed?.name ?? '',
     triggerType: seed?.triggerType ?? '',
     days: seed?.triggerConfig?.days !== undefined ? String(seed.triggerConfig.days) : '',
-    timingOffset: seed?.timingOffset ?? 'day_of',
+    ...timingState(
+      seed?.timingOffset ?? '0d',
+      !!seed && TRIGGER_META.get(seed.triggerType)?.kind === 'event',
+    ),
+    conditions: seed?.conditions ?? [],
     actionType: seed?.actionType ?? 'push_notification',
     subject: seed?.actionConfig?.subject ?? '',
     body: seed?.actionConfig?.body ?? '',
@@ -239,6 +252,7 @@ function seedForm(seed: RuleFormSeed): FormState {
 }
 
 type Props = {
+  catalog: BuilderCatalog;
   mode: 'create' | 'edit';
   /** In edit mode, the rule being edited; in create mode, an optional template to clone. */
   seed?: RuleFormSeed;
@@ -253,7 +267,7 @@ type Props = {
  * `AutomationManage` Server Actions. Money-free, so state is plain strings the
  * submit coerces and the shared Zod schema re-validates.
  */
-export function RuleFormDialog({ mode, seed, onClose }: Props) {
+export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
   const t = useTranslations('admin.automation');
   const { toast } = useToast();
   const router = useRouter();
@@ -276,23 +290,26 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
   const isEmail = form.actionType === 'email';
 
   const canSubmit =
+    validTiming(form) &&
+    automationConditionsSchema.safeParse(form.conditions).success &&
     form.name.trim().length > 0 &&
     form.triggerType !== '' &&
     form.body.trim().length > 0 &&
     (!needsDays || Number.parseInt(form.days, 10) >= 1);
 
-  /**
-   * The merge-field chips, grouped for the picker. The whole catalogue: it is
-   * curated to fields the executor can actually fill, and the per-gym switch list
-   * that once trimmed it is gone along with its settings screen.
-   */
+  /** Only offer merge fields supported by the selected trigger context. */
   const mergeGroups = useMemo(
     () =>
       AUTOMATION_MERGE_GROUPS.map((group) => ({
         group,
-        fields: AUTOMATION_MERGE_FIELDS.filter((field) => field.group === group),
+        fields: (form.triggerType
+          ? mergeFieldsForTrigger(form.triggerType)
+          : AUTOMATION_MERGE_FIELDS.filter(
+              (field) => field.group === 'member' || field.group === 'business',
+            )
+        ).filter((field) => field.group === group),
       })).filter((entry) => entry.fields.length > 0),
-    [],
+    [form.triggerType],
   );
 
   /** Trigger `<optgroup>`s, grouped by category in the catalog's declared order. */
@@ -323,10 +340,23 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
   /** Reset the day/count when the trigger changes so a stale value can't leak across triggers. */
   function selectTrigger(value: string): void {
     const trigger = value as AutomationTriggerType;
-    setForm((prev) => ({ ...prev, triggerType: trigger, days: '' }));
+    setForm((prev) => ({
+      ...prev,
+      triggerType: trigger,
+      days: '',
+      timingDirection:
+        TRIGGER_META.get(trigger)?.kind === 'event' && prev.timingDirection === 'before'
+          ? 'now'
+          : prev.timingDirection,
+    }));
   }
 
   function submit(): void {
+    const conditions = automationConditionsSchema.safeParse(form.conditions);
+    if (!conditions.success) {
+      setError(t('errors.conditionsInvalid'));
+      return;
+    }
     if (!canSubmit || pending || form.triggerType === '') return;
     setError(null);
     const trimmedSubject = form.subject.trim();
@@ -334,7 +364,8 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
       name: form.name.trim(),
       triggerType: form.triggerType,
       triggerConfig: needsDays ? { days: Number.parseInt(form.days, 10) } : {},
-      timingOffset: form.timingOffset,
+      timingOffset: timingOffset(form),
+      conditions: conditions.data,
       actionType: form.actionType,
       actionConfig: {
         body: form.body.trim(),
@@ -444,21 +475,18 @@ export function RuleFormDialog({ mode, seed, onClose }: Props) {
               placeholder={t('form.daysPlaceholder')}
             />
           ) : null}
-
-          {/* Timing offset — when the action fires relative to the trigger. */}
-          <SelectField
-            label={t('form.timing')}
-            hint={t('form.timingHint')}
-            value={form.timingOffset}
-            onChange={(e) => patch('timingOffset', e.target.value as AutomationTimingOffset)}
-            options={[
-              ...AUTOMATION_TIMING_CATALOG.map((timing) => ({
-                value: timing.value,
-                label: t(`timings.${timing.value}`),
-              })),
-            ]}
-          />
         </div>
+
+        <TimingField
+          value={form}
+          event={daysMeta?.kind === 'event'}
+          onChange={(value) => setForm((prev) => ({ ...prev, ...value }))}
+        />
+        <ConditionBuilder
+          conditions={form.conditions}
+          catalog={catalog}
+          onChange={(value) => patch('conditions', value)}
+        />
 
         {/* Action picker — exactly one action per rule. */}
         <FieldGroup label={t('form.action')}>
