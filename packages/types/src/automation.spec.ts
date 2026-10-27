@@ -17,10 +17,22 @@ describe('automation trigger catalog', () => {
     }
   });
 
-  it('covers all 26 triggers with unique values', () => {
+  it('covers all 24 offered triggers with unique values', () => {
     const values = AUTOMATION_TRIGGER_CATALOG.map((t) => t.value);
-    expect(values).toHaveLength(26);
-    expect(new Set(values).size).toBe(26);
+    expect(values).toHaveLength(24);
+    expect(new Set(values).size).toBe(24);
+  });
+
+  it('leaves out the triggers nothing fires yet', () => {
+    const values: string[] = AUTOMATION_TRIGGER_CATALOG.map((t) => t.value);
+    for (const missing of ['plan_upgraded', 'plan_downgraded', 'lead_created']) {
+      expect(values).not.toContain(missing);
+    }
+  });
+
+  it('fires membership_expired as an event, not a period-end scan', () => {
+    const expired = AUTOMATION_TRIGGER_CATALOG.find((t) => t.value === 'membership_expired');
+    expect(expired).toMatchObject({ kind: 'event', entityType: 'subscription' });
   });
 
   it('flags exactly the count/day-window triggers as needing days', () => {

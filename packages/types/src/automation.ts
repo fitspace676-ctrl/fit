@@ -59,6 +59,8 @@ export const automationTriggerTypeSchema = z.enum([
   'birthday',
   'no_checkin',
   'checkin_milestone',
+  // Retained to mirror the Prisma enum but left out of the trigger catalog: there is
+  // no plan-change path yet, so nothing would ever fire them.
   'plan_upgraded',
   'plan_downgraded',
   // Retained to mirror the Prisma `AutomationTriggerType` enum (CRM was removed from
@@ -148,7 +150,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
   {
     value: 'membership_expired',
     entityType: 'subscription',
-    kind: 'scan',
+    kind: 'event',
     recipient: 'member',
     label: 'Membership expired',
     category: 'Members',
@@ -209,24 +211,6 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     category: 'Members',
     needsDays: true,
     daysLabel: 'check-ins',
-  },
-  {
-    value: 'plan_upgraded',
-    entityType: 'member',
-    kind: 'event',
-    recipient: 'member',
-    label: 'Plan upgraded',
-    category: 'Members',
-    needsDays: false,
-  },
-  {
-    value: 'plan_downgraded',
-    entityType: 'member',
-    kind: 'event',
-    recipient: 'member',
-    label: 'Plan downgraded',
-    category: 'Members',
-    needsDays: false,
   },
   // Classes
   {
