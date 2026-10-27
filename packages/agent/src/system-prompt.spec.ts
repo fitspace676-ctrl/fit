@@ -44,3 +44,53 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Operator:');
   });
 });
+
+describe('product guidance and behavior', () => {
+  it('includes the console map and actionable how-to guidance', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain('Console map:');
+    expect(prompt).toContain('/members: Members');
+    expect(prompt).toContain('/payments/invoices: Invoices');
+    expect(prompt).toContain('Glossary:');
+    expect(prompt).toContain('How-to:');
+    expect(prompt).toContain('Add a member: /members/new:');
+    expect(prompt).toContain('Markdown links to relative console paths');
+    expect(prompt).toContain('Offer to do it with tools when available');
+    expect(prompt).toContain('Replace :id/:metric with verified values');
+  });
+
+  it('groups every dynamic destination on its parent line', () => {
+    const map = buildSystemPrompt().split('Console map:\n')[1]!.split('\nGlossary:')[0]!;
+    expect(map).not.toMatch(/^\/[^\n]*:[a-z]+:/m);
+    const members = map.split('\n').find((line) => line.startsWith('/members:'))!;
+    expect(members).toContain('/members/:id Member');
+    expect(members).toContain('/members/:id/edit Edit member');
+  });
+
+  it('requires natural Georgian and hides system identifiers', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain('Never use em/en dashes (—, –) or Mtavruli');
+    expect(prompt).toContain('U+1C90..U+1CBF');
+    expect(prompt).toContain('Use Georgian glossary terms');
+    expect(prompt).toContain('do not show tool names or enum identifiers');
+    expect(prompt).toContain('do not repeat the question');
+  });
+
+  it('routes reads and gates writes on operator intent', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain('For who/list questions use list_*; for a specific record use get_*');
+    expect(prompt).toContain('For totals, counts and trends use the reports/dashboard tools');
+    expect(prompt).toContain('Make independent reads together');
+    expect(prompt).toContain('Write only when the operator requests a change');
+    expect(prompt).toContain('what you are about to do and with which values');
+    expect(prompt).toContain('list the affected records and their total count first');
+    expect(prompt).toContain('Before irreversible actions (deletion, refund)');
+    expect(prompt).toContain('cannot be undone');
+  });
+
+  it('adds at most 6000 characters, including behavioral guidance, without context', () => {
+    // Context-free prompt before product knowledge and behavioral additions: 1924 chars.
+    // Keep this fixed baseline so future growth cannot silently increase the allowance.
+    expect(buildSystemPrompt().length - 1924).toBeLessThanOrEqual(6000);
+  });
+});
