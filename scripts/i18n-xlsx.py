@@ -295,10 +295,14 @@ def do_import(in_path: Path) -> None:
         if not header or header[0] != HEADERS[0] or len(header) < 4:
             continue
         for row in ws.iter_rows(min_row=2, values_only=True):
-            key = (row[0] or "").strip()
+            # Read-only sheets yield an empty tuple for a row with no cells.
+            if not row:
+                continue
+            key = str(row[0] or "").strip()
             if not key:
                 continue
-            value = row[3] if len(row) > 3 and row[3] not in (None, "") else row[2]
+            ka_cell = str(row[3]).strip() if len(row) > 3 and row[3] is not None else ""
+            value = ka_cell or (row[2] if len(row) > 2 else None)
             if value in (None, ""):
                 continue
             if key not in en_flat:
