@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AutomationService } from './automation.service';
+import type { CreateAutomationRuleInput } from '@fit/types';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -371,7 +372,7 @@ describe('AutomationService builder fields', () => {
 });
 
 describe('AutomationService gym-recipient triggers', () => {
-  const stockRule = {
+  const stockRule: Omit<CreateAutomationRuleInput, 'actionType'> = {
     name: 'Stock low',
     triggerType: 'product_stock_low',
     triggerConfig: {},
@@ -379,7 +380,7 @@ describe('AutomationService gym-recipient triggers', () => {
     conditions: [],
     actionConfig: { body: 'Restock' },
     active: true,
-  } as const;
+  };
 
   it('rejects a non-email action on create and accepts email', async () => {
     const { service, ruleCreate } = setup();
