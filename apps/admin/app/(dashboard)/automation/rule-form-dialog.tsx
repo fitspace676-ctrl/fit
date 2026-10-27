@@ -79,6 +79,10 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-accent-muted)',
     color: 'var(--color-text-accent)',
   },
+  actionBtnDisabled: {
+    opacity: 0.45,
+    cursor: 'not-allowed',
+  },
   actionIcon: {
     width: '1rem',
     height: '1rem',
@@ -288,10 +292,13 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
   const needsDays = form.triggerType !== '' && triggerNeedsDays(form.triggerType);
   const daysMeta = form.triggerType !== '' ? TRIGGER_META.get(form.triggerType) : undefined;
   const isEmail = form.actionType === 'email';
+  // A gym-recipient trigger (product_stock_low) mails the gym itself: email is
+  // the only deliverable action, and there is no member to condition on.
+  const gymRecipient = daysMeta?.recipient === 'gym';
 
   const canSubmit =
     validTiming(form) &&
-    automationConditionsSchema.safeParse(form.conditions).success &&
+    (gymRecipient || automationConditionsSchema.safeParse(form.conditions).success) &&
     form.name.trim().length > 0 &&
     form.triggerType !== '' &&
     form.body.trim().length > 0 &&
@@ -308,8 +315,13 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
               (field) => field.group === 'member' || field.group === 'business',
             )
         ).filter((field) => field.group === group),
-      })).filter((entry) => entry.fields.length > 0),
-    [form.triggerType],
+      })).filter(
+        (entry) =>
+          entry.fields.length > 0 &&
+          // No member is in play when the gym is the recipient.
+          !(gymRecipient && (entry.group === 'member' || entry.group === 'membership')),
+      ),
+    [form.triggerType, gymRecipient],
   );
 
   /** Trigger `<optgroup>`s, grouped by category in the catalog's declared order. */
@@ -344,6 +356,7 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
       ...prev,
       triggerType: trigger,
       days: '',
+      actionType: TRIGGER_META.get(trigger)?.recipient === 'gym' ? 'email' : prev.actionType,
       timingDirection:
         TRIGGER_META.get(trigger)?.kind === 'event' && prev.timingDirection === 'before'
           ? 'now'
@@ -352,7 +365,7 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
   }
 
   function submit(): void {
-    const conditions = automationConditionsSchema.safeParse(form.conditions);
+    const conditions = automationConditionsSchema.safeParse(gymRecipient ? [] : form.conditions);
     if (!conditions.success) {
       setError(t('errors.conditionsInvalid'));
       return;
@@ -482,24 +495,39 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
           event={daysMeta?.kind === 'event'}
           onChange={(value) => setForm((prev) => ({ ...prev, ...value }))}
         />
-        <ConditionBuilder
-          conditions={form.conditions}
-          catalog={catalog}
-          onChange={(value) => patch('conditions', value)}
-        />
+        {gymRecipient ? (
+          <p {...stylex.props(styles.varHint)}>{t('form.conditionsUnavailable')}</p>
+        ) : (
+          <ConditionBuilder
+            conditions={form.conditions}
+            catalog={catalog}
+            onChange={(value) => patch('conditions', value)}
+          />
+        )}
 
         {/* Action picker — exactly one action per rule. */}
-        <FieldGroup label={t('form.action')}>
+        <FieldGroup
+          label={t('form.action')}
+          hint={gymRecipient ? t('form.gymRecipientHint') : undefined}
+        >
           <div {...stylex.props(styles.actionRow)}>
             {ACTION_ORDER.map((action) => {
               const active = form.actionType === action;
+              const unavailable = gymRecipient && action !== 'email';
               return (
                 <button
                   key={action}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => patch('actionType', action)}
-                  {...stylex.props(styles.actionBtn, active && styles.actionBtnActive)}
+                  aria-disabled={unavailable || undefined}
+                  onClick={() => {
+                    if (!unavailable) patch('actionType', action);
+                  }}
+                  {...stylex.props(
+                    styles.actionBtn,
+                    active && styles.actionBtnActive,
+                    unavailable && styles.actionBtnDisabled,
+                  )}
                 >
                   <Icon name={ACTION_ICONS[action]} {...stylex.props(styles.actionIcon)} />
                   {t(`actions.${action}`)}

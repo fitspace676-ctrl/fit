@@ -2746,6 +2746,8 @@
         "messageHint": "Insert merge fields below to personalise the message.",
         "messagePlaceholder": "Enter your message…",
         "mergeHint": "Variables available for this trigger",
+        "gymRecipientHint": "This trigger mails the gym email address; no member is the recipient.",
+        "conditionsUnavailable": "Conditions are not available for this trigger.",
         "active": "Active",
         "activeHint": "Inactive rules never fire.",
         "addTitle": "Create automation",
