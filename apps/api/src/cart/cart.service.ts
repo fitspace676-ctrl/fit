@@ -21,6 +21,8 @@ import { applyOrderStockMovements } from '../products/order-stock';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
+import { dispatchSaleAutomation } from '../orders/order-automation';
 
 /**
  * Sentinel stock for a position whose product does not count stock. Untracked is
@@ -110,6 +112,7 @@ export class CartService {
     private readonly tenant: TenantContext,
     private readonly promos: PromoRedemptionService,
     private readonly locale: GymLocaleService,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /**
@@ -379,6 +382,15 @@ export class CartService {
       // is left in place: the next add reuses it for a fresh cart.
       await tx.cart.delete({ where: { id: cart.id } });
       return order.id;
+    });
+
+    // After commit, never awaited. The basket's order is still PENDING, so only the
+    // stock trigger can fire here; `purchase_completed` waits for a PAID order.
+    dispatchSaleAutomation(this.automation, this.prisma.client, {
+      gymId,
+      orderId,
+      memberId: member?.id ?? null,
+      paid: false,
     });
 
     return { kind: 'created', orderId };

@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { GymMemberStatus, GymStatus, OrderStatus, PaymentStatus, Role } from '@fit/db';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import { OrdersService } from './orders.service';
 import { TenantContext, type TenantState } from '../common/tenant/tenant.context';
 import { asTenant, disconnect, prisma, resetDb, tenantPrisma } from '../test/integration-db';
@@ -46,6 +47,7 @@ const service = new OrdersService(
   unreached('LoyaltyPointsService'),
   unreached('SubscriptionEnrollmentService'),
   unreached('PromoRedemptionService'),
+  { dispatchForGym: () => Promise.resolve(0) } as unknown as AutomationExecutorService,
 );
 
 /** The captured total every case refunds against, in minor units. */

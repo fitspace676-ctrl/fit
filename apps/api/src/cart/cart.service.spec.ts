@@ -5,6 +5,7 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import type { PrismaService } from '../prisma/prisma.service';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import type { GymLocaleService } from '../gyms/gym-locale.service';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import { CartService } from './cart.service';
 
 /** A stored product row as `loadVariantInfo` selects it. */
@@ -165,8 +166,16 @@ function setup(config: {
     Promise.resolve({ id: 'loc-default' }),
   );
   const branchStock = branchStockStore(products);
-  const movementCreateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
+  // The ledger the sale writes, kept so the after-commit low-stock check reads back
+  // exactly the movements the draw-down recorded.
+  const ledger: unknown[] = [];
+  const movementCreateMany = vi.fn((args: { data: unknown[] }) => {
+    ledger.push(...args.data);
+    return Promise.resolve({ count: args.data.length });
+  });
   const gymMemberFindFirst = vi.fn(() => Promise.resolve(null));
+  const dispatchForGym = vi.fn((..._args: unknown[]) => Promise.resolve(0));
+  const automation = { dispatchForGym } as unknown as AutomationExecutorService;
 
   const client = {
     product: { findMany, update: productUpdate },
@@ -185,8 +194,11 @@ function setup(config: {
     },
     order: { create: orderCreate, findFirst: orderFindFirst },
     location: { findFirst: defaultLocationFindFirst },
-    productStock: branchStock,
-    stockMovement: { createMany: movementCreateMany },
+    productStock: { ...branchStock, findMany: vi.fn(() => Promise.resolve([])) },
+    stockMovement: {
+      createMany: movementCreateMany,
+      findMany: vi.fn(() => Promise.resolve(ledger)),
+    },
     gymMember: { findFirst: gymMemberFindFirst },
     $transaction: vi.fn((arg: unknown) =>
       Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => unknown)(client),
@@ -206,8 +218,15 @@ function setup(config: {
   } as unknown as GymLocaleService;
 
   return {
-    service: new CartService(prisma, tenant, new PromoRedemptionService(prisma), locale),
+    service: new CartService(
+      prisma,
+      tenant,
+      new PromoRedemptionService(prisma),
+      locale,
+      automation,
+    ),
     mocks: {
+      dispatchForGym,
       findMany,
       cartCreate,
       cartItemUpsert,
@@ -236,6 +255,7 @@ describe('CartService with no gym in scope', () => {
       new TenantContext(),
       new PromoRedemptionService(prisma),
       locale,
+      { dispatchForGym: vi.fn() } as unknown as AutomationExecutorService,
     );
 
     const error = await service.getCart('guest-session').catch((e: unknown) => e);
@@ -438,6 +458,52 @@ describe('CartService.checkout', () => {
     // DELIVERY names no branch, so that is the gym's default one.
     expect(mocks.defaultLocationFindFirst).toHaveBeenCalled();
     expect(mocks.branchStock.rows.get('p1')!.variants).toEqual([8]);
+  });
+
+  it('fires product_stock_low when the sale takes a variant down to its cushion', async () => {
+    // 6 on hand − 2 sold = 4, at or under the default cushion of 5.
+    const { service, mocks } = setup({
+      userId: 'u1',
+      userCart: cart,
+      products: [
+        product({
+          priceAmount: 500,
+          variants: [{ name: 'M', sku: 'TEE-M', priceAmount: 500, stock: 6 }],
+        }),
+      ],
+    });
+
+    await service.checkout(undefined, { fulfillment: 'DELIVERY', deliveryAddress: '1 Main St' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.dispatchForGym).toHaveBeenCalledWith('gym1', 'product_stock_low', {
+      entityId: 'order-1',
+      entityType: 'order',
+    });
+    // The basket's order is PENDING — nothing has been paid for yet.
+    expect(mocks.dispatchForGym).not.toHaveBeenCalledWith(
+      'gym1',
+      'purchase_completed',
+      expect.anything(),
+    );
+  });
+
+  it('does not fire product_stock_low while the stock stays above the cushion', async () => {
+    const { service, mocks } = setup({
+      userId: 'u1',
+      userCart: cart,
+      products: [
+        product({
+          priceAmount: 500,
+          variants: [{ name: 'M', sku: 'TEE-M', priceAmount: 500, stock: 10 }],
+        }),
+      ],
+    });
+
+    await service.checkout(undefined, { fulfillment: 'DELIVERY', deliveryAddress: '1 Main St' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.dispatchForGym).not.toHaveBeenCalled();
   });
 
   it('draws a PICKUP order down from the collection branch, not the default', async () => {
