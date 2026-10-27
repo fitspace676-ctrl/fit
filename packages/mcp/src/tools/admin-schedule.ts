@@ -18,7 +18,7 @@ export const adminScheduleTools = defineTools('classes', [
     title: 'List schedule',
     titleKa: 'განრიგი',
     description:
-      'List dated class occurrences in a from/to window: id, title, status, start, trainer, booked count and capacity. Use get_schedule_instance for the roster and list_classes for recurring templates.',
+      'List dated class sessions in a from/to window: id, title, status, start, trainer, booked and capacity. Use for what classes are on today or this week; list_classes is the recurring templates, get_schedule_instance the roster.',
     method: 'get',
     path: '/admin/schedule',
     query: adminScheduleQuerySchema,
@@ -39,7 +39,7 @@ export const adminScheduleTools = defineTools('classes', [
     title: 'Get schedule instance',
     titleKa: 'გაკვეთილის დეტალები',
     description:
-      'Read one dated class with its booking roster, held seats, waitlist and occupancy. Use for who is booked, and before cancel_class_instance or promote_class_waitlist.',
+      'Read one dated class with its booking roster, held seats, waitlist and occupancy; use before cancel_class_instance or promote_class_waitlist. For bookingIds with attendance status before mark_attendance use get_attendance.',
     method: 'get',
     path: '/admin/schedule/instances/:id',
     params: id,

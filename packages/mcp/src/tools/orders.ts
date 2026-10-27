@@ -29,7 +29,7 @@ export const ordersTools = defineTools('sales', [
     title: 'Record pos sale',
     titleKa: 'POS გაყიდვის დაფიქსირება',
     description:
-      'Record a front-desk POS sale and its payment from a receipt, optionally at locationId; an attached planId also enrolls the member. Returns the order ids and totals.',
+      'Sell items or a plan and take payment in one POS step from a receipt, optionally at locationId; a planId also enrolls the member. Without payment use enroll_subscription; credits without a sale grant_member_credit_pack.',
     method: 'post',
     path: '/orders/pos-sale',
     destructive: false,

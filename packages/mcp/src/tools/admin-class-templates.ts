@@ -17,7 +17,7 @@ export const adminClassTemplatesTools = defineTools('classes', [
     title: 'List class templates',
     titleKa: 'კლასების სია',
     description:
-      'List recurring class templates page by page: id, title, status, category, start time, recurrence and trainer. Use list_schedule for dated occurrences and get_class for full detail.',
+      'List recurring class templates only, with no dates or attendance: id, title, status, category, start time, recurrence, trainer. For what classes are on today or this week use list_schedule; get_class has detail.',
     method: 'get',
     path: '/admin/classes',
     query: listAdminClassTemplatesQuerySchema,
@@ -60,7 +60,7 @@ export const adminClassTemplatesTools = defineTools('classes', [
     title: 'Resume / pause class',
     titleKa: 'კლასის შეჩერება ან განახლება',
     description:
-      'Pause a recurring class (active=false) so it stops generating occurrences, or resume it (active=true). Returns the updated template; use cancel_class_instance for a single date.',
+      'Pause or resume a recurring class. active: true = resume, false = pause (stops generating occurrences); boolean, not a status string. cancel_class_instance cancels a single date.',
     method: 'post',
     path: '/admin/classes/:id/pause',
     activePath: '/admin/classes/:id/resume',

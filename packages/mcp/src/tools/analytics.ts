@@ -8,7 +8,7 @@ export const analyticsTools = defineTools('insights', [
     title: 'Get analytics',
     titleKa: 'ანალიტიკა',
     description:
-      'Read business analytics for a range: KPIs, revenue trends, channel and plan mix, and top classes. Use for broad business analysis; run_report gives individual report tables.',
+      "Read trends and time series for a range: KPIs, revenue trends, channel and plan mix, top classes. Use for trend analysis; headline KPIs are get_dashboard_*, tables run_report, a metric's rows run_report_drilldown.",
     method: 'get',
     path: '/admin/analytics',
     query: analyticsQuerySchema,

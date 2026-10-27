@@ -17,7 +17,7 @@ export const reportDrilldownTools = defineTools('insights', [
     title: 'Run report drilldown',
     titleKa: 'დეტალური რეპორტის გაშვება',
     description:
-      'Compute one metric from report_drilldown_catalog for a window and optional branch: KPIs, trend series, breakdowns and detail sections. Use run_report for plain tables.',
+      'Get the underlying rows, breakdowns and trend for one metric from report_drilldown_catalog in a window, optional branch. Headline KPIs are get_dashboard_*, plain tables run_report, trends get_analytics.',
     method: 'get',
     path: '/admin/reports/drilldown/:metric',
     query: reportDrilldownQuerySchema,

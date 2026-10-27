@@ -13,7 +13,7 @@ export const ptSessionsTools = defineTools('classes', [
     title: 'List PT sessions',
     titleKa: 'PT სესიების სია',
     description:
-      'List personal-training sessions starting in a from/to window, for all trainers or one trainerId: trainer, status, start, duration, class type and branch. Catalogue appointments use list_service_sessions.',
+      'List trainer PT bookings from the PT calendar in a from/to window, all trainers or one trainerId. For PT questions start here; if empty, try list_service_sessions (PERSONAL_TRAINING services). list_services is the catalogue.',
     method: 'get',
     path: '/admin/pt-sessions',
     query: listAdminPtSessionsQuerySchema,

@@ -16,7 +16,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Dashboard stats',
     titleKa: 'დაფის სტატისტიკა',
     description:
-      'Read headline counts for the gym: members, trainers, branches and products, each as active and total. Use for quick size questions; get_dashboard_overview has revenue and activity.',
+      'Read headline counts: members, trainers, branches and products, active and total. For quick size questions; period KPIs are get_dashboard_overview, tables for a date window run_report.',
     method: 'get',
     path: '/dashboard/stats',
   },
@@ -26,7 +26,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Get dashboard overview',
     titleKa: 'დაფის მიმოხილვა',
     description:
-      "Read today's or a period's key numbers: occupancy, revenue, check-ins, new members, classes, a revenue trend, plan mix, today's classes and alerts. Start here for 'how is the gym doing'.",
+      "Headline KPIs of the overview tab for the current period: occupancy, revenue, check-ins, new members, today's classes, alerts. Start here for how the gym is doing; tables are run_report, trends get_analytics.",
     method: 'get',
     path: '/dashboard/overview',
     query: dashboardOverviewQuerySchema,
@@ -36,7 +36,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Get dashboard sales',
     titleKa: 'გაყიდვების მიმოხილვა',
     description:
-      'Read sales KPIs for a period with revenue and refund trends, payment-method split and top-selling items. Use for sales performance; list_orders has individual sales.',
+      'Headline KPIs of the sales tab for the current period: revenue and refund trend, payment split, top items. Single sales are list_orders, tables run_report, rows behind a metric run_report_drilldown.',
     method: 'get',
     path: '/dashboard/sales',
     query: dashboardSalesQuerySchema,
@@ -46,7 +46,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Get dashboard members',
     titleKa: 'წევრების მიმოხილვა',
     description:
-      'Read member KPIs for a period with the active-member trend, signups against churn, retention rate and billing-state split. Use for growth and retention questions.',
+      'Headline KPIs of the members tab for the current period: active trend, signups against churn, retention, billing split. Tables for a date window are run_report, rows behind a metric run_report_drilldown.',
     method: 'get',
     path: '/dashboard/members',
     query: dashboardMembersQuerySchema,
@@ -56,7 +56,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Get dashboard revenue',
     titleKa: 'შემოსავლის მიმოხილვა',
     description:
-      'Read revenue KPIs for a period with revenue streams, MRR trend, projection, outstanding invoices and per-branch breakdown. Use for income questions.',
+      'Headline KPIs of the revenue tab for the current period: streams, MRR trend, projection, outstanding invoices, per branch. Tables for a date window are run_report, rows behind a metric run_report_drilldown.',
     method: 'get',
     path: '/dashboard/revenue',
     query: dashboardRevenueQuerySchema,
@@ -66,7 +66,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Get dashboard classes',
     titleKa: 'კლასების მიმოხილვა',
     description:
-      'Read class KPIs for a period with booking, attendance, utilization and PT trends, class-type ranking and demand heatmap. Use for class performance questions.',
+      'Headline KPIs of the classes tab for the current period: bookings, attendance, utilization, PT trend, ranking, heatmap. Tables for a date window are run_report, rows behind a metric run_report_drilldown.',
     method: 'get',
     path: '/dashboard/classes',
     query: dashboardClassesQuerySchema,
@@ -76,7 +76,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Get dashboard staff',
     titleKa: 'პერსონალის მიმოხილვა',
     description:
-      'Read staff KPIs for a period with sessions delivered, per-trainer delivery and utilization, and the weekly rota. Use for trainer workload questions.',
+      'Headline KPIs of the staff tab for the current period: sessions delivered, per-trainer utilization, weekly rota. Tables for a date window are run_report, rows behind a metric run_report_drilldown.',
     method: 'get',
     path: '/dashboard/staff',
     query: dashboardStaffQuerySchema,

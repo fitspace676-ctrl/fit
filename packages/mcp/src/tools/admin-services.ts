@@ -18,7 +18,7 @@ export const adminServicesTools = defineTools('services', [
     title: 'List services',
     titleKa: 'სერვისების სია',
     description:
-      'List bookable catalogue services (personal training, massage and other custom services) page by page: id, name, status, type, price, duration and staff. Use get_service for full detail.',
+      'List the bookable service catalogue (personal training, massage, custom) page by page: id, name, type, price, duration, staff. Not bookings: appointments are list_service_sessions, PT calendar bookings list_pt_sessions.',
     method: 'get',
     path: '/admin/services',
     query: listAdminServicesQuerySchema,
@@ -28,7 +28,7 @@ export const adminServicesTools = defineTools('services', [
     title: 'List service staff',
     titleKa: 'სერვისის პერსონალი',
     description:
-      'List staff who can deliver services, with id, name and whether they are trainers. Use to pick staffId for create_service.',
+      'List staff who can deliver services: id, name, role and whether they coach. The id is a staffId (same ids as list_staff, not a trainerId) for create_service; create_pt_session needs a trainerId from list_trainers.',
     method: 'get',
     path: '/admin/services/staff',
   },

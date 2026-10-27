@@ -10,7 +10,7 @@ export const activityTools = defineTools('insights', [
     title: 'List activity',
     titleKa: 'აქტივობის ლენტი',
     description:
-      "List the gym's recent activity feed, newest first and filterable by type or date: type, title, member, amount and time. Staff actions are in list_audit_logs.",
+      'List the member activity feed (check-ins, bookings, payments), newest first, filterable by type or date. Use for what happened yesterday; privileged staff actions are list_audit_logs.',
     method: 'get',
     path: '/admin/activity',
     query: listActivityQuerySchema,

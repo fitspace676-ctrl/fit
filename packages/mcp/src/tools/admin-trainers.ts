@@ -19,7 +19,7 @@ export const adminTrainersTools = defineTools('trainers', [
     title: 'List trainers',
     titleKa: 'ტრენერების სია',
     description:
-      'List trainer profiles page by page: id, name, status, headline, rating and classes this week. Use get_trainer for bio, specialties and next class; staff accounts are in list_staff.',
+      'List public coach profiles page by page: id, name, status, headline, rating, classes this week. This id is the trainerId create_pt_session needs, not a staffId from list_staff; get_trainer has the bio.',
     method: 'get',
     path: '/admin/trainers',
     query: listAdminTrainersQuerySchema,
@@ -94,7 +94,7 @@ export const adminTrainersTools = defineTools('trainers', [
     title: 'Activate / deactivate trainer',
     titleKa: 'ტრენერის ჩართვა ან გამორთვა',
     description:
-      'Hide a trainer profile (active=false) or show it again (active=true) and return the updated profile. Confirm the trainer with get_trainer first.',
+      'active: true = reactivate (profile shown), false = deactivate (profile hidden); boolean, not a status string. Returns the profile; confirm it with get_trainer first.',
     method: 'post',
     path: '/admin/trainers/:id/deactivate',
     activePath: '/admin/trainers/:id/reactivate',

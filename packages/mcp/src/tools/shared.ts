@@ -158,7 +158,13 @@ export function registerEndpoint(server: McpServer, api: FitApiClient, endpoint:
     ...queryShape,
     ...(bodyShape ?? (endpoint.body ? { data: endpoint.body } : {})),
     ...(endpoint.activePath
-      ? { active: z.boolean().describe('true activates or resumes; false deactivates or pauses') }
+      ? {
+          active: z
+            .boolean()
+            .describe(
+              'Boolean, not a status string: true calls the reactivate or resume route, false the deactivate or pause route',
+            ),
+        }
       : {}),
   };
   const inputSchema = Object.fromEntries(

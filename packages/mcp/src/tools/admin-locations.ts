@@ -61,7 +61,7 @@ export const adminLocationsTools = defineTools('locations', [
     title: 'Activate / deactivate location',
     titleKa: 'ფილიალის ჩართვა ან გამორთვა',
     description:
-      'Close a branch (active=false) or reopen it (active=true) and return the updated branch. Confirm the branch with get_location first.',
+      'active: true = reactivate (reopen branch), false = deactivate (close branch); boolean, not a status string. Returns the branch; confirm it with get_location first.',
     method: 'post',
     path: '/admin/locations/:id/deactivate',
     activePath: '/admin/locations/:id/reactivate',
