@@ -7,6 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
+  AutomationTriggerType,
   DEFAULT_FREEZE_DAYS_PER_PERIOD,
   InvalidSubscriptionTransitionError,
   SubscriptionStatus,
@@ -23,6 +24,7 @@ import {
   type UnfreezeSubscriptionResponse,
 } from '@fit/types';
 import { Prisma } from '@fit/db';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 
@@ -69,6 +71,7 @@ export class SubscriptionFreezeService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /**
@@ -121,7 +124,7 @@ export class SubscriptionFreezeService {
     where: Prisma.SubscriptionWhereInput,
     input: FreezeSubscriptionData,
   ): Promise<FreezeSubscriptionResponse> {
-    return this.prisma.client.$transaction(async (tx) => {
+    const { subscriptionId, response } = await this.prisma.client.$transaction(async (tx) => {
       const subscription = await tx.subscription.findFirst({
         where,
         select: {
@@ -222,8 +225,20 @@ export class SubscriptionFreezeService {
         throw await this.freezeClaimLost(tx, subscription.id, freezeDaysPerPeriod);
       }
 
-      return { frozenUntil: frozenUntilDate.toISOString() };
+      return {
+        subscriptionId: subscription.id,
+        response: { frozenUntil: frozenUntilDate.toISOString() },
+      };
     });
+
+    // Fire `membership_frozen` (T12.5) once the freeze has committed — best-effort
+    // and not awaited, so automation can never block or fail the freeze itself.
+    void this.automation.dispatchForGym(
+      this.tenant.gymId,
+      AutomationTriggerType.membership_frozen,
+      { entityId: subscriptionId, entityType: 'subscription' },
+    );
+    return response;
   }
 
   /**

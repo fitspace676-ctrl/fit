@@ -14,6 +14,7 @@ import { InvoiceService } from '../billing/invoice.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 import { disconnect, prisma, resetDb } from '../test/integration-db';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 
 /**
  * The recurring-billing sweep's **idempotency** proven against a real Postgres (T9.2).
@@ -76,6 +77,7 @@ function makeBilling(provider: PaymentProvider): SubscriptionBillingService {
     new InvoiceService(),
     notificationsStub,
     provider,
+    { dispatchForGym: () => Promise.resolve(0) } as unknown as AutomationExecutorService,
   );
 }
 

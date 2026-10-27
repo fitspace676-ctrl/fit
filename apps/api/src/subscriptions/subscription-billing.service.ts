@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import * as Sentry from '@sentry/nestjs';
 import {
+  AutomationTriggerType,
   InvoiceType,
   Prisma,
   SubscriptionStatus,
@@ -9,6 +10,7 @@ import {
   classifyDueSubscription,
   subscriptionInvoiceDescription,
 } from '@fit/db';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { InvoiceService } from '../billing/invoice.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -124,6 +126,7 @@ export class SubscriptionBillingService {
     private readonly invoices: InvoiceService,
     private readonly notifications: BillingNotificationsService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /** Daily cron entry point (02:00). */
@@ -249,8 +252,14 @@ export class SubscriptionBillingService {
       case 'skip':
         return;
       case 'cancel':
-        if (await this.cancel(sub, now)) summary.canceled += 1;
+        if (await this.cancel(sub, now)) {
+          summary.canceled += 1;
+          this.fireAutomation(sub, AutomationTriggerType.membership_cancelled);
+        }
         return;
+      // No `membership_expired` dispatch here on purpose: the automation executor's
+      // daily scan already fires it off the EXPIRED row, and an event here as well
+      // would double-fire any rule whose offset lands the scan on a later day.
       case 'expire':
         if (await this.expire(sub)) summary.expired += 1;
         return;
@@ -290,8 +299,18 @@ export class SubscriptionBillingService {
     });
 
     if (result.outcome === 'succeeded') {
-      if (await this.advancePeriod(sub, nextPeriodStart, nextPeriodEnd, result.providerRef)) {
+      const invoice = await this.advancePeriod(
+        sub,
+        nextPeriodStart,
+        nextPeriodEnd,
+        result.providerRef,
+      );
+      if (invoice) {
         summary.renewed += 1;
+        // The transaction has committed, so the renewal and its PAID invoice are real:
+        // fire the automation triggers (best-effort, never awaited).
+        this.fireAutomation(sub, AutomationTriggerType.membership_renewed);
+        this.invoices.announcePaid({ gymId: sub.gymId }, invoice);
         // Announce the settled renewal (or, from a TRIAL, the conversion) only when
         // this runner won the advance, so a re-run / racing replica does not re-notify.
         await this.notifications.renewalSucceeded(toNotificationRef(sub), {
@@ -305,6 +324,9 @@ export class SubscriptionBillingService {
     this.logger.warn(`Renewal charge failed for subscription ${sub.id}: ${result.reason}`);
     if (await this.recordFailedCharge(sub)) {
       summary.pastDue += 1;
+      // No FAILED invoice is minted for a declined renewal, so the trigger points at
+      // the subscription itself.
+      this.fireAutomation(sub, AutomationTriggerType.payment_failed);
       // Warn the member their payment failed, keyed to the observed ladder rung so
       // each distinct retry warns once. `paymentRetries` is the rung that just failed.
       await this.notifications.chargeFailed(toNotificationRef(sub), {
@@ -324,14 +346,15 @@ export class SubscriptionBillingService {
    * runner that already advanced this period matches nothing — and the invoice is
    * raised **inside the same transaction, only when that update won the race**, so a
    * re-run or overlapping replica can neither double-advance the period nor
-   * double-invoice it. Returns whether this call was the one that advanced it.
+   * double-invoice it. Returns the minted invoice when this call was the one that
+   * advanced it, `null` when another runner already had.
    */
   private async advancePeriod(
     sub: BillableRow,
     nextPeriodStart: Date,
     nextPeriodEnd: Date,
     providerRef: string | null | undefined,
-  ): Promise<boolean> {
+  ): Promise<{ id: string } | null> {
     const nextStatus = applyEvent(sub.status, 'RENEW');
     const data: Prisma.SubscriptionUpdateManyMutationInput = {
       status: nextStatus,
@@ -354,9 +377,9 @@ export class SubscriptionBillingService {
       });
       if (count === 0) {
         // Another runner already advanced this period — leave its invoice alone.
-        return false;
+        return null;
       }
-      await this.invoices.issue(tx, {
+      return this.invoices.issue(tx, {
         gymId: sub.gymId,
         memberId: sub.memberId,
         subscriptionId: sub.id,
@@ -372,7 +395,6 @@ export class SubscriptionBillingService {
         // Bill for the period that just opened, so the invoice date tracks the renewal.
         issuedAt: nextPeriodStart,
       });
-      return true;
     });
   }
 
@@ -433,6 +455,19 @@ export class SubscriptionBillingService {
       data: { status: nextStatus, canceledAt: now },
     });
     return count > 0;
+  }
+
+  /**
+   * Fire a subscription-scoped automation trigger once the transition it reports has
+   * been written. Fire-and-forget like every domain dispatch: the executor never
+   * throws, and billing never waits on (or fails because of) automation. The sweep
+   * is cross-tenant, so the gym comes off the subscription row.
+   */
+  private fireAutomation(sub: BillableRow, trigger: AutomationTriggerType): void {
+    void this.automation.dispatchForGym(sub.gymId, trigger, {
+      entityId: sub.id,
+      entityType: 'subscription',
+    });
   }
 
   /**

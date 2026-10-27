@@ -10,6 +10,7 @@ import type { FreezeSubscriptionData } from '@fit/types';
 import { SubscriptionFreezeService } from './subscription-freeze.service';
 import { TenantContext, type TenantState } from '../common/tenant/tenant.context';
 import { asTenant, disconnect, prisma, resetDb, tenantPrisma } from '../test/integration-db';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 
 /**
  * The freeze allowance proven against a real Postgres.
@@ -34,7 +35,9 @@ import { asTenant, disconnect, prisma, resetDb, tenantPrisma } from '../test/int
  * must never exceed the plan's cap.
  */
 const tenant = new TenantContext();
-const service = new SubscriptionFreezeService({ client: tenantPrisma }, tenant);
+const service = new SubscriptionFreezeService({ client: tenantPrisma }, tenant, {
+  dispatchForGym: () => Promise.resolve(0),
+} as unknown as AutomationExecutorService);
 
 /** The plan allowance every case in this suite spends against, in days. */
 const CAP = 14;

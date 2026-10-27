@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { InvoiceModule } from '../billing/invoice.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminSubscriptionEnrollmentController } from './admin-subscription-enrollment.controller';
@@ -46,7 +47,9 @@ import { SubscriptionsController } from './subscriptions.controller';
  * answers `501` today).
  */
 @Module({
-  imports: [InvoiceModule, NotificationsModule],
+  // `AutomationModule` for the executor the freeze and billing flows fire their
+  // subscription / payment triggers through (T12.5).
+  imports: [InvoiceModule, NotificationsModule, AutomationModule],
   controllers: [
     SubscriptionsController,
     AdminSubscriptionEnrollmentController,

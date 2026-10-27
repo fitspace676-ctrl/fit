@@ -18,6 +18,7 @@ import { TenantContext, type TenantState } from '../common/tenant/tenant.context
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 import { asTenant, disconnect, prisma, resetDb, tenantPrisma } from '../test/integration-db';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 
 /**
  * The subscription **lifecycle** proven end-to-end against a real Postgres (T9.1):
@@ -74,6 +75,7 @@ function makeBilling(provider: PaymentProvider): SubscriptionBillingService {
     new InvoiceService(),
     notificationsStub,
     provider,
+    { dispatchForGym: () => Promise.resolve(0) } as unknown as AutomationExecutorService,
   );
 }
 
@@ -84,7 +86,9 @@ const enrollment = new SubscriptionEnrollmentService(
   new TenantContext(),
   new InvoiceService(),
 );
-const freeze = new SubscriptionFreezeService({ client: tenantPrisma }, new TenantContext());
+const freeze = new SubscriptionFreezeService({ client: tenantPrisma }, new TenantContext(), {
+  dispatchForGym: () => Promise.resolve(0),
+} as unknown as AutomationExecutorService);
 
 function member(gymId: string, userId: string): TenantState {
   return { userId, gymId, role: Role.MEMBER, allowCrossTenant: false };
