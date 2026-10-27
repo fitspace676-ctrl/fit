@@ -8,6 +8,11 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 import type { MailerService } from '../mail/mailer.service';
 import type { AutomationMergeService } from './automation-merge.service';
+import type {
+  NotificationService,
+  SendNotificationInput,
+  SendNotificationResult,
+} from '../notifications/notification.service';
 
 interface AnyArgs {
   where?: Record<string, unknown>;
@@ -59,6 +64,12 @@ function setup(overrides?: {
   /** `false` stands in for an unconfigured mail transport (Resend key unset). */
   mailSent?: boolean;
   mailThrows?: boolean;
+  /** What `NotificationService.send` returns; defaults to one live push + in-app. */
+  notifyResult?: SendNotificationResult;
+  notifyThrows?: boolean;
+  /** The member `resolveMemberId` finds; `null` means the trigger names nobody. */
+  memberId?: string | null;
+  memberUser?: { userId: string } | null;
 }) {
   const ruleFindMany = vi.fn<(args: AnyArgs) => Promise<unknown[]>>(() => {
     if (overrides?.ruleFindManyThrows) return Promise.reject(new Error('db down'));
@@ -89,6 +100,15 @@ function setup(overrides?: {
   const invoiceFindMany = vi
     .fn<(args: AnyArgs) => Promise<unknown[]>>()
     .mockResolvedValue(overrides?.invoiceFindMany ?? []);
+  const memberFindFirst = vi
+    .fn<(args: AnyArgs) => Promise<unknown>>()
+    .mockResolvedValue(
+      overrides?.memberUser === undefined ? { userId: 'user-1' } : overrides.memberUser,
+    );
+  const pushTokenCount = vi.fn<(args: AnyArgs) => Promise<number>>().mockResolvedValue(2);
+  const taskCreate = vi
+    .fn<(args: AnyArgs) => Promise<unknown>>()
+    .mockResolvedValue({ id: 'task-1' });
   const loadFacts = vi.fn().mockResolvedValue(overrides?.facts ?? null);
   const factsService = { loadConditionFacts: loadFacts } as unknown as AutomationFactsService;
   const client = {
@@ -99,7 +119,9 @@ function setup(overrides?: {
       findMany: runFindMany,
       updateMany: runUpdate,
     },
-    gymMember: { findMany: memberFindMany },
+    gymMember: { findMany: memberFindMany, findFirst: memberFindFirst },
+    pushToken: { count: pushTokenCount },
+    memberTask: { create: taskCreate },
     invoice: { findMany: invoiceFindMany },
     gym: { findMany: gymFindMany },
     subscription: { findMany: subFindMany },
@@ -128,7 +150,9 @@ function setup(overrides?: {
       }),
     ),
     resolve: mergeResolve,
-    resolveMemberId: vi.fn().mockResolvedValue('gm-1'),
+    resolveMemberId: vi
+      .fn()
+      .mockResolvedValue(overrides?.memberId === undefined ? 'gm-1' : overrides.memberId),
   } as unknown as AutomationMergeService;
 
   const mailSend = vi.fn<
@@ -143,8 +167,36 @@ function setup(overrides?: {
   });
   const mailer = { send: mailSend } as unknown as MailerService;
 
+  const notifySend = vi.fn<(input: SendNotificationInput) => Promise<SendNotificationResult>>(
+    () => {
+      if (overrides?.notifyThrows) return Promise.reject(new Error('expo down'));
+      return Promise.resolve(
+        overrides?.notifyResult ?? {
+          deduped: false,
+          delivered: [
+            { channel: 'PUSH', ref: 'ticket-1' },
+            { channel: 'IN_APP', ref: 'n-1' },
+          ],
+          suppressed: [],
+        },
+      );
+    },
+  );
+  const notifications = { send: notifySend } as unknown as NotificationService;
+
   return {
-    service: new AutomationExecutorService(prisma, redis, merge, mailer, factsService),
+    service: new AutomationExecutorService(
+      prisma,
+      redis,
+      merge,
+      mailer,
+      factsService,
+      notifications,
+    ),
+    notifySend,
+    memberFindFirst,
+    pushTokenCount,
+    taskCreate,
     ruleFindFirst,
     runFindMany,
     runUpdate,
@@ -394,6 +446,162 @@ describe('AutomationExecutorService — email delivery', () => {
   });
 });
 
+describe('AutomationExecutorService — push and task delivery', () => {
+  const NOW_PUSH = new Date('2026-10-27T09:00:00Z');
+  const pushRule = activeRule({
+    id: 'r-push',
+    name: 'Welcome push',
+    actionType: 'push_notification',
+    actionConfig: { subject: 'Hi {{member_first_name}}', body: 'Welcome, {{member_first_name}}!' },
+  });
+
+  async function fire(rule: FireRule, over: Parameters<typeof setup>[0] = {}) {
+    const ctx = setup({ ruleFindMany: [rule], ...over });
+    await ctx.service.dispatchForGym('gym-1', 'member_joined', {
+      entityId: 'gm-1',
+      entityType: 'member',
+      now: NOW_PUSH,
+    });
+    return { ...ctx, data: ctx.runCreate.mock.calls[0]?.[0]?.data };
+  }
+
+  it('pushes to the member with an interpolated title and a per-day dedupe key', async () => {
+    const { notifySend, memberFindFirst, pushTokenCount, mailSend, data } = await fire(pushRule);
+
+    expect(memberFindFirst.mock.calls[0]?.[0]?.where).toEqual({ id: 'gm-1', gymId: 'gym-1' });
+    expect(notifySend.mock.calls[0]?.[0]).toEqual({
+      gymId: 'gym-1',
+      userId: 'user-1',
+      category: 'SYSTEM',
+      title: 'Hi Nino',
+      body: 'Welcome, Nino!',
+      channels: ['PUSH', 'IN_APP'],
+      dedupeKey: 'automation:r-push:gm-1:2026-10-27',
+    });
+    expect(pushTokenCount.mock.calls[0]?.[0]?.where).toEqual({ userId: 'user-1' });
+    expect(mailSend).not.toHaveBeenCalled();
+    expect(data).toMatchObject({ status: 'SUCCESS', detail: 'Pushed to 2 device(s)' });
+  });
+
+  it('titles the notification with the rule name when there is no subject', async () => {
+    const { notifySend } = await fire(activeRule({ ...pushRule, actionConfig: { body: 'Hey' } }));
+
+    expect(notifySend.mock.calls[0]?.[0]?.title).toBe('Welcome push');
+  });
+
+  it('reports in-app only when the push channel had no device', async () => {
+    const { data } = await fire(pushRule, {
+      notifyResult: {
+        deduped: false,
+        delivered: [
+          { channel: 'PUSH', ref: null, pending: true },
+          { channel: 'IN_APP', ref: 'n-1' },
+        ],
+        suppressed: [],
+      },
+    });
+
+    expect(data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'In-app notification delivered (no push device)',
+    });
+  });
+
+  it('records SKIPPED when the same rule already notified this entity today', async () => {
+    const { data } = await fire(pushRule, {
+      notifyResult: { deduped: true, delivered: [], suppressed: [] },
+    });
+
+    expect(data).toMatchObject({ status: 'SKIPPED', detail: 'Already notified today' });
+  });
+
+  it('sends nothing when the trigger resolves to no member', async () => {
+    const { notifySend, data } = await fire(pushRule, { memberId: null });
+
+    expect(notifySend).not.toHaveBeenCalled();
+    expect(data).toMatchObject({ status: 'SUCCESS', detail: 'No recipient' });
+  });
+
+  it('records FAILED without throwing when the push transport errors', async () => {
+    const { data } = await fire(pushRule, { notifyThrows: true });
+
+    expect(data).toMatchObject({ status: 'FAILED', detail: 'Push failed: expo down' });
+  });
+
+  it('creates a pending member task titled with the interpolated message', async () => {
+    const { taskCreate, data } = await fire(
+      activeRule({
+        actionType: 'create_task',
+        actionConfig: { body: 'Call {{member_first_name}}' },
+      }),
+    );
+
+    expect(taskCreate.mock.calls[0]?.[0]?.data).toEqual({
+      gymId: 'gym-1',
+      memberId: 'gm-1',
+      title: 'Call Nino',
+      dueDate: null,
+      assignee: null,
+      status: 'PENDING',
+    });
+    expect(data).toMatchObject({ status: 'SUCCESS', detail: 'Task created: Call Nino' });
+  });
+
+  it('caps the task title at 200 characters', async () => {
+    const { taskCreate } = await fire(
+      activeRule({ actionType: 'create_task', actionConfig: { body: 'x'.repeat(250) } }),
+    );
+
+    expect((taskCreate.mock.calls[0]?.[0]?.data?.title as string).length).toBe(200);
+  });
+
+  it('creates no task when the trigger names no member', async () => {
+    const { taskCreate, data } = await fire(activeRule({ actionType: 'create_task' }), {
+      memberId: null,
+    });
+
+    expect(taskCreate).not.toHaveBeenCalled();
+    expect(data).toMatchObject({ status: 'SUCCESS', detail: 'No member for this trigger' });
+  });
+});
+
+describe('AutomationExecutorService — checkin_milestone', () => {
+  const milestoneRules = [
+    activeRule({ id: 'm10', triggerType: 'checkin_milestone', triggerConfig: { days: 10 } }),
+    activeRule({ id: 'm50', triggerType: 'checkin_milestone', triggerConfig: { days: 50 } }),
+  ];
+
+  it('fires only the rule whose triggerConfig.days matches the milestone', async () => {
+    const { service, runCreate } = setup({ ruleFindMany: milestoneRules });
+
+    const count = await service.dispatchForGym('gym-1', 'checkin_milestone', {
+      entityId: 'gm-1',
+      entityType: 'member',
+      milestone: 50,
+    });
+
+    expect(count).toBe(1);
+    expect(runCreate.mock.calls.map((call) => call[0]?.data?.ruleId)).toEqual(['m50']);
+  });
+
+  it('fires nothing when no rule matches the milestone', async () => {
+    const { service, runCreate } = setup({ ruleFindMany: milestoneRules });
+
+    await expect(
+      service.dispatchForGym('gym-1', 'checkin_milestone', { entityId: 'gm-1', milestone: 25 }),
+    ).resolves.toBe(0);
+    expect(runCreate).not.toHaveBeenCalled();
+  });
+
+  it('fires every milestone rule when the caller passes no milestone', async () => {
+    const { service } = setup({ ruleFindMany: milestoneRules });
+
+    await expect(
+      service.dispatchForGym('gym-1', 'checkin_milestone', { entityId: 'gm-1' }),
+    ).resolves.toBe(2);
+  });
+});
+
 const CONDITION_FACTS: AutomationConditionFacts = {
   member_age: 30,
   member_gender: 'FEMALE',
@@ -448,26 +656,25 @@ describe('conditions and delayed actions', () => {
     expect(mailSend).toHaveBeenCalledOnce();
     expect(runCreate.mock.calls[0]?.[0].data?.status).toBe('SUCCESS');
   });
-  it.each(['sms', 'push_notification', 'create_task'] as const)(
-    'interpolates the %s log message',
-    async (actionType) => {
-      const { service, runCreate, mailSend } = setup();
-      await service.fireRule(
-        'gym-1',
-        activeRule({
-          actionType,
-          actionConfig: {
-            subject: '{{member_first_name}}',
-            body: 'Hi {{member_first_name}} {{class_name}}',
-          },
-        }),
-      );
-      expect(runCreate.mock.calls[0]?.[0].data?.detail).toContain(
-        'not delivered yet; message: Hi Nino ',
-      );
-      expect(mailSend).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    ['sms', 'SMS not delivered yet; message: Hi Nino '],
+    ['push_notification', 'Pushed to 2 device(s)'],
+    ['create_task', 'Task created: Hi Nino '],
+  ] as const)('interpolates the %s message', async (actionType, detail) => {
+    const { service, runCreate, mailSend } = setup();
+    await service.fireRule(
+      'gym-1',
+      activeRule({
+        actionType,
+        actionConfig: {
+          subject: '{{member_first_name}}',
+          body: 'Hi {{member_first_name}} {{class_name}}',
+        },
+      }),
+    );
+    expect(runCreate.mock.calls[0]?.[0].data?.detail).toBe(detail);
+    expect(mailSend).not.toHaveBeenCalled();
+  });
   it.each([
     [
       'SUCCESS',

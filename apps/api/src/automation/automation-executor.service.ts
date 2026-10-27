@@ -5,6 +5,9 @@ import {
   AutomationRunStatus,
   AutomationTriggerType,
   GymStatus,
+  MemberTaskStatus,
+  NotificationCategory,
+  NotificationChannel,
   Prisma,
   SubscriptionStatus,
 } from '@fit/db';
@@ -27,6 +30,7 @@ import { resolveEmailLocale } from '../mail/email-locale';
 import { emailStrings } from '../mail/email-strings';
 import { AutomationMergeService } from './automation-merge.service';
 import { AutomationFactsService } from './automation-facts.service';
+import { NotificationService } from '../notifications/notification.service';
 import { env } from '../config/env';
 
 /**
@@ -50,6 +54,17 @@ export interface AutomationDispatchContext {
    * uses so a re-run (or a second replica) never double-logs the same window.
    */
   dedupeSince?: Date;
+  /**
+   * The check-in count a `checkin_milestone` dispatch reached. When set, only rules
+   * whose `triggerConfig.days` equals it fire — "10th visit" is not "50th visit".
+   */
+  milestone?: number;
+}
+
+/** What a performed action leaves on its run row. */
+interface ActionOutcome {
+  status: AutomationRunStatus;
+  detail: string;
 }
 
 /** The active-rule slice the executor loads to fire a trigger. */
@@ -105,10 +120,9 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
  *     `membership_expiring` rules and records a run per subscription whose paid
  *     period ends within the rule's look-ahead window (`triggerConfig.days`).
  *
- * Action delivery is deliberately **stubbed** for this milestone: a matched rule
- * records a `SUCCESS` run describing the action it *would* send (email / SMS /
- * push / task). The real senders land alongside the Marketing (T12.7) and
- * Notifications work; the run log is the durable seam they slot into.
+ * Email, push (through {@link NotificationService}) and member tasks are really
+ * delivered; SMS has no provider yet, so its run records the message it *would*
+ * send. The run log is the durable seam a future SMS transport slots into.
  *
  * Like the other crons ({@link OpsNotificationsService}, the billing sweep) the
  * scanner is deliberately **cross-tenant**: it reads every gym and its rules /
@@ -126,6 +140,7 @@ export class AutomationExecutorService {
     private readonly merge: AutomationMergeService,
     private readonly mailer: MailerService,
     private readonly facts: AutomationFactsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   /**
@@ -151,6 +166,17 @@ export class AutomationExecutorService {
         `Automation dispatch for ${triggerType} (gym ${gymId}) could not load rules: ${errMsg(error)}`,
       );
       return 0;
+    }
+
+    if (
+      triggerType === AutomationTriggerType.checkin_milestone &&
+      context.milestone !== undefined
+    ) {
+      rules = rules.filter(
+        (rule) =>
+          automationTriggerConfigSchema.safeParse(rule.triggerConfig).data?.days ===
+          context.milestone,
+      );
     }
 
     let recorded = 0;
@@ -267,8 +293,9 @@ export class AutomationExecutorService {
   }
 
   /**
-   * Perform one rule's action and record the run. The `email` action is really
-   * delivered; the other three have no provider yet and are logged as such.
+   * Perform one rule's action and record the run. `email`, `push_notification`
+   * and `create_task` are really delivered; `sms` has no provider yet and is
+   * logged as such.
    * Returns whether a run row was written.
    *
    * Delivery happens before the row is written so its outcome can be recorded
@@ -328,7 +355,7 @@ export class AutomationExecutorService {
     gymId: string,
     rule: RuleRecord,
     context: AutomationDispatchContext,
-  ): Promise<{ status: AutomationRunStatus; detail: string }> {
+  ): Promise<ActionOutcome> {
     try {
       const action = automationActionConfigSchema.safeParse(rule.actionConfig);
       if (!action.success) {
@@ -342,6 +369,12 @@ export class AutomationExecutorService {
       const target = await this.merge.resolve(gymId, context, brand);
       const subject = interpolateMergeFields(action.data.subject ?? '', target?.values ?? {});
       const body = interpolateMergeFields(action.data.body, target?.values ?? {});
+      if (rule.actionType === AutomationActionType.push_notification) {
+        return await this.sendPush(gymId, rule, context, subject || rule.name, body);
+      }
+      if (rule.actionType === AutomationActionType.create_task) {
+        return await this.createTask(gymId, context, body);
+      }
       if (rule.actionType !== AutomationActionType.email) {
         return {
           status: AutomationRunStatus.SUCCESS,
@@ -383,9 +416,91 @@ export class AutomationExecutorService {
             detail: 'Email not sent — mail transport is not configured',
           };
     } catch (error) {
-      this.logger.warn(`Automation email for rule ${rule.id} failed: ${errMsg(error)}`);
-      return { status: AutomationRunStatus.FAILED, detail: `Email failed: ${errMsg(error)}` };
+      const label = actionLabel(rule.actionType);
+      this.logger.warn(
+        `Automation ${label.toLowerCase()} for rule ${rule.id} failed: ${errMsg(error)}`,
+      );
+      return { status: AutomationRunStatus.FAILED, detail: `${label} failed: ${errMsg(error)}` };
     }
+  }
+
+  /**
+   * Push + in-app notification to the member the trigger is about. Deduped per
+   * rule, entity and UTC day, so a re-run never notifies twice. Throws on a
+   * transport error; {@link performAction} turns that into a `FAILED` run.
+   */
+  private async sendPush(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+    title: string,
+    body: string,
+  ): Promise<ActionOutcome> {
+    const memberId = await this.merge.resolveMemberId(gymId, context);
+    const member = memberId
+      ? await this.prisma.client.gymMember.findFirst({
+          where: { id: memberId, gymId },
+          select: { userId: true },
+        })
+      : null;
+    if (!member) return { status: AutomationRunStatus.SUCCESS, detail: 'No recipient' };
+
+    const day = (context.now ?? new Date()).toISOString().slice(0, 10);
+    const result = await this.notifications.send({
+      gymId,
+      userId: member.userId,
+      category: NotificationCategory.SYSTEM,
+      title,
+      body,
+      channels: [NotificationChannel.PUSH, NotificationChannel.IN_APP],
+      dedupeKey: `automation:${rule.id}:${context.entityId ?? memberId}:${day}`,
+    });
+    if (result.deduped) {
+      return { status: AutomationRunStatus.SKIPPED, detail: 'Already notified today' };
+    }
+    const pushed = result.delivered.some(
+      (entry) => entry.channel === NotificationChannel.PUSH && entry.pending !== true,
+    );
+    if (pushed) {
+      const devices = await this.prisma.client.pushToken.count({
+        where: { userId: member.userId },
+      });
+      return { status: AutomationRunStatus.SUCCESS, detail: `Pushed to ${devices} device(s)` };
+    }
+    if (result.delivered.some((entry) => entry.channel === NotificationChannel.IN_APP)) {
+      return {
+        status: AutomationRunStatus.SUCCESS,
+        detail: 'In-app notification delivered (no push device)',
+      };
+    }
+    return {
+      status: AutomationRunStatus.SUCCESS,
+      detail: 'Notification not delivered — member muted these channels',
+    };
+  }
+
+  /** A follow-up task on the member's profile, titled with the rule's message. */
+  private async createTask(
+    gymId: string,
+    context: AutomationDispatchContext,
+    body: string,
+  ): Promise<ActionOutcome> {
+    const memberId = await this.merge.resolveMemberId(gymId, context);
+    if (!memberId) {
+      return { status: AutomationRunStatus.SUCCESS, detail: 'No member for this trigger' };
+    }
+    const title = body.slice(0, 200);
+    await this.prisma.client.memberTask.create({
+      data: {
+        gymId,
+        memberId,
+        title,
+        dueDate: null,
+        assignee: null,
+        status: MemberTaskStatus.PENDING,
+      },
+    });
+    return { status: AutomationRunStatus.SUCCESS, detail: `Task created: ${title}` };
   }
 
   /** Whether a run for this `(ruleId, entityId)` already exists at/after `since`. */
@@ -640,15 +755,22 @@ export class AutomationExecutorService {
  * this is where its branch goes.
  */
 function undeliveredActionDetail(actionType: AutomationActionType): string {
+  return actionType === AutomationActionType.sms
+    ? 'SMS not delivered yet'
+    : 'Action not delivered yet';
+}
+
+/** The action's name as a run detail prefixes a failure with. */
+function actionLabel(actionType: AutomationActionType): string {
   switch (actionType) {
-    case AutomationActionType.sms:
-      return 'SMS not delivered yet';
     case AutomationActionType.push_notification:
-      return 'Push notification not delivered yet';
+      return 'Push';
     case AutomationActionType.create_task:
-      return 'Task not delivered yet';
+      return 'Task';
+    case AutomationActionType.sms:
+      return 'SMS';
     default:
-      return 'Action not delivered yet';
+      return 'Email';
   }
 }
 

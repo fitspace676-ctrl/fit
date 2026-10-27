@@ -159,4 +159,37 @@ describe('buildMemberMergeValues', () => {
     expect(values.member_checkin_count).toBe('0');
     expect(values.member_points_balance).toBe('0');
   });
+
+  it('fills the profile, branch and subscription tokens from the caller', () => {
+    const values = build({
+      member: {
+        ...member,
+        gender: 'FEMALE',
+        tags: ['vip', 'morning'],
+        location: { name: 'Vake', address: '1 Chavchavadze Ave', phone: '+995 322 11 11 11' },
+        checkIns: [{ checkedInAt: new Date('2026-08-10T07:30:00Z') }],
+        subscriptions: [
+          {
+            currentPeriodEnd: new Date('2026-09-01T00:00:00Z'),
+            currentPeriodStart: new Date('2026-08-01T00:00:00Z'),
+            frozenUntil: null,
+            status: 'ACTIVE',
+            plan: { name: 'Unlimited', priceAmount: 12000, currency: 'GEL' },
+          },
+        ],
+      },
+    });
+
+    expect(values.member_gender).toBe('FEMALE');
+    expect(values.member_age).toBe('36');
+    expect(values.member_tags).toBe('vip, morning');
+    expect(values.member_branch_name).toBe('Vake');
+    expect(values.member_branch_address).toBe('1 Chavchavadze Ave');
+    expect(values.member_last_checkin_date).toBe('2026-08-10');
+    expect(values.member_plan_price).toBe('GEL\u00A0120.00');
+    expect(values.member_subscription_status).toBe('ACTIVE');
+    expect(values.member_period_start).toBe('2026-08-01');
+    expect(values.member_frozen_until).toBe('');
+    expect(values.class_name).toBe('');
+  });
 });
