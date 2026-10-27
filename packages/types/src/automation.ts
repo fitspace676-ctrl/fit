@@ -108,6 +108,12 @@ export interface AutomationTriggerMeta {
   needsDays: boolean;
   entityType: AutomationEntityType;
   kind: 'event' | 'scan';
+  /**
+   * Who a fired rule's message goes to: the member the trigger is about, or the
+   * gym itself (its business email) for operational triggers with no member to
+   * address, like `product_stock_low`.
+   */
+  recipient: 'member' | 'gym';
   /** What the `days` number means, for the field label (only when `needsDays`). */
   daysLabel?: string;
 }
@@ -124,6 +130,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'member_joined',
     entityType: 'member',
     kind: 'event',
+    recipient: 'member',
     label: 'Member joined',
     category: 'Members',
     needsDays: false,
@@ -132,6 +139,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'membership_expiring',
     entityType: 'subscription',
     kind: 'scan',
+    recipient: 'member',
     label: 'Membership expiring',
     category: 'Members',
     needsDays: true,
@@ -141,6 +149,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'membership_expired',
     entityType: 'subscription',
     kind: 'scan',
+    recipient: 'member',
     label: 'Membership expired',
     category: 'Members',
     needsDays: false,
@@ -149,6 +158,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'membership_renewed',
     entityType: 'subscription',
     kind: 'event',
+    recipient: 'member',
     label: 'Membership renewed',
     category: 'Members',
     needsDays: false,
@@ -157,6 +167,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'membership_frozen',
     entityType: 'subscription',
     kind: 'event',
+    recipient: 'member',
     label: 'Membership frozen',
     category: 'Members',
     needsDays: false,
@@ -165,6 +176,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'membership_cancelled',
     entityType: 'subscription',
     kind: 'event',
+    recipient: 'member',
     label: 'Membership cancelled',
     category: 'Members',
     needsDays: false,
@@ -173,6 +185,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'birthday',
     entityType: 'member',
     kind: 'scan',
+    recipient: 'member',
     label: 'Birthday',
     category: 'Members',
     needsDays: false,
@@ -181,6 +194,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'no_checkin',
     entityType: 'member',
     kind: 'scan',
+    recipient: 'member',
     label: 'No check-in for X days',
     category: 'Members',
     needsDays: true,
@@ -190,6 +204,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'checkin_milestone',
     entityType: 'member',
     kind: 'event',
+    recipient: 'member',
     label: 'Check-in milestone reached',
     category: 'Members',
     needsDays: true,
@@ -199,6 +214,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'plan_upgraded',
     entityType: 'member',
     kind: 'event',
+    recipient: 'member',
     label: 'Plan upgraded',
     category: 'Members',
     needsDays: false,
@@ -207,6 +223,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'plan_downgraded',
     entityType: 'member',
     kind: 'event',
+    recipient: 'member',
     label: 'Plan downgraded',
     category: 'Members',
     needsDays: false,
@@ -216,6 +233,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'class_booked',
     entityType: 'booking',
     kind: 'event',
+    recipient: 'member',
     label: 'Class booked',
     category: 'Classes',
     needsDays: false,
@@ -224,6 +242,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'class_cancelled_member',
     entityType: 'booking',
     kind: 'event',
+    recipient: 'member',
     label: 'Class cancelled by member',
     category: 'Classes',
     needsDays: false,
@@ -232,6 +251,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'class_full',
     entityType: 'booking',
     kind: 'event',
+    recipient: 'member',
     label: 'Class full',
     category: 'Classes',
     needsDays: false,
@@ -240,6 +260,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'attendance_marked',
     entityType: 'booking',
     kind: 'event',
+    recipient: 'member',
     label: 'Attendance marked',
     category: 'Classes',
     needsDays: false,
@@ -248,6 +269,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'pt_session_booked',
     entityType: 'service_session',
     kind: 'event',
+    recipient: 'member',
     label: 'PT session booked',
     category: 'Classes',
     needsDays: false,
@@ -256,6 +278,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'pt_session_cancelled',
     entityType: 'service_session',
     kind: 'event',
+    recipient: 'member',
     label: 'PT session cancelled',
     category: 'Classes',
     needsDays: false,
@@ -265,6 +288,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'payment_received',
     entityType: 'invoice',
     kind: 'event',
+    recipient: 'member',
     label: 'Payment received',
     category: 'Payments',
     needsDays: false,
@@ -273,6 +297,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'payment_failed',
     entityType: 'invoice',
     kind: 'event',
+    recipient: 'member',
     label: 'Payment failed',
     category: 'Payments',
     needsDays: false,
@@ -281,6 +306,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'invoice_overdue',
     entityType: 'invoice',
     kind: 'scan',
+    recipient: 'member',
     label: 'Invoice overdue',
     category: 'Payments',
     needsDays: false,
@@ -289,6 +315,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'refund_issued',
     entityType: 'invoice',
     kind: 'event',
+    recipient: 'member',
     label: 'Refund issued',
     category: 'Payments',
     needsDays: false,
@@ -298,6 +325,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'purchase_completed',
     entityType: 'order',
     kind: 'event',
+    recipient: 'member',
     label: 'Purchase completed',
     category: 'POS',
     needsDays: false,
@@ -306,6 +334,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'product_stock_low',
     entityType: 'order',
     kind: 'event',
+    recipient: 'gym',
     label: 'Product stock low',
     category: 'POS',
     needsDays: false,
@@ -315,6 +344,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'task_assigned',
     entityType: 'member',
     kind: 'event',
+    recipient: 'member',
     label: 'Task assigned',
     category: 'Staff',
     needsDays: false,
@@ -323,6 +353,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'task_completed',
     entityType: 'member',
     kind: 'event',
+    recipient: 'member',
     label: 'Task completed',
     category: 'Staff',
     needsDays: false,
@@ -331,6 +362,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'timeoff_approved',
     entityType: 'member',
     kind: 'event',
+    recipient: 'member',
     label: 'Time-off approved',
     category: 'Staff',
     needsDays: false,
@@ -341,6 +373,18 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
 export const TRIGGERS_NEEDING_DAYS: ReadonlySet<AutomationTriggerType> = new Set(
   AUTOMATION_TRIGGER_CATALOG.filter((t) => t.needsDays).map((t) => t.value),
 );
+
+/**
+ * The trigger types whose message goes to the gym, not a member — derived from
+ * the catalog. These only support the `email` action (sent to the gym's
+ * business email); push, SMS and member tasks have nobody to reach.
+ */
+export const GYM_RECIPIENT_TRIGGERS: ReadonlySet<AutomationTriggerType> = new Set(
+  AUTOMATION_TRIGGER_CATALOG.filter((t) => t.recipient === 'gym').map((t) => t.value),
+);
+
+/** The message a gym-recipient trigger's non-email action is rejected with. */
+export const GYM_RECIPIENT_ACTION_MESSAGE = 'This trigger only supports the email action';
 
 // ---------------------------------------------------------------------------
 // Actions & timing
@@ -572,12 +616,34 @@ function refineDays(
   }
 }
 
+/** A gym-recipient trigger ({@link GYM_RECIPIENT_TRIGGERS}) only takes the `email` action. */
+function refineRecipientAction(
+  value: { triggerType?: AutomationTriggerType; actionType?: AutomationActionType },
+  ctx: z.RefinementCtx,
+): void {
+  if (
+    value.triggerType !== undefined &&
+    value.actionType !== undefined &&
+    GYM_RECIPIENT_TRIGGERS.has(value.triggerType) &&
+    value.actionType !== 'email'
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: GYM_RECIPIENT_ACTION_MESSAGE,
+      path: ['actionType'],
+    });
+  }
+}
+
 /**
  * Body of `POST /automation/rules`. `status` (active) defaults true; the author
  * is resolved from the session, never trusted from the body. See
  * {@link automationRuleBase} for the per-trigger `days` rule.
  */
-export const createAutomationRuleSchema = automationRuleBase.superRefine(refineDays);
+export const createAutomationRuleSchema = automationRuleBase.superRefine((value, ctx) => {
+  refineDays(value, ctx);
+  refineRecipientAction(value, ctx);
+});
 
 /** Validated `POST /automation/rules` body — {@link createAutomationRuleSchema}. */
 export type CreateAutomationRuleInput = z.infer<typeof createAutomationRuleSchema>;
@@ -589,16 +655,18 @@ export type CreateAutomationRuleInput = z.infer<typeof createAutomationRuleSchem
  * is validated against itself and the fuller check runs server-side against the
  * merged record.
  */
-export const updateAutomationRuleSchema = z.object({
-  name: z.string().trim().min(1).max(120).optional(),
-  triggerType: automationTriggerTypeSchema.optional(),
-  triggerConfig: automationTriggerConfigSchema.optional(),
-  timingOffset: automationTimingOffsetSchema.optional(),
-  conditions: automationConditionsSchema.optional(),
-  actionType: automationActionTypeSchema.optional(),
-  actionConfig: automationActionConfigSchema.optional(),
-  active: z.boolean().optional(),
-});
+export const updateAutomationRuleSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    triggerType: automationTriggerTypeSchema.optional(),
+    triggerConfig: automationTriggerConfigSchema.optional(),
+    timingOffset: automationTimingOffsetSchema.optional(),
+    conditions: automationConditionsSchema.optional(),
+    actionType: automationActionTypeSchema.optional(),
+    actionConfig: automationActionConfigSchema.optional(),
+    active: z.boolean().optional(),
+  })
+  .superRefine(refineRecipientAction);
 
 /** Validated `PATCH /automation/rules/:id` body — {@link updateAutomationRuleSchema}. */
 export type UpdateAutomationRuleInput = z.infer<typeof updateAutomationRuleSchema>;

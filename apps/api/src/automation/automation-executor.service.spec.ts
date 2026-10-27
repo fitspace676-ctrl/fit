@@ -844,3 +844,79 @@ describe('date scanners', () => {
     });
   });
 });
+
+// `product_stock_low` is about stock, not the buyer: its message goes to the gym.
+describe('AutomationExecutorService — gym-recipient trigger', () => {
+  const stockRule = (over: Partial<FireRule> = {}) =>
+    activeRule({
+      triggerType: AutomationTriggerType.product_stock_low,
+      actionConfig: { subject: 'Low stock', body: 'Restock {{order_items}}' },
+      ...over,
+    });
+  const ctx = { entityId: 'order-1', entityType: 'order' as const };
+
+  it('emails the gym business address, passing the trigger to the merge service', async () => {
+    const { service, mailSend, mergeResolve, runCreate } = setup({
+      ruleFindMany: [stockRule()],
+      mergeTarget: { recipient: 'desk@iron.ge', values: { order_items: 'Protein bar × 2' } },
+    });
+    await service.dispatchForGym('gym-1', 'product_stock_low', ctx);
+
+    expect((mergeResolve.mock.calls[0] as unknown[])[1]).toMatchObject({
+      ...ctx,
+      triggerType: 'product_stock_low',
+    });
+    expect(mailSend.mock.calls[0]?.[0]).toMatchObject({
+      to: 'desk@iron.ge',
+      text: 'Restock Protein bar × 2',
+    });
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'Emailed gym desk@iron.ge',
+    });
+  });
+
+  it('says so when the gym has no business email', async () => {
+    const { service, mailSend, runCreate } = setup({
+      ruleFindMany: [stockRule()],
+      mergeTarget: { recipient: null, values: {} },
+    });
+    await service.dispatchForGym('gym-1', 'product_stock_low', ctx);
+    expect(mailSend).not.toHaveBeenCalled();
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'No gym email configured — nothing sent',
+    });
+  });
+
+  it.each(['push_notification', 'sms', 'create_task'] as const)(
+    'skips a %s action without notifying anyone',
+    async (actionType) => {
+      const { service, mailSend, notifySend, taskCreate, mergeResolve, runCreate } = setup({
+        ruleFindMany: [stockRule({ actionType })],
+      });
+      await service.dispatchForGym('gym-1', 'product_stock_low', ctx);
+      expect(mailSend).not.toHaveBeenCalled();
+      expect(notifySend).not.toHaveBeenCalled();
+      expect(taskCreate).not.toHaveBeenCalled();
+      expect(mergeResolve).not.toHaveBeenCalled();
+      expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+        status: 'SKIPPED',
+        detail: 'This trigger only supports the email action',
+      });
+    },
+  );
+
+  it('ignores member conditions on a gym-recipient trigger', async () => {
+    const { service, loadFacts, mailSend } = setup({
+      ruleFindMany: [
+        stockRule({ conditions: [{ field: 'member_age', operator: 'gte', value: 18 }] }),
+      ],
+      mergeTarget: { recipient: 'desk@iron.ge', values: {} },
+      facts: null,
+    });
+    await expect(service.dispatchForGym('gym-1', 'product_stock_low', ctx)).resolves.toBe(1);
+    expect(loadFacts).not.toHaveBeenCalled();
+    expect(mailSend).toHaveBeenCalledOnce();
+  });
+});

@@ -369,3 +369,43 @@ describe('AutomationService builder fields', () => {
     expect((await malformed.service.getRule('rule-1')).conditions).toEqual([]);
   });
 });
+
+describe('AutomationService gym-recipient triggers', () => {
+  const stockRule = {
+    name: 'Stock low',
+    triggerType: 'product_stock_low',
+    triggerConfig: {},
+    timingOffset: '0d',
+    conditions: [],
+    actionConfig: { body: 'Restock' },
+    active: true,
+  } as const;
+
+  it('rejects a non-email action on create and accepts email', async () => {
+    const { service, ruleCreate } = setup();
+    await expect(service.createRule({ ...stockRule, actionType: 'sms' })).rejects.toThrow(
+      'AUTOMATION_ACTION_NOT_ALLOWED_FOR_TRIGGER',
+    );
+    expect(ruleCreate).not.toHaveBeenCalled();
+    await expect(service.createRule({ ...stockRule, actionType: 'email' })).resolves.toMatchObject({
+      triggerType: 'product_stock_low',
+      actionType: 'email',
+    });
+  });
+
+  it('checks the merged record when only one field changes', async () => {
+    const pushRule = setup({ ruleFindFirst: ruleRecord({ actionType: 'push_notification' }) });
+    await expect(
+      pushRule.service.updateRule('rule-1', { triggerType: 'product_stock_low' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(pushRule.ruleUpdate).not.toHaveBeenCalled();
+
+    const stock = setup({ ruleFindFirst: ruleRecord({ triggerType: 'product_stock_low' }) });
+    await expect(stock.service.updateRule('rule-1', { actionType: 'create_task' })).rejects.toThrow(
+      'AUTOMATION_ACTION_NOT_ALLOWED_FOR_TRIGGER',
+    );
+    await expect(stock.service.updateRule('rule-1', { name: 'Renamed' })).resolves.toMatchObject({
+      name: 'Renamed',
+    });
+  });
+});

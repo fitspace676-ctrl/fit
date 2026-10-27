@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTOMATION_TRIGGER_CATALOG,
+  GYM_RECIPIENT_TRIGGERS,
   TRIGGERS_NEEDING_DAYS,
   automationActionConfigSchema,
   automationTriggerTypeSchema,
   createAutomationRuleSchema,
   listAutomationRulesQuerySchema,
+  updateAutomationRuleSchema,
 } from './automation';
 
 describe('automation trigger catalog', () => {
@@ -64,6 +66,52 @@ describe('createAutomationRuleSchema', () => {
         actionConfig: { body: 'Renew' },
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('gym-recipient triggers', () => {
+  it('addresses only product_stock_low to the gym', () => {
+    expect([...GYM_RECIPIENT_TRIGGERS]).toEqual(['product_stock_low']);
+    for (const meta of AUTOMATION_TRIGGER_CATALOG) {
+      expect(meta.recipient).toBe(meta.value === 'product_stock_low' ? 'gym' : 'member');
+    }
+  });
+
+  const stockRule = {
+    name: 'Stock low',
+    triggerType: 'product_stock_low',
+    actionConfig: { body: 'Restock' },
+  };
+
+  it('accepts the email action on a gym-recipient trigger', () => {
+    expect(
+      createAutomationRuleSchema.safeParse({ ...stockRule, actionType: 'email' }).success,
+    ).toBe(true);
+  });
+
+  it.each(['push_notification', 'sms', 'create_task'])('rejects %s on create', (actionType) => {
+    const result = createAutomationRuleSchema.safeParse({ ...stockRule, actionType });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['actionType']);
+      expect(result.error.issues[0]?.message).toBe('This trigger only supports the email action');
+    }
+  });
+
+  it('rejects a non-email action on update when both fields arrive', () => {
+    const result = updateAutomationRuleSchema.safeParse({
+      triggerType: 'product_stock_low',
+      actionType: 'sms',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0]?.path).toEqual(['actionType']);
+  });
+
+  it('leaves a lone update field to the server-side merged check', () => {
+    expect(updateAutomationRuleSchema.safeParse({ actionType: 'sms' }).success).toBe(true);
+    expect(updateAutomationRuleSchema.safeParse({ triggerType: 'product_stock_low' }).success).toBe(
+      true,
+    );
   });
 });
 

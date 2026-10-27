@@ -449,3 +449,56 @@ describe('AutomationMergeService entity contexts', () => {
     expect(result?.values.member_plan_price).toContain('150');
   });
 });
+
+// `product_stock_low` is addressed to the gym, never the buyer.
+describe('AutomationMergeService gym-recipient trigger', () => {
+  const order = {
+    memberId: 'gm-1',
+    total: 24000,
+    currency: 'GEL',
+    items: [{ label: 'Protein bar', qty: 3 }],
+  };
+  const ctx = {
+    entityId: 'order-1',
+    entityType: 'order',
+    triggerType: 'product_stock_low',
+  } as const;
+
+  it('addresses the gym business email with business and order tokens only', async () => {
+    const { service, memberFindFirst, entityMocks } = setup({ entities: { order } });
+    const target = await service.resolve('gym-1', ctx, BRAND);
+
+    expect(target).toMatchObject({
+      recipient: 'hello@irongym.ge',
+      memberId: null,
+      values: {
+        business_name: 'Iron Gym',
+        business_email: 'hello@irongym.ge',
+        business_phone: '+995 555 00 00 00',
+        order_items: 'Protein bar × 3',
+      },
+    });
+    expect(target?.values.order_total).toContain('240');
+    expect(Object.keys(target?.values ?? {}).some((key) => key.startsWith('member_'))).toBe(false);
+    expect(target?.values.email).toBeUndefined();
+    expect(memberFindFirst).not.toHaveBeenCalled();
+    for (const [args] of entityMocks.order!.findFirst.mock.calls)
+      expect((args as { where: { gymId: string } }).where.gymId).toBe('gym-1');
+  });
+
+  it('resolves to null for another gym’s order id', async () => {
+    const { service, memberFindFirst } = setup({ entities: { order } });
+    expect(await service.resolve('gym-2', ctx, BRAND)).toBeNull();
+    expect(memberFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('leaves the recipient null when the gym has no business email', async () => {
+    const { service } = setup({ entities: { order } });
+    const target = await service.resolve('gym-1', ctx, {
+      ...BRAND,
+      business: { ...BRAND.business, email: '  ' },
+    });
+    expect(target?.recipient).toBeNull();
+    expect(target?.values.order_items).toBe('Protein bar × 3');
+  });
+});

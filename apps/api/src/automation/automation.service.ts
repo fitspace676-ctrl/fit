@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@fit/db';
 import {
+  GYM_RECIPIENT_TRIGGERS,
   TRIGGERS_NEEDING_DAYS,
   automationActionConfigSchema,
   automationConditionsSchema,
@@ -21,6 +22,7 @@ import {
   type AutomationStats,
   type AutomationTimingOffset,
   type AutomationTriggerConfig,
+  type AutomationTriggerType,
   type CreateAutomationRuleInput,
   type GetAutomationRuleResponse,
   type ListAutomationRulesQuery,
@@ -201,6 +203,7 @@ export class AutomationService {
    */
   async createRule(input: CreateAutomationRuleInput): Promise<GetAutomationRuleResponse> {
     this.validateTiming(input.triggerType, input.timingOffset);
+    this.validateRecipientAction(input.triggerType, input.actionType);
     const created = await this.prisma.client.automationRule.create({
       data: {
         gymId: this.tenant.gymId,
@@ -235,6 +238,7 @@ export class AutomationService {
 
     const nextTrigger = input.triggerType ?? existing.triggerType;
     this.validateTiming(nextTrigger, input.timingOffset ?? existing.timingOffset);
+    this.validateRecipientAction(nextTrigger, input.actionType ?? existing.actionType);
     const nextConfig =
       input.triggerConfig ?? automationTriggerConfigSchema.parse(existing.triggerConfig ?? {});
     if (TRIGGERS_NEEDING_DAYS.has(nextTrigger) && nextConfig.days === undefined) {
@@ -379,6 +383,23 @@ export class AutomationService {
       throw new BadRequestException({
         code: 'AUTOMATION_TIMING_BEFORE_NOT_ALLOWED',
         message: 'AUTOMATION_TIMING_BEFORE_NOT_ALLOWED',
+      });
+    }
+  }
+
+  /**
+   * A gym-recipient trigger (`product_stock_low`) only supports `email` — there is
+   * no member to push to or file a task against. Checked on the merged record so a
+   * lone `triggerType` or `actionType` edit can't slip past the schema's refine.
+   */
+  private validateRecipientAction(triggerType: string, actionType: string): void {
+    if (
+      GYM_RECIPIENT_TRIGGERS.has(triggerType as AutomationTriggerType) &&
+      actionType !== 'email'
+    ) {
+      throw new BadRequestException({
+        code: 'AUTOMATION_ACTION_NOT_ALLOWED_FOR_TRIGGER',
+        message: 'AUTOMATION_ACTION_NOT_ALLOWED_FOR_TRIGGER',
       });
     }
   }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, SubscriptionStatus } from '@fit/db';
-import { gymSettingsStoredSchema } from '@fit/types';
+import { GYM_RECIPIENT_TRIGGERS, gymSettingsStoredSchema } from '@fit/types';
 import type { GymBusinessSettings, GymLanguage, MergeValues } from '@fit/types';
 import { money } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
@@ -66,9 +66,14 @@ type MemberRecord = Prisma.GymMemberGetPayload<{ select: typeof MEMBER_SELECT }>
 
 /** Who a fired rule's message is about, and the tokens to personalise it with. */
 export interface AutomationMergeTarget {
-  /** The recipient's email, or `null` when the member has no address on file. */
+  /**
+   * The recipient's email, or `null` when there is no address on file — the
+   * member's for a member trigger, the gym's business email for a gym-recipient
+   * trigger (`product_stock_low`).
+   */
   recipient: string | null;
-  memberId: string;
+  /** The member the message is about; `null` for a gym-recipient trigger. */
+  memberId: string | null;
   /** Token values for {@link interpolateMergeFields}, keyed without braces. */
   values: MergeValues;
 }
@@ -104,6 +109,9 @@ export class AutomationMergeService {
     context: AutomationDispatchContext,
     brand: AutomationBrand,
   ): Promise<AutomationMergeTarget | null> {
+    if (context.triggerType && GYM_RECIPIENT_TRIGGERS.has(context.triggerType)) {
+      return this.resolveGym(gymId, context, brand);
+    }
     const member = await this.loadMember(gymId, context);
     if (!member) return null;
 
@@ -115,6 +123,42 @@ export class AutomationMergeService {
         ...this.mergeValues(member, brand, points),
         ...(await this.contextValues(gymId, context, brand)),
       },
+    };
+  }
+
+  /**
+   * The target of a gym-recipient trigger (`product_stock_low`): the message goes
+   * to the gym's own business email, not the buyer. Only the `business_*` and
+   * `order_*` tokens are filled — `order_items` names the product that ran low —
+   * so every `member_*` token blanks rather than leaking the buyer into a staff
+   * email. An order id outside `gymId` resolves to `null`, like any other entity.
+   */
+  private async resolveGym(
+    gymId: string,
+    context: AutomationDispatchContext,
+    brand: AutomationBrand,
+  ): Promise<AutomationMergeTarget | null> {
+    let orderValues: MergeValues = {};
+    if (context.entityId) {
+      if (context.entityType !== 'order') return null;
+      orderValues = await this.contextValues(gymId, context, brand);
+      if (Object.keys(orderValues).length === 0) return null;
+    }
+    return {
+      recipient: brand.business.email?.trim() || null,
+      memberId: null,
+      values: { ...this.businessValues(brand), ...orderValues },
+    };
+  }
+
+  /** The `business_*` tokens — the gym's own name and contact details. */
+  private businessValues(brand: AutomationBrand): MergeValues {
+    return {
+      business_name: brand.name,
+      business_phone: brand.business.phone ?? '',
+      business_address: brand.business.address ?? '',
+      business_email: brand.business.email ?? '',
+      business_website: brand.business.website ?? '',
     };
   }
 
@@ -428,11 +472,7 @@ export class AutomationMergeService {
       payment_due_date: expiry,
 
       // The gym.
-      business_name: brand.name,
-      business_phone: brand.business.phone ?? '',
-      business_address: brand.business.address ?? '',
-      business_email: brand.business.email ?? '',
-      business_website: brand.business.website ?? '',
+      ...this.businessValues(brand),
     };
   }
 }

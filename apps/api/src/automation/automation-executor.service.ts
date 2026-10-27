@@ -19,6 +19,8 @@ import {
   parseTimingOffset,
   timingOffsetDays,
   AUTOMATION_TRIGGER_CATALOG,
+  GYM_RECIPIENT_ACTION_MESSAGE,
+  GYM_RECIPIENT_TRIGGERS,
   type AutomationEntityType,
 } from '@fit/types';
 import { automationTriggerConfigSchema } from '@fit/types';
@@ -42,6 +44,12 @@ import { env } from '../config/env';
 export interface AutomationDispatchContext {
   entityId?: string;
   entityType?: AutomationEntityType;
+  /**
+   * The trigger being fired. Set by the executor before personalising, so the
+   * merge service can address a gym-recipient trigger (`product_stock_low`) to
+   * the gym instead of the member.
+   */
+  triggerType?: AutomationTriggerType;
   /** Scans already apply offsets to their date window; due runs must not queue again. */
   immediate?: boolean;
   /** Injectable event instant for scheduling and condition facts. */
@@ -242,6 +250,9 @@ export class AutomationExecutorService {
     rule: RuleRecord,
     context: AutomationDispatchContext,
   ): Promise<boolean> {
+    // A gym-recipient trigger has no member to describe, so its conditions are
+    // treated as empty rather than failing every member-fact comparison.
+    if (GYM_RECIPIENT_TRIGGERS.has(rule.triggerType)) return true;
     const parsed = automationConditionsSchema.safeParse(rule.conditions);
     if (!parsed.success) return false;
     if (parsed.data.length === 0) return true;
@@ -365,8 +376,17 @@ export class AutomationExecutorService {
         };
       }
 
+      const toGym = GYM_RECIPIENT_TRIGGERS.has(rule.triggerType);
+      if (toGym && rule.actionType !== AutomationActionType.email) {
+        return { status: AutomationRunStatus.SKIPPED, detail: GYM_RECIPIENT_ACTION_MESSAGE };
+      }
+
       const brand = await this.merge.brand(gymId);
-      const target = await this.merge.resolve(gymId, context, brand);
+      const target = await this.merge.resolve(
+        gymId,
+        { ...context, triggerType: rule.triggerType },
+        brand,
+      );
       const subject = interpolateMergeFields(action.data.subject ?? '', target?.values ?? {});
       const body = interpolateMergeFields(action.data.body, target?.values ?? {});
       if (rule.actionType === AutomationActionType.push_notification) {
@@ -379,6 +399,12 @@ export class AutomationExecutorService {
         return {
           status: AutomationRunStatus.SUCCESS,
           detail: `${undeliveredActionDetail(rule.actionType)}; message: ${body.slice(0, 300)}`,
+        };
+      }
+      if (toGym && target && !target.recipient) {
+        return {
+          status: AutomationRunStatus.SUCCESS,
+          detail: 'No gym email configured — nothing sent',
         };
       }
       if (!target?.recipient) {
@@ -410,7 +436,10 @@ export class AutomationExecutorService {
       // An unconfigured transport is a skip, not a failure — a dev machine with no
       // RESEND_API_KEY should read honestly rather than fill the log with FAILED.
       return sent
-        ? { status: AutomationRunStatus.SUCCESS, detail: `Emailed ${target.recipient}` }
+        ? {
+            status: AutomationRunStatus.SUCCESS,
+            detail: toGym ? `Emailed gym ${target.recipient}` : `Emailed ${target.recipient}`,
+          }
         : {
             status: AutomationRunStatus.SUCCESS,
             detail: 'Email not sent — mail transport is not configured',
