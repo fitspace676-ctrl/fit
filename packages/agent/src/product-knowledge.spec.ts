@@ -76,4 +76,13 @@ describe('product knowledge', () => {
       }
     }
   });
+
+  it("keeps a member's own subscription and freeze on the member page", () => {
+    const payments = CONSOLE_PAGES.find((p) => p.path === '/payments')!;
+    expect(payments.purpose).toContain('/members/:id');
+    const freeze = WORKFLOWS.find((w) => w.task === 'Freeze a subscription')!;
+    expect(freeze.steps.join(' ')).toContain('/members/:id');
+    expect(freeze.steps.join(' ')).toContain('freeze_subscription');
+    expect(freeze.steps.join(' ')).not.toContain('/payments');
+  });
 });

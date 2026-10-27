@@ -18,7 +18,7 @@ export const adminScheduleTools = defineTools('classes', [
     title: 'List schedule',
     titleKa: 'განრიგი',
     description:
-      'List dated class sessions in a from/to window: id, title, status, start, trainer, booked and capacity. Use for what classes are on today or this week; list_classes is the recurring templates, get_schedule_instance the roster.',
+      'List dated class sessions in a from/to window: id, title, status, start, trainer, booked, capacity. For today or this week; an empty result means no sessions, not a reason to call list_classes. get_schedule_instance has the roster.',
     method: 'get',
     path: '/admin/schedule',
     query: adminScheduleQuerySchema,

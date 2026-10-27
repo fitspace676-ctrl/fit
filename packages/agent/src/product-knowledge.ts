@@ -58,7 +58,13 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     'plans',
   ),
   page('/packages/new', 'New package plan', 'ახალი პაკეტი', 'Create a package plan.', 'plans'),
-  page('/payments', 'Billing', 'ანგარიშსწორება', 'Manage subscription plans.', 'plans'),
+  page(
+    '/payments',
+    'Billing',
+    'ანგარიშსწორება',
+    "Define the subscription plans on sale; a member's own subscription, freeze and billing live on /members/:id.",
+    'plans',
+  ),
   page(
     '/payments/:id',
     'Subscription plan',
@@ -176,21 +182,13 @@ function term(en: string, ka: string, meaning: string): GlossaryEntry {
 // Meanings follow the contracts in packages/types/src (not the names of tools).
 export const GLOSSARY: GlossaryEntry[] = [
   term('member', 'წევრი', 'Gym customer with a profile, status and member or guest kind.'),
-  term('subscription', 'აბონემენტი', 'Member enrollment with a billing period, status and plan.'),
-  term('package plan', 'პაკეტი', 'Catalogue offer with price, session count and validity.'),
+  term('subscription', 'აბონემენტი', "A member's enrollment in a plan, with period and status."),
+  term('package plan', 'პაკეტი', 'Catalogue offer: price, sessions, validity.'),
   term('credit pack', 'კრედიტების პაკეტი', 'Purchased session balance, possibly expiring.'),
   term('branch', 'ფილიალი', 'Gym location with its own address and hours.'),
   term('class type', 'ვარჯიშის ტიპი', 'Category with defaults for scheduled classes.'),
-  term(
-    'class template',
-    'ვარჯიშის შაბლონი',
-    'Recurring definition with trainer, capacity and schedule.',
-  ),
-  term(
-    'schedule instance',
-    'კონკრეტული ვარჯიში',
-    'Dated occurrence with its own roster and status.',
-  ),
+  term('class template', 'ვარჯიშის შაბლონი', 'Recurring class definition, not dated.'),
+  term('schedule instance', 'კონკრეტული ვარჯიში', 'Dated occurrence with its own roster.'),
   term('booking', 'ჯავშანი', 'Member reservation for a dated session.'),
   term('waitlist', 'მოლოდინის სია', 'Queue for a seat in a full class.'),
   term('attendance', 'დასწრება', 'Class attendance recorded on a booking.'),
@@ -268,17 +266,18 @@ export const WORKFLOWS: ProductWorkflow[] = [
   },
   {
     task: 'Freeze a subscription',
-    steps: ['/members/:id: Membership, current plan, Freeze; choose days.'],
+    steps: [
+      'Only on /members/:id: Membership > current plan > Freeze; choose days.',
+      'freeze_subscription does the same.',
+    ],
   },
   {
     task: 'Schedule a class',
     steps: ['/classes/schedule: add session; select type, trainer, time and branch.'],
   },
-  { task: 'Cancel a class', steps: ['/classes/schedule: open occurrence; cancel it.'] },
-  { task: 'Add a booking', steps: ['/classes/schedule: open occurrence; add member to roster.'] },
   {
-    task: 'Promote waitlist',
-    steps: ['/classes/schedule: open occurrence; promote waitlist entry.'],
+    task: 'Cancel a class, book or promote waitlist',
+    steps: ['/classes/schedule: open occurrence; cancel, add to roster or promote.'],
   },
   { task: 'Book PT', steps: ['/classes/pt-calendar: select trainer, member and time; book.'] },
   { task: 'Make a POS sale', steps: ['/pos: select customer and items; take payment.'] },
@@ -327,18 +326,6 @@ export const WORKFLOWS: ProductWorkflow[] = [
     task: 'Invite staff or set a role',
     steps: ['/staff: Invitations to invite; Roles to set permissions.'],
   },
-  { task: 'Add a branch', steps: ['/locations/new: enter address and hours; save.'] },
-  {
-    task: 'Change portal theme',
-    steps: ['/member-portal: choose colors and sign-in photo; save.'],
-  },
-  {
-    task: 'Drill into a report',
-    steps: [
-      '/reports: choose metric, period and branch.',
-      '/reports/:metric: inspect underlying rows.',
-    ],
-  },
 ];
 
 // Only easily confused terms enter every request; the full glossary stays available to consumers.
@@ -355,13 +342,27 @@ const PROMPT_TERMS = new Set([
   'template',
 ]);
 
+// Purposes the titles do not already say; the rest stay available to consumers.
+const PROMPT_PURPOSES = new Set([
+  '/classes/new',
+  '/classes/schedule',
+  '/classes/pt-calendar',
+  '/payments',
+  '/marketing',
+  '/staff',
+  '/member-portal',
+  '/app-settings',
+  '/settings',
+]);
+
 export function buildProductKnowledge(): string {
   const map = CONSOLE_PAGES.filter((p) => !p.path.includes(':')).map((p) => {
     const children = CONSOLE_PAGES.filter((child) => {
       if (!child.path.includes(':')) return false;
       return child.path.slice(0, child.path.indexOf('/:')) === p.path;
     });
-    return `${p.path}: ${p.title.en}; ${p.purpose}${children.length ? ` ${children.map((c) => `${c.path} ${c.title.en}`).join(', ')}.` : ''}`;
+    const purpose = PROMPT_PURPOSES.has(p.path) ? `; ${p.purpose}` : '';
+    return `${p.path}: ${p.title.en} (${p.title.ka})${purpose}${children.length ? `. ${children.map((c) => `${c.path} ${c.title.en}`).join(', ')}.` : ''}`;
   });
   return [
     'Console map:',

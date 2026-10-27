@@ -17,6 +17,8 @@ import type { AgentTool } from './driver';
 export interface ToolDomain {
   id: string;
   title: string;
+  /** Georgian title, for operator-facing text in a `ka` turn. */
+  titleKa?: string;
   description: string;
   tools: string[];
 }
@@ -44,7 +46,13 @@ export function defaultToolCatalog(): ToolCatalog | undefined {
   };
   if (!Array.isArray(mod.TOOL_DOMAINS)) return undefined;
   return {
-    domains: mod.TOOL_DOMAINS as ToolDomain[],
+    domains: (mod.TOOL_DOMAINS as ToolDomain[]).map((d) => ({
+      id: d.id,
+      title: d.title,
+      ...(typeof d.titleKa === 'string' ? { titleKa: d.titleKa } : {}),
+      description: d.description,
+      tools: d.tools,
+    })),
     core: Array.isArray(mod.CORE_TOOLS) ? (mod.CORE_TOOLS as string[]) : [],
     ...(mod.TOOL_TITLES && typeof mod.TOOL_TITLES === 'object'
       ? { titles: mod.TOOL_TITLES as NonNullable<ToolCatalog['titles']> }

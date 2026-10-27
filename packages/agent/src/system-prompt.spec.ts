@@ -88,6 +88,28 @@ describe('product guidance and behavior', () => {
     expect(prompt).toContain('cannot be undone');
   });
 
+  it('forbids invented personal data and narrows validation retries', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain('Never invent values');
+    expect(prompt).toContain('ask for exactly those and stop');
+    expect(prompt).toContain('even for test records');
+    expect(prompt).toContain('Retry a validation error once only if it is');
+    expect(prompt).toContain('what changed since the last one');
+    expect(prompt).toContain('list_members for a duplicate before create_member');
+    expect(prompt).not.toContain('fix the\n  fields and retry once');
+  });
+
+  it('defines this week, treats an empty schedule as the answer, and localizes enums and links', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain('This week = Monday to Sunday');
+    expect(prompt).toContain('not the next 7 days');
+    expect(prompt).toContain('An empty schedule is the answer');
+    expect(prompt).toContain('Every day -> ყოველდღე');
+    expect(prompt).toContain('ACTIVE -> აქტიური');
+    expect(prompt).toContain('/members: Members (წევრები)');
+    expect(prompt).toContain('Link text for a console page = its map title');
+  });
+
   it('adds at most 6000 characters, including behavioral guidance, without context', () => {
     // Context-free prompt before product knowledge and behavioral additions: 1924 chars.
     // Keep this fixed baseline so future growth cannot silently increase the allowance.

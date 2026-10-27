@@ -234,6 +234,14 @@ export async function runAgentLoop(args: {
   });
 
   const toolbox = createToolbox(tools, catalog ?? undefined, (name) => meta.get(name)?.mcpTitle);
+  /** Opened domain ids as the operator reads them, in the turn's language. */
+  const domainTitles = (ids: string[]) =>
+    ids
+      .map((id) => {
+        const d = toolbox.domains.find((x) => x.id === id);
+        return (lang === 'ka' ? d?.titleKa : undefined) || d?.title || id;
+      })
+      .join(', ');
   if (toolbox.enabled) {
     meta.set(OPEN_TOOLBOX, { title: OPEN_TOOLBOX_TITLE[lang], kind: 'read', destructive: false });
   }
@@ -289,7 +297,7 @@ export async function runAgentLoop(args: {
       emit(
         res.isError
           ? { ...base, status: 'error', errorMessage: res.output }
-          : { ...base, status: 'complete', durationMs: 0, resultSummary: res.opened.join(', ') },
+          : { ...base, status: 'complete', durationMs: 0, resultSummary: domainTitles(res.opened) },
       );
       return { id: call.id, name: call.name, output: res.output, isError: res.isError };
     }

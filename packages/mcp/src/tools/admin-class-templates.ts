@@ -17,7 +17,7 @@ export const adminClassTemplatesTools = defineTools('classes', [
     title: 'List class templates',
     titleKa: 'კლასების სია',
     description:
-      'List recurring class templates only, with no dates or attendance: id, title, status, category, start time, recurrence, trainer. For what classes are on today or this week use list_schedule; get_class has detail.',
+      'List recurring class templates only, no dates: id, title, status, category, start time, recurrence, trainer. For today or this week use list_schedule; if it is empty, do not fall back to this. get_class has detail.',
     method: 'get',
     path: '/admin/classes',
     query: listAdminClassTemplatesQuerySchema,

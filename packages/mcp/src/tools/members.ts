@@ -56,7 +56,7 @@ export const membersTools = defineTools('members', [
     title: 'Create member',
     titleKa: 'წევრის დამატება',
     description:
-      'Add a member by name and email (phone and status optional); an existing person with that email is linked to this gym. Returns the new member profile; search list_members first to avoid duplicates.',
+      'Add a member by name and email; an existing person with that email is linked to this gym. Search list_members first. If the API says intake fields (Settings > Membership) are required, ask the operator; never invent personal data.',
     method: 'post',
     path: '/members',
     destructive: false,

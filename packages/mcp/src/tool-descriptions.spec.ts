@@ -52,6 +52,12 @@ describe('MCP tool descriptions steer the model to the right tool', () => {
     for (const other of others) expect(description, name).toContain(other);
   });
 
+  it('keeps the model from inventing intake data or listing templates for an empty week', () => {
+    expect(endpoint('create_member').description).toContain('never invent');
+    expect(endpoint('list_schedule').description).toContain('empty');
+    expect(endpoint('list_classes').description).toContain('empty');
+  });
+
   it('documents every active/inactive toggle as a boolean with both routes', () => {
     const toggles = ALL_ENDPOINTS.filter((item) => item.activePath);
     expect(toggles.length).toBeGreaterThanOrEqual(7);
