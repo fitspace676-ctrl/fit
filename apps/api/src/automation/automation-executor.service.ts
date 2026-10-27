@@ -567,7 +567,6 @@ export class AutomationExecutorService {
         this.scanMembershipExpiring(),
         this.scanBirthdays(),
         this.scanNoCheckin(),
-        this.scanMembershipExpired(),
         this.scanInvoiceOverdue(),
       ]);
       const summary = summaries.reduce(
@@ -612,9 +611,6 @@ export class AutomationExecutorService {
   }
   async scanNoCheckin(options?: { now?: Date }): Promise<AutomationScanSummary> {
     return this.scanTrigger('no_checkin', options?.now ?? new Date());
-  }
-  async scanMembershipExpired(options?: { now?: Date }): Promise<AutomationScanSummary> {
-    return this.scanTrigger('membership_expired', options?.now ?? new Date());
   }
   async scanInvoiceOverdue(options?: { now?: Date }): Promise<AutomationScanSummary> {
     return this.scanTrigger('invoice_overdue', options?.now ?? new Date());
@@ -692,18 +688,12 @@ export class AutomationExecutorService {
     offset: number,
     now: Date,
   ): Promise<{ id: string; entityType: AutomationEntityType }[]> {
-    if (trigger === 'membership_expiring' || trigger === 'membership_expired') {
+    if (trigger === 'membership_expiring') {
       const subs = await this.prisma.client.subscription.findMany({
         where: {
           gymId,
-          status:
-            trigger === 'membership_expired'
-              ? SubscriptionStatus.EXPIRED
-              : { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
-          currentPeriodEnd: utcDayWindow(
-            now,
-            (trigger === 'membership_expiring' ? days : 0) + offset,
-          ),
+          status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
+          currentPeriodEnd: utcDayWindow(now, days + offset),
         },
         select: { id: true },
       });

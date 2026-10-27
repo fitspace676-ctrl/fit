@@ -257,11 +257,14 @@ export class SubscriptionBillingService {
           this.fireAutomation(sub, AutomationTriggerType.membership_cancelled);
         }
         return;
-      // No `membership_expired` dispatch here on purpose: the automation executor's
-      // daily scan already fires it off the EXPIRED row, and an event here as well
-      // would double-fire any rule whose offset lands the scan on a later day.
+      // `membership_expired` is an event fired here, not a period-end scan: the
+      // dunning ladder expires a sub ~8 days after its period end, so a scan keyed
+      // to `currentPeriodEnd` would miss every rule offset shorter than that.
       case 'expire':
-        if (await this.expire(sub)) summary.expired += 1;
+        if (await this.expire(sub)) {
+          summary.expired += 1;
+          this.fireAutomation(sub, AutomationTriggerType.membership_expired);
+        }
         return;
       case 'charge':
         await this.charge(sub, decision.nextPeriodStart, decision.nextPeriodEnd, summary);

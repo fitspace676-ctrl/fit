@@ -815,18 +815,24 @@ describe('date scanners', () => {
       ],
     });
   });
-  it('scans expired subscriptions and unpaid invoices by their date windows', async () => {
-    const expired = setup({
-      gymFindMany: [{ id: 'gym-1' }],
-      ruleFindMany: [activeRule({ triggerType: 'membership_expired', timingOffset: '-1d' })],
-      subFindMany: [{ id: 'sub-1' }],
+  it('queues a positive offset on membership_expired, now an event trigger', async () => {
+    const { service, runCreate, mailSend } = setup();
+    expect(
+      await service.fireRule(
+        'gym-1',
+        activeRule({ triggerType: 'membership_expired', timingOffset: '2d' }),
+        { entityId: 'sub-1', entityType: 'subscription', now: NOW },
+      ),
+    ).toBe(true);
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'QUEUED',
+      triggerType: 'membership_expired',
+      entityId: 'sub-1',
+      scheduledFor: new Date('2026-07-10T12:00:00Z'),
     });
-    await expired.service.scanMembershipExpired({ now: NOW });
-    expect(expired.subFindMany.mock.calls[0]?.[0].where).toMatchObject({
-      gymId: 'gym-1',
-      status: 'EXPIRED',
-      currentPeriodEnd: { gte: new Date('2026-07-07'), lt: new Date('2026-07-08') },
-    });
+    expect(mailSend).not.toHaveBeenCalled();
+  });
+  it('scans unpaid invoices by their due-date window', async () => {
     const invoices = setup({
       gymFindMany: [{ id: 'gym-1' }],
       ruleFindMany: [activeRule({ triggerType: 'invoice_overdue' })],

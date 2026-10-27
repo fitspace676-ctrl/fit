@@ -652,7 +652,7 @@ describe('SubscriptionBillingService automation triggers (T12.5)', () => {
     expect(announcePaid).not.toHaveBeenCalled();
   });
 
-  it('leaves membership_expired to the automation scan (no event dispatch on expiry)', async () => {
+  it('fires membership_expired when the dunning ladder expires the subscription', async () => {
     const { service, dispatchForGym } = setup({
       due: [row({ status: SubscriptionStatus.PAST_DUE, paymentRetries: 3 })],
     });
@@ -660,6 +660,19 @@ describe('SubscriptionBillingService automation triggers (T12.5)', () => {
     const summary = await service.runBillingCycle({ now: NOW });
 
     expect(summary.expired).toBe(1);
+    expect(dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'membership_expired', subscriptionCtx);
+  });
+
+  it('does not fire membership_expired when the expiry write lost the race', async () => {
+    const { service, dispatchForGym } = setup({
+      due: [row({ status: SubscriptionStatus.PAST_DUE, paymentRetries: 3 })],
+      updateCount: 0,
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(summary.expired).toBe(0);
     expect(dispatchForGym).not.toHaveBeenCalled();
   });
 });
