@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { BookingStatus, InstanceStatus } from '@fit/db';
 import { AttendanceService } from './attendance.service';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import type { TenantContext } from '../common/tenant/tenant.context';
 
 const INSTANCE_ID = 'ci-1';
 
@@ -61,9 +63,19 @@ function setup(opts?: { transaction?: (cb: (tx: unknown) => unknown) => unknown 
   $transaction.mockImplementation(opts?.transaction ?? ((cb) => cb(client)));
 
   const prisma = { client } as unknown as TenantPrismaService;
+  const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  // `attendance_marked` (T12.5) fires best-effort after the batch commits.
+  const automation = {
+    dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
+  };
 
   return {
-    service: new AttendanceService(prisma),
+    service: new AttendanceService(
+      prisma,
+      tenant,
+      automation as unknown as AutomationExecutorService,
+    ),
+    automation,
     booking,
     classInstance,
     transaction: $transaction,
@@ -177,6 +189,37 @@ describe('AttendanceService', () => {
         data: { status: InstanceStatus.COMPLETED },
       });
       expect(ctx.transaction).toHaveBeenCalledTimes(1);
+      // Only the attended seat fires `attendance_marked` (T12.5); a no-show does not.
+      expect(ctx.automation.dispatchForGym).toHaveBeenCalledTimes(1);
+      expect(ctx.automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'attendance_marked', {
+        entityId: 'bk-1',
+        entityType: 'booking',
+      });
+    });
+
+    it('does not re-fire attendance_marked for a seat that was already ATTENDED', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(
+        instance({ status: InstanceStatus.COMPLETED }),
+      );
+      ctx.booking.findFirst
+        .mockResolvedValueOnce({ id: 'bk-1', status: BookingStatus.ATTENDED })
+        .mockResolvedValueOnce({ id: 'bk-2', status: BookingStatus.NO_SHOW });
+      ctx.booking.update.mockResolvedValue({});
+      ctx.booking.findMany.mockResolvedValueOnce([]);
+
+      await ctx.service.markAttendance(
+        INSTANCE_ID,
+        mark([
+          { bookingId: 'bk-1', status: 'ATTENDED' },
+          { bookingId: 'bk-2', status: 'ATTENDED' },
+        ]),
+      );
+
+      // bk-1 was already attended; only the corrected bk-2 is newly attended.
+      expect(ctx.automation.dispatchForGym.mock.calls).toEqual([
+        ['gym-1', 'attendance_marked', { entityId: 'bk-2', entityType: 'booking' }],
+      ]);
     });
 
     it('re-marks an already-completed occurrence without re-completing it (idempotent correction)', async () => {
@@ -280,6 +323,17 @@ describe('AttendanceService', () => {
         code: 'BOOKING_NOT_ATTENDABLE',
       });
       expect(ctx.booking.update).not.toHaveBeenCalled();
+    });
+
+    it('fires nothing when the batch is rejected', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance());
+      ctx.booking.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        ctx.service.markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-x', status: 'ATTENDED' }])),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(ctx.automation.dispatchForGym).not.toHaveBeenCalled();
     });
 
     it('records all-or-nothing — a bad booking in the batch blocks every write', async () => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { InvoiceService } from '../billing/invoice.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -106,8 +107,19 @@ function setup(
     userId: over.userId === undefined ? 'u-1' : over.userId,
   } as unknown as TenantContext;
   const invoices = { issue } as unknown as InvoiceService;
+  // Booking / cancelling fires automation triggers (T12.5) best-effort.
+  const automation = {
+    dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
+  };
   return {
-    svc: new ServiceSessionsService(prisma, base, tenant, invoices),
+    svc: new ServiceSessionsService(
+      prisma,
+      base,
+      tenant,
+      invoices,
+      automation as unknown as AutomationExecutorService,
+    ),
+    automation,
     sessionCreate,
     sessionUpdateMany,
     sessionUpdate,
@@ -234,13 +246,26 @@ describe('ServiceSessionsService.book', () => {
     expect(sessionUpdate.mock.calls[0]?.[0]).toMatchObject({ data: { invoiceId: 'inv-1' } });
   });
 
+  it('fires pt_session_booked for the claimed slot (T12.5)', async () => {
+    const { svc, automation } = setup({
+      slot: { startsAt: new Date(Date.now() + 86_400_000) },
+    });
+    await svc.book('ss-1');
+    expect(automation.dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'pt_session_booked', {
+      entityId: 'ss-1',
+      entityType: 'service_session',
+    });
+  });
+
   it('is a 409 SESSION_TAKEN when another member won the race', async () => {
-    const { svc, sessionUpdateMany, issue } = setup({
+    const { svc, sessionUpdateMany, issue, automation } = setup({
       slot: { startsAt: new Date(Date.now() + 86_400_000) },
     });
     sessionUpdateMany.mockResolvedValueOnce({ count: 0 });
     await expect(svc.book('ss-1')).rejects.toBeInstanceOf(ConflictException);
     expect(issue).not.toHaveBeenCalled();
+    expect(automation.dispatchForGym).not.toHaveBeenCalled();
   });
 
   it('refuses a slot that is no longer open', async () => {
@@ -255,6 +280,40 @@ describe('ServiceSessionsService.book', () => {
     await expect(svc.book('ss-1')).rejects.toMatchObject({
       response: { code: 'MEMBER_SESSION_REQUIRED' },
     });
+  });
+});
+
+describe('ServiceSessionsService.cancel / complete', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('fires pt_session_cancelled when a booked session is cancelled (T12.5)', async () => {
+    const { svc, sessionUpdate, automation } = setup({
+      slot: { status: 'BOOKED', memberId: 'gm-9' },
+    });
+    await svc.cancel('ss-1');
+    expect(sessionUpdate.mock.calls[0]?.[0]).toMatchObject({ data: { status: 'CANCELLED' } });
+    expect(automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'pt_session_cancelled', {
+      entityId: 'ss-1',
+      entityType: 'service_session',
+    });
+  });
+
+  it('does not fire when an OPEN slot with no member is cancelled', async () => {
+    const { svc, automation } = setup({ slot: { status: 'OPEN', memberId: null } });
+    await svc.cancel('ss-1');
+    expect(automation.dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('does not fire pt_session_cancelled when a session is completed', async () => {
+    const { svc, automation } = setup({ slot: { status: 'BOOKED', memberId: 'gm-9' } });
+    await svc.complete('ss-1');
+    expect(automation.dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('opening a slot fires nothing (no member yet)', async () => {
+    const { svc, automation } = setup();
+    await svc.create({ serviceId: 's-1', startsAt: '2026-09-01T14:00:00.000Z', notes: '' });
+    expect(automation.dispatchForGym).not.toHaveBeenCalled();
   });
 });
 

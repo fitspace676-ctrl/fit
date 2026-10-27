@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { CheckInController } from './check-in.controller';
 import { CheckInService } from './check-in.service';
@@ -12,10 +13,11 @@ import { CheckInService } from './check-in.service';
  * and tenant context come from `TenantModule` / `RbacModule`.
  *
  * Imports {@link LoyaltyModule} for its exported {@link LoyaltyPointsService} so a
- * recorded arrival awards loyalty points (T12.10) fire-and-forget.
+ * recorded arrival awards loyalty points (T12.10) fire-and-forget, and
+ * {@link AutomationModule} so it fires the `checkin_milestone` trigger (T12.5).
  */
 @Module({
-  imports: [LoyaltyModule],
+  imports: [AutomationModule, LoyaltyModule],
   controllers: [CheckInController],
   providers: [CheckInService],
 })

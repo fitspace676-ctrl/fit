@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CheckInMethod, Prisma, Role, SubscriptionStatus } from '@fit/db';
+import { AutomationTriggerType, CheckInMethod, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import type {
   ActivityEvent,
   CheckInRow,
@@ -12,6 +12,7 @@ import type {
   RecordCheckInResponse,
   TodayCheckInsResponse,
 } from '@fit/types';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { atLocation } from '../common/location-filter.util';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -86,6 +87,7 @@ export class CheckInService {
     private readonly tenant: TenantContext,
     private readonly activityStream: ActivityStreamService,
     private readonly loyalty: LoyaltyPointsService,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /**
@@ -133,10 +135,30 @@ export class CheckInService {
       .awardForCheckIn(this.tenant.gymId, created.gymMemberId, created.id)
       .catch(() => undefined);
 
+    // `checkin_milestone` automation trigger (T12.5), same best-effort contract.
+    void this.dispatchMilestone(created.gymMemberId).catch(() => undefined);
+
     return {
       checkIn: this.toRow(created),
       eligibility: await this.buildEligibility(member),
     };
+  }
+
+  /**
+   * Count the member's arrivals (this one included) and dispatch
+   * `checkin_milestone` with that count; the executor fires only the rules whose
+   * configured visit number equals it.
+   */
+  private async dispatchMilestone(gymMemberId: string): Promise<void> {
+    const gymId = this.tenant.gymId;
+    const milestone = await this.prisma.client.checkIn.count({
+      where: { gymId, gymMemberId },
+    });
+    await this.automation.dispatchForGym(gymId, AutomationTriggerType.checkin_milestone, {
+      entityId: gymMemberId,
+      entityType: 'member',
+      milestone,
+    });
   }
 
   /**

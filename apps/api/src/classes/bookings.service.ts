@@ -5,12 +5,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { BookingStatus, InstanceStatus, Prisma, SubscriptionStatus } from '@fit/db';
+import {
+  AutomationTriggerType,
+  BookingStatus,
+  InstanceStatus,
+  Prisma,
+  SubscriptionStatus,
+} from '@fit/db';
 import {
   gymSettingsStoredSchema,
   type BookClassInstanceResult,
   type CancelBookingResult,
 } from '@fit/types';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -73,6 +80,7 @@ export class BookingsService {
     private readonly tenant: TenantContext,
     private readonly creditPacks: CreditPacksService,
     private readonly occupancy: ClassOccupancyPublisher,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /**
@@ -201,6 +209,18 @@ export class BookingsService {
       // is belt-and-braces), so a live-push hiccup can never fail the booking that
       // just succeeded — the client's next fetch catches the counts up.
       void this.occupancy.publish(classInstanceId).catch(() => undefined);
+
+      // Automation triggers (T12.5), same best-effort contract: only a confirmed
+      // seat is a `class_booked` (a waitlist entry is not a booking yet). The seat
+      // that takes the counter to capacity also fires `class_full` — exactly once,
+      // since the gated increment lets only one booking land on that number and a
+      // full class sends later bookers to the waitlist.
+      if (result.status === BookingStatus.BOOKED) {
+        this.dispatch(AutomationTriggerType.class_booked, result.bookingId);
+        if (result.bookedCount === result.capacity) {
+          this.dispatch(AutomationTriggerType.class_full, result.bookingId);
+        }
+      }
 
       return result;
     } catch (error) {
@@ -409,7 +429,25 @@ export class BookingsService {
     // the cancellation that just committed.
     void this.occupancy.publish(classInstanceId).catch(() => undefined);
 
+    // Automation triggers (T12.5), best-effort after the commit: the member's own
+    // cancellation, and a `class_booked` for whoever the freed seat went to.
+    this.dispatch(AutomationTriggerType.class_cancelled_member, result.bookingId);
+    if (result.promotedBookingId) {
+      this.dispatch(AutomationTriggerType.class_booked, result.promotedBookingId);
+    }
+
     return result;
+  }
+
+  /**
+   * Fire a booking-scoped automation trigger. Not awaited: the executor swallows
+   * its own errors, so automation can never block or fail the booking flow.
+   */
+  private dispatch(triggerType: AutomationTriggerType, bookingId: string): void {
+    void this.automation.dispatchForGym(this.tenant.gymId, triggerType, {
+      entityId: bookingId,
+      entityType: 'booking',
+    });
   }
 
   /**

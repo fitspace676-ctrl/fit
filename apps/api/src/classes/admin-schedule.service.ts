@@ -1,6 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { BookingStatus, InstanceStatus, Prisma, SubscriptionStatus } from '@fit/db';
+import {
+  AutomationTriggerType,
+  BookingStatus,
+  InstanceStatus,
+  Prisma,
+  SubscriptionStatus,
+} from '@fit/db';
 import type {
   AdminClassInstanceDetail,
   AdminClassInstanceRosterEntry,
@@ -10,6 +16,7 @@ import type {
   AdminScheduleResponse,
   ScheduleClassInstanceData,
 } from '@fit/types';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -119,6 +126,7 @@ export class AdminScheduleService {
     private readonly creditPacks: CreditPacksService,
     private readonly tenant: TenantContext,
     private readonly occupancy: ClassOccupancyPublisher,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /**
@@ -416,6 +424,10 @@ export class AdminScheduleService {
     // committed.
     void this.occupancy.publish(classInstanceId).catch(() => undefined);
 
+    // The desk granted this member a seat — a `class_booked` automation trigger
+    // (T12.5), fired best-effort after the commit.
+    this.dispatch(AutomationTriggerType.class_booked, bookingId);
+
     return this.getInstanceDetail(classInstanceId);
   }
 
@@ -451,8 +463,9 @@ export class AdminScheduleService {
     await this.requireGymMember(memberId);
     await this.assertSubscriptionNotFrozen(memberId);
 
+    let seat: { bookingId: string; booked: boolean; full: boolean };
     try {
-      await this.prisma.client.$transaction(async (tx) => {
+      seat = await this.prisma.client.$transaction(async (tx) => {
         const instance = await tx.classInstance.findFirst({
           where: { id: classInstanceId },
           select: {
@@ -519,7 +532,7 @@ export class AdminScheduleService {
         // later in-policy cancellation refund.
         const creditPackId = booked ? await this.creditPacks.chargeSeatCredit(tx, memberId) : null;
 
-        await tx.booking.create({
+        const created = await tx.booking.create({
           data: {
             gymId: this.tenant.gymId,
             classInstanceId,
@@ -533,6 +546,20 @@ export class AdminScheduleService {
           },
           select: { id: true },
         });
+
+        // Whether this seat was the one that filled the class (`class_full`). The
+        // gated increment lets exactly one booking land on `capacity`, and the row
+        // stays locked until commit, so the re-read sees this booking's own count.
+        let full = false;
+        if (booked) {
+          const after = await tx.classInstance.findFirst({
+            where: { id: classInstanceId },
+            select: { bookedCount: true },
+          });
+          full = after?.bookedCount === capacity;
+        }
+
+        return { bookingId: created.id, booked, full };
       });
     } catch (error) {
       // A concurrent duplicate slipped past the pre-check — the partial unique on
@@ -551,7 +578,28 @@ export class AdminScheduleService {
     // committed.
     void this.occupancy.publish(classInstanceId).catch(() => undefined);
 
+    // Automation triggers (T12.5), same best-effort contract: a confirmed seat is
+    // a `class_booked` (a waitlist entry is not), and the seat that filled the
+    // class also fires `class_full`.
+    if (seat.booked) {
+      this.dispatch(AutomationTriggerType.class_booked, seat.bookingId);
+      if (seat.full) {
+        this.dispatch(AutomationTriggerType.class_full, seat.bookingId);
+      }
+    }
+
     return this.getInstanceDetail(classInstanceId);
+  }
+
+  /**
+   * Fire a booking-scoped automation trigger. Not awaited: the executor swallows
+   * its own errors, so automation can never block or fail the desk flow.
+   */
+  private dispatch(triggerType: AutomationTriggerType, bookingId: string): void {
+    void this.automation.dispatchForGym(this.tenant.gymId, triggerType, {
+      entityId: bookingId,
+      entityType: 'booking',
+    });
   }
 
   /**

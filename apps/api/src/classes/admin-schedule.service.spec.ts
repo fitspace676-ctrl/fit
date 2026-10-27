@@ -4,6 +4,7 @@ import { BookingStatus, InstanceStatus, Prisma, SubscriptionStatus } from '@fit/
 import type { AdminScheduleQuery } from '@fit/types';
 import { AdminScheduleService } from './admin-schedule.service';
 import type { ClassOccupancyPublisher } from './class-occupancy.publisher';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { CreditPacksService } from '../billing/credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -12,6 +13,13 @@ import type { TenantContext } from '../common/tenant/tenant.context';
 function occupancyStub() {
   return {
     publish: vi.fn<(classInstanceId: string) => Promise<void>>().mockResolvedValue(undefined),
+  };
+}
+
+/** A no-op automation executor (T12.5); `dispatchForGym` is asserted on directly. */
+function automationStub() {
+  return {
+    dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
   };
 }
 
@@ -92,6 +100,7 @@ function setup(findManyResult: ScheduleRow[] = []) {
       creditPacks,
       tenantCtx,
       occupancy as unknown as ClassOccupancyPublisher,
+      automationStub() as unknown as AutomationExecutorService,
     ),
     findMany,
   };
@@ -276,13 +285,16 @@ function setupDetail() {
   >(() => Promise.resolve(null));
   const creditPacks = { refundCredit, chargeSeatCredit } as unknown as CreditPacksService;
   const occupancy = occupancyStub();
+  const automation = automationStub();
   return {
     service: new AdminScheduleService(
       prisma,
       creditPacks,
       tenantCtx,
       occupancy as unknown as ClassOccupancyPublisher,
+      automation as unknown as AutomationExecutorService,
     ),
+    automation,
     classInstance,
     booking,
     gymMember,
@@ -521,6 +533,11 @@ describe('AdminScheduleService.promoteWaitlistEntry', () => {
     expect(detail.bookedCount).toBe(6);
     // The added seat is pushed to the live occupancy stream (T8.10).
     expect(ctx.occupancy.publish).toHaveBeenCalledWith('ci-1');
+    // ...and the promoted member's seat fires `class_booked` (T12.5).
+    expect(ctx.automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'class_booked', {
+      entityId: 'wl-1',
+      entityType: 'booking',
+    });
   });
 
   it('still promotes a member with no credits left (best-effort charge is a no-op)', async () => {
@@ -631,6 +648,8 @@ describe('AdminScheduleService.bookMemberOntoClass', () => {
     ctx.classInstance.findFirst
       // tx: load the occurrence (SCHEDULED, room to spare)
       .mockResolvedValueOnce(scheduledInstance({ bookedCount: 4 }))
+      // tx: post-increment re-read (class not yet full)
+      .mockResolvedValueOnce({ bookedCount: 5 })
       // getInstanceDetail re-read after the booking
       .mockResolvedValueOnce(row({ bookedCount: 5 }));
     ctx.booking.findFirst.mockResolvedValueOnce(null); // no live booking yet
@@ -667,6 +686,33 @@ describe('AdminScheduleService.bookMemberOntoClass', () => {
     expect(detail.bookedCount).toBe(5);
     // The front-desk booking is pushed to the live occupancy stream (T8.10).
     expect(ctx.occupancy.publish).toHaveBeenCalledWith('ci-1');
+    // A held seat fires `class_booked` (T12.5); the class still has room.
+    expect(ctx.automation.dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(ctx.automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'class_booked', {
+      entityId: 'bk-new',
+      entityType: 'booking',
+    });
+  });
+
+  it('fires class_full when the desk booking takes the last seat', async () => {
+    const ctx = setupDetail();
+    ctx.classInstance.findFirst
+      .mockResolvedValueOnce(scheduledInstance({ bookedCount: 11 }))
+      .mockResolvedValueOnce({ bookedCount: 12 }) // this booking filled the class
+      .mockResolvedValueOnce(row({ bookedCount: 12 }));
+    ctx.booking.findFirst.mockResolvedValueOnce(null);
+    ctx.classInstance.updateMany.mockResolvedValueOnce({ count: 1 });
+
+    await ctx.service.bookMemberOntoClass('ci-1', 'gm-1');
+
+    expect(ctx.automation.dispatchForGym.mock.calls.map((c) => c[1])).toEqual([
+      'class_booked',
+      'class_full',
+    ]);
+    expect(ctx.automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'class_full', {
+      entityId: 'bk-new',
+      entityType: 'booking',
+    });
   });
 
   it('waitlists the member at the tail when the occurrence is full', async () => {
@@ -690,6 +736,8 @@ describe('AdminScheduleService.bookMemberOntoClass', () => {
       waitlistPosition: 3,
       creditPackId: null,
     });
+    // A waitlist entry is not a booking yet: no automation trigger fires.
+    expect(ctx.automation.dispatchForGym).not.toHaveBeenCalled();
   });
 
   it('maps a partial-unique race on insert to a 409 ALREADY_BOOKED', async () => {
@@ -709,5 +757,7 @@ describe('AdminScheduleService.bookMemberOntoClass', () => {
     await expect(ctx.service.bookMemberOntoClass('ci-1', 'gm-1')).rejects.toBeInstanceOf(
       ConflictException,
     );
+    // A rolled-back booking fires nothing.
+    expect(ctx.automation.dispatchForGym).not.toHaveBeenCalled();
   });
 });

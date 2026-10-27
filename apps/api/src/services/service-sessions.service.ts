@@ -5,7 +5,14 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { InvoiceStatus, InvoiceType, Prisma, ServiceSessionStatus, ServiceStatus } from '@fit/db';
+import {
+  AutomationTriggerType,
+  InvoiceStatus,
+  InvoiceType,
+  Prisma,
+  ServiceSessionStatus,
+  ServiceStatus,
+} from '@fit/db';
 import type {
   AdminServiceSession,
   AdminServiceSessionsResponse,
@@ -18,6 +25,7 @@ import type {
   MemberServiceSession,
   ServiceSlot,
 } from '@fit/types';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { InvoiceService } from '../billing/invoice.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -78,6 +86,7 @@ export class ServiceSessionsService {
     private readonly base: PrismaService,
     private readonly tenant: TenantContext,
     private readonly invoices: InvoiceService,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   // ── Admin ────────────────────────────────────────────────────────────────
@@ -163,7 +172,7 @@ export class ServiceSessionsService {
   ): Promise<AdminServiceSession> {
     const existing = await this.prisma.client.serviceSession.findFirst({
       where: { id },
-      select: { status: true },
+      select: { status: true, memberId: true },
     });
     if (!existing) throw this.notFound();
     if (!from.includes(existing.status)) {
@@ -177,7 +186,23 @@ export class ServiceSessionsService {
       data: { status: to },
       select: { id: true },
     });
+    // Cancelling a slot a member had booked tells automation (T12.5); an empty
+    // OPEN slot has no one to notify.
+    if (to === ServiceSessionStatus.CANCELLED && existing.memberId) {
+      this.dispatch(AutomationTriggerType.pt_session_cancelled, id);
+    }
     return this.getAdmin(id);
+  }
+
+  /**
+   * Fire a session-scoped automation trigger. Not awaited: the executor swallows
+   * its own errors, so automation can never block or fail the session flow.
+   */
+  private dispatch(triggerType: AutomationTriggerType, sessionId: string): void {
+    void this.automation.dispatchForGym(this.tenant.gymId, triggerType, {
+      entityId: sessionId,
+      entityType: 'service_session',
+    });
   }
 
   private async getAdmin(id: string): Promise<AdminServiceSession> {
@@ -290,6 +315,10 @@ export class ServiceSessionsService {
         select: { id: true },
       });
     });
+
+    // The slot now belongs to a member — the `pt_session_booked` automation
+    // trigger (T12.5), fired best-effort after the claim commits.
+    this.dispatch(AutomationTriggerType.pt_session_booked, id);
 
     const row = await this.prisma.client.serviceSession.findFirst({
       where: { id },

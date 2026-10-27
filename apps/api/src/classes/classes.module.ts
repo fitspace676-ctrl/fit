@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { BillingModule } from '../billing/billing.module';
 import { PortalBranchModule } from '../common/portal-branch.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -65,9 +66,13 @@ import { PtSessionsService } from './pt-sessions.service';
  * {@link NotificationService} dispatch seam (from the imported
  * {@link NotificationsModule}). Prisma + Redis come from their global modules; the
  * cron runs off the app-wide `ScheduleModule`.
+ *
+ * Imports {@link AutomationModule} for its exported executor so booking,
+ * cancellation, a full class and recorded attendance fire their automation
+ * triggers (T12.5) fire-and-forget.
  */
 @Module({
-  imports: [BillingModule, NotificationsModule, PortalBranchModule],
+  imports: [AutomationModule, BillingModule, NotificationsModule, PortalBranchModule],
   controllers: [
     ClassesController,
     AdminClassTemplatesController,

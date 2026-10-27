@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { InvoiceModule } from '../billing/invoice.module';
 import { PortalBranchModule } from '../common/portal-branch.module';
 import { GymsModule } from '../gyms/gyms.module';
@@ -19,10 +20,11 @@ import { ServiceSessionsService } from './service-sessions.service';
  * `GymLocaleService` so a new service is priced in the gym's own currency. Guards,
  * tenant context and the scoped Prisma client come from the app-wide modules.
  * `ServicesController` is the public, `gymId`-scoped catalogue the member portal
- * reads (see `services.service.ts`).
+ * reads (see `services.service.ts`). `AutomationModule` lets a booked or
+ * cancelled session fire its automation trigger (T12.5).
  */
 @Module({
-  imports: [GymsModule, InvoiceModule, PortalBranchModule],
+  imports: [AutomationModule, GymsModule, InvoiceModule, PortalBranchModule],
   controllers: [
     AdminServicesController,
     ServicesController,
