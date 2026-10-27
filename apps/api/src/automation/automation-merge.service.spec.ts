@@ -24,6 +24,10 @@ function memberRow(over?: {
   return {
     id: 'gm-1',
     status: 'ACTIVE',
+    gender: 'FEMALE',
+    tags: ['vip'],
+    location: { name: 'Main', address: 'Street 1', phone: '123' },
+    checkIns: [{ checkedInAt: new Date('2026-07-01T00:00:00Z') }],
     joinedAt: new Date('2026-01-15T00:00:00.000Z'),
     dateOfBirth: new Date('1994-03-02T00:00:00.000Z'),
     user: {
@@ -58,6 +62,7 @@ const BRAND = {
 
 function setup(overrides?: {
   member?: unknown;
+  entities?: Record<string, unknown>;
   subscription?: unknown;
   gym?: unknown;
   ledger?: { balanceAfter: number } | null;
@@ -77,8 +82,23 @@ function setup(overrides?: {
     Promise.resolve(overrides?.gym === undefined ? { name: 'Iron Gym' } : overrides.gym),
   );
 
+  const entityMocks = Object.fromEntries(
+    ['booking', 'invoice', 'order', 'serviceSession', 'classInstance', 'service'].map((model) => [
+      model,
+      {
+        findFirst: vi
+          .fn()
+          .mockImplementation(({ where }: { where: Record<string, unknown> }) =>
+            Promise.resolve(
+              where.gymId === 'gym-1' ? (overrides?.entities?.[model] ?? null) : null,
+            ),
+          ),
+      },
+    ]),
+  );
   const prisma = {
     client: {
+      ...entityMocks,
       gymMember: { findFirst: memberFindFirst },
       subscription: { findFirst: subscriptionFindFirst },
       gym: { findFirst: gymFindFirst },
@@ -88,6 +108,7 @@ function setup(overrides?: {
 
   return {
     service: new AutomationMergeService(prisma),
+    entityMocks,
     memberFindFirst,
     subscriptionFindFirst,
     gymFindFirst,
@@ -253,7 +274,7 @@ describe('AutomationMergeService.resolve', () => {
 
     const ahead = setup({ member: memberRow({ subscriptions: sub(soon) }) });
     const lapsed = setup({ member: memberRow({ subscriptions: sub(past) }) });
-    const ctx = { entityId: 'gm-1', entityType: 'member' };
+    const ctx = { entityId: 'gm-1', entityType: 'member' } as const;
 
     expect(
       (await ahead.service.resolve('gym-1', ctx, BRAND))?.values.member_days_until_expiry,
@@ -310,5 +331,121 @@ describe('AutomationMergeService.brand', () => {
     expect(brand.name).toBe('');
     expect(brand.business.phone).toBeNull();
     expect(brand.currency).toBe('GEL');
+  });
+});
+
+describe('AutomationMergeService entity contexts', () => {
+  const entities = {
+    booking: { memberId: 'gm-1', classInstanceId: 'class-1' },
+    classInstance: {
+      startsAt: new Date('2026-07-08T14:30:00Z'),
+      classType: { name: 'Yoga' },
+      template: null,
+      trainer: { name: 'Coach' },
+      location: { name: 'Main' },
+    },
+    invoice: {
+      memberId: 'gm-1',
+      number: 'INV-42',
+      amount: 12000,
+      currency: 'GEL',
+      issuedAt: new Date('2026-07-08'),
+    },
+    order: {
+      memberId: 'gm-1',
+      total: 24000,
+      currency: 'GEL',
+      items: [{ label: 'Bottle', qty: 2 }],
+    },
+    serviceSession: {
+      memberId: 'gm-1',
+      startsAt: new Date('2026-07-08T15:30:00Z'),
+      staffId: 'staff-1',
+      serviceId: 'service-1',
+    },
+    service: { name: 'Personal training' },
+  };
+  it.each([
+    [
+      'booking',
+      {
+        class_name: 'Yoga',
+        class_date: '2026-07-08',
+        class_time: '14:30',
+        class_trainer_name: 'Coach',
+        class_location: 'Main',
+      },
+    ],
+    ['invoice', { invoice_number: 'INV-42', invoice_date: '2026-07-08' }],
+    ['order', { order_items: 'Bottle × 2' }],
+    [
+      'service_session',
+      {
+        session_name: 'Personal training',
+        session_date: '2026-07-08',
+        session_time: '15:30',
+        session_trainer_name: 'Nino Beridze',
+      },
+    ],
+  ] as const)('resolves %s tokens', async (entityType, expected) => {
+    const { service, entityMocks } = setup({ entities });
+    const result = await service.resolve('gym-1', { entityId: 'entity-1', entityType }, BRAND);
+    expect(result).toMatchObject({
+      memberId: 'gm-1',
+      recipient: 'nino@example.com',
+      values: expected,
+    });
+    expect(result?.values).toMatchObject({
+      member_gender: 'FEMALE',
+      member_tags: 'vip',
+      member_branch_name: 'Main',
+      member_branch_address: 'Street 1',
+      member_branch_phone: '123',
+      member_last_checkin_date: '2026-07-01',
+    });
+    if (entityType === 'invoice') expect(result?.values.invoice_amount).toContain('120');
+    if (entityType === 'order') expect(result?.values.order_total).toContain('240');
+    for (const delegate of Object.values(entityMocks)) {
+      for (const [args] of delegate.findFirst.mock.calls)
+        expect((args as { where: { gymId: string } }).where.gymId).toBe('gym-1');
+    }
+  });
+  it.each(['booking', 'invoice', 'order', 'service_session'] as const)(
+    'rejects another gym’s %s id',
+    async (entityType) => {
+      const { service, memberFindFirst } = setup({ entities });
+      expect(
+        await service.resolve('gym-2', { entityId: 'entity-1', entityType }, BRAND),
+      ).toBeNull();
+      expect(memberFindFirst).not.toHaveBeenCalled();
+    },
+  );
+  it('uses the triggering subscription even after it expires', async () => {
+    const { service } = setup({
+      member: memberRow({ subscriptions: [] }),
+      subscription: {
+        memberId: 'gm-1',
+        currentPeriodEnd: new Date('2026-07-01'),
+        currentPeriodStart: new Date('2026-06-01'),
+        frozenUntil: null,
+        priceAmount: 15000,
+        currency: 'GEL',
+        status: 'EXPIRED',
+        plan: { name: 'Expired Gold' },
+      },
+    });
+    const result = await service.resolve(
+      'gym-1',
+      { entityId: 'expired-sub', entityType: 'subscription' },
+      BRAND,
+    );
+    expect(result?.values).toMatchObject({
+      member_subscription_status: 'EXPIRED',
+      member_plan_name: 'Expired Gold',
+      member_period_start: '2026-06-01',
+      member_expiry_date: '2026-07-01',
+      member_frozen_until: '',
+    });
+    expect(result?.values.member_plan_price).toContain('150');
   });
 });

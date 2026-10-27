@@ -56,7 +56,7 @@ export class AutomationController {
   @Get('catalog')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.AutomationRead)
-  catalog(): AutomationCatalogResponse {
+  catalog(): Promise<AutomationCatalogResponse> {
     return this.automation.catalog();
   }
 

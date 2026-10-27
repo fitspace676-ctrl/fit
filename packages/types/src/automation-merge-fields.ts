@@ -1,93 +1,217 @@
-/**
- * The merge fields an automation rule's message can carry (T12.5, phase B).
- *
- * One catalogue, three consumers: the rule editor renders its chips from it, the
- * Settings screen renders a toggle per entry, and the executor's resolver fills
- * every token in it. Keeping them on one list is what makes the promise behind
- * this file enforceable — a chip a gym can insert is a chip the send will expand.
- *
- * Two rules govern what belongs here:
- *
- * 1. **Every field must be fillable.** A token the executor cannot resolve is not
- *    a feature, it is a blank the member notices. The `class_*` group that used to
- *    sit in the editor is gone for exactly this reason: the only triggers that
- *    ever dispatch are `member_joined` and `membership_expiring`, neither of which
- *    has a class, so those chips could never have produced anything.
- * 2. **Retiring a field does not un-know its token.** See
- *    {@link RETIRED_MERGE_TOKENS}.
- */
+import {
+  AUTOMATION_TRIGGER_CATALOG,
+  type AutomationEntityType,
+  type AutomationTriggerType,
+} from './automation';
 
-/** The catalogue's grouping, in the order the editor and Settings show them. */
-export const AUTOMATION_MERGE_GROUPS = ['member', 'membership', 'business'] as const;
-
-/** One merge-field group — a member of {@link AUTOMATION_MERGE_GROUPS}. */
+export const AUTOMATION_MERGE_GROUPS = [
+  'member',
+  'membership',
+  'class',
+  'session',
+  'invoice',
+  'order',
+  'business',
+] as const;
 export type AutomationMergeGroup = (typeof AUTOMATION_MERGE_GROUPS)[number];
-
-/** One insertable merge field. */
 export interface AutomationMergeField {
-  /** Stable key — the settings toggle and the i18n label both hang off this. */
   key: string;
-  /** The token as it appears in a message body, braces included. */
   token: string;
-  /** Which section of the picker it sits in. */
   group: AutomationMergeGroup;
+  contexts: readonly AutomationEntityType[];
 }
-
-/**
- * Every merge field a rule may insert.
- *
- * Token spellings are preserved across the phase-B rewrite even where the label
- * changed (`{{payment_amount}}` is the membership price, `{{member_plan_name}}`
- * the plan) so that rule bodies gyms have already saved keep working.
- */
-export const AUTOMATION_MERGE_FIELDS: readonly AutomationMergeField[] = [
-  // -- The person --
-  { key: 'memberFirstName', token: '{{member_first_name}}', group: 'member' },
-  { key: 'memberLastName', token: '{{member_last_name}}', group: 'member' },
-  { key: 'memberFullName', token: '{{member_full_name}}', group: 'member' },
-  { key: 'memberEmail', token: '{{member_email}}', group: 'member' },
-  { key: 'memberPhone', token: '{{member_phone}}', group: 'member' },
-  { key: 'memberStatus', token: '{{member_status}}', group: 'member' },
-  { key: 'memberJoinDate', token: '{{member_join_date}}', group: 'member' },
-  { key: 'memberBirthday', token: '{{member_birthday}}', group: 'member' },
-  { key: 'memberCheckinCount', token: '{{member_checkin_count}}', group: 'member' },
-  { key: 'memberPointsBalance', token: '{{member_points_balance}}', group: 'member' },
-  // -- Their membership --
-  { key: 'membershipPlanName', token: '{{member_plan_name}}', group: 'membership' },
-  { key: 'membershipExpiryDate', token: '{{member_expiry_date}}', group: 'membership' },
-  { key: 'membershipDaysLeft', token: '{{member_days_until_expiry}}', group: 'membership' },
-  { key: 'membershipPrice', token: '{{payment_amount}}', group: 'membership' },
-  { key: 'membershipRenewalDate', token: '{{payment_due_date}}', group: 'membership' },
-  // -- The gym --
-  { key: 'businessName', token: '{{business_name}}', group: 'business' },
-  { key: 'businessPhone', token: '{{business_phone}}', group: 'business' },
-  { key: 'businessAddress', token: '{{business_address}}', group: 'business' },
-  { key: 'businessEmail', token: '{{business_email}}', group: 'business' },
-  { key: 'businessWebsite', token: '{{business_website}}', group: 'business' },
+const ALL_CONTEXTS: readonly AutomationEntityType[] = [
+  'member',
+  'subscription',
+  'booking',
+  'invoice',
+  'order',
+  'service_session',
 ];
 
-/**
- * Tokens the editor no longer offers but that saved rule bodies may still contain.
- *
- * They stay *known* so {@link interpolateMergeFields} blanks them on send. Drop a
- * token from this list and a rule written before it was retired starts delivering
- * literal `{{class_name}}` to a member — the one outcome the blanking pass exists
- * to prevent. Additions here are permanent; this list only ever grows.
- */
+export const AUTOMATION_MERGE_FIELDS: readonly AutomationMergeField[] = [
+  // -- The person --
+  {
+    key: 'memberFirstName',
+    token: '{{member_first_name}}',
+    group: 'member',
+    contexts: ALL_CONTEXTS,
+  },
+  { key: 'memberLastName', token: '{{member_last_name}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberFullName', token: '{{member_full_name}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberEmail', token: '{{member_email}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberPhone', token: '{{member_phone}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberStatus', token: '{{member_status}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberJoinDate', token: '{{member_join_date}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberBirthday', token: '{{member_birthday}}', group: 'member', contexts: ALL_CONTEXTS },
+  {
+    key: 'memberCheckinCount',
+    token: '{{member_checkin_count}}',
+    group: 'member',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberPointsBalance',
+    token: '{{member_points_balance}}',
+    group: 'member',
+    contexts: ALL_CONTEXTS,
+  },
+  // -- Their membership --
+  {
+    key: 'membershipPlanName',
+    token: '{{member_plan_name}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'membershipExpiryDate',
+    token: '{{member_expiry_date}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'membershipDaysLeft',
+    token: '{{member_days_until_expiry}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'membershipPrice',
+    token: '{{payment_amount}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'membershipRenewalDate',
+    token: '{{payment_due_date}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  // -- The gym --
+  { key: 'businessName', token: '{{business_name}}', group: 'business', contexts: ALL_CONTEXTS },
+  { key: 'businessPhone', token: '{{business_phone}}', group: 'business', contexts: ALL_CONTEXTS },
+  {
+    key: 'businessAddress',
+    token: '{{business_address}}',
+    group: 'business',
+    contexts: ALL_CONTEXTS,
+  },
+  { key: 'businessEmail', token: '{{business_email}}', group: 'business', contexts: ALL_CONTEXTS },
+  {
+    key: 'businessWebsite',
+    token: '{{business_website}}',
+    group: 'business',
+    contexts: ALL_CONTEXTS,
+  },
+  { key: 'memberGender', token: '{{member_gender}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberAge', token: '{{member_age}}', group: 'member', contexts: ALL_CONTEXTS },
+  { key: 'memberTags', token: '{{member_tags}}', group: 'member', contexts: ALL_CONTEXTS },
+  {
+    key: 'memberBranchName',
+    token: '{{member_branch_name}}',
+    group: 'member',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberBranchAddress',
+    token: '{{member_branch_address}}',
+    group: 'member',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberBranchPhone',
+    token: '{{member_branch_phone}}',
+    group: 'member',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberLastCheckinDate',
+    token: '{{member_last_checkin_date}}',
+    group: 'member',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberPlanPrice',
+    token: '{{member_plan_price}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberSubscriptionStatus',
+    token: '{{member_subscription_status}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberPeriodStart',
+    token: '{{member_period_start}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  {
+    key: 'memberFrozenUntil',
+    token: '{{member_frozen_until}}',
+    group: 'membership',
+    contexts: ALL_CONTEXTS,
+  },
+  { key: 'className', token: '{{class_name}}', group: 'class', contexts: ['booking'] },
+  { key: 'classDate', token: '{{class_date}}', group: 'class', contexts: ['booking'] },
+  { key: 'classTime', token: '{{class_time}}', group: 'class', contexts: ['booking'] },
+  {
+    key: 'classTrainerName',
+    token: '{{class_trainer_name}}',
+    group: 'class',
+    contexts: ['booking'],
+  },
+  { key: 'classLocation', token: '{{class_location}}', group: 'class', contexts: ['booking'] },
+  { key: 'invoiceNumber', token: '{{invoice_number}}', group: 'invoice', contexts: ['invoice'] },
+  { key: 'invoiceAmount', token: '{{invoice_amount}}', group: 'invoice', contexts: ['invoice'] },
+  { key: 'invoiceDate', token: '{{invoice_date}}', group: 'invoice', contexts: ['invoice'] },
+  { key: 'orderTotal', token: '{{order_total}}', group: 'order', contexts: ['order'] },
+  { key: 'orderItems', token: '{{order_items}}', group: 'order', contexts: ['order'] },
+  {
+    key: 'sessionName',
+    token: '{{session_name}}',
+    group: 'session',
+    contexts: ['service_session'],
+  },
+  {
+    key: 'sessionDate',
+    token: '{{session_date}}',
+    group: 'session',
+    contexts: ['service_session'],
+  },
+  {
+    key: 'sessionTime',
+    token: '{{session_time}}',
+    group: 'session',
+    contexts: ['service_session'],
+  },
+  {
+    key: 'sessionTrainerName',
+    token: '{{session_trainer_name}}',
+    group: 'session',
+    contexts: ['service_session'],
+  },
+];
+
+/** Historical tokens remain known so interpolation blanks missing values. */
 export const RETIRED_MERGE_TOKENS: readonly string[] = [
-  'class_name',
-  'class_date',
-  'class_time',
-  'class_trainer_name',
-  'class_location',
   'member_location',
   'payment_plan_name',
   'payment_invoice_number',
   'business_location_name',
 ];
-
-/** The bare name of every automation token — offered and retired alike. */
 export const AUTOMATION_MERGE_KEYS: readonly string[] = [
   ...AUTOMATION_MERGE_FIELDS.map((field) => field.token.replace(/[{}]/g, '')),
   ...RETIRED_MERGE_TOKENS,
 ];
+
+export function mergeFieldsForTrigger(
+  triggerType: AutomationTriggerType,
+): readonly AutomationMergeField[] {
+  const trigger = AUTOMATION_TRIGGER_CATALOG.find((entry) => entry.value === triggerType);
+  return trigger
+    ? AUTOMATION_MERGE_FIELDS.filter((field) => field.contexts.includes(trigger.entityType))
+    : [];
+}

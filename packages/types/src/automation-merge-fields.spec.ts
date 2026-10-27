@@ -62,3 +62,22 @@ describe('merge tokens and the interpolator', () => {
     expect(AUTOMATION_MERGE_KEYS).toContain('class_name');
   });
 });
+
+import { mergeFieldsForTrigger } from './automation-merge-fields';
+import { AUTOMATION_TRIGGER_CATALOG } from './automation';
+
+describe('contextual merge fields', () => {
+  it('offers class tokens only for booking triggers and common tokens everywhere', () => {
+    expect(mergeFieldsForTrigger('class_booked').map((f) => f.token)).toContain('{{class_name}}');
+    expect(mergeFieldsForTrigger('member_joined').map((f) => f.token)).not.toContain(
+      '{{class_name}}',
+    );
+    for (const trigger of AUTOMATION_TRIGGER_CATALOG) {
+      expect(mergeFieldsForTrigger(trigger.value).map((f) => f.token)).toContain(
+        '{{business_name}}',
+      );
+      expect(mergeFieldsForTrigger(trigger.value).map((f) => f.token)).toContain('{{member_age}}');
+    }
+    expect(mergeFieldsForTrigger('lead_created')).toEqual([]);
+  });
+});

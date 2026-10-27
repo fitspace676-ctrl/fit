@@ -1,3 +1,4 @@
+import { AutomationFactsService } from './automation-facts.service';
 import { Module } from '@nestjs/common';
 import { AutomationController } from './automation.controller';
 import { AutomationExecutorService } from './automation-executor.service';
@@ -22,7 +23,12 @@ import { AutomationService } from './automation.service';
  */
 @Module({
   controllers: [AutomationController],
-  providers: [AutomationService, AutomationExecutorService, AutomationMergeService],
+  providers: [
+    AutomationFactsService,
+    AutomationService,
+    AutomationExecutorService,
+    AutomationMergeService,
+  ],
   exports: [AutomationExecutorService],
 })
 export class AutomationModule {}

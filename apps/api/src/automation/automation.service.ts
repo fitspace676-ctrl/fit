@@ -3,10 +3,14 @@ import { Prisma } from '@fit/db';
 import {
   TRIGGERS_NEEDING_DAYS,
   automationActionConfigSchema,
+  automationConditionsSchema,
+  AUTOMATION_CONDITION_FIELDS,
+  normalizeTimingOffset,
+  parseTimingOffset,
   automationTimingOffsetSchema,
   automationTriggerConfigSchema,
   AUTOMATION_ACTION_CATALOG,
-  AUTOMATION_TIMING_CATALOG,
+  AUTOMATION_TIMING_PRESETS,
   AUTOMATION_TRIGGER_CATALOG,
   type AutomationActionConfig,
   type AutomationCatalogResponse,
@@ -47,6 +51,7 @@ const RULE_SELECT = {
   name: true,
   triggerType: true,
   triggerConfig: true,
+  conditions: true,
   timingOffset: true,
   actionType: true,
   actionConfig: true,
@@ -92,11 +97,34 @@ export class AutomationService {
   ) {}
 
   /** The trigger / action / timing catalogs the builder (T12.6) renders from. */
-  catalog(): AutomationCatalogResponse {
+  async catalog(): Promise<AutomationCatalogResponse> {
+    const gymId = this.tenant.gymId;
+    const [locations, plans, members] = await Promise.all([
+      this.prisma.client.location.findMany({
+        where: { gymId, status: 'ACTIVE' },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.client.subscriptionPlan.findMany({
+        where: { gymId },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.client.gymMember.findMany({
+        where: { gymId, deletedAt: null },
+        select: { tags: true },
+      }),
+    ]);
     return {
       triggers: AUTOMATION_TRIGGER_CATALOG,
       actions: AUTOMATION_ACTION_CATALOG,
-      timings: AUTOMATION_TIMING_CATALOG,
+      timings: AUTOMATION_TIMING_PRESETS,
+      conditionFields: AUTOMATION_CONDITION_FIELDS,
+      conditionOptions: {
+        locations,
+        plans,
+        tags: [...new Set(members.flatMap((member) => member.tags))].sort(),
+      },
     };
   }
 
@@ -172,6 +200,7 @@ export class AutomationService {
    * enforced at the schema boundary; the author is snapshotted from the session.
    */
   async createRule(input: CreateAutomationRuleInput): Promise<GetAutomationRuleResponse> {
+    this.validateTiming(input.triggerType, input.timingOffset);
     const created = await this.prisma.client.automationRule.create({
       data: {
         gymId: this.tenant.gymId,
@@ -179,7 +208,8 @@ export class AutomationService {
         triggerType: input.triggerType,
         triggerConfig:
           input.triggerConfig satisfies AutomationTriggerConfig as Prisma.InputJsonValue,
-        timingOffset: input.timingOffset,
+        timingOffset: normalizeTimingOffset(input.timingOffset),
+        conditions: input.conditions as Prisma.InputJsonValue,
         actionType: input.actionType,
         actionConfig: input.actionConfig satisfies AutomationActionConfig as Prisma.InputJsonValue,
         active: input.active,
@@ -204,6 +234,7 @@ export class AutomationService {
     const existing = await this.requireRule(id);
 
     const nextTrigger = input.triggerType ?? existing.triggerType;
+    this.validateTiming(nextTrigger, input.timingOffset ?? existing.timingOffset);
     const nextConfig =
       input.triggerConfig ?? automationTriggerConfigSchema.parse(existing.triggerConfig ?? {});
     if (TRIGGERS_NEEDING_DAYS.has(nextTrigger) && nextConfig.days === undefined) {
@@ -220,7 +251,12 @@ export class AutomationService {
         ...(input.triggerConfig !== undefined
           ? { triggerConfig: input.triggerConfig as Prisma.InputJsonValue }
           : {}),
-        ...(input.timingOffset !== undefined ? { timingOffset: input.timingOffset } : {}),
+        ...(input.timingOffset !== undefined
+          ? { timingOffset: normalizeTimingOffset(input.timingOffset) }
+          : {}),
+        ...(input.conditions !== undefined
+          ? { conditions: input.conditions as Prisma.InputJsonValue }
+          : {}),
         ...(input.actionType !== undefined ? { actionType: input.actionType } : {}),
         ...(input.actionConfig !== undefined
           ? { actionConfig: input.actionConfig as Prisma.InputJsonValue }
@@ -265,7 +301,8 @@ export class AutomationService {
         name: input.name ?? source.name,
         triggerType: source.triggerType,
         triggerConfig: (source.triggerConfig ?? {}) as Prisma.InputJsonValue,
-        timingOffset: source.timingOffset,
+        timingOffset: normalizeTimingOffset(source.timingOffset),
+        conditions: automationConditionsSchema.safeParse(source.conditions).data ?? [],
         actionType: source.actionType,
         actionConfig: (source.actionConfig ?? {}) as Prisma.InputJsonValue,
         active: false,
@@ -336,13 +373,24 @@ export class AutomationService {
     };
   }
 
+  private validateTiming(triggerType: string, timingOffset: string): void {
+    const trigger = AUTOMATION_TRIGGER_CATALOG.find((entry) => entry.value === triggerType);
+    if (trigger?.kind !== 'scan' && parseTimingOffset(timingOffset).ms < 0) {
+      throw new BadRequestException({
+        code: 'AUTOMATION_TIMING_BEFORE_NOT_ALLOWED',
+        message: 'AUTOMATION_TIMING_BEFORE_NOT_ALLOWED',
+      });
+    }
+  }
+
   private toRuleRow(rule: RuleRecord): AutomationRuleRow {
     return {
       id: rule.id,
       name: rule.name,
       triggerType: rule.triggerType,
       triggerConfig: automationTriggerConfigSchema.parse(rule.triggerConfig ?? {}),
-      timingOffset: parseTimingOffset(rule.timingOffset),
+      timingOffset: readTimingOffset(rule.timingOffset),
+      conditions: automationConditionsSchema.safeParse(rule.conditions).data ?? [],
       actionType: rule.actionType,
       actionConfig: parseActionConfig(rule.actionConfig),
       active: rule.active,
@@ -380,9 +428,9 @@ function toRef(
  * for any legacy/invalid value so a bad row can't crash the list. Writes always
  * go through the zod-validated schema, so this only guards reads.
  */
-function parseTimingOffset(value: string): AutomationTimingOffset {
+function readTimingOffset(value: string): AutomationTimingOffset {
   const parsed = automationTimingOffsetSchema.safeParse(value);
-  return parsed.success ? parsed.data : 'day_of';
+  return parsed.success ? normalizeTimingOffset(parsed.data) : '0d';
 }
 
 /**

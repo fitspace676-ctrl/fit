@@ -37,7 +37,7 @@ describe('createAutomationRuleSchema', () => {
       actionConfig: { body: 'Hi' },
     });
     expect(parsed.active).toBe(true);
-    expect(parsed.timingOffset).toBe('day_of');
+    expect(parsed.timingOffset).toBe('0d');
     expect(parsed.triggerConfig).toEqual({});
   });
 

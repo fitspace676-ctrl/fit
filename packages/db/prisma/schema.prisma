@@ -3361,7 +3361,8 @@ model AutomationRule {
   name          String
   triggerType   AutomationTriggerType
   triggerConfig Json                  @default("{}")
-  timingOffset  String                @default("day_of")
+  timingOffset  String                @default("0d")
+  conditions    Json                  @default("[]")
   actionType    AutomationActionType
   actionConfig  Json                  @default("{}")
   active        Boolean               @default(true)
@@ -3398,12 +3399,14 @@ model AutomationRun {
   entityType  String?
   detail      String                @default("")
   ranAt       DateTime              @default(now())
+  scheduledFor DateTime?
 
   gym  Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
   rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
   // The activity log reads newest-first per gym or per rule; the scanner
   // dedupes same-day reruns by (ruleId, entityId, ranAt).
+  @@index([status, scheduledFor])
   @@index([gymId, ranAt])
   @@index([ruleId, ranAt])
   @@index([ruleId, entityId, ranAt])

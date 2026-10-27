@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AutomationActionType, AutomationTriggerType } from '@fit/db';
+import type { AutomationFactsService } from './automation-facts.service';
+import type { AutomationCondition, AutomationConditionFacts } from '@fit/types';
+import { env } from '../config/env';
 import { AutomationExecutorService } from './automation-executor.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
@@ -19,12 +22,19 @@ interface FireRule {
   triggerType: AutomationTriggerType;
   actionType: AutomationActionType;
   actionConfig: { body: string; subject?: string };
-  triggerConfig?: { days?: number };
+  triggerConfig: { days?: number };
+  name: string;
+  conditions: AutomationCondition[];
+  timingOffset: string;
 }
 
 function activeRule(over: Partial<FireRule> = {}): FireRule {
   return {
     id: 'rule-1',
+    name: 'Rule',
+    conditions: [],
+    timingOffset: '0d',
+    triggerConfig: {},
     triggerType: AutomationTriggerType.member_joined,
     actionType: AutomationActionType.email,
     actionConfig: { body: 'Welcome' },
@@ -34,6 +44,11 @@ function activeRule(over: Partial<FireRule> = {}): FireRule {
 
 function setup(overrides?: {
   ruleFindMany?: unknown[];
+  ruleFindFirst?: unknown;
+  runFindMany?: unknown[];
+  memberFindMany?: unknown[];
+  invoiceFindMany?: unknown[];
+  facts?: AutomationConditionFacts | null;
   runFindFirst?: unknown;
   gymFindMany?: unknown[];
   subFindMany?: unknown[];
@@ -65,9 +80,27 @@ function setup(overrides?: {
     Promise.resolve(overrides?.subFindMany ?? []),
   );
 
+  const ruleFindFirst = vi.fn().mockResolvedValue(overrides?.ruleFindFirst ?? null);
+  const runFindMany = vi.fn().mockResolvedValue(overrides?.runFindMany ?? []);
+  const runUpdate = vi.fn().mockResolvedValue({ count: 1 });
+  const memberFindMany = vi
+    .fn<(args: AnyArgs) => Promise<unknown[]>>()
+    .mockResolvedValue(overrides?.memberFindMany ?? []);
+  const invoiceFindMany = vi
+    .fn<(args: AnyArgs) => Promise<unknown[]>>()
+    .mockResolvedValue(overrides?.invoiceFindMany ?? []);
+  const loadFacts = vi.fn().mockResolvedValue(overrides?.facts ?? null);
+  const factsService = { loadConditionFacts: loadFacts } as unknown as AutomationFactsService;
   const client = {
-    automationRule: { findMany: ruleFindMany },
-    automationRun: { findFirst: runFindFirst, create: runCreate },
+    automationRule: { findMany: ruleFindMany, findFirst: ruleFindFirst },
+    automationRun: {
+      findFirst: runFindFirst,
+      create: runCreate,
+      findMany: runFindMany,
+      updateMany: runUpdate,
+    },
+    gymMember: { findMany: memberFindMany },
+    invoice: { findMany: invoiceFindMany },
     gym: { findMany: gymFindMany },
     subscription: { findMany: subFindMany },
   };
@@ -95,6 +128,7 @@ function setup(overrides?: {
       }),
     ),
     resolve: mergeResolve,
+    resolveMemberId: vi.fn().mockResolvedValue('gm-1'),
   } as unknown as AutomationMergeService;
 
   const mailSend = vi.fn<
@@ -110,7 +144,13 @@ function setup(overrides?: {
   const mailer = { send: mailSend } as unknown as MailerService;
 
   return {
-    service: new AutomationExecutorService(prisma, redis, merge, mailer),
+    service: new AutomationExecutorService(prisma, redis, merge, mailer, factsService),
+    ruleFindFirst,
+    runFindMany,
+    runUpdate,
+    memberFindMany,
+    invoiceFindMany,
+    loadFacts,
     mergeResolve,
     mailSend,
     ruleFindMany,
@@ -122,7 +162,11 @@ function setup(overrides?: {
   };
 }
 
-afterEach(() => vi.restoreAllMocks());
+const executorEnabled = env.AUTOMATION_EXECUTOR_ENABLED;
+afterEach(() => {
+  vi.restoreAllMocks();
+  env.AUTOMATION_EXECUTOR_ENABLED = executorEnabled;
+});
 
 describe('AutomationExecutorService.dispatchForGym', () => {
   it('records a SUCCESS run per active rule on the trigger', async () => {
@@ -345,7 +389,251 @@ describe('AutomationExecutorService — email delivery', () => {
     expect(mailSend).not.toHaveBeenCalled();
     expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
       status: 'SUCCESS',
-      detail: 'SMS is not delivered yet — logged only',
+      detail: 'SMS not delivered yet; message: Welcome',
+    });
+  });
+});
+
+const CONDITION_FACTS: AutomationConditionFacts = {
+  member_age: 30,
+  member_gender: 'FEMALE',
+  member_status: 'ACTIVE',
+  member_kind: 'MEMBER',
+  member_branch: null,
+  member_tags: [],
+  member_joined_days_ago: 10,
+  member_last_checkin_days_ago: 2,
+  member_checkin_count: 5,
+  subscription_plan: null,
+  subscription_status: null,
+  subscription_days_until_expiry: null,
+};
+const adult: AutomationCondition[] = [{ field: 'member_age', operator: 'gte', value: 18 }];
+const NOW = new Date('2026-07-08T12:00:00Z');
+
+describe('conditions and delayed actions', () => {
+  it('skips unmatched or missing condition facts without writing a run', async () => {
+    for (const facts of [null, { ...CONDITION_FACTS, member_age: 17 }]) {
+      const { service, runCreate, mailSend } = setup({ facts });
+      expect(
+        await service.fireRule('gym-1', activeRule({ conditions: adult }), {
+          entityId: 'gm-1',
+          entityType: 'member',
+        }),
+      ).toBe(false);
+      expect(runCreate).not.toHaveBeenCalled();
+      expect(mailSend).not.toHaveBeenCalled();
+    }
+  });
+  it('queues a positive offset after checking facts, without delivering yet', async () => {
+    const { service, runCreate, mailSend, loadFacts } = setup({ facts: CONDITION_FACTS });
+    expect(
+      await service.fireRule('gym-1', activeRule({ conditions: adult, timingOffset: '3h' }), {
+        entityId: 'gm-1',
+        entityType: 'member',
+        now: NOW,
+      }),
+    ).toBe(true);
+    expect(loadFacts).toHaveBeenCalledWith('gym-1', 'gm-1', NOW);
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'QUEUED',
+      scheduledFor: new Date('2026-07-08T15:00:00Z'),
+      detail: 'Scheduled for 2026-07-08T15:00:00.000Z',
+    });
+    expect(mailSend).not.toHaveBeenCalled();
+  });
+  it('does not queue an immediate dispatch', async () => {
+    const { service, runCreate, mailSend } = setup();
+    await service.fireRule('gym-1', activeRule({ timingOffset: '3h' }), { immediate: true });
+    expect(mailSend).toHaveBeenCalledOnce();
+    expect(runCreate.mock.calls[0]?.[0].data?.status).toBe('SUCCESS');
+  });
+  it.each(['sms', 'push_notification', 'create_task'] as const)(
+    'interpolates the %s log message',
+    async (actionType) => {
+      const { service, runCreate, mailSend } = setup();
+      await service.fireRule(
+        'gym-1',
+        activeRule({
+          actionType,
+          actionConfig: {
+            subject: '{{member_first_name}}',
+            body: 'Hi {{member_first_name}} {{class_name}}',
+          },
+        }),
+      );
+      expect(runCreate.mock.calls[0]?.[0].data?.detail).toContain(
+        'not delivered yet; message: Hi Nino ',
+      );
+      expect(mailSend).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    [
+      'SUCCESS',
+      activeRule({ conditions: adult, timingOffset: '3h' }),
+      CONDITION_FACTS,
+      'Emailed nino@example.com',
+    ],
+    ['SKIPPED', null, CONDITION_FACTS, 'Rule inactive'],
+    [
+      'SKIPPED',
+      activeRule({ conditions: adult }),
+      { ...CONDITION_FACTS, member_age: 17 },
+      'Conditions no longer met',
+    ],
+  ] as const)('processes due rows as %s', async (status, rule, facts, detail) => {
+    env.AUTOMATION_EXECUTOR_ENABLED = true;
+    const { service, runFindMany, ruleFindFirst, runUpdate, runCreate, mailSend } = setup({
+      ruleFindFirst: rule,
+      facts,
+      runFindMany: [
+        { id: 'run-1', gymId: 'gym-1', ruleId: 'rule-1', entityId: 'gm-1', entityType: 'member' },
+      ],
+    });
+    await service.runDueQueued(NOW);
+    expect(runFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: 'QUEUED', scheduledFor: { lte: NOW } },
+        take: 200,
+      }),
+    );
+    expect(ruleFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'rule-1', gymId: 'gym-1', active: true, isTemplate: false },
+      }),
+    );
+    expect(runUpdate).toHaveBeenCalledWith({
+      where: { id: 'run-1', gymId: 'gym-1', status: 'QUEUED' },
+      data: { status, detail, ranAt: NOW },
+    });
+    expect(runCreate).not.toHaveBeenCalled();
+    expect(mailSend).toHaveBeenCalledTimes(status === 'SUCCESS' ? 1 : 0);
+  });
+  it('does not process due rows without the separate Redis lock', async () => {
+    env.AUTOMATION_EXECUTOR_ENABLED = true;
+    const { service, redisSet, runFindMany } = setup();
+    redisSet.mockResolvedValueOnce(null as never);
+    await service.runDueQueued(NOW);
+    expect(redisSet).toHaveBeenCalledWith('automation:queued:lock', '1', 'EX', 600, 'NX');
+    expect(runFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('date scanners', () => {
+  it('adds timing to the expiry lookahead and delivers scans immediately', async () => {
+    const { service, subFindMany, runCreate } = setup({
+      gymFindMany: [{ id: 'gym-1' }],
+      ruleFindMany: [
+        activeRule({
+          triggerType: 'membership_expiring',
+          triggerConfig: { days: 7 },
+          timingOffset: '48h',
+        }),
+      ],
+      subFindMany: [{ id: 'sub-1' }],
+    });
+    const result = await service.scanMembershipExpiring({ now: NOW });
+    expect(result.runsRecorded).toBe(1);
+    expect(subFindMany.mock.calls[0]?.[0].where).toMatchObject({
+      gymId: 'gym-1',
+      currentPeriodEnd: { gte: new Date('2026-07-17'), lt: new Date('2026-07-18') },
+    });
+    expect(runCreate.mock.calls[0]?.[0].data?.status).toBe('SUCCESS');
+  });
+  it('counts condition skips separately from dedupe skips', async () => {
+    const { service, runCreate } = setup({
+      gymFindMany: [{ id: 'gym-1' }],
+      ruleFindMany: [
+        activeRule({
+          triggerType: 'membership_expiring',
+          triggerConfig: { days: 7 },
+          conditions: adult,
+        }),
+      ],
+      subFindMany: [{ id: 'sub-1' }],
+      facts: null,
+    });
+    expect(await service.scanMembershipExpiring({ now: NOW })).toMatchObject({
+      conditionsSkipped: 1,
+      runsSkipped: 0,
+      runsRecorded: 0,
+    });
+    expect(runCreate).not.toHaveBeenCalled();
+  });
+  it('matches birthday month/day across a year boundary', async () => {
+    const { service, memberFindMany, runCreate } = setup({
+      gymFindMany: [{ id: 'gym-1' }],
+      ruleFindMany: [activeRule({ triggerType: 'birthday', timingOffset: '1d' })],
+      memberFindMany: [
+        { id: 'match', dateOfBirth: new Date('1990-01-01') },
+        { id: 'other', dateOfBirth: new Date('1990-01-02') },
+      ],
+    });
+    expect(
+      (await service.scanBirthdays({ now: new Date('2026-12-31T12:00:00Z') })).runsRecorded,
+    ).toBe(1);
+    expect(memberFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { gymId: 'gym-1', status: 'ACTIVE', deletedAt: null, dateOfBirth: { not: null } },
+      }),
+    );
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      entityId: 'match',
+      entityType: 'member',
+    });
+  });
+  it('uses the latest check-in day or joinedAt for members without check-ins', async () => {
+    const { service, memberFindMany } = setup({
+      gymFindMany: [{ id: 'gym-1' }],
+      ruleFindMany: [
+        activeRule({ triggerType: 'no_checkin', triggerConfig: { days: 7 }, timingOffset: '1d' }),
+      ],
+      memberFindMany: [{ id: 'gm-1' }],
+    });
+    expect((await service.scanNoCheckin({ now: NOW })).runsRecorded).toBe(1);
+    const window = { gte: new Date('2026-06-30'), lt: new Date('2026-07-01') };
+    expect(memberFindMany.mock.calls[0]?.[0].where).toEqual({
+      gymId: 'gym-1',
+      status: 'ACTIVE',
+      deletedAt: null,
+      OR: [
+        {
+          checkIns: {
+            some: { gymId: 'gym-1', checkedInAt: window },
+            none: { gymId: 'gym-1', checkedInAt: { gte: window.lt } },
+          },
+        },
+        { checkIns: { none: { gymId: 'gym-1' } }, joinedAt: window },
+      ],
+    });
+  });
+  it('scans expired subscriptions and unpaid invoices by their date windows', async () => {
+    const expired = setup({
+      gymFindMany: [{ id: 'gym-1' }],
+      ruleFindMany: [activeRule({ triggerType: 'membership_expired', timingOffset: '-1d' })],
+      subFindMany: [{ id: 'sub-1' }],
+    });
+    await expired.service.scanMembershipExpired({ now: NOW });
+    expect(expired.subFindMany.mock.calls[0]?.[0].where).toMatchObject({
+      gymId: 'gym-1',
+      status: 'EXPIRED',
+      currentPeriodEnd: { gte: new Date('2026-07-07'), lt: new Date('2026-07-08') },
+    });
+    const invoices = setup({
+      gymFindMany: [{ id: 'gym-1' }],
+      ruleFindMany: [activeRule({ triggerType: 'invoice_overdue' })],
+      invoiceFindMany: [{ id: 'inv-1' }],
+    });
+    await invoices.service.scanInvoiceOverdue({ now: NOW });
+    expect(invoices.invoiceFindMany.mock.calls[0]?.[0].where).toEqual({
+      gymId: 'gym-1',
+      status: { in: ['PENDING', 'FAILED'] },
+      dueDate: { gte: new Date('2026-07-08'), lt: new Date('2026-07-09') },
+    });
+    expect(invoices.runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      entityType: 'invoice',
+      entityId: 'inv-1',
     });
   });
 });
