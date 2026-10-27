@@ -7,6 +7,8 @@
 /** A tool call surfaced in the transcript — one MCP invocation (Phase 3). */
 export interface AgentToolCall {
   id: string;
+  /** Length of preceding assistant text when this call first appeared. */
+  textOffset?: number;
   name: string;
   status:
     | 'pending'
@@ -52,7 +54,7 @@ export interface AgentMessage {
 /** One NDJSON event streamed back from the agent endpoint. */
 export type AgentStreamEvent =
   | { t: 'delta'; v: string }
-  | ({ t: 'tool' } & Omit<AgentToolCall, 'decision'>)
+  | ({ t: 'tool' } & Omit<AgentToolCall, 'decision' | 'textOffset'>)
   | { t: 'error'; message: string; code?: string }
   | { t: 'done' };
 
