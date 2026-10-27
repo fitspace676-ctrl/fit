@@ -181,6 +181,45 @@ describe('localized tool titles', () => {
   });
 });
 
+describe('open_toolbox summary', () => {
+  const toolCatalog = {
+    domains: [
+      {
+        id: 'members',
+        title: 'Members & check-in',
+        titleKa: 'წევრები და ჩექინი',
+        description: 'Members',
+        tools: ['delete_member'],
+      },
+      { id: 'misc', title: 'Misc', description: 'Misc', tools: ['mystery_tool'] },
+    ],
+    core: ['list_members'],
+  };
+  const openCall: AgentToolCall = {
+    id: 'o1',
+    name: 'open_toolbox',
+    input: { domains: ['members', 'misc'] },
+  };
+  const summary = (events: AgentStreamEvent[]) =>
+    toolEvents(events).find((e) => e.name === 'open_toolbox' && e.status === 'complete');
+
+  it('names opened domains in Georgian for ka, falling back to the English title', async () => {
+    const { events } = await run([{ text: '', toolCalls: [openCall] }], {
+      toolCatalog,
+      context: contextIn('ka'),
+    });
+    expect(summary(events)).toMatchObject({ resultSummary: 'წევრები და ჩექინი, Misc' });
+  });
+
+  it('names opened domains in English for en', async () => {
+    const { events } = await run([{ text: '', toolCalls: [openCall] }], {
+      toolCatalog,
+      context: contextIn('en'),
+    });
+    expect(summary(events)).toMatchObject({ resultSummary: 'Members & check-in, Misc' });
+  });
+});
+
 describe('runAgentLoop', () => {
   it('runs a read round and reports kind, title, duration and a summary', async () => {
     const { events, callTool } = await run([{ text: '', toolCalls: [readCall] }]);

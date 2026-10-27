@@ -10,7 +10,7 @@ export const auditTools = defineTools('insights', [
     title: 'List audit logs',
     titleKa: 'აუდიტის ჟურნალი',
     description:
-      "List this gym's audit trail of privileged staff actions, newest first and filterable by date: action, who did it, who it affected and when. Use for 'who changed this' questions.",
+      'List the audit trail of privileged staff actions, newest first, filterable by date: action, actor, target, time. Use for who changed this; member check-ins, bookings and payments are list_activity.',
     method: 'get',
     path: '/audit-logs',
     query: listAuditLogQuerySchema,

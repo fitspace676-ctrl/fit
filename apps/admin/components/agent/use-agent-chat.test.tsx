@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useAgentChat } from './use-agent-chat';
+import { messageParts } from './chat-state';
 
 vi.mock('next-intl', () => ({
   useLocale: () => 'ka',
@@ -24,7 +25,9 @@ describe('useAgentChat', () => {
   it('waits for all decisions, blocks sends, and continues the same turn with identical history', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(response(pending('1'), pending('2'), { t: 'done' }))
+      .mockResolvedValueOnce(
+        response({ t: 'delta', v: 'Before tools. ' }, pending('1'), pending('2'), { t: 'done' }),
+      )
       .mockResolvedValueOnce(
         response(
           { t: 'tool', id: '1', name: 'update', status: 'complete' },
@@ -69,7 +72,21 @@ describe('useAgentChat', () => {
       },
     ]);
     expect(result.current.messages).toHaveLength(2);
-    expect(result.current.messages[1]).toMatchObject({ id: assistantId, content: 'Finished' });
+    expect(result.current.messages[1]).toMatchObject({
+      id: assistantId,
+      content: 'Before tools. Finished',
+    });
+    expect(messageParts(result.current.messages[1]!)).toMatchObject([
+      { kind: 'text', text: 'Before tools. ' },
+      {
+        kind: 'tools',
+        calls: [
+          { id: '1', status: 'complete' },
+          { id: '2', status: 'rejected' },
+        ],
+      },
+      { kind: 'text', text: 'Finished' },
+    ]);
     expect(result.current.pendingApprovals).toHaveLength(0);
   });
 

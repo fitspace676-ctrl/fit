@@ -728,6 +728,20 @@
     "controller": "gyms/gym-settings.controller.ts"
   },
   {
+    "name": "get_mobile_app_settings",
+    "method": "get",
+    "path": "/gyms/app-settings",
+    "activePath": null,
+    "controller": "gyms/mobile-app-settings.controller.ts"
+  },
+  {
+    "name": "update_mobile_app_settings",
+    "method": "patch",
+    "path": "/gyms/app-settings",
+    "activePath": null,
+    "controller": "gyms/mobile-app-settings.controller.ts"
+  },
+  {
     "name": "automation_catalog",
     "method": "get",
     "path": "/automation/catalog",

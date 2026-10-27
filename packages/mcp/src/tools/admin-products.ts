@@ -100,7 +100,7 @@ export const adminProductsTools = defineTools('products', [
     title: 'Activate / deactivate product',
     titleKa: 'პროდუქტის ჩართვა ან გამორთვა',
     description:
-      'Take a product off sale (active=false) or put it back on sale (active=true) and return the updated product. Confirm the product with get_product first.',
+      'active: true = reactivate (back on sale), false = deactivate (off sale); boolean, not a status string. Returns the product; confirm it with get_product first.',
     method: 'post',
     path: '/admin/products/:id/deactivate',
     activePath: '/admin/products/:id/reactivate',

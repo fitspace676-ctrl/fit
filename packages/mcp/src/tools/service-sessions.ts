@@ -13,7 +13,7 @@ export const serviceSessionsTools = defineTools('services', [
     title: 'List service sessions',
     titleKa: 'სერვისის სესიების სია',
     description:
-      'List catalogue-service appointments in a window: service, status, start, staff, booked member and branch. Use for massage and other service bookings; PT calendar sessions use list_pt_sessions.',
+      'List appointments for catalogue services (massage, custom and PERSONAL_TRAINING type) in a window: service, status, start, staff, member. PT calendar bookings are list_pt_sessions; list_services is the catalogue.',
     method: 'get',
     path: '/admin/service-sessions',
     query: listAdminServiceSessionsQuerySchema,

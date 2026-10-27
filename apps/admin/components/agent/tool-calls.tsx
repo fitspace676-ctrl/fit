@@ -35,14 +35,21 @@ const styles = stylex.create({
 function InputValues({ value }: { value: unknown }) {
   const t = useTranslations('admin.agent');
   if (value === null || value === undefined) return <span>{t('noValue')}</span>;
-  if (typeof value === 'boolean') return <span>{t(value ? 'yes' : 'no')}</span>;
-  if (typeof value === 'string' || typeof value === 'number') return <span>{value}</span>;
+  if (typeof value === 'boolean') return <span>{t(value ? 'values.TRUE' : 'values.FALSE')}</span>;
+  if (typeof value === 'string')
+    return <span>{t.has(`values.${value}`) ? t(`values.${value}`) : value}</span>;
+  if (typeof value === 'number') return <span>{value}</span>;
   if (typeof value !== 'object') return null;
   return (
     <dl>
       {Object.entries(value as Record<string, unknown>).map(([key, item]) => (
         <div key={key}>
-          <dt>{key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ')}:</dt>
+          <dt>
+            {t.has(`fields.${key}`)
+              ? t(`fields.${key}`)
+              : key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ')}
+            :
+          </dt>
           <dd {...stylex.props(styles.value)}>
             <InputValues value={item} />
           </dd>

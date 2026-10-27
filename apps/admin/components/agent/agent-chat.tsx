@@ -23,6 +23,7 @@ import { ChatMessage } from '@astryxdesign/core/Chat';
 import { ChatMessageBubble } from '@astryxdesign/core/Chat';
 import { ChatComposer } from '@astryxdesign/core/Chat';
 import { AgentToolCalls } from './tool-calls';
+import { messageParts, prefixConsoleLinks } from './chat-state';
 import { Markdown } from '@astryxdesign/core/Markdown';
 import { Icon, Btn, Input, Modal, ConfirmDialog } from '@/components/ui';
 import { useAgentChat } from './use-agent-chat';
@@ -821,26 +822,41 @@ export function AgentChat() {
               <ChatMessageList xstyle={styles.transcript} isStreaming={isStreaming}>
                 {messages.map((m) => (
                   <ChatMessage key={m.id} sender={m.role}>
-                    {m.toolCalls && m.toolCalls.length > 0 && (
-                      <AgentToolCalls calls={m.toolCalls} busy={isStreaming} decide={decide} />
+                    {m.role === 'assistant' ? (
+                      messageParts(m).map((part, index) =>
+                        part.kind === 'tools' ? (
+                          <AgentToolCalls
+                            key={index}
+                            calls={part.calls}
+                            busy={isStreaming}
+                            decide={decide}
+                          />
+                        ) : (
+                          <ChatMessageBubble key={index} variant="ghost">
+                            <Markdown isStreaming={m.streaming}>
+                              {prefixConsoleLinks(
+                                part.text,
+                                process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '',
+                              )}
+                            </Markdown>
+                          </ChatMessageBubble>
+                        ),
+                      )
+                    ) : (
+                      <ChatMessageBubble variant="filled">
+                        {m.content}
+                        {m.attachments && m.attachments.length > 0 && (
+                          <span {...stylex.props(styles.chipRow)}>
+                            {m.attachments.map((name, i) => (
+                              <span key={`${name}-${i}`} {...stylex.props(styles.chip)}>
+                                <Icon name="pin" {...stylex.props(styles.chipRemoveIcon)} />
+                                <span {...stylex.props(styles.chipName)}>{name}</span>
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </ChatMessageBubble>
                     )}
-                    <ChatMessageBubble variant={m.role === 'user' ? 'filled' : 'ghost'}>
-                      {m.role === 'assistant' ? (
-                        <Markdown isStreaming={m.streaming}>{m.content}</Markdown>
-                      ) : (
-                        m.content
-                      )}
-                      {m.attachments && m.attachments.length > 0 && (
-                        <span {...stylex.props(styles.chipRow)}>
-                          {m.attachments.map((name, i) => (
-                            <span key={`${name}-${i}`} {...stylex.props(styles.chip)}>
-                              <Icon name="pin" {...stylex.props(styles.chipRemoveIcon)} />
-                              <span {...stylex.props(styles.chipName)}>{name}</span>
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                    </ChatMessageBubble>
                   </ChatMessage>
                 ))}
               </ChatMessageList>

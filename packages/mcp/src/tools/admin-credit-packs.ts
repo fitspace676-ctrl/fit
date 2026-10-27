@@ -11,7 +11,7 @@ export const adminCreditPacksTools = defineTools('sales', [
     title: 'List member credit packs',
     titleKa: 'წევრის კრედიტ-პაკეტები',
     description:
-      "List a member's usable session credit packs with credits remaining. Use for 'how many sessions does this member have left' questions.",
+      "List a member's usable session credit packs with credits remaining. Use for how many sessions a member has left; the packs on sale are list_credit_pack_catalogue, add credits with grant_member_credit_pack.",
     method: 'get',
     path: '/admin/members/:id/credit-packs',
     params: id,
@@ -21,7 +21,7 @@ export const adminCreditPacksTools = defineTools('sales', [
     title: 'Grant member credit pack',
     titleKa: 'კრედიტ-პაკეტის მინიჭება წევრზე',
     description:
-      'Sell or grant a catalogue session pack to a member and record the purchase. Returns creditPackId and orderId; id from list_members, packId from list_credit_pack_catalogue.',
+      'Add a session credit pack to a member without a POS sale or payment; returns creditPackId and orderId. packId from list_credit_pack_catalogue; to take payment use record_pos_sale, for a plan enroll_subscription.',
     method: 'post',
     path: '/admin/members/:id/credit-packs',
     destructive: false,
@@ -33,7 +33,7 @@ export const adminCreditPacksTools = defineTools('sales', [
     title: 'List credit pack catalogue',
     titleKa: 'კრედიტ-პაკეტების კატალოგი',
     description:
-      "List the gym's purchasable session credit packs, cheapest first, with price and session count. Use to pick packId for grant_member_credit_pack.",
+      'List the session credit packs the gym sells (finite session bundles), cheapest first, with price and sessions; picks packId for grant_member_credit_pack. For what packages we sell use list_package_plans.',
     method: 'get',
     path: '/admin/credit-packs/catalogue',
   },

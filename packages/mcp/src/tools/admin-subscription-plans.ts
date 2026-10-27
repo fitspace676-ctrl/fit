@@ -61,7 +61,7 @@ export const adminSubscriptionPlansTools = defineTools('plans', [
     title: 'Activate / deactivate subscription plan',
     titleKa: 'გამოწერის გეგმის ჩართვა ან გამორთვა',
     description:
-      'Stop offering a subscription plan (active=false) or offer it again (active=true) and return the updated plan. Confirm the plan with get_subscription_plan first.',
+      'active: true = reactivate (offer again), false = deactivate (stop offering); boolean, not a status string. Returns the plan; confirm it with get_subscription_plan first.',
     method: 'post',
     path: '/admin/subscriptions/:id/deactivate',
     activePath: '/admin/subscriptions/:id/reactivate',

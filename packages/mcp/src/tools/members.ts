@@ -56,7 +56,7 @@ export const membersTools = defineTools('members', [
     title: 'Create member',
     titleKa: 'წევრის დამატება',
     description:
-      'Add a member by name and email (phone and status optional); an existing person with that email is linked to this gym. Returns the new member profile; search list_members first to avoid duplicates.',
+      'Add a member by name and email; an existing person with that email is linked to this gym. Search list_members first. If the API says intake fields (Settings > Membership) are required, ask the operator; never invent personal data.',
     method: 'post',
     path: '/members',
     destructive: false,
@@ -79,7 +79,7 @@ export const membersTools = defineTools('members', [
     title: 'Activate / suspend member',
     titleKa: 'წევრის შეჩერება ან გააქტიურება',
     description:
-      'Suspend a member (active=false) or reactivate them (active=true) and return the updated profile. Confirm the member with get_member first; use trash_member to remove them from the roster.',
+      'Suspend a member, reversibly. active: true = reactivate, false = deactivate (suspend); boolean, not a status string. For delete a member, ask: suspend here or trash_member (30-day trash, restore_member undoes).',
     method: 'post',
     path: '/members/:id/deactivate',
     activePath: '/members/:id/reactivate',
@@ -103,7 +103,7 @@ export const membersTools = defineTools('members', [
     title: 'Trash member',
     titleKa: 'წევრის წაშლა',
     description:
-      'Move a member to trash: they leave the roster and counts but can be brought back with restore_member for 30 days before permanent deletion. Returns the trashed member.',
+      'Move a member to trash for 30 days, off the roster and counts; restore_member undoes it and no tool deletes permanently. For delete a member, ask: trash here or suspend with set_member_status.',
     method: 'post',
     path: '/members/:id/trash',
     destructive: true,

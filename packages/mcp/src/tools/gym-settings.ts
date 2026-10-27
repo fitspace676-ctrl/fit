@@ -1,14 +1,15 @@
-import { updateGymSettingsSchema } from '@fit/types';
+import { updateGymSettingsSchema, updateMobileAppSettingsSchema } from '@fit/types';
 import { defineTools } from './shared';
 
-/** Tenant-scoped endpoints in apps/api/src/gyms/gym-settings.controller.ts. */
+/** Tenant-scoped endpoints in apps/api/src/gyms/gym-settings.controller.ts and
+ * apps/api/src/gyms/mobile-app-settings.controller.ts (image uploads stay out). */
 export const gymSettingsTools = defineTools('settings', [
   {
     name: 'get_gym_settings',
     title: 'Get gym settings',
     titleKa: 'დარბაზის პარამეტრები',
     description:
-      "Read the gym's settings: name and branding, portal theme, language and locale, opening hours, policies and guest or trial prices. Use before update_gym_settings.",
+      "Read the gym's settings: name and branding, portal theme, language, opening hours, policies and guest or trial prices. Use before update_gym_settings; the member mobile app is get_mobile_app_settings.",
     method: 'get',
     path: '/gyms/settings',
   },
@@ -22,5 +23,25 @@ export const gymSettingsTools = defineTools('settings', [
     path: '/gyms/settings',
     destructive: true,
     body: updateGymSettingsSchema,
+  },
+  {
+    name: 'get_mobile_app_settings',
+    title: 'Get mobile app settings',
+    titleKa: 'მობილური აპის პარამეტრები',
+    description:
+      'Read the member mobile app configuration (admin page /app-settings): enabled, feature tabs, accent colour and login image url. Distinct from gym settings and portal theme, which are get_gym_settings.',
+    method: 'get',
+    path: '/gyms/app-settings',
+  },
+  {
+    name: 'update_mobile_app_settings',
+    title: 'Update mobile app settings',
+    titleKa: 'მობილური აპის პარამეტრების შეცვლა',
+    description:
+      "Change the member mobile app's feature tabs or accent colour (null follows the portal colour) and return the new settings. Read get_mobile_app_settings first; images cannot be changed here.",
+    method: 'patch',
+    path: '/gyms/app-settings',
+    destructive: false,
+    body: updateMobileAppSettingsSchema,
   },
 ]);

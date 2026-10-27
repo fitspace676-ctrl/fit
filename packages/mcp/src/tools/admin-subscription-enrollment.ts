@@ -8,7 +8,7 @@ export const adminSubscriptionEnrollmentTools = defineTools('plans', [
     title: 'Enroll subscription',
     titleKa: 'წევრის გამოწერაზე ჩაწერა',
     description:
-      'Enroll a member on a subscription plan on their behalf and return the new subscription. memberId from list_members, planId from list_subscription_plans.',
+      'Put a member on a subscription plan without a POS payment record and return the subscription; planId from list_subscription_plans. To sell and take payment use record_pos_sale; credits use grant_member_credit_pack.',
     method: 'post',
     path: '/admin/subscriptions/enroll',
     destructive: false,

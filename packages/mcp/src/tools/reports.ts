@@ -19,7 +19,7 @@ export const reportsTools = defineTools('insights', [
     title: 'Run report',
     titleKa: 'რეპორტის გაშვება',
     description:
-      'Run a report chosen from report_catalog for a period (or from/to) and optional branch; returns its columns and rows. Use run_report_drilldown for KPI charts and breakdowns.',
+      'Run a tabular report from report_catalog for a date window (period or from/to) and optional branch: columns and rows. Headline KPIs are get_dashboard_*, rows behind one metric run_report_drilldown, trends get_analytics.',
     method: 'get',
     path: '/admin/reports/:report',
     query: reportQuerySchema,

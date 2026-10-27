@@ -116,7 +116,7 @@ describe('Gemini request compatibility', () => {
         description: tool.description ?? '',
         parameters: tool.inputSchema,
       }));
-      expect(all).toHaveLength(212);
+      expect(all).toHaveLength(214);
       const toolbox = createToolbox(all, defaultToolCatalog(), () => undefined);
       const core = toolbox.visible();
       toolbox.open({ domains: ['marketing'] });

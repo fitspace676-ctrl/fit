@@ -93,7 +93,7 @@ const DOMAIN_COPY: Record<DomainId, Omit<ToolDomain, 'id' | 'tools'>> = {
     title: 'Classes & schedule',
     titleKa: 'კლასები და განრიგი',
     description:
-      'Manage class types, recurring classes, the dated schedule, bookings and waitlists, attendance and personal-training sessions.',
+      'Manage class types, the dated schedule (list_schedule) vs recurring class templates (list_classes), bookings and waitlists, attendance and personal-training sessions.',
   },
   services: {
     title: 'Services & appointments',
@@ -147,13 +147,13 @@ const DOMAIN_COPY: Record<DomainId, Omit<ToolDomain, 'id' | 'tools'>> = {
     title: 'Dashboard, reports & logs',
     titleKa: 'დაფა, რეპორტები და ჟურნალები',
     description:
-      'Answer performance questions with dashboards, reports, drilldowns and analytics, and review the activity feed, audit log and trainer reviews.',
+      'Answer performance questions with dashboard KPIs vs reports vs drilldown and analytics trends, and review the activity feed, audit log and trainer reviews.',
   },
   settings: {
     title: 'Gym settings',
     titleKa: 'დარბაზის პარამეტრები',
     description:
-      "Read or change the gym's branding, portal theme, language, opening hours, policies and guest or trial prices.",
+      'Read or change the gym settings, portal theme and the member mobile app settings: branding, language, opening hours, policies, guest or trial prices, app tabs and accent colour.',
   },
 };
 

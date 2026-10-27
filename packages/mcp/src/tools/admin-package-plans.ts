@@ -18,7 +18,7 @@ export const adminPackagePlansTools = defineTools('plans', [
     title: 'List package plans',
     titleKa: 'პაკეტების სია',
     description:
-      'List package plans (session packs and memberships sold as packages) page by page: id, name, status, price, billing interval and session count. Use get_package_plan for features and full detail.',
+      'List package plans page by page: id, name, status, price, interval, session count; get_package_plan has validity and features. Use for what packages we sell; credit bundles are list_credit_pack_catalogue.',
     method: 'get',
     path: '/admin/packages',
     query: listAdminPackagePlansQuerySchema,
@@ -61,7 +61,7 @@ export const adminPackagePlansTools = defineTools('plans', [
     title: 'Activate / deactivate package plan',
     titleKa: 'პაკეტის ჩართვა ან გამორთვა',
     description:
-      'Stop selling a package plan (active=false) or offer it again (active=true) and return the updated plan. Confirm the plan with get_package_plan first.',
+      'active: true = reactivate (sell again), false = deactivate (stop selling); boolean, not a status string. Returns the plan; confirm it with get_package_plan first.',
     method: 'post',
     path: '/admin/packages/:id/deactivate',
     activePath: '/admin/packages/:id/reactivate',

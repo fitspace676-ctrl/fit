@@ -20,7 +20,7 @@ export const staffTools = defineTools('staff', [
     title: 'List staff',
     titleKa: 'პერსონალის სია',
     description:
-      'List gym staff (id, name, status, role, email) and pending invitations, optionally filtered by role or status. Use for employee accounts; gym members are in list_members, trainer profiles in list_trainers.',
+      'List staff console accounts (id, name, status, role, email) and pending invites. This id is the staffId services use, not a trainerId; public coach profiles are list_trainers, members list_members.',
     method: 'get',
     path: '/staff',
     query: listStaffQuerySchema,

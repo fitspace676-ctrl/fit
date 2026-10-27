@@ -11,7 +11,7 @@ export const attendanceTools = defineTools('classes', [
     title: 'Get attendance',
     titleKa: 'დასწრების ნახვა',
     description:
-      "Read a dated class's attendance roster: each booked member with attended/no-show status, seat totals and tallies. Use for class attendance; reception arrivals are in list_today_checkins.",
+      "Read a dated class's attendance: bookingIds with attended or no-show status and tallies; required before mark_attendance. Waitlist and occupancy are in get_schedule_instance, reception arrivals in list_today_checkins.",
     method: 'get',
     path: '/admin/class-instances/:id/attendance',
     params: id,
