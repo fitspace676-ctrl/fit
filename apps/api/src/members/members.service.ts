@@ -767,6 +767,10 @@ export class MembersService {
         status: true,
         joinedAt: true,
         dateOfBirth: true,
+        gender: true,
+        tags: true,
+        location: { select: { name: true, address: true, phone: true } },
+        checkIns: { orderBy: { checkedInAt: 'desc' }, take: 1, select: { checkedInAt: true } },
         user: { select: memberUserSelect(this.tenant.gymId) },
         subscriptions: {
           where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
@@ -774,6 +778,9 @@ export class MembersService {
           take: 1,
           select: {
             currentPeriodEnd: true,
+            currentPeriodStart: true,
+            frozenUntil: true,
+            status: true,
             plan: { select: { name: true, priceAmount: true, currency: true } },
           },
         },

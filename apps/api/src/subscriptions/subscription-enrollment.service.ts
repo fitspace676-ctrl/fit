@@ -140,7 +140,7 @@ export class SubscriptionEnrollmentService {
       });
     }
 
-    const row = await this.prisma.client.$transaction(async (tx) => {
+    const { row, invoice } = await this.prisma.client.$transaction(async (tx) => {
       const plan = await tx.subscriptionPlan.findFirst({
         where: { id: planId },
         select: {
@@ -206,21 +206,21 @@ export class SubscriptionEnrollmentService {
         // first billing record commit together. A trial charges nothing yet (the
         // recurring-billing job raises the first invoice when it converts), so none is
         // minted here.
-        if (!isTrial) {
-          await this.invoices.issue(tx, {
-            gymId,
-            memberId,
-            subscriptionId: created.id,
-            amount: plan.priceAmount,
-            currency: plan.currency,
-            // The first period of a recurring membership.
-            type: InvoiceType.MEMBERSHIP,
-            description: subscriptionInvoiceDescription(plan.name, plan.interval, 'enrolment'),
-            issuedAt: currentPeriodStart,
-          });
-        }
+        const invoice = isTrial
+          ? null
+          : await this.invoices.issue(tx, {
+              gymId,
+              memberId,
+              subscriptionId: created.id,
+              amount: plan.priceAmount,
+              currency: plan.currency,
+              // The first period of a recurring membership.
+              type: InvoiceType.MEMBERSHIP,
+              description: subscriptionInvoiceDescription(plan.name, plan.interval, 'enrolment'),
+              issuedAt: currentPeriodStart,
+            });
 
-        return created;
+        return { row: created, invoice };
       } catch (error) {
         // The partial unique index is the race-safe backstop for the pre-check
         // above: a concurrent enrolment that slipped between the read and this
@@ -231,6 +231,10 @@ export class SubscriptionEnrollmentService {
         throw error;
       }
     });
+
+    // Announce the first period's payment only now that the transaction committed:
+    // a rolled-back enrolment (a lost race, a failed insert) never fires it.
+    if (invoice) this.invoices.announcePaid({ gymId }, invoice);
 
     return { subscription: this.toEnrolled(row) };
   }

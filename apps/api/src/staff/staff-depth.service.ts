@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { GymMemberStatus, Prisma, Role } from '@fit/db';
+import { AutomationTriggerType, GymMemberStatus, Prisma, Role } from '@fit/db';
 import {
   gymSettingsStoredSchema,
   staffRolePermissionMatrix,
@@ -25,6 +25,7 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { atLocation, staffAtLocation } from '../common/location-filter.util';
 
 /** The gym-scoped roles that count as staff — every role except a plain `MEMBER`. */
@@ -174,6 +175,7 @@ export class StaffDepthService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   // -- Roles matrix ---------------------------------------------------------
@@ -255,6 +257,12 @@ export class StaffDepthService {
       },
       select: TASK_SELECT,
     });
+    // The assignee is a `GymMember` like any member, so the rule addresses them.
+    // After the write, never awaited: automation cannot fail the assignment.
+    void this.automation.dispatchForGym(this.tenant.gymId, AutomationTriggerType.task_assigned, {
+      entityId: staffId,
+      entityType: 'member',
+    });
     return this.toTaskRow(task);
   }
 
@@ -263,7 +271,7 @@ export class StaffDepthService {
    * `completed` stamps (or clears) `completedAt`. 404s an unknown id.
    */
   async updateTask(taskId: string, input: UpdateStaffTaskInput): Promise<StaffTaskRow> {
-    await this.requireTask(taskId);
+    const before = await this.requireTask(taskId);
 
     const data: Prisma.StaffTaskUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
@@ -282,6 +290,13 @@ export class StaffDepthService {
     // Just updated under the scoped client, so it must still resolve.
     if (!updated) {
       throw new NotFoundException({ message: 'Task not found', code: 'TASK_NOT_FOUND' });
+    }
+    // Only the open → done transition fires; re-saving a finished task does not.
+    if (input.completed === true && !before.completed) {
+      void this.automation.dispatchForGym(this.tenant.gymId, AutomationTriggerType.task_completed, {
+        entityId: before.staffId,
+        entityType: 'member',
+      });
     }
     return this.toTaskRow(updated);
   }
@@ -364,7 +379,7 @@ export class StaffDepthService {
   ): Promise<TimeOffRequestRow> {
     const existing = await this.prisma.client.timeOffRequest.findFirst({
       where: { id: requestId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, staffId: true },
     });
     if (!existing) {
       throw new NotFoundException({
@@ -398,6 +413,13 @@ export class StaffDepthService {
         message: 'Time-off request not found',
         code: 'TIME_OFF_NOT_FOUND',
       });
+    }
+    if (input.decision === 'approve') {
+      void this.automation.dispatchForGym(
+        this.tenant.gymId,
+        AutomationTriggerType.timeoff_approved,
+        { entityId: existing.staffId, entityType: 'member' },
+      );
     }
     return this.toTimeOffRow(updated);
   }
@@ -561,15 +583,19 @@ export class StaffDepthService {
     }
   }
 
-  /** Resolve a task in the caller's gym or throw `404 TASK_NOT_FOUND`. */
-  private async requireTask(taskId: string): Promise<void> {
+  /**
+   * Resolve a task in the caller's gym or throw `404 TASK_NOT_FOUND`. Returns its
+   * assignee and completion as they stood, so an update can tell a transition.
+   */
+  private async requireTask(taskId: string): Promise<{ staffId: string; completed: boolean }> {
     const task = await this.prisma.client.staffTask.findFirst({
       where: { id: taskId },
-      select: { id: true },
+      select: { id: true, staffId: true, completed: true },
     });
     if (!task) {
       throw new NotFoundException({ message: 'Task not found', code: 'TASK_NOT_FOUND' });
     }
+    return { staffId: task.staffId, completed: task.completed };
   }
 
   /**

@@ -1,7 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
+import { AutomationTriggerType, BookingStatus, InstanceStatus, Prisma } from '@fit/db';
 import type { AttendanceRoster, AttendanceRosterEntry, MarkAttendanceData } from '@fit/types';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { TenantContext } from '../common/tenant/tenant.context';
 
 /** The held-seat booking statuses that make up an attendance roster. A
  * `WAITLIST` / `CANCELED` booking never held a seat, so it is excluded — only
@@ -61,7 +63,11 @@ type RosterBookingRecord = Prisma.BookingGetPayload<{ select: typeof ROSTER_BOOK
  */
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly tenant: TenantContext,
+    private readonly automation: AutomationExecutorService,
+  ) {}
 
   /**
    * The occurrence's attendance roster — its held-seat bookings (in booking
@@ -107,7 +113,11 @@ export class AttendanceService {
     classInstanceId: string,
     data: MarkAttendanceData,
   ): Promise<AttendanceRoster> {
-    return this.prisma.client.$transaction(async (tx) => {
+    // Bookings this call newly marks ATTENDED — each fires `attendance_marked`
+    // once the batch commits. A re-mark of an already-attended seat is a no-op.
+    const newlyAttended: string[] = [];
+
+    const roster = await this.prisma.client.$transaction(async (tx) => {
       const instance = await tx.classInstance.findFirst({
         where: { id: classInstanceId },
         select: INSTANCE_SELECT,
@@ -130,6 +140,7 @@ export class AttendanceService {
 
       // Resolve every referenced booking up front so a single bad id rejects the
       // whole batch before any write — attendance is recorded all-or-nothing.
+      const previous = new Map<string, BookingStatus>();
       for (const entry of data.entries) {
         const booking = await tx.booking.findFirst({
           where: { id: entry.bookingId, classInstanceId },
@@ -149,6 +160,7 @@ export class AttendanceService {
             code: 'BOOKING_NOT_ATTENDABLE',
           });
         }
+        previous.set(booking.id, booking.status);
       }
 
       for (const entry of data.entries) {
@@ -156,6 +168,13 @@ export class AttendanceService {
           where: { id: entry.bookingId },
           data: { status: entry.status },
         });
+        if (
+          entry.status === BookingStatus.ATTENDED &&
+          previous.get(entry.bookingId) !== BookingStatus.ATTENDED &&
+          !newlyAttended.includes(entry.bookingId)
+        ) {
+          newlyAttended.push(entry.bookingId);
+        }
       }
 
       // Recording attendance completes the past occurrence. Idempotent — a
@@ -179,6 +198,18 @@ export class AttendanceService {
         bookings,
       );
     });
+
+    // Automation trigger (T12.5) per newly attended seat — best-effort and not
+    // awaited, so automation can never block or fail the roster save.
+    for (const bookingId of newlyAttended) {
+      void this.automation.dispatchForGym(
+        this.tenant.gymId,
+        AutomationTriggerType.attendance_marked,
+        { entityId: bookingId, entityType: 'booking' },
+      );
+    }
+
+    return roster;
   }
 
   /** Project an occurrence + its held-seat bookings to the wire roster shape. */

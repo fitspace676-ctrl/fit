@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTOMATION_TRIGGER_CATALOG,
+  GYM_RECIPIENT_TRIGGERS,
   TRIGGERS_NEEDING_DAYS,
   automationActionConfigSchema,
   automationTriggerTypeSchema,
   createAutomationRuleSchema,
   listAutomationRulesQuerySchema,
+  updateAutomationRuleSchema,
 } from './automation';
 
 describe('automation trigger catalog', () => {
@@ -15,10 +17,22 @@ describe('automation trigger catalog', () => {
     }
   });
 
-  it('covers all 26 triggers with unique values', () => {
+  it('covers all 24 offered triggers with unique values', () => {
     const values = AUTOMATION_TRIGGER_CATALOG.map((t) => t.value);
-    expect(values).toHaveLength(26);
-    expect(new Set(values).size).toBe(26);
+    expect(values).toHaveLength(24);
+    expect(new Set(values).size).toBe(24);
+  });
+
+  it('leaves out the triggers nothing fires yet', () => {
+    const values: string[] = AUTOMATION_TRIGGER_CATALOG.map((t) => t.value);
+    for (const missing of ['plan_upgraded', 'plan_downgraded', 'lead_created']) {
+      expect(values).not.toContain(missing);
+    }
+  });
+
+  it('fires membership_expired as an event, not a period-end scan', () => {
+    const expired = AUTOMATION_TRIGGER_CATALOG.find((t) => t.value === 'membership_expired');
+    expect(expired).toMatchObject({ kind: 'event', entityType: 'subscription' });
   });
 
   it('flags exactly the count/day-window triggers as needing days', () => {
@@ -37,7 +51,7 @@ describe('createAutomationRuleSchema', () => {
       actionConfig: { body: 'Hi' },
     });
     expect(parsed.active).toBe(true);
-    expect(parsed.timingOffset).toBe('day_of');
+    expect(parsed.timingOffset).toBe('0d');
     expect(parsed.triggerConfig).toEqual({});
   });
 
@@ -64,6 +78,52 @@ describe('createAutomationRuleSchema', () => {
         actionConfig: { body: 'Renew' },
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('gym-recipient triggers', () => {
+  it('addresses only product_stock_low to the gym', () => {
+    expect([...GYM_RECIPIENT_TRIGGERS]).toEqual(['product_stock_low']);
+    for (const meta of AUTOMATION_TRIGGER_CATALOG) {
+      expect(meta.recipient).toBe(meta.value === 'product_stock_low' ? 'gym' : 'member');
+    }
+  });
+
+  const stockRule = {
+    name: 'Stock low',
+    triggerType: 'product_stock_low',
+    actionConfig: { body: 'Restock' },
+  };
+
+  it('accepts the email action on a gym-recipient trigger', () => {
+    expect(
+      createAutomationRuleSchema.safeParse({ ...stockRule, actionType: 'email' }).success,
+    ).toBe(true);
+  });
+
+  it.each(['push_notification', 'sms', 'create_task'])('rejects %s on create', (actionType) => {
+    const result = createAutomationRuleSchema.safeParse({ ...stockRule, actionType });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['actionType']);
+      expect(result.error.issues[0]?.message).toBe('This trigger only supports the email action');
+    }
+  });
+
+  it('rejects a non-email action on update when both fields arrive', () => {
+    const result = updateAutomationRuleSchema.safeParse({
+      triggerType: 'product_stock_low',
+      actionType: 'sms',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0]?.path).toEqual(['actionType']);
+  });
+
+  it('leaves a lone update field to the server-side merged check', () => {
+    expect(updateAutomationRuleSchema.safeParse({ actionType: 'sms' }).success).toBe(true);
+    expect(updateAutomationRuleSchema.safeParse({ triggerType: 'product_stock_low' }).success).toBe(
+      true,
+    );
   });
 });
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { AuthModule } from '../auth/auth.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { MarketingModule } from '../marketing/marketing.module';
@@ -20,7 +21,7 @@ import { OrdersService } from './orders.service';
  * created by hand afterwards.
  */
 @Module({
-  imports: [MarketingModule, AuthModule, LoyaltyModule, SubscriptionsModule],
+  imports: [MarketingModule, AuthModule, LoyaltyModule, SubscriptionsModule, AutomationModule],
   controllers: [OrdersController],
   providers: [OrdersService],
 })

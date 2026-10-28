@@ -3,6 +3,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { StaffDepthService, gymLocalNow } from './staff-depth.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 
 interface AnyArgs {
   where?: Record<string, unknown>;
@@ -55,7 +56,9 @@ function setup(models?: Record<string, Record<string, unknown>>) {
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1', userId: 'u-1' } as unknown as TenantContext;
-  return { service: new StaffDepthService(prisma, tenant), client };
+  const dispatchForGym = vi.fn((..._args: unknown[]) => Promise.resolve(0));
+  const automation = { dispatchForGym } as unknown as AutomationExecutorService;
+  return { service: new StaffDepthService(prisma, tenant, automation), client, dispatchForGym };
 }
 
 /** Wire the requireStaff guard to resolve a staff member. */
@@ -509,5 +512,99 @@ describe('gymLocalNow', () => {
       dayOfWeek: 1,
       time: '22:00',
     });
+  });
+});
+
+describe('StaffDepthService automation triggers', () => {
+  const taskRow = {
+    id: 't-1',
+    staffId: 'gm-7',
+    title: 'Cert',
+    description: null,
+    dueDate: null,
+    completed: false,
+    completedAt: null,
+    assignedByName: 'Alex',
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+  };
+
+  it('fires task_assigned for the assignee when a task is created', async () => {
+    const { service, dispatchForGym } = setup(
+      withStaff({ staffTask: { create: vi.fn(() => Promise.resolve(taskRow)) } }),
+    );
+    await service.addTask('gm-7', { title: 'Cert' });
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'task_assigned', {
+      entityId: 'gm-7',
+      entityType: 'member',
+    });
+  });
+
+  it('fires task_completed on the open → done transition, for the assignee', async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 't-1', staffId: 'gm-7', completed: false })
+      .mockResolvedValueOnce({ ...taskRow, completed: true, completedAt: new Date() });
+    const { service, dispatchForGym } = setup({ staffTask: { findFirst } });
+    await service.updateTask('t-1', { completed: true });
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'task_completed', {
+      entityId: 'gm-7',
+      entityType: 'member',
+    });
+  });
+
+  it('does not fire task_completed for a task that was already done', async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 't-1', staffId: 'gm-7', completed: true })
+      .mockResolvedValueOnce({ ...taskRow, completed: true, completedAt: new Date() });
+    const { service, dispatchForGym } = setup({ staffTask: { findFirst } });
+    await service.updateTask('t-1', { completed: true });
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('does not fire task_completed for an edit that leaves completion alone', async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 't-1', staffId: 'gm-7', completed: false })
+      .mockResolvedValueOnce({ ...taskRow, title: 'Renamed' });
+    const { service, dispatchForGym } = setup({ staffTask: { findFirst } });
+    await service.updateTask('t-1', { title: 'Renamed' });
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  const decided = {
+    id: 'to-1',
+    staffId: 'gm-7',
+    startDate: new Date('2026-08-01T00:00:00.000Z'),
+    endDate: new Date('2026-08-03T00:00:00.000Z'),
+    reason: 'Vacation',
+    status: 'approved',
+    decidedByName: 'Alex',
+    decidedAt: new Date('2026-07-10T00:00:00.000Z'),
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+    staff: { user: { name: 'Mike', email: 'mike@example.com' } },
+  };
+
+  it('fires timeoff_approved for the requester when a request is approved', async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'to-1', status: 'pending', staffId: 'gm-7' })
+      .mockResolvedValueOnce(decided);
+    const { service, dispatchForGym } = setup(withStaff({ timeOffRequest: { findFirst } }));
+    await service.decideTimeOff('to-1', { decision: 'approve' });
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'timeoff_approved', {
+      entityId: 'gm-7',
+      entityType: 'member',
+    });
+  });
+
+  it('does not fire timeoff_approved when a request is denied', async () => {
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'to-1', status: 'pending', staffId: 'gm-7' })
+      .mockResolvedValueOnce({ ...decided, status: 'denied' });
+    const { service, dispatchForGym } = setup(withStaff({ timeOffRequest: { findFirst } }));
+    await service.decideTimeOff('to-1', { decision: 'deny' });
+    expect(dispatchForGym).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AutomationService } from './automation.service';
+import type { CreateAutomationRuleInput } from '@fit/types';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -12,6 +13,7 @@ function ruleRecord(over?: Record<string, unknown>) {
     triggerType: 'member_joined',
     triggerConfig: {},
     timingOffset: 'day_of',
+    conditions: [],
     actionType: 'email',
     actionConfig: { subject: 'Welcome', body: 'Welcome {{member_first_name}}!' },
     active: true,
@@ -62,7 +64,13 @@ function setup(overrides?: {
     Promise.resolve(overrides?.runCount ?? 0),
   );
 
+  const locations = vi.fn().mockResolvedValue([{ id: 'loc-1', name: 'Main' }]);
+  const plans = vi.fn().mockResolvedValue([{ id: 'plan-1', name: 'Gold' }]);
+  const members = vi.fn().mockResolvedValue([{ tags: ['vip', 'new'] }, { tags: ['vip'] }]);
   const client = {
+    location: { findMany: locations },
+    subscriptionPlan: { findMany: plans },
+    gymMember: { findMany: members },
     automationRule: {
       findMany: ruleFindMany,
       findFirst: ruleFindFirst,
@@ -79,6 +87,9 @@ function setup(overrides?: {
 
   return {
     service: new AutomationService(prisma, tenant),
+    locations,
+    plans,
+    members,
     ruleFindMany,
     ruleFindFirst,
     ruleCount,
@@ -93,13 +104,13 @@ function setup(overrides?: {
 afterEach(() => vi.restoreAllMocks());
 
 describe('AutomationService.catalog', () => {
-  it('returns the trigger / action / timing catalogs', () => {
+  it('returns the trigger / action / timing catalogs', async () => {
     const { service } = setup();
-    const catalog = service.catalog();
+    const catalog = await service.catalog();
     expect(catalog.triggers.some((t) => t.value === 'member_joined')).toBe(true);
     expect(catalog.triggers.find((t) => t.value === 'membership_expiring')?.needsDays).toBe(true);
     expect(catalog.actions.map((a) => a.value)).toContain('push_notification');
-    expect(catalog.timings.find((t) => t.value === '7_days_before')?.days).toBe(-7);
+    expect(catalog.timings.find((t) => t.value === '-7d')?.days).toBe(-7);
   });
 });
 
@@ -161,6 +172,7 @@ describe('AutomationService.createRule', () => {
       triggerType: 'member_joined',
       triggerConfig: {},
       timingOffset: 'day_of',
+      conditions: [],
       actionType: 'email',
       actionConfig: { subject: 'Welcome', body: 'Hi {{member_first_name}}' },
       active: true,
@@ -289,5 +301,112 @@ describe('AutomationService.getStats', () => {
     expect(runCount).toHaveBeenCalledTimes(3);
     // The active-rules count filters on active:true.
     expect(ruleCount.mock.calls[1]?.[0]?.where).toMatchObject({ active: true });
+  });
+});
+
+describe('AutomationService builder fields', () => {
+  it('scopes all option queries to the tenant and deduplicates tags', async () => {
+    const { service, locations, plans, members } = setup();
+    const result = await service.catalog();
+    expect(result.conditionOptions).toEqual({
+      locations: [{ id: 'loc-1', name: 'Main' }],
+      plans: [{ id: 'plan-1', name: 'Gold' }],
+      tags: ['new', 'vip'],
+    });
+    expect(result.conditionFields).toHaveLength(12);
+    expect(locations).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { gymId: 'gym-1', status: 'ACTIVE' } }),
+    );
+    expect(plans).toHaveBeenCalledWith(expect.objectContaining({ where: { gymId: 'gym-1' } }));
+    expect(members).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { gymId: 'gym-1', deletedAt: null } }),
+    );
+  });
+  it('normalizes legacy offsets and persists conditions', async () => {
+    const { service, ruleCreate } = setup();
+    const conditions = [{ field: 'member_age', operator: 'gte', value: 18 }] as const;
+    await service.createRule({
+      name: 'Welcome',
+      triggerType: 'member_joined',
+      triggerConfig: {},
+      timingOffset: '1_day_after',
+      conditions: [...conditions],
+      actionType: 'email',
+      actionConfig: { body: 'Hi' },
+      active: true,
+    });
+    expect(ruleCreate.mock.calls[0]?.[0].data).toMatchObject({ timingOffset: '1d', conditions });
+  });
+  it('rejects negative event offsets on create and on retargeting a scan rule', async () => {
+    const { service, ruleCreate } = setup({
+      ruleFindFirst: ruleRecord({ triggerType: 'birthday', timingOffset: '-1d' }),
+    });
+    await expect(
+      service.createRule({
+        name: 'Welcome',
+        triggerType: 'member_joined',
+        triggerConfig: {},
+        timingOffset: '-1h',
+        conditions: [],
+        actionType: 'email',
+        actionConfig: { body: 'Hi' },
+        active: true,
+      }),
+    ).rejects.toThrow('AUTOMATION_TIMING_BEFORE_NOT_ALLOWED');
+    expect(ruleCreate).not.toHaveBeenCalled();
+    await expect(service.updateRule('rule-1', { triggerType: 'member_joined' })).rejects.toThrow(
+      'AUTOMATION_TIMING_BEFORE_NOT_ALLOWED',
+    );
+    await expect(
+      service.updateRule('rule-1', { triggerType: 'member_joined', timingOffset: '0d' }),
+    ).resolves.toMatchObject({ triggerType: 'member_joined', timingOffset: '0d' });
+  });
+  it('preserves conditions in templates and tolerates malformed historical conditions', async () => {
+    const conditions = [{ field: 'member_age', operator: 'gte', value: 18 }];
+    const { service, ruleCreate } = setup({ ruleFindFirst: ruleRecord({ conditions }) });
+    await service.saveAsTemplate('rule-1', {});
+    expect(ruleCreate.mock.calls[0]?.[0].data).toMatchObject({ conditions, timingOffset: '0d' });
+    const malformed = setup({ ruleFindFirst: ruleRecord({ conditions: { bad: true } }) });
+    expect((await malformed.service.getRule('rule-1')).conditions).toEqual([]);
+  });
+});
+
+describe('AutomationService gym-recipient triggers', () => {
+  const stockRule: Omit<CreateAutomationRuleInput, 'actionType'> = {
+    name: 'Stock low',
+    triggerType: 'product_stock_low',
+    triggerConfig: {},
+    timingOffset: '0d',
+    conditions: [],
+    actionConfig: { body: 'Restock' },
+    active: true,
+  };
+
+  it('rejects a non-email action on create and accepts email', async () => {
+    const { service, ruleCreate } = setup();
+    await expect(service.createRule({ ...stockRule, actionType: 'sms' })).rejects.toThrow(
+      'AUTOMATION_ACTION_NOT_ALLOWED_FOR_TRIGGER',
+    );
+    expect(ruleCreate).not.toHaveBeenCalled();
+    await expect(service.createRule({ ...stockRule, actionType: 'email' })).resolves.toMatchObject({
+      triggerType: 'product_stock_low',
+      actionType: 'email',
+    });
+  });
+
+  it('checks the merged record when only one field changes', async () => {
+    const pushRule = setup({ ruleFindFirst: ruleRecord({ actionType: 'push_notification' }) });
+    await expect(
+      pushRule.service.updateRule('rule-1', { triggerType: 'product_stock_low' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(pushRule.ruleUpdate).not.toHaveBeenCalled();
+
+    const stock = setup({ ruleFindFirst: ruleRecord({ triggerType: 'product_stock_low' }) });
+    await expect(stock.service.updateRule('rule-1', { actionType: 'create_task' })).rejects.toThrow(
+      'AUTOMATION_ACTION_NOT_ALLOWED_FOR_TRIGGER',
+    );
+    await expect(stock.service.updateRule('rule-1', { name: 'Renamed' })).resolves.toMatchObject({
+      name: 'Renamed',
+    });
   });
 });

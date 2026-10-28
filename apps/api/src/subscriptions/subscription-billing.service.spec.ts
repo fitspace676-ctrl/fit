@@ -10,6 +10,7 @@ import { SubscriptionInterval, SubscriptionStatus } from '@fit/db';
 import { SubscriptionBillingService } from './subscription-billing.service';
 import type { BillingNotificationsService } from './billing-notifications.service';
 import type { PaymentProvider, RenewalChargeResult } from './payment-provider';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { InvoiceService } from '../billing/invoice.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
@@ -56,6 +57,8 @@ function setup(
     charge?: (input: unknown) => RenewalChargeResult | Promise<RenewalChargeResult>;
     updateCount?: number;
     providerKey?: string;
+    /** Make the renewal transaction fail (the invoice mint throws, rolling it back). */
+    issueError?: Error;
   } = {},
 ) {
   const {
@@ -65,6 +68,7 @@ function setup(
     charge = () => ({ outcome: 'succeeded', providerRef: null }),
     updateCount = 1,
     providerKey = 'stub',
+    issueError,
   } = options;
 
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
@@ -95,8 +99,20 @@ function setup(
       tx: unknown,
       input: unknown,
     ) => Promise<{ id: string; number: string; seq: number; year: number }>
-  >(() => Promise.resolve({ id: 'inv-1', number: '2026-0001', seq: 1, year: 2026 }));
-  const invoices = { issue: invoiceIssue } as unknown as InvoiceService;
+  >(() =>
+    issueError
+      ? Promise.reject(issueError)
+      : Promise.resolve({ id: 'inv-1', number: '2026-0001', seq: 1, year: 2026 }),
+  );
+  const announcePaid = vi.fn<(input: unknown, issued: unknown) => void>();
+  const invoices = { issue: invoiceIssue, announcePaid } as unknown as InvoiceService;
+
+  // The automation seam (T12.5): the executor is proven in its own suite; here we
+  // assert which trigger each committed transition fires.
+  const dispatchForGym = vi
+    .fn<(gymId: string, trigger: string, ctx: unknown) => Promise<number>>()
+    .mockResolvedValue(1);
+  const automation = { dispatchForGym } as unknown as AutomationExecutorService;
 
   const chargeRenewal = vi.fn(async (input: unknown) => charge(input));
   const provider = { key: providerKey, chargeRenewal } as unknown as PaymentProvider;
@@ -119,7 +135,16 @@ function setup(
   } as unknown as BillingNotificationsService;
 
   return {
-    service: new SubscriptionBillingService(prisma, redis, invoices, notifications, provider),
+    service: new SubscriptionBillingService(
+      prisma,
+      redis,
+      invoices,
+      notifications,
+      provider,
+      automation,
+    ),
+    announcePaid,
+    dispatchForGym,
     findMany,
     updateMany,
     set,
@@ -533,6 +558,122 @@ describe('SubscriptionBillingService.runBillingCycle', () => {
       expect(notifyTrialsEndingSoon).toHaveBeenCalledWith(NOW, 3);
       expect(summary.trialEndingWarned).toBe(3);
     });
+  });
+});
+
+describe('SubscriptionBillingService automation triggers (T12.5)', () => {
+  const subscriptionCtx = { entityId: 'sub-1', entityType: 'subscription' };
+
+  it('fires membership_renewed and announces the PAID renewal invoice once the advance commits', async () => {
+    const { service, dispatchForGym, announcePaid } = setup({ due: [row()] });
+
+    await service.runBillingCycle({ now: NOW });
+
+    expect(dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'membership_renewed', subscriptionCtx);
+    expect(announcePaid).toHaveBeenCalledTimes(1);
+    expect(announcePaid).toHaveBeenCalledWith(
+      { gymId: 'gym-1' },
+      expect.objectContaining({ id: 'inv-1' }),
+    );
+  });
+
+  it('fires nothing when the renewal transaction rolls back', async () => {
+    const { service, dispatchForGym, announcePaid } = setup({
+      due: [row()],
+      issueError: new Error('invoice insert failed'),
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(summary.errors).toBe(1);
+    expect(announcePaid).not.toHaveBeenCalled();
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('fires nothing for a renewal another runner already advanced', async () => {
+    const { service, dispatchForGym, announcePaid } = setup({ due: [row()], updateCount: 0 });
+
+    await service.runBillingCycle({ now: NOW });
+
+    expect(announcePaid).not.toHaveBeenCalled();
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('fires payment_failed on the subscription when a renewal charge is declined', async () => {
+    const { service, dispatchForGym } = setup({
+      due: [row()],
+      charge: () => ({ outcome: 'failed', reason: 'card_declined' }),
+    });
+
+    await service.runBillingCycle({ now: NOW });
+
+    expect(dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'payment_failed', subscriptionCtx);
+  });
+
+  it('fires payment_failed on a failed dunning retry too', async () => {
+    const { service, dispatchForGym } = setup({
+      due: [
+        row({
+          status: SubscriptionStatus.PAST_DUE,
+          currentPeriodEnd: new Date('2026-06-05T00:00:00.000Z'),
+        }),
+      ],
+      charge: () => ({ outcome: 'failed', reason: 'card_declined' }),
+    });
+
+    await service.runBillingCycle({ now: NOW });
+
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'payment_failed', subscriptionCtx);
+  });
+
+  it('does not fire payment_failed when the failure write lost the race', async () => {
+    const { service, dispatchForGym } = setup({
+      due: [row()],
+      charge: () => ({ outcome: 'failed', reason: 'card_declined' }),
+      updateCount: 0,
+    });
+
+    await service.runBillingCycle({ now: NOW });
+
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('fires membership_cancelled when a scheduled cancellation takes effect', async () => {
+    const { service, dispatchForGym, announcePaid } = setup({
+      due: [row({ cancelAtPeriodEnd: true })],
+    });
+
+    await service.runBillingCycle({ now: NOW });
+
+    expect(dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'membership_cancelled', subscriptionCtx);
+    expect(announcePaid).not.toHaveBeenCalled();
+  });
+
+  it('fires membership_expired when the dunning ladder expires the subscription', async () => {
+    const { service, dispatchForGym } = setup({
+      due: [row({ status: SubscriptionStatus.PAST_DUE, paymentRetries: 3 })],
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(summary.expired).toBe(1);
+    expect(dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'membership_expired', subscriptionCtx);
+  });
+
+  it('does not fire membership_expired when the expiry write lost the race', async () => {
+    const { service, dispatchForGym } = setup({
+      due: [row({ status: SubscriptionStatus.PAST_DUE, paymentRetries: 3 })],
+      updateCount: 0,
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(summary.expired).toBe(0);
+    expect(dispatchForGym).not.toHaveBeenCalled();
   });
 });
 

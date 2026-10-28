@@ -100,7 +100,10 @@ function setup(overrides?: {
       input: unknown,
     ) => Promise<{ id: string; number: string; seq: number; year: number }>
   >(() => Promise.resolve({ id: 'inv-1', number: '2026-0001', seq: 1, year: 2026 }));
-  const invoices = { issue: invoiceIssue } as unknown as InvoiceService;
+  // `payment_received` is announced through the invoice seam once the enrolment
+  // transaction has committed (T12.5).
+  const announcePaid = vi.fn<(input: unknown, issued: unknown) => void>();
+  const invoices = { issue: invoiceIssue, announcePaid } as unknown as InvoiceService;
 
   return {
     service: new SubscriptionEnrollmentService(prisma, tenant, invoices),
@@ -109,6 +112,7 @@ function setup(overrides?: {
     subscriptionFindFirst,
     subscriptionCreate,
     invoiceIssue,
+    announcePaid,
   };
 }
 
@@ -281,5 +285,35 @@ describe('SubscriptionEnrollmentService.enrollMember', () => {
     expect(error).toBeInstanceOf(NotFoundException);
     expect((error.getResponse() as { code: string }).code).toBe('MEMBER_NOT_FOUND');
     expect(subscriptionCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubscriptionEnrollmentService payment_received (T12.5)', () => {
+  it('announces the first-period invoice after the enrolment commits', async () => {
+    const { service, announcePaid } = setup();
+
+    await service.enrollSelf('plan-1');
+
+    expect(announcePaid).toHaveBeenCalledTimes(1);
+    expect(announcePaid).toHaveBeenCalledWith(
+      { gymId: 'gym-1' },
+      expect.objectContaining({ id: 'inv-1' }),
+    );
+  });
+
+  it('announces nothing for a TRIAL enrolment (no charge, no invoice)', async () => {
+    const { service, announcePaid } = setup({ plan: plan({ trialDays: 7 }) });
+
+    await service.enrollMember('member-1', 'plan-1');
+
+    expect(announcePaid).not.toHaveBeenCalled();
+  });
+
+  it('announces nothing when the enrolment transaction rolls back', async () => {
+    const { service, announcePaid } = setup({ createError: p2002 });
+
+    await expect(service.enrollSelf('plan-1')).rejects.toBeInstanceOf(ConflictException);
+
+    expect(announcePaid).not.toHaveBeenCalled();
   });
 });

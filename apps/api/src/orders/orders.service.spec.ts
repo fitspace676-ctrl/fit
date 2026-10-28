@@ -11,7 +11,17 @@ import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service
 import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import type { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
 import type { PromoRedemptionService } from '../marketing/promo-redemption.service';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import { OrdersService, utcDayRange } from './orders.service';
+
+/** The automation executor — dispatch is fire-and-forget, so tests read its calls. */
+function automationStub() {
+  const dispatchForGym = vi.fn((..._args: unknown[]) => Promise.resolve(0));
+  return { dispatchForGym, automation: { dispatchForGym } as unknown as AutomationExecutorService };
+}
+
+/** Let the un-awaited dispatch chains settle before asserting on them. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 /** A no-op loyalty earn-hook stub — the sale flow calls it fire-and-forget. */
 /**
@@ -138,6 +148,21 @@ function setup(over?: {
   orderLocationId?: string | null;
   /** The catalogue service rows a service line on the receipt resolves against. */
   services?: Array<{ id: string; status: string }>;
+  /** The SALE ledger rows the low-stock check reads back after commit. */
+  saleMoves?: Array<{
+    productId: string;
+    locationId: string | null;
+    delta: number;
+    resultingStock: number;
+  }>;
+  /** `Product.lowStockThreshold` per product for the low-stock check. */
+  productThresholds?: Array<{ id: string; lowStockThreshold: number | null }>;
+  /** `ProductStock.lowStockThreshold` per (product, branch). */
+  branchThresholds?: Array<{
+    productId: string;
+    locationId: string;
+    lowStockThreshold: number | null;
+  }>;
 }) {
   const sendReceiptEmail = vi.fn<() => Promise<boolean>>(() =>
     Promise.resolve(over?.delivered ?? true),
@@ -200,15 +225,28 @@ function setup(over?: {
       gymMember: { findFirst: gymMemberFindFirst },
       service: { findMany: serviceFindMany },
       payment: { groupBy },
+      stockMovement: { findMany: vi.fn(() => Promise.resolve(over?.saleMoves ?? [])) },
+      productStock: { findMany: vi.fn(() => Promise.resolve(over?.branchThresholds ?? [])) },
+      product: { findMany: vi.fn(() => Promise.resolve(over?.productThresholds ?? [])) },
       $transaction,
     },
   } as unknown as TenantPrismaService;
   const enrollMember = over?.enrollMember ?? vi.fn().mockResolvedValue({});
   const enrollment = enrollmentStub(enrollMember);
+  const { automation, dispatchForGym } = automationStub();
   return {
     branchStock,
     defaultLocationFindFirst,
-    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment, promoStub()),
+    dispatchForGym,
+    service: new OrdersService(
+      email,
+      tenant,
+      prisma,
+      loyaltyStub(),
+      enrollment,
+      promoStub(),
+      automation,
+    ),
     enrollMember,
     sendReceiptEmail,
     findUnique,
@@ -909,6 +947,8 @@ function adminSetup(over?: {
   productFindMany?: unknown[];
   /** The caller's staff row at this gym; pass `null` for a caller with none. */
   staff?: { id: string } | null;
+  /** The invoice raised for the order, if any (`refund_issued` logs against it). */
+  invoice?: { id: string } | null;
 }) {
   const orderFindMany = vi.fn((_args: unknown) => Promise.resolve(over?.orderFindMany ?? []));
   const orderCount = vi.fn((_args: unknown) => Promise.resolve(over?.orderCount ?? 0));
@@ -981,13 +1021,24 @@ function adminSetup(over?: {
       },
       gymMember: { findFirst: gymMemberFindFirst },
       payment: { aggregate: paymentAggregate },
+      invoice: { findFirst: vi.fn(() => Promise.resolve(over?.invoice ?? null)) },
       $transaction,
     },
   } as unknown as TenantPrismaService;
 
   const enrollment = enrollmentStub();
+  const { automation, dispatchForGym } = automationStub();
   return {
-    service: new OrdersService(email, tenant, prisma, loyaltyStub(), enrollment, promoStub()),
+    dispatchForGym,
+    service: new OrdersService(
+      email,
+      tenant,
+      prisma,
+      loyaltyStub(),
+      enrollment,
+      promoStub(),
+      automation,
+    ),
     gymMemberFindFirst,
     orderFindMany,
     orderCount,
@@ -1645,5 +1696,126 @@ describe('OrdersService — the branch stamped on the money', () => {
 
     const args = refundCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(args.data.locationId).toBeNull();
+  });
+});
+
+describe('OrdersService — automation triggers', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  const lowMove = { productId: 'p1', locationId: 'loc-1', delta: -2, resultingStock: 4 };
+
+  it('fires purchase_completed for a member sale, logged against the order', async () => {
+    const { service, dispatchForGym } = setup();
+    await service.recordSale(saleInput);
+    await settle();
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'purchase_completed', {
+      entityId: 'order-1',
+      entityType: 'order',
+    });
+  });
+
+  it('does not fire purchase_completed for an anonymous sale', async () => {
+    const { service, dispatchForGym } = setup();
+    await service.recordSale({ ...saleInput, memberId: undefined });
+    await settle();
+    expect(dispatchForGym).not.toHaveBeenCalledWith(
+      'gym-1',
+      'purchase_completed',
+      expect.anything(),
+    );
+  });
+
+  it('fires product_stock_low when a line takes its shelf down to the cushion', async () => {
+    // 6 → 4 against the default cushion of 5.
+    const { service, dispatchForGym } = setup({ saleMoves: [lowMove] });
+    await service.recordSale(saleInput);
+    await settle();
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'product_stock_low', {
+      entityId: 'order-1',
+      entityType: 'order',
+    });
+  });
+
+  it('does not fire product_stock_low while the stock stays above the cushion', async () => {
+    const { service, dispatchForGym } = setup({
+      saleMoves: [{ ...lowMove, resultingStock: 8 }],
+    });
+    await service.recordSale(saleInput);
+    await settle();
+    expect(dispatchForGym).not.toHaveBeenCalledWith(
+      'gym-1',
+      'product_stock_low',
+      expect.anything(),
+    );
+  });
+
+  it('judges the branch cushion before the product one', async () => {
+    // Product says 5 (would fire on 6 → 4); this branch says 2, so it does not.
+    const { service, dispatchForGym } = setup({
+      saleMoves: [lowMove],
+      productThresholds: [{ id: 'p1', lowStockThreshold: 5 }],
+      branchThresholds: [{ productId: 'p1', locationId: 'loc-1', lowStockThreshold: 2 }],
+    });
+    await service.recordSale(saleInput);
+    await settle();
+    expect(dispatchForGym).not.toHaveBeenCalledWith(
+      'gym-1',
+      'product_stock_low',
+      expect.anything(),
+    );
+  });
+
+  it('does not fire again for a position already under its cushion', async () => {
+    const { service, dispatchForGym } = setup({
+      saleMoves: [{ ...lowMove, delta: -1, resultingStock: 3 }],
+    });
+    await service.recordSale(saleInput);
+    await settle();
+    expect(dispatchForGym).not.toHaveBeenCalledWith(
+      'gym-1',
+      'product_stock_low',
+      expect.anything(),
+    );
+  });
+
+  const refundable = {
+    id: 'order-1',
+    status: 'PAID',
+    memberId: 'mem-1',
+    payment: { id: 'pay-1', amount: 1000, refundedAmount: 0 },
+    items: [],
+  };
+  const refundInput = { amount: 400, reason: 'Returned', restockItems: false };
+
+  it('fires refund_issued against the order when it has no invoice', async () => {
+    const { service, dispatchForGym } = adminSetup({ orderFindFirst: refundable });
+    await service.refundOrder('order-1', refundInput);
+    await settle();
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'refund_issued', {
+      entityId: 'order-1',
+      entityType: 'order',
+    });
+  });
+
+  it('fires refund_issued against the invoice when the order has one', async () => {
+    const { service, dispatchForGym } = adminSetup({
+      orderFindFirst: refundable,
+      invoice: { id: 'inv-1' },
+    });
+    await service.refundOrder('order-1', refundInput);
+    await settle();
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'refund_issued', {
+      entityId: 'inv-1',
+      entityType: 'invoice',
+    });
+  });
+
+  it('does not fire refund_issued for an anonymous order', async () => {
+    const { service, dispatchForGym } = adminSetup({
+      orderFindFirst: { ...refundable, memberId: null },
+    });
+    await service.refundOrder('order-1', refundInput);
+    await settle();
+    expect(dispatchForGym).not.toHaveBeenCalled();
   });
 });

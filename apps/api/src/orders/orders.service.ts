@@ -7,6 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
+  AutomationTriggerType,
   OrderStatus,
   PaymentMethod as DbPaymentMethod,
   PaymentStatus,
@@ -51,6 +52,8 @@ import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { applyOrderStockMovements } from '../products/order-stock';
 import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
+import { dispatchSaleAutomation } from './order-automation';
 
 /**
  * The stock position a till line sold, in the composite form order lines and the
@@ -97,6 +100,7 @@ export class OrdersService {
     private readonly loyalty: LoyaltyPointsService,
     private readonly enrollment: SubscriptionEnrollmentService,
     private readonly promos: PromoRedemptionService,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /**
@@ -360,6 +364,15 @@ export class OrdersService {
         .catch(() => undefined);
     }
 
+    // Automation, also after commit and never awaited: `purchase_completed` for a
+    // member's sale, `product_stock_low` when a line took its shelf to the cushion.
+    dispatchSaleAutomation(this.automation, this.prisma.client, {
+      gymId,
+      orderId: sale.orderId,
+      memberId: memberId ?? null,
+      paid: true,
+    });
+
     return sale;
   }
 
@@ -577,12 +590,13 @@ export class OrdersService {
     // Resolved outside the transaction, as in `recordSale`.
     const processedById = await this.currentStaffId();
 
-    return this.prisma.client.$transaction(async (tx) => {
+    const result = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
         where: { id: orderId },
         select: {
           id: true,
           status: true,
+          memberId: true,
           // The branch this order was rung up at — copied onto the refund below so
           // a reversal nets against the takings it reverses (Stage 5).
           locationId: true,
@@ -687,8 +701,38 @@ export class OrdersService {
         });
       }
 
-      return { refundId: refund.id };
+      return { refundId: refund.id, memberId: order.memberId };
     });
+
+    if (result.memberId) {
+      void this.dispatchRefundIssued(gymId, orderId);
+    }
+    return { refundId: result.refundId };
+  }
+
+  /**
+   * Fire `refund_issued` once the refund has committed. Logged against the
+   * order's invoice when it has one (an invoice merge field then resolves), and
+   * against the order otherwise; the merge resolver finds the member through
+   * either. Never throws, and the caller does not wait for it.
+   */
+  private async dispatchRefundIssued(gymId: string, orderId: string): Promise<void> {
+    try {
+      const invoice = await this.prisma.client.invoice.findFirst({
+        where: { orderId },
+        select: { id: true },
+        orderBy: { issuedAt: 'desc' },
+      });
+      await this.automation.dispatchForGym(
+        gymId,
+        AutomationTriggerType.refund_issued,
+        invoice
+          ? { entityId: invoice.id, entityType: 'invoice' }
+          : { entityId: orderId, entityType: 'order' },
+      );
+    } catch {
+      // Automation never fails the refund it reacts to.
+    }
   }
 
   /**

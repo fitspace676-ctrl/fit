@@ -8,6 +8,7 @@ import {
 import { BookingStatus, InstanceStatus, Prisma } from '@fit/db';
 import { BookingsService } from './bookings.service';
 import type { ClassOccupancyPublisher } from './class-occupancy.publisher';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { CreditPacksService } from '../billing/credit-packs.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
@@ -101,13 +102,21 @@ function setup(opts?: {
     publish: vi.fn<(classInstanceId: string) => Promise<void>>().mockResolvedValue(undefined),
   };
 
+  // Automation triggers (T12.5) fire best-effort after a commit; a no-op
+  // executor whose calls the trigger tests assert on.
+  const automation = {
+    dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
+  };
+
   return {
     service: new BookingsService(
       prisma,
       tenant,
       creditPacks as unknown as CreditPacksService,
       occupancy as unknown as ClassOccupancyPublisher,
+      automation as unknown as AutomationExecutorService,
     ),
+    automation,
     gymMember,
     booking,
     classInstance,
@@ -224,6 +233,160 @@ describe('BookingsService', () => {
       const result = await ctx.service.book(INSTANCE_ID);
 
       expect(result.waitlistPosition).toBe(1);
+    });
+  });
+
+  describe('automation triggers (T12.5)', () => {
+    /** Wire one book() call: the occurrence load, the seat claim and the re-read. */
+    const wireBook = (
+      ctx: ReturnType<typeof setup>,
+      opts: { before: number; after: number; seated: boolean; id: string },
+    ) => {
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: opts.before }))
+        .mockResolvedValueOnce({ bookedCount: opts.after });
+      ctx.booking.findFirst.mockResolvedValueOnce(null);
+      ctx.classInstance.updateMany.mockResolvedValueOnce({ count: opts.seated ? 1 : 0 });
+      if (!opts.seated) {
+        ctx.booking.aggregate.mockResolvedValueOnce({ _max: { waitlistPosition: null } });
+      }
+      ctx.booking.create.mockResolvedValueOnce({ id: opts.id });
+    };
+    const triggers = (ctx: ReturnType<typeof setup>) =>
+      ctx.automation.dispatchForGym.mock.calls.map((c) => c[1]);
+
+    it('fires class_booked for a confirmed seat, scoped to the tenant gym and the booking', async () => {
+      const ctx = setup();
+      wireBook(ctx, { before: 3, after: 4, seated: true, id: 'bk-1' });
+
+      await ctx.service.book(INSTANCE_ID);
+
+      expect(ctx.automation.dispatchForGym).toHaveBeenCalledTimes(1);
+      expect(ctx.automation.dispatchForGym).toHaveBeenCalledWith(GYM_ID, 'class_booked', {
+        entityId: 'bk-1',
+        entityType: 'booking',
+      });
+    });
+
+    it('does not fire class_booked for a waitlist entry', async () => {
+      const ctx = setup();
+      wireBook(ctx, { before: 10, after: 10, seated: false, id: 'bk-wl' });
+
+      const result = await ctx.service.book(INSTANCE_ID);
+
+      expect(result.status).toBe(BookingStatus.WAITLIST);
+      expect(ctx.automation.dispatchForGym).not.toHaveBeenCalled();
+    });
+
+    it('fires class_full only once: for the seat that fills the class, not later waitlisters', async () => {
+      const ctx = setup();
+      // The 10th seat fills the class...
+      wireBook(ctx, { before: 9, after: 10, seated: true, id: 'bk-last' });
+      await ctx.service.book(INSTANCE_ID);
+      // ...the next two bookers are queued onto the waitlist.
+      ctx.gymMember.findFirst.mockResolvedValue({ id: 'gm-2' });
+      wireBook(ctx, { before: 10, after: 10, seated: false, id: 'bk-wl1' });
+      await ctx.service.book(INSTANCE_ID);
+      ctx.gymMember.findFirst.mockResolvedValue({ id: 'gm-3' });
+      wireBook(ctx, { before: 10, after: 10, seated: false, id: 'bk-wl2' });
+      await ctx.service.book(INSTANCE_ID);
+
+      expect(triggers(ctx)).toEqual(['class_booked', 'class_full']);
+      expect(ctx.automation.dispatchForGym).toHaveBeenCalledWith(GYM_ID, 'class_full', {
+        entityId: 'bk-last',
+        entityType: 'booking',
+      });
+    });
+
+    it('does not fire class_full while seats remain', async () => {
+      const ctx = setup();
+      wireBook(ctx, { before: 7, after: 8, seated: true, id: 'bk-8' });
+
+      await ctx.service.book(INSTANCE_ID);
+
+      expect(triggers(ctx)).toEqual(['class_booked']);
+    });
+
+    it('does not fire on an idempotent replay', async () => {
+      const ctx = setup();
+      ctx.booking.findFirst.mockResolvedValueOnce({
+        id: 'bk-1',
+        classInstanceId: INSTANCE_ID,
+        memberId: MEMBER_ID,
+        status: BookingStatus.BOOKED,
+        waitlistPosition: null,
+      });
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance());
+
+      await ctx.service.book(INSTANCE_ID, 'key-1');
+
+      expect(ctx.automation.dispatchForGym).not.toHaveBeenCalled();
+    });
+
+    it('does not fire when the booking transaction fails', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(null);
+
+      await expect(ctx.service.book(INSTANCE_ID)).rejects.toBeInstanceOf(NotFoundException);
+      expect(ctx.automation.dispatchForGym).not.toHaveBeenCalled();
+    });
+
+    it('fires class_cancelled_member for the cancel and class_booked for the promoted entry', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 10 }))
+        .mockResolvedValueOnce({ bookedCount: 10 });
+      ctx.booking.findFirst
+        .mockResolvedValueOnce({
+          id: 'bk-booked',
+          status: BookingStatus.BOOKED,
+          waitlistPosition: null,
+        })
+        .mockResolvedValueOnce({ id: 'bk-wl1', waitlistPosition: 1, memberId: 'gm-9' });
+      ctx.booking.update.mockResolvedValueOnce({});
+      ctx.booking.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      await ctx.service.cancel(INSTANCE_ID);
+
+      expect(ctx.automation.dispatchForGym).toHaveBeenNthCalledWith(
+        1,
+        GYM_ID,
+        'class_cancelled_member',
+        { entityId: 'bk-booked', entityType: 'booking' },
+      );
+      expect(ctx.automation.dispatchForGym).toHaveBeenNthCalledWith(2, GYM_ID, 'class_booked', {
+        entityId: 'bk-wl1',
+        entityType: 'booking',
+      });
+    });
+
+    it('fires only class_cancelled_member when a waitlisted member leaves', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst
+        .mockResolvedValueOnce(instance({ bookedCount: 10 }))
+        .mockResolvedValueOnce({ bookedCount: 10 });
+      ctx.booking.findFirst.mockResolvedValueOnce({
+        id: 'bk-wl',
+        status: BookingStatus.WAITLIST,
+        waitlistPosition: 2,
+      });
+      ctx.booking.update.mockResolvedValueOnce({});
+      ctx.booking.updateMany.mockResolvedValueOnce({ count: 1 });
+
+      await ctx.service.cancel(INSTANCE_ID);
+
+      expect(triggers(ctx)).toEqual(['class_cancelled_member']);
+    });
+
+    it('does not fire when the cancellation is refused', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance());
+      ctx.booking.findFirst.mockResolvedValueOnce(null);
+
+      await expect(ctx.service.cancel(INSTANCE_ID)).rejects.toBeInstanceOf(NotFoundException);
+      expect(ctx.automation.dispatchForGym).not.toHaveBeenCalled();
     });
   });
 

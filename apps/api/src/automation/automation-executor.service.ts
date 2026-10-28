@@ -5,10 +5,24 @@ import {
   AutomationRunStatus,
   AutomationTriggerType,
   GymStatus,
+  MemberTaskStatus,
+  NotificationCategory,
+  NotificationChannel,
   Prisma,
   SubscriptionStatus,
 } from '@fit/db';
-import { automationActionConfigSchema, interpolateMergeFields } from '@fit/types';
+import {
+  automationActionConfigSchema,
+  interpolateMergeFields,
+  automationConditionsSchema,
+  evaluateAutomationConditions,
+  parseTimingOffset,
+  timingOffsetDays,
+  AUTOMATION_TRIGGER_CATALOG,
+  GYM_RECIPIENT_ACTION_MESSAGE,
+  GYM_RECIPIENT_TRIGGERS,
+  type AutomationEntityType,
+} from '@fit/types';
 import { automationTriggerConfigSchema } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -17,6 +31,8 @@ import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/b
 import { resolveEmailLocale } from '../mail/email-locale';
 import { emailStrings } from '../mail/email-strings';
 import { AutomationMergeService } from './automation-merge.service';
+import { AutomationFactsService } from './automation-facts.service';
+import { NotificationService } from '../notifications/notification.service';
 import { env } from '../config/env';
 
 /**
@@ -27,18 +43,45 @@ import { env } from '../config/env';
  */
 export interface AutomationDispatchContext {
   entityId?: string;
-  entityType?: string;
+  entityType?: AutomationEntityType;
+  /**
+   * The trigger being fired. Set by the executor before personalising, so the
+   * merge service can address a gym-recipient trigger (`product_stock_low`) to
+   * the gym instead of the member.
+   */
+  triggerType?: AutomationTriggerType;
+  /** Scans already apply offsets to their date window; due runs must not queue again. */
+  immediate?: boolean;
+  /** Injectable event instant for scheduling and condition facts. */
+  now?: Date;
+  /** Scanner accounting without changing the public boolean result. */
+  onConditionsSkipped?: () => void;
   /**
    * When set, a matching run for the same `(ruleId, entityId)` at or after this
    * instant makes the dispatch a no-op — the idempotency guard the daily scanner
    * uses so a re-run (or a second replica) never double-logs the same window.
    */
   dedupeSince?: Date;
+  /**
+   * The check-in count a `checkin_milestone` dispatch reached. When set, only rules
+   * whose `triggerConfig.days` equals it fire — "10th visit" is not "50th visit".
+   */
+  milestone?: number;
+}
+
+/** What a performed action leaves on its run row. */
+interface ActionOutcome {
+  status: AutomationRunStatus;
+  detail: string;
 }
 
 /** The active-rule slice the executor loads to fire a trigger. */
 const RULE_SELECT = {
   id: true,
+  name: true,
+  conditions: true,
+  timingOffset: true,
+  triggerConfig: true,
   triggerType: true,
   actionType: true,
   actionConfig: true,
@@ -58,6 +101,7 @@ export interface AutomationScanSummary {
   runsRecorded: number;
   /** Matches skipped because a run for the same window already existed. */
   runsSkipped: number;
+  conditionsSkipped: number;
 }
 
 /** Cron: the time-based scanner — daily 07:00 (server time), a morning sweep. */
@@ -84,10 +128,9 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
  *     `membership_expiring` rules and records a run per subscription whose paid
  *     period ends within the rule's look-ahead window (`triggerConfig.days`).
  *
- * Action delivery is deliberately **stubbed** for this milestone: a matched rule
- * records a `SUCCESS` run describing the action it *would* send (email / SMS /
- * push / task). The real senders land alongside the Marketing (T12.7) and
- * Notifications work; the run log is the durable seam they slot into.
+ * Email, push (through {@link NotificationService}) and member tasks are really
+ * delivered; SMS has no provider yet, so its run records the message it *would*
+ * send. The run log is the durable seam a future SMS transport slots into.
  *
  * Like the other crons ({@link OpsNotificationsService}, the billing sweep) the
  * scanner is deliberately **cross-tenant**: it reads every gym and its rules /
@@ -104,6 +147,8 @@ export class AutomationExecutorService {
     private readonly redis: RedisService,
     private readonly merge: AutomationMergeService,
     private readonly mailer: MailerService,
+    private readonly facts: AutomationFactsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   /**
@@ -131,6 +176,17 @@ export class AutomationExecutorService {
       return 0;
     }
 
+    if (
+      triggerType === AutomationTriggerType.checkin_milestone &&
+      context.milestone !== undefined
+    ) {
+      rules = rules.filter(
+        (rule) =>
+          automationTriggerConfigSchema.safeParse(rule.triggerConfig).data?.days ===
+          context.milestone,
+      );
+    }
+
     let recorded = 0;
     for (const rule of rules) {
       if (await this.fireRule(gymId, rule, context)) {
@@ -151,18 +207,106 @@ export class AutomationExecutorService {
     rule: RuleRecord,
     context: AutomationDispatchContext = {},
   ): Promise<boolean> {
-    if (
-      context.dedupeSince &&
-      (await this.alreadyRan(rule.id, context.entityId, context.dedupeSince))
-    ) {
+    try {
+      if (
+        context.dedupeSince &&
+        (await this.alreadyRan(gymId, rule.id, context.entityId, context.dedupeSince))
+      )
+        return false;
+      if (!(await this.conditionsMet(gymId, rule, context))) {
+        this.logger.debug(`Automation rule ${rule.id}: conditions not met`);
+        context.onConditionsSkipped?.();
+        return false;
+      }
+      const now = context.now ?? new Date();
+      const offset = parseTimingOffset(rule.timingOffset).ms;
+      const trigger = AUTOMATION_TRIGGER_CATALOG.find((entry) => entry.value === rule.triggerType);
+      if (offset > 0 && context.immediate !== true && trigger?.kind !== 'scan') {
+        const scheduledFor = new Date(now.getTime() + offset);
+        await this.prisma.client.automationRun.create({
+          data: {
+            gymId,
+            ruleId: rule.id,
+            triggerType: rule.triggerType,
+            status: 'QUEUED',
+            entityId: context.entityId ?? null,
+            entityType: context.entityType ?? null,
+            scheduledFor,
+            ranAt: now,
+            detail: `Scheduled for ${scheduledFor.toISOString()}`,
+          },
+        });
+        return true;
+      }
+      return await this.recordRun(gymId, rule, context);
+    } catch (error) {
+      this.logger.warn(`Automation rule ${rule.id} failed: ${errMsg(error)}`);
       return false;
     }
-    return this.recordRun(gymId, rule, context);
+  }
+
+  private async conditionsMet(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+  ): Promise<boolean> {
+    // A gym-recipient trigger has no member to describe, so its conditions are
+    // treated as empty rather than failing every member-fact comparison.
+    if (GYM_RECIPIENT_TRIGGERS.has(rule.triggerType)) return true;
+    const parsed = automationConditionsSchema.safeParse(rule.conditions);
+    if (!parsed.success) return false;
+    if (parsed.data.length === 0) return true;
+    const memberId = await this.merge.resolveMemberId(gymId, context);
+    if (!memberId) return false;
+    const facts = await this.facts.loadConditionFacts(gymId, memberId, context.now);
+    return facts !== null && evaluateAutomationConditions(parsed.data, facts);
+  }
+
+  /** Only scheduled rows are eligible; historical QUEUED logs with no due date stay untouched. */
+  @Cron('*/10 * * * *', { name: 'automation-due-queued' })
+  async runDueQueued(now = new Date()): Promise<void> {
+    if (!env.AUTOMATION_EXECUTOR_ENABLED) return;
+    if (!(await this.acquireLock('automation:queued:lock', 600))) return;
+    try {
+      const runs = await this.prisma.client.automationRun.findMany({
+        where: { status: 'QUEUED', scheduledFor: { lte: now } },
+        orderBy: [{ scheduledFor: 'asc' }, { id: 'asc' }],
+        take: 200,
+      });
+      for (const run of runs) {
+        try {
+          const rule = await this.prisma.client.automationRule.findFirst({
+            where: { id: run.ruleId, gymId: run.gymId, active: true, isTemplate: false },
+            select: RULE_SELECT,
+          });
+          const context: AutomationDispatchContext = {
+            entityId: run.entityId ?? undefined,
+            entityType: run.entityType as AutomationEntityType | undefined,
+            immediate: true,
+            now,
+          };
+          const outcome = !rule
+            ? { status: AutomationRunStatus.SKIPPED, detail: 'Rule inactive' }
+            : !(await this.conditionsMet(run.gymId, rule, context))
+              ? { status: AutomationRunStatus.SKIPPED, detail: 'Conditions no longer met' }
+              : await this.performAction(run.gymId, rule, context);
+          await this.prisma.client.automationRun.updateMany({
+            where: { id: run.id, gymId: run.gymId, status: 'QUEUED' },
+            data: { status: outcome.status, detail: outcome.detail.slice(0, 500), ranAt: now },
+          });
+        } catch (error) {
+          this.logger.warn(`Queued automation ${run.id} failed: ${errMsg(error)}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Queued automation sweep failed: ${errMsg(error)}`);
+    }
   }
 
   /**
-   * Perform one rule's action and record the run. The `email` action is really
-   * delivered; the other three have no provider yet and are logged as such.
+   * Perform one rule's action and record the run. `email`, `push_notification`
+   * and `create_task` are really delivered; `sms` has no provider yet and is
+   * logged as such.
    * Returns whether a run row was written.
    *
    * Delivery happens before the row is written so its outcome can be recorded
@@ -222,25 +366,47 @@ export class AutomationExecutorService {
     gymId: string,
     rule: RuleRecord,
     context: AutomationDispatchContext,
-  ): Promise<{ status: AutomationRunStatus; detail: string }> {
-    if (rule.actionType !== AutomationActionType.email) {
-      return {
-        status: AutomationRunStatus.SUCCESS,
-        detail: undeliveredActionDetail(rule.actionType),
-      };
-    }
-
+  ): Promise<ActionOutcome> {
     try {
       const action = automationActionConfigSchema.safeParse(rule.actionConfig);
       if (!action.success) {
         return {
           status: AutomationRunStatus.FAILED,
-          detail: 'Email not sent — this rule has no usable message',
+          detail: 'Action not sent — this rule has no usable message',
         };
       }
 
+      const toGym = GYM_RECIPIENT_TRIGGERS.has(rule.triggerType);
+      if (toGym && rule.actionType !== AutomationActionType.email) {
+        return { status: AutomationRunStatus.SKIPPED, detail: GYM_RECIPIENT_ACTION_MESSAGE };
+      }
+
       const brand = await this.merge.brand(gymId);
-      const target = await this.merge.resolve(gymId, context, brand);
+      const target = await this.merge.resolve(
+        gymId,
+        { ...context, triggerType: rule.triggerType },
+        brand,
+      );
+      const subject = interpolateMergeFields(action.data.subject ?? '', target?.values ?? {});
+      const body = interpolateMergeFields(action.data.body, target?.values ?? {});
+      if (rule.actionType === AutomationActionType.push_notification) {
+        return await this.sendPush(gymId, rule, context, subject || rule.name, body);
+      }
+      if (rule.actionType === AutomationActionType.create_task) {
+        return await this.createTask(gymId, context, body);
+      }
+      if (rule.actionType !== AutomationActionType.email) {
+        return {
+          status: AutomationRunStatus.SUCCESS,
+          detail: `${undeliveredActionDetail(rule.actionType)}; message: ${body.slice(0, 300)}`,
+        };
+      }
+      if (toGym && target && !target.recipient) {
+        return {
+          status: AutomationRunStatus.SUCCESS,
+          detail: 'No gym email configured — nothing sent',
+        };
+      }
       if (!target?.recipient) {
         return {
           status: AutomationRunStatus.SUCCESS,
@@ -250,8 +416,6 @@ export class AutomationExecutorService {
 
       // The same expansion the one-off staff email uses: a known token with no
       // value is blanked, so a raw `{{…}}` can never reach a member.
-      const subject = interpolateMergeFields(action.data.subject ?? '', target.values);
-      const body = interpolateMergeFields(action.data.body, target.values);
 
       const locale = resolveEmailLocale(brand.language);
       const html = renderBrandedEmail({
@@ -272,25 +436,111 @@ export class AutomationExecutorService {
       // An unconfigured transport is a skip, not a failure — a dev machine with no
       // RESEND_API_KEY should read honestly rather than fill the log with FAILED.
       return sent
-        ? { status: AutomationRunStatus.SUCCESS, detail: `Emailed ${target.recipient}` }
+        ? {
+            status: AutomationRunStatus.SUCCESS,
+            detail: toGym ? `Emailed gym ${target.recipient}` : `Emailed ${target.recipient}`,
+          }
         : {
             status: AutomationRunStatus.SUCCESS,
             detail: 'Email not sent — mail transport is not configured',
           };
     } catch (error) {
-      this.logger.warn(`Automation email for rule ${rule.id} failed: ${errMsg(error)}`);
-      return { status: AutomationRunStatus.FAILED, detail: `Email failed: ${errMsg(error)}` };
+      const label = actionLabel(rule.actionType);
+      this.logger.warn(
+        `Automation ${label.toLowerCase()} for rule ${rule.id} failed: ${errMsg(error)}`,
+      );
+      return { status: AutomationRunStatus.FAILED, detail: `${label} failed: ${errMsg(error)}` };
     }
+  }
+
+  /**
+   * Push + in-app notification to the member the trigger is about. Deduped per
+   * rule, entity and UTC day, so a re-run never notifies twice. Throws on a
+   * transport error; {@link performAction} turns that into a `FAILED` run.
+   */
+  private async sendPush(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+    title: string,
+    body: string,
+  ): Promise<ActionOutcome> {
+    const memberId = await this.merge.resolveMemberId(gymId, context);
+    const member = memberId
+      ? await this.prisma.client.gymMember.findFirst({
+          where: { id: memberId, gymId },
+          select: { userId: true },
+        })
+      : null;
+    if (!member) return { status: AutomationRunStatus.SUCCESS, detail: 'No recipient' };
+
+    const day = (context.now ?? new Date()).toISOString().slice(0, 10);
+    const result = await this.notifications.send({
+      gymId,
+      userId: member.userId,
+      category: NotificationCategory.SYSTEM,
+      title,
+      body,
+      channels: [NotificationChannel.PUSH, NotificationChannel.IN_APP],
+      dedupeKey: `automation:${rule.id}:${context.entityId ?? memberId}:${day}`,
+    });
+    if (result.deduped) {
+      return { status: AutomationRunStatus.SKIPPED, detail: 'Already notified today' };
+    }
+    const pushed = result.delivered.some(
+      (entry) => entry.channel === NotificationChannel.PUSH && entry.pending !== true,
+    );
+    if (pushed) {
+      const devices = await this.prisma.client.pushToken.count({
+        where: { userId: member.userId },
+      });
+      return { status: AutomationRunStatus.SUCCESS, detail: `Pushed to ${devices} device(s)` };
+    }
+    if (result.delivered.some((entry) => entry.channel === NotificationChannel.IN_APP)) {
+      return {
+        status: AutomationRunStatus.SUCCESS,
+        detail: 'In-app notification delivered (no push device)',
+      };
+    }
+    return {
+      status: AutomationRunStatus.SUCCESS,
+      detail: 'Notification not delivered — member muted these channels',
+    };
+  }
+
+  /** A follow-up task on the member's profile, titled with the rule's message. */
+  private async createTask(
+    gymId: string,
+    context: AutomationDispatchContext,
+    body: string,
+  ): Promise<ActionOutcome> {
+    const memberId = await this.merge.resolveMemberId(gymId, context);
+    if (!memberId) {
+      return { status: AutomationRunStatus.SUCCESS, detail: 'No member for this trigger' };
+    }
+    const title = body.slice(0, 200);
+    await this.prisma.client.memberTask.create({
+      data: {
+        gymId,
+        memberId,
+        title,
+        dueDate: null,
+        assignee: null,
+        status: MemberTaskStatus.PENDING,
+      },
+    });
+    return { status: AutomationRunStatus.SUCCESS, detail: `Task created: ${title}` };
   }
 
   /** Whether a run for this `(ruleId, entityId)` already exists at/after `since`. */
   private async alreadyRan(
+    gymId: string,
     ruleId: string,
     entityId: string | undefined,
     since: Date,
   ): Promise<boolean> {
     const existing = await this.prisma.client.automationRun.findFirst({
-      where: { ruleId, entityId: entityId ?? null, ranAt: { gte: since } },
+      where: { gymId, ruleId, entityId: entityId ?? null, ranAt: { gte: since } },
       select: { id: true },
     });
     return existing !== null;
@@ -313,10 +563,31 @@ export class AutomationExecutorService {
     }
     this.logger.log('Running automation time-based scan');
     try {
-      const summary = await this.scanMembershipExpiring();
+      const summaries = await Promise.all([
+        this.scanMembershipExpiring(),
+        this.scanBirthdays(),
+        this.scanNoCheckin(),
+        this.scanInvoiceOverdue(),
+      ]);
+      const summary = summaries.reduce(
+        (total, item) => ({
+          ...total,
+          rulesMatched: total.rulesMatched + item.rulesMatched,
+          runsRecorded: total.runsRecorded + item.runsRecorded,
+          runsSkipped: total.runsSkipped + item.runsSkipped,
+          conditionsSkipped: total.conditionsSkipped + item.conditionsSkipped,
+        }),
+        {
+          ...summaries[0],
+          rulesMatched: 0,
+          runsRecorded: 0,
+          runsSkipped: 0,
+          conditionsSkipped: 0,
+        },
+      );
       this.logger.log(
         `Automation scan: ${summary.runsRecorded} recorded, ${summary.runsSkipped} skipped across ` +
-          `${summary.rulesMatched} rules / ${summary.gymsProcessed} gyms`,
+          `${summary.rulesMatched} rules / ${summary.gymsProcessed} gyms; ${summary.conditionsSkipped} conditions skipped`,
       );
     } catch (error) {
       this.logger.error(`Automation scan failed: ${errMsg(error)}`);
@@ -332,69 +603,145 @@ export class AutomationExecutorService {
    * injectable for deterministic tests.
    */
   async scanMembershipExpiring(options?: { now?: Date }): Promise<AutomationScanSummary> {
-    const now = options?.now ?? new Date();
-    const dedupeSince = startOfUtcDay(now);
+    return this.scanTrigger('membership_expiring', options?.now ?? new Date());
+  }
+
+  async scanBirthdays(options?: { now?: Date }): Promise<AutomationScanSummary> {
+    return this.scanTrigger('birthday', options?.now ?? new Date());
+  }
+  async scanNoCheckin(options?: { now?: Date }): Promise<AutomationScanSummary> {
+    return this.scanTrigger('no_checkin', options?.now ?? new Date());
+  }
+  async scanInvoiceOverdue(options?: { now?: Date }): Promise<AutomationScanSummary> {
+    return this.scanTrigger('invoice_overdue', options?.now ?? new Date());
+  }
+
+  private async scanTrigger(
+    triggerType: AutomationTriggerType,
+    now: Date,
+  ): Promise<AutomationScanSummary> {
     const summary: AutomationScanSummary = {
       now: now.toISOString(),
       gymsProcessed: 0,
       rulesMatched: 0,
       runsRecorded: 0,
       runsSkipped: 0,
+      conditionsSkipped: 0,
     };
-
     const gyms = await this.prisma.client.gym.findMany({
       where: { status: GymStatus.ACTIVE },
       select: { id: true },
       orderBy: { createdAt: 'asc' },
     });
-
     for (const gym of gyms) {
-      summary.gymsProcessed += 1;
+      summary.gymsProcessed++;
       const rules = await this.prisma.client.automationRule.findMany({
-        where: {
-          gymId: gym.id,
-          triggerType: AutomationTriggerType.membership_expiring,
-          active: true,
-          isTemplate: false,
-        },
-        select: { ...RULE_SELECT, triggerConfig: true },
+        where: { gymId: gym.id, triggerType, active: true, isTemplate: false },
+        select: RULE_SELECT,
       });
-
       for (const rule of rules) {
-        const days = automationTriggerConfigSchema.safeParse(rule.triggerConfig ?? {}).data?.days;
-        if (!days) {
-          // A `membership_expiring` rule without a positive `days` can't define a
-          // window (create/update validation prevents this; a legacy row is skipped).
+        const config = automationTriggerConfigSchema.safeParse(rule.triggerConfig).data;
+        if (
+          (triggerType === 'membership_expiring' || triggerType === 'no_checkin') &&
+          !config?.days
+        )
+          continue;
+        let offset: number;
+        try {
+          offset = timingOffsetDays(rule.timingOffset);
+        } catch {
           continue;
         }
-        summary.rulesMatched += 1;
-
-        const { gte, lt } = utcDayWindow(now, days);
-        const subs = await this.prisma.client.subscription.findMany({
-          where: {
-            gymId: gym.id,
-            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
-            currentPeriodEnd: { gte, lt },
-          },
-          select: { id: true },
-        });
-
-        for (const sub of subs) {
+        summary.rulesMatched++;
+        const entities = await this.scanEntities(
+          gym.id,
+          triggerType,
+          config?.days ?? 0,
+          offset,
+          now,
+        );
+        for (const entity of entities) {
+          let conditionsSkipped = false;
           const recorded = await this.fireRule(gym.id, rule, {
-            entityId: sub.id,
-            entityType: 'subscription',
-            dedupeSince,
+            entityId: entity.id,
+            entityType: entity.entityType,
+            dedupeSince: startOfUtcDay(now),
+            immediate: true,
+            now,
+            onConditionsSkipped: () => {
+              conditionsSkipped = true;
+            },
           });
-          if (recorded) {
-            summary.runsRecorded += 1;
-          } else {
-            summary.runsSkipped += 1;
-          }
+          if (recorded) summary.runsRecorded++;
+          else if (conditionsSkipped) summary.conditionsSkipped++;
+          else summary.runsSkipped++;
         }
       }
     }
-
     return summary;
+  }
+
+  private async scanEntities(
+    gymId: string,
+    trigger: AutomationTriggerType,
+    days: number,
+    offset: number,
+    now: Date,
+  ): Promise<{ id: string; entityType: AutomationEntityType }[]> {
+    if (trigger === 'membership_expiring') {
+      const subs = await this.prisma.client.subscription.findMany({
+        where: {
+          gymId,
+          status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
+          currentPeriodEnd: utcDayWindow(now, days + offset),
+        },
+        select: { id: true },
+      });
+      return subs.map((sub) => ({ ...sub, entityType: 'subscription' }));
+    }
+    if (trigger === 'invoice_overdue') {
+      const invoices = await this.prisma.client.invoice.findMany({
+        where: { gymId, status: { in: ['PENDING', 'FAILED'] }, dueDate: utcDayWindow(now, offset) },
+        select: { id: true },
+      });
+      return invoices.map((invoice) => ({ ...invoice, entityType: 'invoice' }));
+    }
+    if (trigger === 'birthday') {
+      const target = utcDayWindow(now, offset).gte;
+      const members = await this.prisma.client.gymMember.findMany({
+        where: { gymId, status: 'ACTIVE', deletedAt: null, dateOfBirth: { not: null } },
+        select: { id: true, dateOfBirth: true },
+      });
+      return members
+        .filter(
+          (member) =>
+            member.dateOfBirth?.getUTCMonth() === target.getUTCMonth() &&
+            member.dateOfBirth.getUTCDate() === target.getUTCDate(),
+        )
+        .map((member) => ({ id: member.id, entityType: 'member' }));
+    }
+    if (trigger === 'no_checkin') {
+      const window = utcDayWindow(now, -(days + offset));
+      const members = await this.prisma.client.gymMember.findMany({
+        where: {
+          gymId,
+          status: 'ACTIVE',
+          deletedAt: null,
+          OR: [
+            {
+              checkIns: {
+                some: { gymId, checkedInAt: window },
+                none: { gymId, checkedInAt: { gte: window.lt } },
+              },
+            },
+            { checkIns: { none: { gymId } }, joinedAt: window },
+          ],
+        },
+        select: { id: true },
+      });
+      return members.map((member) => ({ ...member, entityType: 'member' }));
+    }
+    return [];
   }
 
   /**
@@ -403,10 +750,12 @@ export class AutomationExecutorService {
    * on any Redis error — a missed scan is preferable to every replica double-logging
    * runs when the lock backend is unavailable.
    */
-  private async acquireLock(): Promise<boolean> {
-    const key = `automation:scan:lock:${new Date().toISOString().slice(0, 10)}`;
+  private async acquireLock(
+    key = `automation:scan:lock:${new Date().toISOString().slice(0, 10)}`,
+    ttl = LOCK_TTL_SECONDS,
+  ): Promise<boolean> {
     try {
-      const result = await this.redis.client.set(key, '1', 'EX', LOCK_TTL_SECONDS, 'NX');
+      const result = await this.redis.client.set(key, '1', 'EX', ttl, 'NX');
       return result === 'OK';
     } catch (error) {
       this.logger.warn(
@@ -425,15 +774,22 @@ export class AutomationExecutorService {
  * this is where its branch goes.
  */
 function undeliveredActionDetail(actionType: AutomationActionType): string {
+  return actionType === AutomationActionType.sms
+    ? 'SMS not delivered yet'
+    : 'Action not delivered yet';
+}
+
+/** The action's name as a run detail prefixes a failure with. */
+function actionLabel(actionType: AutomationActionType): string {
   switch (actionType) {
-    case AutomationActionType.sms:
-      return 'SMS is not delivered yet — logged only';
     case AutomationActionType.push_notification:
-      return 'Push notification is not delivered yet — logged only';
+      return 'Push';
     case AutomationActionType.create_task:
-      return 'Task creation is not wired yet — logged only';
+      return 'Task';
+    case AutomationActionType.sms:
+      return 'SMS';
     default:
-      return 'This action is not delivered yet — logged only';
+      return 'Email';
   }
 }
 

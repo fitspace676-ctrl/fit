@@ -17,6 +17,8 @@ import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
+import { dispatchSaleAutomation } from '../orders/order-automation';
 
 /**
  * The join wizard's final step: the authenticated purchase that closes signup
@@ -56,6 +58,7 @@ export class CheckoutService {
     private readonly creditPacks: CreditPacksService,
     private readonly subscriptions: SubscriptionEnrollmentService,
     private readonly promos: PromoRedemptionService,
+    private readonly automation: AutomationExecutorService,
   ) {}
 
   /** Buy the named catalogue product for the calling member. */
@@ -177,7 +180,7 @@ export class CheckoutService {
     const discount = promo?.discount ?? 0;
     const total = plan.priceAmount - discount;
 
-    return this.prisma.client.$transaction(async (tx) => {
+    const orderId = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
           gymId,
@@ -226,6 +229,10 @@ export class CheckoutService {
 
       return order.id;
     });
+
+    // After commit, never awaited. A package holds no stock, so no low-stock read.
+    dispatchSaleAutomation(this.automation, null, { gymId, orderId, memberId, paid: true });
+    return orderId;
   }
 
   /**

@@ -1,8 +1,10 @@
+import { AutomationFactsService } from './automation-facts.service';
 import { Module } from '@nestjs/common';
 import { AutomationController } from './automation.controller';
 import { AutomationExecutorService } from './automation-executor.service';
 import { AutomationMergeService } from './automation-merge.service';
 import { AutomationService } from './automation.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 /**
  * Automation: the staff console's "when X happens, do Y" surface (`/automation`,
@@ -18,11 +20,18 @@ import { AutomationService } from './automation.service';
  *
  * {@link AutomationMergeService} resolves who a fired rule is about and the tokens
  * that personalise their message; the executor delivers `email` actions through
- * the `@Global` `MailModule`'s transport, so neither needs extra wiring here.
+ * the `@Global` `MailModule`'s transport, and `push_notification` actions through
+ * the {@link NotificationsModule}'s `NotificationService`.
  */
 @Module({
+  imports: [NotificationsModule],
   controllers: [AutomationController],
-  providers: [AutomationService, AutomationExecutorService, AutomationMergeService],
+  providers: [
+    AutomationFactsService,
+    AutomationService,
+    AutomationExecutorService,
+    AutomationMergeService,
+  ],
   exports: [AutomationExecutorService],
 })
 export class AutomationModule {}

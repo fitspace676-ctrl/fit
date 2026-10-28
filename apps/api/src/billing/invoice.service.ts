@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { InvoiceStatus, InvoiceType, Prisma } from '@fit/db';
+import { Injectable, Optional } from '@nestjs/common';
+import { AutomationTriggerType, InvoiceStatus, InvoiceType, Prisma } from '@fit/db';
 import {
   formatInvoiceNumber,
   gymSettingsStoredSchema,
@@ -7,6 +7,7 @@ import {
   type GymInvoiceSettings,
   type InvoiceNumbering,
 } from '@fit/types';
+import { AutomationExecutorService } from '../automation/automation-executor.service';
 
 /**
  * The `invoice_sequences` bucket a gym-wide (year-less) run of numbers lives in.
@@ -122,6 +123,33 @@ export interface IssuedInvoice {
  */
 @Injectable()
 export class InvoiceService {
+  /**
+   * The automation seam {@link announcePaid} fires `payment_received` through.
+   * Optional so the many callers that build the service by hand (specs, int-specs)
+   * keep working; under Nest it is always wired by {@link InvoiceModule}.
+   */
+  constructor(@Optional() private readonly automation?: AutomationExecutorService) {}
+
+  /**
+   * Fire the `payment_received` automation trigger for an invoice the caller has
+   * just **committed**. {@link issue} runs inside the caller's transaction, which
+   * can still roll back after it returns, so it cannot announce the invoice itself:
+   * every issuer calls this once its `$transaction` has resolved. Only a `PAID`
+   * invoice (the {@link issue} default) is a received payment; a `PENDING` one is
+   * ignored. Best-effort and never awaited by the money path: the executor swallows
+   * its own errors, and the returned promise is deliberately voided here.
+   */
+  announcePaid(
+    input: Pick<IssueInvoiceInput, 'gymId' | 'status'>,
+    issued: Pick<IssuedInvoice, 'id'>,
+  ): void {
+    if ((input.status ?? InvoiceStatus.PAID) !== InvoiceStatus.PAID) return;
+    void this.automation?.dispatchForGym(input.gymId, AutomationTriggerType.payment_received, {
+      entityId: issued.id,
+      entityType: 'invoice',
+    });
+  }
+
   /**
    * Allocate the next sequence number and insert the invoice, all inside `tx`.
    *

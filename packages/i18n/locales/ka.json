@@ -2745,7 +2745,9 @@
         "message": "შეტყობინება",
         "messageHint": "პერსონალიზაციისთვის გამოიყენეთ ქვემოთ მოცემული დინამიკური ველები.",
         "messagePlaceholder": "შეიყვანეთ შეტყობინება…",
-        "mergeHint": "დააწკაპუნეთ დინამიკური ველის ჩასასმელად:",
+        "mergeHint": "ამ ტრიგერისთვის ხელმისაწვდომი ცვლადები",
+        "gymRecipientHint": "ეს ტრიგერი დარბაზის email-ზე იგზავნება, წევრი ადრესატი არ არის.",
+        "conditionsUnavailable": "ამ ტრიგერზე პირობები არ გამოიყენება.",
         "active": "აქტიური",
         "activeHint": "არააქტიური წესები არასდროს სრულდება.",
         "addTitle": "ავტომატიზაციის შექმნა",
@@ -2757,7 +2759,16 @@
         "addSubmit": "ავტომატიზაციის შექმნა",
         "editSubmit": "ცვლილებების შენახვა",
         "created": "ავტომატიზაცია შეიქმნა.",
-        "updated": "ავტომატიზაცია განახლდა."
+        "updated": "ავტომატიზაცია განახლდა.",
+        "conditions": "პირობები",
+        "conditionsEmpty": "წესი ყველა წევრზე ისვრის",
+        "conditionsAnd": "და",
+        "conditionsField": "ველი",
+        "conditionsOperator": "ოპერატორი",
+        "conditionsValue": "მნიშვნელობა",
+        "conditionsChoose": "აირჩიე მნიშვნელობა",
+        "conditionsRemove": "პირობის წაშლა",
+        "conditionsAdd": "პირობის დამატება"
       },
       "categories": {
         "members": "წევრები",
@@ -2811,7 +2822,11 @@
       "mergeGroups": {
         "member": "წევრი",
         "membership": "აბონემენტი",
-        "business": "ბიზნესი"
+        "business": "ბიზნესი",
+        "class": "კლასი",
+        "invoice": "ინვოისი",
+        "order": "შეკვეთა",
+        "session": "სესია"
       },
       "mergeVars": {
         "memberFirstName": "სახელი",
@@ -2833,7 +2848,32 @@
         "businessPhone": "დარბაზის ტელეფონი",
         "businessAddress": "დარბაზის მისამართი",
         "businessEmail": "დარბაზის ელფოსტა",
-        "businessWebsite": "დარბაზის ვებსაიტი"
+        "businessWebsite": "დარბაზის ვებსაიტი",
+        "memberGender": "სქესი",
+        "memberAge": "ასაკი",
+        "memberTags": "ტეგები",
+        "memberBranchName": "ფილიალის სახელი",
+        "memberBranchAddress": "ფილიალის მისამართი",
+        "memberBranchPhone": "ფილიალის ტელეფონი",
+        "memberLastCheckinDate": "ბოლო ვიზიტის თარიღი",
+        "memberPlanPrice": "გეგმის ფასი",
+        "memberSubscriptionStatus": "აბონემენტის სტატუსი",
+        "memberPeriodStart": "პერიოდის დასაწყისი",
+        "memberFrozenUntil": "გაყინვის დასრულება",
+        "className": "კლასის სახელი",
+        "classDate": "კლასის თარიღი",
+        "classTime": "კლასის დრო",
+        "classTrainerName": "კლასის მწვრთნელი",
+        "classLocation": "კლასის მდებარეობა",
+        "invoiceNumber": "ინვოისის ნომერი",
+        "invoiceAmount": "ინვოისის თანხა",
+        "invoiceDate": "ინვოისის თარიღი",
+        "orderTotal": "შეკვეთის ჯამი",
+        "orderItems": "შეკვეთის პროდუქტები",
+        "sessionName": "სესიის სახელი",
+        "sessionDate": "სესიის თარიღი",
+        "sessionTime": "სესიის დრო",
+        "sessionTrainerName": "სესიის მწვრთნელი"
       },
       "templates": {
         "saved": "შაბლონი შენახულია.",
@@ -2854,13 +2894,91 @@
         "unexpected": "დაფიქსირდა შეცდომა. გთხოვთ, სცადოთ ხელახლა.",
         "loadRules": "ავტომატიზაციების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
         "loadTemplates": "შაბლონების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
-        "apiUnreachable": "API მიუწვდომელია. გთხოვთ, სცადოთ ცოტა ხანში."
+        "apiUnreachable": "API მიუწვდომელია. გთხოვთ, სცადოთ ცოტა ხანში.",
+        "conditionsInvalid": "შეავსე პირობები ველისა და ოპერატორის შესაბამისი მნიშვნელობებით."
       },
       "stats": {
         "active": "აქტიური ავტომატიზაციები",
         "totalRuns": "სულ შესრულებები",
         "messagesSent": "გაგზავნილი შეტყობინებები",
         "last30": "გაგზავნილი (30 დღე)"
+      },
+      "conditionFields": {
+        "member_gender": "სქესი",
+        "member_age": "ასაკი",
+        "member_status": "წევრის სტატუსი",
+        "member_kind": "წევრის ტიპი",
+        "member_branch": "ფილიალი",
+        "member_tags": "ტეგები",
+        "member_joined_days_ago": "გაწევრიანებიდან გასული დღეები",
+        "member_last_checkin_days_ago": "ბოლო ვიზიტიდან გასული დღეები",
+        "member_checkin_count": "ვიზიტების რაოდენობა",
+        "subscription_plan": "აბონემენტის გეგმა",
+        "subscription_status": "აბონემენტის სტატუსი",
+        "subscription_days_until_expiry": "ვადის გასვლამდე დარჩენილი დღეები"
+      },
+      "conditionOperators": {
+        "eq": "უდრის",
+        "neq": "არ უდრის",
+        "in": "არის ერთ-ერთი",
+        "not_in": "არ არის არცერთი",
+        "is_empty": "ცარიელია",
+        "is_not_empty": "არ არის ცარიელი",
+        "gt": "მეტია",
+        "gte": "მეტია ან ტოლი",
+        "lt": "ნაკლებია",
+        "lte": "ნაკლებია ან ტოლი",
+        "contains": "შეიცავს",
+        "not_contains": "არ შეიცავს"
+      },
+      "conditionGroups": {
+        "member": "წევრი",
+        "subscription": "აბონემენტი"
+      },
+      "conditionValues": {
+        "member_gender": {
+          "MALE": "მამრობითი",
+          "FEMALE": "მდედრობითი",
+          "OTHER": "სხვა"
+        },
+        "member_status": {
+          "ACTIVE": "აქტიური",
+          "INVITED": "მოწვეული",
+          "SUSPENDED": "შეჩერებული"
+        },
+        "member_kind": {
+          "MEMBER": "წევრი",
+          "GUEST": "სტუმარი",
+          "INACTIVE": "არააქტიური"
+        },
+        "subscription_status": {
+          "TRIAL": "საცდელი",
+          "ACTIVE": "აქტიური",
+          "PAST_DUE": "ვადაგადაცილებული",
+          "FROZEN": "გაყინული",
+          "CANCELED": "გაუქმებული",
+          "EXPIRED": "ვადაგასული"
+        }
+      },
+      "timing": {
+        "now": "მოვლენის მომენტში",
+        "before": "{count} {unit} ადრე",
+        "after": "{count} {unit} შემდეგ",
+        "days": "დღით",
+        "hours": "საათით",
+        "preset": "სწრაფი არჩევანი",
+        "custom": "სხვა დრო",
+        "direction": "მიმართულება",
+        "direction_now": "მოვლენის მომენტში",
+        "direction_before": "ადრე",
+        "direction_after": "შემდეგ",
+        "amount": "რაოდენობა",
+        "unit": "ერთეული",
+        "eventHint": "გაშვება ხდება მოვლენის მომენტში ან მითითებული დღეების ან საათების შემდეგ.",
+        "invalid": "შეიყვანე მთელი რიცხვი: 0-365 დღე ან 0-8760 საათი."
+      },
+      "conditions": {
+        "count": "{count} პირობა"
       }
     },
     "marketing": {
@@ -3590,6 +3708,23 @@
       "save": "შენახვა",
       "cancel": "გაუქმება",
       "deleteConfirm": "წაიშალოს ეს ჩატი და მისი შენახული შეტყობინებები?",
+      "status": {
+        "pending": "მოლოდინში",
+        "running": "მიმდინარეობს",
+        "complete": "დასრულდა",
+        "error": "შეცდომა",
+        "awaiting_approval": "ელოდება დადასტურებას",
+        "rejected": "უარყოფილია",
+        "cancelled": "გაუქმებულია - გასაგრძელებლად ხელახლა მოითხოვეთ ქმედება"
+      },
+      "errors": {
+        "agent_not_configured": "AI აგენტი ჯერ არ არის გამართული.",
+        "provider_error": "AI სერვისი მიუწვდომელია. სცადეთ ხელახლა.",
+        "rate_limited": "ძალიან ბევრი მოთხოვნაა. ცოტა ხანში სცადეთ ხელახლა.",
+        "invalid_request": "მოთხოვნა ვერ დამუშავდა.",
+        "unknown_tool": "ეს ქმედება მიუწვდომელია.",
+        "agent_failed": "აგენტმა ვერ დაასრულა. სცადეთ ხელახლა."
+      },
       "fields": {
         "name": "სახელი",
         "email": "ელფოსტა",
@@ -3639,23 +3774,6 @@
         "CANCELED": "გაუქმებული",
         "PAID": "გადახდილი",
         "FAILED": "წარუმატებელი"
-      },
-      "status": {
-        "pending": "მოლოდინში",
-        "running": "მიმდინარეობს",
-        "complete": "დასრულდა",
-        "error": "შეცდომა",
-        "awaiting_approval": "ელოდება დადასტურებას",
-        "rejected": "უარყოფილია",
-        "cancelled": "გაუქმებულია - გასაგრძელებლად ხელახლა მოითხოვეთ ქმედება"
-      },
-      "errors": {
-        "agent_not_configured": "AI აგენტი ჯერ არ არის გამართული.",
-        "provider_error": "AI სერვისი მიუწვდომელია. სცადეთ ხელახლა.",
-        "rate_limited": "ძალიან ბევრი მოთხოვნაა. ცოტა ხანში სცადეთ ხელახლა.",
-        "invalid_request": "მოთხოვნა ვერ დამუშავდა.",
-        "unknown_tool": "ეს ქმედება მიუწვდომელია.",
-        "agent_failed": "აგენტმა ვერ დაასრულა. სცადეთ ხელახლა."
       }
     },
     "permissions": {

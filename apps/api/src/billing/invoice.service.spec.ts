@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InvoiceStatus } from '@fit/db';
 import { formatInvoiceNumber } from '@fit/types';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import { InvoiceService, type InvoiceTxClient } from './invoice.service';
 
 /**
@@ -291,5 +292,56 @@ describe('InvoiceService.issue — the branch snapshot', () => {
 
     expect(memberFindFirst).not.toHaveBeenCalled();
     expect(create.mock.calls[0]?.[0].data).toMatchObject({ locationId: null });
+  });
+});
+
+describe('InvoiceService.announcePaid — the post-commit payment_received trigger (T12.5)', () => {
+  function withAutomation() {
+    const dispatchForGym = vi
+      .fn<(gymId: string, trigger: string, ctx: unknown) => Promise<number>>()
+      .mockResolvedValue(1);
+    const automation = { dispatchForGym } as unknown as AutomationExecutorService;
+    return { service: new InvoiceService(automation), dispatchForGym };
+  }
+
+  it('fires payment_received for a PAID invoice (the default status)', () => {
+    const { service, dispatchForGym } = withAutomation();
+
+    service.announcePaid({ gymId: 'gym-1' }, { id: 'inv-1' });
+
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'payment_received', {
+      entityId: 'inv-1',
+      entityType: 'invoice',
+    });
+  });
+
+  it('ignores an invoice that is not PAID', () => {
+    const { service, dispatchForGym } = withAutomation();
+
+    service.announcePaid({ gymId: 'gym-1', status: InvoiceStatus.PENDING }, { id: 'inv-1' });
+
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op when no automation executor is wired', () => {
+    expect(() =>
+      new InvoiceService().announcePaid({ gymId: 'gym-1' }, { id: 'inv-1' }),
+    ).not.toThrow();
+  });
+
+  it('does not fire from issue() itself (the caller announces after commit)', async () => {
+    const { service, dispatchForGym } = withAutomation();
+    const tx = {
+      $queryRawUnsafe: vi.fn().mockResolvedValue([{ lastNumber: 1 }]),
+      invoice: {
+        create: vi.fn().mockResolvedValue({ id: 'inv-1', number: '2026-0001', seq: 1, year: 2026 }),
+      },
+      gym: { findFirst: vi.fn().mockResolvedValue(null) },
+      gymMember: { findFirst: vi.fn().mockResolvedValue(null) },
+    } as unknown as InvoiceTxClient;
+
+    await service.issue(tx, { gymId: 'gym-1', memberId: null, amount: 100, currency: 'GEL' });
+
+    expect(dispatchForGym).not.toHaveBeenCalled();
   });
 });

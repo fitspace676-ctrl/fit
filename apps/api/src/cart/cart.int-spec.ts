@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { GymStatus, ProductStatus, Role } from '@fit/db';
 import { encodeVariantRef } from '@fit/types';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import { CartService } from './cart.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
@@ -23,6 +24,7 @@ const service = new CartService(
   tenantForCart,
   new PromoRedemptionService(prismaForCart),
   new GymLocaleService(prismaForCart as unknown as TenantPrismaService, tenantForCart),
+  { dispatchForGym: () => Promise.resolve(0) } as unknown as AutomationExecutorService,
 );
 
 function anon(gymId: string): TenantState {

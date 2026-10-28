@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { InvoiceService } from './invoice.service';
 
 /**
@@ -8,9 +9,11 @@ import { InvoiceService } from './invoice.service';
  * charge inside its own transaction (member enrolment and the recurring-billing job in
  * {@link SubscriptionsModule} today; a POS-linked subscription charge later) can raise
  * the invoice atomically with that charge. Holds no Prisma client of its own — the
- * service operates on the caller's transaction — so it has nothing else to wire.
+ * service operates on the caller's transaction. {@link AutomationModule} backs
+ * `InvoiceService.announcePaid`, the post-commit `payment_received` trigger.
  */
 @Module({
+  imports: [AutomationModule],
   providers: [InvoiceService],
   exports: [InvoiceService],
 })

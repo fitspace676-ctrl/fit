@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CheckInMethod } from '@fit/db';
 import type { ActivityEvent } from '@fit/types';
 import { CheckInService } from './check-in.service';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import type { ActivityStreamService } from '../live/activity-stream.service';
@@ -55,6 +56,9 @@ function setup() {
     findMany: vi
       .fn<(args: { where: Record<string, unknown> }) => Promise<unknown[]>>()
       .mockResolvedValue([]),
+    count: vi
+      .fn<(args: { where: Record<string, unknown> }) => Promise<number>>()
+      .mockResolvedValue(1),
   };
   // The branch lookups `resolveArrivalBranch` makes: a named branch is validated
   // through the scoped client, an unnamed one falls back to `isDefault`. Both are
@@ -86,13 +90,18 @@ function setup() {
   const loyalty = {
     awardForCheckIn: vi.fn<() => Promise<void>>().mockResolvedValue(),
   };
+  // `checkin_milestone` (T12.5) fires best-effort after the arrival is written.
+  const automation = {
+    dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
+  };
   const service = new CheckInService(
     prisma,
     tenant,
     activityStream as unknown as ActivityStreamService,
     loyalty as unknown as LoyaltyPointsService,
+    automation as unknown as AutomationExecutorService,
   );
-  return { service, checkIn, gymMember, location, activityStream, loyalty };
+  return { service, checkIn, gymMember, location, activityStream, loyalty, automation };
 }
 
 describe('CheckInService.recordCheckIn', () => {
@@ -133,6 +142,50 @@ describe('CheckInService.recordCheckIn', () => {
     await expect(
       service.recordCheckIn({ gymMemberId: 'gm-1', method: 'MANUAL' }),
     ).resolves.toMatchObject({ checkIn: { id: 'ci-1', name: 'Ada Lovelace' } });
+  });
+});
+
+/** Let the fire-and-forget milestone count + dispatch settle. */
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+describe('CheckInService.recordCheckIn — checkin_milestone (T12.5)', () => {
+  it("passes the member's check-in count in this gym as the milestone", async () => {
+    const { service, checkIn, automation } = setup();
+    checkIn.count.mockResolvedValueOnce(10);
+
+    await service.recordCheckIn({ gymMemberId: 'gm-1', method: 'MANUAL' });
+    await flush();
+
+    expect(checkIn.count).toHaveBeenCalledWith({ where: { gymId: GYM_ID, gymMemberId: 'gm-1' } });
+    expect(automation.dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(automation.dispatchForGym).toHaveBeenCalledWith(GYM_ID, 'checkin_milestone', {
+      entityId: 'gm-1',
+      entityType: 'member',
+      milestone: 10,
+    });
+  });
+
+  it('still resolves the check-in when the count fails', async () => {
+    const { service, checkIn, automation } = setup();
+    checkIn.count.mockRejectedValueOnce(new Error('db hiccup'));
+
+    await expect(
+      service.recordCheckIn({ gymMemberId: 'gm-1', method: 'MANUAL' }),
+    ).resolves.toMatchObject({ checkIn: { id: 'ci-1' } });
+    await flush();
+    expect(automation.dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('dispatches nothing when the arrival could not be written', async () => {
+    const { service, checkIn, automation } = setup();
+    checkIn.create.mockRejectedValueOnce(new Error('insert failed'));
+
+    await expect(service.recordCheckIn({ gymMemberId: 'gm-1', method: 'MANUAL' })).rejects.toThrow(
+      'insert failed',
+    );
+    await flush();
+    expect(checkIn.count).not.toHaveBeenCalled();
+    expect(automation.dispatchForGym).not.toHaveBeenCalled();
   });
 });
 

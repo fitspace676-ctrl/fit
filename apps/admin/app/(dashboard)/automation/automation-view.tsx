@@ -19,6 +19,8 @@ import {
 } from '@fit/ui-kit';
 import { Icon, useToast } from '@/components/ui';
 import { deleteAutomationRuleAction, toggleAutomationRuleAction } from './actions';
+import type { BuilderCatalog } from './condition-builder';
+import { timingLabel } from './timing-field';
 import { RuleFormDialog } from './rule-form-dialog';
 import { SaveTemplateDialog } from './save-template-dialog';
 import {
@@ -223,6 +225,7 @@ export function AutomationView({
   search,
   active,
   canManage,
+  catalog,
 }: {
   rules: AutomationRuleRow[];
   total: number;
@@ -233,6 +236,7 @@ export function AutomationView({
   search: string;
   active: string;
   canManage: boolean;
+  catalog: BuilderCatalog;
 }) {
   const t = useTranslations('admin.automation');
   const locale = useLocale();
@@ -337,9 +341,13 @@ export function AutomationView({
                 tone={CATEGORY_TONES[category]}
                 label={t(`categories.${CATEGORY_KEY[category]}`)}
               />
-              {rule.timingOffset !== 'day_of' ? (
-                <Badge tone="neutral" label={t(`timings.${rule.timingOffset}`)} />
-              ) : null}
+              <Badge tone="neutral" label={timingLabel(rule.timingOffset, t)} />
+              {rule.conditions.length > 0 && (
+                <Badge
+                  tone="neutral"
+                  label={t('conditions.count', { count: rule.conditions.length })}
+                />
+              )}
             </span>
           </div>
         );
@@ -522,10 +530,15 @@ export function AutomationView({
       </div>
 
       {dialog?.kind === 'create' ? (
-        <RuleFormDialog mode="create" onClose={() => setDialog(null)} />
+        <RuleFormDialog catalog={catalog} mode="create" onClose={() => setDialog(null)} />
       ) : null}
       {dialog?.kind === 'edit' ? (
-        <RuleFormDialog mode="edit" seed={dialog.rule} onClose={() => setDialog(null)} />
+        <RuleFormDialog
+          catalog={catalog}
+          mode="edit"
+          seed={dialog.rule}
+          onClose={() => setDialog(null)}
+        />
       ) : null}
       {dialog?.kind === 'template' ? (
         <SaveTemplateDialog

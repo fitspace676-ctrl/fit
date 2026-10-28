@@ -11,6 +11,7 @@ import type { FreezeSubscriptionData } from '@fit/types';
 import { SubscriptionFreezeService } from './subscription-freeze.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { AutomationExecutorService } from '../automation/automation-executor.service';
 
 /** A subscription row as the freeze/unfreeze projections select it. */
 interface SubscriptionRecord {
@@ -77,9 +78,14 @@ function setup(overrides?: {
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { userId: 'user-1', gymId: 'gym-1' } as unknown as TenantContext;
+  const dispatchForGym = vi
+    .fn<(gymId: string, trigger: string, ctx: unknown) => Promise<number>>()
+    .mockResolvedValue(1);
+  const automation = { dispatchForGym } as unknown as AutomationExecutorService;
 
   return {
-    service: new SubscriptionFreezeService(prisma, tenant),
+    service: new SubscriptionFreezeService(prisma, tenant, automation),
+    dispatchForGym,
     memberFindFirst,
     subscriptionFindFirst,
     subscriptionUpdate,
@@ -412,5 +418,63 @@ describe('SubscriptionFreezeService staff variants', () => {
 
     expect(error).toBeInstanceOf(ConflictException);
     expect(error.getResponse()).toMatchObject({ code: 'NOT_FROZEN' });
+  });
+});
+
+describe('SubscriptionFreezeService membership_frozen (T12.5)', () => {
+  const ctx = { entityId: 'sub-1', entityType: 'subscription' };
+
+  it('fires membership_frozen after a member freeze commits', async () => {
+    const { service, dispatchForGym } = setup();
+
+    await service.freeze('sub-1', freezeInput());
+
+    expect(dispatchForGym).toHaveBeenCalledTimes(1);
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'membership_frozen', ctx);
+  });
+
+  it('fires membership_frozen after a staff freeze commits', async () => {
+    const { service, dispatchForGym } = setup();
+
+    await service.freezeForStaff('sub-1', freezeInput());
+
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'membership_frozen', ctx);
+  });
+
+  it('fires nothing when the freeze is refused', async () => {
+    const { service, dispatchForGym } = setup({
+      subscription: subscription({ freezeDaysUsed: 12, plan: { freezeDaysPerPeriod: 14 } }),
+    });
+
+    await expect(
+      service.freezeForStaff('sub-1', freezeInput({ durationDays: 5 })),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('fires nothing when the freeze claim lost the race', async () => {
+    const { service, dispatchForGym } = setup({
+      claimCount: 0,
+      afterRace: subscription({ status: SubscriptionStatus.FROZEN }),
+    });
+
+    await expect(service.freeze('sub-1', freezeInput())).rejects.toBeInstanceOf(ConflictException);
+
+    expect(dispatchForGym).not.toHaveBeenCalled();
+  });
+
+  it('does not fire on unfreeze', async () => {
+    const { service, dispatchForGym } = setup({
+      subscription: subscription({
+        status: SubscriptionStatus.FROZEN,
+        frozenAt: new Date('2026-06-10T00:00:00.000Z'),
+        frozenUntil: new Date('2026-06-20T00:00:00.000Z'),
+      }),
+    });
+
+    await service.unfreezeForStaff('sub-1');
+
+    expect(dispatchForGym).not.toHaveBeenCalled();
   });
 });

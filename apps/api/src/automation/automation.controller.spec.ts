@@ -53,9 +53,9 @@ const validRule = {
 describe('AutomationController', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('serves the catalog', () => {
+  it('serves the catalog', async () => {
     const ctx = setup();
-    ctx.controller.catalog();
+    await ctx.controller.catalog();
     expect(ctx.catalog).toHaveBeenCalledOnce();
   });
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AutomationModule } from '../automation/automation.module';
 import { AuthModule } from '../auth/auth.module';
 import { StaffController } from './staff.controller';
 import { StaffDepthController } from './staff-depth.controller';
@@ -18,7 +19,7 @@ import { StaffService } from './staff.service';
  * tenant context all come from the app-wide `TenantModule` / `RbacModule`.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AutomationModule],
   controllers: [StaffController, StaffDepthController],
   providers: [StaffService, StaffDepthService],
 })

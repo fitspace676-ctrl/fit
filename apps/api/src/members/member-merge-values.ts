@@ -1,5 +1,6 @@
 import type { GymLanguage, MergeValues } from '@fit/types';
 import { money } from '../common/money';
+import { ageAt } from '../automation/automation-facts.service';
 
 /** Milliseconds in a day, for the days-until-expiry count. */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -9,9 +10,18 @@ export interface MemberMergeSource {
   status: string;
   joinedAt: Date;
   dateOfBirth: Date | null;
+  /** Optional so a caller with a narrower select still compiles; absent reads blank. */
+  gender?: string | null;
+  tags?: string[];
+  location?: { name: string; address: string | null; phone: string | null } | null;
+  /** Newest first, `take: 1` — the last check-in's instant. */
+  checkIns?: { checkedInAt: Date }[];
   user: { name: string | null; email: string; phone: string | null };
   subscriptions: {
     currentPeriodEnd: Date | null;
+    currentPeriodStart?: Date | null;
+    frozenUntil?: Date | null;
+    status?: string;
     plan: { name: string; priceAmount: number; currency: string } | null;
   }[];
   /**
@@ -23,7 +33,7 @@ export interface MemberMergeSource {
 }
 
 /** `YYYY-MM-DD`, or an empty string for a null date. */
-function isoDate(date: Date | null): string {
+function isoDate(date: Date | null | undefined): string {
   return date ? date.toISOString().slice(0, 10) : '';
 }
 
@@ -73,6 +83,8 @@ export function buildMemberMergeValues(input: {
   // than rounding up to 2 in the morning and down to 0 after lunch. Matches
   // `AutomationMergeService.mergeValues`, which counts the same days for the same
   // member — the two must not disagree by one.
+  const paymentAmount = price === undefined ? '' : money(price, language, currency);
+
   const daysLeft = expiry
     ? String(Math.max(0, Math.floor((expiry.getTime() - today.getTime()) / DAY_MS)))
     : '';
@@ -92,7 +104,7 @@ export function buildMemberMergeValues(input: {
     days_until_expiry: daysLeft,
     // Through the shared `money()`, so the automation pipeline and this one quote
     // the same plan the same way — gym language, currency symbol, one answer.
-    payment_amount: price === undefined ? '' : money(price, language, currency),
+    payment_amount: paymentAmount,
     // The renewal date IS the period end — the day the current term stops is the
     // day the next one is charged. Two tokens for one date because gyms word it
     // both ways ("expires on" / "renews on") and a template should not have to
@@ -107,7 +119,7 @@ export function buildMemberMergeValues(input: {
     //
     // The drawer's template picker lists automation rule bodies alongside
     // marketing templates, so a body sent from here can carry `{{member_*}}`
-    // tokens. All 20 automation tokens are covered below — nothing an automation
+    // tokens. Every automation token is covered below — nothing an automation
     // rule body can quote reaches a member blank from this path.
     //
     // The two that need facts outside the member row — `member_checkin_count`
@@ -134,6 +146,33 @@ export function buildMemberMergeValues(input: {
     member_checkin_count: String(member._count.checkIns),
     member_points_balance: String(pointsBalance),
     payment_due_date: isoDate(expiry),
+    member_gender: member.gender ?? '',
+    member_age: String(ageAt(member.dateOfBirth, today) ?? ''),
+    member_tags: (member.tags ?? []).join(', '),
+    member_branch_name: member.location?.name ?? '',
+    member_branch_address: member.location?.address ?? '',
+    member_branch_phone: member.location?.phone ?? '',
+    member_last_checkin_date: isoDate(member.checkIns?.[0]?.checkedInAt),
+    member_plan_price: paymentAmount,
+    member_subscription_status: sub?.status ?? '',
+    member_period_start: isoDate(sub?.currentPeriodStart),
+    member_frozen_until: isoDate(sub?.frozenUntil),
+    // Context tokens: a one-off member email has no class, invoice, order or
+    // session behind it. Known keys still get a value so nothing reads undefined.
+    class_name: '',
+    class_date: '',
+    class_time: '',
+    class_trainer_name: '',
+    class_location: '',
+    invoice_number: '',
+    invoice_amount: '',
+    invoice_date: '',
+    order_total: '',
+    order_items: '',
+    session_name: '',
+    session_date: '',
+    session_time: '',
+    session_trainer_name: '',
   };
 
   return values;

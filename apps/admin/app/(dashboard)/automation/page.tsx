@@ -5,6 +5,8 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
+  AUTOMATION_CONDITION_FIELDS,
+  AUTOMATION_TIMING_PRESETS,
   listAutomationRulesQuerySchema,
   roleHasPermission,
   type ListAutomationRulesQuery,
@@ -13,6 +15,7 @@ import { getServerSession } from '@/lib/session';
 import {
   ApiError,
   fetchAutomationRules,
+  fetchAutomationCatalog,
   fetchAutomationStats,
   fetchAutomationTemplates,
 } from '@/lib/api';
@@ -100,11 +103,17 @@ export default async function AutomationPage({
   // Header KPI cards — fail-soft so a stats hiccup never blanks the workspace.
   const stats = await fetchAutomationStats().catch(() => null);
 
+  const catalog = await fetchAutomationCatalog().catch(() => ({
+    conditionFields: AUTOMATION_CONDITION_FIELDS,
+    conditionOptions: { locations: [], plans: [], tags: [] },
+    timings: AUTOMATION_TIMING_PRESETS,
+  }));
+
   let content;
   if (tab === 'templates') {
     try {
       const result = await fetchAutomationTemplates();
-      content = <TemplatesView templates={result.data} canManage={canManage} />;
+      content = <TemplatesView catalog={catalog} templates={result.data} canManage={canManage} />;
     } catch (error) {
       const message =
         error instanceof ApiError
@@ -131,6 +140,7 @@ export default async function AutomationPage({
       const result = await fetchAutomationRules(query);
       content = (
         <AutomationView
+          catalog={catalog}
           rules={result.data}
           total={result.total}
           page={result.page}
