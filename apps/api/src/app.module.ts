@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { AutomationModule } from './automation/automation.module';
 import { BannersModule } from './banners/banners.module';
 import { BillingModule } from './billing/billing.module';
+import { BlogModule } from './blog/blog.module';
 import { CartModule } from './cart/cart.module';
 import { CartIdentityMiddleware } from './cart/cart-identity.middleware';
 import { CatalogueModule } from './catalogue/catalogue.module';
@@ -197,6 +198,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     GymsModule,
     SuperAdminModule,
     PlatformModule,
+    BlogModule,
     TenantModule,
     RbacModule,
     RateLimitModule,
