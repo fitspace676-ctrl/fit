@@ -30,6 +30,12 @@ interface Rows {
   services?: { coverUrl: string | null }[];
   banners?: { imageUrl: string }[];
   gyms?: { settings: unknown; mobileAppLoginImageUrl?: string | null }[];
+  blogPosts?: {
+    coverImageUrl: string | null;
+    ogImageUrl: string | null;
+    contentImageUrls: string[];
+  }[];
+  blogAuthors?: { photoUrl: string | null }[];
 }
 
 /** Wire the service to fake storage + Prisma rows; returns the deletion spy. */
@@ -52,6 +58,8 @@ function setup(objects: StoredObject[], rows: Rows = {}) {
       service: { findMany: vi.fn(() => Promise.resolve(rows.services ?? [])) },
       banner: { findMany: vi.fn(() => Promise.resolve(rows.banners ?? [])) },
       gym: { findMany: vi.fn(() => Promise.resolve(rows.gyms ?? [])) },
+      blogPost: { findMany: vi.fn(() => Promise.resolve(rows.blogPosts ?? [])) },
+      blogAuthor: { findMany: vi.fn(() => Promise.resolve(rows.blogAuthors ?? [])) },
     },
   } as unknown as PrismaService;
 
@@ -116,6 +124,40 @@ describe('MediaSweepService.sweep', () => {
 
     expect(deleteObjects).toHaveBeenCalledWith(['gym-1/banners/orphan.jpg']);
     expect(summary).toMatchObject({ referenced: 1, orphaned: 1, deleted: 1 });
+  });
+
+  it('owns the platform blog prefix: keeps cover, OG, inline and author images', async () => {
+    // `blog` is in SWEEPABLE_ENTITIES, so every blog column must be collected here
+    // or a live post would lose its pictures on the first nightly run.
+    const { service, deleteObjects } = setup(
+      [
+        object('platform/blog/cover.jpg'),
+        object('platform/blog/og.jpg'),
+        object('platform/blog/inline-1.png'),
+        object('platform/blog/inline-2.png'),
+        object('platform/blog/author.jpg'),
+        object('platform/blog/orphan.jpg'),
+      ],
+      {
+        blogPosts: [
+          {
+            coverImageUrl: `${PUBLIC_BASE}/platform/blog/cover.jpg`,
+            ogImageUrl: `${PUBLIC_BASE}/platform/blog/og.jpg`,
+            contentImageUrls: [
+              `${PUBLIC_BASE}/platform/blog/inline-1.png`,
+              `${PUBLIC_BASE}/platform/blog/inline-2.png`,
+            ],
+          },
+          { coverImageUrl: null, ogImageUrl: null, contentImageUrls: [] },
+        ],
+        blogAuthors: [{ photoUrl: `${PUBLIC_BASE}/platform/blog/author.jpg` }],
+      },
+    );
+
+    const summary = await service.sweep(NOW);
+
+    expect(deleteObjects).toHaveBeenCalledWith(['platform/blog/orphan.jpg']);
+    expect(summary).toMatchObject({ scanned: 6, referenced: 5, orphaned: 1, deleted: 1 });
   });
 
   it('owns the classes prefix: keeps a referenced cover, deletes an orphaned one', async () => {

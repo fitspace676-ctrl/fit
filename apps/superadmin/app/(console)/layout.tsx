@@ -103,6 +103,9 @@ export default function ConsoleLayout({ children }: { children: ReactNode }) {
           <Link href="/activity" {...stylex.props(styles.navLink)}>
             Activity
           </Link>
+          <Link href="/blog" {...stylex.props(styles.navLink)}>
+            Blog
+          </Link>
         </nav>
 
         <div {...stylex.props(styles.foot)}>

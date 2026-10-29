@@ -41,6 +41,10 @@ const LOCATION_EXEMPT: Record<string, string> = {
     'Campaign has no branch column on purpose (D5): a campaign is sent to people, not offered at a branch — a branch predicate belongs in the audience criteria, a separate change',
   listAutomationRulesQuerySchema:
     'AutomationRule has no branch column on purpose (D5): its reach is the entity scan, and a branch predicate there is targeting work, not a list filter',
+  listAdminBlogPostsQuerySchema:
+    'the platform blog belongs to no gym, let alone a branch; SUPER_ADMIN-only console list',
+  listPublicBlogPostsQuerySchema:
+    "formacore.io's own blog, read without a tenant; a post has no gym or branch",
 };
 
 // PENDING: needs the filter, tracked. A schema listed here lists rows that do reach

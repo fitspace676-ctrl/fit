@@ -2,24 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { createAdminGymSchema, type CreateAdminGymInput, type GymStatus } from '@fit/types';
-import { isSuperAdmin } from '@/lib/auth-session';
-import { getServerSession } from '@/lib/session';
+import { requireOperator } from '@/lib/operator';
 import { ApiError, createGym, impersonateGym, setGymStatus } from '@/lib/api';
 import { tenantAdminUrl } from '@/lib/tenant-url';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
 export type ActionResult<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
-
-/**
- * Re-assert SUPER_ADMIN inside the action itself. The middleware already gates
- * every route, but a Server Action is a POST endpoint in its own right, so
- * re-checking here keeps it safe even if the matcher ever changes — defence in
- * depth, not a substitute for the gate.
- */
-async function requireOperator(): Promise<boolean> {
-  const session = await getServerSession();
-  return session !== null && isSuperAdmin(session.role);
-}
 
 /** Map a thrown API error to a short, operator-facing message. */
 function toMessage(error: unknown): string {

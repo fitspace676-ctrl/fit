@@ -163,34 +163,53 @@ export class MediaSweepService {
       if (key) keys.add(key);
     };
 
-    const [products, trainers, locations, classTemplates, services, banners, gyms] =
-      await Promise.all([
-        this.prisma.client.product.findMany({ select: { images: true } }),
-        this.prisma.client.trainer.findMany({
-          where: { photoUrl: { not: null } },
-          select: { photoUrl: true },
-        }),
-        this.prisma.client.location.findMany({
-          where: { photoUrl: { not: null } },
-          select: { photoUrl: true },
-        }),
-        this.prisma.client.classTemplate.findMany({
-          where: { imageUrl: { not: null } },
-          select: { imageUrl: true },
-        }),
-        this.prisma.client.service.findMany({
-          where: { coverUrl: { not: null } },
-          select: { coverUrl: true },
-        }),
-        // Home-screen banners (T1.16). `imageUrl` is NOT NULL but is empty on a
-        // banner whose artwork has not been finalised yet, which `toObjectKey`
-        // reads as "no reference" — so an empty string here costs nothing and the
-        // column needs no filter.
-        this.prisma.client.banner.findMany({ select: { imageUrl: true } }),
-        this.prisma.client.gym.findMany({
-          select: { settings: true, mobileAppLoginImageUrl: true },
-        }),
-      ]);
+    const [
+      products,
+      trainers,
+      locations,
+      classTemplates,
+      services,
+      banners,
+      gyms,
+      blogPosts,
+      blogAuthors,
+    ] = await Promise.all([
+      this.prisma.client.product.findMany({ select: { images: true } }),
+      this.prisma.client.trainer.findMany({
+        where: { photoUrl: { not: null } },
+        select: { photoUrl: true },
+      }),
+      this.prisma.client.location.findMany({
+        where: { photoUrl: { not: null } },
+        select: { photoUrl: true },
+      }),
+      this.prisma.client.classTemplate.findMany({
+        where: { imageUrl: { not: null } },
+        select: { imageUrl: true },
+      }),
+      this.prisma.client.service.findMany({
+        where: { coverUrl: { not: null } },
+        select: { coverUrl: true },
+      }),
+      // Home-screen banners (T1.16). `imageUrl` is NOT NULL but is empty on a
+      // banner whose artwork has not been finalised yet, which `toObjectKey`
+      // reads as "no reference" — so an empty string here costs nothing and the
+      // column needs no filter.
+      this.prisma.client.banner.findMany({ select: { imageUrl: true } }),
+      this.prisma.client.gym.findMany({
+        select: { settings: true, mobileAppLoginImageUrl: true },
+      }),
+      // The platform blog (`platform/blog/…`): cover and OG images, every image
+      // left in a post's sanitized body (recorded on write), and author photos.
+      // Drafts and unpublished posts count too — their images are still in use.
+      this.prisma.client.blogPost.findMany({
+        select: { coverImageUrl: true, ogImageUrl: true, contentImageUrls: true },
+      }),
+      this.prisma.client.blogAuthor.findMany({
+        where: { photoUrl: { not: null } },
+        select: { photoUrl: true },
+      }),
+    ]);
 
     for (const product of products) for (const image of product.images) add(image);
     for (const trainer of trainers) add(trainer.photoUrl);
@@ -198,6 +217,12 @@ export class MediaSweepService {
     for (const template of classTemplates) add(template.imageUrl);
     for (const service of services) add(service.coverUrl);
     for (const banner of banners) add(banner.imageUrl);
+    for (const post of blogPosts) {
+      add(post.coverImageUrl);
+      add(post.ogImageUrl);
+      for (const image of post.contentImageUrls) add(image);
+    }
+    for (const author of blogAuthors) add(author.photoUrl);
     // The gym logo, the member portal's sign-in photograph and the portal's own
     // wordmark all live inside the `settings` JSON blob rather than in their own
     // columns; read them defensively, since a hand-edited row must not abort the
