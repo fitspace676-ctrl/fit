@@ -474,6 +474,9 @@ importers:
       react-dom:
         specifier: ^19.2.6
         version: 19.2.6(react@19.2.6)
+      sanitize-html:
+        specifier: ^2.18.1
+        version: 2.18.1
     devDependencies:
       '@fit/config':
         specifier: workspace:*
@@ -496,6 +499,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.2.3(@types/react@19.2.15)
+      '@types/sanitize-html':
+        specifier: ^2.16.2
+        version: 2.16.2
       autoprefixer:
         specifier: ^10.4.20
         version: 10.5.0(postcss@8.5.15)
