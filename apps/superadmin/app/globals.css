@@ -34,3 +34,102 @@ body {
   font-family: var(--font-family-body);
   -webkit-font-smoothing: antialiased;
 }
+
+/*
+ * Blog post bodies — the Tiptap editor (`.blog-editor`, a ProseMirror root) and
+ * the preview's stored HTML. Global because both are third-party or
+ * `dangerouslySetInnerHTML` markup that StyleX cannot reach; scoped to
+ * `.blog-prose` so nothing else in the console picks it up.
+ */
+.blog-prose {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+.blog-prose > * + * {
+  margin-top: 0.85em;
+}
+.blog-prose > :first-child {
+  margin-top: 0;
+}
+.blog-prose p,
+.blog-prose ul,
+.blog-prose ol,
+.blog-prose blockquote,
+.blog-prose figure,
+.blog-prose pre {
+  margin-bottom: 0;
+}
+.blog-prose h2,
+.blog-prose h3,
+.blog-prose h4 {
+  margin-top: 1.5em;
+  margin-bottom: 0;
+  font-family: var(--font-family-heading);
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+.blog-prose h2 {
+  font-size: 1.5rem;
+}
+.blog-prose h3 {
+  font-size: 1.25rem;
+}
+.blog-prose h4 {
+  font-size: 1.0625rem;
+}
+.blog-prose ul,
+.blog-prose ol {
+  padding-left: 1.5em;
+}
+.blog-prose ul {
+  list-style: disc;
+}
+.blog-prose ol {
+  list-style: decimal;
+}
+.blog-prose li + li {
+  margin-top: 0.25em;
+}
+.blog-prose li > p {
+  margin: 0;
+}
+.blog-prose a {
+  color: var(--color-text-accent);
+  text-decoration: underline;
+}
+.blog-prose blockquote {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+.blog-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-element);
+}
+.blog-prose code {
+  font-family: var(--font-family-code);
+  font-size: 0.9em;
+}
+.blog-prose pre {
+  overflow-x: auto;
+  padding: 0.75em 1em;
+  border-radius: var(--radius-element);
+  background-color: var(--color-background-body);
+}
+.blog-prose hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+.blog-editor {
+  min-height: 16rem;
+  outline: none;
+}
+.blog-editor img.ProseMirror-selectednode {
+  outline: 2px solid var(--color-accent);
+}
