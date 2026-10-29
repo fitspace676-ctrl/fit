@@ -3068,6 +3068,85 @@ model PlatformLead {
 }
 
 // ---------------------------------------------------------------------------
+// Platform blog — FormaCore's own blog on formacore.io, managed from the
+// superadmin console. Platform-level like PlatformLead: no `gymId`, and kept
+// out of the API's TENANT_SCOPED_MODELS on purpose.
+// ---------------------------------------------------------------------------
+
+/// Publication state of a blog post. A post is publicly visible only when it is
+/// PUBLISHED **and** its `publishAt` has passed, so a future `publishAt` is a
+/// scheduled post and no cron is needed. Mirrors `blogPostStatusSchema`.
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// A byline shown on blog posts (name, photo, optional short bio per language).
+model BlogAuthor {
+  id        String     @id @default(cuid())
+  name      String
+  /// Public R2 URL under `platform/blog/` — swept with the other blog media.
+  photoUrl  String?
+  bioKa     String?
+  bioEn     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  posts     BlogPost[]
+
+  @@map("blog_authors")
+}
+
+/// A blog category, filterable on the public blog page.
+model BlogCategory {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  nameKa    String
+  nameEn    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  posts     BlogPost[]
+
+  @@map("blog_categories")
+}
+
+/// A blog post. Georgian is required; English is optional and counts as
+/// available only when `titleEn` is non-empty. `contentHtml*` is HTML already
+/// sanitized by the API on write; `contentImageUrls` is the list of image URLs
+/// found in it, kept so the media sweep can see them.
+model BlogPost {
+  id                String         @id @default(cuid())
+  slug              String         @unique
+  status            BlogPostStatus @default(DRAFT)
+  /// When the post goes (or went) live. Null on a never-published draft.
+  publishAt         DateTime?
+  titleKa           String
+  excerptKa         String?
+  contentHtmlKa     String         @default("")
+  metaTitleKa       String?
+  metaDescriptionKa String?
+  titleEn           String?
+  excerptEn         String?
+  contentHtmlEn     String?
+  metaTitleEn       String?
+  metaDescriptionEn String?
+  coverImageUrl     String?
+  ogImageUrl        String?
+  contentImageUrls  String[]       @default([])
+  tags              String[]       @default([])
+  categoryId        String?
+  category          BlogCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  authorId          String?
+  author            BlogAuthor?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  /// Public listing: visible = PUBLISHED and publishAt <= now.
+  @@index([status, publishAt])
+  @@index([categoryId])
+  @@map("blog_posts")
+}
+
+// ---------------------------------------------------------------------------
 // CRM (T12.2) — gym-scoped sales pipeline: leads, opportunities, activities,
 // tasks. Ported from the gym-admin prototype's /crm module; every model below
 // carries a `gymId` and is listed in the API's TENANT_SCOPED_MODELS so the
