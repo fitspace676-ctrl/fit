@@ -8,6 +8,7 @@ export * from './src/auth';
 export * from './src/automation';
 export * from './src/automation-merge-fields';
 export * from './src/banners';
+export * from './src/blog';
 export * from './src/bookings';
 export * from './src/cart';
 export * from './src/check-in';
