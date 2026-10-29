@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -56,6 +56,21 @@ const styles = stylex.create({
 /** Links the API keeps: anything else is stripped on save anyway. */
 const SAFE_LINK = /^(https?:\/\/|mailto:)/i;
 
+const EXTENSIONS = [
+  StarterKit.configure({
+    heading: { levels: [2, 3] },
+    // Configured below with the blog's own rules.
+    link: false,
+  }),
+  Link.configure({
+    openOnClick: false,
+    autolink: true,
+    protocols: ['mailto'],
+    HTMLAttributes: { rel: 'noopener noreferrer', target: null },
+  }),
+  Image.configure({ inline: false }),
+];
+
 /**
  * The post body, as WYSIWYG. Tiptap writes HTML; the API sanitises it to the
  * blog's allow-list on save, so the toolbar offers exactly what survives:
@@ -80,32 +95,30 @@ export function RichTextEditor({
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Every option is held stable: `useEditor` compares them on each render and
+  // pushes any change into the live view, which costs a re-layout per keystroke.
+  const [initialContent] = useState(value);
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
+  const editorProps = useMemo(
+    () => ({ attributes: { 'aria-label': label, class: 'blog-prose blog-editor' } }),
+    [label],
+  );
+
   const editor = useEditor({
     // Rendered on the server first; creating the view there would mismatch.
     immediatelyRender: false,
-    editable: !disabled,
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [2, 3] },
-        // Configured below with the blog's own rules.
-        link: false,
-      }),
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        protocols: ['mailto'],
-        HTMLAttributes: { rel: 'noopener noreferrer', target: null },
-      }),
-      Image.configure({ inline: false }),
-    ],
-    content: value,
-    editorProps: {
-      attributes: { 'aria-label': label, class: 'blog-prose blog-editor' },
-    },
+    extensions: EXTENSIONS,
+    content: initialContent,
+    editorProps,
     onUpdate: ({ editor: current }) => {
-      onChange(current.isEmpty ? '' : current.getHTML());
+      changeRef.current(current.isEmpty ? '' : current.getHTML());
     },
   });
+
+  useEffect(() => {
+    editor?.setEditable(!disabled, false);
+  }, [editor, disabled]);
 
   const active = useEditorState({
     editor,
@@ -140,6 +153,8 @@ export function RichTextEditor({
     }
     onError(null);
     editor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run();
+    // Collapse to the link's end, so the next insert (an image) doesn't replace it.
+    editor.commands.setTextSelection(editor.state.selection.to);
   }
 
   async function insertImage(file: File | undefined) {
@@ -173,6 +188,7 @@ export function RichTextEditor({
       variant={isActive ? 'secondary' : 'ghost'}
       label={text}
       title={title ?? text}
+      aria-label={title ?? text}
       aria-pressed={isActive ?? false}
       disabled={off}
       onClick={run}
@@ -183,7 +199,13 @@ export function RichTextEditor({
     <div {...stylex.props(styles.field)}>
       <span {...stylex.props(styles.label)}>{label}</span>
       <div {...stylex.props(styles.shell)}>
-        <div role="toolbar" aria-label={`${label} formatting`} {...stylex.props(styles.toolbar)}>
+        <div
+          role="toolbar"
+          aria-label={`${label} formatting`}
+          // Keep focus (and the selection) in the editor while a tool is clicked.
+          onMouseDown={(event) => event.preventDefault()}
+          {...stylex.props(styles.toolbar)}
+        >
           {tool('h2', 'H2', active?.h2, () =>
             editor?.chain().focus().toggleHeading({ level: 2 }).run(),
           )}
