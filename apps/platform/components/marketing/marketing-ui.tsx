@@ -298,7 +298,7 @@ export const Aurora = () => (
  * the plans either way, with the figures replaced by a quote request while
  * `SHOW_PUBLIC_PRICING` is off.
  */
-const NAV_ITEMS = ['Core', 'Features', 'Built For', 'Pricing', 'Resources'] as const;
+const NAV_ITEMS = ['Core', 'Features', 'Built For', 'Pricing', 'Blog', 'Resources'] as const;
 type NavItem = (typeof NAV_ITEMS)[number];
 
 /**
@@ -505,7 +505,8 @@ export const MarketingNav = ({
 
   // Where each nav item routes. "Core" → homepage, "Pricing" → /pricing; the
   // rest are inert in-page anchors (faithful to the design).
-  const navHref = (n: NavItem): string => (n === 'Core' ? '/' : n === 'Pricing' ? '/pricing' : '#');
+  const navHref = (n: NavItem): string =>
+    n === 'Core' ? '/' : n === 'Pricing' ? '/pricing' : n === 'Blog' ? '/blog' : '#';
 
   const renderItem = (n: NavItem, className: string): ReactNode => {
     const href = navHref(n);
@@ -753,7 +754,10 @@ export const MarketingFooter = () => (
         </span>{' '}
         · Tbilisi, Georgia
       </span>
-      <div className="flex items-center gap-5 text-xs text-subtle">
+      <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-subtle">
+        <Link href="/blog" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
+          Blog
+        </Link>
         <Link href="/terms" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
           Terms &amp; Conditions
         </Link>
