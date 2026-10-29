@@ -30,6 +30,10 @@ export const SWEEPABLE_ENTITIES: ReadonlySet<string> = new Set([
   // which `MediaSweepService.collectReferencedKeys` reads — an entity listed here
   // but missing from that query has its images deleted on the next nightly run.
   'banners',
+  // Platform blog images (`platform/blog/…`, minted by `POST /admin/blog/uploads`).
+  // Referenced by `BlogPost.coverImageUrl` / `ogImageUrl` / `contentImageUrls` and
+  // `BlogAuthor.photoUrl`, all read by `MediaSweepService.collectReferencedKeys`.
+  'blog',
 ]);
 
 /**
