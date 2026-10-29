@@ -9,7 +9,21 @@
 
 import { cookies } from 'next/headers';
 import type {
+  AdminBlogPost,
+  AdminBlogPostListResponse,
   AdminGymDetail,
+  BlogAuthor,
+  BlogAuthorListResponse,
+  BlogCategory,
+  BlogCategoryListResponse,
+  CreateBlogAuthorBody,
+  CreateBlogCategoryBody,
+  CreateBlogPostInput,
+  CreateBlogUploadBody,
+  ListAdminBlogPostsQuery,
+  UpdateBlogAuthorBody,
+  UpdateBlogCategoryBody,
+  UpdateBlogPostInput,
   ListAdminAuditLogQuery,
   ListAdminAuditLogResponse,
   CreateAdminGymInput,
@@ -50,8 +64,10 @@ async function unwrap<T>(res: Response): Promise<T> {
   }
   let code = `HTTP_${res.status}`;
   try {
-    const body = (await res.json()) as { code?: string; message?: string };
-    code = body.code ?? body.message ?? code;
+    const body = (await res.json()) as { code?: string; message?: string | string[] };
+    // Validation failures carry a list of `field: message` lines, not a code.
+    const message = Array.isArray(body.message) ? body.message.join('; ') : body.message;
+    code = body.code ?? message ?? code;
   } catch {
     // Non-JSON error body — keep the synthetic code.
   }
@@ -138,4 +154,141 @@ export async function fetchAuditLogs(
     cache: 'no-store',
   });
   return unwrap<ListAdminAuditLogResponse>(res);
+}
+
+// --- Platform blog ----------------------------------------------------------
+//
+// FormaCore's own blog on formacore.io. Platform-level, so these endpoints take
+// no gym: the API answers them for SUPER_ADMIN only.
+
+/** A presigned PUT under `platform/blog/`, as `POST /admin/blog/uploads` answers it. */
+export interface SignedUpload {
+  key: string;
+  url: string;
+  method: 'PUT';
+  contentType: string;
+  contentLength: number;
+  expiresIn: number;
+  /** `null` when the API has no `R2_PUBLIC_URL` configured. */
+  publicUrl: string | null;
+}
+
+/** A JSON request against the API with the operator's token. */
+async function send(path: string, method: string, body?: unknown): Promise<Response> {
+  return fetch(`${apiBaseUrl()}${path}`, {
+    method,
+    headers: {
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(await authHeaders()),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: 'no-store',
+  });
+}
+
+/** Like {@link unwrap}, for endpoints answering `204 No Content`. */
+async function unwrapEmpty(res: Response): Promise<void> {
+  if (res.ok) return;
+  await unwrap<never>(res);
+}
+
+const id = (value: string) => encodeURIComponent(value);
+
+/** `GET /admin/blog/posts` — one page, newest edit first. */
+export async function fetchBlogPosts(
+  query: Partial<ListAdminBlogPostsQuery>,
+): Promise<AdminBlogPostListResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') {
+      params.set(key, String(value));
+    }
+  }
+  return unwrap(await send(`/admin/blog/posts?${params.toString()}`, 'GET'));
+}
+
+/** `GET /admin/blog/posts/:id`. */
+export async function fetchBlogPost(postId: string): Promise<AdminBlogPost> {
+  return unwrap(await send(`/admin/blog/posts/${id(postId)}`, 'GET'));
+}
+
+/** `POST /admin/blog/posts` — always created as a DRAFT. */
+export async function createBlogPost(body: CreateBlogPostInput): Promise<AdminBlogPost> {
+  return unwrap(await send('/admin/blog/posts', 'POST', body));
+}
+
+/** `PATCH /admin/blog/posts/:id`. */
+export async function updateBlogPost(
+  postId: string,
+  body: UpdateBlogPostInput,
+): Promise<AdminBlogPost> {
+  return unwrap(await send(`/admin/blog/posts/${id(postId)}`, 'PATCH', body));
+}
+
+/** `DELETE /admin/blog/posts/:id`. */
+export async function deleteBlogPost(postId: string): Promise<void> {
+  return unwrapEmpty(await send(`/admin/blog/posts/${id(postId)}`, 'DELETE'));
+}
+
+/** `POST /admin/blog/posts/:id/publish` — no `publishAt` is now; a future one schedules. */
+export async function publishBlogPost(postId: string, publishAt?: string): Promise<AdminBlogPost> {
+  return unwrap(
+    await send(`/admin/blog/posts/${id(postId)}/publish`, 'POST', publishAt ? { publishAt } : {}),
+  );
+}
+
+/** `POST /admin/blog/posts/:id/unpublish` — back to a draft, schedule cleared. */
+export async function unpublishBlogPost(postId: string): Promise<AdminBlogPost> {
+  return unwrap(await send(`/admin/blog/posts/${id(postId)}/unpublish`, 'POST'));
+}
+
+/** `GET /admin/blog/categories`. */
+export async function fetchBlogCategories(): Promise<BlogCategoryListResponse> {
+  return unwrap(await send('/admin/blog/categories', 'GET'));
+}
+
+/** `POST /admin/blog/categories`. */
+export async function createBlogCategory(body: CreateBlogCategoryBody): Promise<BlogCategory> {
+  return unwrap(await send('/admin/blog/categories', 'POST', body));
+}
+
+/** `PATCH /admin/blog/categories/:id`. */
+export async function updateBlogCategory(
+  categoryId: string,
+  body: UpdateBlogCategoryBody,
+): Promise<BlogCategory> {
+  return unwrap(await send(`/admin/blog/categories/${id(categoryId)}`, 'PATCH', body));
+}
+
+/** `DELETE /admin/blog/categories/:id`. */
+export async function deleteBlogCategory(categoryId: string): Promise<void> {
+  return unwrapEmpty(await send(`/admin/blog/categories/${id(categoryId)}`, 'DELETE'));
+}
+
+/** `GET /admin/blog/authors`. */
+export async function fetchBlogAuthors(): Promise<BlogAuthorListResponse> {
+  return unwrap(await send('/admin/blog/authors', 'GET'));
+}
+
+/** `POST /admin/blog/authors`. */
+export async function createBlogAuthor(body: CreateBlogAuthorBody): Promise<BlogAuthor> {
+  return unwrap(await send('/admin/blog/authors', 'POST', body));
+}
+
+/** `PATCH /admin/blog/authors/:id`. */
+export async function updateBlogAuthor(
+  authorId: string,
+  body: UpdateBlogAuthorBody,
+): Promise<BlogAuthor> {
+  return unwrap(await send(`/admin/blog/authors/${id(authorId)}`, 'PATCH', body));
+}
+
+/** `DELETE /admin/blog/authors/:id`. */
+export async function deleteBlogAuthor(authorId: string): Promise<void> {
+  return unwrapEmpty(await send(`/admin/blog/authors/${id(authorId)}`, 'DELETE'));
+}
+
+/** `POST /admin/blog/uploads` — a presigned PUT for one blog image. */
+export async function createBlogUpload(body: CreateBlogUploadBody): Promise<SignedUpload> {
+  return unwrap(await send('/admin/blog/uploads', 'POST', body));
 }
