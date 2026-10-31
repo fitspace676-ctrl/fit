@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { PlatformMessages } from '@fit/i18n/platform';
 import type { FeaturePageCopy } from '@/data/feature-pages';
 import { FlowBackground } from '@/components/ui/flow-background';
+import { COVER_SURFACE } from './cover-surface';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { cn } from '@/lib/utils';
 import { messageList } from '@/lib/messages';
@@ -613,13 +614,11 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
       <Aurora />
       <MarketingNav active="features" />
 
-      {/* ── hero: the feature's brand panel over drifting light and waves ── */}
+      {/* ── hero: the landing's cover card over drifting light and waves ── */}
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-12 lg:pt-16 pb-12">
         <div
-          className={cn(
-            'relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14',
-            feature?.panelClassName,
-          )}
+          className="relative isolate overflow-hidden rounded-[2rem] p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14"
+          style={COVER_SURFACE}
         >
           <FlowBackground />
 
