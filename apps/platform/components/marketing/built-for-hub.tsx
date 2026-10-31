@@ -66,9 +66,14 @@ export function BuiltForHub({
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pb-16">
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((a, i) => {
-            const stat = a.stats.find((s) => s.value.includes('%')) ?? a.stats[0];
+            // The hub card carries its own copy (name, headline, one stat).
+            const stat = a.card?.stat ?? a.stats.find((s) => s.value.includes('%')) ?? a.stats[0];
             return (
-              <li key={a.slug}>
+              <li
+                key={a.slug}
+                // A card left alone on the last desktop row sits in the middle column.
+                className={cn(i === cards.length - 1 && cards.length % 3 === 1 && 'lg:col-start-2')}
+              >
                 <Reveal delay={(i % 3) * 80} className="h-full">
                   <Link
                     href={`${base}/${a.slug}`}
@@ -79,10 +84,10 @@ export function BuiltForHub({
                   >
                     <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 bg-[radial-gradient(closest-side,rgba(124,196,255,0.25),transparent)]" />
                     <div className="relative">
-                      <AudienceBadge audience={a} />
+                      <AudienceBadge audience={a.card ? { ...a, name: a.card.name } : a} />
                     </div>
                     <h2 className="relative mt-5 font-display text-xl font-black leading-[1.1] tracking-tight sm:text-2xl">
-                      {a.headline}
+                      {a.card?.headline ?? a.headline}
                     </h2>
                     {stat ? (
                       <div className="relative mt-auto pt-6">

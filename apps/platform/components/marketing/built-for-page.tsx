@@ -75,7 +75,7 @@ export function BuiltForPage({
             </h1>
             <p
               className={cn(
-                'mt-5 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg',
+                'mt-5 max-w-2xl whitespace-pre-line text-base leading-relaxed text-white/85 md:text-lg',
                 roomBody,
               )}
             >
@@ -155,7 +155,9 @@ export function BuiltForPage({
                 <h2 className="mt-5 font-display text-2xl font-black tracking-tight lg:text-[2rem] leading-[1.04]">
                   {f.headline}
                 </h2>
-                <p className="mt-4 text-base text-muted leading-relaxed md:text-lg">{f.body}</p>
+                <p className="mt-4 whitespace-pre-line text-base text-muted leading-relaxed md:text-lg">
+                  {f.body}
+                </p>
               </Reveal>
 
               {/* bullets */}
@@ -194,7 +196,7 @@ export function BuiltForPage({
                   <h2 className="mt-5 max-w-2xl font-display text-2xl font-black tracking-tight lg:text-[2.25rem] leading-[1.05]">
                     {audience.planRecommendation.headline}
                   </h2>
-                  <p className="mt-4 max-w-2xl text-base text-muted leading-relaxed md:text-lg">
+                  <p className="mt-4 max-w-2xl whitespace-pre-line text-base text-muted leading-relaxed md:text-lg">
                     {audience.planRecommendation.body}
                   </p>
                 </div>

@@ -16,12 +16,17 @@ function stubFetch(status: number, payload: unknown) {
   return fetchMock;
 }
 
+/** A field's label, with or without the asterisk a required field carries. */
+const label = (text: string): RegExp => new RegExp(`^${text}\\*?$`);
+
 /** Fill every required field of the call form. */
 async function fillForm(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.type(screen.getByLabelText('Name'), 'Giorgi');
-  await user.type(screen.getByLabelText('Surname'), 'Beridze');
-  await user.type(screen.getByLabelText('Phone'), '555 12 34 56');
-  await user.type(screen.getByLabelText('Email'), 'giorgi@gym.ge');
+  await user.type(screen.getByLabelText(label('Name')), 'Giorgi');
+  await user.type(screen.getByLabelText(label('Surname')), 'Beridze');
+  await user.type(screen.getByLabelText(label('Phone')), '555 12 34 56');
+  await user.type(screen.getByLabelText(label('Email')), 'giorgi@gym.ge');
+  await user.type(screen.getByLabelText(label('Company name')), 'Gym One');
+  await user.selectOptions(screen.getByLabelText(label('Category')), 'Yoga studio');
 }
 
 describe('CallModal', () => {
@@ -36,21 +41,27 @@ describe('CallModal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('requires name, surname, phone and email; the member count is optional', () => {
+  it('requires everything but the member count, and stars only the required labels', () => {
     render(<CallModal open onClose={vi.fn()} />);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByLabelText('Name')).toBeRequired();
-    expect(screen.getByLabelText('Surname')).toBeRequired();
-    expect(screen.getByLabelText('Phone')).toBeRequired();
-    expect(screen.getByLabelText('Phone')).toHaveAttribute('type', 'tel');
-    expect(screen.getByLabelText('Country code')).toHaveValue('+995');
-    expect(screen.getByLabelText('Email')).toBeRequired();
-    expect(screen.getByLabelText('Email')).toHaveAttribute('type', 'email');
-    expect(screen.getByLabelText('Active members')).not.toBeRequired();
-    // name, surname, phone and email; the two pickers are comboboxes
-    expect(screen.getAllByRole('textbox')).toHaveLength(4);
-    expect(screen.getAllByRole('combobox')).toHaveLength(2);
+    expect(screen.getByLabelText(label('Name'))).toBeRequired();
+    expect(screen.getByLabelText(label('Surname'))).toBeRequired();
+    expect(screen.getByLabelText(label('Phone'))).toBeRequired();
+    expect(screen.getByLabelText(label('Phone'))).toHaveAttribute('type', 'tel');
+    expect(screen.getByLabelText(label('Country code'))).toHaveValue('+995');
+    expect(screen.getByLabelText(label('Email'))).toBeRequired();
+    expect(screen.getByLabelText(label('Email'))).toHaveAttribute('type', 'email');
+    expect(screen.getByLabelText(label('Company name'))).toBeRequired();
+    expect(screen.getByLabelText(label('Category'))).toBeRequired();
+    expect(screen.getByLabelText(label('Active members'))).not.toBeRequired();
+    expect(screen.getByRole('option', { name: 'Other' })).toBeInTheDocument();
+    // name, surname, phone, email and company; three pickers are comboboxes
+    expect(screen.getAllByRole('textbox')).toHaveLength(5);
+    expect(screen.getAllByRole('combobox')).toHaveLength(3);
+    // six required labels carry an asterisk; the optional member count does not
+    expect(screen.getAllByText('*')).toHaveLength(6);
+    expect(screen.queryByText(/optional/i)).not.toBeInTheDocument();
   });
 
   it('posts the lead and swaps to the thank-you view', async () => {
@@ -59,8 +70,8 @@ describe('CallModal', () => {
     render(<CallModal open onClose={vi.fn()} />);
 
     await fillForm(user);
-    await user.selectOptions(screen.getByLabelText('Country code'), '+374');
-    await user.selectOptions(screen.getByLabelText('Active members'), '100-300');
+    await user.selectOptions(screen.getByLabelText(label('Country code')), '+374');
+    await user.selectOptions(screen.getByLabelText(label('Active members')), '100-300');
     await user.click(screen.getByRole('button', { name: 'Request a call' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -71,7 +82,8 @@ describe('CallModal', () => {
       name: 'Giorgi Beridze',
       phone: '+374 555 12 34 56',
       email: 'giorgi@gym.ge',
-      message: 'Active members: 100-300',
+      business: 'Gym One',
+      message: 'Category: Yoga studio\nActive members: 100-300',
     });
     expect(await screen.findByText(/will call you back shortly/i)).toBeVisible();
   });
@@ -86,7 +98,7 @@ describe('CallModal', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Too many requests');
     // Still the form, not the thank-you — so the visitor can correct and retry.
-    expect(screen.getByLabelText('Email')).toHaveValue('giorgi@gym.ge');
+    expect(screen.getByLabelText(label('Email'))).toHaveValue('giorgi@gym.ge');
   });
 
   it('sends once when the button is clicked twice in a row', async () => {
