@@ -260,7 +260,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <Card padding="none" xstyle={styles.card}>
           {order.payments.length === 0 ? (
             <p {...stylex.props(styles.empty)}>
-              No payment recorded - this sale is still awaiting settlement.
+              No payment recorded. This sale is still awaiting settlement.
             </p>
           ) : (
             <table {...stylex.props(styles.table)}>
@@ -328,7 +328,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                     </td>
                     <td {...stylex.props(styles.td)}>{refund.reason}</td>
                     <td {...stylex.props(styles.td, styles.muted)}>
-                      {refund.restockItems ? 'Yes' : 'No - kept off the shelf'}
+                      {refund.restockItems ? 'Yes' : 'No, kept off the shelf'}
                     </td>
                     <td {...stylex.props(styles.td, styles.debit)}>
                       −{formatPrice(refund.amount, order.currency)}

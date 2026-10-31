@@ -5,7 +5,7 @@ import type { ActiveGymBrand } from './active-gym';
 export const PLATFORM_NAME = 'FormaCore';
 
 /** The bundled FormaCore mark (`public/icon.png`), for a gym that has uploaded none. */
-const DEFAULT_ICON = '/icon.png';
+const DEFAULT_ICON = '/icon.png?v=2';
 
 /**
  * The member site's document metadata for one tenant: `<slug>.<root>` is titled,

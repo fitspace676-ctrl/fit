@@ -22,7 +22,7 @@
       "package": "io.formacore.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1A7FD6"
+        "backgroundColor": "#2F7896"
       }
     },
     "web": {

@@ -20,7 +20,7 @@ import { loadRelationOptions } from './options';
 export const metadata: Metadata = {
   title: 'Class Types',
   description:
-    'The gym’s reusable class types: search, filter, sort, or add a new kind of class (Boxing, CrossFit) with capacity, duration, pricing, and a colour - the catalogue the schedule places occurrences of.',
+    'The gym’s reusable class types: search, filter, sort, or add a new kind of class (Boxing, CrossFit) with capacity, duration, pricing, and a colour. The schedule uses this catalogue to create occurrences.',
 };
 
 // The roster reflects live tenant state and the staff session token, so it must
@@ -159,8 +159,8 @@ export default async function ClassTypesPage({
           <h1 {...stylex.props(styles.title)}>Classes</h1>
           <p {...stylex.props(styles.subtitle)}>
             Your gym’s reusable class types. Search by name, filter by status, sort any column, or
-            add a new kind of class with capacity, duration, pricing, and a colour - the catalogue
-            the schedule then places occurrences of.
+            add a new kind of class with capacity, duration, pricing, and a colour. The schedule
+            then uses this catalogue to create occurrences.
           </p>
         </div>
         {canWrite && relationOptions ? <AddClassTypeDrawer plans={relationOptions.plans} /> : null}

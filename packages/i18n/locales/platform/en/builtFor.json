@@ -1,0 +1,716 @@
+{
+  "meta": {
+    "title": "Gym and Studio Software for Fitness Businesses | FormaCore",
+    "pageTitle": "{name} | FormaCore",
+    "description": "Find FormaCore software for fitness clubs, yoga studios, swimming schools and more. Bring bookings and memberships together. Explore your fit and book a demo."
+  },
+  "hub": {
+    "title": "Built for how you actually run.",
+    "intro": "Pick your kind of business and see how FormaCore keeps your members coming back, from the front desk to the member app.",
+    "ctaTitle": "Don't see your business here?",
+    "ctaBody": "FormaCore runs gyms, studios, clubs and schools of every shape. Tell us how yours works and we'll show you how it fits.",
+    "explore": "Explore {name}"
+  },
+  "pages": {
+    "fitness-clubs": {
+      "name": "Fitness Clubs",
+      "headline": "Most members quit within 90 days. Here's how you keep them.",
+      "subline": "Retention is the real business of running a fitness club. Get the visibility, tools, and automation to spot who's at risk, re-engage them before they leave, and build a club that members actually stay in.",
+      "stats": {
+        "0": { "value": "90 days", "label": "when most members decide to quit or stay" },
+        "1": { "value": "5×", "label": "cheaper to retain a member than acquire a new one" },
+        "2": { "value": "67%", "label": "of gym revenue comes from existing members" },
+        "3": { "value": "0", "label": "spreadsheets needed to track any of it" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Know who's about to leave before they do.",
+          "body": "Every member has a pattern. When they stop showing up, their membership is the next thing they cancel. Track attendance, engagement, and payment history in real time so you always know who's drifting, and still have time to act.",
+          "bullets": {
+            "0": "At-risk members flagged automatically when attendance drops or visits go cold",
+            "1": "Full profile per member showing visit frequency, membership history, and payment status",
+            "2": "See your entire member base by engagement level, not just alphabetical order"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "The staff member that never stops following up.",
+          "body": "Most gyms lose members silently: no follow-up, no check-in, no reason to come back. The right message goes out at the right moment, every time, without anyone on your team having to remember to do it.",
+          "bullets": {
+            "0": "Reach out automatically when a member hasn't visited in 7, 14, or 30 days",
+            "1": "Renewal reminders go out before memberships expire, not after members have already left",
+            "2": "Birthday messages, class reminders, win-back campaigns: all running in the background via SMS, email, and push notification"
+          }
+        },
+        "2": {
+          "eyebrow": "Analytics & Reporting",
+          "headline": "Your retention rate. Right now. Not at the end of the month.",
+          "body": "Most gym owners find out they have a retention problem when it's already too late. Get the numbers that matter: churn rate, average member lifespan, visit frequency, class fill rates. That way, every decision is based on data, not instinct.",
+          "bullets": {
+            "0": "Live retention and churn tracking so problems surface early, not after members are gone",
+            "1": "Class performance data: see which sessions fill up and which ones push members away",
+            "2": "Month-on-month revenue and membership trends in one dashboard"
+          }
+        },
+        "3": {
+          "eyebrow": "Member Portal & Mobile App",
+          "headline": "Your brand in their pocket. Every single day.",
+          "body": "Members who can see their schedule, book their next class, and manage their membership from their phone are far more likely to stay. Give your club a fully branded member portal and white-label mobile app so your gym is always one tap away.",
+          "bullets": {
+            "0": "Members book classes, manage their membership, and pay without calling or messaging your staff",
+            "1": "Your logo, your colors, your name on the app, nobody else's",
+            "2": "Push notifications keep your members engaged and coming back between visits"
+          }
+        },
+        "4": {
+          "eyebrow": "Check-in",
+          "headline": "Every visit tracked. Every absence noticed.",
+          "body": "Check-in isn't just access control. It's your most important retention data. Every scan tells you who's active, who's slowing down, and who hasn't been in for three weeks. Turn the front door into a live attendance feed.",
+          "bullets": {
+            "0": "QR code check-in via the mobile app, or receptionist check-in from the admin panel",
+            "1": "Live arrivals stream so your team always knows who's in the building",
+            "2": "Absence patterns flagged automatically: re-engagement workflows fire before it's too late"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "The clubs that keep members longest are on the Club plan.",
+        "body": "The Club plan adds the member portal and mobile app to everything in Studio, giving your members a reason to stay connected to your club between visits. That daily touchpoint is what separates the clubs with 85% retention from the ones at 60%."
+      },
+      "footerCta": {
+        "headline": "Ready to stop losing members you worked hard to get?",
+        "subline": "Book a demo. We'll show you exactly how to retain more members, month after month."
+      },
+      "meta": {
+        "title": "Fitness Club Management and Membership Software | FormaCore",
+        "description": "Manage memberships, class bookings and check-ins with FormaCore software for fitness clubs. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "training-studios": {
+      "name": "Training Studios",
+      "headline": "Small studio. Every member matters.",
+      "subline": "Training studios run on personal relationships. When a member starts drifting, you need to know before they've already decided to leave. Stay close to every member even as your studio grows.",
+      "stats": {
+        "0": { "value": "84", "label": "members, each tracked individually" },
+        "1": { "value": "14", "label": "days before a drift becomes a cancellation" },
+        "2": { "value": "3×", "label": "more likely to stay when personally re-engaged" },
+        "3": { "value": "0", "label": "members should slip through unnoticed" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "No member invisible.",
+          "body": "In a small studio, every member expects to feel known. Give your staff a full picture of each person: visits, payments, notes, and history. That way, nobody ever feels like just a number.",
+          "bullets": {
+            "0": "Full member profiles with visit frequency, session history, and personal notes",
+            "1": "At-risk flagging when attendance drops: staff notified before the member decides to leave",
+            "2": "See your entire member base sorted by engagement, not just name"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "The personal follow-up. At scale.",
+          "body": "You can't personally check in on every member every week. The right message goes out at the right moment so every member feels seen even when you're busy running sessions.",
+          "bullets": {
+            "0": "Automatic outreach when a member hasn't visited in 7, 14, or 30 days",
+            "1": "Renewal reminders before memberships lapse, sent in your studio's voice, not a generic template",
+            "2": "Re-engagement campaigns for members who've gone quiet, via SMS, email, and push notification"
+          }
+        },
+        "2": {
+          "eyebrow": "Analytics",
+          "headline": "Know your retention rate before it becomes a problem.",
+          "body": "Small studios often don't realise they have a churn problem until revenue drops. Get retention data in real time so you can act on it, not react to it.",
+          "bullets": {
+            "0": "Live retention and churn rate visible from the dashboard, updated daily",
+            "1": "Member engagement scores so you always know who's thriving and who's at risk",
+            "2": "Month-on-month membership trends to spot patterns before they become problems"
+          }
+        },
+        "3": {
+          "eyebrow": "Member Portal & Mobile App",
+          "headline": "Easy to book. Hard to quit.",
+          "body": "Members who can book their next session in two taps are far more likely to keep coming. Give your studio a branded member portal and mobile app so the barrier to showing up is as low as possible.",
+          "bullets": {
+            "0": "Members book and cancel sessions directly from their phone. No WhatsApp needed",
+            "1": "Your branding on the app: your studio name, your colors, your identity",
+            "2": "Push notifications remind members about upcoming sessions and keep your studio top of mind"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Most training studios start with the Club plan.",
+        "body": "The Club plan adds the member portal and mobile app to everything in Studio, reducing friction for members and giving you the retention tools that small studios need most."
+      },
+      "footerCta": {
+        "headline": "Ready to keep every member you've worked hard to attract?",
+        "subline": "Book a demo and see how to retain more members, month after month."
+      },
+      "meta": {
+        "title": "Personal Training Studio Management Software | FormaCore",
+        "description": "Manage bookings, trainer schedules and memberships with FormaCore software for training studios. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "yoga-studios": {
+      "name": "Yoga Studios",
+      "headline": "The habit is fragile. We make sure nothing breaks it.",
+      "subline": "Your members come for the practice. They stay because of the routine. Protect that routine, removing every friction point that could interrupt a member's habit before it becomes permanent.",
+      "stats": {
+        "0": { "value": "21", "label": "days to form a yoga habit: don't let it break" },
+        "1": { "value": "3×", "label": "more likely to renew when habit is uninterrupted" },
+        "2": { "value": "2", "label": "taps to rebook a class from the member app" },
+        "3": { "value": "0", "label": "missed renewal reminders with automation on" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "See whose habit is breaking before it's broken.",
+          "body": "A yoga member who misses two classes in a row is at risk. Three in a row and the habit is gone. Track every member's attendance pattern so you can spot the early signs and act before it's too late.",
+          "bullets": {
+            "0": "Attendance patterns tracked per member, flagged automatically when sessions are missed",
+            "1": "Full member profile showing class history, membership plan, and engagement trend",
+            "2": "At-risk members surfaced daily so your team knows exactly who needs a nudge"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "The follow-up that keeps the habit alive.",
+          "body": "When a member misses their usual class, a well-timed message can bring them back. It goes out automatically (in your studio's tone, at exactly the right moment) before the gap becomes a goodbye.",
+          "bullets": {
+            "0": "Automatic re-engagement when a member misses their usual class slot",
+            "1": "Renewal reminders sent before memberships lapse so the habit never gets interrupted by an admin gap",
+            "2": "Birthday messages and milestone celebrations that make members feel the studio knows them"
+          }
+        },
+        "2": {
+          "eyebrow": "Class Scheduling",
+          "headline": "Their usual spot. Always available.",
+          "body": "Yoga members build habits around specific classes and times. When their usual slot fills up without warning, the habit breaks. Keep your timetable accurate in real time across the app, portal, and admin panel simultaneously.",
+          "bullets": {
+            "0": "Members book their regular slot from the app in seconds. No calling, no waiting",
+            "1": "Waitlist fills automatically when a spot opens. Member notified instantly",
+            "2": "Schedule changes reflected in real time across every surface so members are never caught off guard"
+          }
+        },
+        "3": {
+          "eyebrow": "Member Portal & Mobile App",
+          "headline": "Your studio in their pocket. Every morning.",
+          "body": "Members who see your studio on their phone every day are far more likely to keep showing up. A branded member app keeps your yoga studio top of mind before, during, and between sessions.",
+          "bullets": {
+            "0": "Members book classes, manage their membership, and pay without calling or messaging",
+            "1": "Your name and branding on the app, nobody else's",
+            "2": "Push notifications remind members about their next class and re-engage when they've been absent"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Yoga studios that retain best are on the Club plan.",
+        "body": "The member portal and mobile app in the Club plan are what make the habit stick. Easy rebooking, push reminders, and self-service membership management: all the friction points that break habits, removed."
+      },
+      "footerCta": {
+        "headline": "Ready to protect the habits your members are building?",
+        "subline": "Book a demo and see how to keep yoga studio members coming back, class after class."
+      },
+      "meta": {
+        "title": "Yoga Studio Booking and Membership Software | FormaCore",
+        "description": "Manage class bookings, schedules and memberships with FormaCore software for yoga studios. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "pilates-studios": {
+      "name": "Pilates Studios",
+      "headline": "They came for results. Show them they're getting them.",
+      "subline": "Pilates members are goal-driven. They signed up to feel stronger, move better, recover faster. When they can't see their progress (or feel like the studio has stopped paying attention) they leave. Make progress visible and keep every member engaged.",
+      "stats": {
+        "0": {
+          "value": "47",
+          "label": "sessions: the milestone that separates committed members from churned ones"
+        },
+        "1": {
+          "value": "16",
+          "label": "days without a visit before a Pilates member mentally quits"
+        },
+        "2": { "value": "3×", "label": "more likely to stay when they can see their own progress" },
+        "3": { "value": "0", "label": "sessions should go untracked" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Progress tracked. Every session. Every member.",
+          "body": "Pilates retention lives in the detail. How many sessions has this member done? Are they coming as often as they used to? Give your staff the full picture so they can celebrate milestones and catch the members who are quietly fading.",
+          "bullets": {
+            "0": "Full session history per member: total count, frequency, and trend over time",
+            "1": "At-risk flagging when visit frequency drops below their usual pattern",
+            "2": "Staff notes on each member so every instructor knows the context before a session"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "Milestone moments that make members feel seen.",
+          "body": "A message that says \"you've just completed your 50th session\" lands differently than a generic renewal reminder. Acknowledge progress automatically so every member feels the studio is paying attention.",
+          "bullets": {
+            "0": "Milestone automations, triggered at session counts that matter to your members",
+            "1": "Re-engagement messages when visit frequency drops, sent before the gap becomes a break",
+            "2": "Renewal reminders timed perfectly so memberships never lapse mid-programme"
+          }
+        },
+        "2": {
+          "eyebrow": "Check-in & Attendance",
+          "headline": "Every session logged. Every absence noticed.",
+          "body": "Check-in isn't just access. It's your attendance data. Every scan builds the picture of each member's engagement, so you always know who's progressing and who's slowing down before they stop entirely.",
+          "bullets": {
+            "0": "QR code or receptionist check-in: every session recorded automatically",
+            "1": "Absence patterns surfaced in real time, flagged when a member's rhythm breaks",
+            "2": "Attendance data feeding directly into member profiles and retention reports"
+          }
+        },
+        "3": {
+          "eyebrow": "Member Portal & Mobile App",
+          "headline": "Booking their next session should take seconds.",
+          "body": "Pilates members who can book their next reformer slot from their phone are far more likely to keep coming. Remove the friction, protect the commitment.",
+          "bullets": {
+            "0": "Members book sessions, view their history, and manage their membership from the app",
+            "1": "Your studio's branding on every screen, nobody else's",
+            "2": "Automated reminders before sessions so members never forget a booking"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Pilates studios that retain best are on the Club plan.",
+        "body": "The Club plan's member portal and app give your members visibility into their own progress and make rebooking effortless. That combination keeps goal-driven members engaged long after the first few sessions."
+      },
+      "footerCta": {
+        "headline": "Ready to show your members the progress they're making?",
+        "subline": "Book a demo and see how to keep Pilates members committed, session after session."
+      },
+      "meta": {
+        "title": "Pilates Studio Booking and Management Software | FormaCore",
+        "description": "Manage class capacity, bookings and memberships with FormaCore software for Pilates studios. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "crossfit": {
+      "name": "CrossFit",
+      "headline": "The workout brings them in. The community keeps them.",
+      "subline": "CrossFit retention is community retention. When athletes miss a few WODs and feel disconnected from the box, they drift. Stay close to every athlete so nobody quietly disappears from the whiteboard.",
+      "stats": {
+        "0": {
+          "value": "4",
+          "label": "missed WODs before an athlete feels disconnected from the community"
+        },
+        "1": {
+          "value": "5×",
+          "label": "cheaper to re-engage a drifting athlete than recruit a new one"
+        },
+        "2": {
+          "value": "94%",
+          "label": "class fill rate when scheduling and booking run smoothly"
+        },
+        "3": { "value": "0", "label": "athletes should go missing without your team knowing" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Nobody disappears from the whiteboard unnoticed.",
+          "body": "In a CrossFit box, you know your regulars. But as your membership grows, it gets harder to notice who's been missing. Track every athlete's attendance pattern and flag the ones who are drifting before they've mentally left.",
+          "bullets": {
+            "0": "Attendance tracked per athlete, flagged automatically when WODs are missed consecutively",
+            "1": "Full member profile with visit history, membership plan, and payment status",
+            "2": "At-risk athletes surfaced daily so your coaches can follow up personally"
+          }
+        },
+        "1": {
+          "eyebrow": "Class Scheduling & Booking",
+          "headline": "Full classes. Every time slot.",
+          "body": "CrossFit boxes live on class fill rates. Keep your WOD schedule running at capacity with self-service booking, automatic waitlists, and real-time updates across the member app.",
+          "bullets": {
+            "0": "Athletes book WODs from the app in seconds. No WhatsApp group booking needed",
+            "1": "Automatic waitlist management when slots fill up, athletes notified instantly",
+            "2": "Class fill rates visible in your analytics so you know which slots to add or drop"
+          }
+        },
+        "2": {
+          "eyebrow": "Automation",
+          "headline": "Re-engage before the community connection breaks.",
+          "body": "An athlete who misses four WODs in a row needs a reason to come back. The right message goes out at the right moment before the gap becomes permanent and the community bond is gone.",
+          "bullets": {
+            "0": "Automatic re-engagement when an athlete misses their usual class pattern",
+            "1": "Renewal reminders before memberships expire so no athlete loses access mid-cycle",
+            "2": "Win-back campaigns for athletes who've gone completely quiet, via SMS, email, and push"
+          }
+        },
+        "3": {
+          "eyebrow": "Check-in",
+          "headline": "Every arrival tracked. Every absence flagged.",
+          "body": "QR check-in at the door gives you the attendance data that drives your retention strategy. Every scan updates the athlete's profile, feeds into your analytics, and triggers re-engagement when patterns break.",
+          "bullets": {
+            "0": "QR code check-in via the member app: athletes are through the door before the warm-up starts",
+            "1": "Receptionist check-in from the admin panel for walk-ins and open gym sessions",
+            "2": "Consecutive absences flagged automatically: re-engagement workflow triggered without manual effort"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "CrossFit boxes that retain best are on the Club plan.",
+        "body": "The Club plan gives your athletes a branded app to book WODs, track their membership, and stay connected to your box between sessions. That daily touchpoint is what keeps the community alive."
+      },
+      "footerCta": {
+        "headline": "Ready to keep every athlete on the whiteboard?",
+        "subline": "Book a demo and see how to keep CrossFit athletes coming back, month after month."
+      },
+      "meta": {
+        "title": "CrossFit Gym Booking and Membership Software | FormaCore",
+        "description": "Manage session bookings, attendance and memberships with FormaCore software for CrossFit gyms. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "martial-arts": {
+      "name": "Martial Arts",
+      "headline": "Every student is on a journey. Make sure nothing stops them mid-way.",
+      "subline": "Martial arts retention is built on progression. Students stay because they're working toward something: their next belt, their next grading, their next level. Keep that journey on track and make sure no student quietly drops out between milestones.",
+      "stats": {
+        "0": { "value": "21", "label": "days: the dropout window between gradings" },
+        "1": { "value": "3×", "label": "higher retention when progression is actively tracked" },
+        "2": {
+          "value": "8",
+          "label": "days average notice before grading: reminder automation fires"
+        },
+        "3": { "value": "0", "label": "students should lapse mid-programme" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Track every student's journey belt by belt.",
+          "body": "Martial arts academies need more than a member list. You need to know where each student is in their progression, when they last trained, and whether they're on track for their next grading. Get all of that in one profile.",
+          "bullets": {
+            "0": "Member profiles with custom notes for belt level, discipline, and progression stage",
+            "1": "Attendance tracked per student: flagged when training frequency drops below their usual pattern",
+            "2": "At-risk students surfaced so instructors can follow up before they drop out between gradings"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "Grading reminders. Renewal timing. Never missed.",
+          "body": "The riskiest moments in martial arts retention are between gradings and at membership renewal. Automate both so students are always prepared and memberships never lapse at the worst possible time.",
+          "bullets": {
+            "0": "Grading reminders sent automatically to students and parents in the lead-up to assessment",
+            "1": "Membership renewals timed around the grading cycle so no student loses access before their belt test",
+            "2": "Re-engagement automation for students who've gone quiet, bringing them back before they fully disconnect"
+          }
+        },
+        "2": {
+          "eyebrow": "Class Scheduling",
+          "headline": "Classes by discipline. Level. Age group.",
+          "body": "Martial arts academies run complex schedules: multiple disciplines, skill levels, age groups, and instructors. Keep it all organised without the administrative overhead.",
+          "bullets": {
+            "0": "Set up classes by discipline, level, and age group without scheduling conflicts",
+            "1": "Students and parents book classes from the member app or portal without calling",
+            "2": "Automatic confirmation and reminders so students are always prepared and present"
+          }
+        },
+        "3": {
+          "eyebrow": "Billing & Payments",
+          "headline": "Get paid. Without the chase.",
+          "body": "Membership fees, grading fees, equipment: handle one-time and recurring payments online and at the desk, with automated follow-up when payments are overdue.",
+          "bullets": {
+            "0": "Recurring membership billing processed automatically, online or at the front desk",
+            "1": "Overdue payments flagged instantly with automated follow-up messages sent without manual effort",
+            "2": "Full payment history per student so you always know exactly where every account stands"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Most martial arts academies start with the Studio plan.",
+        "body": "The Studio plan gives you everything you need to manage students, track progression, schedule classes, and run billing all in one place. Upgrade to Club when you're ready to give students and parents a self-service portal and mobile app."
+      },
+      "footerCta": {
+        "headline": "Ready to keep every student on the path to their next belt?",
+        "subline": "Book a demo and see how to retain more students, grading after grading."
+      },
+      "meta": {
+        "title": "Martial Arts School and Class Booking Software | FormaCore",
+        "description": "Manage class schedules, attendance and memberships with FormaCore software for martial arts schools. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "swimming-schools": {
+      "name": "Swimming Schools",
+      "headline": "Parents pay. Kids swim. Progress keeps both coming back.",
+      "subline": "In a swimming school, the parent is the buyer and the child is the student. Retention depends on one thing: parents believing their child is progressing. Give your team the tools to communicate that progress clearly and keep every family enrolled term after term.",
+      "stats": {
+        "0": { "value": "10", "label": "days before term end: the re-enrolment window" },
+        "1": {
+          "value": "3×",
+          "label": "more likely to re-enrol when parents receive progress updates"
+        },
+        "2": { "value": "86%", "label": "retention rate when term renewal automation is active" },
+        "3": { "value": "0", "label": "parents should be surprised by a lapsed membership" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Every child tracked. Every parent informed.",
+          "body": "Swimming school retention starts with parent confidence. Keep a full record of each student: level, attendance, session history, and parent contact. That way, your team can communicate progress clearly and catch at-risk students early.",
+          "bullets": {
+            "0": "Student profiles with level, attendance history, and parent contact details in one place",
+            "1": "Attendance tracked per session. Parents notified automatically when sessions are missed",
+            "2": "At-risk students flagged when attendance drops so staff can follow up before the family decides to leave"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "Term re-enrolment. Without the phone calls.",
+          "body": "The biggest dropout moment in a swimming school is between terms. Automate the entire re-enrolment process. Reminders go out, parents confirm online, and your next term fills up without your staff making a single call.",
+          "bullets": {
+            "0": "Automated term renewal reminders sent to parents 2 weeks before the term ends",
+            "1": "Progress update messages at end of term: what level the child reached, what's next",
+            "2": "Win-back campaigns for families who didn't re-enrol, giving them a reason to return"
+          }
+        },
+        "2": {
+          "eyebrow": "Class Scheduling",
+          "headline": "The right level. The right time. Every term.",
+          "body": "Swimming schools run multiple levels, age groups, and time slots simultaneously. Keep your schedule organised and give parents the visibility to book the right class for their child without the back-and-forth.",
+          "bullets": {
+            "0": "Classes organised by level and age group, no confusion about which class a student belongs to",
+            "1": "Parents book sessions and manage their child's schedule from the member portal",
+            "2": "Automatic reminders before sessions so no parent forgets a lesson"
+          }
+        },
+        "3": {
+          "eyebrow": "Billing & Payments",
+          "headline": "Term fees collected. Without the awkward follow-up.",
+          "body": "Term-based billing, recurring payments, and one-off fees: handle all payment types online and at the desk, with automated reminders when fees are due.",
+          "bullets": {
+            "0": "Term fees billed automatically at the start of each new cycle",
+            "1": "Online payment via the member portal. Parents pay at their convenience",
+            "2": "Overdue payment reminders sent automatically, no staff involvement needed"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Most swimming schools start with the Club plan.",
+        "body": "The Club plan gives parents a branded portal and mobile app to manage their child's schedule, track attendance, and pay fees, reducing admin for your staff and keeping families engaged between terms."
+      },
+      "footerCta": {
+        "headline": "Ready to keep every family enrolled term after term?",
+        "subline": "Book a demo and see how to retain more students, every term."
+      },
+      "meta": {
+        "title": "Swimming School and Lesson Management Software | FormaCore",
+        "description": "Manage lesson bookings, schedules and memberships with FormaCore software for swimming schools. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "dance-schools": {
+      "name": "Dance Schools",
+      "headline": "Between terms is where you lose them. We make sure you don't.",
+      "subline": "Dance school retention breaks down between terms. When nobody follows up, students drift, and re-enrolment never happens. Automate the entire re-enrolment process so your next term fills up before the current one ends.",
+      "stats": {
+        "0": { "value": "12", "label": "days before term end: the critical re-enrolment window" },
+        "1": { "value": "3×", "label": "higher re-enrolment when automated reminders are sent" },
+        "2": { "value": "91%", "label": "term renewal rate with re-enrolment automation active" },
+        "3": { "value": "0", "label": "students should slip through the term gap uncontacted" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Every student tracked. Every term accounted for.",
+          "body": "Dance schools need to know who's enrolled, who's attending, and who's at risk of not coming back next term. Get that visibility (across every style, age group, and level) without the spreadsheet.",
+          "bullets": {
+            "0": "Student profiles with style, level, attendance history, and parent contact in one place",
+            "1": "At-risk students flagged when attendance drops during the term",
+            "2": "Re-enrolment status visible per student: know exactly who has and hasn't confirmed next term"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "Re-enrolment runs itself.",
+          "body": "Two weeks before term ends, re-enrolment reminders go out to every family automatically. Parents confirm online, payment is processed, and your next term is filled without your staff making a single phone call.",
+          "bullets": {
+            "0": "Automated re-enrolment reminders sent 2 weeks before each term ends",
+            "1": "End-of-term progress updates sent to parents: what their child achieved, what's next",
+            "2": "Win-back campaigns for students who didn't re-enrol, giving them a reason to return"
+          }
+        },
+        "2": {
+          "eyebrow": "Class Scheduling",
+          "headline": "Every style. Every level. One schedule.",
+          "body": "Dance schools run ballet, contemporary, hip-hop, and more across age groups and skill levels simultaneously. Keep your timetable organised and conflict-free.",
+          "bullets": {
+            "0": "Classes organised by style, level, and age group, bookings managed automatically",
+            "1": "Students and parents book, cancel, and manage their schedule from the portal or app",
+            "2": "Recital and performance dates added to the schedule, reminders sent automatically"
+          }
+        },
+        "3": {
+          "eyebrow": "Member Portal & Mobile App",
+          "headline": "Your school in their pocket. Every day of the term.",
+          "body": "A branded member portal and mobile app keeps your dance school visible to students and parents between classes so when re-enrolment opens, they're already engaged.",
+          "bullets": {
+            "0": "Parents manage their child's bookings, view the schedule, and pay fees from the portal",
+            "1": "Your school's branding on the app: your name, your colors, your identity",
+            "2": "Push notifications for class reminders, recital dates, and re-enrolment windows"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Dance schools that re-enrol best are on the Club plan.",
+        "body": "The Club plan's member portal and app give parents the self-service tools to re-enrol and pay online, making the term gap a non-event instead of a dropout window."
+      },
+      "footerCta": {
+        "headline": "Ready to fill next term before this one ends?",
+        "subline": "Book a demo and see how to retain more students, term after term."
+      },
+      "meta": {
+        "title": "Dance School Booking and Management Software | FormaCore",
+        "description": "Manage class bookings, attendance and memberships with FormaCore software for dance schools. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "padel": {
+      "name": "Padel",
+      "headline": "One player drops out. The whole group follows.",
+      "subline": "Padel is a social sport. Members play in pairs and groups, and when one person stops booking, the dynamic breaks. Keep every player active, every court booked, and every group intact.",
+      "stats": {
+        "0": {
+          "value": "14",
+          "label": "days without a booking before a padel player mentally quits"
+        },
+        "1": { "value": "87%", "label": "court utilisation when booking is frictionless" },
+        "2": { "value": "4", "label": "players per court: one dropout affects the whole group" },
+        "3": { "value": "0", "label": "inactive members should go unnoticed" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Spot the quiet player before the group falls apart.",
+          "body": "In padel, one inactive member can disrupt a whole playing group. Track booking patterns per member and flag who's gone quiet so you can re-engage them before the social dynamic breaks.",
+          "bullets": {
+            "0": "Booking patterns tracked per player, flagged when activity drops below their usual frequency",
+            "1": "Full member profile with booking history, membership plan, and payment status",
+            "2": "At-risk players surfaced daily so your team can follow up before the group unravels"
+          }
+        },
+        "1": {
+          "eyebrow": "Court Booking & Scheduling",
+          "headline": "Every court booked. Every slot filled.",
+          "body": "Padel clubs live on court utilisation. Make booking frictionless: members reserve courts from the app in seconds, and your team sees occupancy in real time.",
+          "bullets": {
+            "0": "Members book courts, invite partners, and manage reservations from the mobile app",
+            "1": "Real-time court availability visible to members, no calling to check if a slot is free",
+            "2": "Court utilisation data in your analytics so you know which times to open or close"
+          }
+        },
+        "2": {
+          "eyebrow": "Automation",
+          "headline": "Re-engage before the booking gap becomes permanent.",
+          "body": "A padel player who hasn't booked in two weeks needs a nudge. It goes out automatically before the gap turns into a cancellation and the group dynamic is gone.",
+          "bullets": {
+            "0": "Automatic re-engagement when a player's booking frequency drops",
+            "1": "Renewal reminders before memberships expire so no player loses court access mid-season",
+            "2": "Win-back campaigns for completely inactive members via SMS, email, and push"
+          }
+        },
+        "3": {
+          "eyebrow": "POS & Shop",
+          "headline": "Sell anything. Track everything.",
+          "body": "Racket rentals, ball sales, guest passes, refreshments: every transaction handled at the front desk, with every sale tied back to your reports.",
+          "bullets": {
+            "0": "Sell memberships, court time, rentals, and retail from one screen at the front desk",
+            "1": "Guest pass management so members can bring partners without disrupting the booking flow",
+            "2": "Full sales history tied to member profiles and daily revenue reports"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Most padel clubs start with the Club plan.",
+        "body": "The Club plan's member app makes court booking frictionless, reducing the main reason padel players go inactive. When booking is easy, players book more, groups stay intact, and retention follows."
+      },
+      "footerCta": {
+        "headline": "Ready to keep every player on the court?",
+        "subline": "Book a demo and see how to retain more members, month after month."
+      },
+      "meta": {
+        "title": "Padel Club Court Booking and Management Software | FormaCore",
+        "description": "Manage court bookings, schedules and memberships with FormaCore software for padel clubs. Simplify daily operations for your team. Book a demo today."
+      }
+    },
+    "tennis-clubs": {
+      "name": "Tennis Clubs",
+      "headline": "A club membership should feel like belonging. Not just a direct debit.",
+      "subline": "Tennis club members stay when they feel connected to the club, the community, and the value of their membership. Keep that connection alive with consistent communication, easy self-service, and a membership experience that feels worth renewing.",
+      "stats": {
+        "0": {
+          "value": "22",
+          "label": "days without activity before a tennis member mentally exits"
+        },
+        "1": {
+          "value": "3×",
+          "label": "higher renewal rate when members receive regular club communications"
+        },
+        "2": { "value": "84%", "label": "retention rate when membership value is made visible" },
+        "3": { "value": "0", "label": "renewals should lapse without a reminder" }
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Member Management",
+          "headline": "Know who's active. Know who's drifting.",
+          "body": "Tennis club retention drops when members feel invisible. Get a full view of every member's activity (court bookings, coaching sessions, attendance) so you can identify the ones who are quietly disengaging before they don't renew.",
+          "bullets": {
+            "0": "Full member profiles with booking history, membership tier, and engagement trend",
+            "1": "Inactive members flagged automatically when activity drops below their usual pattern",
+            "2": "Membership tiers (junior, adult, family, seasonal) all managed in one place"
+          }
+        },
+        "1": {
+          "eyebrow": "Automation",
+          "headline": "Renewal reminders. Event updates. Club communications. Automated.",
+          "body": "Tennis club members stay when they feel informed and valued. Automate every touchpoint (from renewal reminders to event notifications) so your club communicates consistently without the manual effort.",
+          "bullets": {
+            "0": "Renewal reminders sent automatically before memberships lapse: no member is caught off guard",
+            "1": "Event and tournament notifications sent to all relevant members without manual effort",
+            "2": "Re-engagement campaigns for inactive members, bringing them back to the court"
+          }
+        },
+        "2": {
+          "eyebrow": "Court Booking & Scheduling",
+          "headline": "Book a court. In seconds. From anywhere.",
+          "body": "Frictionless court booking keeps members active. When it's easy to reserve a slot, members play more often, and members who play more often renew. Make booking as simple as two taps on a phone.",
+          "bullets": {
+            "0": "Members book courts, coaching sessions, and events from the app or member portal",
+            "1": "Real-time court availability so members never need to call to check",
+            "2": "Coaching session scheduling integrated with court booking, no double-booking, no conflict"
+          }
+        },
+        "3": {
+          "eyebrow": "Member Portal & Mobile App",
+          "headline": "Membership value. Made visible.",
+          "body": "A tennis club membership should feel like more than a monthly charge. The member portal and app show members exactly what they're getting (bookings, events, membership status, and value), making renewal feel like a natural choice, not a decision.",
+          "bullets": {
+            "0": "Members see their booking history, upcoming events, and membership status in one place",
+            "1": "Membership tiers and benefits clearly visible so members understand what they have",
+            "2": "Your club's branding throughout: your name, your identity, your community"
+          }
+        }
+      },
+      "planRecommendation": {
+        "eyebrow": "Recommended plan",
+        "headline": "Most tennis clubs start with the Club plan.",
+        "body": "The Club plan gives your members a branded portal and mobile app, making membership feel tangible, court booking effortless, and renewal a natural decision rather than a friction point."
+      },
+      "footerCta": {
+        "headline": "Ready to make your members proud to belong?",
+        "subline": "Book a demo and see how to retain more members, season after season."
+      },
+      "meta": {
+        "title": "Tennis Club Court Booking and Management Software | FormaCore",
+        "description": "Manage court bookings, lessons and memberships with FormaCore software for tennis clubs. Simplify daily operations for your team. Book a demo today."
+      }
+    }
+  }
+}

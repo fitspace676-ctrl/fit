@@ -1,6 +1,7 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, type ReactNode, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { RegisterGymInput, RegisterGymResponse } from '@fit/types';
 import { registerGym } from '@/lib/register-gym';
 import { slugifyGymName } from '@/lib/slugify';
@@ -9,6 +10,9 @@ import { FormError, SubmitButton, TextField } from './form-controls';
 
 /** Minimum password length the API enforces (mirrors `PASSWORD_MIN_LENGTH`). */
 const PASSWORD_MIN_LENGTH = 8;
+
+/** The emphasised email / gym name inside the success copy. */
+const strong = (chunks: ReactNode): ReactNode => <span className="font-medium">{chunks}</span>;
 
 /**
  * Gym-owner signup form. Collects the gym name + subdomain, the owner's email
@@ -20,6 +24,7 @@ const PASSWORD_MIN_LENGTH = 8;
  * name until the owner edits it themselves.
  */
 export function RegisterGymForm() {
+  const t = useTranslations('signup');
   const [gymName, setGymName] = useState('');
   const [subdomainSlug, setSubdomainSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
@@ -58,11 +63,13 @@ export function RegisterGymForm() {
       ...(password ? { password } : {}),
     };
 
-    registerGym(input)
+    registerGym(input, {
+      signupFailed: (status) => t('errors.signupFailed', { status }),
+    })
       .then((response) => setDone(response))
       .catch((err: unknown) => {
         setPending(false);
-        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+        setError(err instanceof Error ? err.message : t('errors.generic'));
       });
   };
 
@@ -71,11 +78,9 @@ export function RegisterGymForm() {
     return (
       <div className="flex flex-col gap-4 text-left">
         <div className="rounded-card bg-green-50 px-4 py-3 text-sm text-green-700" role="status">
-          <p className="font-semibold">Your gym is ready 🎉</p>
+          <p className="font-semibold">{t('success.title')}</p>
           <p className="mt-1">
-            We&apos;ve sent a verification link to <span className="font-medium">{ownerEmail}</span>
-            . Confirm your email to finish setting up <span className="font-medium">{gymName}</span>
-            .
+            {t.rich('success.body', { email: ownerEmail, gym: gymName, b: strong })}
           </p>
         </div>
         {adminUrl ? (
@@ -83,12 +88,14 @@ export function RegisterGymForm() {
             href={adminUrl}
             className="rounded-card bg-brand-600 px-6 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-brand-700"
           >
-            Go to your gym console
+            {t('success.console')}
           </a>
         ) : (
           <p className="text-sm text-slate-500">
-            Once verified, sign in to your gym console at{' '}
-            <span className="font-medium text-slate-700">{done.subdomainSlug}</span>.
+            {t.rich('success.verifyFirst', {
+              slug: done.subdomainSlug,
+              b: (chunks) => <span className="font-medium text-slate-700">{chunks}</span>,
+            })}
           </p>
         )}
       </div>
@@ -99,67 +106,67 @@ export function RegisterGymForm() {
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <FormError message={error} />
       <TextField
-        label="Gym name"
+        label={t('form.gymName')}
         type="text"
         name="gymName"
         autoComplete="organization"
         required
         maxLength={100}
-        placeholder="Iron Temple Fitness"
+        placeholder={t('form.gymNamePlaceholder')}
         value={gymName}
         onChange={(e) => onGymNameChange(e.target.value)}
         disabled={pending}
       />
       <TextField
-        label="Subdomain"
+        label={t('form.subdomain')}
         type="text"
         name="subdomainSlug"
         required
         minLength={3}
         maxLength={40}
-        placeholder="iron-temple"
+        placeholder={t('form.subdomainPlaceholder')}
         suffix=".fit.ge"
-        hint="Lowercase letters, numbers, and hyphens. This is your gym's web address."
+        hint={t('form.subdomainHint')}
         value={subdomainSlug}
         onChange={(e) => onSlugChange(e.target.value)}
         disabled={pending}
       />
       <TextField
-        label="Your name"
+        label={t('form.ownerName')}
         type="text"
         name="ownerName"
         autoComplete="name"
         maxLength={100}
-        placeholder="Alex Doe"
+        placeholder={t('form.ownerNamePlaceholder')}
         value={ownerName}
         onChange={(e) => setOwnerName(e.target.value)}
         disabled={pending}
       />
       <TextField
-        label="Your email"
+        label={t('form.email')}
         type="email"
         name="ownerEmail"
         autoComplete="email"
         required
-        placeholder="you@example.com"
+        placeholder={t('form.emailPlaceholder')}
         value={ownerEmail}
         onChange={(e) => setOwnerEmail(e.target.value)}
         disabled={pending}
       />
       <TextField
-        label="Password"
+        label={t('form.password')}
         type="password"
         name="password"
         autoComplete="new-password"
         minLength={PASSWORD_MIN_LENGTH}
-        placeholder="At least 8 characters"
-        hint="Optional — leave blank to set it later from the verification email."
+        placeholder={t('form.passwordPlaceholder')}
+        hint={t('form.passwordHint')}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         disabled={pending}
       />
-      <SubmitButton pending={pending} pendingLabel="Creating your gym…">
-        Create your gym
+      <SubmitButton pending={pending} pendingLabel={t('form.submitting')}>
+        {t('form.submit')}
       </SubmitButton>
     </form>
   );

@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "title": "Gym Management Software for Fitness Clubs | FormaCore",
+    "description": "Manage memberships, class bookings, payments and your member portal in one place with FormaCore gym management software. Book a demo for your club today."
+  },
+  "hero": {
+    "titleLead": "Built For The Businesses",
+    "titleAccent": "That Move People.",
+    "body": "Every great fitness business runs on something. Members who stay, staff who know what to do, numbers that tell the truth. FormaCore pulls it all together.",
+    "devicesAlt": "The FormaCore staff console on a laptop and the member app on a phone"
+  },
+  "capabilities": {
+    "title": "Everything your front desk runs on."
+  },
+  "builtFor": {
+    "title": "Built for how you actually run.",
+    "intro": "Whatever shape your business takes, FormaCore fits the way you work.",
+    "seeAll": "See all {count} business types"
+  },
+  "contact": {
+    "title": "Contact us",
+    "body": "We are always looking for ways to improve our products and services. Contact us and let us know how we can help you.",
+    "here": "We are here",
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "Name",
+      "surname": "Surname",
+      "surnamePlaceholder": "Surname",
+      "email": "Email Address",
+      "emailPlaceholder": "Email",
+      "company": "Company",
+      "companyPlaceholder": "Company name",
+      "message": "Message",
+      "messagePlaceholder": "Your message",
+      "submit": "Submit"
+    }
+  }
+}

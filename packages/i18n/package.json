@@ -7,6 +7,7 @@
   "exports": {
     ".": "./index.ts",
     "./member": "./member.ts",
+    "./platform": "./platform.ts",
     "./locales/*": "./locales/*"
   },
   "scripts": {

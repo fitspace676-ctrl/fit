@@ -17,23 +17,37 @@ tokens. Deploys to [Vercel](https://vercel.com/).
 
 ```
 app/
-├── layout.tsx           # root layout — html/body shell, global styles
-├── page.tsx             # marketing homepage (header → hero → features → pricing → CTA → footer)
-├── register-gym/page.tsx# owner-signup page — every marketing CTA funnels here
-├── error.tsx            # route-segment error boundary
+├── [locale]/            # every page, once per language: `/` (en) and `/ka`
+│   ├── layout.tsx       # html/body shell, fonts, message provider, global styles
+│   ├── page.tsx         # marketing homepage (hero → features → tour → audiences → contact)
+│   ├── pricing/, built-for/, features/, register-gym/, terms/, privacy/, dpa/
+│   └── error.tsx        # route-segment error boundary
 ├── global-error.tsx     # root error boundary
-└── globals.css          # Tailwind directives
+└── globals.css          # Tailwind directives + per-locale type stacks
 components/
-├── marketing/           # static landing sections (server components)
+├── marketing/           # landing sections, nav/footer chrome, lead forms (client)
 └── signup/              # register-gym form + form controls (client)
+data/                    # audiences, features, tour scenes — structure here, copy in @fit/i18n
 lib/
 ├── env.ts               # validated NEXT_PUBLIC_* env
+├── messages.ts          # how data modules read their copy from a translator
 ├── register-gym.ts      # POST /auth/register-gym client
 ├── slugify.ts           # gym-name → subdomain-slug suggestion
 └── tenant-url.ts        # build the <slug>.<root>/admin redirect target
+src/i18n/                # next-intl routing, navigation helpers, request config
+middleware.ts            # locale routing (English unprefixed, Georgian under /ka)
 tailwind.config.mjs      # extends @fit/config/tailwind preset
 next.config.mjs          # Next.js config (lint handled by turbo)
 ```
+
+## Languages
+
+The site ships in English (`/`, `/pricing`, …) and Georgian (`/ka`, `/ka/pricing`, …)
+via next-intl. Every user-visible string lives in `packages/i18n/locales/platform/<locale>/<area>.json`
+(areas: common, landing, tour, pricing, signup, builtFor, features, legal), merged by
+`@fit/i18n/platform`; `pnpm --filter @fit/i18n test` asserts the two locales carry the
+same keys. The legal pages' body text is English in both locales on purpose. Internal
+links go through `@/src/i18n/navigation` (never `next/link`) so they keep the locale.
 
 ## Owner signup
 

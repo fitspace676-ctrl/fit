@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createPlatformLeadSchema } from '@fit/types';
+import { isLocale } from '@fit/i18n';
+import { platformMessages } from '@fit/i18n/platform';
 import { env } from '@/lib/env';
+import { LEAD_LOCALE_HEADER } from '@/lib/leads';
+import { routing } from '@/src/i18n/routing';
 
 /**
  * `POST /api/leads` — the marketing site's own lead endpoint, a thin server-side
@@ -62,12 +66,25 @@ function clientIp(request: Request): string | null {
   return first && first.length > 0 ? first : null;
 }
 
+/**
+ * The route's own error messages, in the language of the page that posted
+ * (`X-Locale`, set by `submitLead`); English when the header is missing or
+ * names a language the site does not have. The messages are shown to the
+ * visitor by the form, so they come from the platform catalogue.
+ */
+function apiMessages(request: Request) {
+  const requested = request.headers.get(LEAD_LOCALE_HEADER);
+  const locale = requested && isLocale(requested) ? requested : routing.defaultLocale;
+  return platformMessages[locale].common.leads.api;
+}
+
 export async function POST(request: Request): Promise<Response> {
+  const messages = apiMessages(request);
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
+    return NextResponse.json({ message: messages.invalidBody }, { status: 400 });
   }
 
   if (typeof body === 'object' && body !== null) {
@@ -82,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = createPlatformLeadSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { message: parsed.error.issues[0]?.message ?? 'Please check the form and try again.' },
+      { message: parsed.error.issues[0]?.message ?? messages.invalid },
       { status: 400 },
     );
   }
@@ -100,17 +117,12 @@ export async function POST(request: Request): Promise<Response> {
       cache: 'no-store',
     });
   } catch {
-    return NextResponse.json(
-      { message: "We couldn't reach our servers. Please try again in a moment." },
-      { status: 502 },
-    );
+    return NextResponse.json({ message: messages.unreachable }, { status: 502 });
   }
 
   const payload = (await upstream.json().catch(() => null)) as unknown;
   if (!upstream.ok) {
-    const message =
-      (payload as { message?: string | string[] } | null)?.message ??
-      'Submission failed. Please try again.';
+    const message = (payload as { message?: string | string[] } | null)?.message ?? messages.failed;
     return NextResponse.json(
       { message: Array.isArray(message) ? message[0] : message },
       { status: upstream.status },

@@ -1,0 +1,947 @@
+{
+  "meta": {
+    "title": "Gym Management Features for Your Fitness Club | FormaCore",
+    "pageTitle": "{name} | FormaCore",
+    "description": "Explore member portals, booking, reception POS, mobile apps, analytics and AI tools for your fitness club. See how FormaCore works and book a demo today."
+  },
+  "hub": {
+    "title": "Everything your gym runs on.",
+    "intro": "One platform for the front desk, the timetable, the numbers and your members. Pick a module to see what it does.",
+    "ctaTitle": "See it with your own gym.",
+    "ctaBody": "Book a demo and we'll walk you through every module with your plans, classes and team."
+  },
+  "modules": {
+    "member-portal": {
+      "name": "Member Portal",
+      "summary": "Branded self-service web portal for members.",
+      "headline": "A members area that looks like your gym, not ours.",
+      "subline": "A branded web portal where members book classes, manage their plan, buy from your shop and check in. Your logo and colour, in Georgian and English, on any device.",
+      "highlights": {
+        "0": "Your logo & colour",
+        "1": "Georgian & English",
+        "2": "Light & dark",
+        "3": "Any device"
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Booking",
+          "headline": "Book a class in two clicks.",
+          "body": "Members see the week's timetable or a simple list, open a class to see the coach, time and spots left, and book it.",
+          "bullets": {
+            "0": "Week and list views of the schedule",
+            "1": "Spots left on every class",
+            "2": "Bookings and history under \"My bookings\""
+          }
+        },
+        "1": {
+          "eyebrow": "Self-service",
+          "headline": "Plans, services and shop, without a phone call.",
+          "body": "Members manage their membership, book services and trainers, and buy products online, so the front desk spends less time on the phone.",
+          "bullets": {
+            "0": "Membership page with the current plan and its status",
+            "1": "Services and trainer booking",
+            "2": "Shop with cart and checkout"
+          }
+        },
+        "2": {
+          "eyebrow": "Check-in",
+          "headline": "Their check-in QR, always to hand.",
+          "body": "Every member has a personal check-in QR in the portal, ready to show at the door.",
+          "bullets": {
+            "0": "Personal QR on the home screen",
+            "1": "Visits recorded against the member",
+            "2": "Works with the reception check-in"
+          }
+        },
+        "3": {
+          "eyebrow": "Your brand",
+          "headline": "Set it up from the console.",
+          "body": "Upload your logo, pick your colour and choose the sign-in photo and welcome card from the admin panel. Changes show up for members straight away.",
+          "bullets": {
+            "0": "Logo, colour and sign-in photo",
+            "1": "Join card text per language",
+            "2": "Members choose light or dark"
+          }
+        }
+      },
+      "footerCta": {
+        "headline": "Give your members a portal worth opening.",
+        "subline": "Book a demo and we'll show it with your logo and colours."
+      },
+      "meta": {
+        "title": "Member Portal Software for Gyms and Studios | FormaCore",
+        "description": "Give members one place to book classes, view memberships and manage their fitness routine. Reduce front desk requests with FormaCore. Book a member portal demo."
+      }
+    },
+    "booking-scheduling": {
+      "name": "Online Booking & Scheduling",
+      "summary": "Class timetable, bookings and waitlists.",
+      "headline": "A timetable that fills itself.",
+      "subline": "Plan classes once, let members book online, and keep a waitlist for the full ones. Your team sees who is coming before the doors open.",
+      "highlights": {
+        "0": "Class timetable",
+        "1": "Online booking",
+        "2": "Waitlists",
+        "3": "PT calendar"
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Timetable",
+          "headline": "Build the week once.",
+          "body": "Create class types with their capacity, length and colour, then place them on the schedule as one-off or repeating sessions across your branches.",
+          "bullets": {
+            "0": "Week and month calendar, plus a list view",
+            "1": "Filter by trainer or location",
+            "2": "Each session shows its time, coach, branch and how full it is"
+          }
+        },
+        "1": {
+          "eyebrow": "Bookings",
+          "headline": "See who booked, and who is waiting.",
+          "body": "Open any session to see the booked members, book someone in from the desk, and let a waitlist pick up the spots when people cancel.",
+          "bullets": {
+            "0": "Roster per session",
+            "1": "Book a member in from the console",
+            "2": "Waitlist for full classes"
+          }
+        },
+        "2": {
+          "eyebrow": "Personal training",
+          "headline": "One-to-one sessions on their own calendar.",
+          "body": "Trainers have a PT calendar for their sessions, and members can book a trainer from the portal.",
+          "bullets": {
+            "0": "PT calendar per trainer",
+            "1": "Trainer booking in the member portal",
+            "2": "Session packs and credits tracked per member"
+          }
+        }
+      },
+      "footerCta": {
+        "headline": "Put your timetable online.",
+        "subline": "Book a demo and we'll load your classes into it."
+      },
+      "meta": {
+        "title": "Gym Class Booking and Staff Scheduling Software | FormaCore",
+        "description": "Manage class schedules, bookings and capacity in one place. Help members find sessions and keep your gym team organised with FormaCore. Book a scheduling demo."
+      }
+    },
+    "reception-pos": {
+      "name": "Reception POS",
+      "summary": "Front desk application: check-in and sales.",
+      "headline": "The front desk, in one screen.",
+      "subline": "Sell memberships, packs, services and products, find the member, take the payment and check people in, all from the reception till.",
+      "highlights": {
+        "0": "Memberships & products",
+        "1": "Member lookup",
+        "2": "Check-in",
+        "3": "End-of-day report"
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Point of sale",
+          "headline": "Sell a plan in three clicks.",
+          "body": "Pick what is being sold, find the member by name or phone, and charge. The sale lands on the member and in the reports straight away.",
+          "bullets": {
+            "0": "Memberships, products, services and member tabs on one till",
+            "1": "Keyboard shortcuts for search and member lookup",
+            "2": "Cart-level discounts"
+          }
+        },
+        "1": {
+          "eyebrow": "Check-in",
+          "headline": "Know who is in the building.",
+          "body": "Check members in at the desk or by their QR, and every visit is recorded against the member and the branch.",
+          "bullets": {
+            "0": "Reception check-in from the console",
+            "1": "QR check-in from the portal and app",
+            "2": "Visits feed each member's activity"
+          }
+        },
+        "2": {
+          "eyebrow": "Closing the day",
+          "headline": "Close the till without a spreadsheet.",
+          "body": "A sales log of everything rung up today, and an end-of-day report when the shift is over.",
+          "bullets": {
+            "0": "Sales log per day",
+            "1": "End-of-day report",
+            "2": "Stock moves with every product sale"
+          }
+        }
+      },
+      "footerCta": {
+        "headline": "Make the front desk faster.",
+        "subline": "Book a demo and we'll run a sale with you."
+      },
+      "meta": {
+        "title": "Gym Reception and Point of Sale (POS) Software | FormaCore",
+        "description": "Bring gym check-ins, sales and front desk tasks into one workspace. Help your team serve members with FormaCore reception and POS tools. Book a demo today."
+      }
+    },
+    "mobile-app": {
+      "name": "Mobile App",
+      "summary": "White-label member app.",
+      "headline": "Your gym on their home screen.",
+      "subline": "A white-label iOS and Android app for your members: the timetable, their plan, the shop and their check-in QR, one tap away.",
+      "highlights": {
+        "0": "White-label",
+        "1": "iOS & Android",
+        "2": "QR check-in",
+        "3": "Class booking"
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Classes",
+          "headline": "Booking that lives in their pocket.",
+          "body": "Members browse classes, see the coach and the spots left, and book from the app.",
+          "bullets": {
+            "0": "Class schedule and class details",
+            "1": "Trainer profiles",
+            "2": "Services booking"
+          }
+        },
+        "1": {
+          "eyebrow": "Check-in",
+          "headline": "The QR is the middle button.",
+          "body": "Check-in sits in the centre of the tab bar, so getting through the door takes one tap.",
+          "bullets": {
+            "0": "QR button in the tab bar",
+            "1": "Membership status on the home screen",
+            "2": "Light and dark mode"
+          }
+        },
+        "2": {
+          "eyebrow": "Shop & billing",
+          "headline": "Buy and manage, without the front desk.",
+          "body": "Members shop your products, see their plan and handle billing in the app.",
+          "bullets": {
+            "0": "Shop with product pages",
+            "1": "Membership and billing screens",
+            "2": "Profile and settings"
+          }
+        }
+      },
+      "footerCta": {
+        "headline": "Put your gym on their phone.",
+        "subline": "Book a demo and we'll walk you through the app."
+      },
+      "meta": {
+        "title": "Fitness Club Mobile App for Bookings and Members | FormaCore",
+        "description": "Let members book sessions, check in with QR codes and view memberships from their phones. Explore the FormaCore fitness club mobile app and book a demo today."
+      }
+    },
+    "analytics-reporting": {
+      "name": "Analytics & Reporting",
+      "summary": "Dashboards, retention data and reports.",
+      "headline": "Numbers you can act on, not just read.",
+      "subline": "A live dashboard for today and ready-made reports for everything else: sales, members, revenue, products, classes and staff, each exportable to CSV or Excel.",
+      "highlights": {
+        "0": "Live dashboard",
+        "1": "Ready-made reports",
+        "2": "CSV & Excel export",
+        "3": "Per branch"
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Dashboard",
+          "headline": "Your gym, the moment you sign in.",
+          "body": "Revenue, check-ins, new members, today's classes and who is in the building, for today, this week, this month or a custom range.",
+          "bullets": {
+            "0": "Revenue trend over 7 days, 30 days or 12 weeks",
+            "1": "Expiring memberships and renewals due",
+            "2": "Occupancy per branch, live"
+          }
+        },
+        "1": {
+          "eyebrow": "Retention",
+          "headline": "Know who needs you next.",
+          "body": "Retention and engagement reports list the members whose renewal is due, whose plan is about to expire, and who have stopped turning up.",
+          "bullets": {
+            "0": "Membership, check-in and retention reports",
+            "1": "Members grouped by why they need attention",
+            "2": "Filter by date range and branch"
+          }
+        },
+        "2": {
+          "eyebrow": "Sales & revenue",
+          "headline": "Every sale, traced.",
+          "body": "Sales transactions, plan performance, daily reconciliation, refunds and stock, with who sold what, how it was paid and at which branch.",
+          "bullets": {
+            "0": "Sales, revenue and product reports",
+            "1": "Class attendance, PT sessions and trainer reports",
+            "2": "Export any report to CSV or Excel"
+          }
+        }
+      },
+      "footerCta": {
+        "headline": "See your numbers properly.",
+        "subline": "Book a demo and we'll show you the reports with your data."
+      },
+      "meta": {
+        "title": "Gym Analytics and Membership Reporting Software | FormaCore",
+        "description": "Track memberships, attendance and revenue with FormaCore gym analytics. Give your team a clearer view of club performance. Explore reporting and book a demo."
+      }
+    },
+    "ai-assistant": {
+      "name": "AI Assistant",
+      "summary": "Answers questions, flags who needs attention and drafts messages, in Georgian and English.",
+      "headline": "Ask your gym a question. Get a straight answer.",
+      "subline": "An assistant built into the console that answers questions about your gym, flags the members who need attention and drafts the messages to send them, in Georgian and English.",
+      "highlights": {
+        "0": "Answers questions",
+        "1": "Flags who needs attention",
+        "2": "Drafts messages",
+        "3": "Georgian & English"
+      },
+      "features": {
+        "0": {
+          "eyebrow": "Answers",
+          "headline": "Questions in, clear answers out.",
+          "body": "Ask about your members, classes or sales and the assistant looks it up in your gym and answers with a table or a short summary.",
+          "bullets": {
+            "0": "Lists come back as tables, single records as a short summary",
+            "1": "Works with the same data as the console, within your role",
+            "2": "Chats are saved, so you can pick up where you left off"
+          }
+        },
+        "1": {
+          "eyebrow": "Attention",
+          "headline": "Know who needs you next.",
+          "body": "Ask who has stopped turning up, whose renewal is due or whose plan is about to expire, and get the list of members to reach out to.",
+          "bullets": {
+            "0": "Members who have gone quiet",
+            "1": "Renewals due and plans about to expire",
+            "2": "Narrow it down by plan or branch"
+          }
+        },
+        "2": {
+          "eyebrow": "Messages",
+          "headline": "A first draft, ready to send.",
+          "body": "Ask for a win-back note, a renewal reminder or a class announcement and the assistant drafts it for you to review before it goes out.",
+          "bullets": {
+            "0": "Drafts in Georgian or English, matching how you write to it",
+            "1": "You review and send, nothing goes out on its own",
+            "2": "Attach a file, like a price list, to draft from it"
+          }
+        }
+      },
+      "footerCta": {
+        "headline": "Ask it something about your gym.",
+        "subline": "Book a demo and see the assistant answer with your own data."
+      },
+      "meta": {
+        "title": "AI Assistant for Gym and Fitness Club Management | FormaCore",
+        "description": "Get help with member information and everyday gym tasks using the FormaCore AI assistant. Keep your team focused on service. Explore the tools and book a demo."
+      }
+    }
+  },
+  "pages": {
+    "member-portal": {
+      "eyebrow": "Member Portal",
+      "headline": "Your gym, open 24/7. Even when you're not.",
+      "subline": "A branded online portal where members buy memberships, book classes, manage their account, and handle payments entirely on their own. Less admin for your staff. More autonomy for your members.",
+      "intro": {
+        "headline": "Self-service that actually serves your business.",
+        "body": "Every time a member calls to book a class, ask about their membership, or make a payment, that's time your staff spends on admin instead of people. The member portal gives members a place to handle all of it themselves, in your brand, on their schedule, without picking up the phone. Available anywhere online, on any device, at any time."
+      },
+      "blocks": {
+        "0": {
+          "title": "Membership Management",
+          "headline": "Members manage their membership. You manage your business.",
+          "body": "Members have full control over their own membership: buying, upgrading, renewing, freezing, or cancelling directly from the portal without involving your staff. Every action updates instantly in the admin panel so your team always has the current picture.",
+          "bullets": {
+            "0": "Buy a new membership, upgrade, renew, freeze, or cancel, all self-service",
+            "1": "Membership status, renewal date, and plan details visible at all times",
+            "2": "Every membership action reflected instantly in the admin panel, no manual updates needed"
+          }
+        },
+        "1": {
+          "title": "Booking & Shop",
+          "headline": "Book a class. Buy a session. No phone call needed.",
+          "body": "Members browse the live schedule, book group classes or personal training sessions, join waitlists, cancel bookings, and purchase products all from one place. When a class fills up, the waitlist takes over. When a spot opens, the member is notified automatically.",
+          "bullets": {
+            "0": "Book group classes and PT sessions from the live schedule, cancel directly when plans change",
+            "1": "Join a waitlist when a class is full, confirmed automatically the moment a spot opens",
+            "2": "Browse and purchase products and services from the portal. Every transaction logged automatically"
+          }
+        },
+        "2": {
+          "title": "Payments & Account",
+          "headline": "Full control. Zero friction.",
+          "body": "Members manage everything about their account from one place: payment method, card details, invoice history, and personal information. When they can see and control everything themselves, they trust the club more, and trust keeps members around.",
+          "bullets": {
+            "0": "Full payment management: view history, download invoices, update card details",
+            "1": "Personal details and profile information editable directly, no staff involvement needed",
+            "2": "Automatic payment reminders so renewals happen without anyone chasing anyone"
+          }
+        },
+        "3": {
+          "title": "Branded Experience",
+          "headline": "Members see your club. Not the software behind it.",
+          "body": "The member portal reflects your gym's identity: your logo, your colors, your photos. Members interacting with your club online should feel like they're interacting with your club, not a generic platform.",
+          "bullets": {
+            "0": "Upload your logo, set your brand colors, and add your own photos to the portal homepage",
+            "1": "Consistent branded experience from first visit through to membership renewal",
+            "2": "Custom branding options available for clubs with specific identity requirements"
+          }
+        }
+      },
+      "plan": {
+        "eyebrow": "Available from Club",
+        "headline": "Member Portal is included in Club and Core.",
+        "body": "Upgrade from Studio to Club to give your members a fully branded self-service portal, reducing admin for your staff, opening a 24/7 sales channel, and giving members the autonomy that keeps them engaged."
+      },
+      "footerCta": {
+        "headline": "Ready to give your members the portal they deserve?",
+        "subline": "Book a free demo and see exactly what the member experience looks like from sign-up to booking to renewal."
+      }
+    },
+    "booking-scheduling": {
+      "eyebrow": "Online Booking & Scheduling",
+      "headline": "More classes booked. Your schedule, always right.",
+      "subline": "Build your timetable once and let it run. Members book group classes, personal training, and facilities on their own, your schedule stays accurate in real time, without anyone managing it manually.",
+      "intro": {
+        "headline": "Scheduling that doesn't need a manager.",
+        "body": "Most fitness businesses manage their schedule through spreadsheets, WhatsApp, and manual phone calls. Every change creates confusion, every cancellation creates a gap, and every full class means someone misses out. Online booking solves all of it: members self-serve, your timetable stays live, and your staff focuses on the people in front of them."
+      },
+      "blocks": {
+        "0": {
+          "title": "Class Timetable",
+          "headline": "One timetable. Built once. Always current.",
+          "body": "Set up your weekly schedule in the admin panel (group classes, personal training, and facility bookings) and it appears instantly across the member portal and mobile app. Each location runs its own independent schedule. Every change reflects in real time so members always see the right information wherever they're looking.",
+          "bullets": {
+            "0": "Set up group classes, PT sessions, and facility bookings in one place",
+            "1": "Each location has its own independent schedule, managed separately from the admin panel",
+            "2": "Every update reflects instantly across the member portal and mobile app, no manual syncing needed"
+          }
+        },
+        "1": {
+          "title": "Self-Service Booking",
+          "headline": "Members book. Without involving your staff.",
+          "body": "Members browse the live timetable, pick their session, and confirm their spot from the portal or the app, at any time. Booking confirmation goes out automatically. Reminders fire before the session. If they need to cancel, they do it themselves up to the cancellation window you set, and the spot is released instantly.",
+          "bullets": {
+            "0": "Members book group classes, PT sessions, and facilities directly from the portal or app",
+            "1": "Booking confirmation and class reminders sent automatically, no manual effort needed",
+            "2": "Members cancel within your defined window. The spot is released instantly and a cancellation notice is sent"
+          }
+        },
+        "2": {
+          "title": "Capacity & Waitlist",
+          "headline": "Full class. No lost members.",
+          "body": "Set the capacity for every class and booking closes automatically when it's reached. Members who still want in join the waitlist, first come, first served. When a spot opens, the next person on the list is notified and has the option to confirm. No manual management, no missed opportunities.",
+          "bullets": {
+            "0": "Capacity set per class, booking closes automatically when the limit is reached",
+            "1": "Waitlist opens automatically when a class is full, members join in order",
+            "2": "Waitlisted members notified when a spot opens, first in line gets first option to confirm"
+          }
+        },
+        "3": {
+          "title": "Personal Training & Facilities",
+          "headline": "Every session type. One system.",
+          "body": "Personal training and facility bookings are managed in the same system as group classes, with no separate process or double-booking risk. Trainer availability is set in the admin panel, members only see open slots, and every booking is confirmed automatically.",
+          "bullets": {
+            "0": "PT sessions and facility bookings managed alongside group classes, one system for everything",
+            "1": "Trainer and facility availability set by admin, members only see what's available",
+            "2": "Confirmation and reminders sent automatically to everyone involved"
+          }
+        }
+      },
+      "plan": {
+        "eyebrow": "Included in every plan",
+        "headline": "Scheduling in every plan. Self-service booking from Club.",
+        "body": "The Studio plan gives you full class and PT scheduling in the admin panel. Upgrade to Club to unlock self-service booking for members via the member portal and mobile app, reducing the manual work it takes to keep your schedule full."
+      },
+      "footerCta": {
+        "headline": "Ready to fill your classes without the back-and-forth?",
+        "subline": "Book a free demo and see how online booking and scheduling works from end to end."
+      }
+    },
+    "reception-pos": {
+      "eyebrow": "Reception POS",
+      "headline": "Everything your front desk needs. One screen.",
+      "subline": "Check members in, process payments, sell products, register new members, and manage walk-ins, all from a single application at the front desk. Fast, simple, and connected to everything in your admin panel.",
+      "intro": {
+        "headline": "The front desk, finally organised.",
+        "body": "Your reception is where first impressions happen and where the day's operational chaos usually lives. The Reception POS brings order to it, giving your front desk staff one screen to handle every interaction, from a member checking in to a walk-in buying a day pass, with every transaction logged automatically and visible across the entire platform."
+      },
+      "blocks": {
+        "0": {
+          "title": "Member Check-in",
+          "headline": "Every arrival logged. No clipboard needed.",
+          "body": "Check members in manually by searching from the front desk, or let them scan their QR code directly. Either way, membership status and payment standing are visible instantly, so your staff always has the full picture before they say hello, and members with outstanding payments are flagged before they walk through the door.",
+          "bullets": {
+            "0": "Manual check-in by searching the member from the front desk, confirmed in one tap",
+            "1": "QR code scan via the member app, faster check-in with no staff interaction needed",
+            "2": "Membership status and overdue payments visible instantly, no guessing, no awkward moments"
+          }
+        },
+        "1": {
+          "title": "Sales & Walk-ins",
+          "headline": "Turn a walk-in into a member. On the spot.",
+          "body": "A new person walks through the door. Your receptionist creates their profile, sells them a membership, processes the payment, and activates their access, all from the POS, in just a few minutes. Cash, card, or online payment link, whichever works for the client.",
+          "bullets": {
+            "0": "Sell memberships, day passes, products, and services from one screen",
+            "1": "Create a new member profile and activate their membership on the spot",
+            "2": "Accept cash, card, or online payment link, every transaction logged automatically"
+          }
+        },
+        "2": {
+          "title": "Connected to Everything",
+          "headline": "Every transaction. Everywhere it needs to be.",
+          "body": "Nothing processed at the front desk lives in isolation. Every sale, every check-in, every new membership is tied to the member's profile and visible in the admin panel, in your reports, and in the member's own transaction history in the portal and app. One transaction, complete visibility across the whole platform.",
+          "bullets": {
+            "0": "Every POS transaction tied to the member's profile automatically, no manual logging",
+            "1": "Transactions visible to staff in the admin panel and to members in their portal and app",
+            "2": "Sales feed directly into your revenue reports, front desk and online payments in one place"
+          }
+        },
+        "3": {
+          "title": "Product & Service Sales",
+          "headline": "Sell anything. Every sale tracked.",
+          "body": "Protein shakes, supplements, merchandise, personal training sessions: sell any product or service from the front desk with every transaction tied back to your inventory and sales reports automatically. Stock levels update with every sale so you always know what's running low.",
+          "bullets": {
+            "0": "Sell any product or service alongside memberships and day passes from one screen",
+            "1": "Every sale logged against inventory, stock levels updated automatically",
+            "2": "Full product sales history visible in your admin reports alongside membership revenue"
+          }
+        }
+      },
+      "plan": {
+        "eyebrow": "Included in every plan",
+        "headline": "Reception POS is included in every plan.",
+        "body": "Every plan (Studio, Club, and Core) includes full access to the Reception POS. Member check-in, walk-in sales, new member registration, and product sales are available from day one."
+      },
+      "footerCta": {
+        "headline": "Ready to give your front desk the tool it actually needs?",
+        "subline": "Book a free demo and see the Reception POS in action, from check-in to sale to report."
+      }
+    },
+    "mobile-app": {
+      "eyebrow": "Mobile App",
+      "headline": "Your brand in their pocket. Every single day.",
+      "subline": "A fully white-labeled mobile app published under your gym's name on the App Store and Google Play. Members book classes, check in, manage their account, and shop, all in your brand, on their phone, wherever they are.",
+      "intro": {
+        "headline": "Your gym, on their phone. Under your name.",
+        "body": "Most gym software gives members a generic app with the platform's branding on it. This is different: a fully white-labeled mobile application published under your gym's name. Members search for your club, download your app, and open your brand every time they use it. That daily presence is the retention tool most gyms don't have."
+      },
+      "blocks": {
+        "0": {
+          "title": "Your Brand",
+          "headline": "Your logo. Your colors. Your name on the app store.",
+          "body": "The app is published under your gym's name on the App Store and Google Play. Your logo, your brand colors, and your name across every screen. Class and session images customized to match your identity. Members never see the platform behind it. They see your club.",
+          "bullets": {
+            "0": "Published under your gym's name on the App Store and Google Play",
+            "1": "Your logo, colors, and brand identity applied throughout the app",
+            "2": "Class and session images customisable so every screen feels like your club"
+          }
+        },
+        "1": {
+          "title": "Booking and Check-in",
+          "headline": "Book a class. Walk through the door. No queue.",
+          "body": "Members open the app, see the live schedule, and book their spot in seconds. When they arrive, they generate a QR code and scan it at the door. Eligibility checked instantly, access granted. Members with outstanding payments are blocked automatically before they reach reception.",
+          "bullets": {
+            "0": "Live class schedule bookable directly from the app in seconds",
+            "1": "QR code generated from the app and scanned at the door for instant check-in",
+            "2": "Members with overdue payments blocked automatically, no staff conversation needed"
+          }
+        },
+        "2": {
+          "title": "Payments and Shop",
+          "headline": "Pay, buy, and manage. All from one place.",
+          "body": "Members handle payments, browse the shop, and manage their account without calling or visiting reception. Every transaction tied to their profile and visible in their history. Your front desk handles people, not admin.",
+          "bullets": {
+            "0": "Members pay for sessions, products, and services directly from the app",
+            "1": "Full shop available in the app, every purchase logged to their member profile automatically",
+            "2": "Payment history visible to both the member and your admin team in real time"
+          }
+        },
+        "3": {
+          "title": "Push Notifications",
+          "headline": "Stay in their mind between visits.",
+          "body": "The members who stay longest are the ones who feel connected to your club between sessions. Push notifications keep that connection alive: booking reminders, class updates, re-engagement messages, and club news, sent at the right moment without anyone on your team pressing send.",
+          "bullets": {
+            "0": "Booking confirmations and class reminders sent automatically via push notification",
+            "1": "Re-engagement notifications fire when a member's visit pattern drops",
+            "2": "Club updates and announcements pushed to all members or specific groups instantly"
+          }
+        },
+        "4": {
+          "title": "Multi-location",
+          "headline": "Their home location. Every location when they need it.",
+          "body": "Members are assigned to their main location and see its schedule by default. When they want to visit another site, they switch location in the app and see that schedule instantly. Simple, clean, and never confusing.",
+          "bullets": {
+            "0": "Members assigned to a home location, relevant schedule shown by default",
+            "1": "Switch to any other location in the app to view its schedule and available sessions",
+            "2": "Each location's availability and classes managed independently from the admin panel"
+          }
+        }
+      },
+      "plan": {
+        "eyebrow": "Available from Club",
+        "headline": "The mobile app is included in Club and Core.",
+        "body": "Upgrade from Studio to Club to give your members a fully branded mobile app. Your club in their pocket, your brand on their screen, every single day."
+      },
+      "footerCta": {
+        "headline": "Ready to put your brand in your members' pockets?",
+        "subline": "Book a free demo and see exactly what the member app experience looks like from download to check-in."
+      }
+    },
+    "analytics-reporting": {
+      "eyebrow": "Analytics & Reporting",
+      "headline": "Your business in numbers. Right now.",
+      "subline": "Live data across every part of your operation, updated in real time. Know what's happening before it becomes a problem, and make every decision based on facts, not gut feeling.",
+      "intro": {
+        "headline": "Stop running your business on gut feeling.",
+        "body": "Most fitness business owners find out about a retention problem when members have already left. They discover a revenue issue when the month closes. They learn which classes aren't working when attendance has already dropped. Analytics and reporting gives you that information in real time, so every decision is based on what's actually happening, not what you hope is happening."
+      },
+      "blocks": {
+        "0": {
+          "title": "Live Dashboard",
+          "headline": "The numbers that matter. The moment you log in.",
+          "body": "Open the admin panel and see your business. Active members, revenue, class performance, and at-risk members, all updated in real time. No report to run, no export to wait for. Just the current state of your business, always visible.",
+          "bullets": {
+            "0": "Active member count, revenue, and class fill rates visible from the dashboard in real time",
+            "1": "At-risk members surfaced automatically as attendance patterns change",
+            "2": "Every metric compared to the previous period so trends are visible at a glance"
+          }
+        },
+        "1": {
+          "title": "Reports",
+          "headline": "Every part of your business. One report at a time.",
+          "body": "Pre-built reports covering everything: revenue, members, classes, payments, staff, and inventory. Each one accessible in the admin panel, exportable to CSV and Excel, and schedulable so the reports you need arrive automatically without anyone having to pull them manually.",
+          "bullets": {
+            "0": "Pre-built reports covering revenue, members, classes, payments, staff, and inventory",
+            "1": "Export any report to CSV or Excel for further analysis or sharing",
+            "2": "Schedule chosen reports to run and deliver automatically so nothing gets missed"
+          }
+        },
+        "2": {
+          "title": "Access and Permissions",
+          "headline": "The right data to the right people.",
+          "body": "Admins see everything. Staff see what their role allows. A trainer sees their class performance. A receptionist sees member check-ins and payments. A manager sees the reports relevant to their work. Everyone has the visibility they need, and nothing they don't.",
+          "bullets": {
+            "0": "Admin access gives full visibility across every metric and report",
+            "1": "Staff access controlled by role and permissions set in the admin panel",
+            "2": "Each team member sees only the data relevant to their responsibilities"
+          }
+        },
+        "3": {
+          "title": "AI-powered Reporting",
+          "headline": "Prefer to just ask, instead of building a report?",
+          "body": "On the Core plan, the AI Assistant sits on top of these same analytics: ask a plain-language question and get an answer, no report to build. See the AI Assistant page for the full picture.",
+          "bullets": {
+            "0": "Ask a question about your business data instead of building a report",
+            "1": "Available exclusively on the Core plan, as part of the AI Assistant"
+          }
+        }
+      },
+      "plan": {
+        "eyebrow": "Available in all plans",
+        "headline": "Dashboard in every plan. Full reporting from Club. AI reporting in Core.",
+        "body": "Every plan includes the live analytics dashboard. Upgrade to Club for the full pre-built report library with scheduling and export. Upgrade to Core to unlock AI-powered custom reporting through the AI Assistant."
+      },
+      "footerCta": {
+        "headline": "Ready to run your business on real numbers?",
+        "subline": "Book a free demo and see exactly what you'll be able to see from day one."
+      }
+    },
+    "ai-assistant": {
+      "eyebrow": "AI Assistant",
+      "headline": "Ask your business anything. Get an answer right away.",
+      "subline": "Ask questions about your business, get instant answers in plain language. Spot problems before they escalate, understand what's driving your numbers, and get specific suggestions on what to do next without digging through reports.",
+      "intro": {
+        "headline": "The insight you'd pay a business analyst for. Built in.",
+        "body": "Most gym owners don't have time to dig through reports, cross-reference data, or spot patterns across hundreds of members. The AI Assistant does that work for you, answering questions about your business in plain language, flagging things worth your attention, and helping you understand what's actually happening and what to do about it. It doesn't take actions on your behalf. It gives you the clarity to take the right ones yourself."
+      },
+      "blocks": {
+        "0": {
+          "title": "Ask Anything",
+          "headline": "Ask your business a question. Get a real answer.",
+          "body": "Instead of running a report, pulling a filter, and interpreting a table, just ask. The AI Assistant understands your business data, your member history, and your revenue history, and answers in plain language in English or Georgian, whichever you prefer.",
+          "bullets": {
+            "0": "Ask any question about your members, revenue, classes, or performance in plain language",
+            "1": "Answers returned instantly based on your live business data and full history",
+            "2": "Available in English and Georgian so your whole team can use it comfortably"
+          }
+        },
+        "1": {
+          "title": "Business Insight",
+          "headline": "Know what's happening. And why.",
+          "body": "The AI Assistant doesn't just answer what you ask: it understands the context behind your numbers. Revenue dropped this week. Is it a class cancellation, a payment issue, or a retention problem? Ask the question, get the explanation, not just the number.",
+          "bullets": {
+            "0": "Ask follow-up questions to go deeper into any answer without starting over",
+            "1": "Context-aware responses that connect member behaviour, class performance, and revenue together",
+            "2": "Full access to your business history and industry context to give answers that actually make sense"
+          }
+        },
+        "2": {
+          "title": "Suggestions",
+          "headline": "Not just data. What to do with it.",
+          "body": "When you ask for a recommendation, the AI Assistant suggests specific actions based on what your data shows: which members to re-engage, which class to adjust, which revenue opportunity to act on. The suggestions are yours to evaluate and execute. The AI gives you the direction, you make the call.",
+          "bullets": {
+            "0": "Ask for recommendations and get specific suggested actions based on your actual data",
+            "1": "Suggestions are advisory: you review them and decide what to act on",
+            "2": "Access to suggestions controlled by staff role and permissions in the admin panel"
+          }
+        },
+        "3": {
+          "title": "Access and Permissions",
+          "headline": "The right people have the right conversations.",
+          "body": "Access to the AI Assistant is controlled by role and permissions, the same way every other part of the admin panel works. The people who should be making data-driven decisions have access to the tool that helps them do it.",
+          "bullets": {
+            "0": "AI Assistant access assigned by role and permissions in the admin panel",
+            "1": "Each team member sees only what their access level allows",
+            "2": "Available in English and Georgian so the whole team can engage with it naturally"
+          }
+        }
+      },
+      "plan": {
+        "eyebrow": "Available in Core",
+        "headline": "The AI Assistant is a Core plan feature.",
+        "body": "The AI Assistant is included exclusively in the Core plan, giving serious operators the intelligence layer to run a data-driven business without the overhead of a dedicated analyst."
+      },
+      "footerCta": {
+        "headline": "Ready to run a smarter business?",
+        "subline": "Book a free demo and see the AI Assistant in action. Ask it a question about your business from day one."
+      }
+    }
+  },
+  "editorial": {
+    "seePricing": "See pricing",
+    "inside": "Inside {name}",
+    "parts": "{count} parts",
+    "fig": "Fig. {n}",
+    "included": "Included",
+    "notIncluded": "Not included",
+    "tiers": {
+      "studio": "Studio",
+      "club": "Club",
+      "core": "Core"
+    },
+    "brand": {
+      "title": "Portal brand",
+      "file": "logo.png",
+      "fileLabel": "Club logo",
+      "colour": "Primary colour",
+      "covers": "Cover photos"
+    },
+    "figures": {
+      "member-portal": {
+        "0": "Membership status on the member home, with the plan mix in the admin panel",
+        "1": "The class schedule and a confirmed booking",
+        "2": "Member invoice history and a membership renewal reminder",
+        "3": "Portal branding with a logo, colours and cover photos"
+      },
+      "booking-scheduling": {
+        "0": "Group classes in the weekly timetable",
+        "1": "A member booking and its confirmation",
+        "2": "Class capacity and the first-in-line waitlist",
+        "3": "Personal training availability and session details"
+      },
+      "reception-pos": {
+        "0": "Member search, membership status and reception check-in",
+        "1": "A new membership and a recorded cash sale",
+        "2": "Transactions linked to the member profile",
+        "3": "Products and stock recorded at the front desk"
+      },
+      "mobile-app": {
+        "0": "Club identity on the member home",
+        "1": "A class booking and its confirmation",
+        "2": "Member payment history and renewal reminder",
+        "3": "Class reminders and club updates",
+        "4": "The schedule for the member’s home location"
+      },
+      "analytics-reporting": {
+        "0": "Live numbers on the dashboard, against the previous period",
+        "1": "Pre-built reports, exported to CSV or Excel",
+        "2": "What each role can see",
+        "3": "A plain-language question to the AI Assistant"
+      },
+      "ai-assistant": {
+        "0": "A question and its answer, in plain language",
+        "1": "A follow-up question that explains the number",
+        "2": "Suggested next steps, for you to decide on",
+        "3": "Answers stay within each role"
+      }
+    },
+    "slices": {
+      "billing": {
+        "title": "Payments & invoices",
+        "eyebrow": "My account",
+        "rows": {
+          "0": { "0": "INV-104", "1": "Oct 4", "2": "150 GEL" },
+          "1": { "0": "INV-103", "1": "Sep 4", "2": "150 GEL" },
+          "2": { "0": "INV-102", "1": "Aug 4", "2": "150 GEL" }
+        },
+        "note": "Renewal reminder: membership renews Nov 4"
+      },
+      "schedule": {
+        "title": "Weekly timetable",
+        "eyebrow": "Monday, October 5",
+        "rows": {
+          "0": { "0": "09:00", "1": "Morning Yoga", "2": "12 / 16" },
+          "1": { "0": "12:30", "1": "Strength Circuit", "2": "8 / 12" },
+          "2": { "0": "18:00", "1": "Pilates", "2": "16 / 16" }
+        },
+        "note": "Class changes reflected in the member schedule"
+      },
+      "booking": {
+        "title": "Your next class",
+        "eyebrow": "My bookings",
+        "rows": {
+          "0": { "0": "18:00", "1": "Pilates", "2": "Confirmed" },
+          "1": { "0": "Studio 1", "1": "Monday, October 5", "2": "50 min" }
+        },
+        "note": "Reminder before your session"
+      },
+      "waitlist": {
+        "title": "Pilates",
+        "eyebrow": "Capacity & waitlist",
+        "rows": {
+          "0": { "0": "Capacity", "1": "16 members", "2": "Full" },
+          "1": { "0": "Waitlist", "1": "Ana Dolidze", "2": "1st" },
+          "2": { "0": "Waitlist", "1": "Giorgi Beridze", "2": "2nd" }
+        },
+        "note": "Next in line notified when a spot opens"
+      },
+      "training": {
+        "title": "Personal training",
+        "eyebrow": "Trainer availability",
+        "rows": {
+          "0": { "0": "10:00", "1": "Strength session", "2": "Available" },
+          "1": { "0": "11:30", "1": "Mobility session", "2": "Available" },
+          "2": { "0": "15:00", "1": "Personal training", "2": "Booked" }
+        },
+        "note": "60 minute sessions: confirmation included"
+      },
+      "checkin": {
+        "title": "Member check-in",
+        "eyebrow": "Reception",
+        "rows": {
+          "0": { "0": "Search", "1": "Giorgi Beridze", "2": "Found" },
+          "1": { "0": "Plan", "1": "Premium", "2": "Active" },
+          "2": { "0": "Arrival", "1": "Today, 09:12", "2": "Checked in" }
+        },
+        "note": "Membership and payment standing visible together"
+      },
+      "sale": {
+        "title": "New membership",
+        "eyebrow": "Reception sale",
+        "rows": {
+          "0": { "0": "Member", "1": "Ana Dolidze", "2": "Created" },
+          "1": { "0": "Plan", "1": "Monthly membership", "2": "150 GEL" },
+          "2": { "0": "Payment", "1": "Cash", "2": "Recorded" }
+        },
+        "note": "Membership active: sale linked to profile"
+      },
+      "history": {
+        "title": "Transaction history",
+        "eyebrow": "Member profile",
+        "rows": {
+          "0": { "0": "Oct 4", "1": "Monthly membership", "2": "150 GEL" },
+          "1": { "0": "Oct 2", "1": "Personal training", "2": "60 GEL" },
+          "2": { "0": "Oct 1", "1": "Protein shake", "2": "12 GEL" }
+        },
+        "note": "The same history in reception, admin and portal"
+      },
+      "shop": {
+        "title": "Products & services",
+        "eyebrow": "Reception shop",
+        "rows": {
+          "0": { "0": "Protein shake", "1": "12 GEL", "2": "24 in stock" },
+          "1": { "0": "Club T-shirt", "1": "45 GEL", "2": "18 in stock" },
+          "2": { "0": "PT session", "1": "60 GEL", "2": "Service" }
+        },
+        "note": "Product sales update stock and sales history"
+      },
+      "notifications": {
+        "title": "Club updates",
+        "eyebrow": "Notifications",
+        "rows": {
+          "0": { "0": "In 1 hour", "1": "Your Pilates class", "2": "Reminder" },
+          "1": { "0": "Today", "1": "New evening classes", "2": "Club news" },
+          "2": { "0": "Yesterday", "1": "Your booking is confirmed", "2": "Booking" }
+        },
+        "note": "Stay connected between visits"
+      },
+      "location": {
+        "title": "Your home location",
+        "eyebrow": "Main Floor",
+        "rows": {
+          "0": { "0": "09:00", "1": "Morning Yoga", "2": "Studio 1" },
+          "1": { "0": "12:30", "1": "Strength Circuit", "2": "Studio 2" },
+          "2": { "0": "18:00", "1": "Pilates", "2": "Studio 1" }
+        },
+        "note": "Today’s classes at your home club"
+      },
+      "dashboard": {
+        "title": "This month",
+        "eyebrow": "Dashboard",
+        "rows": {
+          "0": { "0": "Active members", "1": "248", "2": "+6%" },
+          "1": { "0": "Revenue", "1": "18,420 GEL", "2": "+12%" },
+          "2": { "0": "Check-ins", "1": "1,312", "2": "+4%" }
+        },
+        "note": "3 members flagged at risk this week"
+      },
+      "reports": {
+        "title": "Reports",
+        "eyebrow": "Admin panel",
+        "rows": {
+          "0": { "0": "Revenue", "1": "Sales transactions", "2": "Excel" },
+          "1": { "0": "Members", "1": "Membership payments", "2": "CSV" },
+          "2": { "0": "Inventory", "1": "Stock & inventory", "2": "Excel" }
+        },
+        "note": "Filter by date range and branch"
+      },
+      "roles": {
+        "title": "Who sees what",
+        "eyebrow": "Roles",
+        "rows": {
+          "0": { "0": "Owner", "1": "Every metric and report", "2": "Full" },
+          "1": { "0": "Receptionist", "1": "Check-ins and payments", "2": "Front desk" },
+          "2": { "0": "Trainer", "1": "Their classes and sessions", "2": "Own" }
+        },
+        "note": "Access set by role in the admin panel"
+      },
+      "ask": {
+        "title": "Ask the assistant",
+        "eyebrow": "AI Assistant",
+        "rows": {
+          "0": { "0": "You", "1": "Who hasn’t visited in 3 weeks?", "2": "Question" },
+          "1": { "0": "Assistant", "1": "7 members, listed as a table", "2": "Answer" }
+        },
+        "note": "Available on the Core plan"
+      },
+      "insight": {
+        "title": "Why did revenue drop?",
+        "eyebrow": "Follow-up",
+        "rows": {
+          "0": { "0": "You", "1": "Why is revenue down this week?", "2": "Question" },
+          "1": { "0": "Assistant", "1": "4 renewals still unpaid", "2": "Payments" },
+          "2": { "0": "Assistant", "1": "Tuesday Pilates cancelled", "2": "Classes" }
+        },
+        "note": "Ask again to go deeper, in the same chat"
+      },
+      "suggest": {
+        "title": "Suggested next steps",
+        "eyebrow": "Recommendation",
+        "rows": {
+          "0": { "0": "1", "1": "Remind the 4 members with unpaid renewals", "2": "Payments" },
+          "1": { "0": "2", "1": "Re-engage 7 members inactive for 3 weeks", "2": "Retention" },
+          "2": { "0": "3", "1": "Move Tuesday Pilates to an evening slot", "2": "Classes" }
+        },
+        "note": "Advisory only: you decide what to act on"
+      },
+      "aiAccess": {
+        "title": "Who can ask what",
+        "eyebrow": "Roles",
+        "rows": {
+          "0": { "0": "Owner", "1": "Members, revenue and reports", "2": "Full" },
+          "1": { "0": "Receptionist", "1": "Check-ins and front desk", "2": "Front desk" },
+          "2": { "0": "Trainer", "1": "Classes and sessions", "2": "Classes" }
+        },
+        "note": "Answers use only what the role can see"
+      }
+    }
+  }
+}

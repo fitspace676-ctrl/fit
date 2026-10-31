@@ -1,3 +1,6 @@
+import type { PlatformMessages } from '@fit/i18n/platform';
+import type { MessageReader } from '@/lib/messages';
+
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore - product tour scenes
    The homepage's tabbed tour of the staff console and the member portal. Each
@@ -5,6 +8,9 @@
    `public/tour/<clip>-<light|dark>[-m].{mp4,webp}` (`-m` is the half-size phone cut), made by
    `node apps/e2e/scripts/record-product-tour.mjs`. Re-run that after a UI change
    so the tour keeps showing the product as it is.
+
+   The scene copy (pill label, title, body) lives in the `tour` area of the
+   platform catalogue under `scenes.<id>`; the clip, frame and address stay here.
    ──────────────────────────────────────────────────────────────────────── */
 
 export type TourScene = {
@@ -21,50 +27,23 @@ export type TourScene = {
   url?: string;
 };
 
-export const TOUR_SCENES: TourScene[] = [
-  {
-    id: 'dashboard',
-    label: 'Dashboard',
-    title: 'Your whole gym, on one screen.',
-    body: "Revenue, check-ins, new members and today's classes the moment you sign in, with trends over the week, the month or the last twelve weeks.",
-    clip: 'dashboard',
-    frame: 'browser',
-    url: 'app.formacore.io/admin',
-  },
-  {
-    id: 'members',
-    label: 'Members',
-    title: 'Every member, one clear picture.',
-    body: 'Find anyone in a second and open a profile with their plan, payments, visits and lifetime value, so your team sees who needs attention before they drift.',
-    clip: 'members',
-    frame: 'browser',
-    url: 'app.formacore.io/admin/members',
-  },
-  {
-    id: 'schedule',
-    label: 'Schedule',
-    title: 'Your whole week, at a glance.',
-    body: 'Classes, coaches and branches on one calendar. Open any session to see who booked, how full it is and who is waiting for a spot.',
-    clip: 'schedule',
-    frame: 'browser',
-    url: 'app.formacore.io/admin/classes',
-  },
-  {
-    id: 'reports',
-    label: 'Reports',
-    title: 'Know who needs you next.',
-    body: 'Ready-made reports on sales, members, revenue, classes and staff. See whose renewal is due or who stopped turning up, and export any of them to CSV or Excel.',
-    clip: 'reports',
-    frame: 'browser',
-    url: 'app.formacore.io/admin/reports',
-  },
-  {
-    id: 'portal',
-    label: 'Member portal',
-    title: 'Booking members actually enjoy.',
-    body: 'Your branded member portal puts the timetable, their plan and their bookings in one place. They pick a class and book a spot in two clicks, on any device.',
-    clip: 'portal',
-    frame: 'browser',
-    url: 'yourgym.formacore.io/member/classes',
-  },
+type SceneCopy = PlatformMessages['tour']['scenes'];
+
+type TourSceneMeta = Omit<TourScene, 'label' | 'title' | 'body' | 'id'> & { id: keyof SceneCopy };
+
+export const TOUR_SCENE_META: readonly TourSceneMeta[] = [
+  { id: 'dashboard', clip: 'dashboard', frame: 'browser', url: 'app.formacore.io/admin' },
+  { id: 'members', clip: 'members', frame: 'browser', url: 'app.formacore.io/admin/members' },
+  { id: 'schedule', clip: 'schedule', frame: 'browser', url: 'app.formacore.io/admin/classes' },
+  { id: 'reports', clip: 'reports', frame: 'browser', url: 'app.formacore.io/admin/reports' },
+  { id: 'portal', clip: 'portal', frame: 'browser', url: 'yourgym.formacore.io/member/classes' },
 ];
+
+/**
+ * The tour's scenes, in order, with their copy read from the `tour` area:
+ * pass `useTranslations('tour')` or `getTranslations('tour')`.
+ */
+export function getTourScenes(t: MessageReader): TourScene[] {
+  const scenes = t.raw('scenes') as SceneCopy;
+  return TOUR_SCENE_META.map((meta) => ({ ...meta, ...scenes[meta.id] }));
+}

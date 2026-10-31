@@ -140,7 +140,7 @@ export function ClassTypesTable({
   if (types.length === 0) {
     return (
       <Card padding="none" xstyle={styles.emptyCard}>
-        No class types match your filters yet - add one to start scheduling.
+        No class types match your filters yet. Add one to start scheduling.
       </Card>
     );
   }

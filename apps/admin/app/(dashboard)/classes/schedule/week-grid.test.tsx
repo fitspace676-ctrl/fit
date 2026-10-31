@@ -25,7 +25,7 @@ const messages = {
         stacked: '{count} classes at this time',
       },
       card: {
-        viewAria: '{title} at {time} - open class',
+        viewAria: '{title} at {time}, open class',
         spots: '{booked}/{cap} booked',
         remaining: '{remaining} left',
         full: 'Full',
@@ -115,7 +115,7 @@ describe('WeekGrid slot cards', () => {
     renderGrid([makeInstance({})]);
 
     const card = screen.getByRole('button', {
-      name: 'Pilates Reformer at 10:00 - open class',
+      name: 'Pilates Reformer at 10:00, open class',
     });
     expect(within(card).getByText('10:00')).toBeTruthy();
     expect(within(card).getByText('Pilates Reformer')).toBeTruthy();
@@ -141,7 +141,7 @@ describe('WeekGrid slot cards', () => {
     });
     renderGrid([first, second], { onOpen });
 
-    const target = screen.getByRole('button', { name: 'Body Ballet at 10:15 - open class' });
+    const target = screen.getByRole('button', { name: 'Body Ballet at 10:15, open class' });
     await userEvent.click(target);
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledWith(second);

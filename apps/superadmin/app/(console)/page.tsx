@@ -7,7 +7,7 @@ import { tenantAdminUrl, tenantPortalUrl } from '@/lib/tenant-url';
 import { GymsTable, type GymRow } from './gyms-table';
 
 export const metadata: Metadata = {
-  title: 'Gyms — FormaCore SuperAdmin',
+  title: 'Gyms | FormaCore SuperAdmin',
   description: 'Every gym on the platform: subdomain, status, owner, and operator actions.',
 };
 

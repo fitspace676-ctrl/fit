@@ -58,6 +58,23 @@ export const I = {
     'M15 9a1 1 0 1 0 2 0 1 1 0 1 0-2 0 M6 11l4-2 3.5 3-1.5 2 M3 16.75a2.4 2.4 0 0 0 1 .25 2.4 2.4 0 0 0 2-1 2.4 2.4 0 0 1 2-1 2.4 2.4 0 0 1 2 1 2.4 2.4 0 0 0 2 1 2.4 2.4 0 0 0 2-1 2.4 2.4 0 0 1 2-1 2.4 2.4 0 0 1 2 1 2.4 2.4 0 0 0 2 1 2.4 2.4 0 0 0 1-.25',
   vinyl:
     'M16 3.937a9 9 0 1 0 5 8.063 M11 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0 M19 4a1 1 0 1 0 2 0 1 1 0 1 0-2 0 M20 4l-3.5 10-2.5 2',
+  // Feature icons: one drawing per product area, so each reads as what it is.
+  // Member portal: a browser window with a member in it.
+  portal:
+    'M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z M3 8.5h18 M12 15a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M8.5 19.5a3.5 3.5 0 0 1 7 0',
+  // Booking: a calendar with a confirmed slot.
+  booking:
+    'M8 2v4 M16 2v4 M3 9h18 M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z M9 15l2 2 4-4',
+  // Front-desk POS: a card terminal, receipt rising out of the top, with keypad.
+  terminal:
+    'M6 9h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z M8 9V3.5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1V9 M10.5 5.5h3 M8 13h8 M8 17h.01 M12 17h.01 M16 17h.01',
+  // Mobile app: a phone with app tiles on its screen.
+  app: 'M7.5 2h9a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z M11 18.5h2 M9 7h2v2H9z M13 7h2v2h-2z M9 11h2v2H9z M13 11h2v2h-2z',
+  // Analytics: a rising trend over axes.
+  trend: 'M3 3v16a2 2 0 0 0 2 2h16 M7 15l4-4 3 3 5-6 M15 8h4v4',
+  // AI assistant: sparkles.
+  sparkles:
+    'M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9L11 3Z M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14Z M5 2.5l.5 1.5 1.5.5-1.5.5L5 6.5 4.5 5 3 4.5 4.5 4 5 2.5Z',
   // Racket sports: a round head (holes for padel, strings for tennis), the
   // handle running down-right, and the ball top-right.
   padel:

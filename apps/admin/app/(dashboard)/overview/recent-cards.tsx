@@ -198,14 +198,14 @@ export function RecentCheckInsBody({ data }: { data: DashboardOverviewResponse }
             <Link
               href={`/members/${row.memberId}`}
               {...stylex.props(styles.checkInRow)}
-              title={`${row.name} - ${detail}`}
+              title={`${row.name}: ${detail}`}
             >
               {/*
                 Duplicates the two lines below, so `aria-hidden`: a screen reader
                 reads the row, not the tooltip that exists for a clipped one.
               */}
               <span {...stylex.props(styles.tip)} aria-hidden="true">
-                {row.name} - {detail}
+                {row.name}: {detail}
               </span>
               <span {...stylex.props(styles.avatar)} aria-hidden="true">
                 {initials(row.name)}
@@ -247,10 +247,10 @@ export function RecentMembersBody({ data }: { data: DashboardOverviewResponse })
             <Link
               href={`/members/${row.id}`}
               {...stylex.props(styles.checkInRow)}
-              title={`${row.name} - ${detail}`}
+              title={`${row.name}: ${detail}`}
             >
               <span {...stylex.props(styles.tip)} aria-hidden="true">
-                {row.name} - {detail}
+                {row.name}: {detail}
               </span>
               <span {...stylex.props(styles.avatar)} aria-hidden="true">
                 {initials(row.name)}

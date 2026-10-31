@@ -33,15 +33,15 @@ describe('gymMetadata', () => {
 
   it('keeps the FormaCore icon for a gym that has uploaded no mark', () => {
     expect(gymMetadata({ ...downtown, logoUrl: null }).icons).toEqual({
-      icon: '/icon.png',
-      apple: '/icon.png',
+      icon: '/icon.png?v=2',
+      apple: '/icon.png?v=2',
     });
   });
 
   it('is plain FormaCore with no gym in scope', () => {
     const metadata = gymMetadata(null);
     expect(metadata.title).toEqual({ default: 'FormaCore', template: '%s · FormaCore' });
-    expect(metadata.icons).toEqual({ icon: '/icon.png', apple: '/icon.png' });
+    expect(metadata.icons).toEqual({ icon: '/icon.png?v=2', apple: '/icon.png?v=2' });
     expect(JSON.stringify(metadata)).not.toContain('Downtown');
   });
 });

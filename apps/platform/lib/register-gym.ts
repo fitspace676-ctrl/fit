@@ -12,6 +12,12 @@ import { env } from './env';
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
 const API_URL = (env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
+/** The message the form shows for a failure the API did not describe itself. */
+export interface RegisterGymMessages {
+  /** `signup.errors.signupFailed` in the catalogue, with the HTTP status. */
+  signupFailed: (status: number) => string;
+}
+
 /**
  * Provision a new gym tenant and onboard its first OWNER in one call. POSTs the
  * {@link RegisterGymInput} to `POST /auth/register-gym`; on success the API has
@@ -19,9 +25,13 @@ const API_URL = (env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/
  * verification link, returning the provisioned ids. No session is issued, so the
  * caller swaps the form for a "check your inbox" notice rather than redirecting
  * straight into the tenant console. Throws with the API's error message on a
- * non-2xx response (e.g. `409 EMAIL_TAKEN`, `409 SLUG_TAKEN`).
+ * non-2xx response (e.g. `409 EMAIL_TAKEN`, `409 SLUG_TAKEN`), or with the
+ * caller's `signupFailed` message when the API gave none.
  */
-export async function registerGym(input: RegisterGymInput): Promise<RegisterGymResponse> {
+export async function registerGym(
+  input: RegisterGymInput,
+  messages: RegisterGymMessages,
+): Promise<RegisterGymResponse> {
   const response = await fetch(`${API_URL}/auth/register-gym`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -30,7 +40,7 @@ export async function registerGym(input: RegisterGymInput): Promise<RegisterGymR
 
   if (!response.ok) {
     const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(detail?.message ?? `Gym signup failed (${response.status})`);
+    throw new Error(detail?.message ?? messages.signupFailed(response.status));
   }
 
   return (await response.json()) as RegisterGymResponse;

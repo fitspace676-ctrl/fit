@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useId, useLayoutEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 /**
  * FormaCore splash: the F mark assembles from its four parts, then the
@@ -8,63 +9,70 @@ import { useEffect, useId, useState } from 'react';
  * the page. Chosen from three directions by a judged design round.
  *
  * Timeline (ms from first paint):
- *   0-600     blank canvas, so the build is never under way before the
+ *   0-500     blank canvas, so the build is never under way before the
  *             first frames reach the screen on a slow load.
- *   600-1810  the F mark assembles (top bar, upper stem, middle bar, tail),
- *             each part sliding in along its own axis with a light spring,
- *             120ms apart. The mark is centred and 16% larger while it builds.
- *   1600-2160 a thin light glint sweeps across the assembled mark.
- *   1650-2190 the mark settles to its lockup size.
- *   1730-2190 the brand wordmark rises in from a mask.
- *   2190-2410 the full lockup holds.
- *   2410-3010 the logo lifts and fades; the overlay is clipped away upward,
+ *   500-1850  the F mark assembles from its two vector halves: the upper
+ *             piece glides in from the right, the lower from the left, 250ms
+ *             apart, on an ease-out with no overshoot. The mark is centred
+ *             and 16% larger while it builds.
+ *   1900-2600 a thin light glint sweeps across the assembled mark.
+ *   1950-2650 the mark settles to its lockup size.
+ *   2050-2650 the brand wordmark rises in from a mask.
+ *   2650-2950 the full lockup holds.
+ *   2950-3550 the logo lifts and fades; the overlay is clipped away upward,
  *             led by a 1px brand-gradient edge with a soft shadow under it.
  *
- * Pure CSS, so it plays from first paint, before hydration. Only transform,
+ * Pure CSS and vector shapes (no raster mark to decode), so it plays from
+ * first paint, before hydration. Only transform,
  * opacity and clip-path animate. It plays once per browser session: the head
  * script in `app/layout.tsx` tags <html> with `fcl-seen` on later page loads,
  * which hides it before it paints. With prefers-reduced-motion the finished
  * lockup shows still, then fades.
  */
 
-const TOTAL_MS = 3050;
+const TOTAL_MS = 3600;
 const REDUCED_MS = 1000;
 
-const SPRING =
-  'linear(0, 0.167, 0.34, 0.504, 0.649, 0.77, 0.867, 0.939, 0.991, 1.025, 1.044, 1.054, 1.056, 1.052, 1.046, 1.038, 1.03, 1.023, 1.016, 1.011, 1.006, 1.003, 1, 0.999, 0.998, 0.998, 0.997, 0.998, 0.998, 0.998, 0.999, 0.999, 1)';
+/** Long, soft ease-out (expo-like): fast start, no overshoot, no bounce. */
+const GLIDE = 'cubic-bezier(.16,1,.3,1)';
+
+/**
+ * The F mark from the supplied art, traced as two polygons in a 791 × 742 box:
+ * the upper piece (top bar and stem) and the lower piece (middle bar and tail).
+ */
+const F_TOP = '207,0 791,0 653,185 314,185 237,297 0,299';
+const F_BOTTOM = '237,297 717,297 592,455 387,455 187,742 72,538';
 
 const CSS = `
-.fcl { clip-path: inset(0 0 0 0); animation: fcl-lift 560ms cubic-bezier(.76,0,.24,1) 2450ms both, fcl-gone 1ms linear 3020ms both; }
-.fcl-stack { animation: fcl-stack-out 420ms cubic-bezier(.5,0,.75,0) 2410ms both; }
-.fcl-mark { animation: fcl-settle 540ms cubic-bezier(.7,0,.2,1) 1650ms both; }
-.fcl-p { animation: fcl-in 850ms both; animation-timing-function: cubic-bezier(.2,1.25,.4,1); animation-timing-function: ${SPRING}; }
-.fcl-top  { --fx: 76px;  --fy: 0px;   animation-delay: 600ms; }
-.fcl-stem { --fx: 40px;  --fy: -70px; animation-delay: 720ms; }
-.fcl-mid  { --fx: -84px; --fy: 0px;   animation-delay: 840ms; }
-.fcl-tail { --fx: -40px; --fy: 70px;  animation-delay: 960ms; }
-.fcl-shine { animation: fcl-shine 560ms cubic-bezier(.4,0,.2,1) 1600ms both; }
-.fcl-word { animation: fcl-rise 460ms cubic-bezier(.2,.8,.2,1) 1730ms both; }
-/* The "FormaCore" line of the brand lockup PNG (x 339-999, y 195-306 of 1024x500). */
-.fcl-word span { display: block; width: 200px; height: 34px; background-repeat: no-repeat; background-size: 310px auto; background-position: -103px -59px; }
+.fcl { clip-path: inset(0 0 0 0); animation: fcl-lift 560ms cubic-bezier(.76,0,.24,1) 2990ms both, fcl-gone 1ms linear 3560ms both; }
+.fcl-stack { animation: fcl-stack-out 420ms cubic-bezier(.5,0,.75,0) 2950ms both; }
+.fcl-mark { animation: fcl-settle 700ms cubic-bezier(.65,0,.35,1) 1950ms both; }
+.fcl-p { animation: fcl-in 1100ms ${GLIDE} both; will-change: transform, opacity; }
+.fcl-top    { --fx: 180px;  --fy: -40px; animation-delay: 500ms; }
+.fcl-bottom { --fx: -180px; --fy: 40px;  animation-delay: 750ms; }
+.fcl-shine { animation: fcl-shine 700ms cubic-bezier(.4,0,.2,1) 1900ms both; }
+.fcl-word { animation: fcl-rise 600ms ${GLIDE} 2050ms both; }
+/* Wordmark line from the supplied 989 × 288 full logo. */
+.fcl-word span { display: block; width: 200px; height: 35px; background-repeat: no-repeat; background-size: 300px auto; background-position: -100px -27px; }
 html.fcl-seen .fcl, html.fcl-seen .fcl-edge { display: none; }
-.fcl-edge { animation: fcl-edge 560ms cubic-bezier(.76,0,.24,1) 2450ms both, fcl-gone 1ms linear 3020ms both; }
+.fcl-edge { animation: fcl-edge 560ms cubic-bezier(.76,0,.24,1) 2990ms both, fcl-gone 1ms linear 3560ms both; }
 .fcl-edge::before {
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, #22B8E6 25%, #1A7FD6 50%, #2557EB 75%, transparent);
+  background: linear-gradient(90deg, transparent, #2f7896 25%, #286982 50%, #1f4a72 75%, transparent);
 }
 .fcl-edge::after {
   content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 56px;
-  background: linear-gradient(to bottom, rgba(12,31,69,.07), rgba(12,31,69,0));
+  background: linear-gradient(to bottom, rgba(31,74,114,.07), rgba(31,74,114,0));
 }
 .dark .fcl-edge::after { background: linear-gradient(to bottom, rgba(0,0,0,.45), rgba(0,0,0,0)); }
 
 @keyframes fcl-in {
   0%   { transform: translate(var(--fx), var(--fy)); opacity: 0; }
-  30%  { opacity: 1; }
+  45%  { opacity: 1; }
   100% { transform: translate(0, 0); opacity: 1; }
 }
 @keyframes fcl-settle { from { transform: translateY(29px) scale(1.16); } to { transform: translateY(0) scale(1); } }
-@keyframes fcl-shine { from { transform: translateX(-40px); } to { transform: translateX(330px); } }
+@keyframes fcl-shine { from { transform: translateX(-160px); } to { transform: translateX(1100px); } }
 @keyframes fcl-rise { from { transform: translateY(110%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes fcl-stack-out { to { transform: translateY(-44px); opacity: 0; } }
 @keyframes fcl-lift { to { clip-path: inset(0 0 100% 0); } }
@@ -83,7 +91,7 @@ html.fcl-seen .fcl, html.fcl-seen .fcl-edge { display: none; }
    thread, and a phone still busy rendering the page can stall it mid-way,
    leaving the overlay over the landing. Opacity runs on the compositor. */
 @media (max-width: 767px) {
-  .fcl { animation: fcl-fade 380ms ease-out 2450ms both, fcl-gone 1ms linear 2840ms both; }
+  .fcl { animation: fcl-fade 380ms ease-out 2990ms both, fcl-gone 1ms linear 3380ms both; }
   .fcl-edge { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -93,19 +101,29 @@ html.fcl-seen .fcl, html.fcl-seen .fcl-edge { display: none; }
 }
 `;
 
-// Geometry traced from the 256px FormaCore icon (user units).
-const TOP = '79.5,15 229.5,15 199.6,67 49.6,67';
-const STEM = '52.5,62 110.4,62 85.65,105 27.75,105'; // tucks 5u under the top bar so no seam shows
-const MID = '88,105 211,105 181.1,157 58.1,157';
-const TAIL = '59.8,154 127.1,154 80,240.5 46.5,178.5'; // tucks 3u under the middle bar
-
 export function SiteLoader() {
+  const t = useTranslations('common');
   const [done, setDone] = useState(false);
-  // Per-instance SVG ids, so the gradients and clip never collide with others.
+  // Per-instance SVG ids, so the gradient and clip never collide with others.
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const id = (name: string): string => `fcl-${name}-${uid}`;
 
-  useEffect(() => {
+  // Layout effect, so a remount never paints a frame of the splash. Switching
+  // language swaps the [locale] root layout, which remounts this component and
+  // rewrites <html>'s class (dropping `fcl-seen`): an already-seen session
+  // restores the class and skips the splash.
+  useLayoutEffect(() => {
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem('fcl-seen') === '1';
+    } catch {
+      // Storage blocked: treat as unseen.
+    }
+    if (seen) {
+      document.documentElement.classList.add('fcl-seen');
+      setDone(true);
+      return;
+    }
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     try {
       sessionStorage.setItem('fcl-seen', '1');
@@ -123,80 +141,40 @@ export function SiteLoader() {
       <style>{CSS}</style>
       <div
         role="status"
-        aria-label="Loading FormaCore"
-        className="fcl pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-[#F7F8FB] text-[#0C1F45] dark:bg-[#070810] dark:text-white"
+        aria-label={t('loader')}
+        className="fcl pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-[#102B43] text-white"
       >
         <div className="fcl-stack flex flex-col items-center gap-5">
           <svg
-            className="fcl-mark block h-[97px] w-[88px] overflow-visible"
-            viewBox="22 10 214 236"
+            className="fcl-mark block h-[93px] w-[99px] overflow-visible"
+            viewBox="0 0 791 742"
             aria-hidden="true"
           >
             <defs>
-              <linearGradient
-                id={id('g-top')}
-                gradientUnits="userSpaceOnUse"
-                x1="30"
-                y1="105"
-                x2="229"
-                y2="15"
-              >
-                <stop offset="0" stopColor="#1BB8E0" />
-                <stop offset=".5" stopColor="#278CFF" />
-                <stop offset="1" stopColor="#244CEF" />
-              </linearGradient>
-              <linearGradient
-                id={id('g-mid')}
-                gradientUnits="userSpaceOnUse"
-                x1="58"
-                y1="157"
-                x2="211"
-                y2="105"
-              >
-                <stop offset="0" stopColor="#31C0E8" />
-                <stop offset=".45" stopColor="#2AA6F2" />
-                <stop offset="1" stopColor="#2678F4" />
-              </linearGradient>
-              <linearGradient
-                id={id('g-tail')}
-                gradientUnits="userSpaceOnUse"
-                x1="52"
-                y1="160"
-                x2="96"
-                y2="238"
-              >
-                <stop offset="0" stopColor="#2784F1" />
-                <stop offset="1" stopColor="#2350E8" />
-              </linearGradient>
-              <linearGradient id={id('g-shine')} x1="0" y1="0" x2="1" y2="0">
+              <clipPath id={id('clip')}>
+                <polygon points={F_TOP} />
+                <polygon points={F_BOTTOM} />
+              </clipPath>
+              <linearGradient id={id('shine')}>
                 <stop offset="0" stopColor="#fff" stopOpacity="0" />
                 <stop offset=".5" stopColor="#fff" stopOpacity=".55" />
                 <stop offset="1" stopColor="#fff" stopOpacity="0" />
               </linearGradient>
-              <clipPath id={id('clip')}>
-                <polygon points={TOP} />
-                <polygon points={STEM} />
-                <polygon points={MID} />
-                <polygon points={TAIL} />
-              </clipPath>
             </defs>
-            {/* Painted back to front so the tucked overlaps hide under the next part. */}
-            <polygon className="fcl-p fcl-tail" fill={`url(#${id('g-tail')})`} points={TAIL} />
-            <polygon className="fcl-p fcl-mid" fill={`url(#${id('g-mid')})`} points={MID} />
-            <polygon className="fcl-p fcl-stem" fill={`url(#${id('g-top')})`} points={STEM} />
-            <polygon className="fcl-p fcl-top" fill={`url(#${id('g-top')})`} points={TOP} />
+            <polygon className="fcl-p fcl-top" points={F_TOP} fill="currentColor" />
+            <polygon className="fcl-p fcl-bottom" points={F_BOTTOM} fill="currentColor" />
             <g clipPath={`url(#${id('clip')})`}>
               <polygon
                 className="fcl-shine"
-                fill={`url(#${id('g-shine')})`}
-                points="0,0 38,0 -112,262 -150,262"
+                fill={`url(#${id('shine')})`}
+                points="0,0 120,0 -330,742 -450,742"
               />
             </g>
           </svg>
 
           <div aria-hidden="true" className="overflow-hidden py-1">
             <div className="fcl-word">
-              <span className="bg-[url(/FormaCore-light.png)] dark:bg-[url(/FormaCore-dark.png)]" />
+              <span className="bg-[url(/logo-dark.webp)]" />
             </div>
           </div>
         </div>

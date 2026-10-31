@@ -7,7 +7,7 @@ import { ButtonLink } from '@/components/button-link';
 import { ActivityTable } from './activity-table';
 
 export const metadata: Metadata = {
-  title: 'Activity — FormaCore SuperAdmin',
+  title: 'Activity | FormaCore SuperAdmin',
   description: 'Every privileged action taken on the platform, newest first.',
 };
 

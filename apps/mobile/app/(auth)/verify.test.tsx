@@ -131,7 +131,7 @@ describe('verify screen · verified', () => {
 
     const panel = await screen.findByTestId('verify-success');
     expect(panel).toBeTruthy();
-    expect(screen.getByText("Email verified - you're all set.")).toBeTruthy();
+    expect(screen.getByText("Email verified. You're all set.")).toBeTruthy();
 
     // The exchange issued the account's first session, so `RouteGuard` replaces
     // this route within a frame or two. A "Sign in" button here would send an

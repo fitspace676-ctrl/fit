@@ -83,7 +83,7 @@ function markImagePath(initial: string): string {
     (code >= 0x41 && code <= 0x5a) ||
     (code >= 0x30 && code <= 0x39) ||
     (code >= 0x10d0 && code <= 0x10f0);
-  return `/email-marks/u${(known ? code : 0x46).toString(16).padStart(4, '0')}.png`;
+  return known ? `/email-marks/u${code.toString(16).padStart(4, '0')}.png` : '/icon.png?v=2';
 }
 
 /**
@@ -98,7 +98,8 @@ function renderMark(senderName: string, size: number, radius: number): string {
   const initial = senderInitial(senderName);
   const base = env.WEB_URL?.replace(/\/+$/, '');
   if (base) {
-    return `<img src="${base}${markImagePath(initial)}" width="${size}" height="${size}" alt="${initial}" style="display:block;width:${size}px;height:${size}px;border:0;border-radius:${radius}px;" />`;
+    const imagePath = senderName === PLATFORM_SENDER ? '/icon.png?v=2' : markImagePath(initial);
+    return `<img src="${base}${imagePath}" width="${size}" height="${size}" alt="${initial}" style="display:block;width:${size}px;height:${size}px;border:0;border-radius:${radius}px;" />`;
   }
   return `<div style="width:${size}px;height:${size}px;border-radius:${radius}px;background:${B.brand};color:${B.onBrand};font-size:${Math.round(size / 2)}px;line-height:${size}px;font-weight:800;text-align:center;letter-spacing:-0.02em;">${initial}</div>`;
 }
@@ -109,7 +110,7 @@ const PLATFORM_SENDER = 'FormaCore';
 /**
  * What the charcoal header band carries: the sender's initial on the blue block
  * beside their name for a gym, and the FormaCore dark-ground wordmark (white
- * "Forma", blue "Core", the same PNG the portal serves) when the platform
+ * "Forma", teal "Core", the same PNG the portal serves) when the platform
  * itself is the sender and the web app's URL is known. Without a base URL the
  * platform falls back to the mark and name too, rather than a broken image.
  * `imageOnly` tells the shell the band carries no text, so it may pin the band
@@ -121,7 +122,7 @@ function renderBandContent(senderName: string): { html: string; imageOnly: boole
   if (senderName === PLATFORM_SENDER && base) {
     return {
       imageOnly: true,
-      html: `<img src="${base}/logodark.png" width="150" alt="${PLATFORM_SENDER}" style="display:block;width:150px;height:auto;border:0;" />`,
+      html: `<img src="${base}/logodark.png?v=2" width="150" alt="${PLATFORM_SENDER}" style="display:block;width:150px;height:auto;border:0;" />`,
     };
   }
   const html =

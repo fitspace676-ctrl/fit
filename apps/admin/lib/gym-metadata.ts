@@ -15,11 +15,11 @@ export const PLATFORM_NAME = 'FormaCore';
  */
 export function gymMetadata(brand: ActiveGymBrand | null): Metadata {
   const name = brand?.name ?? PLATFORM_NAME;
-  const title = `${name} - Staff console`;
+  const title = `${name} | Staff console`;
   const description = `${name} staff console.`;
   // `public/icon.png`. A metadata URL is not given the basePath by Next, unlike
   // the file-based `app/icon.png` it replaces, so it is prefixed here.
-  const icon = brand?.logoUrl ?? adminPath('/icon.png');
+  const icon = brand?.logoUrl ?? adminPath('/icon.png?v=2');
 
   return {
     title: { default: title, template: `%s · ${name}` },

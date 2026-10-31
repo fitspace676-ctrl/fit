@@ -277,7 +277,7 @@
     },
     "dashboard": {
       "title": "Dashboard",
-      "welcomeBody": "Welcome to the FormaCore admin console. Use the navigation to manage members, schedule, billing, and staff - you only see the areas your role can access.",
+      "welcomeBody": "Welcome to the FormaCore admin console. Use the navigation to manage members, schedule, billing, and staff. You only see the areas your role can access.",
       "subtitle": "Welcome back! Here's what's happening with your gym.",
       "allSystemsLive": "All systems live",
       "period": {
@@ -323,7 +323,7 @@
           "refunded": "Refunded",
           "avgSale": "Avg sale"
         },
-        "kpiCaption": "{window} · {productType} · captured payments only - subscription renewals bill separately.",
+        "kpiCaption": "{window} · {productType} · captured payments only. Subscription renewals bill separately.",
         "refundedHint": "Against sales in this window",
         "trend": {
           "title": "Revenue over time",
@@ -406,7 +406,7 @@
           },
           "caption": "Members still here {days} days on",
           "chartAria": "Retention rate per period",
-          "gapNote": "Gaps are periods with nobody to retain - not 0%.",
+          "gapNote": "Gaps are periods with nobody to retain, not 0%.",
           "empty": "Not enough history to measure retention yet."
         },
         "status": {
@@ -480,7 +480,7 @@
         },
         "byLocation": {
           "title": "Revenue by location",
-          "caption": "Sales & POS only - a subscription names no location.",
+          "caption": "Sales & POS only. A subscription names no location.",
           "empty": "No located revenue in this window."
         },
         "loadError": "Couldn't load revenue.",
@@ -518,14 +518,14 @@
           "chartAria": "Attendance rate per period",
           "coverage": "{coverage}% of finished bookings were marked",
           "coverageUnknown": "No classes have finished in this window yet",
-          "gapNote": "Gaps are periods with nothing marked - not 0%.",
+          "gapNote": "Gaps are periods with nothing marked, not 0%.",
           "empty": "Nothing has been marked in this window."
         },
         "utilization": {
           "title": "Utilization",
           "caption": "Seats booked against seats offered",
           "chartAria": "Utilization per period",
-          "gapNote": "Gaps are periods with no capacity to fill - not 0%.",
+          "gapNote": "Gaps are periods with no capacity to fill, not 0%.",
           "empty": "No classes with capacity in this window."
         },
         "pt": {
@@ -600,7 +600,7 @@
         },
         "coverage": {
           "title": "Shift coverage",
-          "caption": "The standing weekly rota - scheduled, not worked",
+          "caption": "The standing weekly rota (scheduled, not worked)",
           "weekday": {
             "mon": "Mon",
             "tue": "Tue",
@@ -621,7 +621,7 @@
           "noAvailability": "{count} trainers with no availability set",
           "noTrainer": "{count} classes with no trainer assigned",
           "invalidShifts": "{count} shifts that do not end after they start",
-          "none": "Nothing missing - every figure above is complete."
+          "none": "Nothing missing. Every figure above is complete."
         },
         "loadError": "Couldn't load staff.",
         "retry": "Retry"
@@ -639,7 +639,7 @@
         "title": "In the gym now",
         "live": "Live",
         "of": "of {capacity}",
-        "quiet": "Quiet right now - no members checked in today yet.",
+        "quiet": "Quiet right now. No members checked in today yet.",
         "capacity": "{pct}% of capacity in use across {areas, plural, one {# area} other {# areas}}."
       },
       "metrics": {
@@ -694,7 +694,7 @@
       },
       "alerts": {
         "title": "Alerts",
-        "empty": "All clear - no alerts right now."
+        "empty": "All clear. No alerts right now."
       },
       "recentCheckIns": {
         "title": "Recent check-ins",
@@ -731,12 +731,12 @@
         "sat": "Sat"
       },
       "branchScope": {
-        "staff": "Utilization is not split by branch - a trainer's availability covers their whole week, at every branch"
+        "staff": "Utilization is not split by branch. A trainer's availability covers their whole week, at every branch"
       }
     },
     "analytics": {
       "title": "Analytics",
-      "description": "Revenue, membership, attendance, and subscription trends for your gym - every figure is computed live from your real data.",
+      "description": "Revenue, membership, attendance, and subscription trends for your gym. Every figure is computed live from your real data.",
       "noAccess": "Your role does not have access to analytics. Ask an owner or manager for the reporting permission.",
       "loadError": "Could not load analytics ({status}): {message}",
       "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
@@ -801,7 +801,7 @@
     },
     "billingPlans": {
       "title": "Billing",
-      "subtitle": "Your gym’s recurring membership plans - pricing, perks, and who’s subscribed. Create a plan, edit it, or archive one when it’s retired.",
+      "subtitle": "Your gym’s recurring membership plans: pricing, perks, and who’s subscribed. Create a plan, edit it, or archive one when it’s retired.",
       "kpi": {
         "activePlans": "Active plans",
         "subscribers": "Subscribers",
@@ -916,7 +916,7 @@
         "searchMembersLabel": "Search members (F1)",
         "searchMembersPlaceholder": "Member name, phone or email…  (F1)",
         "membersEmpty": "No members match that.",
-        "membersTableCaption": "Members - tap one to attach them to this sale",
+        "membersTableCaption": "Members. Tap one to attach them to this sale",
         "membersColumnName": "Member",
         "membersColumnPhone": "Phone",
         "membersColumnPlan": "Plan",
@@ -931,13 +931,13 @@
         },
         "servicesEmpty": "No active services to sell yet.",
         "servicesNoMatch": "No services match that.",
-        "ptTitle": "Personal session - {staff}",
+        "ptTitle": "Personal session: {staff}",
         "membersOwing": "Owes {amount}"
       },
       "member": {
         "searchLabel": "Look up a member by name or phone (F2)",
         "searchPlaceholder": "Member name or phone…  (F2)",
-        "walkIn": "Walk-in sale - no member required.",
+        "walkIn": "Walk-in sale. No member required.",
         "remove": "Remove",
         "addNew": "Add new member",
         "addNewTitle": "Add member",
@@ -1002,7 +1002,7 @@
           "send": "Send",
           "sending": "Sending…",
           "sent": "Receipt sent to {email}.",
-          "unconfigured": "Email delivery isn’t configured - receipt not sent."
+          "unconfigured": "Email delivery isn’t configured. Receipt not sent."
         },
         "promoLabel": "Promo code",
         "promoPlaceholder": "Optional"
@@ -1048,7 +1048,7 @@
         "audit": "Audit log"
       },
       "audit": {
-        "subtitle": "A record of privileged actions taken on your gym - owner impersonation and status changes. Filter by action or narrow to a date range.",
+        "subtitle": "A record of privileged actions taken on your gym: owner impersonation and status changes. Filter by action or narrow to a date range.",
         "filters": {
           "action": "Action",
           "all": "All actions",
@@ -1131,7 +1131,7 @@
         "COMPLETED": "Completed"
       },
       "card": {
-        "viewAria": "{title} at {time} - open class",
+        "viewAria": "{title} at {time}, open class",
         "spots": "{booked}/{cap} booked",
         "remaining": "{remaining} left",
         "full": "Full"
@@ -1192,7 +1192,7 @@
           "canceled": "Class canceled and bookings released.",
           "promoted": "Member promoted from the waitlist.",
           "booked": "Member booked onto the class.",
-          "waitlisted": "Class was full - member added to the waitlist."
+          "waitlisted": "Class was full. Member added to the waitlist."
         },
         "errors": {
           "notFound": "This class no longer exists.",
@@ -1280,7 +1280,7 @@
         "COMPLETED": "Completed"
       },
       "card": {
-        "viewAria": "{title} at {time} - open session",
+        "viewAria": "{title} at {time}, open session",
         "spots": "{booked}/{cap} booked",
         "remaining": "{remaining} left",
         "full": "Full"
@@ -1361,7 +1361,7 @@
         "restore": "Restore",
         "confirmTitle": "Move member to trash?",
         "confirmMessage": "They’ll be hidden from the roster and every count, and permanently deleted after {days} days. You can restore them any time until then.",
-        "bannerCountdown": "This member is in trash - permanently deleted in {days, plural, one {# day} other {# days}}. Restore them from the actions above to bring them back.",
+        "bannerCountdown": "This member is in trash and will be permanently deleted in {days, plural, one {# day} other {# days}}. Restore them from the actions above to bring them back.",
         "toastTrashed": "Member moved to trash",
         "toastRestored": "Member restored"
       },
@@ -1759,7 +1759,7 @@
         "weeklyAvailability": "Weekly availability"
       },
       "availability": {
-        "intro": "The recurring hours this coach can be booked. A day can hold several blocks - a morning and an evening shift, for example - as long as they do not overlap.",
+        "intro": "The recurring hours this coach can be booked. A day can hold several blocks (a morning and an evening shift, for example) as long as they do not overlap.",
         "readOnly": "The recurring hours this coach can be booked. You need the trainer-write capability to change them.",
         "working": "Working",
         "notWorking": "Not working",
@@ -1903,8 +1903,8 @@
       },
       "addStaffDrawer": {
         "title": "Add staff member",
-        "subtitle": "Saves a staff record to the directory only - no app login or invitation email is sent.",
-        "trainerHint": "Adding a coach? Use the Trainers screen instead - it asks for their photo, specialties and working hours, and they appear here too.",
+        "subtitle": "Saves a staff record to the directory only. No app login or invitation email is sent.",
+        "trainerHint": "Adding a coach? Use the Trainers screen instead. It asks for their photo, specialties and working hours, and they appear here too.",
         "firstName": "First name",
         "firstNamePlaceholder": "John",
         "lastName": "Last name",
@@ -1923,7 +1923,7 @@
         "locations": "Assigned locations",
         "noLocations": "No locations yet. Add one under Locations first.",
         "workingHours": "Working hours",
-        "hoursFromTrainer": "Set on the coach’s Availability tab, under Trainers - edit them there so the two stay in step.",
+        "hoursFromTrainer": "Set on the coach’s Availability tab, under Trainers. Edit them there so the two stay in step.",
         "startTime": "Start time",
         "endTime": "End time",
         "dayOff": "Day off",
@@ -1978,7 +1978,7 @@
         "downgradeNoChange": "No capabilities change.",
         "downgradeConfirm": "Change role",
         "removeTitle": "Remove {name}?",
-        "removeBody": "They’ll lose access immediately - their sessions are revoked and they’re removed from your staff. You’d need to re-invite them.",
+        "removeBody": "They’ll lose access immediately. Their sessions are revoked and they’re removed from your staff. You’d need to re-invite them.",
         "removeConfirm": "Remove",
         "revokeTitle": "Revoke invitation?",
         "revokeBody": "The invite to {email} will stop working. You can always send a new one.",
@@ -2064,7 +2064,7 @@
         "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
         "notAuthorized": "Not authorized",
         "alreadyStaff": "That person is already a staff member of your gym.",
-        "lastOwner": "You can’t change or remove the gym’s only owner - add another owner first.",
+        "lastOwner": "You can’t change or remove the gym’s only owner. Add another owner first.",
         "staffNotFound": "That staff member no longer exists.",
         "inviteNotFound": "That invitation no longer exists.",
         "requestFailed": "Request failed ({status}): {message}",
@@ -2075,7 +2075,7 @@
       },
       "depth": {
         "roles": {
-          "intro": "The capabilities each staff role grants. This matrix is read-only - it mirrors exactly what the API enforces.",
+          "intro": "The capabilities each staff role grants. This matrix is read-only. It mirrors exactly what the API enforces.",
           "capability": "Capability",
           "grantedAria": "Granted",
           "deniedAria": "Not granted"
@@ -2099,7 +2099,7 @@
         "locations": "Locations"
       },
       "title": "Locations",
-      "subtitle": "Every branch of your gym - hours, amenities and live open state.",
+      "subtitle": "Every branch of your gym: hours, amenities and live open state.",
       "add": "New location",
       "kpi": {
         "total": "Locations",
@@ -2254,7 +2254,7 @@
         "title": "Booking rules",
         "subtitle": "How close to a class members can still cancel a confirmed spot.",
         "cutoffLabel": "Cancellation cutoff (hours before start)",
-        "hintNone": "No cutoff - members can cancel right up to the class start.",
+        "hintNone": "No cutoff. Members can cancel right up to the class start.",
         "hintActive": "Members can’t cancel a booked spot within {count, plural, one {# hour} other {# hours}} of the class. Leaving a waitlist is always allowed.",
         "lateCancellationPenaltyLabel": "Late-cancellation penalty",
         "penaltyTypeLabel": "Penalty type",
@@ -2384,7 +2384,7 @@
         "subtitle": "Which start dates a member may actually pick. Only in force while the start-date field above is switched on.",
         "maxDaysAheadLabel": "How far ahead a membership may start",
         "maxDaysAheadHint": "Whole days from today, counted in your gym’s time zone. A member may pick any day up to this far out.",
-        "maxDaysAheadToday": "0 means today only - a membership begins the day it is sold.",
+        "maxDaysAheadToday": "0 means today only. A membership begins the day it is sold.",
         "maxDaysAheadDays": "Today through {days} days out.",
         "allowPastLabel": "Allow a start date in the past",
         "allowPastDesc": "Backdating reaches as far back as the window above reaches forward. Off, the earliest a membership may begin is today.",
@@ -2392,7 +2392,7 @@
       },
       "freeAccount": {
         "title": "Free account",
-        "subtitle": "Let a visitor create an account without buying a package. Nothing is charged and no plan is assigned - the member picks one later.",
+        "subtitle": "Let a visitor create an account without buying a package. Nothing is charged and no plan is assigned. The member picks one later.",
         "enabledLabel": "Offer a free account",
         "enabledDescription": "When on, the join screen offers a free account alongside the paid plans.",
         "nameLabel": "Name",
@@ -2433,7 +2433,7 @@
         "acceptPrepaidDesc": "Let members pay from their prepaid credit balance.",
         "acceptBankTransferLabel": "Bank transfer",
         "acceptBankTransferDesc": "Record sales paid by transfer to the gym account. Check the transfer arrived before settling.",
-        "noneEnabled": "Keep at least one payment method on - the POS cannot settle a sale without one."
+        "noneEnabled": "Keep at least one payment method on. The POS cannot settle a sale without one."
       },
       "invoice": {
         "title": "Invoice settings",
@@ -2467,7 +2467,7 @@
       "locations": {
         "title": "Locations",
         "subtitle": "Your gym’s branches and their capacity.",
-        "description": "Manage each branch - its address, manager, capacity, and status - in the full locations manager.",
+        "description": "Manage each branch (its address, manager, capacity, and status) in the full locations manager.",
         "cta": "Manage locations",
         "empty": "No locations yet.",
         "inactive": "Inactive",
@@ -2493,7 +2493,7 @@
         "rolesLabel": "Staff roles",
         "lockedAria": "Locked",
         "ownerNoticeTitle": "Owner is a system role",
-        "ownerNoticeBody": "Owner always holds every capability across every branch, and cannot be edited. If it could, an owner could revoke their own access to this screen and nobody - including them - could give it back.",
+        "ownerNoticeBody": "Owner always holds every capability across every branch, and cannot be edited. If it could, an owner could revoke their own access to this screen and nobody (including them) could give it back.",
         "granted": "{granted}/{total} granted",
         "grantedAria": "{granted} of {total} capabilities granted",
         "reset": "Reset to defaults",
@@ -2515,7 +2515,7 @@
           "view": "View",
           "manage": "Manage",
           "access": "Full access",
-          "cellLabel": "{resource} - {column}",
+          "cellLabel": "{resource}: {column}",
           "pairHint": "Manage includes View: switching Manage on switches View on, and switching View off switches Manage off. A role that may change what it cannot open would get a hidden page over a working API.",
           "singleHint": "Staff, gym settings and reports have one switch rather than two, because a single capability covers reading and changing them together."
         }
@@ -2528,7 +2528,7 @@
         "current": "Member portal"
       },
       "title": "Member portal",
-      "subtitle": "How the site your members sign in to looks - its logo, its colour and the photograph on the sign-in screen.",
+      "subtitle": "How the site your members sign in to looks: its logo, its colour and the photograph on the sign-in screen.",
       "colors": {
         "title": "Colours",
         "subtitle": "This colour skins the member site only. The console has its own colour under Settings, and your brand colour still drives invoices, receipts and email.",
@@ -2889,7 +2889,7 @@
         "notAuthorized": "You don’t have permission to manage automations.",
         "invalidDetails": "Please check the automation details and try again.",
         "ruleNotFound": "That automation no longer exists.",
-        "templateNotActivatable": "A template can’t be activated - create a rule from it first.",
+        "templateNotActivatable": "A template can’t be activated. Create a rule from it first.",
         "requestFailed": "Request failed ({status}): {message}",
         "unexpected": "Something went wrong. Please try again.",
         "loadRules": "Couldn’t load automations ({status}): {message}",
@@ -3062,7 +3062,7 @@
         "emptyHintRead": "There are no campaigns to show."
       },
       "wizard": {
-        "title": "Create campaign - Step {step} of {total}",
+        "title": "Create campaign: Step {step} of {total}",
         "stepDescription": {
           "1": "Name your campaign and pick a channel.",
           "2": "Choose who receives this campaign.",
@@ -3245,7 +3245,7 @@
         "clear": "Clear filters",
         "saveSegment": "Save as segment",
         "matchingTitle": "Matching members",
-        "matchingAll": "Every member matches - add filters to narrow the audience.",
+        "matchingAll": "Every member matches. Add filters to narrow the audience.",
         "matchingFiltered": "Members who match every filter you’ve set.",
         "membersMatch": "members match",
         "noMatches": "No members match these filters.",
@@ -3330,15 +3330,15 @@
         "addSubmit": "Create banner",
         "editSubmit": "Save changes",
         "titleLabel": "Headline",
-        "titleHint": "Optional - drawn over the image in the app. Leave blank for artwork alone.",
-        "titlePlaceholder": "e.g. Summer membership - 20% off",
+        "titleHint": "Optional. Drawn over the image in the app. Leave blank for artwork alone.",
+        "titlePlaceholder": "e.g. Summer membership: 20% off",
         "linkLabel": "Destination",
-        "linkHint": "Optional. An in-app screen - /shop, /classes, /services, /trainers - or a full https:// address. Leave blank and the slide isn’t tappable.",
+        "linkHint": "Optional. An in-app screen (/shop, /classes, /services, /trainers) or a full https:// address. Leave blank and the slide isn’t tappable.",
         "linkPlaceholder": "/shop",
         "startsAtLabel": "Starts",
-        "startsAtHint": "Optional - runs from this day. Leave blank to start straight away.",
+        "startsAtHint": "Optional. Runs from this day. Leave blank to start straight away.",
         "endsAtLabel": "Ends",
-        "endsAtHint": "Optional - runs to the end of this day. Leave blank to run until switched off.",
+        "endsAtHint": "Optional. Runs to the end of this day. Leave blank to run until switched off.",
         "activeLabel": "Show on the home screen",
         "activeHint": "Off keeps the banner here without showing it to members.",
         "image": {
@@ -3348,7 +3348,7 @@
           "choose": "Choose an image",
           "replace": "Replace image",
           "discard": "Discard",
-          "hint": "JPEG, PNG or WebP, up to 5 MB. 1600×800 (2:1) fits the phone’s carousel - anything else is cropped to that shape. A banner with no artwork stays a draft and is never shown to members.",
+          "hint": "JPEG, PNG or WebP, up to 5 MB. 1600×800 (2:1) fits the phone’s carousel. Anything else is cropped to that shape. A banner with no artwork stays a draft and is never shown to members.",
           "errorType": "Choose a JPEG, PNG or WebP image.",
           "errorSize": "That image is larger than 5 MB. Choose a smaller file.",
           "errorUpload": "Upload failed ({status}). Please try the image again.",
@@ -3565,7 +3565,7 @@
         "edit": "Edit",
         "archive": "Archive",
         "restore": "Restore",
-        "ptTitle": "Personal session - {staff}",
+        "ptTitle": "Personal session: {staff}",
         "delete": "Delete",
         "confirmDelete": "Delete \"{name}\" for good? Open slots are removed with it; this cannot be undone.",
         "deleteTitle": "Delete service"
@@ -3584,7 +3584,7 @@
       },
       "form": {
         "name": "Name",
-        "ptNameHint": "Named after the trainer automatically, e.g. \"Personal session - Nino Beridze\".",
+        "ptNameHint": "Named after the trainer automatically, e.g. \"Personal session: Nino Beridze\".",
         "staff": "Staff member",
         "choose": "Choose…",
         "noTrainers": "No staff member has a trainer profile yet. Add one under Trainers first.",
@@ -3628,7 +3628,7 @@
         "when": "When",
         "status": "Status",
         "member": "Member",
-        "nobodyYet": "Nobody yet - members book it from the portal",
+        "nobodyYet": "Nobody yet. Members book it from the portal",
         "invoice": "Invoice",
         "noServices": "No active services yet. Add one under Services first.",
         "cancel": "Cancel",
@@ -3673,7 +3673,7 @@
       "placeholder": "Ask anything, or ask me to make a change…",
       "error": "Something went wrong. Please try again.",
       "emptyTitle": "How can I help?",
-      "emptyHint": "Ask about members, classes, or payments - or tell me to update something in the admin.",
+      "emptyHint": "Ask about members, classes, or payments, or tell me to update something in the admin.",
       "model": "Model",
       "attach": "Attach files",
       "removeAttachment": "Remove",
@@ -3765,7 +3765,7 @@
         "error": "Failed",
         "awaiting_approval": "Awaiting confirmation",
         "rejected": "Rejected",
-        "cancelled": "Cancelled — request the action again to continue"
+        "cancelled": "Cancelled. Request the action again to continue"
       },
       "errors": {
         "agent_not_configured": "The AI agent is not configured yet.",
@@ -3867,7 +3867,7 @@
     },
     "login": {
       "title": "Sign in to FormaCore",
-      "subtitle": "Welcome back - enter your details to continue.",
+      "subtitle": "Welcome back. Enter your details to continue.",
       "heroTitle": "Welcome back.",
       "heroSubtitle": "Book classes, check in with a tap, and track every session.",
       "submit": "Sign in",
@@ -3921,10 +3921,10 @@
     },
     "verify": {
       "verifying": "Verifying your email…",
-      "success": "Email verified - you're all set.",
+      "success": "Email verified. You're all set.",
       "missingToken": "This verification link is invalid or has expired.",
       "successTitle": "Email verified",
-      "successSubtitle": "You're all set - sign in to get started.",
+      "successSubtitle": "You're all set. Sign in to get started.",
       "invalidTitle": "This link no longer works",
       "invalidSubtitle": "The verification link is invalid or has expired. Sign in to request a new one.",
       "cta": "Sign in"
@@ -4014,7 +4014,7 @@
       "subtitle": "Pick the membership that fits how you train.",
       "loading": "Loading packages…",
       "error": "We couldn't load the packages. Please try again.",
-      "noGym": "Open this page on your gym’s address (e.g. downtown.formacore.ge) - there is no gym in scope here, so nothing can be listed.",
+      "noGym": "Open this page on your gym’s address (e.g. downtown.formacore.ge). There is no gym in scope here, so nothing can be listed.",
       "retry": "Try again",
       "empty": {
         "title": "No packages available",
@@ -4046,7 +4046,7 @@
       "subtitle": "Confirm who this membership is for.",
       "guestSubtitle": "Create an account to complete your purchase.",
       "loading": "Checking your account…",
-      "signedIn": "You're signed in - your membership will be added to your account.",
+      "signedIn": "You're signed in. Your membership will be added to your account.",
       "submitting": "Saving…",
       "invalid": "Please enter your name, a valid email, and a password of at least 8 characters.",
       "invalidFields": "Please fill in or correct: {fields}.",
@@ -4103,7 +4103,7 @@
       "loading": "Loading your order…",
       "processing": "Processing…",
       "pay": "Pay",
-      "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk - no card is charged online.",
+      "notice": "Online payment isn't available yet. Reserve your membership now and complete payment at the gym's front desk. No card is charged online.",
       "error": "We couldn't place your order. Please try again.",
       "alreadySubscribed": "You already have an active membership.",
       "terms": "I agree to the terms of service and the membership policy.",
@@ -4116,7 +4116,7 @@
         "title": "This package is no longer available",
         "subtitle": "Please go back and choose another package."
       },
-      "freeNotice": "A free account needs no payment - your account is created right away and you can add a plan at any time.",
+      "freeNotice": "A free account needs no payment. Your account is created right away and you can add a plan at any time.",
       "createFree": "Create account"
     },
     "success": {
@@ -4129,13 +4129,13 @@
         "title": "We couldn't find that order",
         "subtitle": "The order may have expired or the link is incomplete."
       },
-      "verifyEmail": "One more thing - we have emailed you a confirmation link. Click it to confirm your address, otherwise you will not be able to sign in again once this session ends."
+      "verifyEmail": "One more thing: we have emailed you a confirmation link. Click it to confirm your address, otherwise you will not be able to sign in again once this session ends."
     },
     "summary": {
       "title": "Your selection",
       "branch": "Branch",
       "total": "Total",
-      "empty": "Pick a branch and a plan - your choice will show up here.",
+      "empty": "Pick a branch and a plan. Your choice will show up here.",
       "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
     }
   },
@@ -4231,7 +4231,7 @@
         "waitlistedTitle": "You’re on the waitlist",
         "waitlistedSubtitle": "We’ll let you know if a spot opens up.",
         "waitlistPosition": "Position #{position}",
-        "fullNote": "This class is full - join the waitlist and we’ll notify you if a spot opens up.",
+        "fullNote": "This class is full. Join the waitlist and we’ll notify you if a spot opens up.",
         "toast": {
           "booked": "You’re booked!",
           "waitlisted": "You’re on the waitlist.",
@@ -4289,7 +4289,7 @@
     }
   },
   "footer": {
-    "tagline": "Book gyms, classes, and trainers across Georgia - all in one app.",
+    "tagline": "Book gyms, classes, and trainers across Georgia, all in one app.",
     "product": "Product",
     "company": "Company",
     "legal": "Legal",
@@ -4308,13 +4308,13 @@
     "hero": {
       "badge": "Now live in Georgia",
       "title": "Find your gym. Book your class.",
-      "subtitle": "FormaCore connects you with gyms, trainers, and classes near you - book and manage your membership in one place.",
+      "subtitle": "FormaCore connects you with gyms, trainers, and classes near you. Book and manage your membership in one place.",
       "ctaPrimary": "Get started",
       "ctaSecondary": "Browse classes"
     },
     "features": {
       "title": "Everything you need to stay in shape",
-      "subtitle": "One app for members, trainers, and gyms - from discovery to check-in.",
+      "subtitle": "One app for members, trainers, and gyms, from discovery to check-in.",
       "items": {
         "discover": {
           "title": "Discover gyms & studios",
@@ -4330,7 +4330,7 @@
         },
         "membership": {
           "title": "One membership, everywhere",
-          "description": "Manage your plan, track visits, and pay in one place - no paper cards."
+          "description": "Manage your plan, track visits, and pay in one place, no paper cards."
         }
       }
     },
@@ -4516,7 +4516,7 @@
       "perks": "Unlimited classes · 1 guest pass / mo · −10% shop",
       "nextBilling": "Next billing",
       "endsOn": "Access until",
-      "cancelNotice": "Set to cancel - won't renew.",
+      "cancelNotice": "Set to cancel. It won't renew.",
       "memberSince": "Member since",
       "paymentMethod": "Payment method",
       "payAtDesk": "Pay at desk",
@@ -4541,7 +4541,7 @@
       "downloadPdf": "Download invoice PDF",
       "pastDue": {
         "title": "Payment didn't go through",
-        "body": "We couldn't process your last renewal. We'll retry automatically over the next few days - please settle up at the desk to keep your membership active."
+        "body": "We couldn't process your last renewal. We'll retry automatically over the next few days. Please settle up at the desk to keep your membership active."
       },
       "freeze": {
         "title": "Pause membership",
@@ -4554,7 +4554,7 @@
         "notAvailable": "Your plan doesn't include freezes.",
         "exhausted": "You've used all your freeze days this period.",
         "frozenUntil": "Paused until {date}",
-        "frozenHint": "Your membership resumes automatically - or resume it any time.",
+        "frozenHint": "Your membership resumes automatically, or you can resume it any time.",
         "modalTitle": "Pause membership",
         "modalBody": "You have {days} freeze days left this period.",
         "durationLabel": "How many days?",
@@ -4585,7 +4585,7 @@
         "errUnavailable": "That pack is no longer available.",
         "errGeneric": "Something went wrong. Please try again.",
         "close": "Close",
-        "boughtBody": "They are on your account now - book a PT session whenever you are ready."
+        "boughtBody": "They are on your account now. Book a PT session whenever you are ready."
       },
       "plan": {
         "subtitle": "Pick the plan you want. You pay for it at the front desk.",
@@ -4698,7 +4698,7 @@
         "freezeSheet": {
           "title": "Freeze membership",
           "subtitle": "Pause billing while you're away.",
-          "carryover": "Your remaining days carry over - nothing is lost. You can freeze up to {days} more days this period.",
+          "carryover": "Your remaining days carry over. Nothing is lost. You can freeze up to {days} more days this period.",
           "confirm": "Freeze for {label}",
           "opt2w": "2 weeks",
           "opt1m": "1 month",
@@ -4801,7 +4801,7 @@
       "signInToAdd": "Sign in to add to cart",
       "errUpdate": "Couldn't update the cart",
       "errCheckout": "Checkout failed, try again",
-      "errPrice": "Prices changed - review your cart",
+      "errPrice": "Prices changed. Review your cart",
       "pickLocation": "Choose a pickup location",
       "eyebrow": "Checkout",
       "subtitle": "Review what you are collecting, then place the order.",
@@ -4816,7 +4816,7 @@
       "saving": "Saving…",
       "cancel": "Cancel",
       "remove": "Remove",
-      "empty": "No goals yet - set a target to track your progress.",
+      "empty": "No goals yet. Set a target to track your progress.",
       "saved": "Goals saved",
       "error": "Couldn't save goals",
       "signIn": "Please sign in",
@@ -4913,7 +4913,7 @@
         "secure": "Secure checkout · payment is simulated for now.",
         "open": "Open cart"
       },
-      "perk": "Collect your order at the front desk - no shipping, no waiting.",
+      "perk": "Collect your order at the front desk, no shipping, no waiting.",
       "loading": "Loading products…",
       "error": "We couldn’t load the shop. Please try again.",
       "retry": "Try again",
@@ -4981,7 +4981,7 @@
         "retry": "Try again",
         "title": "Order placed",
         "detailTitle": "Order",
-        "subtitle": "We’ll let you know when it’s ready at the front desk - usually within 2 hours.",
+        "subtitle": "We’ll let you know when it’s ready at the front desk, usually within 2 hours.",
         "orderLabel": "Order",
         "paidLabel": "Paid",
         "total": "Total",
@@ -5027,7 +5027,7 @@
     "getStarted": "Get started",
     "classes": {
       "title": "Find your next class",
-      "body": "Browse the weekly schedule and book a spot in seconds - right from your phone."
+      "body": "Browse the weekly schedule and book a spot in seconds right from your phone."
     },
     "qr": {
       "title": "Check in with QR",
@@ -5054,10 +5054,10 @@
     "scanner": {
       "title": "Scan a code",
       "hint": "Point the camera at a QR code.",
-      "note": "A test scanner - the code is shown here and sent nowhere.",
+      "note": "A test scanner. The code is shown here and sent nowhere.",
       "close": "Close the scanner",
       "permissionTitle": "Camera access",
-      "permissionBody": "The scanner needs your camera. The code stays on this screen - nothing is uploaded.",
+      "permissionBody": "The scanner needs your camera. The code stays on this screen. Nothing is uploaded.",
       "permissionAction": "Allow camera",
       "deniedTitle": "Camera is off",
       "deniedBody": "Camera access is turned off for this app. Turn it on in Settings to scan.",
@@ -5154,7 +5154,7 @@
     "checkout": {
       "pay": "Place order",
       "processing": "Placing order…",
-      "note": "Payment is simulated for now - no card is charged.",
+      "note": "Payment is simulated for now. No card is charged.",
       "error": "We couldn’t place your order. Please try again."
     },
     "order": {
@@ -5180,7 +5180,7 @@
   "services": {
     "title": "Services",
     "subtitle": "Personal session and the other services this gym offers, and when they run.",
-    "ptTitle": "Personal session - {staff}",
+    "ptTitle": "Personal session: {staff}",
     "type": {
       "PERSONAL_TRAINING": "Personal session",
       "CUSTOM": "Service"
@@ -5223,7 +5223,7 @@
       "retry": "Try again"
     },
     "booking": {
-      "ptTitle": "Personal session - {staff}",
+      "ptTitle": "Personal session: {staff}",
       "minutes": "{count} min",
       "book": "Book this slot",
       "booking": "Booking…",
@@ -5316,7 +5316,7 @@
     "subtitle": "Train one-on-one with a coach. Choose a package and track your upcoming sessions.",
     "retry": "Try again",
     "packages": {
-      "boughtToast": "{name} is yours - settle up at reception.",
+      "boughtToast": "{name} is yours. Settle up at reception.",
       "buy": "Buy this plan",
       "buying": "Purchasing…",
       "cancel": "Cancel",

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 
 /**
  * Animated modal — a blurred backdrop and a panel that scales + fades in, in
@@ -30,6 +31,7 @@ export const AnimatedModal = ({
   maxWidth = 'max-w-lg',
   lockScroll = true,
 }: AnimatedModalProps) => {
+  const t = useTranslations('common.modal');
   const [mounted, setMounted] = useState(false); // present in the DOM
   const [shown, setShown] = useState(false); // animation toggle
 
@@ -96,7 +98,7 @@ export const AnimatedModal = ({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('close')}
           className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-btn text-faint transition hover:bg-overlay/10 hover:text-fg"
         >
           <svg

@@ -1,8 +1,11 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+import type { PlatformMessages } from '@fit/i18n/platform';
 import { useLeadCta } from './lead-cta-context';
 import { Btn, I, Icon } from './marketing-ui';
 import { GradientBorder } from '@/components/ui/gradient-border';
+import { messageList, type MessageReader } from '@/lib/messages';
 import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -13,8 +16,11 @@ import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
    others are plain glass cards. All stretch to equal height.
 
    While `SHOW_PUBLIC_PRICING` is off the cards are unchanged apart from the
-   figure: the amount row goes. Every card closes on the site's two calls to
-   action, "Book a demo" and "Request a call".
+   figure: the amount row goes. Every card closes on "Book a demo".
+
+   The copy (name, tagline, billing note, feature list, badge) lives in the
+   `pricing.tiers.<id>` area of the platform catalogue; the figures, tones and
+   button looks stay here in `TIER_META`, and `getTiers(t)` joins the two.
    ──────────────────────────────────────────────────────────────────────── */
 
 export interface Tier {
@@ -24,6 +30,8 @@ export interface Tier {
   tagline: string;
   /** Monthly price in GEL (₾). Only printed while {@link SHOW_PUBLIC_PRICING}. */
   monthly: number;
+  pricePrefix?: string;
+  billingNote: string;
   features: string[];
   /** Look of the tier's "Book a demo" button: the featured tier gets the solid one. */
   ctaVariant: 'primary' | 'glassGradient';
@@ -31,63 +39,52 @@ export interface Tier {
   badge?: string;
 }
 
-export const tiers: Tier[] = [
-  {
-    id: 'studio',
-    name: 'Studio',
-    tone: 'iris',
-    tagline: 'The complete foundation for running your location day to day.',
-    monthly: 179,
-    features: [
-      'Point of Sale',
-      'Member Management',
-      'Class Scheduling & Personal Training Booking',
-      'Inventory Management',
-      'Offline Payment Processing',
-      'Manual Check-in',
-      'Staff Management',
-      'Automation Center (pre-built templates)',
-      'Analytics Dashboard',
-    ],
-    ctaVariant: 'glassGradient',
-  },
-  {
-    id: 'club',
-    name: 'Club',
-    tone: 'brand',
-    tagline: 'Everything in Studio, plus the tools your members interact with directly.',
-    monthly: 317,
-    features: [
-      'Branded Member Portal',
-      'White-label Mobile App (iOS & Android)',
-      'Self-service Check-in (QR code via app)',
-      'Online & Recurring Payments',
-      'Standard Reports',
-    ],
-    ctaVariant: 'primary',
-    highlight: true,
-    badge: 'Most popular',
-  },
-  {
-    id: 'core',
-    name: 'Core',
-    tone: 'accent',
-    tagline: 'Everything in Club, plus deeper intelligence and control for serious operators.',
-    monthly: 406,
-    features: [
-      'AI Assistant',
-      'API Access & Webhooks',
-      'Advanced Automation (custom flows)',
-      'AI-powered Reporting & Analytics',
-      'Named Support Contact',
-      'Custom Roles & Permissions',
-    ],
-    ctaVariant: 'glassGradient',
-  },
+type TierCopy = PlatformMessages['pricing']['tiers'];
+export type TierId = keyof TierCopy;
+
+type TierMeta = {
+  id: TierId;
+  tone: string;
+  monthly: number;
+  ctaVariant: Tier['ctaVariant'];
+  highlight?: boolean;
+};
+
+export const TIER_META: readonly TierMeta[] = [
+  { id: 'studio', tone: 'iris', monthly: 219, ctaVariant: 'glassGradient' },
+  { id: 'club', tone: 'brand', monthly: 449, ctaVariant: 'primary', highlight: true },
+  { id: 'core', tone: 'accent', monthly: 649, ctaVariant: 'glassGradient' },
 ];
+
+/**
+ * The three tiers, in order, with their copy read from the `pricing` area:
+ * pass `useTranslations('pricing')` or `getTranslations('pricing')`.
+ */
+export function getTiers(t: MessageReader): Tier[] {
+  const copy = t.raw('tiers') as TierCopy;
+  return TIER_META.map((meta) => {
+    const tier = copy[meta.id];
+    return {
+      id: meta.id,
+      name: tier.name,
+      tone: meta.tone,
+      tagline: tier.tagline,
+      monthly: meta.monthly,
+      ...('pricePrefix' in tier ? { pricePrefix: tier.pricePrefix } : {}),
+      billingNote: tier.billingNote,
+      features: messageList(tier.features),
+      ctaVariant: meta.ctaVariant,
+      ...(meta.highlight ? { highlight: true } : {}),
+      ...('badge' in tier ? { badge: tier.badge } : {}),
+    };
+  });
+}
 
 /** The three-up plan card grid on desktop; a swipeable snap-carousel on mobile. */
 export const PricingCards = () => {
+  const t = useTranslations('pricing');
+  const tCommon = useTranslations('common');
+  const tiers = getTiers(t);
   // Opens the shared "Book a demo" / "Request a call" forms.
   const openLead = useLeadCta();
 
@@ -100,7 +97,7 @@ export const PricingCards = () => {
               <h2 className="font-display text-2xl font-extrabold tracking-tight">{tier.name}</h2>
               {tier.badge && (
                 // Brand-gradient pill with a soft glow and a light sweep across it.
-                <span className="relative inline-flex shrink-0 items-center gap-1.5 overflow-hidden rounded-pill bg-[linear-gradient(135deg,#22B8E6,#1A7FD6_55%,#2557EB)] py-1 pl-2 pr-3 text-[11px] font-semibold tracking-wide text-white shadow-[0_6px_18px_-6px_rgba(26,127,214,0.8)] ring-1 ring-inset ring-white/25">
+                <span className="relative inline-flex shrink-0 items-center gap-1.5 overflow-hidden rounded-pill bg-[radial-gradient(ellipse_at_top_left,rgba(127,179,200,0.9),transparent_60%),linear-gradient(120deg,#2F7896_15%,#1F4A72_100%)] py-1 pl-2 pr-3 text-[11px] font-semibold tracking-wide text-white shadow-[0_6px_18px_-6px_rgba(31,74,114,0.8)] ring-1 ring-inset ring-white/25">
                   <span
                     aria-hidden
                     className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent motion-safe:animate-[badge-shine_3.2s_ease-in-out_infinite]"
@@ -118,16 +115,21 @@ export const PricingCards = () => {
 
             {SHOW_PUBLIC_PRICING && (
               <div className="flex items-baseline gap-1.5 mt-6">
-                <span className="font-display text-[2.75rem] font-black tracking-tight tabular-nums leading-none">
+                {tier.pricePrefix && (
+                  <span className="text-sm font-semibold text-subtle">{tier.pricePrefix}</span>
+                )}
+                {/* The buttons' teal-to-navy gradient, lifted a step in dark mode so
+                    the figure keeps its contrast on the dark card. */}
+                <span className="font-display text-[2.75rem] font-black tracking-tight tabular-nums leading-none bg-[linear-gradient(120deg,#5E9DB6_0%,#2F7896_40%,#1F4A72_100%)] dark:bg-[linear-gradient(120deg,#DEEDF2_0%,#9AC4D4_45%,#5E9DB6_100%)] text-transparent [-webkit-background-clip:text] [background-clip:text]">
                   ₾{tier.monthly.toLocaleString('en-US')}
                 </span>
-                <span className="text-sm font-semibold text-subtle">/mo</span>
+                <span className="text-sm font-semibold text-subtle">{t('cards.perMonth')}</span>
               </div>
             )}
             <p
               className={`font-mono text-[11px] text-subtle h-4 ${SHOW_PUBLIC_PRICING ? 'mt-2' : 'mt-6'}`}
             >
-              billed monthly · cancel any time
+              {tier.billingNote}
             </p>
 
             <ul className="mt-6 grow space-y-3 border-t border-overlay/10 pt-6">
@@ -157,10 +159,7 @@ export const PricingCards = () => {
                 icon={I.arrow}
                 onClick={() => openLead('demo')}
               >
-                Book a demo
-              </Btn>
-              <Btn v="glass" size="md" full icon={I.handset} onClick={() => openLead('call')}>
-                Request a call
+                {tCommon('cta.bookDemo')}
               </Btn>
             </div>
           </div>

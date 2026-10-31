@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { AuroraBackground } from '@/components/ui/aurora-background';
 import { AuroraText } from '@/components/ui/aurora-text';
 import { CardStack } from '@/components/ui/card-stack';
 import { LiquidGlassCard } from '@/components/ui/liquid-glass';
 import { Marquee } from '@/registry/magicui/marquee';
-import { BUILT_FOR } from '@/data/built-for';
-import { FEATURES } from '@/data/features';
-import { cn } from '@/lib/utils';
+import { getBuiltFor } from '@/data/built-for';
+import { getFeatures } from '@/data/features';
+import { Link } from '@/src/i18n/navigation';
 import { AudienceBadge, AudienceEmblem } from './audience-badge';
 import { HeroDevices } from './hero-devices';
 import { useLeadCta } from './lead-cta-context';
@@ -29,27 +29,6 @@ import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing
    pricing band.
    ──────────────────────────────────────────────────────────────────────── */
 
-/* ---- module mock screens ---- */
-/* Capability marquee — the platform's modules scroll past in two rows.
-   Themed to the platform tokens (overlay glass + semantic text); icons reuse
-   the shared `I` set. The Marquee primitive lives in `registry/magicui/marquee`. */
-const features = FEATURES.map((f) => ({
-  icon: f.icon,
-  title: f.name,
-  body: f.summary ?? f.subline,
-}));
-
-const firstRow = features.slice(0, features.length / 2);
-const secondRow = features.slice(features.length / 2);
-
-/* "Built for" — audience-specific value props, one card per audience in a
-   scroll-driven stack. The data is the single source of truth in
-   `@/data/built-for` (it also feeds the dedicated /built-for/<slug> pages and
-   the nav dropdown); the cards read the `name / icon / headline / subline /
-   stats / panelClassName` fields off each entry. The bold per-card gradients are
-   intentional (the cards pile up on each other) — self-contained dark
-   gradients with white text, so they read in both themes. */
-const audiences = BUILT_FOR;
 /** How many audience cards the landing stacks before "See all" (the rest live on /built-for). */
 const LANDING_AUDIENCES = 4;
 
@@ -101,6 +80,30 @@ const FeatureCard = ({
 );
 
 export default function PlatformLanding() {
+  const t = useTranslations('landing');
+  const tCommon = useTranslations('common');
+  const tBuiltFor = useTranslations('builtFor');
+  const tFeatures = useTranslations('features');
+
+  /* Capability marquee — the platform's modules scroll past in two rows.
+     Themed to the platform tokens (overlay glass + semantic text); icons reuse
+     the shared `I` set. The Marquee primitive lives in `registry/magicui/marquee`. */
+  const features = getFeatures(tFeatures).map((f) => ({
+    icon: f.icon,
+    title: f.name,
+    body: f.summary ?? f.subline,
+  }));
+  const firstRow = features.slice(0, features.length / 2);
+  const secondRow = features.slice(features.length / 2);
+
+  /* "Built for" — audience-specific value props, one card per audience in a
+     scroll-driven stack. The data is the single source of truth in
+     `@/data/built-for` (it also feeds the dedicated /built-for/<slug> pages and
+     the nav dropdown); the cards read the `name / icon / headline / subline /
+     stats` fields off each entry. The cover gradient is local to this stack,
+     identical in both themes; dedicated audience pages keep their own palette. */
+  const audiences = getBuiltFor(tBuiltFor);
+
   // Hero product showcase eases in once mounted (slide + fade), matching the
   // member app's animated hero element without pulling in a motion dependency.
   const [showcaseIn, setShowcaseIn] = useState(false);
@@ -112,7 +115,7 @@ export default function PlatformLanding() {
     <div className="font-sans bg-surface text-fg antialiased relative overflow-x-clip selection:bg-brand-500/30">
       <Aurora />
 
-      <MarketingNav active="Core" overlay forceDark />
+      <MarketingNav active="core" overlay forceDark />
 
       {/* hero — LIGHT mode: deep brand-blue aurora backdrop with white
           type, copy on the left, the
@@ -130,18 +133,17 @@ export default function PlatformLanding() {
               }`}
             >
               <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
-                Built For The Businesses{' '}
+                {t('hero.titleLead')}{' '}
                 <AuroraText colors={['#B8DDFF', '#67D9F8', '#7CC4FF']}>
-                  That Move People.
+                  {t('hero.titleAccent')}
                 </AuroraText>
               </h1>
               <p className="mt-6 text-lg text-white/80 max-w-xl leading-relaxed">
-                Every great fitness business runs on something. Members who stay, staff who know
-                what to do, numbers that tell the truth. FormaCore pulls it all together.
+                {t('hero.body')}
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-9">
                 <Btn v="onBlue" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
-                  Book a demo
+                  {tCommon('cta.bookDemo')}
                 </Btn>
                 <Btn
                   v="glassOnBlue"
@@ -151,7 +153,7 @@ export default function PlatformLanding() {
                   ripple
                   rippleColor="#7CC4FF"
                 >
-                  Request a call
+                  {tCommon('cta.requestCall')}
                 </Btn>
               </div>
             </div>
@@ -182,18 +184,15 @@ export default function PlatformLanding() {
               }`}
             >
               <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
-                Built For The Businesses{' '}
+                {t('hero.titleLead')}{' '}
                 <AuroraText colors={['#7CC4FF', '#67D9F8', '#93B4FD']}>
-                  That Move People.
+                  {t('hero.titleAccent')}
                 </AuroraText>
               </h1>
-              <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
-                Every great fitness business runs on something. Members who stay, staff who know
-                what to do, numbers that tell the truth. FormaCore pulls it all together.
-              </p>
+              <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">{t('hero.body')}</p>
               <div className="flex flex-wrap items-center gap-3 mt-9">
                 <Btn v="primary" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
-                  Book a demo
+                  {tCommon('cta.bookDemo')}
                 </Btn>
                 <Btn
                   v="glass"
@@ -201,9 +200,9 @@ export default function PlatformLanding() {
                   icon={I.handset}
                   onClick={() => openLead('call')}
                   ripple
-                  rippleColor="#1A7FD6"
+                  rippleColor="#7FB3C8"
                 >
-                  Request a call
+                  {tCommon('cta.requestCall')}
                 </Btn>
               </div>
             </div>
@@ -223,7 +222,7 @@ export default function PlatformLanding() {
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-24 pb-[60px]">
         <div className="max-w-2xl mb-10">
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
-            Everything your front desk runs on.
+            {t('capabilities.title')}
           </h2>
         </div>
         {/* Edges fade via a mask on the track itself (not a colour overlay), so the
@@ -250,11 +249,9 @@ export default function PlatformLanding() {
       <section className="relative z-10 max-w-[1180px] mx-auto px-6 lg:px-10 pt-12 pb-24">
         <div className="mb-10 max-w-2xl">
           <h2 className="font-display text-4xl lg:text-[3rem] font-black tracking-tight leading-[0.96]">
-            Built for how you actually run.
+            {t('builtFor.title')}
           </h2>
-          <p className="mt-4 text-lg text-muted leading-relaxed">
-            Whatever shape your business takes, FormaCore fits the way you work.
-          </p>
+          <p className="mt-4 text-lg text-muted leading-relaxed">{t('builtFor.intro')}</p>
         </div>
 
         <CardStack
@@ -264,19 +261,18 @@ export default function PlatformLanding() {
         >
           {(a) => (
             <div
-              className={cn(
-                'relative h-full w-full overflow-hidden rounded-[2rem] bg-gradient-to-br p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-12',
-                a.panelClassName,
-              )}
+              className="relative h-full w-full overflow-hidden rounded-[2rem] p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-12"
+              style={{
+                backgroundColor: '#1F4A72',
+                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' opacity='.65' d='M0 0h160v160H0z'/%3E%3C/svg%3E"), radial-gradient(ellipse at top left, #7FB3C8, transparent 55%), linear-gradient(120deg, #2F7896 15%, #1F4A72 100%)`,
+                backgroundSize: '160px 160px, cover, cover',
+                backgroundBlendMode: 'soft-light, normal, normal',
+              }}
             >
-              {/* decorative glows (radial gradients, no blur filter, so the
-                  stack can scale the card without re-blurring) */}
-              <div className="pointer-events-none absolute -right-24 -top-28 h-96 w-96 bg-[radial-gradient(closest-side,rgba(124,196,255,0.28),transparent)]" />
-              <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-[28rem] bg-[radial-gradient(closest-side,rgba(34,184,230,0.22),transparent)]" />
-              <AudienceEmblem audience={a} />
+              <AudienceEmblem audience={a} cover />
 
               <div className="relative flex h-full flex-col">
-                <AudienceBadge audience={a} />
+                <AudienceBadge audience={a} cover />
                 <h3 className="mt-4 sm:mt-5 max-w-2xl md:max-w-[min(42rem,calc(100%-21rem))] font-display text-2xl font-black leading-[1.05] tracking-tight text-white sm:text-3xl md:text-[2.5rem]">
                   {a.headline}
                 </h3>
@@ -290,7 +286,7 @@ export default function PlatformLanding() {
                     onClick={() => openLead('demo')}
                     className="inline-flex h-11 items-center gap-2 rounded-btn bg-white px-5 text-sm font-semibold text-neutral-900 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] transition hover:bg-white/90 active:bg-white/80"
                   >
-                    Book a demo
+                    {tCommon('cta.bookDemo')}
                   </button>
                   <button
                     type="button"
@@ -298,7 +294,7 @@ export default function PlatformLanding() {
                     className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
                   >
                     <Icon d={I.handset} c="h-4 w-4" />
-                    Request a call
+                    {tCommon('cta.requestCall')}
                   </button>
                 </div>
 
@@ -321,7 +317,7 @@ export default function PlatformLanding() {
         <div className="mt-10 flex justify-center">
           <Link
             href="/built-for"
-            className="group relative inline-flex h-14 items-center gap-3 overflow-hidden rounded-pill bg-[linear-gradient(135deg,#22B8E6,#1A7FD6_45%,#2557EB)] py-2 pl-2 pr-2 text-sm font-semibold text-white shadow-[0_14px_34px_-12px_rgba(26,127,214,0.75)] ring-1 ring-inset ring-white/20 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-14px_rgba(26,127,214,0.9)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/50"
+            className="group relative inline-flex h-14 items-center gap-3 overflow-hidden rounded-pill bg-[radial-gradient(ellipse_at_top_left,rgba(127,179,200,0.9),transparent_60%),linear-gradient(120deg,#2F7896_15%,#1F4A72_100%)] py-2 pl-2 pr-2 text-sm font-semibold text-white shadow-[0_14px_34px_-12px_rgba(31,74,114,0.75)] ring-1 ring-inset ring-white/20 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_-14px_rgba(31,74,114,0.9)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-400/50"
           >
             {/* light sweeping across on hover */}
             <span className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-[420%]" />
@@ -330,14 +326,14 @@ export default function PlatformLanding() {
               {audiences.slice(LANDING_AUDIENCES, LANDING_AUDIENCES + 3).map((a) => (
                 <span
                   key={a.slug}
-                  className="grid h-9 w-9 place-items-center rounded-full bg-white text-brand-700 ring-2 ring-[#1A7FD6]"
+                  className="grid h-9 w-9 place-items-center rounded-full bg-white text-[#2F7896] ring-2 ring-[#2F7896]"
                 >
                   <Icon d={a.icon} c="h-4 w-4" sw={2} />
                 </span>
               ))}
             </span>
-            <span className="relative">See all {audiences.length} business types</span>
-            <span className="relative grid h-10 w-10 place-items-center rounded-full bg-white/15 ring-1 ring-inset ring-white/30 transition duration-300 group-hover:bg-white group-hover:text-brand-700">
+            <span className="relative">{t('builtFor.seeAll', { count: audiences.length })}</span>
+            <span className="relative grid h-10 w-10 place-items-center rounded-full bg-white/15 ring-1 ring-inset ring-white/30 transition duration-300 group-hover:bg-white group-hover:text-[#1F4A72]">
               <Icon
                 d={I.arrow}
                 c="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
@@ -353,12 +349,9 @@ export default function PlatformLanding() {
           {/* left: copy + map */}
           <div>
             <h2 className="font-display text-4xl lg:text-[3.25rem] font-black tracking-tight leading-[0.95]">
-              Contact us
+              {t('contact.title')}
             </h2>
-            <p className="mt-5 max-w-md text-lg text-muted leading-relaxed">
-              We are always looking for ways to improve our products and services. Contact us and
-              let us know how we can help you.
-            </p>
+            <p className="mt-5 max-w-md text-lg text-muted leading-relaxed">{t('contact.body')}</p>
             <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-strong">
               <a
                 href="mailto:info@formacore.io"
@@ -403,7 +396,7 @@ export default function PlatformLanding() {
                 </span>
                 {/* label */}
                 <div className="absolute bottom-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-overlay/[0.08] px-2.5 py-1 text-xs font-medium text-fg ring-1 ring-inset ring-overlay/15 backdrop-blur">
-                  We are here
+                  {t('contact.here')}
                 </div>
               </div>
             </div>
@@ -445,6 +438,8 @@ export default function PlatformLanding() {
                     return typeof val === 'string' ? val : '';
                   };
                   const name = `${v('name')} ${v('surname')}`.trim();
+                  // The draft lands in FormaCore's own inbox, so its field
+                  // labels stay English for the team reading it.
                   const body = `Name: ${name}\nEmail: ${v('email')}\nCompany: ${v('company')}\n\n${v('message')}`;
                   window.location.href = `mailto:info@formacore.io?subject=${encodeURIComponent(
                     `Contact: ${name || 'Website'}`,
@@ -453,57 +448,57 @@ export default function PlatformLanding() {
               >
                 <div className="grid gap-5 sm:grid-cols-2">
                   <label className="block">
-                    <span className="text-sm font-medium text-fg">Name</span>
+                    <span className="text-sm font-medium text-fg">{t('contact.form.name')}</span>
                     <input
                       className={contactInputCls}
                       type="text"
                       name="name"
                       autoComplete="given-name"
-                      placeholder="David"
+                      placeholder={t('contact.form.namePlaceholder')}
                     />
                   </label>
                   <label className="block">
-                    <span className="text-sm font-medium text-fg">Surname</span>
+                    <span className="text-sm font-medium text-fg">{t('contact.form.surname')}</span>
                     <input
                       className={contactInputCls}
                       type="text"
                       name="surname"
                       autoComplete="family-name"
-                      placeholder="Iobashvili"
+                      placeholder={t('contact.form.surnamePlaceholder')}
                     />
                   </label>
                 </div>
                 <label className="block">
-                  <span className="text-sm font-medium text-fg">Email Address</span>
+                  <span className="text-sm font-medium text-fg">{t('contact.form.email')}</span>
                   <input
                     className={contactInputCls}
                     type="email"
                     name="email"
-                    placeholder="name@example.com"
+                    placeholder={t('contact.form.emailPlaceholder')}
                   />
                 </label>
                 <label className="block">
-                  <span className="text-sm font-medium text-fg">Company</span>
+                  <span className="text-sm font-medium text-fg">{t('contact.form.company')}</span>
                   <input
                     className={contactInputCls}
                     type="text"
                     name="company"
-                    placeholder="FormaCore LLC"
+                    placeholder={t('contact.form.companyPlaceholder')}
                   />
                 </label>
                 <label className="block">
-                  <span className="text-sm font-medium text-fg">Message</span>
+                  <span className="text-sm font-medium text-fg">{t('contact.form.message')}</span>
                   <textarea
                     className="mt-2 h-40 w-full resize-none rounded-btn border border-brand-500/25 bg-brand-500/[0.05] dark:border-white/15 dark:bg-white/[0.05] px-4 py-3 text-sm text-fg placeholder:text-faint outline-none transition focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/25"
                     name="message"
-                    placeholder="Type your message here"
+                    placeholder={t('contact.form.messagePlaceholder')}
                   />
                 </label>
                 <button
                   type="submit"
-                  className="rounded-btn bg-[linear-gradient(135deg,#22B8E6,#2557EB)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_-6px_rgba(26,127,214,0.7)] ring-1 ring-inset ring-white/15 transition hover:brightness-110"
+                  className="rounded-btn bg-[radial-gradient(ellipse_at_top_left,rgba(127,179,200,0.9),transparent_60%),linear-gradient(120deg,#2F7896_15%,#1F4A72_100%)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_24px_-6px_rgba(31,74,114,0.7)] ring-1 ring-inset ring-white/15 transition hover:brightness-110"
                 >
-                  Submit
+                  {t('contact.form.submit')}
                 </button>
               </form>
             </LiquidGlassCard>

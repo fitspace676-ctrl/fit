@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TOUR_SCENES } from '@/data/product-tour';
+import { getTourScenes } from '@/data/product-tour';
+import { enTranslator, renderWithIntl as render } from '@/test/render-with-intl';
 import { ProductTour } from './product-tour';
+
+/** The scenes as the English site builds them. */
+const TOUR_SCENES = getTourScenes(enTranslator('tour'));
 
 /**
  * The tour's contract: one tab per scene, the chosen tab decides which scene and

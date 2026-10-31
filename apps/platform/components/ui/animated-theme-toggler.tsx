@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 /**
  * Animated light/dark switch. Flips the `.dark` class the inline head script
@@ -133,6 +134,7 @@ export const AnimatedThemeToggler = ({
   fromCenter = false,
   className = '',
 }: AnimatedThemeTogglerProps) => {
+  const t = useTranslations('common.nav');
   const ref = useRef<HTMLButtonElement>(null);
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -208,7 +210,7 @@ export const AnimatedThemeToggler = ({
       ref={ref}
       type="button"
       onClick={() => void toggle()}
-      aria-label="Toggle dark mode"
+      aria-label={t('toggleTheme')}
       className={`w-10 h-10 grid place-items-center rounded-btn text-strong hover:text-fg hover:bg-overlay/5 transition ${className}`}
     >
       {mounted && !dark ? <MoonIcon /> : <SunIcon />}

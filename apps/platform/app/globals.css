@@ -20,6 +20,46 @@
     --overlay: 11 13 21; /* ink-950 — dark tint over light glass */
     --panel: 255 255 255; /* white inset cards */
     color-scheme: light;
+
+    /*
+     * Type stacks, consumed by Tailwind's `font-sans` / `font-display`. English
+     * keeps the Manrope / Archivo pairing; the Georgian site (`html[lang='ka']`
+     * below) adds Noto Sans Georgian straight after them: neither Manrope nor
+     * Archivo carries Georgian glyphs, so Georgian falls through to Noto per
+     * glyph while Latin words keep Manrope / Archivo. The `next/font` variables themselves are
+     * set on <html> by the locale layout.
+     */
+    --font-sans-stack: var(--font-manrope), Manrope, system-ui, sans-serif;
+    --font-display-stack: var(--font-archivo), Archivo, var(--font-manrope), sans-serif;
+  }
+
+  html[lang='ka'] {
+    --font-sans-stack:
+      var(--font-manrope), Manrope, var(--font-noto-georgian), system-ui, sans-serif;
+    --font-display-stack:
+      var(--font-archivo), Archivo, var(--font-noto-georgian), var(--font-manrope), sans-serif;
+  }
+
+  /*
+   * Mkhedruli's tall ascenders and deep descenders collide at the Latin
+   * headings' tight leading (~0.95): give Georgian headings a little more
+   * room. `!important` because the leading is a utility class per heading.
+   */
+  html[lang='ka'] :is(h1, h2, h3) {
+    line-height: 1.12 !important;
+  }
+
+  /*
+   * Gradient text (`background-clip: text`) is only painted inside the font's
+   * content box, and Mkhedruli descenders (ფ, ქ, ყ, ჯ...) hang below it, so
+   * their tails came out transparent. Vertical padding on an inline box grows
+   * the painted area without moving any line, so spacing stays as designed.
+   */
+  .aurora-text,
+  .bg-clip-text {
+    padding-block: 0.08em 0.18em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
   .dark {

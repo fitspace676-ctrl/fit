@@ -505,7 +505,7 @@ describe('409 PRICE_CHANGED — a failure that is not an error', () => {
     fireEvent.press(getByTestId('cart-place-order'));
 
     expect(getByTestId('cart-price-changed')).toBeTruthy();
-    expect(getByText('Prices changed - review your cart')).toBeTruthy();
+    expect(getByText('Prices changed. Review your cart')).toBeTruthy();
     // The OLD price comes from the pre-press snapshot: the mutation invalidates
     // the cart on a 409, so the cache is already moving to the new one.
     // TODO(i18n) `member.shop.cart.priceWas`.

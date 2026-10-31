@@ -1,12 +1,22 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import type { AudiencePage } from '@/data/built-for';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { FlowBackground } from '@/components/ui/flow-background';
 import { cn } from '@/lib/utils';
 import { AudienceBadge, AudienceEmblem } from './audience-badge';
 import { useLeadCta } from './lead-cta-context';
-import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
+import {
+  Aurora,
+  Btn,
+  CtaMark,
+  I,
+  Icon,
+  MarketingFooter,
+  MarketingNav,
+  type NavItem,
+} from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — "Built For" audience page  ·  "Aurora Glass"
@@ -20,12 +30,13 @@ import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './
 
 export function BuiltForPage({
   audience,
-  section = 'Built For',
+  section = 'builtFor',
 }: {
   audience: AudiencePage;
   /** Which nav item this page belongs to: an audience or a product feature. */
-  section?: 'Built For' | 'Features';
+  section?: Extract<NavItem, 'builtFor' | 'features'>;
 }) {
+  const t = useTranslations('common.cta');
   // Opens the shared "Book a demo" / "Request a call" forms.
   const openLead = useLeadCta();
   // The product card on the right only shows when there is a stat to put on it,
@@ -77,7 +88,7 @@ export function BuiltForPage({
                 onClick={() => openLead('demo')}
                 className="inline-flex h-11 items-center gap-2 rounded-btn bg-white px-5 text-sm font-semibold text-neutral-900 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] transition hover:bg-white/90 active:bg-white/80"
               >
-                Book a demo
+                {t('bookDemo')}
               </button>
               <button
                 type="button"
@@ -85,7 +96,7 @@ export function BuiltForPage({
                 className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 transition hover:text-white"
               >
                 <Icon d={I.handset} c="h-4 w-4" />
-                Request a call
+                {t('requestCall')}
               </button>
             </div>
 
@@ -200,10 +211,10 @@ export function BuiltForPage({
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Btn v="primary" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
-                  Book a demo
+                  {t('bookDemo')}
                 </Btn>
                 <Btn v="glass" size="lg" icon={I.handset} onClick={() => openLead('call')}>
-                  Request a call
+                  {t('requestCall')}
                 </Btn>
               </div>
             </div>

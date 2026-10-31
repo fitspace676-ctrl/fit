@@ -6,7 +6,7 @@ import { env } from '@/lib/env';
 import { NewGymForm } from './new-gym-form';
 
 export const metadata: Metadata = {
-  title: 'New gym — FormaCore SuperAdmin',
+  title: 'New gym | FormaCore SuperAdmin',
   description: 'Provision a gym and onboard its first owner.',
 };
 

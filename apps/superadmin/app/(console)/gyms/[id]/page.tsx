@@ -9,7 +9,7 @@ import { GymHeaderActions } from './gym-header';
 import { StaffTable } from './staff-table';
 
 export const metadata: Metadata = {
-  title: 'Gym — FormaCore SuperAdmin',
+  title: 'Gym | FormaCore SuperAdmin',
   description: 'One gym: its owner, staff, subdomain, and operator actions.',
 };
 
