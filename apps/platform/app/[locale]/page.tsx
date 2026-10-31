@@ -1,14 +1,19 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import PlatformLanding from '@/components/marketing/platform-landing';
-import { localeAlternates } from '@/src/i18n/metadata';
+import { pageMetadata } from '@/src/i18n/metadata';
 
 type Params = { params: Promise<{ locale: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'landing' });
-  return { title: t('meta.title'), alternates: localeAlternates('/') };
+  return pageMetadata({
+    locale,
+    path: '/',
+    title: t('meta.title'),
+    description: t('meta.description'),
+  });
 }
 
 /**

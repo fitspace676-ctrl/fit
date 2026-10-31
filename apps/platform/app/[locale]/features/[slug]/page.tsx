@@ -5,7 +5,7 @@ import { FeaturePageEditorial } from '@/components/marketing/feature-page-editor
 import BuiltForPage from '@/components/marketing/built-for-page';
 import { getFeaturePage } from '@/data/feature-pages';
 import { FEATURE_SLUGS, getFeature } from '@/data/features';
-import { localeAlternates } from '@/src/i18n/metadata';
+import { pageMetadata } from '@/src/i18n/metadata';
 
 type Params = { params: Promise<{ locale: string; slug: string }> };
 
@@ -23,12 +23,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, slug } = await params;
   const t = await getTranslations({ locale, namespace: 'features' });
   const feature = getFeature(t, slug);
-  if (!feature) return { title: t('meta.title') };
-  return {
-    title: t('meta.pageTitle', { name: feature.name }),
-    description: feature.subline,
-    alternates: localeAlternates(`/features/${slug}`),
-  };
+  if (!feature) notFound();
+  return pageMetadata({
+    locale,
+    path: `/features/${slug}`,
+    title: t(`modules.${slug}.meta.title`),
+    description: t(`modules.${slug}.meta.description`),
+  });
 }
 
 export default async function Page({ params }: Params) {

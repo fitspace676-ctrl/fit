@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { RegisterGymForm } from '@/components/signup/register-gym-form';
-import { localeAlternates } from '@/src/i18n/metadata';
+import { pageMetadata } from '@/src/i18n/metadata';
 import { Link } from '@/src/i18n/navigation';
 
 type Params = { params: Promise<{ locale: string }> };
@@ -9,11 +9,12 @@ type Params = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'signup' });
-  return {
+  return pageMetadata({
+    locale,
+    path: '/register-gym',
     title: t('meta.title'),
     description: t('meta.description'),
-    alternates: localeAlternates('/register-gym'),
-  };
+  });
 }
 
 /**

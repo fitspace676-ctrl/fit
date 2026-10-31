@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { LegalPage } from '@/components/marketing/legal-page';
-import { localeAlternates } from '@/src/i18n/metadata';
+import { pageMetadata } from '@/src/i18n/metadata';
 import { Link } from '@/src/i18n/navigation';
 import { PrivacyKa } from './privacy-ka';
 
@@ -10,11 +10,12 @@ type Params = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'legal' });
-  return {
-    title: t('privacy.title'),
-    description: t('privacy.description'),
-    alternates: localeAlternates('/privacy'),
-  };
+  return pageMetadata({
+    locale,
+    path: '/privacy',
+    title: t('privacy.meta.title'),
+    description: t('privacy.meta.description'),
+  });
 }
 
 /**

@@ -3,18 +3,30 @@
     "title": "Terms of Service | FormaCore",
     "description": "The terms that govern access to and use of the FormaCore platform: the admin panel, Member Portal, mobile applications and related services.",
     "heading": "FormaCore Terms of Service",
-    "updated": "Effective Date: 01.09.2026 · Last Updated: 14.09.2026"
+    "updated": "Effective Date: 01.09.2026 · Last Updated: 14.09.2026",
+    "meta": {
+      "title": "Terms of Service for Gym Management Software | FormaCore",
+      "description": "Review the terms for using FormaCore gym management software, including accounts, billing and responsibilities. Read the Terms of Service before you sign up."
+    }
   },
   "privacy": {
     "title": "Privacy policy | FormaCore",
     "description": "How FormaCore collects, uses and protects personal data, as Controller for its Customers and as Processor for their Members, under the Law of Georgia on Personal Data Protection.",
     "heading": "FormaCore Privacy Policy",
-    "updated": "Effective Date: 01.09.2026 · Last Updated: 14.09.2026"
+    "updated": "Effective Date: 01.09.2026 · Last Updated: 14.09.2026",
+    "meta": {
+      "title": "Privacy Policy for Gym Management Services | FormaCore",
+      "description": "Learn how FormaCore handles account and member data, cookies and privacy requests. Read our Privacy Policy to understand your choices and how to contact us."
+    }
   },
   "dpa": {
     "title": "Data Processing Agreement | FormaCore",
     "description": "FormaCore's Data Processing Agreement: how FormaCore processes Member personal data on a gym's behalf under the Law of Georgia on Personal Data Protection.",
     "heading": "FormaCore Data Processing Agreement (DPA)",
-    "updated": "Effective Date: 01.09.2026"
+    "updated": "Effective Date: 01.09.2026",
+    "meta": {
+      "title": "Data Processing Agreement for Fitness Businesses | FormaCore",
+      "description": "Understand how FormaCore processes member data on behalf of your business, including security and responsibilities. Read the Data Processing Agreement today."
+    }
   }
 }

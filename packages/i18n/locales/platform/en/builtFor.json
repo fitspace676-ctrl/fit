@@ -1,8 +1,8 @@
 {
   "meta": {
-    "title": "Built For | FormaCore",
+    "title": "Gym and Studio Software for Fitness Businesses | FormaCore",
     "pageTitle": "{name} | FormaCore",
-    "description": "Gym and studio software for fitness clubs, training and yoga studios, CrossFit, martial arts, swimming and dance schools, padel and tennis clubs."
+    "description": "Find FormaCore software for fitness clubs, yoga studios, swimming schools and more. Bring bookings and memberships together. Explore your fit and book a demo."
   },
   "hub": {
     "title": "Built for how you actually run.",
@@ -82,6 +82,10 @@
       "footerCta": {
         "headline": "Ready to stop losing members you worked hard to get?",
         "subline": "Book a demo. We'll show you exactly how to retain more members, month after month."
+      },
+      "meta": {
+        "title": "Fitness Club Management and Membership Software | FormaCore",
+        "description": "Manage memberships, class bookings and check-ins with FormaCore software for fitness clubs. Simplify daily operations for your team. Book a demo today."
       }
     },
     "training-studios": {
@@ -144,6 +148,10 @@
       "footerCta": {
         "headline": "Ready to keep every member you've worked hard to attract?",
         "subline": "Book a demo and see how to retain more members, month after month."
+      },
+      "meta": {
+        "title": "Personal Training Studio Management Software | FormaCore",
+        "description": "Manage bookings, trainer schedules and memberships with FormaCore software for training studios. Simplify daily operations for your team. Book a demo today."
       }
     },
     "yoga-studios": {
@@ -206,6 +214,10 @@
       "footerCta": {
         "headline": "Ready to protect the habits your members are building?",
         "subline": "Book a demo and see how to keep yoga studio members coming back, class after class."
+      },
+      "meta": {
+        "title": "Yoga Studio Booking and Membership Software | FormaCore",
+        "description": "Manage class bookings, schedules and memberships with FormaCore software for yoga studios. Simplify daily operations for your team. Book a demo today."
       }
     },
     "pilates-studios": {
@@ -274,6 +286,10 @@
       "footerCta": {
         "headline": "Ready to show your members the progress they're making?",
         "subline": "Book a demo and see how to keep Pilates members committed, session after session."
+      },
+      "meta": {
+        "title": "Pilates Studio Booking and Management Software | FormaCore",
+        "description": "Manage class capacity, bookings and memberships with FormaCore software for Pilates studios. Simplify daily operations for your team. Book a demo today."
       }
     },
     "crossfit": {
@@ -345,6 +361,10 @@
       "footerCta": {
         "headline": "Ready to keep every athlete on the whiteboard?",
         "subline": "Book a demo and see how to keep CrossFit athletes coming back, month after month."
+      },
+      "meta": {
+        "title": "CrossFit Gym Booking and Membership Software | FormaCore",
+        "description": "Manage session bookings, attendance and memberships with FormaCore software for CrossFit gyms. Simplify daily operations for your team. Book a demo today."
       }
     },
     "martial-arts": {
@@ -410,6 +430,10 @@
       "footerCta": {
         "headline": "Ready to keep every student on the path to their next belt?",
         "subline": "Book a demo and see how to retain more students, grading after grading."
+      },
+      "meta": {
+        "title": "Martial Arts School and Class Booking Software | FormaCore",
+        "description": "Manage class schedules, attendance and memberships with FormaCore software for martial arts schools. Simplify daily operations for your team. Book a demo today."
       }
     },
     "swimming-schools": {
@@ -475,6 +499,10 @@
       "footerCta": {
         "headline": "Ready to keep every family enrolled term after term?",
         "subline": "Book a demo and see how to retain more students, every term."
+      },
+      "meta": {
+        "title": "Swimming School and Lesson Management Software | FormaCore",
+        "description": "Manage lesson bookings, schedules and memberships with FormaCore software for swimming schools. Simplify daily operations for your team. Book a demo today."
       }
     },
     "dance-schools": {
@@ -537,6 +565,10 @@
       "footerCta": {
         "headline": "Ready to fill next term before this one ends?",
         "subline": "Book a demo and see how to retain more students, term after term."
+      },
+      "meta": {
+        "title": "Dance School Booking and Management Software | FormaCore",
+        "description": "Manage class bookings, attendance and memberships with FormaCore software for dance schools. Simplify daily operations for your team. Book a demo today."
       }
     },
     "padel": {
@@ -602,6 +634,10 @@
       "footerCta": {
         "headline": "Ready to keep every player on the court?",
         "subline": "Book a demo and see how to retain more members, month after month."
+      },
+      "meta": {
+        "title": "Padel Club Court Booking and Management Software | FormaCore",
+        "description": "Manage court bookings, schedules and memberships with FormaCore software for padel clubs. Simplify daily operations for your team. Book a demo today."
       }
     },
     "tennis-clubs": {
@@ -670,6 +706,10 @@
       "footerCta": {
         "headline": "Ready to make your members proud to belong?",
         "subline": "Book a demo and see how to retain more members, season after season."
+      },
+      "meta": {
+        "title": "Tennis Club Court Booking and Management Software | FormaCore",
+        "description": "Manage court bookings, lessons and memberships with FormaCore software for tennis clubs. Simplify daily operations for your team. Book a demo today."
       }
     }
   }

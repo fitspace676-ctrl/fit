@@ -1,8 +1,8 @@
 {
   "meta": {
-    "title": "Features | FormaCore",
+    "title": "Gym Management Features for Your Fitness Club | FormaCore",
     "pageTitle": "{name} | FormaCore",
-    "description": "The FormaCore modules: member portal, online booking, reception POS, mobile app, analytics and the AI assistant."
+    "description": "Explore member portals, booking, reception POS, mobile apps, analytics and AI tools for your fitness club. See how FormaCore works and book a demo today."
   },
   "hub": {
     "title": "Everything your gym runs on.",
@@ -67,6 +67,10 @@
       "footerCta": {
         "headline": "Give your members a portal worth opening.",
         "subline": "Book a demo and we'll show it with your logo and colours."
+      },
+      "meta": {
+        "title": "Member Portal Software for Gyms and Studios | FormaCore",
+        "description": "Give members one place to book classes, view memberships and manage their fitness routine. Reduce front desk requests with FormaCore. Book a member portal demo."
       }
     },
     "booking-scheduling": {
@@ -115,6 +119,10 @@
       "footerCta": {
         "headline": "Put your timetable online.",
         "subline": "Book a demo and we'll load your classes into it."
+      },
+      "meta": {
+        "title": "Gym Class Booking and Staff Scheduling Software | FormaCore",
+        "description": "Manage class schedules, bookings and capacity in one place. Help members find sessions and keep your gym team organised with FormaCore. Book a scheduling demo."
       }
     },
     "reception-pos": {
@@ -163,6 +171,10 @@
       "footerCta": {
         "headline": "Make the front desk faster.",
         "subline": "Book a demo and we'll run a sale with you."
+      },
+      "meta": {
+        "title": "Gym Reception and Point of Sale (POS) Software | FormaCore",
+        "description": "Bring gym check-ins, sales and front desk tasks into one workspace. Help your team serve members with FormaCore reception and POS tools. Book a demo today."
       }
     },
     "mobile-app": {
@@ -211,6 +223,10 @@
       "footerCta": {
         "headline": "Put your gym on their phone.",
         "subline": "Book a demo and we'll walk you through the app."
+      },
+      "meta": {
+        "title": "Fitness Club Mobile App for Bookings and Members | FormaCore",
+        "description": "Let members book sessions, check in with QR codes and view memberships from their phones. Explore the FormaCore fitness club mobile app and book a demo today."
       }
     },
     "analytics-reporting": {
@@ -259,6 +275,10 @@
       "footerCta": {
         "headline": "See your numbers properly.",
         "subline": "Book a demo and we'll show you the reports with your data."
+      },
+      "meta": {
+        "title": "Gym Analytics and Membership Reporting Software | FormaCore",
+        "description": "Track memberships, attendance and revenue with FormaCore gym analytics. Give your team a clearer view of club performance. Explore reporting and book a demo."
       }
     },
     "ai-assistant": {
@@ -307,6 +327,10 @@
       "footerCta": {
         "headline": "Ask it something about your gym.",
         "subline": "Book a demo and see the assistant answer with your own data."
+      },
+      "meta": {
+        "title": "AI Assistant for Gym and Fitness Club Management | FormaCore",
+        "description": "Get help with member information and everyday gym tasks using the FormaCore AI assistant. Keep your team focused on service. Explore the tools and book a demo."
       }
     }
   },

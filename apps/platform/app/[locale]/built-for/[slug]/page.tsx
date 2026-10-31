@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import BuiltForPage from '@/components/marketing/built-for-page';
 import { BUILT_FOR_SLUGS, getAudience } from '@/data/built-for';
-import { localeAlternates } from '@/src/i18n/metadata';
+import { pageMetadata } from '@/src/i18n/metadata';
 
 type Params = { params: Promise<{ locale: string; slug: string }> };
 
@@ -20,12 +20,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, slug } = await params;
   const t = await getTranslations({ locale, namespace: 'builtFor' });
   const audience = getAudience(t, slug);
-  if (!audience) return { title: t('meta.title') };
-  return {
-    title: t('meta.pageTitle', { name: audience.navLabel }),
-    description: audience.subline,
-    alternates: localeAlternates(`/built-for/${slug}`),
-  };
+  if (!audience) notFound();
+  return pageMetadata({
+    locale,
+    path: `/built-for/${slug}`,
+    title: t(`pages.${slug}.meta.title`),
+    description: t(`pages.${slug}.meta.description`),
+  });
 }
 
 export default async function Page({ params }: Params) {

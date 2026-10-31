@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { LegalPage } from '@/components/marketing/legal-page';
-import { localeAlternates } from '@/src/i18n/metadata';
+import { pageMetadata } from '@/src/i18n/metadata';
 import { DpaKa } from './dpa-ka';
 
 type Params = { params: Promise<{ locale: string }> };
@@ -9,11 +9,12 @@ type Params = { params: Promise<{ locale: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'legal' });
-  return {
-    title: t('dpa.title'),
-    description: t('dpa.description'),
-    alternates: localeAlternates('/dpa'),
-  };
+  return pageMetadata({
+    locale,
+    path: '/dpa',
+    title: t('dpa.meta.title'),
+    description: t('dpa.meta.description'),
+  });
 }
 
 /** The Subprocessors in Section 6. Section 6 commits to keeping this list current here. */

@@ -8,6 +8,7 @@ import { isLocale } from '@fit/i18n';
 import '../globals.css';
 import { LeadCtaProvider } from '@/components/marketing/lead-cta-provider';
 import { SiteLoader } from '@/components/marketing/site-loader';
+import { pageMetadata } from '@/src/i18n/metadata';
 import { routing } from '@/src/i18n/routing';
 import { SentryInit } from '../sentry-init';
 
@@ -66,12 +67,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     metadataBase: new URL('https://formacore.io'),
     // `?v=` busts browsers' sticky favicon cache; bump it when the icon changes.
     icons: { icon: '/favicon.ico?v=2', apple: '/apple-icon.png?v=2' },
-    openGraph: {
-      images: [{ url: '/brand-icon.png', width: 1254, height: 1254, alt: t('logoAlt') }],
-    },
-    twitter: { card: 'summary', images: ['/brand-icon.png'] },
-    title: t('meta.title'),
-    description: t('meta.description'),
+    ...pageMetadata({
+      locale,
+      path: '/',
+      title: t('meta.title'),
+      description: t('meta.description'),
+    }),
   };
 }
 
