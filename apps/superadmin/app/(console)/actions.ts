@@ -74,7 +74,7 @@ export async function startImpersonationAction(
 
   const adminUrl = tenantAdminUrl(subdomainSlug);
   if (!adminUrl) {
-    return { ok: false, error: 'No root domain configured — set NEXT_PUBLIC_ROOT_DOMAIN.' };
+    return { ok: false, error: 'No root domain configured. Set NEXT_PUBLIC_ROOT_DOMAIN.' };
   }
 
   try {

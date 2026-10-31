@@ -9,9 +9,23 @@
 // account or session, so this returns nothing but the stored lead id.
 
 import type { CreatePlatformLeadInput, CreatePlatformLeadResponse } from '@fit/types';
+import type { Locale } from '@fit/i18n';
 
 /** A lead plus the honeypot input; `website` is stripped by the route handler. */
 export type SubmitLeadInput = CreatePlatformLeadInput & { website?: string };
+
+/**
+ * The header the route handler reads to answer its own validation and
+ * connectivity errors in the visitor's language. Not part of the lead.
+ */
+export const LEAD_LOCALE_HEADER = 'X-Locale';
+
+export interface SubmitLeadOptions {
+  /** The site's current locale, so the route's own error messages match it. */
+  locale: Locale;
+  /** The error shown when the route answers a non-2xx status with no message of its own. */
+  failedMessage: (status: number) => string;
+}
 
 /**
  * Submit a trial / demo / pricing lead. Resolves with the stored lead id on
@@ -19,16 +33,19 @@ export type SubmitLeadInput = CreatePlatformLeadInput & { website?: string };
  * malformed email, a rate-limited client, an unreachable API) so the form can
  * surface it and let the visitor retry.
  */
-export async function submitLead(input: SubmitLeadInput): Promise<CreatePlatformLeadResponse> {
+export async function submitLead(
+  input: SubmitLeadInput,
+  options: SubmitLeadOptions,
+): Promise<CreatePlatformLeadResponse> {
   const response = await fetch('/api/leads', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', [LEAD_LOCALE_HEADER]: options.locale },
     body: JSON.stringify(input),
   });
 
   if (!response.ok) {
     const detail = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(detail?.message ?? `Submission failed (${response.status})`);
+    throw new Error(detail?.message ?? options.failedMessage(response.status));
   }
 
   return (await response.json()) as CreatePlatformLeadResponse;

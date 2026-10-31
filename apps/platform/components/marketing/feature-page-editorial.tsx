@@ -2,12 +2,15 @@
 
 import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import type { PlatformMessages } from '@fit/i18n/platform';
 import type { FeaturePageCopy } from '@/data/feature-pages';
 import { FlowBackground } from '@/components/ui/flow-background';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { cn } from '@/lib/utils';
-import { FEATURES } from '@/data/features';
+import { messageList } from '@/lib/messages';
+import { getFeatures } from '@/data/features';
+import { Link } from '@/src/i18n/navigation';
 import { useLeadCta } from './lead-cta-context';
 import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
@@ -21,8 +24,9 @@ import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './
    closing photo band that bookends the hero.
 
    The product figures are not part of the copy record: they live in
-   `FIGURES` below, keyed by slug, one per block. A page with no entry there
-   still renders, just without figures.
+   `FIGURES` below, keyed by slug, one per block; their captions and the text
+   on the illustrative product slices come from `features.editorial` in the
+   catalogue. A page with no entry there still renders, just without figures.
    ──────────────────────────────────────────────────────────────────────── */
 
 /* ── product imagery ─────────────────────────────────────────────────── */
@@ -66,11 +70,11 @@ type SliceKind =
   | 'insight'
   | 'suggest'
   | 'aiAccess';
-type Figure = { caption: string; layers?: Layer[]; slice?: SliceKind };
+/** A figure's composition; its caption is `editorial.figures.<slug>.<index>` in the catalogue. */
+type Figure = { layers?: Layer[]; slice?: SliceKind };
 const FIGURES: Record<string, Figure[]> = {
   'member-portal': [
     {
-      caption: 'Membership status on the member home, with the plan mix in the admin panel',
       layers: [
         {
           shot: SHOTS.phone,
@@ -88,218 +92,48 @@ const FIGURES: Record<string, Figure[]> = {
         },
       ],
     },
-    { caption: 'The class schedule and a confirmed booking', slice: 'booking' },
-    { caption: 'Member invoice history and a membership renewal reminder', slice: 'billing' },
-    { caption: 'Portal branding with a logo, colours and cover photos', slice: 'brand' },
+    { slice: 'booking' },
+    { slice: 'billing' },
+    { slice: 'brand' },
   ],
   'booking-scheduling': [
-    { caption: 'Group classes in the weekly timetable', slice: 'schedule' },
-    { caption: 'A member booking and its confirmation', slice: 'booking' },
-    { caption: 'Class capacity and the first-in-line waitlist', slice: 'waitlist' },
-    { caption: 'Personal training availability and session details', slice: 'training' },
+    { slice: 'schedule' },
+    { slice: 'booking' },
+    { slice: 'waitlist' },
+    { slice: 'training' },
   ],
   'reception-pos': [
-    { caption: 'Member search, membership status and reception check-in', slice: 'checkin' },
-    { caption: 'A new membership and a recorded cash sale', slice: 'sale' },
-    { caption: 'Transactions linked to the member profile', slice: 'history' },
-    { caption: 'Products and stock recorded at the front desk', slice: 'shop' },
+    { slice: 'checkin' },
+    { slice: 'sale' },
+    { slice: 'history' },
+    { slice: 'shop' },
   ],
   'mobile-app': [
-    { caption: 'Club identity on the member home', slice: 'brand' },
-    { caption: 'A class booking and its confirmation', slice: 'booking' },
-    { caption: 'Member payment history and renewal reminder', slice: 'billing' },
-    { caption: 'Class reminders and club updates', slice: 'notifications' },
-    { caption: 'The schedule for the member’s home location', slice: 'location' },
+    { slice: 'brand' },
+    { slice: 'booking' },
+    { slice: 'billing' },
+    { slice: 'notifications' },
+    { slice: 'location' },
   ],
   'analytics-reporting': [
-    { caption: 'Live numbers on the dashboard, against the previous period', slice: 'dashboard' },
-    { caption: 'Pre-built reports, exported to CSV or Excel', slice: 'reports' },
-    { caption: 'What each role can see', slice: 'roles' },
-    { caption: 'A plain-language question to the AI Assistant', slice: 'ask' },
+    { slice: 'dashboard' },
+    { slice: 'reports' },
+    { slice: 'roles' },
+    { slice: 'ask' },
   ],
   'ai-assistant': [
-    { caption: 'A question and its answer, in plain language', slice: 'ask' },
-    { caption: 'A follow-up question that explains the number', slice: 'insight' },
-    { caption: 'Suggested next steps, for you to decide on', slice: 'suggest' },
-    { caption: 'Answers stay within each role', slice: 'aiAccess' },
+    { slice: 'ask' },
+    { slice: 'insight' },
+    { slice: 'suggest' },
+    { slice: 'aiAccess' },
   ],
 };
 
-const SLICE_DATA: Record<
-  Exclude<SliceKind, 'brand' | 'billing'>,
-  { title: string; eyebrow: string; rows: [string, string, string][]; note: string }
-> = {
-  schedule: {
-    title: 'Weekly timetable',
-    eyebrow: 'Monday, October 5',
-    rows: [
-      ['09:00', 'Morning Yoga', '12 / 16'],
-      ['12:30', 'Strength Circuit', '8 / 12'],
-      ['18:00', 'Pilates', '16 / 16'],
-    ],
-    note: 'Class changes reflected in the member schedule',
-  },
-  booking: {
-    title: 'Your next class',
-    eyebrow: 'My bookings',
-    rows: [
-      ['18:00', 'Pilates', 'Confirmed'],
-      ['Studio 1', 'Monday, October 5', '50 min'],
-    ],
-    note: 'Reminder before your session',
-  },
-  waitlist: {
-    title: 'Pilates',
-    eyebrow: 'Capacity & waitlist',
-    rows: [
-      ['Capacity', '16 members', 'Full'],
-      ['Waitlist', 'Ana Dolidze', '1st'],
-      ['Waitlist', 'Giorgi Beridze', '2nd'],
-    ],
-    note: 'Next in line notified when a spot opens',
-  },
-  training: {
-    title: 'Personal training',
-    eyebrow: 'Trainer availability',
-    rows: [
-      ['10:00', 'Strength session', 'Available'],
-      ['11:30', 'Mobility session', 'Available'],
-      ['15:00', 'Personal training', 'Booked'],
-    ],
-    note: '60 minute sessions - confirmation included',
-  },
-  checkin: {
-    title: 'Member check-in',
-    eyebrow: 'Reception',
-    rows: [
-      ['Search', 'Giorgi Beridze', 'Found'],
-      ['Plan', 'Premium', 'Active'],
-      ['Arrival', 'Today, 09:12', 'Checked in'],
-    ],
-    note: 'Membership and payment standing visible together',
-  },
-  sale: {
-    title: 'New membership',
-    eyebrow: 'Reception sale',
-    rows: [
-      ['Member', 'Ana Dolidze', 'Created'],
-      ['Plan', 'Monthly membership', '150 GEL'],
-      ['Payment', 'Cash', 'Recorded'],
-    ],
-    note: 'Membership active - sale linked to profile',
-  },
-  history: {
-    title: 'Transaction history',
-    eyebrow: 'Member profile',
-    rows: [
-      ['Oct 4', 'Monthly membership', '150 GEL'],
-      ['Oct 2', 'Personal training', '60 GEL'],
-      ['Oct 1', 'Protein shake', '12 GEL'],
-    ],
-    note: 'The same history in reception, admin and portal',
-  },
-  shop: {
-    title: 'Products & services',
-    eyebrow: 'Reception shop',
-    rows: [
-      ['Protein shake', '12 GEL', '24 in stock'],
-      ['Club T-shirt', '45 GEL', '18 in stock'],
-      ['PT session', '60 GEL', 'Service'],
-    ],
-    note: 'Product sales update stock and sales history',
-  },
-  notifications: {
-    title: 'Club updates',
-    eyebrow: 'Notifications',
-    rows: [
-      ['In 1 hour', 'Your Pilates class', 'Reminder'],
-      ['Today', 'New evening classes', 'Club news'],
-      ['Yesterday', 'Your booking is confirmed', 'Booking'],
-    ],
-    note: 'Stay connected between visits',
-  },
-  location: {
-    title: 'Your home location',
-    eyebrow: 'Main Floor',
-    rows: [
-      ['09:00', 'Morning Yoga', 'Studio 1'],
-      ['12:30', 'Strength Circuit', 'Studio 2'],
-      ['18:00', 'Pilates', 'Studio 1'],
-    ],
-    note: 'Today’s classes at your home club',
-  },
-  dashboard: {
-    title: 'This month',
-    eyebrow: 'Dashboard',
-    rows: [
-      ['Active members', '248', '+6%'],
-      ['Revenue', '18,420 GEL', '+12%'],
-      ['Check-ins', '1,312', '+4%'],
-    ],
-    note: '3 members flagged at risk this week',
-  },
-  reports: {
-    title: 'Reports',
-    eyebrow: 'Admin panel',
-    rows: [
-      ['Revenue', 'Sales transactions', 'Excel'],
-      ['Members', 'Membership payments', 'CSV'],
-      ['Inventory', 'Stock & inventory', 'Excel'],
-    ],
-    note: 'Filter by date range and branch',
-  },
-  roles: {
-    title: 'Who sees what',
-    eyebrow: 'Roles',
-    rows: [
-      ['Owner', 'Every metric and report', 'Full'],
-      ['Receptionist', 'Check-ins and payments', 'Front desk'],
-      ['Trainer', 'Their classes and sessions', 'Own'],
-    ],
-    note: 'Access set by role in the admin panel',
-  },
-  ask: {
-    title: 'Ask the assistant',
-    eyebrow: 'AI Assistant',
-    rows: [
-      ['You', 'Who hasn’t visited in 3 weeks?', 'Question'],
-      ['Assistant', '7 members, listed as a table', 'Answer'],
-    ],
-    note: 'Available on the Core plan',
-  },
-  insight: {
-    title: 'Why did revenue drop?',
-    eyebrow: 'Follow-up',
-    rows: [
-      ['You', 'Why is revenue down this week?', 'Question'],
-      ['Assistant', '4 renewals still unpaid', 'Payments'],
-      ['Assistant', 'Tuesday Pilates cancelled', 'Classes'],
-    ],
-    note: 'Ask again to go deeper, in the same chat',
-  },
-  suggest: {
-    title: 'Suggested next steps',
-    eyebrow: 'Recommendation',
-    rows: [
-      ['1', 'Remind the 4 members with unpaid renewals', 'Payments'],
-      ['2', 'Re-engage 7 members inactive for 3 weeks', 'Retention'],
-      ['3', 'Move Tuesday Pilates to an evening slot', 'Classes'],
-    ],
-    note: 'Advisory only - you decide what to act on',
-  },
-  aiAccess: {
-    title: 'Who can ask what',
-    eyebrow: 'Roles',
-    rows: [
-      ['Owner', 'Members, revenue and reports', 'Full'],
-      ['Receptionist', 'Check-ins and front desk', 'Front desk'],
-      ['Trainer', 'Classes and sessions', 'Classes'],
-    ],
-    note: 'Answers use only what the role can see',
-  },
-};
+/** The illustrative product slices' text, as it sits in the catalogue. */
+type SliceCopy = PlatformMessages['features']['editorial']['slices'];
 
 function ProductSlice({ kind }: { kind: SliceKind }) {
+  const t = useTranslations('features.editorial');
   if (kind === 'brand')
     return (
       <div className="relative mx-auto w-full max-w-[34rem] sm:min-h-[25rem]">
@@ -307,15 +141,17 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
           <FigureLayer layer={{ shot: SHOTS.phone, frame: 'phone', className: 'relative' }} />
         </div>
         <div className="relative z-20 rounded-2xl bg-panel p-6 text-fg shadow-2xl sm:top-14 sm:w-[60%]">
-          <p className="font-mono text-xs uppercase tracking-widest text-faint">Portal brand</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-faint">
+            {t('brand.title')}
+          </p>
           <div className="mt-5 flex items-center gap-3">
             <img src="/FormaCore-icon.png" width={44} height={44} alt="" className="rounded-xl" />
             <div>
-              <p className="font-semibold">logo.png</p>
-              <p className="text-xs text-muted">Club logo</p>
+              <p className="font-semibold">{t('brand.file')}</p>
+              <p className="text-xs text-muted">{t('brand.fileLabel')}</p>
             </div>
           </div>
-          <p className="mt-5 text-sm font-semibold">Primary colour</p>
+          <p className="mt-5 text-sm font-semibold">{t('brand.colour')}</p>
           <div className="mt-3 flex gap-3">
             {['#E0483E', '#1A7FD6', '#12B76A', '#151926'].map((color) => (
               <span
@@ -325,7 +161,7 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
               />
             ))}
           </div>
-          <p className="mt-5 text-sm font-semibold">Cover photos</p>
+          <p className="mt-5 text-sm font-semibold">{t('brand.covers')}</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
             {['member-portal', 'booking-scheduling', 'mobile-app'].map((slug) => (
               <img
@@ -341,19 +177,9 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
         </div>
       </div>
     );
-  const data =
-    kind === 'billing'
-      ? {
-          title: 'Payments & invoices',
-          eyebrow: 'My account',
-          rows: [
-            ['INV-104', 'Oct 4', '150 GEL'],
-            ['INV-103', 'Sep 4', '150 GEL'],
-            ['INV-102', 'Aug 4', '150 GEL'],
-          ] as [string, string, string][],
-          note: 'Renewal reminder - membership renews Nov 4',
-        }
-      : SLICE_DATA[kind];
+  const slices = t.raw('slices') as SliceCopy;
+  const data = slices[kind];
+  const rows = messageList(data.rows).map((row) => messageList(row));
   return (
     <div className="mx-auto w-full max-w-[34rem] overflow-hidden rounded-2xl bg-panel text-fg shadow-[0_30px_60px_-24px_rgba(2,11,46,0.75)]">
       <div className="border-b border-overlay/10 p-5 sm:p-7">
@@ -361,7 +187,7 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
         <p className="mt-3 font-display text-2xl font-bold sm:text-3xl">{data.title}</p>
       </div>
       <div className="px-5 sm:px-7">
-        {data.rows.map(([label, detail, value]) => (
+        {rows.map(([label = '', detail = '', value = '']) => (
           <div
             key={label + detail}
             className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-overlay/10 py-4 text-sm last:border-0"
@@ -482,7 +308,8 @@ function FigureLayer({ layer, secondary = false }: { layer: Layer; secondary?: b
 }
 
 /** The deep-blue plate a figure's layers sit on, with its numbered caption. */
-function FigurePlate({ figure, n }: { figure: Figure; n: string }) {
+function FigurePlate({ figure, caption, n }: { figure: Figure; caption: string; n: string }) {
+  const t = useTranslations('features.editorial');
   return (
     <figure>
       <div className="relative isolate p-5 sm:p-8 sm:min-h-[25rem] overflow-hidden rounded-[1.25rem] bg-[linear-gradient(150deg,#071a45_0%,#0a3a86_55%,#1570BF_100%)] ring-1 ring-inset ring-white/10 sm:rounded-[1.75rem]">
@@ -503,9 +330,9 @@ function FigurePlate({ figure, n }: { figure: Figure; n: string }) {
       </div>
       <figcaption className="mt-4 flex items-baseline gap-3 text-sm leading-snug text-faint">
         <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.2em] text-brand-700 dark:text-brand-300">
-          Fig. {n}
+          {t('fig', { n })}
         </span>
-        <span>{figure.caption}</span>
+        <span>{caption}</span>
       </figcaption>
     </figure>
   );
@@ -515,7 +342,15 @@ function FigurePlate({ figure, n }: { figure: Figure; n: string }) {
 
 const pad = (i: number): string => String(i + 1).padStart(2, '0');
 
+/** The three plans a feature note lists; labels at `editorial.tiers.<id>`. */
+const TIERS = [
+  { id: 'studio', plan: 'Studio' },
+  { id: 'club', plan: 'Club' },
+  { id: 'core', plan: 'Core' },
+] as const;
+
 function PricingLink({ onDark = false, className }: { onDark?: boolean; className?: string }) {
+  const t = useTranslations('features.editorial');
   return (
     <Link
       href="/pricing"
@@ -527,7 +362,7 @@ function PricingLink({ onDark = false, className }: { onDark?: boolean; classNam
         className,
       )}
     >
-      See pricing
+      {t('seePricing')}
       <span className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transition-none">
         <Icon d={I.arrow} c="h-[18px] w-[18px]" />
       </span>
@@ -560,10 +395,12 @@ function PhotoBackdrop({ src, settle }: { src: string; settle: boolean }) {
 /* ── the page ────────────────────────────────────────────────────────── */
 
 export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
+  const t = useTranslations('features');
+  const tCommon = useTranslations('common');
   const openLead = useLeadCta();
   const figures = FIGURES[page.slug] ?? [];
   // Icon, panel gradient and highlights come from the feature's nav entry.
-  const feature = FEATURES.find((f) => f.slug === page.slug);
+  const feature = getFeatures(t).find((f) => f.slug === page.slug);
 
   // Each block's reading progress, drawn as a hairline under its sticky title.
   const blockRefs = useRef<(HTMLElement | null)[]>([]);
@@ -597,7 +434,7 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
   return (
     <div className="relative overflow-x-clip bg-surface font-sans text-fg antialiased selection:bg-brand-500/30">
       <Aurora />
-      <MarketingNav active="Features" />
+      <MarketingNav active="features" />
 
       {/* ── hero: the feature's brand panel over drifting light and waves ── */}
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-12 lg:pt-16 pb-12">
@@ -623,7 +460,7 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
                 onClick={() => openLead('demo')}
                 className="inline-flex h-11 items-center gap-2 rounded-btn bg-white px-5 text-sm font-semibold text-neutral-900 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] transition hover:bg-white/90 active:bg-white/80"
               >
-                Book a free demo
+                {tCommon('cta.bookFreeDemo')}
               </button>
               <PricingLink onDark className="max-sm:-ml-4" />
             </div>
@@ -676,15 +513,15 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
 
         {/* ── the feature index ── */}
         <section
-          aria-label={`Inside ${page.eyebrow}`}
+          aria-label={t('editorial.inside', { name: page.eyebrow })}
           className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10"
         >
           <div className="flex items-end justify-between gap-6 pb-6">
             <h2 className="font-display text-2xl font-black tracking-tight sm:text-3xl">
-              Inside {page.eyebrow}
+              {t('editorial.inside', { name: page.eyebrow })}
             </h2>
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-faint">
-              {page.blocks.length} parts
+              {t('editorial.parts', { count: page.blocks.length })}
             </span>
           </div>
 
@@ -737,7 +574,11 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
 
                   {figure && (
                     <Reveal delay={80} className="mt-10 lg:mt-12">
-                      <FigurePlate figure={figure} n={n} />
+                      <FigurePlate
+                        figure={figure}
+                        caption={t(`editorial.figures.${page.slug}.${i}`)}
+                        n={n}
+                      />
                     </Reveal>
                   )}
 
@@ -770,11 +611,11 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
                 </div>
                 {page.plans && (
                   <ul className="grid content-center gap-3">
-                    {(['Studio', 'Club', 'Core'] as const).map((tier) => {
-                      const included = page.plans?.includes(tier);
+                    {TIERS.map((tier) => {
+                      const included = page.plans?.includes(tier.plan);
                       return (
                         <li
-                          key={tier}
+                          key={tier.id}
                           className={cn(
                             'flex items-center justify-between gap-3 rounded-xl p-5',
                             included
@@ -782,10 +623,12 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
                               : 'bg-white/5 text-white/60 ring-1 ring-inset ring-white/15',
                           )}
                         >
-                          <span className="font-display text-xl font-bold">{tier}</span>
+                          <span className="font-display text-xl font-bold">
+                            {t(`editorial.tiers.${tier.id}`)}
+                          </span>
                           <span className="flex items-center gap-2 text-xs font-semibold">
                             <Icon d={included ? I.check : I.minus} c="h-4 w-4" />
-                            {included ? 'Included' : 'Not included'}
+                            {included ? t('editorial.included') : t('editorial.notIncluded')}
                           </span>
                         </li>
                       );
@@ -820,7 +663,7 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
               </p>
               <div className="mt-9 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
                 <Btn v="onBlue" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
-                  Book a free demo
+                  {tCommon('cta.bookFreeDemo')}
                 </Btn>
                 <PricingLink onDark className="max-sm:-ml-4" />
               </div>

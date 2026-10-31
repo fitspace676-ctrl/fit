@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useTranslations } from 'next-intl';
 
 type Theme = 'light' | 'dark';
 
@@ -105,6 +106,7 @@ function Screen({
 }
 
 export function HeroDevices({ theme }: { theme: Theme }) {
+  const t = useTranslations('landing.hero');
   const active = useActiveTheme();
   const reducedMotion = usePrefersReducedMotion();
   const phone = useIsPhone();
@@ -114,11 +116,7 @@ export function HeroDevices({ theme }: { theme: Theme }) {
   const still = reducedMotion || phone !== false;
 
   return (
-    <div
-      role="img"
-      aria-label="The FormaCore staff console on a laptop and the member app on a phone"
-      className="relative select-none pb-[3%]"
-    >
+    <div role="img" aria-label={t('devicesAlt')} className="relative select-none pb-[3%]">
       {/* laptop: the staff console. It rises in and its lid opens. */}
       <div className="relative ml-[13%] w-[87%] motion-safe:animate-[hero-laptop-in_0.9s_cubic-bezier(0.22,1,0.36,1)_0.1s_both]">
         <div className="relative origin-bottom rounded-[2.4%/3.6%] motion-safe:animate-[hero-lid-open_1.2s_cubic-bezier(0.22,1,0.36,1)_0.25s_both] bg-gradient-to-b from-[#2b2e34] to-[#0f1114] p-[1.4%] shadow-[0_30px_60px_-20px_rgba(2,10,40,0.55)] ring-1 ring-inset ring-white/15">

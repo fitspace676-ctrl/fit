@@ -227,7 +227,7 @@ export default async function ProductsPage({
           <h1 {...stylex.props(styles.title)}>Shop</h1>
           <p {...stylex.props(styles.subtitle)}>
             Your gym’s retail catalog. Search by name or description, filter by status, sort, and
-            watch stock at a glance - open a product to edit its gallery and variants, or add a new
+            watch stock at a glance. Open a product to edit its gallery and variants, or add a new
             one.
           </p>
           {branchName === null ? null : (

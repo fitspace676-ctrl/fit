@@ -1,0 +1,20 @@
+{
+  "terms": {
+    "title": "Terms of Service | FormaCore",
+    "description": "The terms that govern access to and use of the FormaCore platform: the admin panel, Member Portal, mobile applications and related services.",
+    "heading": "FormaCore Terms of Service",
+    "updated": "Effective Date: 01.09.2026 · Last Updated: 14.09.2026"
+  },
+  "privacy": {
+    "title": "Privacy policy | FormaCore",
+    "description": "How FormaCore collects, uses and protects personal data, as Controller for its Customers and as Processor for their Members, under the Law of Georgia on Personal Data Protection.",
+    "heading": "FormaCore Privacy Policy",
+    "updated": "Effective Date: 01.09.2026 · Last Updated: 14.09.2026"
+  },
+  "dpa": {
+    "title": "Data Processing Agreement | FormaCore",
+    "description": "FormaCore's Data Processing Agreement: how FormaCore processes Member personal data on a gym's behalf under the Law of Georgia on Personal Data Protection.",
+    "heading": "FormaCore Data Processing Agreement (DPA)",
+    "updated": "Effective Date: 01.09.2026"
+  }
+}

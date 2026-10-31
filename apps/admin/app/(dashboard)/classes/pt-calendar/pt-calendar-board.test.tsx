@@ -54,7 +54,7 @@ const messages = {
       week: { gridAria: 'Week of PT sessions' },
       grid: { addAt: 'Open a slot at {time}', now: 'Now', stacked: '{count} sessions' },
       card: {
-        viewAria: '{title} at {time} - open session',
+        viewAria: '{title} at {time}, open session',
         spots: '{booked}/{cap} booked',
         remaining: '{remaining} left',
         full: 'Full',
@@ -160,7 +160,7 @@ describe('PtCalendarBoard', () => {
   it('shows a trainer-calendar session as a slot card with its trainer, and no occupancy meter', () => {
     renderBoard();
 
-    const card = screen.getByRole('button', { name: 'PT session at 10:00 - open session' });
+    const card = screen.getByRole('button', { name: 'PT session at 10:00, open session' });
     expect(within(card).getByText('Nini Kavlashvili')).toBeTruthy();
     expect(within(card).getByText('60 min')).toBeTruthy();
     // A one-to-one session has no seats: the footer states its status instead.
@@ -172,7 +172,7 @@ describe('PtCalendarBoard', () => {
     renderBoard();
 
     const card = screen.getByRole('button', {
-      name: 'Personal session at 10:00 - open session',
+      name: 'Personal session at 10:00, open session',
     });
     expect(within(card).getByText('Levan M.')).toBeTruthy();
     expect(within(card).getAllByText('Dato Kapanadze').length).toBeGreaterThan(0);

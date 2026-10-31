@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "title": "Create your gym | FormaCore",
+    "description": "Set up your gym on FormaCore in minutes. No credit card required to start."
+  },
+  "page": {
+    "brand": "Fit",
+    "title": "Create your gym",
+    "intro": "Get your branded gym site up and running in minutes."
+  },
+  "form": {
+    "gymName": "Gym name",
+    "gymNamePlaceholder": "Gym name",
+    "subdomain": "Subdomain",
+    "subdomainPlaceholder": "your-gym",
+    "subdomainHint": "Lowercase letters, numbers, and hyphens. This is your gym's web address.",
+    "ownerName": "Your name",
+    "ownerNamePlaceholder": "Full name",
+    "email": "Your email",
+    "emailPlaceholder": "Email",
+    "password": "Password",
+    "passwordPlaceholder": "At least 8 characters",
+    "passwordHint": "Optional: leave blank to set it later from the verification email.",
+    "submit": "Create your gym",
+    "submitting": "Creating your gym…"
+  },
+  "success": {
+    "title": "Your gym is ready 🎉",
+    "body": "We've sent a verification link to <b>{email}</b>. Confirm your email to finish setting up <b>{gym}</b>.",
+    "console": "Go to your gym console",
+    "verifyFirst": "Once verified, sign in to your gym console at <b>{slug}</b>."
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "signupFailed": "Gym signup failed ({status})"
+  }
+}

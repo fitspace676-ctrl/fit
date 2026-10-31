@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
-import { BUILT_FOR, type AudiencePage } from '@/data/built-for';
-import { FEATURES } from '@/data/features';
+import { getBuiltFor, type AudiencePage } from '@/data/built-for';
+import { getFeatures } from '@/data/features';
 import { cn } from '@/lib/utils';
+import { Link } from '@/src/i18n/navigation';
 import { I, Icon } from './icons';
 import { useLeadCta } from './lead-cta-context';
+import { LocaleSwitcher } from './locale-switcher';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — shared marketing primitives  ·  "Aurora Glass"
@@ -37,7 +39,7 @@ export const Btn = ({
   type = 'button',
   disabled = false,
   ripple = false,
-  rippleColor = '#1A7FD6',
+  rippleColor = '#7FB3C8',
 }: {
   children: ReactNode;
   v?: BtnVariant;
@@ -67,7 +69,7 @@ export const Btn = ({
   };
   const vs: Record<BtnVariant, string> = {
     primary:
-      'bg-[linear-gradient(135deg,#22B8E6,#2557EB)] text-white hover:brightness-110 active:brightness-95 shadow-[0_8px_30px_-6px_rgba(26,127,214,0.7)] focus-visible:ring-brand-500/40',
+      'bg-[radial-gradient(ellipse_at_top_left,rgba(127,179,200,0.9),transparent_60%),linear-gradient(120deg,#2F7896_15%,#1F4A72_100%)] text-white hover:brightness-110 active:brightness-95 shadow-[0_8px_30px_-6px_rgba(31,74,114,0.7)] ring-1 ring-inset ring-white/15 focus-visible:ring-brand-500/40',
     white: 'bg-fg text-surface hover:opacity-90 active:opacity-80 focus-visible:ring-overlay/40',
     // For a deep brand-blue surface (the light-theme homepage hero).
     onBlue:
@@ -78,9 +80,9 @@ export const Btn = ({
       'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-overlay/[0.13] active:bg-overlay/[0.18] focus-visible:ring-overlay/30',
     // Glass at rest, but morphs into the primary gradient on hover.
     glassGradient:
-      'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-[linear-gradient(135deg,#22B8E6,#2557EB)] hover:text-white hover:border-transparent hover:shadow-[0_8px_30px_-6px_rgba(26,127,214,0.7)] active:brightness-95 focus-visible:ring-brand-500/40',
+      'bg-overlay/[0.07] text-fg border border-overlay/15 backdrop-blur hover:bg-[radial-gradient(ellipse_at_top_left,rgba(127,179,200,0.9),transparent_60%),linear-gradient(120deg,#2F7896_15%,#1F4A72_100%)] hover:text-white hover:border-transparent hover:shadow-[0_8px_30px_-6px_rgba(31,74,114,0.7)] active:brightness-95 focus-visible:ring-brand-500/40',
   };
-  const className = `relative inline-flex items-center justify-center font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${ripple ? 'overflow-hidden' : ''} ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
+  const className = `relative inline-flex items-center justify-center whitespace-nowrap font-semibold rounded-btn transition-all outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60 ${ripple ? 'overflow-hidden' : ''} ${full ? 'w-full' : ''} ${sizes[size]} ${vs[v]}`;
   const style: CSSProperties | undefined = size === 'lg' ? { height: '3.25rem' } : undefined;
 
   const [ripples, setRipples] = useState<{ x: number; y: number; size: number; key: number }[]>([]);
@@ -173,6 +175,7 @@ export const Eyebrow = ({ children, icon = I.spark }: { children: ReactNode; ico
  * hydration mismatch.
  */
 export const ThemeToggle = ({ className = '' }: { className?: string }) => {
+  const t = useTranslations('common.nav');
   const [dark, setDark] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -198,7 +201,7 @@ export const ThemeToggle = ({ className = '' }: { className?: string }) => {
     <button
       type="button"
       onClick={toggle}
-      aria-label="Toggle dark mode"
+      aria-label={t('toggleTheme')}
       className={`w-10 h-10 grid place-items-center rounded-btn text-strong hover:text-fg hover:bg-overlay/5 transition ${className}`}
     >
       <Icon d={mounted && !dark ? I.moon : I.sun} c="w-5 h-5" />
@@ -236,15 +239,7 @@ export const CtaMark = () => (
   </div>
 );
 
-/**
- * FormaCore wordmark lockup. The `public/FormaCore-light.webp` (dark wordmark) and
- * `public/FormaCore-dark.webp` (light wordmark) variants are both rendered and toggled
- * by the `.dark` class via CSS, so the right one shows before first paint with
- * no JS / hydration flash. Pass a height utility (`h-8`, `h-10`, …); width is
- * derived from the 1024×500 intrinsic ratio. The WebP files are 600px wide, enough
- * for the tallest use (`h-20`) on a 3x screen and about a fifth of the PNG's bytes;
- * the PNGs stay in `public/` for anything that links to them directly.
- */
+/** Theme-paired full logos, preserving their native 989 × 288 aspect ratio. */
 export const Logo = ({
   className = 'h-10',
   whiteInk = false,
@@ -252,33 +247,36 @@ export const Logo = ({
   className?: string;
   /** Always the light (white-inked) wordmark, for a bar over a dark hero. */
   whiteInk?: boolean;
-}) =>
-  whiteInk ? (
+}) => {
+  const t = useTranslations('common');
+  const alt = t('logoAlt');
+  return whiteInk ? (
     <img
-      src="/FormaCore-dark.webp"
-      alt="FormaCore"
-      width={1024}
-      height={500}
+      src="/logo-dark.webp"
+      alt={alt}
+      width={989}
+      height={288}
       className={`${className} w-auto`}
     />
   ) : (
     <>
       <img
-        src="/FormaCore-light.webp"
-        alt="FormaCore"
-        width={1024}
-        height={500}
+        src="/logo-light.webp"
+        alt={alt}
+        width={989}
+        height={288}
         className={`${className} w-auto dark:hidden`}
       />
       <img
-        src="/FormaCore-dark.webp"
-        alt="FormaCore"
-        width={1024}
-        height={500}
+        src="/logo-dark.webp"
+        alt={alt}
+        width={989}
+        height={288}
         className={`${className} w-auto hidden dark:block`}
       />
     </>
   );
+};
 
 /** The shared "Aurora Glass" backdrop — three blurred colour fields behind every page. */
 export const Aurora = () => (
@@ -290,32 +288,27 @@ export const Aurora = () => (
 );
 
 /**
- * Top-level marketing nav items. "Pricing" routes to its own page; the rest are
- * in-page anchors on the homepage that stay inert on other surfaces, faithful to
- * the design. `active` highlights the item for the current page.
+ * Top-level marketing nav items, by id. "Pricing" routes to its own page; the
+ * rest are in-page anchors on the homepage that stay inert on other surfaces,
+ * faithful to the design. `active` highlights the item for the current page.
+ * The labels come from `common.nav.items.<id>` in the catalogue.
  *
  * The link stays in place whether or not prices are published — `/pricing` shows
  * the plans either way, with the figures replaced by a quote request while
  * `SHOW_PUBLIC_PRICING` is off.
  */
-const NAV_ITEMS = ['Core', 'Features', 'Built For', 'Pricing', 'Resources'] as const;
-type NavItem = (typeof NAV_ITEMS)[number];
+const NAV_ITEMS = ['core', 'features', 'builtFor', 'pricing', 'resources'] as const;
+export type NavItem = (typeof NAV_ITEMS)[number];
 
-/**
- * Nav items that open a dropdown: features and audiences. `base` is where each
- * entry links to; without it the entries are a plain list (the feature pages
- * are not written yet, so Features lists the modules without linking).
- */
-const DROPDOWNS: Partial<Record<NavItem, { base?: string; items: AudiencePage[] }>> = {
-  Features: { base: '/features', items: FEATURES },
-  'Built For': { base: '/built-for', items: BUILT_FOR },
-};
+/** A nav item that opens a dropdown of pages; `base` is where each entry links to. */
+type Dropdown = { base: string; items: AudiencePage[]; seeAll: string };
 
 // Mobile bottom dock: one row, fixed to the bottom of the viewport below `lg`
 // (where the top nav takes over). The header scrolls away, so the dock carries
 // the way back to the menu plus the two calls to action. A single row keeps it
 // to about 70px, so it does not sit over a fifth of a phone screen.
 export const MobileDock = ({ onMenu }: { onMenu: () => void }) => {
+  const t = useTranslations('common');
   const openLead = useLeadCta();
   // Hidden at the top of the page; slides up once the header has scrolled away.
   const [shown, setShown] = useState(false);
@@ -338,20 +331,20 @@ export const MobileDock = ({ onMenu }: { onMenu: () => void }) => {
         <button
           type="button"
           onClick={onMenu}
-          aria-label="Open menu"
+          aria-label={t('nav.openMenu')}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-fg transition hover:bg-overlay/[0.07]"
         >
           <Icon d={I.menu} c="w-5 h-5" />
         </button>
         <div className="min-w-0 flex-1">
           <Btn v="primary" size="md" full icon={I.arrow} onClick={() => openLead('demo')}>
-            Book a demo
+            {t('cta.bookDemo')}
           </Btn>
         </div>
         <button
           type="button"
           onClick={() => openLead('call')}
-          aria-label="Request a call"
+          aria-label={t('cta.requestCall')}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-overlay/15 bg-overlay/[0.07] text-fg transition hover:bg-overlay/[0.13]"
         >
           <Icon d={I.handset} c="w-5 h-5" />
@@ -372,15 +365,13 @@ export const MobileDock = ({ onMenu }: { onMenu: () => void }) => {
  */
 const DropdownNavItem = ({
   label,
-  base,
-  items,
+  dropdown,
   className,
   open,
   onOpenChange,
 }: {
   label: string;
-  base?: string;
-  items: AudiencePage[];
+  dropdown: Dropdown;
   className: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -419,40 +410,26 @@ const DropdownNavItem = ({
     >
       <div className="nav-panel text-fg w-[500px] rounded-2xl border border-overlay/10 bg-surface/95 p-2 shadow-[0_24px_70px_-24px_rgba(8,9,16,0.5)] backdrop-blur-xl backdrop-saturate-150">
         <div className="grid grid-cols-2 gap-0.5">
-          {items.map((a) => {
-            const inner = (
-              <>
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-gradient-to-br from-brand-400/20 to-iris-600/15 ring-1 ring-inset ring-brand-500/15">
-                  <Icon d={a.icon} c="h-4 w-4 text-brand-600 dark:text-brand-300" />
-                </span>
-                <span className="font-medium">{a.navLabel}</span>
-              </>
-            );
-            const cls = 'flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-strong';
-            return base ? (
-              <Link
-                key={a.slug}
-                href={`${base}/${a.slug}`}
-                className={`${cls} transition hover:bg-overlay/[0.06] hover:text-fg`}
-              >
-                {inner}
-              </Link>
-            ) : (
-              <div key={a.slug} className={cls}>
-                {inner}
-              </div>
-            );
-          })}
+          {dropdown.items.map((a) => (
+            <Link
+              key={a.slug}
+              href={`${dropdown.base}/${a.slug}`}
+              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-strong transition hover:bg-overlay/[0.06] hover:text-fg"
+            >
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-btn bg-gradient-to-br from-brand-400/20 to-iris-600/15 ring-1 ring-inset ring-brand-500/15">
+                <Icon d={a.icon} c="h-4 w-4 text-brand-600 dark:text-brand-300" />
+              </span>
+              <span className="font-medium">{a.navLabel}</span>
+            </Link>
+          ))}
         </div>
-        {base && (
-          <Link
-            href={base}
-            className="mt-1 flex items-center justify-between rounded-xl border-t border-overlay/10 px-3 pb-1.5 pt-3 text-sm font-semibold text-brand-700 transition hover:text-brand-600 dark:text-brand-300 dark:hover:text-brand-200"
-          >
-            See all {label.toLowerCase() === 'built for' ? 'business types' : label.toLowerCase()}
-            <Icon d={I.arrow} c="h-4 w-4" />
-          </Link>
-        )}
+        <Link
+          href={dropdown.base}
+          className="mt-1 flex items-center justify-between rounded-xl border-t border-overlay/10 px-3 pb-1.5 pt-3 text-sm font-semibold text-brand-700 transition hover:text-brand-600 dark:text-brand-300 dark:hover:text-brand-200"
+        >
+          {dropdown.seeAll}
+          <Icon d={I.arrow} c="h-4 w-4" />
+        </Link>
       </div>
     </div>
   </div>
@@ -473,13 +450,15 @@ export const MarketingNav = ({
    */
   forceDark?: boolean;
 }) => {
+  const t = useTranslations('common');
+  const tBuiltFor = useTranslations('builtFor');
+  const tFeatures = useTranslations('features');
   const [menu, setMenu] = useState(false);
   const openLead = useLeadCta();
   // Mobile drawer: which dropdown's sub-list is expanded, if any.
   const [openGroup, setOpenGroup] = useState<NavItem | null>(null);
   // Desktop: which dropdown is open. One state, so opening one closes the other.
   const [openDropdown, setOpenDropdown] = useState<NavItem | null>(null);
-
   // Close the open dropdown on a click anywhere outside the nav.
   useEffect(() => {
     if (!openDropdown) return;
@@ -500,22 +479,41 @@ export const MarketingNav = ({
     };
   }, [menu]);
 
+  /**
+   * Nav items that open a dropdown: features and audiences, each entry linking
+   * to its own page under `base`.
+   */
+  const dropdowns: Partial<Record<NavItem, Dropdown>> = {
+    features: {
+      base: '/features',
+      items: getFeatures(tFeatures),
+      seeAll: t('nav.seeAllFeatures'),
+    },
+    builtFor: {
+      base: '/built-for',
+      items: getBuiltFor(tBuiltFor),
+      seeAll: t('nav.seeAllBusinessTypes'),
+    },
+  };
+
+  const label = (n: NavItem): string => t(`nav.items.${n}`);
+
   const desktopClass = (n: NavItem): string =>
-    `px-3.5 h-9 inline-flex items-center rounded-btn text-sm font-semibold transition ${n === active ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`;
+    `px-3 h-9 inline-flex items-center whitespace-nowrap rounded-btn text-sm font-semibold transition ${n === active ? 'text-fg bg-overlay/[0.07]' : 'text-muted hover:text-fg hover:bg-overlay/5'}`;
 
   // Where each nav item routes. "Core" → homepage, "Pricing" → /pricing; the
   // rest are inert in-page anchors (faithful to the design).
-  const navHref = (n: NavItem): string => (n === 'Core' ? '/' : n === 'Pricing' ? '/pricing' : '#');
+  const navHref = (n: NavItem): string => (n === 'core' ? '/' : n === 'pricing' ? '/pricing' : '#');
 
   const renderItem = (n: NavItem, className: string): ReactNode => {
     const href = navHref(n);
     return href.startsWith('/') ? (
       <Link key={n} href={href} className={className}>
-        {n}
+        {label(n)}
       </Link>
     ) : (
       <a key={n} href="#" onClick={(e) => e.preventDefault()} className={className}>
-        {n}
+        {label(n)}
       </a>
     );
   };
@@ -529,7 +527,7 @@ export const MarketingNav = ({
     const href = navHref(n);
     return href.startsWith('/') ? (
       <Link key={n} href={href} className={drawerLinkCls(n)} onClick={() => setMenu(false)}>
-        {n}
+        {label(n)}
       </Link>
     ) : (
       <a
@@ -541,7 +539,7 @@ export const MarketingNav = ({
         }}
         className={drawerLinkCls(n)}
       >
-        {n}
+        {label(n)}
       </a>
     );
   };
@@ -560,18 +558,17 @@ export const MarketingNav = ({
       >
         <div className="max-w-[1180px] mx-auto px-6 lg:px-10">
           <div className="flex items-center gap-3 h-24">
-            <Link href="/" className="flex items-center shrink-0" aria-label="FormaCore home">
-              <Logo className="h-20" whiteInk={forceDark} />
+            <Link href="/" className="flex items-center shrink-0" aria-label={t('nav.home')}>
+              <Logo className="h-12" whiteInk={forceDark} />
             </Link>
-            <nav data-nav-dropdowns className="hidden lg:flex items-center gap-1 ml-6">
+            <nav data-nav-dropdowns className="hidden lg:flex items-center gap-0.5 ml-4">
               {NAV_ITEMS.map((n) => {
-                const group = DROPDOWNS[n];
+                const group = dropdowns[n];
                 return group ? (
                   <DropdownNavItem
                     key={n}
-                    label={n}
-                    base={group.base}
-                    items={group.items}
+                    label={label(n)}
+                    dropdown={group}
                     className={desktopClass(n)}
                     open={openDropdown === n}
                     onOpenChange={(next) =>
@@ -585,13 +582,14 @@ export const MarketingNav = ({
             </nav>
             <div className="ml-auto hidden sm:flex items-center gap-2">
               <AnimatedThemeToggler />
+              <LocaleSwitcher />
               <Btn v="primary" size="md" icon={I.arrow} onClick={() => openLead('demo')}>
-                Book a demo
+                {t('cta.bookDemo')}
               </Btn>
               <button
                 type="button"
                 onClick={() => setMenu((value) => !value)}
-                aria-label={menu ? 'Close menu' : 'Open menu'}
+                aria-label={menu ? t('nav.closeMenu') : t('nav.openMenu')}
                 className="lg:hidden w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
               >
                 <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
@@ -602,7 +600,7 @@ export const MarketingNav = ({
               <button
                 type="button"
                 onClick={() => setMenu((value) => !value)}
-                aria-label={menu ? 'Close menu' : 'Open menu'}
+                aria-label={menu ? t('nav.closeMenu') : t('nav.openMenu')}
                 className="w-10 h-10 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
               >
                 <Icon d={menu ? I.x : I.menu} c="w-6 h-6" />
@@ -634,21 +632,24 @@ export const MarketingNav = ({
           </div>
           <div className="flex items-center justify-between px-6 pt-3">
             <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-faint">
-              Menu
+              {t('nav.menu')}
             </span>
-            <button
-              type="button"
-              onClick={() => setMenu(false)}
-              aria-label="Close menu"
-              className="w-9 h-9 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
-            >
-              <Icon d={I.x} c="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <LocaleSwitcher />
+              <button
+                type="button"
+                onClick={() => setMenu(false)}
+                aria-label={t('nav.closeMenu')}
+                className="w-9 h-9 grid place-items-center rounded-btn text-fg hover:bg-overlay/5"
+              >
+                <Icon d={I.x} c="w-5 h-5" />
+              </button>
+            </div>
           </div>
           <nav className="px-6 pt-4">
             <ul className="space-y-4">
               {NAV_ITEMS.map((n) => {
-                const group = DROPDOWNS[n];
+                const group = dropdowns[n];
                 if (!group) return <li key={n}>{renderDrawerItem(n)}</li>;
                 const open = openGroup === n;
                 return (
@@ -659,7 +660,7 @@ export const MarketingNav = ({
                       aria-expanded={open}
                       className="flex w-full items-center justify-between py-1 text-2xl font-semibold uppercase tracking-tight text-strong transition-colors hover:text-fg"
                     >
-                      {n}
+                      {label(n)}
                       <Icon
                         d={I.chevron}
                         c={`h-5 w-5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
@@ -672,32 +673,24 @@ export const MarketingNav = ({
                     >
                       {group.items.map((a) => (
                         <li key={a.slug}>
-                          {group.base ? (
-                            <Link
-                              href={`${group.base}/${a.slug}`}
-                              onClick={() => setMenu(false)}
-                              className="block py-1.5 text-base font-medium text-strong transition-colors hover:text-fg"
-                            >
-                              {a.navLabel}
-                            </Link>
-                          ) : (
-                            <span className="block py-1.5 text-base font-medium text-strong">
-                              {a.navLabel}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                      {group.base && (
-                        <li>
                           <Link
-                            href={group.base}
+                            href={`${group.base}/${a.slug}`}
                             onClick={() => setMenu(false)}
-                            className="block py-1.5 text-base font-semibold text-brand-700 transition-colors hover:text-brand-600 dark:text-brand-300"
+                            className="block py-1.5 text-base font-medium text-strong transition-colors hover:text-fg"
                           >
-                            See all
+                            {a.navLabel}
                           </Link>
                         </li>
-                      )}
+                      ))}
+                      <li>
+                        <Link
+                          href={group.base}
+                          onClick={() => setMenu(false)}
+                          className="block py-1.5 text-base font-semibold text-brand-700 transition-colors hover:text-brand-600 dark:text-brand-300"
+                        >
+                          {t('nav.seeAll')}
+                        </Link>
+                      </li>
                     </ul>
                   </li>
                 );
@@ -716,7 +709,7 @@ export const MarketingNav = ({
                   openLead('demo');
                 }}
               >
-                Book a demo
+                {t('cta.bookDemo')}
               </Btn>
               <Btn
                 v="glass"
@@ -728,7 +721,7 @@ export const MarketingNav = ({
                   openLead('call');
                 }}
               >
-                Request a call
+                {t('cta.requestCall')}
               </Btn>
             </div>
           </div>
@@ -740,30 +733,33 @@ export const MarketingNav = ({
   );
 };
 
-export const MarketingFooter = () => (
-  <footer className="relative z-10 border-t border-overlay/10">
-    <div className="max-w-[1180px] mx-auto px-6 lg:px-10 pt-10 pb-44 lg:pb-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-      <Link href="/" className="flex items-center" aria-label="FormaCore home">
-        <Logo className="h-16" />
-      </Link>
-      <span className="font-mono text-xs text-subtle">
-        © {new Date().getFullYear()} <span className="font-semibold text-fg">Forma</span>
-        <span className="bg-gradient-to-r from-accent-500 via-brand-500 to-iris-600 bg-clip-text font-semibold text-transparent">
-          Core
-        </span>{' '}
-        · Tbilisi, Georgia
-      </span>
-      <div className="flex items-center gap-5 text-xs text-subtle">
-        <Link href="/terms" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
-          Terms &amp; Conditions
+export const MarketingFooter = () => {
+  const t = useTranslations('common');
+  return (
+    <footer className="relative z-10 border-t border-overlay/10">
+      <div className="max-w-[1180px] mx-auto px-6 lg:px-10 pt-10 pb-44 lg:pb-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <Link href="/" className="flex items-center" aria-label={t('nav.home')}>
+          <Logo className="h-10" />
         </Link>
-        <Link href="/privacy" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
-          Privacy Policy
-        </Link>
-        <Link href="/dpa" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
-          DPA
-        </Link>
+        <span className="font-mono text-xs text-subtle">
+          © {new Date().getFullYear()} <span className="font-semibold text-fg">Forma</span>
+          <span className="bg-gradient-to-r from-accent-500 via-brand-500 to-iris-600 bg-clip-text font-semibold text-transparent">
+            Core
+          </span>{' '}
+          · {t('footer.location')}
+        </span>
+        <div className="flex items-center gap-5 text-xs text-subtle">
+          <Link href="/terms" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
+            {t('footer.terms')}
+          </Link>
+          <Link href="/privacy" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
+            {t('footer.privacy')}
+          </Link>
+          <Link href="/dpa" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
+            {t('footer.dpa')}
+          </Link>
+        </div>
       </div>
-    </div>
-  </footer>
-);
+    </footer>
+  );
+};

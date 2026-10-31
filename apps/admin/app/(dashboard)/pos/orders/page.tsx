@@ -307,7 +307,7 @@ export default async function OrdersLogPage({
         <div {...stylex.props(styles.headTitles)}>
           <h1 {...stylex.props(styles.title)}>Sales log</h1>
           <p {...stylex.props(styles.subtitle)}>
-            Every sale the till and the shop have recorded - what was in it, how it settled, and
+            Every sale the till and the shop have recorded: what was in it, how it settled, and
             anything refunded since. Open a sale for its full line-by-line history.
           </p>
         </div>

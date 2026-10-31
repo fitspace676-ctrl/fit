@@ -82,8 +82,8 @@ export function InvoicesTable({
           No invoices yet
         </p>
         <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">
-          Invoices raised for subscriptions and shop orders land here automatically - or create one
-          by hand.
+          Invoices raised for subscriptions and shop orders land here automatically. You can also
+          create one by hand.
         </p>
       </Card>
     );

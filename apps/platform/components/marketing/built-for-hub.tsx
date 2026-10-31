@@ -1,12 +1,22 @@
 'use client';
 
-import Link from 'next/link';
-import { BUILT_FOR, type AudiencePage } from '@/data/built-for';
+import { useTranslations } from 'next-intl';
+import { getBuiltFor, type AudiencePage } from '@/data/built-for';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { cn } from '@/lib/utils';
+import { Link } from '@/src/i18n/navigation';
 import { AudienceBadge } from './audience-badge';
 import { useLeadCta } from './lead-cta-context';
-import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
+import {
+  Aurora,
+  Btn,
+  CtaMark,
+  I,
+  Icon,
+  MarketingFooter,
+  MarketingNav,
+  type NavItem,
+} from './marketing-ui';
 
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — "Built For" hub (/built-for)
@@ -14,26 +24,30 @@ import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './
    audience's own brand gradient. A card shows the audience's badge, its
    headline and its lead stat, and opens the detailed /built-for/<slug> page.
    The homepage stacks the first few and links here with "See all".
+   The /features hub reuses it with the modules and its own copy passed in.
    ──────────────────────────────────────────────────────────────────────── */
 
 export function BuiltForHub({
-  items = BUILT_FOR,
+  items,
   base = '/built-for',
-  section = 'Built For',
-  title = 'Built for how you actually run.',
-  intro = 'Pick your kind of business and see how FormaCore keeps your members coming back, from the front desk to the member app.',
-  ctaTitle = "Don't see your business here?",
-  ctaBody = "FormaCore runs gyms, studios, clubs and schools of every shape. Tell us how yours works and we'll show you how it fits.",
+  section = 'builtFor',
+  title,
+  intro,
+  ctaTitle,
+  ctaBody,
 }: {
   items?: AudiencePage[];
   base?: string;
-  section?: 'Built For' | 'Features';
+  section?: Extract<NavItem, 'builtFor' | 'features'>;
   title?: string;
   intro?: string;
   ctaTitle?: string;
   ctaBody?: string;
 } = {}) {
+  const t = useTranslations('builtFor');
+  const tCommon = useTranslations('common');
   const openLead = useLeadCta();
+  const cards = items ?? getBuiltFor(t);
 
   return (
     <div className="font-sans bg-surface text-fg antialiased relative overflow-x-clip selection:bg-brand-500/30">
@@ -42,14 +56,16 @@ export function BuiltForHub({
 
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-12 lg:pt-16 pb-10">
         <h1 className="max-w-3xl font-display text-4xl font-black leading-[0.98] tracking-tight sm:text-5xl lg:text-[3.5rem]">
-          {title}
+          {title ?? t('hub.title')}
         </h1>
-        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted">{intro}</p>
+        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted">
+          {intro ?? t('hub.intro')}
+        </p>
       </section>
 
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pb-16">
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((a, i) => {
+          {cards.map((a, i) => {
             const stat = a.stats.find((s) => s.value.includes('%')) ?? a.stats[0];
             return (
               <li key={a.slug}>
@@ -81,7 +97,7 @@ export function BuiltForHub({
                       </p>
                     ) : null}
                     <span className="relative mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-white/90 transition group-hover:text-white">
-                      Explore {a.name}
+                      {t('hub.explore', { name: a.name })}
                       <Icon
                         d={I.arrow}
                         c="h-4 w-4 transition-transform group-hover:translate-x-0.5"
@@ -99,17 +115,17 @@ export function BuiltForHub({
         <div className="relative overflow-hidden rounded-[2rem] border border-overlay/10 bg-panel/70 p-8 text-center backdrop-blur-xl sm:p-12 dark:bg-overlay/[0.03]">
           <CtaMark />
           <h2 className="relative mx-auto max-w-2xl font-display text-3xl font-black tracking-tight lg:text-[2.5rem] leading-[1.02]">
-            {ctaTitle}
+            {ctaTitle ?? t('hub.ctaTitle')}
           </h2>
           <p className="relative mx-auto mt-4 max-w-xl text-lg text-muted leading-relaxed">
-            {ctaBody}
+            {ctaBody ?? t('hub.ctaBody')}
           </p>
           <div className="relative mt-8 flex flex-wrap items-center justify-center gap-3">
             <Btn v="primary" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
-              Book a demo
+              {tCommon('cta.bookDemo')}
             </Btn>
             <Btn v="glass" size="lg" icon={I.handset} onClick={() => openLead('call')}>
-              Request a call
+              {tCommon('cta.requestCall')}
             </Btn>
           </div>
         </div>

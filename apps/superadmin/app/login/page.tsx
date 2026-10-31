@@ -5,7 +5,7 @@ import { Card } from '@fit/ui-kit';
 import { OperatorLoginForm } from './login-form';
 
 export const metadata: Metadata = {
-  title: 'Operator sign in — FormaCore',
+  title: 'Operator sign in | FormaCore',
   description: 'Sign in to the FormaCore platform operator console.',
 };
 

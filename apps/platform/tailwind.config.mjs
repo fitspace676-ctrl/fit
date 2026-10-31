@@ -193,8 +193,10 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['var(--font-manrope)', 'Manrope', 'system-ui', 'sans-serif'],
-        display: ['var(--font-archivo)', 'Archivo', 'var(--font-manrope)', 'sans-serif'],
+        // The sans/display stacks are CSS variables (globals.css) so the
+        // Georgian site can put Noto Sans Georgian in front of them per locale.
+        sans: ['var(--font-sans-stack)'],
+        display: ['var(--font-display-stack)'],
         mono: ['var(--font-jetbrains-mono)', 'JetBrains Mono', 'monospace'],
       },
       borderRadius: {

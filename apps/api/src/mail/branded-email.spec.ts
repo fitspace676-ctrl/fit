@@ -148,14 +148,16 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).toContain(
       '<img src="https://app.fit/email-marks/u10d8.png" width="40" height="40" alt="ი"',
     );
-    // The footer signs with the FormaCore "F" from the same set.
-    expect(html).toContain('src="https://app.fit/email-marks/u0046.png" width="14"');
+    // The footer uses the brand artwork, not a gym's plain initial glyph.
+    expect(html).toContain('src="https://app.fit/icon.png?v=2" width="14"');
   });
 
   it('puts the FormaCore dark-ground wordmark in the band when the platform is the sender', () => {
     mockEnv.WEB_URL = 'https://app.fit';
     const html = renderBrandedEmail({ senderName: 'FormaCore', heading: 'Hi', contentHtml: 'x' });
-    expect(html).toContain('<img src="https://app.fit/logodark.png" width="150" alt="FormaCore"');
+    expect(html).toContain(
+      '<img src="https://app.fit/logodark.png?v=2" width="150" alt="FormaCore"',
+    );
     expect(html).not.toContain('/email-marks/u0046.png" width="40"');
     expect(html).not.toContain('logolight.png');
     // Pinned dark for the Gmail app, which never inverts a background gradient.
@@ -172,6 +174,17 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).not.toContain('background-image:linear-gradient');
   });
 
+  it('keeps an F-named gym initial distinct from the FormaCore footer artwork', () => {
+    mockEnv.WEB_URL = 'https://app.fit';
+    const html = renderBrandedEmail({
+      senderName: 'Fitness Club',
+      heading: 'Hi',
+      contentHtml: 'x',
+    });
+    expect(html).toContain('/email-marks/u0046.png" width="40"');
+    expect(html).toContain('/icon.png?v=2" width="14"');
+  });
+
   it('falls back to the mark and name for the platform without a web URL', () => {
     const html = renderBrandedEmail({ senderName: 'FormaCore', heading: 'Hi', contentHtml: 'x' });
     expect(html).not.toContain('logodark.png');
@@ -181,7 +194,7 @@ describe('renderBrandedEmail as a document', () => {
   it('falls back to the FormaCore F image for an initial outside the glyph set', () => {
     mockEnv.WEB_URL = 'https://app.fit';
     const html = renderBrandedEmail({ senderName: 'Ünique', heading: 'Hi', contentHtml: 'x' });
-    expect(html).toContain('/email-marks/u0046.png" width="40"');
+    expect(html).toContain('/icon.png?v=2" width="40"');
   });
 });
 

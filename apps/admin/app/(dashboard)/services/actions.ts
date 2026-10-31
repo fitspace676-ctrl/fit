@@ -42,7 +42,7 @@ function toMessage(error: unknown): string {
   if (error instanceof ApiError) {
     switch (error.message) {
       case 'SERVICE_NOT_FOUND':
-        return 'That service no longer exists - refresh the page.';
+        return 'That service no longer exists. Refresh the page.';
       case 'SERVICE_STAFF_INVALID':
         return 'Pick a staff member of this gym.';
       case 'SERVICE_STAFF_NOT_TRAINER':
@@ -54,7 +54,7 @@ function toMessage(error: unknown): string {
       case 'SERVICE_CATEGORY_IN_USE':
         return 'Move its services to another category before deleting it.';
       case 'SERVICE_CATEGORY_NOT_FOUND':
-        return 'That category no longer exists - refresh the page.';
+        return 'That category no longer exists. Refresh the page.';
       case 'SERVICE_NOT_ARCHIVED':
         return 'Archive the service before deleting it.';
       case 'SERVICE_HAS_SESSIONS':

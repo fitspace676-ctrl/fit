@@ -163,18 +163,17 @@ const en: EmailStrings = {
     body: 'We received a request to reset the password for your FormaCore account. Pick a new one with the button below.',
     button: 'Reset my password',
     expires: 'This link expires in 1 hour.',
-    ignore:
-      "If you didn't request a reset, you can ignore this email - your password won't change.",
+    ignore: "If you didn't request a reset, you can ignore this email. Your password won't change.",
     footer:
       "You're receiving this because a password reset was requested for your FormaCore account.",
   },
   onboarding: {
-    subject: (gym) => `Welcome to FormaCore - finish setting up ${gym}`,
+    subject: (gym) => `Welcome to FormaCore! Finish setting up ${gym}`,
     eyebrow: 'Welcome aboard',
     heading: (gym) => `${gym} is ready`,
     preheader: (gym) => `${gym} is set up on FormaCore. Choose a password to sign in.`,
     body: (gymHtml) =>
-      `${gymHtml} is ready on FormaCore. Choose a password below - that confirms your email and gives you the console.`,
+      `${gymHtml} is ready on FormaCore. Choose a password below to confirm your email and access the console.`,
     button: 'Set my password',
     expires: 'This link expires in 24 hours.',
     ignore: "If you didn't create this gym, you can safely ignore this email.",
@@ -230,7 +229,7 @@ const en: EmailStrings = {
     footer: (gym) => `Sent by ${gym} on FormaCore. The invoice is attached as a PDF.`,
   },
   digest: {
-    subject: (cadence, gym) => `${cadence} report digest - ${gym}`,
+    subject: (cadence, gym) => `${cadence} report digest: ${gym}`,
     eyebrow: (cadence) => `${cadence} digest`,
     heading: (cadence) => `${cadence} report digest`,
     cadence: { weekly: 'Weekly', monthly: 'Monthly' },
@@ -243,7 +242,7 @@ const en: EmailStrings = {
   },
   lowStock: {
     subject: (count, gym) =>
-      `Low stock: ${count} ${count === 1 ? 'item' : 'items'} to reorder - ${gym}`,
+      `Low stock: ${count} ${count === 1 ? 'item' : 'items'} to reorder at ${gym}`,
     eyebrow: 'Inventory',
     heading: 'Low stock alert',
     preheader: (count, gym) => `${count} ${count === 1 ? 'item' : 'items'} to reorder at ${gym}.`,
@@ -256,12 +255,12 @@ const en: EmailStrings = {
     textTitle: (gym) => `Low stock alert for ${gym}`,
     textIntro: (count, threshold) =>
       `${count} ${count === 1 ? 'item' : 'items'} at or below your reorder threshold of ${threshold}.`,
-    textRow: (product, variant, stock) => `${product} - ${variant}: ${stock} on hand`,
+    textRow: (product, variant, stock) => `${product} (${variant}): ${stock} on hand`,
   },
   daily: {
-    subject: (date, gym) => `Daily summary ${date} - ${gym}`,
+    subject: (date, gym) => `Daily summary ${date}: ${gym}`,
     eyebrow: 'End of day',
-    heading: (date) => `Daily summary - ${date}`,
+    heading: (date) => `Daily summary: ${date}`,
     preheader: (revenue, orders, checkIns) =>
       `${revenue} revenue, ${orders} paid orders, ${checkIns} check-ins.`,
     intro: (gymHtml, date) => `How ${gymHtml} did on ${date}.`,
@@ -271,7 +270,7 @@ const en: EmailStrings = {
     newMembers: 'New members',
     lowStock: 'Low-stock products',
     button: 'Open dashboard',
-    textTitle: (gym, date) => `Daily summary for ${gym} - ${date}`,
+    textTitle: (gym, date) => `Daily summary for ${gym}, ${date}`,
   },
 };
 
@@ -303,16 +302,16 @@ const ka: EmailStrings = {
     button: 'პაროლის შეცვლა',
     expires: 'ბმული 1 საათში იწურება.',
     ignore:
-      'თუ პაროლის აღდგენა თქვენ არ მოგითხოვიათ, ეს წერილი დააიგნორეთ - თქვენი პაროლი არ შეიცვლება.',
+      'თუ პაროლის აღდგენა თქვენ არ მოგითხოვიათ, ეს წერილი დააიგნორეთ. თქვენი პაროლი არ შეიცვლება.',
     footer: 'ამ წერილს იღებთ, რადგან თქვენი FormaCore ანგარიშისთვის პაროლის აღდგენა მოითხოვეს.',
   },
   onboarding: {
-    subject: (gym) => `კეთილი იყოს თქვენი მობრძანება FormaCore-ზე - დაასრულეთ ${gym}-ის მომზადება`,
+    subject: (gym) => `კეთილი იყოს თქვენი მობრძანება FormaCore-ზე! დაასრულეთ ${gym}-ის მომზადება`,
     eyebrow: 'კეთილი იყოს თქვენი მობრძანება',
     heading: (gym) => `${gym} მზადაა`,
     preheader: (gym) => `${gym} FormaCore-ზე შეიქმნა. შესასვლელად აირჩიეთ პაროლი.`,
     body: (gymHtml) =>
-      `${gymHtml} FormaCore-ზე მზადაა. ქვემოთ აირჩიეთ პაროლი - ეს ადასტურებს ელფოსტას და კონსოლს გიხსნით.`,
+      `${gymHtml} FormaCore-ზე მზადაა. ქვემოთ აირჩიეთ პაროლი, რომ ელფოსტა დაადასტუროთ და კონსოლზე წვდომა მიიღოთ.`,
     button: 'პაროლის დაყენება',
     expires: 'ბმული 24 საათში იწურება.',
     ignore: 'თუ ეს დარბაზი თქვენ არ შეგიქმნიათ, ეს წერილი უბრალოდ დააიგნორეთ.',
@@ -337,7 +336,7 @@ const ka: EmailStrings = {
     },
   },
   receipt: {
-    subject: (gym) => `თქვენი ჩეკი - ${gym}`,
+    subject: (gym) => `თქვენი ჩეკი: ${gym}`,
     eyebrow: 'ჩეკი',
     heading: 'თქვენი ჩეკი',
     preheader: (total, gym) => `თქვენი შენაძენი ${gym}-ში: ${total}.`,
@@ -358,7 +357,7 @@ const ka: EmailStrings = {
     footer: 'ეს ჩეკი თქვენი ჩანაწერებისთვისაა. გადასახდელი არაფერია.',
   },
   invoice: {
-    subject: (number, gym) => `ინვოისი ${number} - ${gym}`,
+    subject: (number, gym) => `ინვოისი ${number}: ${gym}`,
     eyebrow: 'ინვოისი',
     heading: (number) => `ინვოისი ${number}`,
     preheader: (number, gym) => `თქვენი ინვოისი ${number} ${gym}-იდან PDF ფაილად არის მიმაგრებული.`,
@@ -368,7 +367,7 @@ const ka: EmailStrings = {
       `გამოგზავნილია ${gym}-ის მიერ FormaCore-ზე. ინვოისი PDF ფაილად არის მიმაგრებული.`,
   },
   digest: {
-    subject: (cadence, gym) => `${cadence} ანგარიშების შეჯამება - ${gym}`,
+    subject: (cadence, gym) => `${cadence} ანგარიშების შეჯამება: ${gym}`,
     eyebrow: (cadence) => `${cadence} შეჯამება`,
     heading: (cadence) => `${cadence} ანგარიშების შეჯამება`,
     cadence: { weekly: 'ყოველკვირეული', monthly: 'ყოველთვიური' },
@@ -377,10 +376,10 @@ const ka: EmailStrings = {
     intro: (gymHtml, window) => `აი, როგორ იმუშავა ${gymHtml}-მა ${window}.`,
     empty: 'ამ პერიოდში აქტივობა არ ყოფილა.',
     button: 'სრული ანგარიშების ნახვა',
-    textTitle: (cadence, gym) => `${cadence} ანგარიშების შეჯამება - ${gym}`,
+    textTitle: (cadence, gym) => `${cadence} ანგარიშების შეჯამება: ${gym}`,
   },
   lowStock: {
-    subject: (count, gym) => `მარაგი იწურება: ${count} პოზიცია შესავსებია - ${gym}`,
+    subject: (count, gym) => `მარაგი იწურება: ${count} პოზიცია შესავსებია (${gym})`,
     eyebrow: 'მარაგები',
     heading: 'მარაგი იწურება',
     preheader: (count, gym) => `${gym}-ში ${count} პოზიცია შესავსებია.`,
@@ -390,15 +389,15 @@ const ka: EmailStrings = {
     variant: 'ვარიანტი',
     onHand: 'მარაგში',
     button: 'პროდუქტების მართვა',
-    textTitle: (gym) => `მარაგი იწურება - ${gym}`,
+    textTitle: (gym) => `მარაგი იწურება: ${gym}`,
     textIntro: (count, threshold) =>
       `${count} პოზიცია შესავსები ზღვარზეა ან მის ქვემოთ (ზღვარი: ${threshold}).`,
-    textRow: (product, variant, stock) => `${product} - ${variant}: მარაგში ${stock}`,
+    textRow: (product, variant, stock) => `${product} (${variant}): მარაგში ${stock}`,
   },
   daily: {
-    subject: (date, gym) => `დღის შეჯამება ${date} - ${gym}`,
+    subject: (date, gym) => `დღის შეჯამება ${date}: ${gym}`,
     eyebrow: 'დღის დასასრული',
-    heading: (date) => `დღის შეჯამება - ${date}`,
+    heading: (date) => `დღის შეჯამება: ${date}`,
     preheader: (revenue, orders, checkIns) =>
       `შემოსავალი ${revenue}, ${orders} გადახდილი შეკვეთა, ${checkIns} ვიზიტი.`,
     intro: (gymHtml, date) => `როგორ ჩაიარა ${date}-მა ${gymHtml}-ში.`,
@@ -408,7 +407,7 @@ const ka: EmailStrings = {
     newMembers: 'ახალი წევრები',
     lowStock: 'პროდუქტები დაბალი მარაგით',
     button: 'დაფის გახსნა',
-    textTitle: (gym, date) => `დღის შეჯამება - ${gym} - ${date}`,
+    textTitle: (gym, date) => `დღის შეჯამება: ${gym}, ${date}`,
   },
 };
 

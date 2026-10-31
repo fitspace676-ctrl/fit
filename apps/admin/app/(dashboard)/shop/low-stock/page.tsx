@@ -387,7 +387,7 @@ export default async function LowStockPage({
           <h1 {...stylex.props(styles.title)}>Inventory</h1>
           <p {...stylex.props(styles.subtitle)}>
             Active products with a position at or below {cushion}, most urgent first. Restock before
-            a line sells out - adjust a variant’s on-hand count inline, or open the product to edit
+            a line sells out: adjust a variant’s on-hand count inline, or open the product to edit
             it in full.
           </p>
           <p {...stylex.props(styles.scope)}>
@@ -395,7 +395,7 @@ export default async function LowStockPage({
             <span {...stylex.props(styles.scopeValue)}>{reportedBranch ?? 'All locations'}</span>
             {branchNotApplied ? (
               <span {...stylex.props(styles.scopeCaveat)}>
-                Not narrowed to {activeBranchName} - these are gym-wide totals
+                Not narrowed to {activeBranchName}. These are gym-wide totals
               </span>
             ) : reportedBranch === null ? (
               <span {...stylex.props(styles.scopeCaveat)}>

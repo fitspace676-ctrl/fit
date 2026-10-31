@@ -53,7 +53,7 @@ export default function AstryxSmokePage() {
       <h1>Astryx × FormaCore brand</h1>
       <p>
         If this button is electric indigo (#6257E3) and the heading is set in Archivo, the Fit
-        Astryx theme is wired correctly — brand tokens and fonts are resolving, not the neutral
+        Astryx theme is wired correctly: brand tokens and fonts are resolving, not the neutral
         defaults. The grid, card padding, and button row below are compiled StyleX (T11.2).
       </p>
 

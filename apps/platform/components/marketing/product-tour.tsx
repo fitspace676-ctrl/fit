@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useTranslations } from 'next-intl';
 import { AuroraBackground } from '@/components/ui/aurora-background';
-import { TOUR_SCENES, type TourScene } from '@/data/product-tour';
+import { getTourScenes, type TourScene } from '@/data/product-tour';
 import { cn } from '@/lib/utils';
 import { useActiveTheme, useIsPhone, usePrefersReducedMotion } from './hero-devices';
 
@@ -127,6 +128,9 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
 }
 
 export function ProductTour() {
+  const t = useTranslations('tour');
+  const scenes = getTourScenes(t);
+  const sceneCount = scenes.length;
   const [active, setActive] = useState(0);
   const [progress, setProgress] = useState(0);
   const [near, setNear] = useState(false);
@@ -184,27 +188,30 @@ export function ProductTour() {
     row.scrollTo({ left: Math.max(0, left), behavior: reducedMotion ? 'auto' : 'smooth' });
   }, [active, reducedMotion]);
 
-  const select = useCallback((index: number) => {
-    setActive((index + TOUR_SCENES.length) % TOUR_SCENES.length);
-    setProgress(0);
-  }, []);
+  const select = useCallback(
+    (index: number) => {
+      setActive((index + sceneCount) % sceneCount);
+      setProgress(0);
+    },
+    [sceneCount],
+  );
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
     if (!step) return;
     e.preventDefault();
-    const next = (active + step + TOUR_SCENES.length) % TOUR_SCENES.length;
+    const next = (active + step + sceneCount) % sceneCount;
     select(next);
     tabRefs.current[next]?.focus();
   };
 
   const playing = near && !reducedMotion && phone === false;
-  const scene = TOUR_SCENES[active]!;
+  const scene = scenes[active]!;
 
   return (
     <section
       ref={sectionRef}
-      aria-label="Product tour"
+      aria-label={t('label')}
       className="relative z-10 mx-auto max-w-[1400px] px-3 pb-24 sm:px-6"
     >
       <div className="relative isolate overflow-hidden rounded-[2rem] px-5 pb-8 pt-8 text-white sm:px-10 sm:pt-12 lg:px-16">
@@ -218,7 +225,7 @@ export function ProductTour() {
             <div className="h-9" />
             <div className="aspect-[16/10]" />
           </div>
-          {TOUR_SCENES.map((s, i) => {
+          {scenes.map((s, i) => {
             const shown = i === active;
             const clip = (
               <Clip
@@ -265,11 +272,11 @@ export function ProductTour() {
         <div
           ref={tabListRef}
           role="tablist"
-          aria-label="Product tour"
+          aria-label={t('label')}
           onKeyDown={onKeyDown}
           className="-mx-5 mt-8 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 [&::-webkit-scrollbar]:hidden"
         >
-          {TOUR_SCENES.map((s, i) => {
+          {scenes.map((s, i) => {
             const selected = i === active;
             return (
               <button

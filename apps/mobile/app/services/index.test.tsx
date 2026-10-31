@@ -111,7 +111,7 @@ describe('the state machine', () => {
     await view.findByTestId('services-list');
     // NOT the stored `name` ("PT — Nino Beridze"), which is generated: the
     // catalogue carries `services.ptTitle` for exactly this.
-    expect(view.getByText('Personal session - Nino Beridze')).toBeTruthy();
+    expect(view.getByText('Personal session: Nino Beridze')).toBeTruthy();
     expect(view.getByText('Sports massage')).toBeTruthy();
     expect(view.getByText('With Nino Beridze · 60 min')).toBeTruthy();
     expect(view.getByText('GEL 120.00')).toBeTruthy();
@@ -169,11 +169,11 @@ describe('the type filter', () => {
     await view.findByTestId('services-list');
 
     fireEvent.press(view.getByTestId('services-filter-CUSTOM'));
-    expect(view.queryByText('Personal session - Nino Beridze')).toBeNull();
+    expect(view.queryByText('Personal session: Nino Beridze')).toBeNull();
     expect(view.getByText('Sports massage')).toBeTruthy();
 
     fireEvent.press(view.getByTestId('services-filter-ALL'));
-    expect(view.getByText('Personal session - Nino Beridze')).toBeTruthy();
+    expect(view.getByText('Personal session: Nino Beridze')).toBeTruthy();
   });
 
   it('says so with ONE bare sentence when a type has nothing — no reset action', async () => {
@@ -206,7 +206,7 @@ describe('the a11y contract', () => {
     await view.findByTestId('services-list');
     expect(headerTexts(view.getAllByRole('header'))).toEqual([
       'Services',
-      'Personal session - Nino Beridze',
+      'Personal session: Nino Beridze',
       'Sports massage',
     ]);
   });

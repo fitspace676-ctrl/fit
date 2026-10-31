@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "title": "FormaCore | Run your gym on one platform",
+    "description": "Memberships, class booking, trainer scheduling, payments, and a branded member app: the all-in-one operating system for modern gyms and studios."
+  },
+  "logoAlt": "FormaCore",
+  "loader": "Loading FormaCore",
+  "cta": {
+    "bookDemo": "Book a demo",
+    "requestCall": "Request a call",
+    "bookFreeDemo": "Book a free demo"
+  },
+  "nav": {
+    "home": "FormaCore home",
+    "items": {
+      "core": "Core",
+      "features": "Features",
+      "builtFor": "Built For",
+      "pricing": "Pricing",
+      "resources": "Resources"
+    },
+    "seeAll": "See all",
+    "seeAllFeatures": "See all features",
+    "seeAllBusinessTypes": "See all business types",
+    "menu": "Menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "toggleTheme": "Toggle dark mode"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "ka": "Georgian"
+  },
+  "footer": {
+    "location": "Tbilisi, Georgia",
+    "terms": "Terms & Conditions",
+    "privacy": "Privacy Policy",
+    "dpa": "DPA"
+  },
+  "modal": {
+    "close": "Close"
+  },
+  "emblem": {
+    "winBackSent": "Win-back message sent",
+    "automationNow": "Automation · just now"
+  },
+  "leads": {
+    "name": "Name",
+    "namePlaceholder": "Name",
+    "surname": "Surname",
+    "surnamePlaceholder": "Surname",
+    "email": "Email",
+    "emailPlaceholder": "Email",
+    "phone": "Phone",
+    "phonePlaceholder": "Phone number",
+    "countryCode": "Country code",
+    "members": "Active members",
+    "membersPlaceholder": "Select (optional)",
+    "cancel": "Cancel",
+    "done": "Done",
+    "sending": "Sending…",
+    "error": "Something went wrong. Please try again.",
+    "submitFailed": "Submission failed ({status})",
+    "demo": {
+      "title": "Book a demo",
+      "description": "Tell us a little about your business and we'll reach out to schedule a walkthrough.",
+      "thanks": "Thanks. We've got your request and will reach out shortly to schedule your walkthrough.",
+      "submit": "Request demo"
+    },
+    "call": {
+      "title": "Request a call",
+      "description": "Leave your details and someone from our team will call you back.",
+      "thanks": "Thanks. We've got your request and will call you back shortly.",
+      "submit": "Request a call"
+    },
+    "api": {
+      "invalidBody": "Invalid request body.",
+      "invalid": "Please check the form and try again.",
+      "unreachable": "We couldn't reach our servers. Please try again in a moment.",
+      "failed": "Submission failed. Please try again."
+    }
+  },
+  "error": {
+    "badge": "Something went wrong",
+    "title": "Unexpected error",
+    "body": "An unexpected error occurred. You can try again, and if the problem persists please contact support.",
+    "reference": "Reference: {reference}",
+    "retry": "Try again",
+    "globalTitle": "Something went wrong",
+    "globalBody": "The platform site failed to load. Please try again."
+  }
+}

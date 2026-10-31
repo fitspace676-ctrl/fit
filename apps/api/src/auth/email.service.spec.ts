@@ -268,7 +268,7 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
 
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['owner@example.com']);
-    expect(body.subject).toBe('Welcome to FormaCore - finish setting up Downtown');
+    expect(body.subject).toBe('Welcome to FormaCore! Finish setting up Downtown');
     // The owner lands on the CONSOLE, where they can set a password — never on the
     // member app's verify route, which would leave a password-less owner stranded.
     expect(String(body.html)).toContain('https://app.fit/admin/activate?token=tok123');
@@ -371,7 +371,7 @@ describe('account email builders', () => {
 
   it('frames the owner onboarding mail around the gym and escapes its name', () => {
     const { subject, html } = buildOwnerOnboardingEmail(URL, '<b>Downtown</b>', 'Olivia');
-    expect(subject).toBe('Welcome to FormaCore - finish setting up <b>Downtown</b>');
+    expect(subject).toBe('Welcome to FormaCore! Finish setting up <b>Downtown</b>');
     expect(html).toContain('&lt;b&gt;Downtown&lt;/b&gt; is ready');
     expect(html).not.toContain('<b>Downtown</b>');
     expect(html).toContain('Hi Olivia,');
@@ -421,7 +421,7 @@ describe('account email builders in Georgian', () => {
 
   it('renders the receipt with Georgian labels and ka-GE money formatting', () => {
     const { subject, html, text } = buildReceiptEmail(cashReceipt, 'Downtown', undefined, 'ka');
-    expect(subject).toBe('თქვენი ჩეკი - Downtown');
+    expect(subject).toBe('თქვენი ჩეკი: Downtown');
     expect(html).toContain('გადახდის მეთოდი: ნაღდი.');
     expect(html).toContain('მიღებული ნაღდი');
     expect(text).toContain('სულ: ');
@@ -430,7 +430,7 @@ describe('account email builders in Georgian', () => {
 
   it('renders the ops digests in Georgian', () => {
     const digest = buildReportDigestEmail(weeklyDigest, { locale: 'ka' });
-    expect(digest.subject).toBe('ყოველკვირეული ანგარიშების შეჯამება - Downtown');
+    expect(digest.subject).toBe('ყოველკვირეული ანგარიშების შეჯამება: Downtown');
     expect(digest.html).toContain('ამ პერიოდში აქტივობა არ ყოფილა.');
 
     const daily = buildDailySummaryEmail({
@@ -444,7 +444,7 @@ describe('account email builders in Georgian', () => {
       lowStockProducts: 0,
       locale: 'ka',
     });
-    expect(daily.subject).toBe('დღის შეჯამება 2026-08-25 - Downtown');
+    expect(daily.subject).toBe('დღის შეჯამება 2026-08-25: Downtown');
     expect(daily.html).toContain('25 აგვისტო');
     expect(daily.html).toContain('შემოსავალი');
   });
@@ -729,10 +729,10 @@ describe('buildReceiptEmail', () => {
 describe('buildReportDigestEmail', () => {
   it('subjects the digest with the cadence label and gym name', () => {
     const { subject } = buildReportDigestEmail(weeklyDigest);
-    expect(subject).toBe('Weekly report digest - Downtown');
+    expect(subject).toBe('Weekly report digest: Downtown');
 
     const monthly = buildReportDigestEmail({ ...weeklyDigest, cadence: 'monthly', range: '30d' });
-    expect(monthly.subject).toBe('Monthly report digest - Downtown');
+    expect(monthly.subject).toBe('Monthly report digest: Downtown');
   });
 
   it('renders each section title, its money in the section currency, and percents', () => {
@@ -808,7 +808,7 @@ describe('EmailService.sendReportDigestEmail', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['owner@example.com']);
-    expect(body.subject).toBe('Weekly report digest - Downtown');
+    expect(body.subject).toBe('Weekly report digest: Downtown');
     expect(String(body.html)).toContain('https://admin.fit/reports');
   });
 
@@ -856,7 +856,7 @@ describe('buildLowStockDigestEmail', () => {
   it('subjects the mail with the low-line count and gym name', () => {
     const { subject } = buildLowStockDigestEmail(lowStockDigest);
     // Three low variant lines across the two products.
-    expect(subject).toBe('Low stock: 3 items to reorder - Downtown');
+    expect(subject).toBe('Low stock: 3 items to reorder at Downtown');
   });
 
   it('singularises the subject for a single low line', () => {
@@ -865,7 +865,7 @@ describe('buildLowStockDigestEmail', () => {
       products: [{ name: 'Shaker', variants: [{ label: '600ml', stock: 2 }], lowestStock: 2 }],
     };
     expect(buildLowStockDigestEmail(single).subject).toBe(
-      'Low stock: 1 item to reorder - Downtown',
+      'Low stock: 1 item to reorder at Downtown',
     );
   });
 
@@ -875,8 +875,8 @@ describe('buildLowStockDigestEmail', () => {
     expect(html).toContain('Chocolate');
     expect(html).toContain('600ml');
     expect(html).toContain('threshold of 5');
-    expect(text).toContain('Protein bar - Chocolate: 0 on hand');
-    expect(text).toContain('Shaker - 600ml: 5 on hand');
+    expect(text).toContain('Protein bar (Chocolate): 0 on hand');
+    expect(text).toContain('Shaker (600ml): 5 on hand');
   });
 
   it('renders the products link only when a productsUrl is supplied', () => {
@@ -903,9 +903,7 @@ describe('buildLowStockDigestEmail', () => {
 
 describe('buildDailySummaryEmail', () => {
   it('subjects the mail with the business day and gym name', () => {
-    expect(buildDailySummaryEmail(dailySummary).subject).toBe(
-      'Daily summary 2026-07-05 - Downtown',
-    );
+    expect(buildDailySummaryEmail(dailySummary).subject).toBe('Daily summary 2026-07-05: Downtown');
   });
 
   it('renders revenue in the gym currency and every metric', () => {
@@ -971,7 +969,7 @@ describe('EmailService ops-alert senders', () => {
     expect(sent).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
     expect(body.to).toEqual(['owner@example.com']);
-    expect(body.subject).toBe('Low stock: 3 items to reorder - Downtown');
+    expect(body.subject).toBe('Low stock: 3 items to reorder at Downtown');
   });
 
   it('sendDailySummaryEmail POSTs to Resend and resolves true when configured', async () => {
@@ -979,7 +977,7 @@ describe('EmailService ops-alert senders', () => {
     const sent = await new EmailService().sendDailySummaryEmail('owner@example.com', dailySummary);
     expect(sent).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as Record<string, unknown>;
-    expect(body.subject).toBe('Daily summary 2026-07-05 - Downtown');
+    expect(body.subject).toBe('Daily summary 2026-07-05: Downtown');
   });
 
   it('an ops sender throws when Resend returns a non-2xx response', async () => {

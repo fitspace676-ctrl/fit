@@ -1,0 +1,180 @@
+{
+  "meta": {
+    "title": "Pricing | FormaCore",
+    "description": "One platform for your front desk, your members and your retention. Pick the plan that matches where your business is today, and grow into the next one when you're ready."
+  },
+  "hero": {
+    "eyebrow": "Built For The Businesses That Move People.",
+    "titleLead": "Plans built to keep your",
+    "titleAccent": "members coming back",
+    "body": "One platform for your front desk, your members and your retention. Pick the plan that matches where your business is today, and grow into the next one when you're ready."
+  },
+  "cards": {
+    "note": "Every plan includes guided onboarding and support for your team. Each plan includes everything in the one before it.",
+    "perMonth": "/ month"
+  },
+  "tiers": {
+    "studio": {
+      "name": "Studio",
+      "tagline": "The complete foundation for running your location day to day.",
+      "billingNote": "billed monthly",
+      "features": {
+        "0": "Front desk POS with cash & card payments on-site",
+        "1": "Member profiles & membership plans",
+        "2": "Class scheduling & personal training booking",
+        "3": "Staff & inventory management",
+        "4": "Manual check-in",
+        "5": "Automation templates & analytics dashboard"
+      }
+    },
+    "club": {
+      "name": "Club",
+      "tagline": "Everything in Studio, plus the tools that keep your members engaged and coming back.",
+      "billingNote": "billed monthly",
+      "badge": "Most popular",
+      "features": {
+        "0": "Branded member portal: members book, pay and manage their membership",
+        "1": "White-label mobile app (iOS & Android)",
+        "2": "Online booking, plus online & recurring payments",
+        "3": "Access control: QR check-in with turnstile & door integration",
+        "4": "Retention automations for inactive and expiring members",
+        "5": "AI Assistant",
+        "6": "Detailed reports"
+      }
+    },
+    "core": {
+      "name": "Core",
+      "tagline": "Everything in Club, plus deeper intelligence and full control for growing operators.",
+      "billingNote": "billed monthly ·",
+      "pricePrefix": "from",
+      "features": {
+        "0": "Manage all your locations from one account",
+        "1": "AI-powered insights across your reports",
+        "2": "Build your own automations",
+        "3": "Custom roles & permissions",
+        "4": "API access & webhooks",
+        "5": "Data migration from your current system included",
+        "6": "Priority support with a named contact"
+      }
+    }
+  },
+  "comparison": {
+    "title": "Every feature, side by side.",
+    "feature": "Feature",
+    "groups": {
+      "operations": {
+        "title": "Operations",
+        "rows": {
+          "pos": "Point of Sale",
+          "profiles": "Member Profiles & Membership Plans",
+          "scheduling": "Class Scheduling & PT Booking",
+          "inventory": "Inventory Management",
+          "staff": "Staff Management",
+          "onsitePayments": "On-site Cash & Card Payments",
+          "multiLocation": "Multi-location Management"
+        }
+      },
+      "memberExperience": {
+        "title": "Member Experience",
+        "rows": {
+          "portal": "Branded Member Portal & Self-service Account",
+          "app": "White-label Mobile App (iOS & Android)",
+          "onlineBooking": "Online Booking",
+          "onlinePayments": "Online & Recurring Payments"
+        }
+      },
+      "checkin": {
+        "title": "Check-in & Access Control",
+        "rows": {
+          "manual": "Manual Check-in",
+          "qr": "QR Self Check-in via App",
+          "turnstile": "Turnstile & Door Integration"
+        }
+      },
+      "retention": {
+        "title": "Retention & Automation",
+        "rows": {
+          "templates": "Automation Templates",
+          "retentionAutomations": "Retention Automations (inactive & expiring members)",
+          "custom": "Build Your Own Automations"
+        }
+      },
+      "reporting": {
+        "title": "Reporting & Intelligence",
+        "rows": {
+          "dashboard": "Analytics Dashboard",
+          "reports": "Detailed Reports",
+          "aiAssistant": "AI Assistant",
+          "aiInsights": "AI-powered Insights"
+        }
+      },
+      "integrations": {
+        "title": "Integrations & Control",
+        "rows": {
+          "api": "API Access & Webhooks",
+          "roles": "Custom Roles & Permissions"
+        }
+      },
+      "onboarding": {
+        "title": "Onboarding & Support",
+        "rows": {
+          "guided": "Guided Onboarding",
+          "standardSupport": "Standard Support (email & chat)",
+          "migration": "Data Migration Included",
+          "prioritySupport": "Priority Support",
+          "namedContact": "Named Support Contact"
+        }
+      }
+    }
+  },
+  "guide": {
+    "title": "Not sure which plan fits?",
+    "studio": {
+      "headline": "You're running one location and need to replace the spreadsheets.",
+      "body": "Your operation is straightforward but your tools aren't keeping up. You need member management, class scheduling, billing at the front desk, and a system that actually works. Studio gives you everything to run your business properly from day one."
+    },
+    "club": {
+      "headline": "You want members who book, pay and keep coming back on their own.",
+      "body": "You're past the basics. You want members booking their own classes, managing their own memberships, and walking straight through the turnstile instead of queuing at reception. You also want to know when someone starts drifting away, before they cancel. Club adds the member portal, your own branded app, access control and retention tools, so your business is always one tap away."
+    },
+    "core": {
+      "headline": "You're running more than one location, or want decisions based on data, not gut feeling.",
+      "body": "You're running a serious operation and need the intelligence and control to match. Core brings all your locations into one account and adds AI-powered insights, your own automations, and full control over roles and integrations. We also move your data across from your current system and give you a named contact for priority support."
+    }
+  },
+  "timeline": {
+    "title": "From first conversation to fully live.",
+    "body": "Every business is different. The timeline depends on your scope, your data, and your team, but the process is always the same.",
+    "steps": {
+      "meeting": {
+        "title": "Book a Meeting",
+        "body": "Pick a time that suits you, or leave your number and we'll call you back. A short first conversation to understand your business, your members and what you need from the platform."
+      },
+      "demo": {
+        "title": "Demo",
+        "body": "See the platform in action with your specific business type in mind. Ask every question. Understand exactly what you're getting before committing to anything."
+      },
+      "contract": {
+        "title": "Contract and Setup",
+        "body": "Once you're ready, we handle the contract and begin configuring your account. Your membership plans, class structure, staff roles, and branding are set up before your first training session."
+      },
+      "migration": {
+        "title": "Data Migration",
+        "body": "Moving from another system? We map your existing member data and migrate it across. Your member history, payment records, and account details are carried over cleanly so nothing gets lost in the transition. Included in Core, available as an add-on for Studio and Club."
+      },
+      "onboarding": {
+        "title": "Onboarding Call",
+        "body": "A dedicated session with your team where we walk through the platform, align on your goals, and make sure every staff member knows exactly what they are doing before go-live. Your knowledge base is available from this point so your team can always find answers independently."
+      },
+      "live": {
+        "title": "Go Live",
+        "body": "Your platform goes live with real members, real data, and support on standby. Email, chat, and phone support are available from day one so nothing gets dropped at launch."
+      }
+    }
+  },
+  "cta": {
+    "titleLead": "See FormaCore with your business",
+    "titleAccent": "in mind.",
+    "body": "Book a guided demo with our team, or leave your number and we'll call you back."
+  }
+}

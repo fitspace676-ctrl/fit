@@ -1,23 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { enTranslator, renderWithIntl } from '@/test/render-with-intl';
 import { LeadCtaProvider } from './lead-cta-provider';
-import { PricingCards, tiers } from './pricing-cards';
+import { PricingCards, getTiers } from './pricing-cards';
 import { SHOW_PUBLIC_PRICING } from '@/lib/pricing-visibility';
+
+/** The tiers as the English site builds them. */
+const tiers = getTiers(enTranslator('pricing'));
 
 /** The grid inside the provider that owns the site's two lead forms. */
 const renderCards = () =>
-  render(
+  renderWithIntl(
     <LeadCtaProvider>
       <PricingCards />
     </LeadCtaProvider>,
   );
 
-/**
- * The plan grid with prices withheld. What matters here is the split: the plans
- * themselves are on show, the figures are not, and both calls to action are one
- * click away from every card.
- */
 describe('PricingCards', () => {
   it('shows every plan, with its badge, tagline and features', () => {
     renderCards();
@@ -32,7 +31,7 @@ describe('PricingCards', () => {
     expect(screen.getByText('Most popular')).toBeInTheDocument();
   });
 
-  it('closes every card with the two calls to action, under the feature list', () => {
+  it('closes every card with only Book a demo, under the feature list', () => {
     renderCards();
 
     for (const tier of tiers) {
@@ -42,7 +41,9 @@ describe('PricingCards', () => {
       const footer = card.lastElementChild!;
 
       expect(footer).toContainElement(within(card).getByRole('button', { name: 'Book a demo' }));
-      expect(footer).toContainElement(within(card).getByRole('button', { name: 'Request a call' }));
+      expect(
+        within(card).queryByRole('button', { name: 'Request a call' }),
+      ).not.toBeInTheDocument();
       expect(features.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
         Node.DOCUMENT_POSITION_FOLLOWING,
       );
@@ -53,20 +54,25 @@ describe('PricingCards', () => {
     renderCards();
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(tiers.length * 2);
+    expect(screen.getAllByRole('button')).toHaveLength(tiers.length);
   });
 
-  it('prints no figure, currency or billing period', () => {
-    // The flag is the product decision under test; if it is flipped back on the
-    // prices are meant to return, so assert the state this suite describes.
-    expect(SHOW_PUBLIC_PRICING).toBe(false);
+  it('shows the monthly GEL prices and only prefixes Core with from', () => {
+    expect(SHOW_PUBLIC_PRICING).toBe(true);
+    renderCards();
 
-    const { container } = renderCards();
-
-    expect(container.textContent).not.toMatch(/₾|\/mo/);
-    for (const tier of tiers) {
-      expect(container.textContent).not.toContain(String(tier.monthly));
+    for (const [name, price, prefix, billing] of [
+      ['Studio', '₾219', false, 'billed monthly'],
+      ['Club', '₾449', false, 'billed monthly'],
+      ['Core', '₾649', true, 'billed monthly ·'],
+    ] as const) {
+      const card = screen.getByRole('heading', { name }).parentElement!.parentElement!;
+      expect(within(card).getByText(price)).toBeVisible();
+      expect(within(card).getByText('/ month')).toBeVisible();
+      expect(within(card).getByText(billing)).toBeVisible();
+      expect(Boolean(within(card).queryByText('from'))).toBe(prefix);
     }
+    expect(screen.queryByText(/cancel any time/i)).not.toBeInTheDocument();
   });
 
   it('opens the demo form from a card', async () => {
@@ -78,36 +84,5 @@ describe('PricingCards', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByLabelText('Active members')).toBeInTheDocument();
-  });
-
-  it('sends a call request from a card as a call lead', async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 'lead-1' }), {
-        status: 201,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-    vi.stubGlobal('fetch', fetchMock);
-    renderCards();
-
-    await user.click(screen.getAllByRole('button', { name: 'Request a call' })[0]!);
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Name'), 'Giorgi');
-    await user.type(within(dialog).getByLabelText('Surname'), 'Beridze');
-    await user.type(within(dialog).getByLabelText('Phone'), '555 12 34 56');
-    await user.type(within(dialog).getByLabelText('Email'), 'giorgi@gym.ge');
-    await user.click(within(dialog).getByRole('button', { name: 'Request a call' }));
-
-    expect(await screen.findByText(/will call you back shortly/i)).toBeVisible();
-    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit];
-    expect(url).toBe('/api/leads');
-    expect(JSON.parse(init.body as string)).toMatchObject({
-      type: 'call',
-      name: 'Giorgi Beridze',
-      phone: '+995 555 12 34 56',
-      email: 'giorgi@gym.ge',
-    });
-    vi.unstubAllGlobals();
   });
 });
