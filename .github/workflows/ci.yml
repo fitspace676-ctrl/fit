@@ -157,7 +157,7 @@ jobs:
 
   e2e:
     name: E2E · admin core flows (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright has no chromium build for ubuntu-26.04 (ubuntu-latest) yet
     timeout-minutes: 25
 
     # The whole stack for real: the API and the admin console are booted by
@@ -230,7 +230,7 @@ jobs:
 
   e2e-web:
     name: E2E · member booking + checkout (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright has no chromium build for ubuntu-26.04 (ubuntu-latest) yet
     timeout-minutes: 25
 
     # The whole stack for real: the API and the member web portal are booted by
