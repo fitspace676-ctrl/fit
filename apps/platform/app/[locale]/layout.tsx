@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
-import { Archivo, JetBrains_Mono, Manrope, Noto_Sans_Georgian } from 'next/font/google';
+import localFont from 'next/font/local';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { isLocale } from '@fit/i18n';
@@ -14,41 +14,44 @@ import { SentryInit } from '../sentry-init';
 
 /**
  * Marketing type pairing from the design system: Manrope for body/UI, Archivo
- * for display headings, JetBrains Mono for code/eyebrow accents. Loaded via
- * `next/font` so the weights are self-hosted (no layout shift, no external
- * font request) and exposed as CSS variables the Tailwind config consumes.
+ * for display headings, JetBrains Mono for code/eyebrow accents, exposed as CSS
+ * variables the Tailwind config consumes.
+ *
+ * The files live in `app/fonts` (variable woff2, latin subset, from Google
+ * Fonts, all under the SIL Open Font License) rather than coming from
+ * `next/font/google`: that one downloads them during `next build`, and a bad
+ * answer from Google on the CI runner failed the whole build.
  */
-const manrope = Manrope({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
+const manrope = localFont({
+  src: '../fonts/manrope-latin.woff2',
+  weight: '400 800',
   variable: '--font-manrope',
   display: 'swap',
 });
 
-const archivo = Archivo({
-  subsets: ['latin'],
-  weight: ['500', '600', '700', '800', '900'],
+const archivo = localFont({
+  src: '../fonts/archivo-latin.woff2',
+  weight: '500 900',
   variable: '--font-archivo',
   display: 'swap',
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const jetbrainsMono = localFont({
+  src: '../fonts/jetbrains-mono-latin.woff2',
+  weight: '400 700',
   variable: '--font-jetbrains-mono',
   display: 'swap',
 });
 
 /**
- * Georgian type. Neither Manrope nor Archivo carries Georgian glyphs, so on
- * the Georgian site (`html[lang='ka']`, see globals.css) Noto Sans Georgian goes
- * first in both the sans and the display stack; English keeps the pairing
- * above. Self-hosted like the rest, with unicode-range subsetting, so an
- * English page never downloads it.
+ * Georgian type. Neither Manrope nor Archivo carries Georgian glyphs, so
+ * globals.css puts Noto Sans Georgian right after them in both stacks: Latin
+ * keeps the pairing above, and Georgian letters fall through to Noto. Only the
+ * Georgian subset is shipped, so an English page never needs the file.
  */
-const notoGeorgian = Noto_Sans_Georgian({
-  subsets: ['georgian', 'latin'],
-  weight: ['400', '500', '600', '700', '800', '900'],
+const notoGeorgian = localFont({
+  src: '../fonts/noto-sans-georgian.woff2',
+  weight: '400 900',
   variable: '--font-noto-georgian',
   display: 'swap',
 });
