@@ -17,10 +17,22 @@
       "headline": "Most members quit within 90 days. Here's how you keep them.",
       "subline": "Retention is the real business of running a fitness club. Get the visibility, tools, and automation to spot who's at risk, re-engage them before they leave, and build a club that members actually stay in.",
       "stats": {
-        "0": { "value": "90 days", "label": "when most members decide to quit or stay" },
-        "1": { "value": "5×", "label": "cheaper to retain a member than acquire a new one" },
-        "2": { "value": "67%", "label": "of gym revenue comes from existing members" },
-        "3": { "value": "0", "label": "spreadsheets needed to track any of it" }
+        "0": {
+          "value": "90 days",
+          "label": "when most members decide to quit or stay"
+        },
+        "1": {
+          "value": "5×",
+          "label": "cheaper to retain a member than acquire a new one"
+        },
+        "2": {
+          "value": "67%",
+          "label": "of gym revenue comes from existing members"
+        },
+        "3": {
+          "value": "0",
+          "label": "spreadsheets needed to track any of it"
+        }
       },
       "features": {
         "0": {
@@ -86,6 +98,12 @@
       "meta": {
         "title": "Fitness Club Management and Membership Software | FormaCore",
         "description": "Manage memberships, class bookings and check-ins with FormaCore software for fitness clubs. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Fitness Clubs",
+        "headline": "Most members quit within 90 days. Here's how you keep them.",
+        "statValue": "67%",
+        "statLabel": "of gym revenue comes from existing members"
       }
     },
     "training-studios": {
@@ -93,10 +111,22 @@
       "headline": "Small studio. Every member matters.",
       "subline": "Training studios run on personal relationships. When a member starts drifting, you need to know before they've already decided to leave. Stay close to every member even as your studio grows.",
       "stats": {
-        "0": { "value": "84", "label": "members, each tracked individually" },
-        "1": { "value": "14", "label": "days before a drift becomes a cancellation" },
-        "2": { "value": "3×", "label": "more likely to stay when personally re-engaged" },
-        "3": { "value": "0", "label": "members should slip through unnoticed" }
+        "0": {
+          "value": "84",
+          "label": "members, each tracked individually"
+        },
+        "1": {
+          "value": "14",
+          "label": "days before a drift becomes a cancellation"
+        },
+        "2": {
+          "value": "3×",
+          "label": "more likely to stay when personally re-engaged"
+        },
+        "3": {
+          "value": "0",
+          "label": "members should slip through unnoticed"
+        }
       },
       "features": {
         "0": {
@@ -152,6 +182,12 @@
       "meta": {
         "title": "Personal Training Studio Management Software | FormaCore",
         "description": "Manage bookings, trainer schedules and memberships with FormaCore software for training studios. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Training Studios",
+        "headline": "Small studio. Every member matters.",
+        "statValue": "84",
+        "statLabel": "members, each tracked individually"
       }
     },
     "yoga-studios": {
@@ -159,10 +195,22 @@
       "headline": "The habit is fragile. We make sure nothing breaks it.",
       "subline": "Your members come for the practice. They stay because of the routine. Protect that routine, removing every friction point that could interrupt a member's habit before it becomes permanent.",
       "stats": {
-        "0": { "value": "21", "label": "days to form a yoga habit: don't let it break" },
-        "1": { "value": "3×", "label": "more likely to renew when habit is uninterrupted" },
-        "2": { "value": "2", "label": "taps to rebook a class from the member app" },
-        "3": { "value": "0", "label": "missed renewal reminders with automation on" }
+        "0": {
+          "value": "21",
+          "label": "days to form a yoga habit: don't let it break"
+        },
+        "1": {
+          "value": "3×",
+          "label": "more likely to renew when habit is uninterrupted"
+        },
+        "2": {
+          "value": "2",
+          "label": "taps to rebook a class from the member app"
+        },
+        "3": {
+          "value": "0",
+          "label": "missed renewal reminders with automation on"
+        }
       },
       "features": {
         "0": {
@@ -218,6 +266,12 @@
       "meta": {
         "title": "Yoga Studio Booking and Membership Software | FormaCore",
         "description": "Manage class bookings, schedules and memberships with FormaCore software for yoga studios. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Yoga Studios",
+        "headline": "The habit is fragile. We make sure nothing breaks it.",
+        "statValue": "21",
+        "statLabel": "days to form a yoga habit: don't let it break"
       }
     },
     "pilates-studios": {
@@ -233,8 +287,14 @@
           "value": "16",
           "label": "days without a visit before a Pilates member mentally quits"
         },
-        "2": { "value": "3×", "label": "more likely to stay when they can see their own progress" },
-        "3": { "value": "0", "label": "sessions should go untracked" }
+        "2": {
+          "value": "3×",
+          "label": "more likely to stay when they can see their own progress"
+        },
+        "3": {
+          "value": "0",
+          "label": "sessions should go untracked"
+        }
       },
       "features": {
         "0": {
@@ -290,6 +350,12 @@
       "meta": {
         "title": "Pilates Studio Booking and Management Software | FormaCore",
         "description": "Manage class capacity, bookings and memberships with FormaCore software for Pilates studios. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Pilates Studios",
+        "headline": "They came for results. Show them they're getting them.",
+        "statValue": "47",
+        "statLabel": "sessions: the milestone that separates committed members from churned ones"
       }
     },
     "crossfit": {
@@ -309,7 +375,10 @@
           "value": "94%",
           "label": "class fill rate when scheduling and booking run smoothly"
         },
-        "3": { "value": "0", "label": "athletes should go missing without your team knowing" }
+        "3": {
+          "value": "0",
+          "label": "athletes should go missing without your team knowing"
+        }
       },
       "features": {
         "0": {
@@ -365,6 +434,12 @@
       "meta": {
         "title": "CrossFit Gym Booking and Membership Software | FormaCore",
         "description": "Manage session bookings, attendance and memberships with FormaCore software for CrossFit gyms. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "CrossFit",
+        "headline": "The workout brings them in. The community keeps them.",
+        "statValue": "94%",
+        "statLabel": "class fill rate when scheduling and booking run smoothly"
       }
     },
     "martial-arts": {
@@ -372,13 +447,22 @@
       "headline": "Every student is on a journey. Make sure nothing stops them mid-way.",
       "subline": "Martial arts retention is built on progression. Students stay because they're working toward something: their next belt, their next grading, their next level. Keep that journey on track and make sure no student quietly drops out between milestones.",
       "stats": {
-        "0": { "value": "21", "label": "days: the dropout window between gradings" },
-        "1": { "value": "3×", "label": "higher retention when progression is actively tracked" },
+        "0": {
+          "value": "21",
+          "label": "days: the dropout window between gradings"
+        },
+        "1": {
+          "value": "3×",
+          "label": "higher retention when progression is actively tracked"
+        },
         "2": {
           "value": "8",
           "label": "days average notice before grading: reminder automation fires"
         },
-        "3": { "value": "0", "label": "students should lapse mid-programme" }
+        "3": {
+          "value": "0",
+          "label": "students should lapse mid-programme"
+        }
       },
       "features": {
         "0": {
@@ -434,6 +518,12 @@
       "meta": {
         "title": "Martial Arts School and Class Booking Software | FormaCore",
         "description": "Manage class schedules, attendance and memberships with FormaCore software for martial arts schools. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Martial Arts",
+        "headline": "Every student is on a journey. Make sure nothing stops them mid-way.",
+        "statValue": "21",
+        "statLabel": "days: the dropout window between gradings"
       }
     },
     "swimming-schools": {
@@ -441,13 +531,22 @@
       "headline": "Parents pay. Kids swim. Progress keeps both coming back.",
       "subline": "In a swimming school, the parent is the buyer and the child is the student. Retention depends on one thing: parents believing their child is progressing. Give your team the tools to communicate that progress clearly and keep every family enrolled term after term.",
       "stats": {
-        "0": { "value": "10", "label": "days before term end: the re-enrolment window" },
+        "0": {
+          "value": "10",
+          "label": "days before term end: the re-enrolment window"
+        },
         "1": {
           "value": "3×",
           "label": "more likely to re-enrol when parents receive progress updates"
         },
-        "2": { "value": "86%", "label": "retention rate when term renewal automation is active" },
-        "3": { "value": "0", "label": "parents should be surprised by a lapsed membership" }
+        "2": {
+          "value": "86%",
+          "label": "retention rate when term renewal automation is active"
+        },
+        "3": {
+          "value": "0",
+          "label": "parents should be surprised by a lapsed membership"
+        }
       },
       "features": {
         "0": {
@@ -503,6 +602,12 @@
       "meta": {
         "title": "Swimming School and Lesson Management Software | FormaCore",
         "description": "Manage lesson bookings, schedules and memberships with FormaCore software for swimming schools. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Swimming Schools",
+        "headline": "Parents pay. Kids swim. Progress keeps both coming back.",
+        "statValue": "86%",
+        "statLabel": "retention rate when term renewal automation is active"
       }
     },
     "dance-schools": {
@@ -510,10 +615,22 @@
       "headline": "Between terms is where you lose them. We make sure you don't.",
       "subline": "Dance school retention breaks down between terms. When nobody follows up, students drift, and re-enrolment never happens. Automate the entire re-enrolment process so your next term fills up before the current one ends.",
       "stats": {
-        "0": { "value": "12", "label": "days before term end: the critical re-enrolment window" },
-        "1": { "value": "3×", "label": "higher re-enrolment when automated reminders are sent" },
-        "2": { "value": "91%", "label": "term renewal rate with re-enrolment automation active" },
-        "3": { "value": "0", "label": "students should slip through the term gap uncontacted" }
+        "0": {
+          "value": "12",
+          "label": "days before term end: the critical re-enrolment window"
+        },
+        "1": {
+          "value": "3×",
+          "label": "higher re-enrolment when automated reminders are sent"
+        },
+        "2": {
+          "value": "91%",
+          "label": "term renewal rate with re-enrolment automation active"
+        },
+        "3": {
+          "value": "0",
+          "label": "students should slip through the term gap uncontacted"
+        }
       },
       "features": {
         "0": {
@@ -569,6 +686,12 @@
       "meta": {
         "title": "Dance School Booking and Management Software | FormaCore",
         "description": "Manage class bookings, attendance and memberships with FormaCore software for dance schools. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Dance Schools",
+        "headline": "Between terms is where you lose them. We make sure you don't.",
+        "statValue": "91%",
+        "statLabel": "term renewal rate with re-enrolment automation active"
       }
     },
     "padel": {
@@ -580,9 +703,18 @@
           "value": "14",
           "label": "days without a booking before a padel player mentally quits"
         },
-        "1": { "value": "87%", "label": "court utilisation when booking is frictionless" },
-        "2": { "value": "4", "label": "players per court: one dropout affects the whole group" },
-        "3": { "value": "0", "label": "inactive members should go unnoticed" }
+        "1": {
+          "value": "87%",
+          "label": "court utilisation when booking is frictionless"
+        },
+        "2": {
+          "value": "4",
+          "label": "players per court: one dropout affects the whole group"
+        },
+        "3": {
+          "value": "0",
+          "label": "inactive members should go unnoticed"
+        }
       },
       "features": {
         "0": {
@@ -638,6 +770,12 @@
       "meta": {
         "title": "Padel Club Court Booking and Management Software | FormaCore",
         "description": "Manage court bookings, schedules and memberships with FormaCore software for padel clubs. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Padel",
+        "headline": "One player drops out. The whole group follows.",
+        "statValue": "87%",
+        "statLabel": "court utilisation when booking is frictionless"
       }
     },
     "tennis-clubs": {
@@ -653,8 +791,14 @@
           "value": "3×",
           "label": "higher renewal rate when members receive regular club communications"
         },
-        "2": { "value": "84%", "label": "retention rate when membership value is made visible" },
-        "3": { "value": "0", "label": "renewals should lapse without a reminder" }
+        "2": {
+          "value": "84%",
+          "label": "retention rate when membership value is made visible"
+        },
+        "3": {
+          "value": "0",
+          "label": "renewals should lapse without a reminder"
+        }
       },
       "features": {
         "0": {
@@ -710,6 +854,12 @@
       "meta": {
         "title": "Tennis Club Court Booking and Management Software | FormaCore",
         "description": "Manage court bookings, lessons and memberships with FormaCore software for tennis clubs. Simplify daily operations for your team. Book a demo today."
+      },
+      "card": {
+        "name": "Tennis Clubs",
+        "headline": "A club membership should feel like belonging. Not just a direct debit.",
+        "statValue": "84%",
+        "statLabel": "retention rate when membership value is made visible"
       }
     }
   }

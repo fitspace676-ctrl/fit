@@ -218,7 +218,9 @@ const Timeline = ({ steps }: { steps: Step[] }) => {
               className={`transition duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${on ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}
             >
               <h3 className="font-display text-lg font-bold tracking-tight">{s.title}</h3>
-              <p className="mt-2 max-w-2xl text-sm text-muted leading-relaxed">{s.body}</p>
+              <p className="mt-2 max-w-2xl whitespace-pre-line text-sm text-muted leading-relaxed">
+                {s.body}
+              </p>
             </div>
           </li>
         );
@@ -366,7 +368,9 @@ export default function PricingPage() {
               <h3 className="mt-5 font-display text-xl font-black tracking-tight leading-[1.15]">
                 {p.headline}
               </h3>
-              <p className="mt-3 text-sm text-muted leading-relaxed">{p.body}</p>
+              <p className="mt-3 whitespace-pre-line text-sm text-muted leading-relaxed">
+                {p.body}
+              </p>
             </div>
           ))}
         </div>

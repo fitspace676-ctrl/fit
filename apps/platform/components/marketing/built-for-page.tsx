@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { AudiencePage } from '@/data/built-for';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { FlowBackground } from '@/components/ui/flow-background';
+import { COVER_SURFACE } from './cover-surface';
 import { cn } from '@/lib/utils';
 import { AudienceBadge, AudienceEmblem } from './audience-badge';
 import { useLeadCta } from './lead-cta-context';
@@ -51,20 +52,18 @@ export function BuiltForPage({
 
       <MarketingNav active={section} />
 
-      {/* hero — the audience's gradient panel, matching the landing tabs */}
+      {/* hero: the landing's cover card, with its drifting light and waves */}
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-12 lg:pt-16 pb-12">
         <div
-          className={cn(
-            'relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14',
-            audience.panelClassName,
-          )}
+          className="relative isolate overflow-hidden rounded-[2rem] p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14"
+          style={COVER_SURFACE}
         >
           {/* living backdrop: drifting light and rolling waves */}
           <FlowBackground />
-          <AudienceEmblem audience={audience} />
+          <AudienceEmblem audience={audience} cover />
 
           <div className="relative">
-            <AudienceBadge audience={audience} />
+            <AudienceBadge audience={audience} cover />
             <h1
               className={cn(
                 'mt-5 max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]',
@@ -75,7 +74,7 @@ export function BuiltForPage({
             </h1>
             <p
               className={cn(
-                'mt-5 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg',
+                'mt-5 max-w-2xl whitespace-pre-line text-base leading-relaxed text-white/85 md:text-lg',
                 roomBody,
               )}
             >
@@ -155,7 +154,9 @@ export function BuiltForPage({
                 <h2 className="mt-5 font-display text-2xl font-black tracking-tight lg:text-[2rem] leading-[1.04]">
                   {f.headline}
                 </h2>
-                <p className="mt-4 text-base text-muted leading-relaxed md:text-lg">{f.body}</p>
+                <p className="mt-4 whitespace-pre-line text-base text-muted leading-relaxed md:text-lg">
+                  {f.body}
+                </p>
               </Reveal>
 
               {/* bullets */}
@@ -194,7 +195,7 @@ export function BuiltForPage({
                   <h2 className="mt-5 max-w-2xl font-display text-2xl font-black tracking-tight lg:text-[2.25rem] leading-[1.05]">
                     {audience.planRecommendation.headline}
                   </h2>
-                  <p className="mt-4 max-w-2xl text-base text-muted leading-relaxed md:text-lg">
+                  <p className="mt-4 max-w-2xl whitespace-pre-line text-base text-muted leading-relaxed md:text-lg">
                     {audience.planRecommendation.body}
                   </p>
                 </div>

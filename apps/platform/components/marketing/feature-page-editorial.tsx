@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { PlatformMessages } from '@fit/i18n/platform';
 import type { FeaturePageCopy } from '@/data/feature-pages';
 import { FlowBackground } from '@/components/ui/flow-background';
+import { COVER_SURFACE } from './cover-surface';
 import { Reveal } from '@/components/ui/scroll-reveal';
 import { cn } from '@/lib/utils';
 import { messageList } from '@/lib/messages';
@@ -132,8 +133,31 @@ const FIGURES: Record<string, Figure[]> = {
 /** The illustrative product slices' text, as it sits in the catalogue. */
 type SliceCopy = PlatformMessages['features']['editorial']['slices'];
 
-function ProductSlice({ kind }: { kind: SliceKind }) {
+function ProductSlice({
+  kind,
+  bookingPage = false,
+  receptionPage = false,
+  mobilePage = false,
+  analyticsPage = false,
+  aiPage = false,
+}: {
+  kind: SliceKind;
+  bookingPage?: boolean;
+  receptionPage?: boolean;
+  mobilePage?: boolean;
+  analyticsPage?: boolean;
+  aiPage?: boolean;
+}) {
   const t = useTranslations('features.editorial');
+  const locale = useLocale();
+  const georgianBooking = locale === 'ka' && bookingPage;
+  const georgianReception = locale === 'ka' && receptionPage;
+  const georgianMobile = locale === 'ka' && mobilePage;
+  const georgianAnalytics = locale === 'ka' && analyticsPage;
+  const georgianAi = locale === 'ka' && aiPage;
+  const brand = t.raw(
+    mobilePage ? 'mobileApp.brand' : 'brand',
+  ) as PlatformMessages['features']['editorial']['brand'];
   if (kind === 'brand')
     return (
       <div className="relative mx-auto w-full max-w-[34rem] sm:min-h-[25rem]">
@@ -141,17 +165,15 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
           <FigureLayer layer={{ shot: SHOTS.phone, frame: 'phone', className: 'relative' }} />
         </div>
         <div className="relative z-20 rounded-2xl bg-panel p-6 text-fg shadow-2xl sm:top-14 sm:w-[60%]">
-          <p className="font-mono text-xs uppercase tracking-widest text-faint">
-            {t('brand.title')}
-          </p>
+          <p className="font-mono text-xs uppercase tracking-widest text-faint">{brand.title}</p>
           <div className="mt-5 flex items-center gap-3">
             <img src="/FormaCore-icon.png" width={44} height={44} alt="" className="rounded-xl" />
             <div>
-              <p className="font-semibold">{t('brand.file')}</p>
-              <p className="text-xs text-muted">{t('brand.fileLabel')}</p>
+              <p className="font-semibold">{georgianMobile ? brand.fileLabel : brand.file}</p>
+              <p className="text-xs text-muted">{georgianMobile ? brand.file : brand.fileLabel}</p>
             </div>
           </div>
-          <p className="mt-5 text-sm font-semibold">{t('brand.colour')}</p>
+          <p className="mt-5 text-sm font-semibold">{brand.colour}</p>
           <div className="mt-3 flex gap-3">
             {['#E0483E', '#1A7FD6', '#12B76A', '#151926'].map((color) => (
               <span
@@ -161,7 +183,7 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
               />
             ))}
           </div>
-          <p className="mt-5 text-sm font-semibold">{t('brand.covers')}</p>
+          <p className="mt-5 text-sm font-semibold">{brand.covers}</p>
           <div className="mt-3 grid grid-cols-3 gap-2">
             {['member-portal', 'booking-scheduling', 'mobile-app'].map((slug) => (
               <img
@@ -178,7 +200,34 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
       </div>
     );
   const slices = t.raw('slices') as SliceCopy;
-  const data = slices[kind];
+  const bookingSlices = t.raw(
+    'bookingScheduling.slices',
+  ) as PlatformMessages['features']['editorial']['bookingScheduling']['slices'];
+  const receptionSlices = t.raw(
+    'receptionPos.slices',
+  ) as PlatformMessages['features']['editorial']['receptionPos']['slices'];
+  const mobileSlices = t.raw(
+    'mobileApp.slices',
+  ) as PlatformMessages['features']['editorial']['mobileApp']['slices'];
+  const analyticsSlices = t.raw(
+    'analyticsReporting.slices',
+  ) as PlatformMessages['features']['editorial']['analyticsReporting']['slices'];
+  const aiSlices = t.raw(
+    'aiAssistant.slices',
+  ) as PlatformMessages['features']['editorial']['aiAssistant']['slices'];
+  const data =
+    aiPage && kind in aiSlices
+      ? aiSlices[kind as keyof typeof aiSlices]
+      : analyticsPage && kind in analyticsSlices
+        ? analyticsSlices[kind as keyof typeof analyticsSlices]
+        : mobilePage && kind in mobileSlices
+          ? mobileSlices[kind as keyof typeof mobileSlices]
+          : receptionPage && kind in receptionSlices
+            ? receptionSlices[kind as keyof typeof receptionSlices]
+            : bookingPage && kind in bookingSlices
+              ? bookingSlices[kind as keyof typeof bookingSlices]
+              : slices[kind];
+  const columns = 'columns' in data ? messageList(data.columns as Record<string, string>) : [];
   const rows = messageList(data.rows).map((row) => messageList(row));
   return (
     <div className="mx-auto w-full max-w-[34rem] overflow-hidden rounded-2xl bg-panel text-fg shadow-[0_30px_60px_-24px_rgba(2,11,46,0.75)]">
@@ -187,22 +236,90 @@ function ProductSlice({ kind }: { kind: SliceKind }) {
         <p className="mt-3 font-display text-2xl font-bold sm:text-3xl">{data.title}</p>
       </div>
       <div className="px-5 sm:px-7">
-        {rows.map(([label = '', detail = '', value = '']) => (
+        {(georgianBooking || georgianReception) && columns.length > 0 && (
+          <div className="flex items-center justify-between gap-3 border-b border-overlay/10 py-3 text-xs text-faint">
+            {columns.map((column) => (
+              <span key={column}>{column}</span>
+            ))}
+          </div>
+        )}
+        {rows.map(([label = '', detail = '', value = ''], rowIndex) => (
           <div
             key={label + detail}
             className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-overlay/10 py-4 text-sm last:border-0"
           >
-            <span className="text-muted">{label}</span>
-            <span className="font-medium">{detail}</span>
-            <span className="rounded-md bg-brand-500/10 px-2 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300">
-              {value}
-            </span>
+            {georgianAi ? (
+              <>
+                {label && <span className="w-full font-medium">{label}</span>}
+                <p className="w-full text-muted">{detail}</p>
+                {kind !== 'ask' && value && (
+                  <span className="rounded-md bg-brand-500/10 px-2 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300">
+                    {value}
+                  </span>
+                )}
+              </>
+            ) : georgianAnalytics ? (
+              <>
+                <span className="font-medium">{label}</span>
+                {kind === 'dashboard' || kind === 'reports' ? (
+                  <span className="text-muted">{[detail, value].join(' · ')}</span>
+                ) : (
+                  <div className="w-full text-muted">
+                    <p>{detail}</p>
+                    {kind !== 'ask' && value && <p>{value}</p>}
+                  </div>
+                )}
+              </>
+            ) : georgianMobile && (kind !== 'booking' || rowIndex === 0) ? (
+              <>
+                <span className="font-medium">
+                  {kind === 'location'
+                    ? [label, detail, value].join(' · ')
+                    : kind === 'booking'
+                      ? [label, detail].join(' · ')
+                      : kind === 'notifications' && rowIndex === 0
+                        ? [label, detail].join(' ')
+                        : label}
+                </span>
+                {kind !== 'location' && (
+                  <span className="text-muted">
+                    {kind === 'billing' || (kind === 'notifications' && rowIndex > 0)
+                      ? [detail, value].join(' · ')
+                      : value}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="text-muted">
+                  {georgianBooking && kind === 'waitlist' && rowIndex === 2 ? null : label}
+                </span>
+                <span className="font-medium">{detail}</span>
+                <span
+                  className={cn(
+                    value &&
+                      'rounded-md bg-brand-500/10 px-2 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300',
+                  )}
+                >
+                  {value}
+                </span>
+              </>
+            )}
           </div>
         ))}
       </div>
       <div className="flex items-start gap-3 border-t border-overlay/10 bg-brand-500/5 p-5 text-sm text-strong sm:px-7">
         <Icon d={I.bell} c="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
-        {data.note}
+        {(georgianMobile || georgianAnalytics) &&
+        'noteTitle' in data &&
+        typeof data.noteTitle === 'string' ? (
+          <div>
+            <p className="font-semibold">{data.noteTitle}</p>
+            <p>{data.note}</p>
+          </div>
+        ) : (
+          data.note
+        )}
       </div>
     </div>
   );
@@ -308,7 +425,25 @@ function FigureLayer({ layer, secondary = false }: { layer: Layer; secondary?: b
 }
 
 /** The deep-blue plate a figure's layers sit on, with its numbered caption. */
-function FigurePlate({ figure, caption, n }: { figure: Figure; caption: string; n: string }) {
+function FigurePlate({
+  figure,
+  caption,
+  n,
+  bookingPage,
+  receptionPage,
+  mobilePage,
+  analyticsPage,
+  aiPage,
+}: {
+  figure: Figure;
+  caption: string;
+  n: string;
+  bookingPage?: boolean;
+  receptionPage?: boolean;
+  mobilePage?: boolean;
+  analyticsPage?: boolean;
+  aiPage?: boolean;
+}) {
   const t = useTranslations('features.editorial');
   return (
     <figure>
@@ -319,7 +454,14 @@ function FigurePlate({ figure, caption, n }: { figure: Figure; caption: string; 
           className="pointer-events-none absolute inset-0 -z-10 opacity-[0.14] [background-image:linear-gradient(rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.5)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_at_30%_20%,black,transparent_75%)]"
         />
         {figure.slice ? (
-          <ProductSlice kind={figure.slice} />
+          <ProductSlice
+            kind={figure.slice}
+            bookingPage={bookingPage}
+            receptionPage={receptionPage}
+            mobilePage={mobilePage}
+            analyticsPage={analyticsPage}
+            aiPage={aiPage}
+          />
         ) : (
           <div className="sm:aspect-[16/11]">
             {figure.layers?.map((layer, i) => (
@@ -330,7 +472,18 @@ function FigurePlate({ figure, caption, n }: { figure: Figure; caption: string; 
       </div>
       <figcaption className="mt-4 flex items-baseline gap-3 text-sm leading-snug text-faint">
         <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.2em] text-brand-700 dark:text-brand-300">
-          {t('fig', { n })}
+          {t(
+            aiPage
+              ? 'aiAssistant.fig'
+              : analyticsPage
+                ? 'analyticsReporting.fig'
+                : mobilePage
+                  ? 'mobileApp.fig'
+                  : 'fig',
+            {
+              n,
+            },
+          )}
         </span>
         <span>{caption}</span>
       </figcaption>
@@ -401,6 +554,31 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
   const figures = FIGURES[page.slug] ?? [];
   // Icon, panel gradient and highlights come from the feature's nav entry.
   const feature = getFeatures(t).find((f) => f.slug === page.slug);
+  const bookingPage = page.slug === 'booking-scheduling';
+  const receptionPage = page.slug === 'reception-pos';
+  const mobilePage = page.slug === 'mobile-app';
+  const analyticsPage = page.slug === 'analytics-reporting';
+  const aiPage = page.slug === 'ai-assistant';
+  const editorialPage = bookingPage || receptionPage || mobilePage || analyticsPage || aiPage;
+  const editorialKey = aiPage
+    ? 'aiAssistant'
+    : analyticsPage
+      ? 'analyticsReporting'
+      : mobilePage
+        ? 'mobileApp'
+        : receptionPage
+          ? 'receptionPos'
+          : 'bookingScheduling';
+  const georgianEditorial = useLocale() === 'ka' && editorialPage;
+  const highlights = editorialPage
+    ? messageList(t.raw(`editorial.${editorialKey}.highlights`) as Record<string, string>)
+    : feature?.highlights;
+  const inside = editorialPage
+    ? t(`editorial.${editorialKey}.inside`)
+    : t('editorial.inside', { name: page.eyebrow });
+  const parts = editorialPage
+    ? t(`editorial.${editorialKey}.parts`, { count: page.blocks.length })
+    : t('editorial.parts', { count: page.blocks.length });
 
   // Each block's reading progress, drawn as a hairline under its sticky title.
   const blockRefs = useRef<(HTMLElement | null)[]>([]);
@@ -436,13 +614,11 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
       <Aurora />
       <MarketingNav active="features" />
 
-      {/* ── hero: the feature's brand panel over drifting light and waves ── */}
+      {/* ── hero: the landing's cover card over drifting light and waves ── */}
       <section className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10 pt-12 lg:pt-16 pb-12">
         <div
-          className={cn(
-            'relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14',
-            feature?.panelClassName,
-          )}
+          className="relative isolate overflow-hidden rounded-[2rem] p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-14"
+          style={COVER_SURFACE}
         >
           <FlowBackground />
 
@@ -465,9 +641,9 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
               <PricingLink onDark className="max-sm:-ml-4" />
             </div>
 
-            {feature?.highlights && (
+            {highlights && (
               <ul className="mt-10 flex flex-wrap gap-2.5">
-                {feature.highlights.map((h) => (
+                {highlights.map((h) => (
                   <li
                     key={h}
                     className="inline-flex items-center gap-2 rounded-pill bg-white/10 py-2 pl-2.5 pr-4 text-sm font-medium text-white ring-1 ring-inset ring-white/20"
@@ -502,7 +678,12 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
               </Reveal>
               <Reveal delay={160}>
                 <div className="mt-10 grid gap-6 lg:mt-14 lg:grid-cols-9">
-                  <p className="text-lg leading-relaxed text-muted first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-display first-letter:text-[4.25rem] first-letter:font-black first-letter:leading-[0.8] first-letter:text-brand-600 dark:first-letter:text-brand-300 lg:col-span-7 lg:col-start-3 lg:text-xl">
+                  <p
+                    className={cn(
+                      (bookingPage || georgianEditorial) && 'whitespace-pre-line',
+                      'text-lg leading-relaxed text-muted first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:font-display first-letter:text-[4.25rem] first-letter:font-black first-letter:leading-[0.8] first-letter:text-brand-600 dark:first-letter:text-brand-300 lg:col-span-7 lg:col-start-3 lg:text-xl',
+                    )}
+                  >
                     {page.intro.body}
                   </p>
                 </div>
@@ -513,15 +694,15 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
 
         {/* ── the feature index ── */}
         <section
-          aria-label={t('editorial.inside', { name: page.eyebrow })}
+          aria-label={inside}
           className="relative z-10 mx-auto w-full max-w-[1180px] px-6 lg:px-10"
         >
           <div className="flex items-end justify-between gap-6 pb-6">
             <h2 className="font-display text-2xl font-black tracking-tight sm:text-3xl">
-              {t('editorial.inside', { name: page.eyebrow })}
+              {inside}
             </h2>
             <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-faint">
-              {t('editorial.parts', { count: page.blocks.length })}
+              {parts}
             </span>
           </div>
 
@@ -567,7 +748,14 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
                     <h4 className="max-w-[22ch] font-display text-[clamp(1.875rem,3.6vw,3.125rem)] font-black leading-[1.02] tracking-[-0.025em]">
                       {b.headline}
                     </h4>
-                    <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted sm:text-lg">
+                    <p
+                      className={cn(
+                        'mt-6 max-w-[60ch] text-base leading-relaxed text-muted sm:text-lg',
+                        (mobilePage || analyticsPage || aiPage) &&
+                          georgianEditorial &&
+                          'whitespace-pre-line',
+                      )}
+                    >
                       {b.body}
                     </p>
                   </Reveal>
@@ -576,6 +764,11 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
                     <Reveal delay={80} className="mt-10 lg:mt-12">
                       <FigurePlate
                         figure={figure}
+                        bookingPage={bookingPage}
+                        receptionPage={receptionPage}
+                        mobilePage={mobilePage}
+                        analyticsPage={analyticsPage}
+                        aiPage={aiPage}
                         caption={t(`editorial.figures.${page.slug}.${i}`)}
                         n={n}
                       />
@@ -606,11 +799,23 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
                   <h2 className="font-display text-3xl font-black leading-tight sm:text-4xl">
                     {page.plan.headline}
                   </h2>
-                  <p className="mt-5 text-base leading-relaxed text-white/80">{page.plan.body}</p>
+                  <p
+                    className={cn(
+                      'mt-5 text-base leading-relaxed text-white/80',
+                      (bookingPage || georgianEditorial) && 'whitespace-pre-line',
+                    )}
+                  >
+                    {page.plan.body}
+                  </p>
                   <PricingLink onDark className="-ml-4 mt-4" />
                 </div>
                 {page.plans && (
                   <ul className="grid content-center gap-3">
+                    {georgianEditorial && (
+                      <li className="text-lg font-semibold">
+                        {t(`editorial.${editorialKey}.planLabel`)}
+                      </li>
+                    )}
                     {TIERS.map((tier) => {
                       const included = page.plans?.includes(tier.plan);
                       return (

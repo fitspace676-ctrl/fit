@@ -942,6 +942,523 @@
         },
         "note": "Answers use only what the role can see"
       }
+    },
+    "receptionPos": {
+      "inside": "Inside Reception POS",
+      "parts": "{count} parts",
+      "highlights": {
+        "0": "Memberships & products",
+        "1": "Member lookup",
+        "2": "Check-in",
+        "3": "End-of-day report"
+      },
+      "planLabel": "Reception POS",
+      "slices": {
+        "checkin": {
+          "title": "Member check-in",
+          "eyebrow": "Reception",
+          "rows": {
+            "0": {
+              "0": "Search",
+              "1": "Giorgi Beridze",
+              "2": "Found"
+            },
+            "1": {
+              "0": "Plan",
+              "1": "Premium",
+              "2": "Active"
+            },
+            "2": {
+              "0": "Arrival",
+              "1": "Today, 09:12",
+              "2": "Checked in"
+            }
+          },
+          "note": "Membership and payment standing visible together"
+        },
+        "sale": {
+          "title": "New membership",
+          "eyebrow": "Reception sale",
+          "rows": {
+            "0": {
+              "0": "Member",
+              "1": "Ana Dolidze",
+              "2": "Created"
+            },
+            "1": {
+              "0": "Plan",
+              "1": "Monthly membership",
+              "2": "150 GEL"
+            },
+            "2": {
+              "0": "Payment",
+              "1": "Cash",
+              "2": "Recorded"
+            }
+          },
+          "note": "Membership active: sale linked to profile"
+        },
+        "history": {
+          "title": "Transaction history",
+          "eyebrow": "Member profile",
+          "rows": {
+            "0": {
+              "0": "Oct 4",
+              "1": "Monthly membership",
+              "2": "150 GEL"
+            },
+            "1": {
+              "0": "Oct 2",
+              "1": "Personal training",
+              "2": "60 GEL"
+            },
+            "2": {
+              "0": "Oct 1",
+              "1": "Protein shake",
+              "2": "12 GEL"
+            }
+          },
+          "note": "The same history in reception, admin and portal",
+          "columns": {
+            "0": "Date",
+            "1": "Transaction",
+            "2": "Amount"
+          }
+        },
+        "shop": {
+          "title": "Products & services",
+          "eyebrow": "Reception shop",
+          "rows": {
+            "0": {
+              "0": "Protein shake",
+              "1": "12 GEL",
+              "2": "24 in stock"
+            },
+            "1": {
+              "0": "Club T-shirt",
+              "1": "45 GEL",
+              "2": "18 in stock"
+            },
+            "2": {
+              "0": "PT session",
+              "1": "60 GEL",
+              "2": "Service"
+            }
+          },
+          "note": "Product sales update stock and sales history",
+          "columns": {
+            "0": "Name",
+            "1": "Price",
+            "2": "Stock / type"
+          }
+        }
+      }
+    },
+    "bookingScheduling": {
+      "inside": "Inside Online Booking & Scheduling",
+      "parts": "{count} parts",
+      "highlights": {
+        "0": "Class timetable",
+        "1": "Online booking",
+        "2": "Waitlists",
+        "3": "PT calendar"
+      },
+      "planLabel": "Member self-service booking",
+      "slices": {
+        "schedule": {
+          "title": "Weekly timetable",
+          "eyebrow": "Monday, October 5",
+          "rows": {
+            "0": {
+              "0": "09:00",
+              "1": "Morning Yoga",
+              "2": "12 / 16"
+            },
+            "1": {
+              "0": "12:30",
+              "1": "Strength Circuit",
+              "2": "8 / 12"
+            },
+            "2": {
+              "0": "18:00",
+              "1": "Pilates",
+              "2": "16 / 16"
+            }
+          },
+          "note": "Class changes reflected in the member schedule",
+          "columns": {
+            "0": "Time",
+            "1": "Class",
+            "2": "Booked spots"
+          }
+        },
+        "booking": {
+          "title": "Your next class",
+          "eyebrow": "My bookings",
+          "rows": {
+            "0": {
+              "0": "18:00",
+              "1": "Pilates",
+              "2": "Confirmed"
+            },
+            "1": {
+              "0": "Studio 1",
+              "1": "Monday, October 5",
+              "2": "50 min"
+            }
+          },
+          "note": "Reminder before your session"
+        },
+        "waitlist": {
+          "title": "Pilates",
+          "eyebrow": "Capacity & waitlist",
+          "rows": {
+            "0": {
+              "0": "Capacity",
+              "1": "16 members",
+              "2": "Full"
+            },
+            "1": {
+              "0": "Waitlist",
+              "1": "Ana Dolidze",
+              "2": "1st"
+            },
+            "2": {
+              "0": "Waitlist",
+              "1": "Giorgi Beridze",
+              "2": "2nd"
+            }
+          },
+          "note": "Next in line notified when a spot opens"
+        },
+        "training": {
+          "title": "Personal training",
+          "eyebrow": "Trainer availability",
+          "rows": {
+            "0": {
+              "0": "10:00",
+              "1": "Strength session",
+              "2": "Available"
+            },
+            "1": {
+              "0": "11:30",
+              "1": "Mobility session",
+              "2": "Available"
+            },
+            "2": {
+              "0": "15:00",
+              "1": "Personal training",
+              "2": "Booked"
+            }
+          },
+          "note": "60 minute sessions: confirmation included",
+          "columns": {
+            "0": "Time",
+            "1": "Session",
+            "2": "Status"
+          }
+        }
+      }
+    },
+    "mobileApp": {
+      "inside": "Inside Mobile App",
+      "parts": "{count} parts",
+      "highlights": {
+        "0": "White-label",
+        "1": "iOS & Android",
+        "2": "QR check-in",
+        "3": "Class booking"
+      },
+      "planLabel": "Mobile App",
+      "fig": "Fig. {n}",
+      "brand": {
+        "title": "Portal brand",
+        "file": "logo.png",
+        "fileLabel": "Club logo",
+        "colour": "Primary colour",
+        "covers": "Cover photos"
+      },
+      "slices": {
+        "booking": {
+          "title": "Your next class",
+          "eyebrow": "My bookings",
+          "rows": {
+            "0": {
+              "0": "18:00",
+              "1": "Pilates",
+              "2": "Confirmed"
+            },
+            "1": {
+              "0": "Studio 1",
+              "1": "Monday, October 5",
+              "2": "50 min"
+            }
+          },
+          "note": "Reminder before your session"
+        },
+        "billing": {
+          "title": "Payments & invoices",
+          "eyebrow": "My account",
+          "rows": {
+            "0": {
+              "0": "INV-104",
+              "1": "Oct 4",
+              "2": "150 GEL"
+            },
+            "1": {
+              "0": "INV-103",
+              "1": "Sep 4",
+              "2": "150 GEL"
+            },
+            "2": {
+              "0": "INV-102",
+              "1": "Aug 4",
+              "2": "150 GEL"
+            }
+          },
+          "note": "Renewal reminder: membership renews Nov 4",
+          "noteTitle": "Renewal reminder"
+        },
+        "notifications": {
+          "title": "Club updates",
+          "eyebrow": "Notifications",
+          "rows": {
+            "0": {
+              "0": "In 1 hour",
+              "1": "Your Pilates class",
+              "2": "Reminder"
+            },
+            "1": {
+              "0": "Today",
+              "1": "New evening classes",
+              "2": "Club news"
+            },
+            "2": {
+              "0": "Yesterday",
+              "1": "Your booking is confirmed",
+              "2": "Booking"
+            }
+          },
+          "note": "Stay connected between visits"
+        },
+        "location": {
+          "title": "Your home location",
+          "eyebrow": "Main Floor",
+          "rows": {
+            "0": {
+              "0": "09:00",
+              "1": "Morning Yoga",
+              "2": "Studio 1"
+            },
+            "1": {
+              "0": "12:30",
+              "1": "Strength Circuit",
+              "2": "Studio 2"
+            },
+            "2": {
+              "0": "18:00",
+              "1": "Pilates",
+              "2": "Studio 1"
+            }
+          },
+          "note": "Today’s classes at your home club"
+        }
+      }
+    },
+    "aiAssistant": {
+      "inside": "Inside AI Assistant",
+      "parts": "{count} parts",
+      "highlights": {
+        "0": "Answers questions",
+        "1": "Flags who needs attention",
+        "2": "Drafts messages",
+        "3": "Georgian & English"
+      },
+      "planLabel": "AI Assistant",
+      "fig": "Fig. {n}",
+      "slices": {
+        "ask": {
+          "title": "Ask the assistant",
+          "eyebrow": "AI Assistant",
+          "rows": {
+            "0": {
+              "0": "You",
+              "1": "Who hasn’t visited in 3 weeks?",
+              "2": "Question"
+            },
+            "1": {
+              "0": "Assistant",
+              "1": "7 members, listed as a table",
+              "2": "Answer"
+            }
+          },
+          "note": "Available on the Core plan"
+        },
+        "insight": {
+          "title": "Why did revenue drop?",
+          "eyebrow": "Follow-up",
+          "rows": {
+            "0": {
+              "0": "You",
+              "1": "Why is revenue down this week?",
+              "2": "Question"
+            },
+            "1": {
+              "0": "Assistant",
+              "1": "4 renewals still unpaid",
+              "2": "Payments"
+            },
+            "2": {
+              "0": "Assistant",
+              "1": "Tuesday Pilates cancelled",
+              "2": "Classes"
+            }
+          },
+          "note": "Ask again to go deeper, in the same chat"
+        },
+        "suggest": {
+          "title": "Suggested next steps",
+          "eyebrow": "Recommendation",
+          "rows": {
+            "0": {
+              "0": "1",
+              "1": "Remind the 4 members with unpaid renewals",
+              "2": "Payments"
+            },
+            "1": {
+              "0": "2",
+              "1": "Re-engage 7 members inactive for 3 weeks",
+              "2": "Retention"
+            },
+            "2": {
+              "0": "3",
+              "1": "Move Tuesday Pilates to an evening slot",
+              "2": "Classes"
+            }
+          },
+          "note": "Advisory only: you decide what to act on"
+        },
+        "aiAccess": {
+          "title": "Who can ask what",
+          "eyebrow": "Roles",
+          "rows": {
+            "0": {
+              "0": "Owner",
+              "1": "Members, revenue and reports",
+              "2": "Full"
+            },
+            "1": {
+              "0": "Receptionist",
+              "1": "Check-ins and front desk",
+              "2": "Front desk"
+            },
+            "2": {
+              "0": "Trainer",
+              "1": "Classes and sessions",
+              "2": "Classes"
+            }
+          },
+          "note": "Answers use only what the role can see"
+        }
+      }
+    },
+    "analyticsReporting": {
+      "inside": "Inside Analytics & Reporting",
+      "parts": "{count} parts",
+      "highlights": {
+        "0": "Live dashboard",
+        "1": "Ready-made reports",
+        "2": "CSV & Excel export",
+        "3": "Per branch"
+      },
+      "planLabel": "Dashboard",
+      "fig": "Fig. {n}",
+      "slices": {
+        "dashboard": {
+          "title": "This month",
+          "eyebrow": "Dashboard",
+          "rows": {
+            "0": {
+              "0": "Active members",
+              "1": "248",
+              "2": "+6%"
+            },
+            "1": {
+              "0": "Revenue",
+              "1": "18,420 GEL",
+              "2": "+12%"
+            },
+            "2": {
+              "0": "Check-ins",
+              "1": "1,312",
+              "2": "+4%"
+            }
+          },
+          "note": "3 members flagged at risk this week",
+          "noteTitle": "At-risk members"
+        },
+        "reports": {
+          "title": "Reports",
+          "eyebrow": "Admin panel",
+          "rows": {
+            "0": {
+              "0": "Revenue",
+              "1": "Sales transactions",
+              "2": "Excel"
+            },
+            "1": {
+              "0": "Members",
+              "1": "Membership payments",
+              "2": "CSV"
+            },
+            "2": {
+              "0": "Inventory",
+              "1": "Stock & inventory",
+              "2": "Excel"
+            }
+          },
+          "note": "Filter by date range and branch"
+        },
+        "roles": {
+          "title": "Who sees what",
+          "eyebrow": "Roles",
+          "rows": {
+            "0": {
+              "0": "Owner",
+              "1": "Every metric and report",
+              "2": "Full"
+            },
+            "1": {
+              "0": "Receptionist",
+              "1": "Check-ins and payments",
+              "2": "Front desk"
+            },
+            "2": {
+              "0": "Trainer",
+              "1": "Their classes and sessions",
+              "2": "Own"
+            }
+          },
+          "note": "Access set by role in the admin panel"
+        },
+        "ask": {
+          "title": "Ask the assistant",
+          "eyebrow": "AI Assistant",
+          "rows": {
+            "0": {
+              "0": "You",
+              "1": "Who hasn’t visited in 3 weeks?",
+              "2": "Question"
+            },
+            "1": {
+              "0": "Assistant",
+              "1": "7 members, listed as a table",
+              "2": "Answer"
+            }
+          },
+          "note": "Available on the Core plan"
+        }
+      }
     }
   }
 }

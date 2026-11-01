@@ -743,19 +743,28 @@ export const MarketingFooter = () => {
         </Link>
         <span className="font-mono text-xs text-subtle">
           © {new Date().getFullYear()} <span className="font-semibold text-fg">Forma</span>
-          <span className="bg-gradient-to-r from-accent-500 via-brand-500 to-iris-600 bg-clip-text font-semibold text-transparent">
+          <span className="bg-[linear-gradient(120deg,#5E9DB6_0%,#2F7896_40%,#1F4A72_100%)] dark:bg-[linear-gradient(120deg,#DEEDF2_0%,#9AC4D4_45%,#5E9DB6_100%)] font-semibold text-transparent [-webkit-background-clip:text] [background-clip:text]">
             Core
           </span>{' '}
           · {t('footer.location')}
         </span>
-        <div className="flex items-center gap-5 text-xs text-subtle">
-          <Link href="/terms" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
+        <div className="flex items-center gap-5 text-xs font-medium text-[#2F7896] dark:text-[#9AC4D4]">
+          <Link
+            href="/terms"
+            className="-mx-2 -my-3 inline-block px-2 py-3 transition-colors hover:text-[#1F4A72] dark:hover:text-[#DEEDF2]"
+          >
             {t('footer.terms')}
           </Link>
-          <Link href="/privacy" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
+          <Link
+            href="/privacy"
+            className="-mx-2 -my-3 inline-block px-2 py-3 transition-colors hover:text-[#1F4A72] dark:hover:text-[#DEEDF2]"
+          >
             {t('footer.privacy')}
           </Link>
-          <Link href="/dpa" className="-mx-2 -my-3 inline-block px-2 py-3 hover:text-muted">
+          <Link
+            href="/dpa"
+            className="-mx-2 -my-3 inline-block px-2 py-3 transition-colors hover:text-[#1F4A72] dark:hover:text-[#DEEDF2]"
+          >
             {t('footer.dpa')}
           </Link>
         </div>

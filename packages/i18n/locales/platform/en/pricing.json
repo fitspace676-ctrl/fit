@@ -11,7 +11,8 @@
   },
   "cards": {
     "note": "Every plan includes guided onboarding and support for your team. Each plan includes everything in the one before it.",
-    "perMonth": "/ month"
+    "perMonth": "/ month",
+    "price": "₾{amount}"
   },
   "tiers": {
     "studio": {

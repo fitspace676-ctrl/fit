@@ -11,6 +11,7 @@ import { getBuiltFor } from '@/data/built-for';
 import { getFeatures } from '@/data/features';
 import { Link } from '@/src/i18n/navigation';
 import { AudienceBadge, AudienceEmblem } from './audience-badge';
+import { COVER_SURFACE } from './cover-surface';
 import { HeroDevices } from './hero-devices';
 import { useLeadCta } from './lead-cta-context';
 import { ProductTour } from './product-tour';
@@ -257,17 +258,13 @@ export default function PlatformLanding() {
         <CardStack
           items={audiences.slice(0, LANDING_AUDIENCES)}
           getKey={(a) => a.slug}
-          cardClassName="flex min-h-[43rem] md:h-[37rem] md:min-h-0"
+          // At least the designed height; taller when the copy (Georgian runs longer) needs it.
+          cardClassName="flex min-h-[43rem] md:min-h-[37rem]"
         >
           {(a) => (
             <div
-              className="relative h-full w-full overflow-hidden rounded-[2rem] p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-12"
-              style={{
-                backgroundColor: '#1F4A72',
-                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' opacity='.65' d='M0 0h160v160H0z'/%3E%3C/svg%3E"), radial-gradient(ellipse at top left, #7FB3C8, transparent 55%), linear-gradient(120deg, #2F7896 15%, #1F4A72 100%)`,
-                backgroundSize: '160px 160px, cover, cover',
-                backgroundBlendMode: 'soft-light, normal, normal',
-              }}
+              className="relative w-full overflow-hidden rounded-[2rem] p-7 ring-1 ring-inset ring-white/10 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.65)] sm:p-10 md:p-12"
+              style={COVER_SURFACE}
             >
               <AudienceEmblem audience={a} cover />
 

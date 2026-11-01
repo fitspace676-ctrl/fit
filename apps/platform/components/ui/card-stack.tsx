@@ -39,6 +39,31 @@ export function CardStack<T>({
   const listRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  // Every card takes the height of the tallest, so a shorter card never lets the
+  // one under it show through. The copy decides the height (Georgian runs
+  // longer than English), so it is measured rather than fixed.
+  useEffect(() => {
+    const cards = cardRefs.current.filter((c): c is HTMLDivElement => c !== null);
+    if (cards.length === 0) return;
+    let frame = 0;
+    const equalize = (): void => {
+      frame = 0;
+      cards.forEach((card) => (card.style.minHeight = ''));
+      const tallest = Math.max(...cards.map((card) => card.offsetHeight));
+      cards.forEach((card) => (card.style.minHeight = `${tallest}px`));
+    };
+    const schedule = (): void => {
+      if (!frame) frame = window.requestAnimationFrame(equalize);
+    };
+    equalize();
+    void document.fonts?.ready.then(schedule);
+    window.addEventListener('resize', schedule);
+    return () => {
+      window.removeEventListener('resize', schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [items]);
+
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;

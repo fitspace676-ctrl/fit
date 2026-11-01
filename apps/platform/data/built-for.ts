@@ -60,6 +60,8 @@ export type AudiencePage = {
   planRecommendation?: { eyebrow: string; headline: string; body: string };
   /** Closing CTA band copy. */
   footerCta: { headline: string; subline: string };
+  /** The /built-for hub card's own copy, independent of the detail page. */
+  card?: { name: string; headline: string; stat: Stat };
 };
 
 /** The audience copy as it sits in the catalogue, keyed by slug. */
@@ -169,6 +171,11 @@ function audienceFrom(meta: AudienceMeta, copy: AudienceCopy[AudienceSlug]): Aud
     })),
     planRecommendation: copy.planRecommendation,
     footerCta: copy.footerCta,
+    card: {
+      name: copy.card.name,
+      headline: copy.card.headline,
+      stat: { value: copy.card.statValue, label: copy.card.statLabel },
+    },
   };
 }
 

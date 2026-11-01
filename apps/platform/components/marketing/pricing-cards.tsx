@@ -121,7 +121,7 @@ export const PricingCards = () => {
                 {/* The buttons' teal-to-navy gradient, lifted a step in dark mode so
                     the figure keeps its contrast on the dark card. */}
                 <span className="font-display text-[2.75rem] font-black tracking-tight tabular-nums leading-none bg-[linear-gradient(120deg,#5E9DB6_0%,#2F7896_40%,#1F4A72_100%)] dark:bg-[linear-gradient(120deg,#DEEDF2_0%,#9AC4D4_45%,#5E9DB6_100%)] text-transparent [-webkit-background-clip:text] [background-clip:text]">
-                  ₾{tier.monthly.toLocaleString('en-US')}
+                  {t('cards.price', { amount: tier.monthly.toLocaleString('en-US') })}
                 </span>
                 <span className="text-sm font-semibold text-subtle">{t('cards.perMonth')}</span>
               </div>
