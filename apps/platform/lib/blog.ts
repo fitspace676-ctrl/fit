@@ -6,10 +6,11 @@ import type {
   PublicBlogTagListResponse,
   PublicBlogIndexResponse,
 } from '@fit/types';
+import { apiBaseUrl } from '@/app/api/leads/route';
 
 async function blogFetch<T>(path: string, allowMissing = false): Promise<T | null> {
-  const base = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3005';
-  const response = await fetch(`${base.replace(/\/$/, '')}/platform/blog/${path}`, {
+  // Same resolution as the lead form: production falls back to the deployed API.
+  const response = await fetch(`${apiBaseUrl()}/platform/blog/${path}`, {
     next: { revalidate: 60 },
   });
   if (allowMissing && response.status === 404) return null;
