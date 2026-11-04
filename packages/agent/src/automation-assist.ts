@@ -255,6 +255,8 @@ export function buildAutomationAssistPrompt(
     '',
     'Merge tokens (write exactly as shown, only the ones for the trigger entityType, no others):',
     ...mergeTokenLines(),
+    '- In a subject or body, refer to the gym with {{business_name}}; never spell or transliterate',
+    '  its name yourself.',
     '',
     'Limits: name at most 120 characters, subject at most 200, body at most 2000.',
     '',
@@ -267,6 +269,8 @@ export function buildAutomationAssistPrompt(
     `- Call exactly one tool: ${PROPOSE_RULE} or ${ASK_OPERATOR}. Never answer with plain text.`,
     `- If a branch, plan or tag the operator names is not in the lists, or the trigger is`,
     `  ambiguous, call ${ASK_OPERATOR} and list the real options. Never make one up.`,
+    '- In a question or explanation, name branches, plans and tags by their names. Never show',
+    '  ids, trigger values or field keys to the operator.',
     '- When a current form is given, edit it and send the full updated draft, not a diff.',
     '- Fill what you understood; a missing detail the operator can still set in the form is fine.',
   ].join('\n');

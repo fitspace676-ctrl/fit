@@ -314,5 +314,7 @@ describe('buildAutomationAssistPrompt', () => {
     expect(prompt).toContain('plan-gold - Gold');
     expect(prompt).toContain('{{class_name}}');
     expect(prompt).toContain('product_stock_low');
+    expect(prompt).toContain('refer to the gym with {{business_name}}');
+    expect(prompt).toContain('Never show');
   });
 });
