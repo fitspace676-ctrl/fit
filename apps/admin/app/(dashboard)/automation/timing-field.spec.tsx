@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { NextIntlClientProvider } from 'next-intl';
 import messages from '@fit/i18n/locales/en.json';
 import { TimingField, timingState, timingOffset, validTiming, timingLabel } from './timing-field';
@@ -16,21 +18,29 @@ function Harness({ offset = '0d', event = false }: { offset?: string; event?: bo
 }
 
 describe('TimingField', () => {
-  it('edits a legacy scan preset into a custom five-day offset', () => {
+  it('edits a legacy scan preset into a custom five-day offset', async () => {
+    const user = userEvent.setup();
     render(<Harness offset="7_days_before" />);
-    expect(screen.getByLabelText('Direction')).toHaveValue('before');
+    expect(selectedValue(screen.getByLabelText('Direction'))).toBe('before');
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '5' } });
     expect(screen.getByRole('status')).toHaveTextContent('-5d');
-    fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'h' } });
+    await chooseOption(user, screen.getByLabelText('Unit'), 'hours');
     expect(screen.getByRole('status')).toHaveTextContent('-5h');
     cleanup();
   });
-  it('normalizes a negative event seed and excludes before presets and direction', () => {
+  it('normalizes a negative event seed and excludes before presets and direction', async () => {
+    const user = userEvent.setup();
     render(<Harness offset="2_days_before" event />);
-    expect(screen.getByLabelText('Direction')).toHaveValue('now');
+    expect(selectedValue(screen.getByLabelText('Direction'))).toBe('now');
+    await user.click(screen.getByLabelText('Direction'));
+    expect(screen.getByRole('option', { name: 'After' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Before' })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByLabelText('Quick preset'));
+    expect(screen.getByRole('option', { name: '3 days after' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: '7 days before' })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Quick preset'), { target: { value: '3d' } });
+    await user.keyboard('{Escape}');
+    await chooseOption(user, screen.getByLabelText('Quick preset'), '3 days after');
     expect(screen.getByRole('status')).toHaveTextContent('3d');
     cleanup();
   });

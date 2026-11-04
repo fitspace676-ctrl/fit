@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { AUTOMATION_TIMING_PRESETS, parseTimingOffset, formatTimingOffset } from '@fit/types';
-import { Field, FieldGroup, SelectField } from '@fit/ui-kit';
+import { Field, FieldGroup } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 
 export interface TimingState {
   timingAmount: string;
@@ -75,13 +76,11 @@ export function TimingField({
           value={AUTOMATION_TIMING_PRESETS.some((p) => p.value === offset) ? offset : ''}
           hint={event ? t('timing.eventHint') : t('form.timingHint')}
           onChange={(e) => onChange(timingState(e.target.value, event))}
-          options={[
-            { value: '', label: t('timing.custom'), disabled: true },
-            ...AUTOMATION_TIMING_PRESETS.filter((p) => !event || p.days >= 0).map((p) => ({
-              value: p.value,
-              label: timingLabel(p.value, t),
-            })),
-          ]}
+          placeholder={t('timing.custom')}
+          options={AUTOMATION_TIMING_PRESETS.filter((p) => !event || p.days >= 0).map((p) => ({
+            value: p.value,
+            label: timingLabel(p.value, t),
+          }))}
         />
         <SelectField
           label={t('timing.direction')}

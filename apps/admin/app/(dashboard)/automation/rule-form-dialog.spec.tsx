@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { chooseOption } from '@fit/ui-kit/testing';
 import { NextIntlClientProvider } from 'next-intl';
 import messages from '@fit/i18n/locales/en.json';
 import { AUTOMATION_CONDITION_FIELDS, AUTOMATION_TIMING_PRESETS } from '@fit/types';
@@ -18,7 +20,8 @@ const form = messages.admin.automation.form;
 const actions = messages.admin.automation.actions;
 
 describe('RuleFormDialog', () => {
-  it('restricts a gym-recipient trigger to the email action without conditions', () => {
+  it('restricts a gym-recipient trigger to the email action without conditions', async () => {
+    const user = userEvent.setup();
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <RuleFormDialog mode="create" catalog={catalog} onClose={() => {}} />
@@ -27,9 +30,11 @@ describe('RuleFormDialog', () => {
     const button = (label: string) => screen.getByRole('button', { name: label });
     expect(button(actions.push_notification)).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.change(screen.getByLabelText(form.trigger), {
-      target: { value: 'product_stock_low' },
-    });
+    await chooseOption(
+      user,
+      screen.getByLabelText(form.trigger),
+      messages.admin.automation.triggers.product_stock_low,
+    );
 
     expect(button(actions.email)).toHaveAttribute('aria-pressed', 'true');
     expect(button(actions.email)).not.toHaveAttribute('aria-disabled');
