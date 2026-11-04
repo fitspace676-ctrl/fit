@@ -19,6 +19,11 @@
     "@fit/ui-kit": "workspace:*",
     "@sentry/nextjs": "^9",
     "@stylexjs/stylex": "^0.18.3",
+    "@tiptap/extension-image": "^3.32.1",
+    "@tiptap/extension-link": "^3.32.1",
+    "@tiptap/pm": "^3.32.1",
+    "@tiptap/react": "^3.32.1",
+    "@tiptap/starter-kit": "^3.32.1",
     "next": "^15.1.6",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"

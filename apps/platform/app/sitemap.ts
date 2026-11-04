@@ -1,12 +1,17 @@
 import type { MetadataRoute } from 'next';
+import { fetchBlogIndex } from '@/lib/blog';
 import { FEATURE_SLUGS } from '@/data/features';
 import { BUILT_FOR_SLUGS } from '@/data/built-for';
 import { localeUrl } from '@/src/i18n/metadata';
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export const dynamic = 'force-dynamic';
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const { items } = await fetchBlogIndex();
   const paths = [
     '/',
     '/pricing',
+    '/blog',
     '/features',
     '/built-for',
     '/register-gym',
@@ -16,7 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...FEATURE_SLUGS.map((slug) => `/features/${slug}`),
     ...BUILT_FOR_SLUGS.map((slug) => `/built-for/${slug}`),
   ];
-  return paths.flatMap((path) =>
+  const staticPages = paths.flatMap((path) =>
     ['en', 'ka'].map((locale) => ({
       url: localeUrl(locale, path),
       alternates: {
@@ -28,4 +33,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       },
     })),
   );
+  return [
+    ...staticPages,
+    ...items.flatMap((post) =>
+      post.langs.map((lang) => ({
+        url: localeUrl(lang, `/blog/${post.slug}`),
+        lastModified: post.updatedAt,
+        alternates: {
+          languages: Object.fromEntries(
+            post.langs.map((language) => [language, localeUrl(language, `/blog/${post.slug}`)]),
+          ),
+        },
+      })),
+    ),
+  ];
 }

@@ -162,7 +162,7 @@ export const Btn = ({
 };
 
 export const Eyebrow = ({ children, icon = I.spark }: { children: ReactNode; icon?: string }) => (
-  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-overlay/[0.06] border border-overlay/10 text-[11px] font-mono uppercase tracking-[0.22em] text-muted">
+  <span className="inline-flex items-center gap-2 px-3 py-1 rounded-pill bg-overlay/[0.06] border border-overlay/10 text-[11px] font-mono uppercase [&:lang(ka)]:normal-case tracking-[0.22em] text-muted">
     <Icon d={icon} c="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" sw={2} />
     {children}
   </span>
@@ -297,7 +297,7 @@ export const Aurora = () => (
  * the plans either way, with the figures replaced by a quote request while
  * `SHOW_PUBLIC_PRICING` is off.
  */
-const NAV_ITEMS = ['core', 'features', 'builtFor', 'pricing', 'resources'] as const;
+const NAV_ITEMS = ['core', 'features', 'builtFor', 'pricing', 'blog', 'resources'] as const;
 export type NavItem = (typeof NAV_ITEMS)[number];
 
 /** A nav item that opens a dropdown of pages; `base` is where each entry links to. */
@@ -503,7 +503,8 @@ export const MarketingNav = ({
 
   // Where each nav item routes. "Core" → homepage, "Pricing" → /pricing; the
   // rest are inert in-page anchors (faithful to the design).
-  const navHref = (n: NavItem): string => (n === 'core' ? '/' : n === 'pricing' ? '/pricing' : '#');
+  const navHref = (n: NavItem): string =>
+    n === 'core' ? '/' : n === 'pricing' ? '/pricing' : n === 'blog' ? '/blog' : '#';
 
   const renderItem = (n: NavItem, className: string): ReactNode => {
     const href = navHref(n);
@@ -521,7 +522,7 @@ export const MarketingNav = ({
   // Mobile drawer links carry the animated underline (wipes in from the left on
   // hover / press), with the active item highlighted.
   const drawerLinkCls = (n: NavItem): string =>
-    `relative inline-flex w-fit items-center py-1 text-2xl font-semibold uppercase tracking-tight transition-colors after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-fg after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.65,0.05,0.36,1)] hover:after:origin-bottom-left hover:after:scale-x-100 ${n === active ? 'text-fg' : 'text-strong hover:text-fg'}`;
+    `relative inline-flex w-fit items-center py-1 text-2xl font-semibold uppercase [&:lang(ka)]:normal-case tracking-tight transition-colors after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:origin-bottom-right after:scale-x-0 after:bg-fg after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.65,0.05,0.36,1)] hover:after:origin-bottom-left hover:after:scale-x-100 ${n === active ? 'text-fg' : 'text-strong hover:text-fg'}`;
 
   const renderDrawerItem = (n: NavItem): ReactNode => {
     const href = navHref(n);
@@ -631,7 +632,7 @@ export const MarketingNav = ({
             <span className="h-1.5 w-12 rounded-full bg-overlay/25" />
           </div>
           <div className="flex items-center justify-between px-6 pt-3">
-            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-faint">
+            <span className="font-mono text-[11px] uppercase [&:lang(ka)]:normal-case tracking-[0.2em] text-faint">
               {t('nav.menu')}
             </span>
             <div className="flex items-center gap-2">
@@ -658,7 +659,7 @@ export const MarketingNav = ({
                       type="button"
                       onClick={() => setOpenGroup(open ? null : n)}
                       aria-expanded={open}
-                      className="flex w-full items-center justify-between py-1 text-2xl font-semibold uppercase tracking-tight text-strong transition-colors hover:text-fg"
+                      className="flex w-full items-center justify-between py-1 text-2xl font-semibold uppercase [&:lang(ka)]:normal-case tracking-tight text-strong transition-colors hover:text-fg"
                     >
                       {label(n)}
                       <Icon
@@ -748,7 +749,13 @@ export const MarketingFooter = () => {
           </span>{' '}
           · {t('footer.location')}
         </span>
-        <div className="flex items-center gap-5 text-xs font-medium text-[#2F7896] dark:text-[#9AC4D4]">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs font-medium text-[#2F7896] dark:text-[#9AC4D4]">
+          <Link
+            href="/blog"
+            className="-mx-2 -my-3 inline-block px-2 py-3 transition-colors hover:text-[#1F4A72] dark:hover:text-[#DEEDF2]"
+          >
+            {t('nav.items.blog')}
+          </Link>
           <Link
             href="/terms"
             className="-mx-2 -my-3 inline-block px-2 py-3 transition-colors hover:text-[#1F4A72] dark:hover:text-[#DEEDF2]"

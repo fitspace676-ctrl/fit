@@ -35,7 +35,12 @@ export default defineConfig({
       ['**/*.test.ts', 'jsdom'],
     ],
     setupFiles: ['./vitest.setup.ts'],
-    include: ['app/**/*.spec.ts', 'lib/**/*.spec.ts', 'components/**/*.test.tsx'],
+    include: [
+      'app/**/*.spec.ts',
+      'lib/**/*.spec.ts',
+      'lib/**/*.test.ts',
+      'components/**/*.test.tsx',
+    ],
     exclude: ['node_modules/**', '.next/**'],
   },
 });
