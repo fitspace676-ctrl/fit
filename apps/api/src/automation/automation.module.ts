@@ -1,5 +1,6 @@
 import { AutomationFactsService } from './automation-facts.service';
 import { Module } from '@nestjs/common';
+import { AutomationAssistService } from './automation-assist.service';
 import { AutomationController } from './automation.controller';
 import { AutomationExecutorService } from './automation-executor.service';
 import { AutomationMergeService } from './automation-merge.service';
@@ -27,6 +28,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
   imports: [NotificationsModule],
   controllers: [AutomationController],
   providers: [
+    AutomationAssistService,
     AutomationFactsService,
     AutomationService,
     AutomationExecutorService,

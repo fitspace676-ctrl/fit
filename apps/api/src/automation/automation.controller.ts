@@ -15,12 +15,14 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  automationAssistRequestSchema,
   createAutomationRuleSchema,
   listAutomationRulesQuerySchema,
   listAutomationRunsQuerySchema,
   saveAsTemplateSchema,
   toggleAutomationRuleSchema,
   updateAutomationRuleSchema,
+  type AutomationAssistResponse,
   type AutomationCatalogResponse,
   type AutomationStats,
   type GetAutomationRuleResponse,
@@ -31,6 +33,7 @@ import {
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
+import { AutomationAssistService } from './automation-assist.service';
 import { AutomationService } from './automation.service';
 
 /**
@@ -47,7 +50,10 @@ import { AutomationService } from './automation.service';
 @Controller('automation')
 @UseGuards(TenantGuard, PermissionsGuard)
 export class AutomationController {
-  constructor(private readonly automation: AutomationService) {}
+  constructor(
+    private readonly automation: AutomationService,
+    private readonly assistant: AutomationAssistService,
+  ) {}
 
   /**
    * `GET /automation/catalog` — the trigger / action / timing catalogs the
@@ -58,6 +64,19 @@ export class AutomationController {
   @RequirePermissions(Permission.AutomationRead)
   catalog(): Promise<AutomationCatalogResponse> {
     return this.automation.catalog();
+  }
+
+  /**
+   * `POST /automation/assist` — draft a rule from the operator's message (the
+   * builder's "Build with AI" panel). Never saves: the answer is a draft to
+   * apply to the form, or a clarifying question. `503` when no model provider
+   * is configured, `502` when the provider fails.
+   */
+  @Post('assist')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.AutomationManage)
+  async assist(@Body() body: unknown): Promise<AutomationAssistResponse> {
+    return this.assistant.assist(parse(automationAssistRequestSchema, body));
   }
 
   // -------------------------------------------------------------------------
