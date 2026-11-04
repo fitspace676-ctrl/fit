@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { updateAutomationRuleSchema } from './automation';
+import {
+  GYM_RECIPIENT_TRIGGERS,
+  createAutomationRuleSchema,
+  updateAutomationRuleSchema,
+} from './automation';
+import type { AutomationCondition } from './automation-conditions';
+import { AUTOMATION_MERGE_FIELDS, mergeFieldsForTrigger } from './automation-merge-fields';
 
 // @fit/types/automation-assist — the contract between the admin builder's
 // "Build with AI" panel and `POST /automation/assist`.
@@ -94,3 +100,157 @@ export const AUTOMATION_ASSIST_ERROR_CODES = {
   /** The model provider failed or returned something unusable (502). */
   failed: 'AUTOMATION_ASSIST_FAILED',
 } as const;
+
+// ---------------------------------------------------------------------------
+// Draft validation against the tenant's own options
+// ---------------------------------------------------------------------------
+
+/**
+ * The tenant data a draft may reference: the gym's branches, plans and member
+ * tags, exactly as `GET /automation/catalog` serves them as `conditionOptions`.
+ * The server always reads these from the tenant-scoped catalog, never the body.
+ */
+export interface AutomationAssistOptions {
+  locations: { id: string; name: string }[];
+  plans: { id: string; name: string }[];
+  tags: string[];
+}
+
+/** What {@link validateAutomationDraft} found. */
+export interface AutomationDraftValidation {
+  /** The parsed draft, with branch/plan names resolved to ids (`{}` when unparseable). */
+  draft: AutomationDraft;
+  /** Whether the draft has no issues and also passes `createAutomationRuleSchema`. */
+  complete: boolean;
+  /** Human-readable problems, one per line, fed back to the model to fix. */
+  issues: string[];
+}
+
+const MERGE_TOKEN_PATTERN = /\{\{\s*([^{}]*?)\s*\}\}/g;
+
+const sameText = (a: string, b: string): boolean =>
+  a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+
+const availableList = (names: readonly string[]): string =>
+  names.length > 0 ? names.join(', ') : 'none';
+
+/**
+ * Map one branch/plan reference onto the tenant's options: an exact id stays,
+ * a name (case-insensitive, trimmed) becomes its id, anything else is reported.
+ */
+function resolveReference(
+  value: string,
+  choices: readonly { id: string; name: string }[],
+  label: string,
+  issues: string[],
+): string {
+  if (choices.some((choice) => choice.id === value)) return value;
+  const byName = choices.find((choice) => sameText(choice.name, value));
+  if (byName) return byName.id;
+  issues.push(
+    `Unknown ${label}: ${value}. Available: ${availableList(choices.map((choice) => choice.name))}`,
+  );
+  return value;
+}
+
+function resolveTag(value: string, tags: readonly string[], issues: string[]): string {
+  if (tags.includes(value)) return value;
+  const match = tags.find((tag) => sameText(tag, value));
+  if (match !== undefined) return match;
+  issues.push(`Unknown tag: ${value}. Available: ${availableList(tags)}`);
+  return value;
+}
+
+function resolveConditionValue(
+  condition: AutomationCondition,
+  options: AutomationAssistOptions,
+  issues: string[],
+): AutomationCondition {
+  const { field, value } = condition;
+  if (value === undefined || typeof value === 'number') return condition;
+  const map = (item: string): string => {
+    if (field === 'member_branch') {
+      return resolveReference(item, options.locations, 'branch', issues);
+    }
+    if (field === 'subscription_plan') {
+      return resolveReference(item, options.plans, 'plan', issues);
+    }
+    if (field === 'member_tags') return resolveTag(item, options.tags, issues);
+    return item;
+  };
+  return { ...condition, value: Array.isArray(value) ? value.map(map) : map(value) };
+}
+
+/** Every `{{token}}` in `text` that is not one of `allowed`. */
+function unknownTokens(text: string | undefined, allowed: ReadonlySet<string>): string[] {
+  if (!text) return [];
+  const unknown: string[] = [];
+  for (const match of text.matchAll(MERGE_TOKEN_PATTERN)) {
+    const token = `{{${match[1]}}}`;
+    if (!allowed.has(token) && !unknown.includes(token)) unknown.push(token);
+  }
+  return unknown;
+}
+
+/**
+ * Check a model-proposed draft against the rule schema *and* this gym's data.
+ *
+ * - Shape: {@link automationDraftSchema}; a draft that does not parse is
+ *   reported field by field (`path: message`) and returned as `{}`.
+ * - Branch / plan conditions must name one of `options.locations` /
+ *   `options.plans` — an id, or a name that is rewritten to its id. Tags must be
+ *   one of `options.tags`. A branch id from another gym is simply unknown here.
+ * - Merge tokens in the subject/body must be ones the trigger can fill.
+ * - A gym-recipient trigger takes no conditions (and only the email action).
+ *
+ * A `needsDays` trigger without `days` is not an issue — the draft is just not
+ * `complete` yet.
+ */
+export function validateAutomationDraft(
+  input: unknown,
+  options: AutomationAssistOptions,
+): AutomationDraftValidation {
+  const parsed = automationDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      draft: {},
+      complete: false,
+      issues: parsed.error.issues.map((issue) => {
+        const path = issue.path.join('.');
+        return path ? `${path}: ${issue.message}` : issue.message;
+      }),
+    };
+  }
+
+  const issues: string[] = [];
+  const draft: AutomationDraft = { ...parsed.data };
+
+  if (draft.conditions) {
+    draft.conditions = draft.conditions.map((condition) =>
+      resolveConditionValue(condition, options, issues),
+    );
+  }
+
+  if (draft.actionConfig) {
+    const fields = draft.triggerType
+      ? mergeFieldsForTrigger(draft.triggerType)
+      : AUTOMATION_MERGE_FIELDS;
+    const allowed = new Set(fields.map((field) => field.token));
+    const unknown = [
+      ...unknownTokens(draft.actionConfig.subject, allowed),
+      ...unknownTokens(draft.actionConfig.body, allowed),
+    ].filter((token, index, all) => all.indexOf(token) === index);
+    for (const token of unknown) {
+      issues.push(`Unknown merge token: ${token}. Allowed: ${[...allowed].join(', ')}`);
+    }
+  }
+
+  if (draft.triggerType && GYM_RECIPIENT_TRIGGERS.has(draft.triggerType)) {
+    if (draft.conditions && draft.conditions.length > 0) {
+      issues.push(`conditions: The ${draft.triggerType} trigger does not support conditions`);
+    }
+  }
+
+  const complete = issues.length === 0 && createAutomationRuleSchema.safeParse(draft).success;
+  return { draft, complete, issues };
+}
