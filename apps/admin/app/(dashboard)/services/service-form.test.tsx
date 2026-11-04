@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
+import { chooseOption } from '@fit/ui-kit/testing';
 import { en } from '@fit/i18n';
 import { ServiceForm } from './service-form';
 import { createServiceAction } from './actions';
@@ -32,7 +34,8 @@ const categories = [
 describe('ServiceForm', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('shows no name field and only trainers for a personal-training service', () => {
+  it('shows no name field and only trainers for a personal-training service', async () => {
+    const user = userEvent.setup();
     renderWithIntl(
       <ServiceForm
         mode="create"
@@ -45,6 +48,7 @@ describe('ServiceForm', () => {
     );
 
     expect(screen.queryByLabelText('Name')).toBeNull();
+    await user.click(screen.getByLabelText('Staff member'));
     const options = screen.getAllByRole('option').map((o) => o.textContent);
     expect(options).toContain('Nino Beridze');
     expect(options).not.toContain('Lasha M');
@@ -69,6 +73,7 @@ describe('ServiceForm', () => {
   });
 
   it('sends the profile alone for a personal-training service', async () => {
+    const user = userEvent.setup();
     renderWithIntl(
       <ServiceForm
         mode="create"
@@ -80,7 +85,7 @@ describe('ServiceForm', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('Staff member'), { target: { value: 'gm-1' } });
+    await chooseOption(user, screen.getByLabelText('Staff member'), 'Nino Beridze');
     fireEvent.change(screen.getByLabelText('Price per session'), { target: { value: '80' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create service' }));
 
@@ -90,7 +95,8 @@ describe('ServiceForm', () => {
     expect('schedule' in (input as object)).toBe(false);
   });
 
-  it('shows the name and every staff member for a custom service', () => {
+  it('shows the name and every staff member for a custom service', async () => {
+    const user = userEvent.setup();
     renderWithIntl(
       <ServiceForm
         mode="create"
@@ -103,10 +109,12 @@ describe('ServiceForm', () => {
     );
 
     expect(screen.getByLabelText('Name')).toBeTruthy();
+    await user.click(screen.getByLabelText('Staff member'));
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toContain('Lasha M');
   });
 
   it('creates a custom service from its name and profile', async () => {
+    const user = userEvent.setup();
     renderWithIntl(
       <ServiceForm
         mode="create"
@@ -119,7 +127,7 @@ describe('ServiceForm', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Massage' } });
-    fireEvent.change(screen.getByLabelText('Staff member'), { target: { value: 'gm-1' } });
+    await chooseOption(user, screen.getByLabelText('Staff member'), 'Nino Beridze');
     fireEvent.change(screen.getByLabelText('Price per session'), { target: { value: '50' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create service' }));
 
@@ -129,6 +137,7 @@ describe('ServiceForm', () => {
   });
 
   it("files a personal session under one of the gym's categories", async () => {
+    const user = userEvent.setup();
     renderWithIntl(
       <ServiceForm
         mode="create"
@@ -140,14 +149,16 @@ describe('ServiceForm', () => {
       />,
     );
 
-    const picker = screen.getByLabelText<HTMLSelectElement>('Category (optional)');
-    expect(Array.from(picker.options).map((o) => o.textContent)).toEqual([
+    const picker = screen.getByLabelText('Category (optional)');
+    await user.click(picker);
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
       'No category',
       'Boxing',
       'Pilates',
     ]);
-    fireEvent.change(picker, { target: { value: 'cat-1' } });
-    fireEvent.change(screen.getByLabelText('Staff member'), { target: { value: 'gm-1' } });
+    await user.keyboard('{Escape}');
+    await chooseOption(user, picker, 'Boxing');
+    await chooseOption(user, screen.getByLabelText('Staff member'), 'Nino Beridze');
     fireEvent.change(screen.getByLabelText('Price per session'), { target: { value: '80' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create service' }));
 
