@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AutomationService } from './automation.service';
-import type { CreateAutomationRuleInput } from '@fit/types';
+import { AUTOMATION_BUILT_IN_TEMPLATES, type CreateAutomationRuleInput } from '@fit/types';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -162,6 +162,13 @@ describe('AutomationService.listTemplates', () => {
     const res = await service.listTemplates();
     expect(res.data[0]?.id).toBe('tmpl-1');
     expect(ruleFindMany.mock.calls[0]?.[0].where).toEqual({ isTemplate: true });
+  });
+
+  it('serves the static built-in templates alongside', async () => {
+    const { service } = setup({ ruleFindMany: [] });
+    const res = await service.listTemplates();
+    expect(res.builtIn).toBe(AUTOMATION_BUILT_IN_TEMPLATES);
+    expect(res.builtIn).toHaveLength(26);
   });
 });
 

@@ -12,6 +12,7 @@ import {
   automationTimingOffsetSchema,
   automationTriggerConfigSchema,
   AUTOMATION_ACTION_CATALOG,
+  AUTOMATION_BUILT_IN_TEMPLATES,
   AUTOMATION_TIMING_PRESETS,
   AUTOMATION_TRIGGER_CATALOG,
   type AutomationActionConfig,
@@ -191,7 +192,7 @@ export class AutomationService {
       orderBy: { createdAt: 'desc' },
       select: RULE_SELECT,
     });
-    return { data: rows.map((r) => this.toRuleRow(r)) };
+    return { data: rows.map((r) => this.toRuleRow(r)), builtIn: AUTOMATION_BUILT_IN_TEMPLATES };
   }
 
   /** One rule's detail — the row plus its recent run log. 404s on a miss. */

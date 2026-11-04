@@ -9,6 +9,7 @@ import {
   type AutomationTimingOffset,
   type AutomationTimingMeta,
 } from './automation-timing';
+import type { AutomationBuiltInTemplate } from './automation-templates';
 export { automationTimingOffsetSchema, AUTOMATION_TIMING_PRESETS } from './automation-timing';
 export type { AutomationTimingOffset, AutomationTimingMeta } from './automation-timing';
 
@@ -610,9 +611,13 @@ export interface ListAutomationRulesResponse {
   limit: number;
 }
 
-/** Response of `GET /automation/templates` — every reusable template, newest first. */
+/**
+ * Response of `GET /automation/templates` — the gym's saved templates (newest
+ * first) and the static built-in starting points.
+ */
 export interface ListAutomationTemplatesResponse {
   data: AutomationRuleRow[];
+  builtIn: readonly AutomationBuiltInTemplate[];
 }
 
 /**

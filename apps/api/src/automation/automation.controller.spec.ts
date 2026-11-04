@@ -10,7 +10,7 @@ import type { AutomationService } from './automation.service';
  */
 function setup() {
   const catalog = vi.fn(() => ({ triggers: [], actions: [], timings: [] }));
-  const listTemplates = vi.fn(() => Promise.resolve({ data: [] }));
+  const listTemplates = vi.fn(() => Promise.resolve({ data: [], builtIn: [] }));
   const listRules = vi.fn(() => Promise.resolve({ data: [], total: 0, page: 1, limit: 20 }));
   const getRule = vi.fn(() => Promise.resolve({ id: 'rule-1' }));
   const listRuns = vi.fn(() => Promise.resolve({ data: [] }));
