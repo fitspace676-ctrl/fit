@@ -11,6 +11,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { TopBar } from './top-bar';
@@ -56,6 +57,7 @@ const messages = {
       settings: 'Settings',
       signOut: 'Sign out',
       language: { label: 'Language' },
+      select: { searchPlaceholder: 'Search…', empty: 'Nothing found' },
     },
   },
 };
@@ -90,15 +92,19 @@ describe('TopBar branch switcher', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 
-  it('lists "All locations" first, then the gym\'s branches in roster order', () => {
+  it('lists "All locations" first, then the gym\'s branches in roster order', async () => {
+    const user = userEvent.setup();
     renderBar();
-    const select = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Location' });
-    expect([...select.options].map((option) => option.textContent)).toEqual([
+    const trigger = screen.getByRole('combobox', { name: 'Location' });
+    await user.click(trigger);
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
       'All locations',
       'Downtown',
       'Harbour',
     ]);
-    expect([...select.options].map((option) => option.value)).toEqual([
+    // The form value behind each row is still the id the provider expects.
+    const select = trigger.parentElement?.querySelector('select');
+    expect([...(select?.options ?? [])].map((option) => option.value)).toEqual([
       'all',
       'loc-downtown',
       'loc-harbour',
@@ -110,24 +116,23 @@ describe('TopBar branch switcher', () => {
     // old `useEffect` restore painted "All locations" for a frame first.
     mocks.active.current = 'loc-harbour';
     renderBar();
-    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Location' }).value).toBe(
-      'loc-harbour',
-    );
+    const trigger = screen.getByRole('combobox', { name: 'Location' });
+    expect(selectedValue(trigger)).toBe('loc-harbour');
+    expect(trigger).toHaveTextContent('Harbour');
   });
 
   it('hands a chosen branch to the provider instead of keeping it locally', async () => {
+    const user = userEvent.setup();
     renderBar();
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'Location' }),
-      'loc-downtown',
-    );
+    await chooseOption(user, screen.getByRole('combobox', { name: 'Location' }), 'Downtown');
     expect(mocks.setActive).toHaveBeenCalledWith('loc-downtown');
   });
 
   it('hands the "all" sentinel over the same path', async () => {
     mocks.active.current = 'loc-downtown';
+    const user = userEvent.setup();
     renderBar();
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Location' }), 'all');
+    await chooseOption(user, screen.getByRole('combobox', { name: 'Location' }), 'All locations');
     expect(mocks.setActive).toHaveBeenCalledWith('all');
   });
 });
@@ -138,7 +143,7 @@ describe('TopBar branch switcher, for a branch-scoped role', () => {
   // of the restriction — so the option must not be on the list at all.
   //
   // Not merely disabled: a greyed row still announces that a gym-wide view exists
-  // and that this person is being kept out of it, and a `<select>` whose chosen
+  // and that this person is being kept out of it, and a select whose chosen
   // value snaps back reads as a broken control rather than as a policy. The
   // roster it does list has already been narrowed by the console layout, so every
   // option here is one they hold.
@@ -149,8 +154,10 @@ describe('TopBar branch switcher, for a branch-scoped role', () => {
     mocks.active.current = 'loc-harbour';
   });
 
-  it('offers no "All locations" option', () => {
+  it('offers no "All locations" option', async () => {
+    const user = userEvent.setup();
     renderBar();
+    await user.click(screen.getByRole('combobox', { name: 'Location' }));
     const labels = screen.getAllByRole('option').map((option) => option.textContent);
     expect(labels).toEqual(['Downtown', 'Harbour']);
     expect(labels).not.toContain('All locations');
@@ -158,6 +165,8 @@ describe('TopBar branch switcher, for a branch-scoped role', () => {
 
   it('still draws the branches the operator does hold', () => {
     renderBar();
-    expect(screen.getByRole('combobox')).toHaveValue('loc-harbour');
+    const trigger = screen.getByRole('combobox', { name: 'Location' });
+    expect(selectedValue(trigger)).toBe('loc-harbour');
+    expect(trigger).toHaveTextContent('Harbour');
   });
 });

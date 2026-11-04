@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { ShiftSlotRow, StaffRole } from '@fit/types';
-import { SelectField, Switch } from '@fit/ui-kit';
+import { Switch } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import { Icon } from '@/components/ui';
 import { STAFF_ROLES } from './role-meta';
 
