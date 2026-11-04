@@ -1,6 +1,10 @@
+'use client';
+
+import { useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import type { CartView, ProductSummary } from '@fit/types';
+import { encodeVariantRef, type CartView, type ProductSummary } from '@fit/types';
+import { Button } from '@/src/components/ui/kit';
 import { formatMoney } from '@/lib/shop';
 import { QtyControl } from './QtyControl';
 
@@ -110,6 +114,20 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
+  options: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    marginTop: '0.5rem',
+  },
+  unavailable: {
+    textDecoration: 'line-through',
+  },
+  hint: {
+    margin: 0,
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
   soldOut: {
     marginTop: '0.375rem',
     marginBottom: 0,
@@ -121,34 +139,30 @@ const styles = stylex.create({
 
 export interface ProductRowProps {
   product: ProductSummary;
-  /** Units of this product already in the cart, summed across its variants. */
-  qty: number;
+  cart: CartView;
   /** Hand the fresh cart up after an add / step, so the panel re-renders. */
   onCart: (cart: CartView) => void;
 }
 
-/**
- * One product in the shop list: thumb, name, variant meta, price, and the add /
- * quantity control. When a variant prices below the base the row shows a "from
- * <lowest>" so the buyer sees the entry price. A product whose every variant is
- * out of stock is still listed — flagged, without an add control — so the buyer
- * sees what exists rather than a silently shorter catalogue.
- */
-export function ProductRow({ product, qty, onCart }: ProductRowProps) {
+/** A product's selected option determines its price and exact cart line. */
+export function ProductRow({ product, cart, onCart }: ProductRowProps) {
   const t = useTranslations('shop');
   const locale = useLocale();
-
-  // Show "from <lowest>" only when a variant prices below the base — otherwise
-  // the base price is the single, honest number.
-  const variantPrices = product.variants.map((variant) => variant.priceAmount);
-  const lowest = variantPrices.length > 0 ? Math.min(...variantPrices, product.priceAmount) : null;
-  const showFrom = lowest !== null && lowest < product.priceAmount;
-  const price = formatMoney(showFrom ? lowest : product.priceAmount, product.currency, locale);
-
-  // A product with no variants is bought at its base price and is always
-  // orderable; one with variants is orderable while any of them is in stock.
-  const soldOut =
-    product.variants.length > 0 && product.variants.every((variant) => !variant.available);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const hasVariants = product.variants.length > 0;
+  const selected = product.variants.find((variant) => variant.id === selectedId);
+  const soldOut = hasVariants && product.variants.every((variant) => !variant.available);
+  const variantId = hasVariants
+    ? selected
+      ? encodeVariantRef(product.id, Number(selected.id))
+      : null
+    : encodeVariantRef(product.id, null);
+  const qty = cart.items.find((item) => item.variantId === variantId)?.qty ?? 0;
+  const buyable = !hasVariants || selected?.available === true;
+  const prices = product.variants.map((variant) => variant.priceAmount);
+  const amount = selected?.priceAmount ?? (hasVariants ? Math.min(...prices) : product.priceAmount);
+  const showFrom = !selected && hasVariants && Math.min(...prices) !== Math.max(...prices);
+  const price = formatMoney(amount, product.currency, locale);
 
   return (
     <article {...stylex.props(styles.row)}>
@@ -169,7 +183,30 @@ export function ProductRow({ product, qty, onCart }: ProductRowProps) {
             ? t('browse.variantCount', { count: product.variants.length })
             : t('browse.oneVariant')}
         </p>
-        {soldOut ? (
+        {hasVariants ? (
+          <div role="group" aria-label={t('detail.options')} {...stylex.props(styles.options)}>
+            {product.variants.map((variant) => (
+              <Button
+                key={variant.id}
+                size="inline"
+                variant={selectedId === variant.id ? 'primary' : 'secondary'}
+                label={variant.name}
+                aria-pressed={selectedId === variant.id}
+                aria-label={
+                  variant.available ? variant.name : `${variant.name}: ${t('detail.outOfStock')}`
+                }
+                title={variant.available ? variant.name : t('detail.outOfStock')}
+                disabled={!variant.available}
+                xstyle={!variant.available ? styles.unavailable : undefined}
+                onClick={() => setSelectedId(variant.id)}
+              />
+            ))}
+          </div>
+        ) : null}
+        {hasVariants && !selected && !soldOut ? (
+          <p {...stylex.props(styles.hint)}>{t('detail.chooseOption')}</p>
+        ) : null}
+        {soldOut || selected?.available === false ? (
           <p {...stylex.props(styles.soldOut)}>{t('detail.outOfStock')}</p>
         ) : (
           <p {...stylex.props(styles.price)}>
@@ -178,7 +215,9 @@ export function ProductRow({ product, qty, onCart }: ProductRowProps) {
         )}
       </div>
 
-      {soldOut ? null : <QtyControl product={product} qty={qty} onCart={onCart} />}
+      {soldOut ? null : (
+        <QtyControl variantId={variantId} disabled={!buyable} qty={qty} onCart={onCart} />
+      )}
     </article>
   );
 }
