@@ -135,7 +135,7 @@ describe('the two halves of the history', () => {
     expect(getByTestId('bookings-row-up2')).toBeTruthy();
     expect(queryByTestId('bookings-row-past1')).toBeNull();
 
-    fireEvent.press(getByText('Past'));
+    fireEvent.press(getByText('History'));
     await waitFor(() => {
       expect(getByTestId('bookings-row-past1')).toBeTruthy();
     }, WAIT);
@@ -169,7 +169,7 @@ describe('the two halves of the history', () => {
     });
     const half = renderApp(<BookingsScreen />);
     await half.findByTestId('bookings-row-up1', {}, WAIT);
-    fireEvent.press(half.getByText('Past'));
+    fireEvent.press(half.getByText('History'));
     await half.findByTestId('bookings-empty-past', {}, WAIT);
   });
 });
@@ -187,7 +187,7 @@ describe('cancelling', () => {
   it('offers no cancel on a PAST booking', async () => {
     const { findByTestId, getByText, queryByTestId } = renderApp(<BookingsScreen />);
     await findByTestId('bookings-row-up1', {}, WAIT);
-    fireEvent.press(getByText('Past'));
+    fireEvent.press(getByText('History'));
     await findByTestId('bookings-row-past1', {}, WAIT);
     expect(queryByTestId('bookings-cancel-past1')).toBeNull();
   });
