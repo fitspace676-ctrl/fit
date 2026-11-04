@@ -396,7 +396,10 @@ export class AutomationExecutorService {
     if (parsed.data.length === 0) return true;
     const memberId = await this.merge.resolveMemberId(gymId, context);
     if (!memberId) return false;
-    const facts = await this.facts.loadConditionFacts(gymId, memberId, context.now);
+    const facts = await this.facts.loadConditionFacts(gymId, memberId, context.now, {
+      entityId: context.entityId,
+      entityType: context.entityType,
+    });
     return facts !== null && evaluateAutomationConditions(parsed.data, facts);
   }
 

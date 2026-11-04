@@ -685,7 +685,10 @@ describe('conditions and delayed actions', () => {
         now: NOW,
       }),
     ).toBe(true);
-    expect(loadFacts).toHaveBeenCalledWith('gym-1', 'gm-1', NOW);
+    expect(loadFacts).toHaveBeenCalledWith('gym-1', 'gm-1', NOW, {
+      entityId: 'gm-1',
+      entityType: 'member',
+    });
     expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
       status: 'QUEUED',
       scheduledFor: new Date('2026-07-08T15:00:00Z'),
