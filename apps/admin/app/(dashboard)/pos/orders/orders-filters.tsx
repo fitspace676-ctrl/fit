@@ -3,6 +3,21 @@
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
+import { SelectField, type SelectOption } from '@/components/ui/select-field';
+
+const CHANNEL_OPTIONS: SelectOption[] = [
+  { value: 'POS', label: 'Till (POS)' },
+  { value: 'ONLINE', label: 'Online shop' },
+  { value: 'ALL', label: 'Both' },
+];
+
+const STATUS_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Any' },
+  { value: 'PAID', label: 'Paid' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'REFUNDED', label: 'Refunded' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
 
 const styles = stylex.create({
   bar: {
@@ -12,6 +27,7 @@ const styles = stylex.create({
     gap: '0.75rem',
   },
   field: { display: 'flex', flexDirection: 'column', gap: '0.375rem' },
+  select: { minWidth: '10rem' },
   label: {
     fontSize: '0.6875rem',
     fontWeight: 700,
@@ -87,39 +103,23 @@ export function OrdersFilters({
 
   return (
     <div {...stylex.props(styles.bar)}>
-      <div {...stylex.props(styles.field)}>
-        <label htmlFor="orders-channel" {...stylex.props(styles.label)}>
-          Channel
-        </label>
-        <select
-          id="orders-channel"
-          value={channel}
-          onChange={(e) => commit('channel', e.target.value)}
-          {...stylex.props(styles.control)}
-        >
-          <option value="POS">Till (POS)</option>
-          <option value="ONLINE">Online shop</option>
-          <option value="ALL">Both</option>
-        </select>
-      </div>
+      <SelectField
+        label="Channel"
+        size="chrome"
+        value={channel}
+        onChange={(e) => commit('channel', e.target.value)}
+        options={CHANNEL_OPTIONS}
+        xstyle={styles.select}
+      />
 
-      <div {...stylex.props(styles.field)}>
-        <label htmlFor="orders-status" {...stylex.props(styles.label)}>
-          Status
-        </label>
-        <select
-          id="orders-status"
-          value={status}
-          onChange={(e) => commit('status', e.target.value)}
-          {...stylex.props(styles.control)}
-        >
-          <option value="">Any</option>
-          <option value="PAID">Paid</option>
-          <option value="PENDING">Pending</option>
-          <option value="REFUNDED">Refunded</option>
-          <option value="CANCELLED">Cancelled</option>
-        </select>
-      </div>
+      <SelectField
+        label="Status"
+        size="chrome"
+        value={status}
+        onChange={(e) => commit('status', e.target.value)}
+        options={STATUS_OPTIONS}
+        xstyle={styles.select}
+      />
 
       <div {...stylex.props(styles.field)}>
         <label htmlFor="orders-from" {...stylex.props(styles.label)}>

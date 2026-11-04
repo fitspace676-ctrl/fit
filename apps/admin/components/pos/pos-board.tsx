@@ -7,6 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { GymPaymentMethods, GymReceiptSettings } from '@fit/types';
 import { usePosCart } from '@/stores/pos-cart-store';
 import { useActiveLocation } from '@/components/active-location';
+import { SelectField } from '@/components/ui/select-field';
 import type { MemberIntakeConfig } from '@/lib/member-intake';
 import {
   fetchPosLocationsAction,
@@ -45,30 +46,7 @@ const styles = stylex.create({
     gap: '0.75rem',
     padding: '1rem',
   },
-  branchLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.5rem',
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    color: 'var(--color-text-secondary)',
-  },
-  branchSelect: {
-    height: '2.25rem',
-    minWidth: '10rem',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: { default: 'var(--color-border)', ':focus': 'var(--color-accent)' },
-    backgroundColor: 'var(--color-background-surface)',
-    paddingInline: '0.5rem',
-    fontFamily: 'inherit',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
-    outlineStyle: 'none',
-  },
+  branchField: { flexShrink: 0 },
   cartArea: {
     minHeight: 0,
     flexGrow: 1,
@@ -249,20 +227,14 @@ export function PosBoard({
       </Card>
       <Card padding="none" xstyle={styles.cartPane}>
         {locations.length > 0 ? (
-          <label {...stylex.props(styles.branchLabel)}>
-            <span>{tPos('sellingAt')}</span>
-            <select
-              value={locationId ?? ''}
-              onChange={(event) => setLocation(event.target.value || undefined)}
-              {...stylex.props(styles.branchSelect)}
-            >
-              {locations.map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SelectField
+            label={tPos('sellingAt')}
+            size="chrome"
+            value={locationId ?? ''}
+            onChange={(event) => setLocation(event.target.value || undefined)}
+            options={locations.map((location) => ({ value: location.id, label: location.name }))}
+            xstyle={styles.branchField}
+          />
         ) : null}
         <MemberLookup
           searchRef={memberSearchRef}

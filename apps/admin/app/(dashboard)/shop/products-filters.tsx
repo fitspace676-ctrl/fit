@@ -9,13 +9,14 @@ import {
   type ProductSort,
   type SortDir,
 } from '@fit/types';
+import { SelectField } from '@/components/ui/select-field';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
 /**
  * The sort presets, each pinning a `sort` column + `dir` the roster reads. The
- * `value` is the `sort:dir` pair the `<select>` round-trips; the grid no longer has
+ * `value` is the `sort:dir` pair the sort select round-trips; the grid no longer has
  * sortable column headers, so this is the catalog's one sort control.
  */
 const SORT_OPTIONS: ReadonlyArray<{ sort: ProductSort; dir: SortDir; label: string }> = [
@@ -159,47 +160,36 @@ export function ProductsFilters({
 
       {/* Hidden entirely until the gym has shelves — an empty picker is just noise. */}
       {categories.length > 0 ? (
-        <div {...stylex.props(styles.categoryWrap)}>
-          <label htmlFor="product-category-filter" {...stylex.props(styles.srOnly)}>
-            Filter products by category
-          </label>
-          <select
-            id="product-category-filter"
-            value={categoryId}
-            onChange={(event) => commit({ categoryId: event.target.value })}
-            {...stylex.props(styles.control)}
-          >
-            <option value="">All categories</option>
-            <option value={UNCATEGORISED_FILTER}>Uncategorised</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          label="Filter products by category"
+          labelHidden
+          size="chrome"
+          value={categoryId}
+          onChange={(event) => commit({ categoryId: event.target.value })}
+          options={[
+            { value: '', label: 'All categories' },
+            { value: UNCATEGORISED_FILTER, label: 'Uncategorised' },
+            ...categories.map((category) => ({ value: category.id, label: category.name })),
+          ]}
+          xstyle={styles.categoryWrap}
+        />
       ) : null}
 
-      <div {...stylex.props(styles.sortWrap)}>
-        <label htmlFor="product-sort" {...stylex.props(styles.srOnly)}>
-          Sort products
-        </label>
-        <select
-          id="product-sort"
-          value={`${sort}:${dir}`}
-          onChange={(event) => {
-            const [nextSort = 'name', nextDir = 'asc'] = event.target.value.split(':');
-            commit({ sort: nextSort, dir: nextDir });
-          }}
-          {...stylex.props(styles.control)}
-        >
-          {SORT_OPTIONS.map((option) => (
-            <option key={`${option.sort}:${option.dir}`} value={`${option.sort}:${option.dir}`}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        label="Sort products"
+        labelHidden
+        size="chrome"
+        value={`${sort}:${dir}`}
+        onChange={(event) => {
+          const [nextSort = 'name', nextDir = 'asc'] = event.target.value.split(':');
+          commit({ sort: nextSort, dir: nextDir });
+        }}
+        options={SORT_OPTIONS.map((option) => ({
+          value: `${option.sort}:${option.dir}`,
+          label: option.label,
+        }))}
+        xstyle={styles.sortWrap}
+      />
     </div>
   );
 }

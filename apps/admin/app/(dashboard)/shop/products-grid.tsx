@@ -8,6 +8,7 @@ import type { AdminProductCategory, AdminProductRow, ProductStatus } from '@fit/
 import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useActiveLocation } from '@/components/active-location';
+import { SelectField } from '@/components/ui/select-field';
 import { setProductCategoryAction } from './actions';
 import { formatPrice, marginPercent } from './format-price';
 import { StockBadge, stockLevel } from './stock-badge';
@@ -175,44 +176,10 @@ const styles = stylex.create({
     paddingInline: '0.75rem',
     paddingBlock: '0.5rem',
   },
-  pickerSelect: {
-    height: '2rem',
-    width: '100%',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border)',
-      ':hover': 'var(--color-border-emphasized)',
-      ':focus': 'var(--color-accent)',
-    },
-    backgroundColor: 'var(--color-background-surface)',
-    paddingInline: '0.5rem',
-    fontFamily: 'inherit',
-    fontSize: '0.75rem',
-    color: 'var(--color-text-primary)',
-    cursor: 'pointer',
-    outline: 'none',
-    opacity: {
-      default: 1,
-      ':disabled': 0.6,
-    },
-  },
   pickerError: {
     margin: 0,
     fontSize: '0.6875rem',
     color: 'var(--color-error)',
-  },
-  srOnly: {
-    position: 'absolute',
-    width: '1px',
-    height: '1px',
-    padding: 0,
-    margin: '-1px',
-    overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
-    whiteSpace: 'nowrap',
-    borderWidth: 0,
   },
   pagerRow: {
     display: 'flex',
@@ -439,23 +406,18 @@ function CategoryPicker({
 
   return (
     <div {...stylex.props(styles.pickerRow)}>
-      <label htmlFor={`product-category-${product.id}`} {...stylex.props(styles.srOnly)}>
-        Category for {product.name}
-      </label>
-      <select
-        id={`product-category-${product.id}`}
+      <SelectField
+        label={`Category for ${product.name}`}
+        labelHidden
+        size="chrome"
         value={value}
         disabled={saving}
         onChange={(event) => void assign(event.target.value)}
-        {...stylex.props(styles.pickerSelect)}
-      >
-        <option value="">No category</option>
-        {categories.map((category) => (
-          <option key={category.id} value={category.id}>
-            {category.name}
-          </option>
-        ))}
-      </select>
+        options={[
+          { value: '', label: 'No category' },
+          ...categories.map((category) => ({ value: category.id, label: category.name })),
+        ]}
+      />
       {error ? (
         <p role="alert" {...stylex.props(styles.pickerError)}>
           {error}

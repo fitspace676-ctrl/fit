@@ -15,6 +15,7 @@ import {
   type ProductVariant,
 } from '@fit/types';
 import { Button } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import { useGymCurrency } from '@/components/gym-currency';
 import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import { inputToMinor, minorToInput } from './format-price';
@@ -256,6 +257,11 @@ const styles = stylex.create({
   categoryRow: {
     display: 'flex',
     alignItems: 'center',
+    gap: '0.5rem',
+  },
+  categoryPickRow: {
+    display: 'flex',
+    alignItems: 'flex-end',
     gap: '0.5rem',
   },
   categorySelect: {
@@ -1038,25 +1044,19 @@ export function ProductForm(props: Props) {
       </fieldset>
 
       <div {...stylex.props(styles.fieldGroup)}>
-        <label htmlFor="product-category" {...stylex.props(styles.label)}>
-          Category <span {...stylex.props(styles.optional)}>(optional)</span>
-        </label>
-        <div {...stylex.props(styles.categoryRow)}>
-          <select
-            id="product-category"
+        <div {...stylex.props(styles.categoryPickRow)}>
+          <SelectField
+            label="Category (optional)"
             name="categoryId"
             value={categoryId}
             onChange={(event) => setCategoryId(event.target.value)}
             disabled={shelves.length === 0}
-            {...stylex.props(styles.input, styles.categorySelect)}
-          >
-            <option value="">No category</option>
-            {shelves.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'No category' },
+              ...shelves.map((category) => ({ value: category.id, label: category.name })),
+            ]}
+            xstyle={styles.categorySelect}
+          />
           {!namingShelf ? (
             <Button
               variant="secondary"
@@ -1129,49 +1129,31 @@ export function ProductForm(props: Props) {
 
       {branch.visible ? (
         <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="product-branch" {...stylex.props(styles.label)}>
-            {tCommon('branchExclusive')}
-          </label>
-          <select
-            id="product-branch"
+          <SelectField
+            label={tCommon('branchExclusive')}
             name="locationId"
             value={branch.value}
             onChange={(event) => branch.setValue(event.target.value)}
-            {...stylex.props(styles.input)}
-          >
-            <option value="">{tCommon('allBranchesOption')}</option>
-            {branch.unlistedId ? (
-              <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
-            ) : null}
-            {branch.locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: tCommon('allBranchesOption') },
+              ...(branch.unlistedId
+                ? [{ value: branch.unlistedId, label: tCommon('branchExclusiveUnlisted') }]
+                : []),
+              ...branch.locations.map((location) => ({ value: location.id, label: location.name })),
+            ]}
+          />
           <p {...stylex.props(styles.marginHint)}>{tCommon('branchExclusiveHint')}</p>
         </div>
       ) : null}
 
       {!isEdit ? (
-        <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="product-status" {...stylex.props(styles.label)}>
-            Status
-          </label>
-          <select
-            id="product-status"
-            name="status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as ProductStatus)}
-            {...stylex.props(styles.input)}
-          >
-            {CREATE_STATUSES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          label="Status"
+          name="status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as ProductStatus)}
+          options={CREATE_STATUSES}
+        />
       ) : null}
 
       <div {...stylex.props(styles.footer, props.onCancel && styles.drawerFooter)}>

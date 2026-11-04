@@ -7,7 +7,9 @@
 // — the moment one is picked.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { NextIntlClientProvider } from 'next-intl';
 import { en } from '@fit/i18n';
 import { navigationMock } from '@/test/next-navigation-mock';
@@ -54,13 +56,12 @@ describe('InventoryFilters', () => {
     expect(screen.queryByRole('combobox', { name: 'Location' })).not.toBeInTheDocument();
   });
 
-  it('writes the branch to the URL the header switcher owns, resetting the page', () => {
+  it('writes the branch to the URL the header switcher owns, resetting the page', async () => {
+    const user = userEvent.setup();
     navigationMock.setSearch('page=3&tracked=true');
     renderFilters({ tracked: true });
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Location' }), {
-      target: { value: 'loc-downtown' },
-    });
+    await chooseOption(user, screen.getByRole('combobox', { name: 'Location' }), 'Downtown');
 
     expect(navigationMock.replace).toHaveBeenCalledWith('/?tracked=true&locationId=loc-downtown');
   });
@@ -68,7 +69,7 @@ describe('InventoryFilters', () => {
   it('renders the three filters the page has always parsed but never showed', () => {
     renderFilters({ search: 'whey', status: 'INACTIVE', tracked: true });
     expect(screen.getByLabelText('Search inventory by product name')).toHaveValue('whey');
-    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveValue('INACTIVE');
+    expect(selectedValue(screen.getByRole('combobox', { name: 'Status' }))).toBe('INACTIVE');
     expect(screen.getByRole('checkbox')).toBeChecked();
   });
 });

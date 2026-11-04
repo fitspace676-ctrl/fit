@@ -21,8 +21,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import type { ProductStatus } from '@fit/types';
-import { SelectField } from '@fit/ui-kit';
 import { useActiveLocation } from '@/components/active-location';
+import { SelectField } from '@/components/ui/select-field';
 import { LOCATION_PARAM } from '@/lib/active-location';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
