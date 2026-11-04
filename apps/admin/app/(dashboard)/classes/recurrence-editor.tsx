@@ -1,8 +1,9 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
-import { FieldGroup, SelectField } from '@fit/ui-kit';
+import { FieldGroup } from '@fit/ui-kit';
 import type { Recurrence, RecurrenceFreq, RecurrenceWeekday } from '@fit/types';
+import { SelectField } from '@/components/ui/select-field';
 
 import { FREQ_OPTIONS, WEEKDAY_OPTIONS } from './format';
 

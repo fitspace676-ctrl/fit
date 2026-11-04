@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import type { AdminPtSession, AdminServiceSession } from '@fit/types';
+import { chooseOption } from '@fit/ui-kit/testing';
 
 const push = vi.fn();
 vi.mock('next/navigation', () => ({
@@ -30,6 +31,7 @@ const { PtCalendarBoard } = await import('./pt-calendar-board');
 
 const messages = {
   admin: {
+    common: { select: { searchPlaceholder: 'Search…', empty: 'Nothing found' } },
     ptCalendar: {
       toolbar: {
         prev: 'Previous',
@@ -188,16 +190,18 @@ describe('PtCalendarBoard', () => {
   });
 
   it('narrows by trainer through the URL, like the schedule filters', async () => {
+    const user = userEvent.setup();
     renderBoard();
 
-    await userEvent.selectOptions(screen.getByLabelText('Filter by trainer'), 'tr-1');
+    await chooseOption(user, screen.getByLabelText('Filter by trainer'), 'Nini Kavlashvili');
     expect(push).toHaveBeenCalledWith('/classes/pt-calendar?week=2026-08-10&trainerId=tr-1');
   });
 
   it('narrows by service category through the URL', async () => {
+    const user = userEvent.setup();
     renderBoard();
 
-    await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'cat-1');
+    await chooseOption(user, screen.getByLabelText('Filter by category'), 'Boxing');
     expect(push).toHaveBeenCalledWith('/classes/pt-calendar?week=2026-08-10&categoryId=cat-1');
   });
 });

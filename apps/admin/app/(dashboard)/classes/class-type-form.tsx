@@ -7,6 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { ClassPricingRule, ClassTypeStatus } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import type { RelationOption } from './class-template-form';
 import { createClassTypeAction, updateClassTypeAction } from './class-type-actions';
@@ -24,6 +25,13 @@ const COLOR_SWATCHES = [
   '#f59e0b',
   '#06b6d4',
 ] as const;
+
+/** The pricing rules a class type can follow. */
+const PRICING_RULES: ReadonlyArray<{ value: ClassPricingRule; label: string }> = [
+  { value: 'FREE', label: 'Free, included in all memberships' },
+  { value: 'INCLUDED', label: 'Included in selected plans' },
+  { value: 'PAID', label: 'Paid per session' },
+];
 
 /** Selectable statuses when creating / editing a type. */
 const STATUSES: ReadonlyArray<{ value: ClassTypeStatus; label: string }> = [
@@ -408,21 +416,12 @@ export function ClassTypeForm(props: Props) {
       </div>
 
       <div {...stylex.props(styles.pricingBox)}>
-        <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="ct-pricing" {...stylex.props(styles.label)}>
-            Pricing rule
-          </label>
-          <select
-            id="ct-pricing"
-            value={pricingRule}
-            onChange={(e) => setPricingRule(e.target.value as ClassPricingRule)}
-            {...stylex.props(styles.field)}
-          >
-            <option value="FREE">Free, included in all memberships</option>
-            <option value="INCLUDED">Included in selected plans</option>
-            <option value="PAID">Paid per session</option>
-          </select>
-        </div>
+        <SelectField
+          label="Pricing rule"
+          value={pricingRule}
+          onChange={(e) => setPricingRule(e.target.value as ClassPricingRule)}
+          options={PRICING_RULES}
+        />
 
         {pricingRule === 'PAID' ? (
           <div {...stylex.props(styles.fieldGroup)}>
@@ -474,47 +473,27 @@ export function ClassTypeForm(props: Props) {
       </div>
 
       {branch.visible ? (
-        <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="ct-branch" {...stylex.props(styles.label)}>
-            {tCommon('branchExclusive')}
-          </label>
-          <select
-            id="ct-branch"
-            value={branch.value}
-            onChange={(e) => branch.setValue(e.target.value)}
-            {...stylex.props(styles.field)}
-          >
-            <option value="">{tCommon('allBranchesOption')}</option>
-            {branch.unlistedId ? (
-              <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
-            ) : null}
-            {branch.locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </select>
-          <p {...stylex.props(styles.hint)}>{tCommon('branchExclusiveHint')}</p>
-        </div>
+        <SelectField
+          label={tCommon('branchExclusive')}
+          hint={tCommon('branchExclusiveHint')}
+          value={branch.value}
+          onChange={(e) => branch.setValue(e.target.value)}
+          options={[
+            { value: '', label: tCommon('allBranchesOption') },
+            ...(branch.unlistedId
+              ? [{ value: branch.unlistedId, label: tCommon('branchExclusiveUnlisted') }]
+              : []),
+            ...branch.locations.map((location) => ({ value: location.id, label: location.name })),
+          ]}
+        />
       ) : null}
 
-      <div {...stylex.props(styles.fieldGroup)}>
-        <label htmlFor="ct-status" {...stylex.props(styles.label)}>
-          Status
-        </label>
-        <select
-          id="ct-status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as ClassTypeStatus)}
-          {...stylex.props(styles.field)}
-        >
-          {STATUSES.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        label="Status"
+        value={status}
+        onChange={(e) => setStatus(e.target.value as ClassTypeStatus)}
+        options={STATUSES}
+      />
 
       {error ? (
         <Card padding="none" xstyle={styles.errorCard}>

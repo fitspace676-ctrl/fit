@@ -16,6 +16,7 @@ import {
 } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import {
   createClassTemplateAction,
   requestClassImageUploadAction,
@@ -517,29 +518,20 @@ export function ClassTemplateForm(props: Props) {
 
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
-          <label htmlFor="class-type" {...stylex.props(styles.label)}>
-            Class type
-          </label>
-          <select
-            id="class-type"
+          {/* Required because the type is where pricing is decided — a template
+              without one would have no answer to copy. The empty placeholder keeps
+              a template saved before this rule rendering. */}
+          <SelectField
+            label="Class type"
             name="category"
             required
             value={selectedClassTypeId}
             onChange={(event) => onClassTypeChange(event.target.value)}
-            {...stylex.props(styles.field)}
-          >
-            {/* Required because the type is where pricing is decided — a template
-                without one would have no answer to copy. Kept selectable-but-empty
-                so a template saved before this rule still renders. */}
-            <option value="" disabled>
-              {props.classTypes.length === 0 ? 'No class types yet' : 'Select a class type…'}
-            </option>
-            {props.classTypes.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </select>
+            placeholder={
+              props.classTypes.length === 0 ? 'No class types yet' : 'Select a class type…'
+            }
+            options={props.classTypes.map((type) => ({ value: type.id, label: type.name }))}
+          />
         </div>
         <div {...stylex.props(styles.colColor)}>
           <label htmlFor="class-color" {...stylex.props(styles.label)}>
@@ -725,71 +717,45 @@ export function ClassTemplateForm(props: Props) {
       {/* Default trainer / location. */}
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
-          <label htmlFor="class-trainer" {...stylex.props(styles.label)}>
-            Trainer <span {...stylex.props(styles.labelOptional)}>(optional)</span>
-          </label>
-          <select
-            id="class-trainer"
+          <SelectField
+            label="Trainer (optional)"
             name="trainerId"
             value={trainerId}
             onChange={(event) => setTrainerId(event.target.value)}
-            {...stylex.props(styles.field)}
-          >
-            <option value="">No default trainer</option>
-            {props.trainers.map((trainer) => (
-              <option key={trainer.id} value={trainer.id}>
-                {trainer.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'No default trainer' },
+              ...props.trainers.map((trainer) => ({ value: trainer.id, label: trainer.name })),
+            ]}
+          />
         </div>
         <div {...stylex.props(styles.colFlex)}>
-          <label htmlFor="class-location" {...stylex.props(styles.label)}>
-            Location
-          </label>
-          <select
-            id="class-location"
+          {/* Empty and unselectable: a class has to be somewhere, but a
+              template saved before that rule — or a gym with no branches yet —
+              still has to render, so the placeholder exists and simply cannot
+              be submitted. */}
+          <SelectField
+            label="Location"
             name="locationId"
             required
             value={locationId}
             onChange={(event) => setLocationId(event.target.value)}
-            {...stylex.props(styles.field)}
-          >
-            {/* Empty and unselectable: a class has to be somewhere, but a
-                template saved before that rule — or a gym with no branches yet —
-                still has to render, so the placeholder exists and simply cannot
-                be submitted. */}
-            <option value="" disabled>
-              Select a location
-            </option>
-            {props.locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </select>
+            placeholder="Select a location"
+            options={props.locations.map((location) => ({
+              value: location.id,
+              label: location.name,
+            }))}
+          />
         </div>
       </div>
 
       {!isEdit ? (
-        <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="class-status" {...stylex.props(styles.label)}>
-            Status
-          </label>
-          <select
-            id="class-status"
-            name="status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as ClassTemplateStatus)}
-            {...stylex.props(styles.field)}
-          >
-            {CREATE_STATUSES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          label="Status"
+          name="status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as ClassTemplateStatus)}
+          options={CREATE_STATUSES}
+        />
       ) : null}
 
       {error ? (

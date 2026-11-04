@@ -19,6 +19,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { ClassInstanceStatus } from '@fit/types';
 import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import {
   addDays,
   addMonths,
@@ -511,52 +512,8 @@ const styles = stylex.create({
   badgeWrap: {
     alignSelf: 'flex-start',
   },
-  selectLabel: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  srOnly: {
-    position: 'absolute',
-    width: '1px',
-    height: '1px',
-    padding: 0,
-    margin: '-1px',
-    overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
-    whiteSpace: 'nowrap',
-    borderWidth: 0,
-  },
-  selectWrap: {
-    position: 'relative',
-  },
-  select: {
-    height: '2.25rem',
-    appearance: 'none',
-    borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border)',
-      ':focus': 'var(--color-accent)',
-    },
-    backgroundColor: 'var(--color-background-surface)',
-    paddingLeft: '0.75rem',
-    paddingRight: '2.25rem',
-    fontSize: '0.875rem',
-    fontWeight: 500,
-    color: 'var(--color-text-primary)',
-    outlineStyle: 'none',
-  },
-  selectChevron: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    right: '0.75rem',
-    top: '50%',
-    width: '1rem',
-    height: '1rem',
-    transform: 'translateY(-50%)',
-    color: 'var(--color-text-secondary)',
+  filterSelect: {
+    minWidth: '11rem',
   },
   emptyCard: {
     display: 'grid',
@@ -1942,24 +1899,18 @@ export function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label {...stylex.props(styles.selectLabel)}>
-      <span {...stylex.props(styles.srOnly)}>{label}</span>
-      <div {...stylex.props(styles.selectWrap)}>
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          {...stylex.props(styles.select)}
-        >
-          <option value="">{allLabel}</option>
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </select>
-        <Icon name="chevronDown" {...stylex.props(styles.selectChevron)} />
-      </div>
-    </label>
+    <SelectField
+      label={label}
+      labelHidden
+      size="chrome"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      options={[
+        { value: '', label: allLabel },
+        ...options.map((option) => ({ value: option.id, label: option.name })),
+      ]}
+      xstyle={styles.filterSelect}
+    />
   );
 }
 

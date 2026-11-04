@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { ClassTemplateStatus, ClassTypeStatus } from '@fit/types';
+import { SelectField } from '@/components/ui/select-field';
 
 /** The status options offered by the filter, in roster-priority order. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: ClassTemplateStatus; label: string }> = [
@@ -125,22 +126,13 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
       </div>
 
       <div {...stylex.props(styles.selectWrap)}>
-        <label htmlFor="class-status" {...stylex.props(styles.srOnly)}>
-          Filter by status
-        </label>
-        <select
-          id="class-status"
+        <SelectField
+          label="Filter by status"
+          labelHidden
           value={status}
           onChange={(event) => commit('status', event.target.value)}
-          {...stylex.props(styles.control)}
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          options={[{ value: '', label: 'All statuses' }, ...STATUS_OPTIONS]}
+        />
       </div>
     </div>
   );
@@ -198,22 +190,13 @@ export function ClassTypesFilters({ search, status }: { search: string; status: 
       </div>
 
       <div {...stylex.props(styles.selectWrap)}>
-        <label htmlFor="class-type-status" {...stylex.props(styles.srOnly)}>
-          Filter by status
-        </label>
-        <select
-          id="class-type-status"
+        <SelectField
+          label="Filter by status"
+          labelHidden
           value={status}
           onChange={(event) => commit('status', event.target.value)}
-          {...stylex.props(styles.control)}
-        >
-          <option value="">All statuses</option>
-          {TYPE_STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          options={[{ value: '', label: 'All statuses' }, ...TYPE_STATUS_OPTIONS]}
+        />
       </div>
     </div>
   );

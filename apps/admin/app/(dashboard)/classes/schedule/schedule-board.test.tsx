@@ -44,6 +44,7 @@ const { ScheduleBoard } = await import('./schedule-board');
 
 const messages = {
   admin: {
+    common: { select: { searchPlaceholder: 'Search…', empty: 'Nothing found' } },
     schedule: {
       toolbar: {
         prev: 'Previous',
@@ -131,13 +132,17 @@ describe('schedule filter bar', () => {
     navigationMock.reset();
   });
 
-  it('offers the trainer filter and no branch filter', () => {
+  it('offers the trainer filter and no branch filter', async () => {
+    const user = userEvent.setup();
     renderBoard();
     const selects = within(filterBar()).getAllByRole('combobox');
     expect(selects).toHaveLength(1);
     // The one select left is the trainer's — it lists trainers, not branches.
-    expect(within(selects[0]!).getByRole('option', { name: 'All trainers' })).toBeInTheDocument();
-    expect(within(filterBar()).queryByRole('option', { name: 'Saburtalo' })).toBeNull();
+    await user.click(selects[0]!);
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByRole('option', { name: 'All trainers' })).toBeInTheDocument();
+    expect(within(listbox).getByRole('option', { name: 'Nini Kavlashvili' })).toBeInTheDocument();
+    expect(within(listbox).queryByRole('option', { name: 'Saburtalo' })).toBeNull();
   });
 
   it('clears the trainer without touching the branch on the URL', async () => {
