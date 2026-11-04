@@ -5,8 +5,9 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { MemberKind, MemberPlanSlice } from '@fit/types';
-import { Button, FilterBar, SelectField, TableSearch } from '@fit/ui-kit';
+import { Button, FilterBar, TableSearch } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import { useActiveLocation } from '@/components/active-location';
 import { LOCATION_PARAM } from '@/lib/active-location';
 

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
+import userEvent from '@testing-library/user-event';
 import { en } from '@fit/i18n';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { gymMemberIntakeSettingsSchema, updateMemberSchema } from '@fit/types';
 import { MemberForm, type MemberFormInitial } from './member-form';
 import { createMemberAction, updateMemberAction } from './actions';
@@ -207,9 +209,9 @@ describe('MemberForm — the member’s home branch', () => {
     activeLocation.locations = [];
   });
 
-  /** The branch select, labelled with the same word the top-bar switcher uses. */
-  function branchSelect(): HTMLSelectElement {
-    return screen.getByLabelText<HTMLSelectElement>(/^Location/);
+  /** The branch select's trigger, labelled with the same word the top-bar switcher uses. */
+  function branchSelect(): HTMLElement {
+    return screen.getByLabelText(/^Location/);
   }
 
   it('is hidden for a gym with no branches on file', () => {
@@ -240,7 +242,7 @@ describe('MemberForm — the member’s home branch', () => {
       />,
     );
 
-    expect(branchSelect().value).toBe('loc-riverside');
+    expect(selectedValue(branchSelect())).toBe('loc-riverside');
 
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'ana@example.com' } });
@@ -270,7 +272,7 @@ describe('MemberForm — the member’s home branch', () => {
       />,
     );
 
-    expect(branchSelect().value).toBe('');
+    expect(selectedValue(branchSelect())).toBe('');
 
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Ana' } });
     fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: 'ana@example.com' } });
@@ -281,6 +283,7 @@ describe('MemberForm — the member’s home branch', () => {
   });
 
   it('never pre-selects a branch on edit, whatever the switcher is on', async () => {
+    const user = userEvent.setup();
     // THE DANGEROUS CASE. Opening a Downtown member's profile while the console is
     // scoped to Riverside must not propose a transfer, or a staffer fixing a phone
     // number carries one through with the save.
@@ -290,14 +293,17 @@ describe('MemberForm — the member’s home branch', () => {
       <MemberForm mode="edit" memberId="m-1" initial={{ ...existing, locationName: 'Downtown' }} />,
     );
 
-    expect(branchSelect().value).toBe('');
+    expect(selectedValue(branchSelect())).toBe('');
     // The "no change" option is worded around the branch they are at, rather than
     // repeating its bare name — two identical-looking entries in one select is a
     // list a reader has to guess at.
     // (The wording itself is asserted structurally rather than by string: it is a
     // `form.locationKeep` message that has yet to land in the catalogues.)
-    expect(branchSelect().options[0]!.value).toBe('');
+    await user.click(branchSelect());
+    const options = await screen.findAllByRole('option');
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
     expect(screen.getAllByRole('option', { name: 'Downtown' })).toHaveLength(1);
+    await user.keyboard('{Escape}');
 
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
@@ -306,12 +312,13 @@ describe('MemberForm — the member’s home branch', () => {
   });
 
   it('transfers the member when a branch is picked on edit', async () => {
+    const user = userEvent.setup();
     activeLocation.locations = BRANCHES;
     renderWithIntl(
       <MemberForm mode="edit" memberId="m-1" initial={{ ...existing, locationName: 'Downtown' }} />,
     );
 
-    fireEvent.change(branchSelect(), { target: { value: 'loc-riverside' } });
+    await chooseOption(user, branchSelect(), 'Riverside');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(updateMemberAction).toHaveBeenCalledTimes(1));

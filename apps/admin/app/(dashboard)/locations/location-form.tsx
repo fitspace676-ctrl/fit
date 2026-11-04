@@ -14,6 +14,7 @@ import {
   type Weekday,
 } from '@fit/types';
 import { Button, Switch } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import {
   createLocationAction,
   requestLocationPhotoUploadAction,
@@ -635,24 +636,13 @@ export function LocationForm(props: Props) {
       </fieldset>
 
       {!isEdit ? (
-        <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="location-status" {...stylex.props(styles.label)}>
-            Status
-          </label>
-          <select
-            id="location-status"
-            name="status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as LocationStatus)}
-            {...stylex.props(styles.input)}
-          >
-            {CREATE_STATUSES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          label="Status"
+          name="status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as LocationStatus)}
+          options={CREATE_STATUSES}
+        />
       ) : null}
 
       {error ? (

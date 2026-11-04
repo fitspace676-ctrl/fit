@@ -13,6 +13,7 @@ import { requiredIntakeFields } from '@fit/types';
 import type { Gender, GymMemberIntakeSettings, MemberIntakeField, MemberStatus } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import { useActiveLocation } from '@/components/active-location';
 import { composeName, type StartDateWindow } from '@/lib/member-intake';
 import {
@@ -281,6 +282,11 @@ function LabeledField({
       {hint ? <p {...stylex.props(styles.hint)}>{hint}</p> : null}
     </div>
   );
+}
+
+/** A select's label with the form's " · Optional" suffix folded into the text. */
+function withOptional(label: string, optional?: string): string {
+  return optional ? `${label} · ${optional}` : label;
 }
 
 /**
@@ -584,25 +590,19 @@ export function MemberForm(props: Props) {
                 </LabeledField>
               )}
               {show('gender') && (
-                <LabeledField
-                  label={t('form.gender')}
-                  htmlFor="gender"
-                  optional={optionalLabel('gender')}
-                >
-                  <select
-                    id="gender"
-                    name="gender"
-                    required={required('gender')}
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    {...stylex.props(styles.field)}
-                  >
-                    <option value="">{t('form.genderUnset')}</option>
-                    <option value="MALE">{t('gender.MALE')}</option>
-                    <option value="FEMALE">{t('gender.FEMALE')}</option>
-                    <option value="OTHER">{t('gender.OTHER')}</option>
-                  </select>
-                </LabeledField>
+                <SelectField
+                  label={withOptional(t('form.gender'), optionalLabel('gender'))}
+                  name="gender"
+                  required={required('gender')}
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  options={[
+                    { value: '', label: t('form.genderUnset') },
+                    { value: 'MALE', label: t('gender.MALE') },
+                    { value: 'FEMALE', label: t('gender.FEMALE') },
+                    { value: 'OTHER', label: t('gender.OTHER') },
+                  ]}
+                />
               )}
             </div>
           ) : null}
@@ -708,52 +708,48 @@ export function MemberForm(props: Props) {
             than no select.
           */}
           {locations.length > 0 ? (
-            <LabeledField
-              label={tCommon('locationLabel')}
-              htmlFor="locationId"
+            <SelectField
               // "Optional" only where there is actually something to leave blank.
               // On create with a branch already active in the chrome the field is
               // pre-filled and has no empty option, so the suffix would describe a
               // choice the select does not offer.
-              optional={isEdit || !activeLocationId ? t('form.optional') : undefined}
-            >
-              <select
-                id="locationId"
-                name="locationId"
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-                {...stylex.props(styles.field)}
-              >
-                {/*
-                  The "no choice" option, whose meaning differs by mode and whose
-                  label says so: on edit it is "keep them where they are" — worded
-                  around the branch they are at rather than repeating its bare name,
-                  which would put two identical-looking entries in one list; on
-                  create it is "let the API use the gym's default branch". Both are
-                  the empty string, which drops `locationId` from the payload.
+              label={withOptional(
+                tCommon('locationLabel'),
+                isEdit || !activeLocationId ? t('form.optional') : undefined,
+              )}
+              name="locationId"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              /*
+                The "no choice" option, whose meaning differs by mode and whose
+                label says so: on edit it is "keep them where they are" — worded
+                around the branch they are at rather than repeating its bare name,
+                which would put two identical-looking entries in one list; on
+                create it is "let the API use the gym's default branch". Both are
+                the empty string, which drops `locationId` from the payload.
 
-                  On create with a branch already selected in the chrome there is
-                  no such option at all — the field is pre-filled with that branch,
-                  and offering "gym default" beside it would invite a choice that
-                  quietly means "somewhere else".
-                */}
-                {isEdit ? (
-                  <option value="">
-                    {seed?.locationName
-                      ? t('form.locationKeep', { branch: seed.locationName })
-                      : t('form.locationUnassigned')}
-                  </option>
-                ) : null}
-                {!isEdit && !activeLocationId ? (
-                  <option value="">{t('form.locationDefault')}</option>
-                ) : null}
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-            </LabeledField>
+                On create with a branch already selected in the chrome there is
+                no such option at all — the field is pre-filled with that branch,
+                and offering "gym default" beside it would invite a choice that
+                quietly means "somewhere else".
+              */
+              options={[
+                ...(isEdit
+                  ? [
+                      {
+                        value: '',
+                        label: seed?.locationName
+                          ? t('form.locationKeep', { branch: seed.locationName })
+                          : t('form.locationUnassigned'),
+                      },
+                    ]
+                  : []),
+                ...(!isEdit && !activeLocationId
+                  ? [{ value: '', label: t('form.locationDefault') }]
+                  : []),
+                ...locations.map((location) => ({ value: location.id, label: location.name })),
+              ]}
+            />
           ) : null}
         </Stack>
       </Card>
@@ -811,42 +807,30 @@ export function MemberForm(props: Props) {
               {t('form.membershipSection')}
             </Text>
             {show('membershipPlan') && (
-              <LabeledField label={t('form.plan')} htmlFor="planId" optional={t('form.optional')}>
-                <select
-                  id="planId"
-                  name="planId"
-                  value={planId}
-                  onChange={(e) => setPlanId(e.target.value)}
-                  {...stylex.props(styles.field)}
-                >
-                  <option value="">{t('form.planNone')}</option>
-                  {planOptions.map((plan) => (
-                    <option key={plan.id} value={plan.id}>
-                      {plan.name}
-                    </option>
-                  ))}
-                </select>
-              </LabeledField>
+              <SelectField
+                label={withOptional(t('form.plan'), t('form.optional'))}
+                name="planId"
+                value={planId}
+                onChange={(e) => setPlanId(e.target.value)}
+                options={[
+                  { value: '', label: t('form.planNone') },
+                  ...planOptions.map((plan) => ({ value: plan.id, label: plan.name })),
+                ]}
+              />
             )}
             {show('paymentMethod') && (
-              <LabeledField
-                label={t('form.paymentMethod')}
-                htmlFor="paymentMethod"
-                optional={t('form.optional')}
-              >
-                <select
-                  id="paymentMethod"
-                  name="paymentMethod"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  {...stylex.props(styles.field)}
-                >
-                  <option value="">{t('form.paymentUnset')}</option>
-                  <option value="CASH">{t('form.paymentCash')}</option>
-                  <option value="CARD">{t('form.paymentCard')}</option>
-                  <option value="BANK_TRANSFER">{t('form.paymentBankTransfer')}</option>
-                </select>
-              </LabeledField>
+              <SelectField
+                label={withOptional(t('form.paymentMethod'), t('form.optional'))}
+                name="paymentMethod"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                options={[
+                  { value: '', label: t('form.paymentUnset') },
+                  { value: 'CASH', label: t('form.paymentCash') },
+                  { value: 'CARD', label: t('form.paymentCard') },
+                  { value: 'BANK_TRANSFER', label: t('form.paymentBankTransfer') },
+                ]}
+              />
             )}
 
             <Text type="supporting" color="secondary" display="block">
