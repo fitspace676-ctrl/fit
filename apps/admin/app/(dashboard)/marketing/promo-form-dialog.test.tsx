@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import { en } from '@fit/i18n';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import type { PromoCodeRow } from '@fit/types';
 import { PromoFormDialog } from './promo-form-dialog';
 import { createPromoAction, updatePromoAction } from './actions';
@@ -64,8 +66,8 @@ const existing: PromoCodeRow = {
   updatedAt: '2026-09-01T00:00:00.000Z',
 };
 
-function branchSelect(): HTMLSelectElement {
-  return screen.getByLabelText<HTMLSelectElement>('Branch');
+function branchTrigger(): HTMLElement {
+  return screen.getByLabelText('Branch');
 }
 
 function createCode(): void {
@@ -88,16 +90,17 @@ describe('PromoFormDialog — branch exclusivity', () => {
     activeLocation.locationId = 'loc-downtown';
     renderWithIntl(<PromoFormDialog mode="create" onClose={vi.fn()} />);
 
-    expect(branchSelect().value).toBe('');
+    expect(selectedValue(branchTrigger())).toBe('');
     createCode();
     await waitFor(() => expect(createPromoAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createPromoAction).mock.calls[0]![0].locationId).toBeNull();
   });
 
   it('sends the branch picked in the select', async () => {
+    const user = userEvent.setup();
     renderWithIntl(<PromoFormDialog mode="create" onClose={vi.fn()} />);
 
-    fireEvent.change(branchSelect(), { target: { value: 'loc-riverside' } });
+    await chooseOption(user, branchTrigger(), 'Riverside');
     createCode();
     await waitFor(() => expect(createPromoAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createPromoAction).mock.calls[0]![0].locationId).toBe('loc-riverside');
@@ -107,16 +110,17 @@ describe('PromoFormDialog — branch exclusivity', () => {
     activeLocation.locationId = 'loc-downtown';
     renderWithIntl(<PromoFormDialog mode="edit" seed={existing} onClose={vi.fn()} />);
 
-    expect(branchSelect().value).toBe('loc-riverside');
+    expect(selectedValue(branchTrigger())).toBe('loc-riverside');
     fireEvent.click(screen.getByRole('button', { name: promo.editSubmit }));
     await waitFor(() => expect(updatePromoAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(updatePromoAction).mock.calls[0]![1].locationId).toBe('loc-riverside');
   });
 
   it('sends null, not an empty string, when an edit widens the code to every branch', async () => {
+    const user = userEvent.setup();
     renderWithIntl(<PromoFormDialog mode="edit" seed={existing} onClose={vi.fn()} />);
 
-    fireEvent.change(branchSelect(), { target: { value: '' } });
+    await chooseOption(user, branchTrigger(), 'All branches');
     fireEvent.click(screen.getByRole('button', { name: promo.editSubmit }));
     await waitFor(() => expect(updatePromoAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(updatePromoAction).mock.calls[0]![1].locationId).toBeNull();

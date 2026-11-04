@@ -13,7 +13,8 @@ import {
   type MemberStatus,
   type MessageTemplateRow,
 } from '@fit/types';
-import { Badge, Button, Drawer, Field, FieldGroup, SelectField, TextareaField } from '@fit/ui-kit';
+import { Badge, Button, Drawer, Field, FieldGroup, TextareaField } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import { Icon, useToast } from '@/components/ui';
 import {
   previewCriteriaAction,
