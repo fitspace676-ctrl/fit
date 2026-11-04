@@ -75,6 +75,7 @@ const CONSOLE_NAMESPACES = [
   'admin.memberPortal.logo',
   'admin.memberPortal.favicon',
   'admin.settings.general.consoleColor',
+  'admin.automation.assist',
 ] as const;
 
 /** The subtree at a dotted `path`, e.g. `admin.services`. */

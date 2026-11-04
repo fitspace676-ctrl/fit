@@ -2979,6 +2979,21 @@
       },
       "conditions": {
         "count": "{count, plural, one {# condition} other {# conditions}}"
+      },
+      "assist": {
+        "toggle": "Build with AI",
+        "close": "Hide assistant",
+        "title": "Describe the rule",
+        "hint": "The assistant fills the form. Review it and save it yourself.",
+        "placeholder": "e.g. Email members whose membership expires in 5 days at the Saburtalo branch with a discount offer",
+        "send": "Draft",
+        "sending": "Thinking…",
+        "applied": "The form was filled in. Review it and save.",
+        "appliedPartial": "Part of the form was filled in. Answer the question to finish.",
+        "notConfigured": "The AI assistant is not configured.",
+        "failed": "The assistant could not answer. Try again.",
+        "you": "You",
+        "assistant": "Assistant"
       }
     },
     "marketing": {
