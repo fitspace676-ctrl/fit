@@ -17,6 +17,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
     "@fit/mcp": "workspace:*",
+    "@fit/types": "workspace:*",
     "@google/genai": "^2.11.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "xlsx": "^0.18.5"

@@ -9,6 +9,12 @@
 export { runAgent, type RunAgentOptions } from './src/run-agent';
 export { buildSystemPrompt, type AgentContext } from './src/system-prompt';
 export {
+  draftAutomationRule,
+  type AutomationAssistContext,
+  type DraftAutomationRuleExtra,
+} from './src/automation-assist';
+export { sanitizeGeorgianText } from './src/georgian-text';
+export {
   resolveModel,
   availableModels,
   createDriver,
