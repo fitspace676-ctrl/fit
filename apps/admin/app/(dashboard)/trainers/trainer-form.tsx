@@ -8,6 +8,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { TrainerStatus } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import {
   createTrainerAction,
   requestTrainerPhotoUploadAction,
@@ -474,22 +475,16 @@ export function TrainerForm(props: Props) {
 
       {!isEdit ? (
         <div {...stylex.props(styles.fieldGroup)}>
-          <label htmlFor="trainer-status" {...stylex.props(styles.label)}>
-            {t('form.status')}
-          </label>
-          <select
-            id="trainer-status"
+          <SelectField
+            label={t('form.status')}
             name="status"
             value={status}
             onChange={(event) => setStatus(event.target.value as TrainerStatus)}
-            {...stylex.props(styles.input)}
-          >
-            {CREATE_STATUSES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(option.labelKey)}
-              </option>
-            ))}
-          </select>
+            options={CREATE_STATUSES.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey),
+            }))}
+          />
         </div>
       ) : null}
 

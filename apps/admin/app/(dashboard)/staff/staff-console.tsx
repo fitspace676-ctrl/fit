@@ -12,7 +12,8 @@ import type {
   StaffRole,
   WorkingNowRow,
 } from '@fit/types';
-import { Button, Drawer, SegmentedControl, SelectField } from '@fit/ui-kit';
+import { Button, Drawer, SegmentedControl } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import { Icon } from '@/components/ui';
 import { useActiveLocation } from '@/components/active-location';
 import { LOCATION_PARAM } from '@/lib/active-location';
