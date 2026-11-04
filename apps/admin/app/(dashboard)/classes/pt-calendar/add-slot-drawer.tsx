@@ -9,6 +9,7 @@ import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import { serviceLabel } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import { useActiveLocation } from '@/components/active-location';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { zonedDayStart } from '../schedule/week';
@@ -222,23 +223,16 @@ function SlotForm({
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
       <div {...stylex.props(styles.field)}>
-        <label htmlFor="slot-service" {...stylex.props(styles.label)}>
-          {t('service')}
-        </label>
-        <select
-          id="slot-service"
+        <SelectField
+          label={t('service')}
           value={serviceId}
           onChange={(e) => setServiceId(e.target.value)}
           required
-          {...stylex.props(styles.input)}
-        >
-          {services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {serviceLabel(s.name, s.staffName)}
-              {s.category ? ` · ${s.category}` : ''}
-            </option>
-          ))}
-        </select>
+          options={services.map((s) => ({
+            value: s.id,
+            label: `${serviceLabel(s.name, s.staffName)}${s.category ? ` · ${s.category}` : ''}`,
+          }))}
+        />
         {service ? (
           <p {...stylex.props(styles.hint)}>
             {t('durationHint', { count: service.durationMinutes })}

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import { en } from '@fit/i18n';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { ClassTypeForm, type ClassTypeInitial } from './class-type-form';
 import { createClassTypeAction, updateClassTypeAction } from './class-type-actions';
 
@@ -51,8 +53,8 @@ const existing: ClassTypeInitial = {
   locationId: 'loc-riverside',
 };
 
-function branchSelect(): HTMLSelectElement {
-  return screen.getByLabelText<HTMLSelectElement>('Branch');
+function branchSelect(): HTMLElement {
+  return screen.getByLabelText('Branch');
 }
 
 function createType(): void {
@@ -72,16 +74,17 @@ describe('ClassTypeForm — branch exclusivity', () => {
     activeLocation.locationId = 'loc-downtown';
     renderWithIntl(<ClassTypeForm mode="create" plans={[]} />);
 
-    expect(branchSelect().value).toBe('');
+    expect(selectedValue(branchSelect())).toBe('');
     createType();
     await waitFor(() => expect(createClassTypeAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createClassTypeAction).mock.calls[0]![0].locationId).toBeNull();
   });
 
   it('sends the branch picked in the select', async () => {
+    const user = userEvent.setup();
     renderWithIntl(<ClassTypeForm mode="create" plans={[]} />);
 
-    fireEvent.change(branchSelect(), { target: { value: 'loc-riverside' } });
+    await chooseOption(user, branchSelect(), 'Riverside');
     createType();
     await waitFor(() => expect(createClassTypeAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createClassTypeAction).mock.calls[0]![0].locationId).toBe('loc-riverside');
@@ -91,16 +94,17 @@ describe('ClassTypeForm — branch exclusivity', () => {
     activeLocation.locationId = 'loc-downtown';
     renderWithIntl(<ClassTypeForm mode="edit" typeId="ct-1" initial={existing} plans={[]} />);
 
-    expect(branchSelect().value).toBe('loc-riverside');
+    expect(selectedValue(branchSelect())).toBe('loc-riverside');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateClassTypeAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(updateClassTypeAction).mock.calls[0]![1].locationId).toBe('loc-riverside');
   });
 
   it('sends null, not an empty string, when an edit widens the type to every branch', async () => {
+    const user = userEvent.setup();
     renderWithIntl(<ClassTypeForm mode="edit" typeId="ct-1" initial={existing} plans={[]} />);
 
-    fireEvent.change(branchSelect(), { target: { value: '' } });
+    await chooseOption(user, branchSelect(), 'All branches');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateClassTypeAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(updateClassTypeAction).mock.calls[0]![1].locationId).toBeNull();
