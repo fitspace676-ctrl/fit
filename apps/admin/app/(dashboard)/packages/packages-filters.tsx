@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { PackagePlanStatus } from '@fit/types';
+import { SelectField } from '@/components/ui/select-field';
 
 /** The status options offered by the filter, in roster-priority order. */
 const STATUS_OPTIONS: ReadonlyArray<{ value: PackagePlanStatus; label: string }> = [
@@ -13,7 +14,7 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: PackagePlanStatus; label: string }>
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
 const SEARCH_DEBOUNCE_MS = 200;
 
-/** Shared kit field styling for the filter input + select. */
+/** Shared kit field styling for the filter search input. */
 const FIELD_CLASS =
   'w-full h-11 rounded-field border border-ink-200 bg-white px-3.5 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-white';
 
@@ -70,22 +71,14 @@ export function PackagePlansFilters({ search, status }: { search: string; status
       </div>
 
       <div className="sm:w-48">
-        <label htmlFor="package-status" className="sr-only">
-          Filter by status
-        </label>
-        <select
-          id="package-status"
+        <SelectField
+          label="Filter by status"
+          labelHidden
+          size="chrome"
           value={status}
           onChange={(event) => commit('status', event.target.value)}
-          className={FIELD_CLASS}
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          options={[{ value: '', label: 'All statuses' }, ...STATUS_OPTIONS]}
+        />
       </div>
     </div>
   );

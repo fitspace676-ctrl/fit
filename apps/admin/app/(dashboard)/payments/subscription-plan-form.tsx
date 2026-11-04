@@ -12,6 +12,7 @@ import {
 import { Badge, Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useGymCurrency } from '@/components/gym-currency';
+import { SelectField } from '@/components/ui/select-field';
 import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import {
   SUBSCRIPTION_INTERVALS,
@@ -375,24 +376,13 @@ export function SubscriptionPlanForm(props: Props) {
                   </span>
                 </div>
               </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="plan-interval" className={LABEL_CLASS}>
-                  Billing
-                </label>
-                <select
-                  id="plan-interval"
-                  name="interval"
-                  value={interval}
-                  onChange={(event) => setInterval(event.target.value as SubscriptionInterval)}
-                  className={FIELD_CLASS}
-                >
-                  {SUBSCRIPTION_INTERVALS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SelectField
+                name="interval"
+                label="Billing"
+                value={interval}
+                onChange={(event) => setInterval(event.target.value as SubscriptionInterval)}
+                options={SUBSCRIPTION_INTERVALS}
+              />
             </div>
           </div>
         </Card>
@@ -490,50 +480,37 @@ export function SubscriptionPlanForm(props: Props) {
           </label>
 
           {branch.visible ? (
-            <div className="mt-4 flex flex-col gap-1">
-              <label htmlFor="plan-branch" className={LABEL_CLASS}>
-                {tCommon('branchExclusive')}
-              </label>
-              <select
-                id="plan-branch"
+            <div className="mt-4 sm:max-w-xs">
+              <SelectField
                 name="locationId"
+                label={tCommon('branchExclusive')}
+                hint={tCommon('branchExclusiveHint')}
                 value={branch.value}
                 onChange={(event) => branch.setValue(event.target.value)}
-                className={`${FIELD_CLASS} sm:max-w-xs`}
-              >
-                <option value="">{tCommon('allBranchesOption')}</option>
-                {branch.unlistedId ? (
-                  <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
-                ) : null}
-                {branch.locations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-ink-400">{tCommon('branchExclusiveHint')}</p>
+                options={[
+                  { value: '', label: tCommon('allBranchesOption') },
+                  ...(branch.unlistedId
+                    ? [{ value: branch.unlistedId, label: tCommon('branchExclusiveUnlisted') }]
+                    : []),
+                  ...branch.locations.map((location) => ({
+                    value: location.id,
+                    label: location.name,
+                  })),
+                ]}
+              />
             </div>
           ) : null}
 
           {!isEdit ? (
-            <div className="mt-4 flex flex-col gap-1">
-              <label htmlFor="plan-status" className={LABEL_CLASS}>
-                Status
-              </label>
-              <select
-                id="plan-status"
+            <div className="mt-4 sm:max-w-xs">
+              <SelectField
                 name="status"
+                label="Status"
+                hint="Members can only subscribe to an active plan."
                 value={status}
                 onChange={(event) => setStatus(event.target.value as SubscriptionPlanStatus)}
-                className={`${FIELD_CLASS} sm:max-w-xs`}
-              >
-                {CREATE_STATUSES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-ink-400">Members can only subscribe to an active plan.</p>
+                options={CREATE_STATUSES}
+              />
             </div>
           ) : null}
         </Card>
