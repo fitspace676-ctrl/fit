@@ -2,11 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../env';
 import {
   downloadMyInvoicePdf,
-  getMyGoals,
   getMyProfile,
   getMySubscription,
   myInvoicePdfUrl,
-  replaceMyGoals,
   updateMyProfile,
 } from './me';
 
@@ -39,7 +37,6 @@ afterEach(() => {
 describe('the /me reads', () => {
   it.each([
     { name: 'profile', run: () => getMyProfile(), url: '/me/profile' },
-    { name: 'goals', run: () => getMyGoals(), url: '/me/goals' },
     { name: 'subscription', run: () => getMySubscription(), url: '/me/subscription' },
   ])('$name is a GET with no member id on the wire', async ({ run, url }) => {
     const calls = stubFetch();
@@ -67,19 +64,6 @@ describe('updateMyProfile', () => {
     const calls = stubFetch({ profile: {} });
     await updateMyProfile({ phone: null });
     expect(bodyOf(calls[0] as Call)).toEqual({ phone: null });
-  });
-});
-
-describe('replaceMyGoals', () => {
-  it('PUTs the whole set, because the body *is* the new set', async () => {
-    const calls = stubFetch({ goals: [] });
-
-    await replaceMyGoals({ goals: [] });
-
-    const call = calls[0] as Call;
-    expect(call.init.method).toBe('PUT');
-    expect(call.url).toBe(`${env.apiUrl}/me/goals`);
-    expect(bodyOf(call)).toEqual({ goals: [] });
   });
 });
 

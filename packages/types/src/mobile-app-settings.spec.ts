@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MOBILE_APP_FEATURES, resolveMobileAppFeatures } from './mobile-app-settings';
+import {
+  DEFAULT_MOBILE_APP_FEATURES,
+  MOBILE_APP_FEATURES,
+  resolveMobileAppFeatures,
+  updateMobileAppSettingsSchema,
+} from './mobile-app-settings';
 
 describe('resolveMobileAppFeatures', () => {
   it.each([null, undefined, {}])('defaults legacy empty settings (%j)', (raw) => {
@@ -13,6 +18,22 @@ describe('resolveMobileAppFeatures', () => {
       qr: false,
     });
   });
+
+  it.each([true, false])(
+    'ignores retired goals settings (%s) without resetting disabled features',
+    (goals) => {
+      const stored = { shop: false, classes: false, goals, unknownFeature: true };
+      const expected = { ...DEFAULT_MOBILE_APP_FEATURES, shop: false, classes: false };
+
+      expect(resolveMobileAppFeatures(stored)).toEqual(expected);
+      expect(
+        updateMobileAppSettingsSchema.parse({
+          features: { ...DEFAULT_MOBILE_APP_FEATURES, ...stored },
+        }),
+      ).toEqual({ features: expected });
+      expect(MOBILE_APP_FEATURES).not.toContain('goals');
+    },
+  );
 
   it.each([
     false,

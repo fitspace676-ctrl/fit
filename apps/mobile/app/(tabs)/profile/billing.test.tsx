@@ -40,7 +40,6 @@ const mockGetMySubscription = jest.fn();
 jest.mock('../../../lib/api/me', () => ({
   getMySubscription: () => mockGetMySubscription() as unknown,
   getMyProfile: () => Promise.resolve({ profile: {} }),
-  getMyGoals: () => Promise.resolve({ goals: [] }),
   myInvoicePdfUrl: (id: string) => `https://api.test/me/invoices/${id}/pdf`,
 }));
 

@@ -14,10 +14,10 @@ export const mobileAppFeaturesSchema = z
     billing: z.boolean(),
     bookings: z.boolean(),
     activity: z.boolean(),
-    goals: z.boolean(),
     notifications: z.boolean(),
   })
-  .strict();
+  // Ignore retired feature keys in saved settings and older clients.
+  .strip();
 export type MobileAppFeatures = z.infer<typeof mobileAppFeaturesSchema>;
 export type MobileAppFeature = keyof MobileAppFeatures;
 export const DEFAULT_MOBILE_APP_FEATURES: MobileAppFeatures = {
@@ -30,7 +30,6 @@ export const DEFAULT_MOBILE_APP_FEATURES: MobileAppFeatures = {
   billing: true,
   bookings: true,
   activity: true,
-  goals: true,
   notifications: true,
 };
 export const MOBILE_APP_FEATURES = Object.keys(DEFAULT_MOBILE_APP_FEATURES) as MobileAppFeature[];

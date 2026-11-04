@@ -73,7 +73,6 @@ const mockGetMySubscription = jest.fn();
 jest.mock('../../../lib/api/me', () => ({
   getMyProfile: () => mockGetMyProfile() as unknown,
   getMySubscription: () => mockGetMySubscription() as unknown,
-  getMyGoals: () => Promise.resolve({ goals: [] }),
 }));
 
 const mockListMyBookings = jest.fn();
@@ -279,7 +278,6 @@ const ROWS: readonly (readonly [testID: string, href: string])[] = [
  *   training         Home (`home.tsx:419`)
  *   bookings         the Classes tab
  *   settings         `/profile/settings` no longer exists — this IS that screen
- *   goals            `/profile/goals` still renders and now has no link at all
  *
  * Asserted rather than merely absent: putting one back is a deliberate act with
  * a test to answer to, and the screen this list exists to stop being is the
@@ -293,7 +291,6 @@ const ABSENT: readonly string[] = [
   'profile-row-training',
   'profile-row-bookings',
   'profile-row-settings',
-  'profile-row-goals',
 ];
 
 describe('the menu', () => {

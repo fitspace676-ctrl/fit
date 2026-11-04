@@ -14,14 +14,13 @@
 //
 //   2. **A form wants a screen.** Three fields, a keyboard that covers the
 //      bottom third, per-field error text, and a Save that has to stay
-//      reachable while the keyboard is up. `goals.tsx` solved exactly that with
-//      `Screen`'s `footer`, and this screen is deliberately the same shape:
+//      reachable while the keyboard is up. `Screen`'s `footer` provides that:
 //      AppBar + back, sections above, one plate with the note and the button
 //      pinned below. Mirroring it was the brief; inventing a second form idiom
 //      is how a codebase ends up with two.
 //
 // ---------------------------------------------------------------------------
-// SAVE IS LIVE, NEVER DISABLED — `goals.tsx`'s rule, and for its reason.
+// SAVE IS LIVE, NEVER DISABLED.
 //
 // A disabled `Button` swallows its own press, so the handler never runs and
 // nothing on screen ever says what is wrong. So the button stays pressable and
@@ -49,7 +48,7 @@
 // member's sign-in identity and the commonest thing they come here to check.
 //
 // ---------------------------------------------------------------------------
-// `member.goals.signIn`'s ARGUMENT APPLIES HERE TOO: this route is `auth`
+// This route is `auth`
 // (`ROUTE_POLICY` has `'(tabs)/profile': 'auth'`, matched by longest prefix),
 // so `resolveRedirect` sends a signed-out visitor to `/login?next=…` before the
 // component mounts. There is deliberately no signed-out branch below.
@@ -112,7 +111,7 @@ export default function EditProfileScreen() {
 
   // Seed ONCE per arrival of a payload, and never over an edit in progress — a
   // background refetch landing mid-sentence must not discard what is being
-  // typed. `goals.tsx` makes the same call for the same reason.
+  // typed.
   useEffect(() => {
     if (profile === undefined) return;
     setDraft((current) => current ?? toDraft(profile));
@@ -202,7 +201,7 @@ export default function EditProfileScreen() {
       footer={
         // Only once there is a form to save. An error or a skeleton with a
         // permanently dead "Save" stuck under it offers a control that cannot
-        // do anything — `goals.tsx` makes the same call for its empty state.
+        // do anything.
         phase === 'ready' ? (
           <Surface
             testID="profile-edit-footer"

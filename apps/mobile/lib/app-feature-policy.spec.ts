@@ -17,7 +17,6 @@ describe('app feature routes', () => {
     ['billing', '/profile/billing'],
     ['bookings', '/profile/bookings'],
     ['activity', '/profile/activity'],
-    ['goals', '/profile/goals'],
     ['notifications', '/profile/notifications'],
     ['notifications', '/profile/notification-settings'],
   ] as const)('hides %s at %s, including direct links', (feature, path) => {

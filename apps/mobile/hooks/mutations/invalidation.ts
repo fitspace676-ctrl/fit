@@ -81,8 +81,6 @@ export const RESOURCE_ROOTS = {
   packCatalogue: (gymId: string): QueryKey => queryKeys.packCatalogue(gymId),
   /** The member's own profile. */
   profile: (gymId: string): QueryKey => queryKeys.profile(gymId),
-  /** The member's training goals. */
-  goals: (gymId: string): QueryKey => queryKeys.goals(gymId),
   /** The roster, every trainer detail, and the reviews nested under them. */
   trainers: (gymId: string): QueryKey => queryKeys.trainers(gymId),
   /** Bookable PT slots — sliced: `serviceSlots()` takes serviceId at [2]. */
@@ -186,8 +184,6 @@ export const INVALIDATION_MATRIX = {
   checkoutCartOutOfStock: ['cart', 'products'],
   /** Name / phone changed. Nothing else reads them. */
   updateMyProfile: ['profile'],
-  /** The whole goal set was replaced. */
-  replaceMyGoals: ['goals'],
   /**
    * A review is posted against a *class occurrence*, but its effect is on the
    * **trainer**: `ReviewsService` recomputes the trainer's denormalised
