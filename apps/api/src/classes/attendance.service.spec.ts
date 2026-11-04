@@ -48,11 +48,15 @@ interface QueryArgs {
   data?: Record<string, unknown>;
 }
 
+/** Let the fire-and-forget first_class_attended lookup settle. */
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
 function setup(opts?: { transaction?: (cb: (tx: unknown) => unknown) => unknown }) {
   const booking = {
     findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
     findMany: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
     update: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
+    count: vi.fn<(args: QueryArgs) => Promise<number>>(() => Promise.resolve(2)),
   };
   const classInstance = {
     findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
@@ -189,12 +193,88 @@ describe('AttendanceService', () => {
         data: { status: InstanceStatus.COMPLETED },
       });
       expect(ctx.transaction).toHaveBeenCalledTimes(1);
-      // Only the attended seat fires `attendance_marked` (T12.5); a no-show does not.
-      expect(ctx.automation.dispatchForGym).toHaveBeenCalledTimes(1);
-      expect(ctx.automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'attendance_marked', {
-        entityId: 'bk-1',
-        entityType: 'booking',
+      // Both the attended and the no-show seat fire `attendance_marked` (T12.5).
+      await flush();
+      expect(ctx.automation.dispatchForGym.mock.calls).toEqual([
+        ['gym-1', 'attendance_marked', { entityId: 'bk-1', entityType: 'booking' }],
+        ['gym-1', 'attendance_marked', { entityId: 'bk-2', entityType: 'booking' }],
+      ]);
+    });
+
+    it('fires first_class_attended when the member now has exactly one ATTENDED booking', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance());
+      ctx.booking.findFirst.mockResolvedValueOnce({
+        id: 'bk-1',
+        status: BookingStatus.BOOKED,
+        memberId: 'gm-1',
       });
+      ctx.booking.update.mockResolvedValue({});
+      ctx.booking.findMany.mockResolvedValueOnce([]);
+      ctx.booking.count.mockResolvedValueOnce(1);
+
+      await ctx.service.markAttendance(
+        INSTANCE_ID,
+        mark([{ bookingId: 'bk-1', status: 'ATTENDED' }]),
+      );
+      await flush();
+
+      expect(ctx.booking.count).toHaveBeenCalledWith({
+        where: { gymId: 'gym-1', memberId: 'gm-1', status: BookingStatus.ATTENDED },
+      });
+      expect(ctx.automation.dispatchForGym.mock.calls).toEqual([
+        ['gym-1', 'attendance_marked', { entityId: 'bk-1', entityType: 'booking' }],
+        ['gym-1', 'first_class_attended', { entityId: 'bk-1', entityType: 'booking' }],
+      ]);
+    });
+
+    it('does not fire first_class_attended for a second attended class', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance());
+      ctx.booking.findFirst.mockResolvedValueOnce({
+        id: 'bk-2',
+        status: BookingStatus.BOOKED,
+        memberId: 'gm-1',
+      });
+      ctx.booking.update.mockResolvedValue({});
+      ctx.booking.findMany.mockResolvedValueOnce([]);
+      ctx.booking.count.mockResolvedValueOnce(2);
+
+      await ctx.service.markAttendance(
+        INSTANCE_ID,
+        mark([{ bookingId: 'bk-2', status: 'ATTENDED' }]),
+      );
+      await flush();
+
+      expect(ctx.automation.dispatchForGym.mock.calls).toEqual([
+        ['gym-1', 'attendance_marked', { entityId: 'bk-2', entityType: 'booking' }],
+      ]);
+    });
+
+    it('fires attendance_marked for a new NO_SHOW but not for a repeated one', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValueOnce(
+        instance({ status: InstanceStatus.COMPLETED }),
+      );
+      ctx.booking.findFirst
+        .mockResolvedValueOnce({ id: 'bk-1', status: BookingStatus.NO_SHOW, memberId: 'gm-1' })
+        .mockResolvedValueOnce({ id: 'bk-2', status: BookingStatus.BOOKED, memberId: 'gm-2' });
+      ctx.booking.update.mockResolvedValue({});
+      ctx.booking.findMany.mockResolvedValueOnce([]);
+
+      await ctx.service.markAttendance(
+        INSTANCE_ID,
+        mark([
+          { bookingId: 'bk-1', status: 'NO_SHOW' },
+          { bookingId: 'bk-2', status: 'NO_SHOW' },
+        ]),
+      );
+      await flush();
+
+      expect(ctx.automation.dispatchForGym.mock.calls).toEqual([
+        ['gym-1', 'attendance_marked', { entityId: 'bk-2', entityType: 'booking' }],
+      ]);
+      expect(ctx.booking.count).not.toHaveBeenCalled();
     });
 
     it('does not re-fire attendance_marked for a seat that was already ATTENDED', async () => {
@@ -217,6 +297,7 @@ describe('AttendanceService', () => {
       );
 
       // bk-1 was already attended; only the corrected bk-2 is newly attended.
+      await flush();
       expect(ctx.automation.dispatchForGym.mock.calls).toEqual([
         ['gym-1', 'attendance_marked', { entityId: 'bk-2', entityType: 'booking' }],
       ]);

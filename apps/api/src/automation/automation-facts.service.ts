@@ -3,6 +3,13 @@ import type { AutomationConditionFacts } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY_MS = 86400000;
+
+/** The triggering entity, so entity-level facts (booking_attendance) can load. */
+export interface AutomationFactsContext {
+  entityId?: string;
+  entityType?: string;
+}
+
 export function ageAt(birthday: Date | null, now: Date): number | null {
   if (!birthday) return null;
   let age = now.getUTCFullYear() - birthday.getUTCFullYear();
@@ -22,6 +29,7 @@ export class AutomationFactsService {
     gymId: string,
     memberId: string,
     now = new Date(),
+    context?: AutomationFactsContext,
   ): Promise<AutomationConditionFacts | null> {
     const member = await this.prisma.client.gymMember.findFirst({
       where: { gymId, id: memberId, deletedAt: null },
@@ -71,7 +79,20 @@ export class AutomationFactsService {
       subscription_days_until_expiry: subscription
         ? Math.floor((subscription.currentPeriodEnd.getTime() - now.getTime()) / DAY_MS)
         : null,
-      booking_attendance: null,
+      booking_attendance: await this.bookingAttendance(gymId, context),
     };
+  }
+
+  /** The triggering booking's status, scoped to the gym; null off a booking. */
+  private async bookingAttendance(
+    gymId: string,
+    context?: AutomationFactsContext,
+  ): Promise<string | null> {
+    if (context?.entityType !== 'booking' || !context.entityId) return null;
+    const booking = await this.prisma.client.booking.findFirst({
+      where: { id: context.entityId, gymId },
+      select: { status: true },
+    });
+    return booking?.status ?? null;
   }
 }

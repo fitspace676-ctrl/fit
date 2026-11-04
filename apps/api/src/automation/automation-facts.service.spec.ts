@@ -44,14 +44,24 @@ function setup(
     .fn()
     .mockResolvedValue(options.checkin ? { checkedInAt: new Date('2026-07-06T12:00:00Z') } : null);
   const count = vi.fn().mockResolvedValue(options.checkin ? 12 : 0);
+  // Two bookings in gym-1; anything else (including another gym) is not found.
+  const bookings: Record<string, string> = { 'bk-att': 'ATTENDED', 'bk-ns': 'NO_SHOW' };
+  const booking = vi
+    .fn()
+    .mockImplementation(({ where }: { where: { id: string; gymId: string } }) =>
+      Promise.resolve(
+        where.gymId === 'gym-1' && bookings[where.id] ? { status: bookings[where.id] } : null,
+      ),
+    );
   const prisma = {
     client: {
       gymMember: { findFirst: member },
       subscription: { findFirst: sub },
       checkIn: { findFirst: last, count },
+      booking: { findFirst: booking },
     },
   } as unknown as PrismaService;
-  return { service: new AutomationFactsService(prisma), member, sub, last, count };
+  return { service: new AutomationFactsService(prisma), member, sub, last, count, booking };
 }
 
 describe('AutomationFactsService', () => {
@@ -99,6 +109,37 @@ describe('AutomationFactsService', () => {
     expect(sub).not.toHaveBeenCalled();
     expect(last).not.toHaveBeenCalled();
     expect(count).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['bk-att', 'ATTENDED'],
+    ['bk-ns', 'NO_SHOW'],
+  ])('reads booking_attendance from the triggering booking %s', async (entityId, status) => {
+    const { service, booking } = setup();
+    const result = await service.loadConditionFacts('gym-1', 'member-1', now, {
+      entityId,
+      entityType: 'booking',
+    });
+    expect(result?.booking_attendance).toBe(status);
+    expect(booking).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: entityId, gymId: 'gym-1' } }),
+    );
+  });
+  it('returns null booking_attendance for another gym booking, no context or a non-booking entity', async () => {
+    const { service, booking } = setup();
+    const crossGym = await service.loadConditionFacts('gym-1', 'member-1', now, {
+      entityId: 'bk-other-gym',
+      entityType: 'booking',
+    });
+    expect(crossGym?.booking_attendance).toBeNull();
+    expect((await service.loadConditionFacts('gym-1', 'member-1', now))?.booking_attendance).toBe(
+      null,
+    );
+    const invoice = await service.loadConditionFacts('gym-1', 'member-1', now, {
+      entityId: 'bk-att',
+      entityType: 'invoice',
+    });
+    expect(invoice?.booking_attendance).toBeNull();
+    expect(booking).toHaveBeenCalledTimes(1);
   });
   it('handles birthday boundaries and missing birthdays in UTC', () => {
     expect(ageAt(new Date('1996-07-08'), now)).toBe(30);
