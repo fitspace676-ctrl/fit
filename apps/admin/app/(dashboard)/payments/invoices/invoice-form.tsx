@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { InvoiceType } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import { inputToMinor } from '../format';
 import { INVOICE_TYPES, todayIsoDate } from './format';
 import {
@@ -200,23 +201,12 @@ export function InvoiceForm({
       <Card>
         <h3 className={CARD_HEADING_CLASS}>Details</h3>
         <div className="mt-4 flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="invoice-type" className={LABEL_CLASS}>
-              Type
-            </label>
-            <select
-              id="invoice-type"
-              value={type}
-              onChange={(event) => setType(event.target.value as InvoiceType)}
-              className={FIELD_CLASS}
-            >
-              {INVOICE_TYPES.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SelectField
+            label="Type"
+            value={type}
+            onChange={(event) => setType(event.target.value as InvoiceType)}
+            options={INVOICE_TYPES}
+          />
 
           <div className="flex flex-col gap-1">
             <label htmlFor="invoice-description" className={LABEL_CLASS}>

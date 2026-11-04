@@ -13,6 +13,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { NextIntlClientProvider } from 'next-intl';
+import { en } from '@fit/i18n';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { InvoiceFilters } from './invoice-filters';
 
@@ -34,8 +37,16 @@ vi.mock('@/components/active-location', () => ({
   }),
 }));
 
+function renderWithIntl(ui: React.ReactElement) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={en}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
+}
+
 function renderFilters() {
-  return render(<InvoiceFilters search="" type="" issuedFrom="" issuedTo="" />);
+  return renderWithIntl(<InvoiceFilters search="" type="" issuedFrom="" issuedTo="" />);
 }
 
 beforeEach(() => {
@@ -48,10 +59,10 @@ describe('InvoiceFilters — the branch filter', () => {
     const user = userEvent.setup();
     renderFilters();
 
-    const select = screen.getByLabelText<HTMLSelectElement>('Filter by branch');
-    expect(select.value).toBe('');
+    const select = screen.getByLabelText('Filter by branch');
+    expect(selectedValue(select)).toBe('');
 
-    await user.selectOptions(select, 'loc-downtown');
+    await chooseOption(user, select, 'Downtown');
 
     // The same param the top-bar switcher owns, and page 1 — a narrower roster
     // must never leave the pager past the end of the result set.
@@ -76,7 +87,7 @@ describe('InvoiceFilters — the branch filter', () => {
     mocks.locationId.current = 'loc-downtown';
     navigationMock.setSearch('locationId=loc-downtown&type=CLASS&page=3');
     const user = userEvent.setup();
-    render(<InvoiceFilters search="" type="CLASS" issuedFrom="" issuedTo="" />);
+    renderWithIntl(<InvoiceFilters search="" type="CLASS" issuedFrom="" issuedTo="" />);
 
     await user.click(screen.getByRole('button', { name: 'Clear' }));
 

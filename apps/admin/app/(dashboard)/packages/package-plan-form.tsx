@@ -11,6 +11,7 @@ import {
 } from '@fit/types';
 import { Button } from '@fit/ui-kit';
 import { useGymCurrency } from '@/components/gym-currency';
+import { SelectField } from '@/components/ui/select-field';
 import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import { BILLING_INTERVALS, inputToMinor, minorToInput } from './format';
 import { createPackagePlanAction, updatePackagePlanAction } from './actions';
@@ -213,22 +214,13 @@ export function PackagePlanForm(props: Props) {
 
       <div className="flex flex-wrap gap-4">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="plan-interval" className={LABEL_CLASS}>
-            Billing
-          </label>
-          <select
-            id="plan-interval"
+          <SelectField
             name="billingInterval"
+            label="Billing"
             value={billingInterval}
             onChange={(event) => setBillingInterval(event.target.value as PackageBillingInterval)}
-            className={FIELD_CLASS}
-          >
-            {BILLING_INTERVALS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            options={BILLING_INTERVALS}
+          />
         </div>
         <div className="flex flex-1 flex-col gap-1">
           <label htmlFor="plan-sessions" className={LABEL_CLASS}>
@@ -305,50 +297,30 @@ export function PackagePlanForm(props: Props) {
       </label>
 
       {branch.visible ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="plan-branch" className={LABEL_CLASS}>
-            {tCommon('branchExclusive')}
-          </label>
-          <select
-            id="plan-branch"
-            name="locationId"
-            value={branch.value}
-            onChange={(event) => branch.setValue(event.target.value)}
-            className={FIELD_CLASS}
-          >
-            <option value="">{tCommon('allBranchesOption')}</option>
-            {branch.unlistedId ? (
-              <option value={branch.unlistedId}>{tCommon('branchExclusiveUnlisted')}</option>
-            ) : null}
-            {branch.locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-ink-400">{tCommon('branchExclusiveHint')}</p>
-        </div>
+        <SelectField
+          name="locationId"
+          label={tCommon('branchExclusive')}
+          hint={tCommon('branchExclusiveHint')}
+          value={branch.value}
+          onChange={(event) => branch.setValue(event.target.value)}
+          options={[
+            { value: '', label: tCommon('allBranchesOption') },
+            ...(branch.unlistedId
+              ? [{ value: branch.unlistedId, label: tCommon('branchExclusiveUnlisted') }]
+              : []),
+            ...branch.locations.map((location) => ({ value: location.id, label: location.name })),
+          ]}
+        />
       ) : null}
 
       {!isEdit ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="plan-status" className={LABEL_CLASS}>
-            Status
-          </label>
-          <select
-            id="plan-status"
-            name="status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as PackagePlanStatus)}
-            className={FIELD_CLASS}
-          >
-            {CREATE_STATUSES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          name="status"
+          label="Status"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as PackagePlanStatus)}
+          options={CREATE_STATUSES}
+        />
       ) : null}
 
       {error ? (

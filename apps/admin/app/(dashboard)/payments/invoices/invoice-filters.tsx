@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Icon } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import { useActiveLocation } from '@/components/active-location';
 import { LOCATION_PARAM } from '@/lib/active-location';
 import { INVOICE_TYPES } from './format';
@@ -110,37 +111,34 @@ export function InvoiceFilters({
         />
       </div>
 
-      <select
-        value={type}
-        onChange={(event) => apply({ type: event.target.value })}
-        aria-label="Filter by type"
-        className={CONTROL_CLASS}
-      >
-        <option value="">All types</option>
-        {INVOICE_TYPES.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <div className="w-44">
+        <SelectField
+          label="Filter by type"
+          labelHidden
+          size="chrome"
+          value={type}
+          onChange={(event) => apply({ type: event.target.value })}
+          options={[{ value: '', label: 'All types' }, ...INVOICE_TYPES]}
+        />
+      </div>
 
       {showBranchFilter ? (
-        <select
-          // Always `''` while it renders: a chosen branch lands in the URL, the
-          // top-bar switcher adopts it, and this control unmounts. See
-          // `showBranchFilter`.
-          value=""
-          onChange={(event) => apply({ [LOCATION_PARAM]: event.target.value })}
-          aria-label="Filter by branch"
-          className={CONTROL_CLASS}
-        >
-          <option value="">All branches</option>
-          {locations.map((location) => (
-            <option key={location.id} value={location.id}>
-              {location.name}
-            </option>
-          ))}
-        </select>
+        <div className="w-44">
+          <SelectField
+            label="Filter by branch"
+            labelHidden
+            size="chrome"
+            // Always `''` while it renders: a chosen branch lands in the URL, the
+            // top-bar switcher adopts it, and this control unmounts. See
+            // `showBranchFilter`.
+            value=""
+            onChange={(event) => apply({ [LOCATION_PARAM]: event.target.value })}
+            options={[
+              { value: '', label: 'All branches' },
+              ...locations.map((location) => ({ value: location.id, label: location.name })),
+            ]}
+          />
+        </div>
       ) : null}
 
       <input
