@@ -3,17 +3,23 @@
 import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
+  AUTOMATION_ASSIST_ERROR_CODES,
   Permission,
+  automationAssistRequestSchema,
+  automationAssistResponseSchema,
   createAutomationRuleSchema,
   roleHasPermission,
   saveAsTemplateSchema,
   updateAutomationRuleSchema,
+  type AutomationAssistRequest,
+  type AutomationAssistResponse,
   type CreateAutomationRuleInput,
   type UpdateAutomationRuleInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  assistAutomationRule,
   createAutomationRule,
   deleteAutomationRule,
   saveAutomationRuleAsTemplate,
@@ -141,6 +147,44 @@ export async function saveAsTemplateAction(
     refresh();
     return { ok: true, data: { id: template.id } };
   } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+/**
+ * Ask the AI assistant to draft (or refine) a rule from a natural-language
+ * request. Nothing is written: the client applies the returned draft to the
+ * builder form, where the operator reviews and saves it. Gated like every other
+ * builder write because it spends model budget on the gym's behalf.
+ */
+export async function assistAutomationRuleAction(
+  input: AutomationAssistRequest,
+): Promise<ActionResult<AutomationAssistResponse>> {
+  const t = await getTranslations('admin.automation');
+  if (!(await requireManage())) {
+    return { ok: false, error: t('errors.notAuthorized') };
+  }
+  const parsed = automationAssistRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: t('errors.invalidDetails') };
+  }
+  try {
+    const response = automationAssistResponseSchema.safeParse(
+      await assistAutomationRule(parsed.data),
+    );
+    if (!response.success) {
+      return { ok: false, error: t('assist.failed') };
+    }
+    return { ok: true, data: response.data };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.message === AUTOMATION_ASSIST_ERROR_CODES.notConfigured) {
+        return { ok: false, error: t('assist.notConfigured') };
+      }
+      if (error.message === AUTOMATION_ASSIST_ERROR_CODES.failed) {
+        return { ok: false, error: t('assist.failed') };
+      }
+    }
     return { ok: false, error: toMessage(error, t) };
   }
 }
