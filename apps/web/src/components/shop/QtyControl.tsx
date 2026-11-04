@@ -3,12 +3,7 @@
 import { useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import {
-  encodeVariantRef,
-  MAX_CART_LINE_QUANTITY,
-  type CartView,
-  type ProductSummary,
-} from '@fit/types';
+import { MAX_CART_LINE_QUANTITY, type CartView } from '@fit/types';
 import { Icon, useToast } from '@/src/components/ui';
 import { addToCartAction, removeCartItemAction, updateCartItemAction } from '@/app/actions/cart';
 
@@ -95,29 +90,20 @@ const styles = stylex.create({
 });
 
 export interface QtyControlProps {
-  product: ProductSummary;
-  /** Units of this product currently in the cart. */
+  variantId: string | null;
+  disabled?: boolean;
+  /** Units of this exact variant currently in the cart. */
   qty: number;
   onCart: (cart: CartView) => void;
 }
 
-/**
- * Add-to-cart for a catalogue row: a lime plus while the product is not in the
- * cart, a quantity stepper once it is. Adds the first variant (or the base
- * purchase when the product has none) and hands the fresh cart the server action
- * returns straight up, so the panel and this count move together without a
- * round-trip through the router.
- */
-export function QtyControl({ product, qty, onCart }: QtyControlProps) {
+/** Mutate only the selected variant, using the authoritative cart response. */
+export function QtyControl({ variantId, disabled = false, qty, onCart }: QtyControlProps) {
   const t = useTranslations('member.cart');
   const tc = useTranslations('shop.cart');
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
-
-  const variantId =
-    product.variants.length > 0
-      ? encodeVariantRef(product.id, 0)
-      : encodeVariantRef(product.id, null);
+  const unavailable = pending || disabled || variantId === null;
 
   /** Run a cart mutation, surfacing the fresh cart or a tagged failure. */
   function run(mutate: () => Promise<Awaited<ReturnType<typeof addToCartAction>>>, fail: string) {
@@ -139,9 +125,9 @@ export function QtyControl({ product, qty, onCart }: QtyControlProps) {
       <button
         type="button"
         aria-label={t('add')}
-        disabled={pending}
-        onClick={() => run(() => addToCartAction(variantId, 1), t('errAdd'))}
-        {...stylex.props(styles.add, pending && styles.disabled)}
+        disabled={unavailable}
+        onClick={() => variantId !== null && run(() => addToCartAction(variantId, 1), t('errAdd'))}
+        {...stylex.props(styles.add, unavailable && styles.disabled)}
       >
         <Icon name="plus" sw={2.2} {...stylex.props(styles.glyph)} />
       </button>
@@ -155,8 +141,9 @@ export function QtyControl({ product, qty, onCart }: QtyControlProps) {
       <button
         type="button"
         aria-label={qty === 1 ? tc('remove') : tc('decrease')}
-        disabled={pending}
+        disabled={unavailable}
         onClick={() =>
+          variantId !== null &&
           run(
             // `PATCH … { qty: 0 }` is rejected by design — dropping the last
             // unit is the dedicated DELETE, not a quantity of nothing.
@@ -167,7 +154,7 @@ export function QtyControl({ product, qty, onCart }: QtyControlProps) {
             t('errUpdate'),
           )
         }
-        {...stylex.props(styles.step, pending && styles.disabled)}
+        {...stylex.props(styles.step, unavailable && styles.disabled)}
       >
         <Icon name="minus" sw={2.2} {...stylex.props(styles.glyph)} />
       </button>
@@ -177,9 +164,11 @@ export function QtyControl({ product, qty, onCart }: QtyControlProps) {
       <button
         type="button"
         aria-label={tc('increase')}
-        disabled={pending || atMax}
-        onClick={() => run(() => updateCartItemAction(variantId, qty + 1), t('errUpdate'))}
-        {...stylex.props(styles.step, styles.stepUp, (pending || atMax) && styles.disabled)}
+        disabled={unavailable || atMax}
+        onClick={() =>
+          variantId !== null && run(() => updateCartItemAction(variantId, qty + 1), t('errUpdate'))
+        }
+        {...stylex.props(styles.step, styles.stepUp, (unavailable || atMax) && styles.disabled)}
       >
         <Icon name="plus" sw={2.2} {...stylex.props(styles.glyph)} />
       </button>
