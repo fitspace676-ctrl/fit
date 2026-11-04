@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { screen } from '@testing-library/react';
+import { renderWithIntl as render } from '@/test/render-with-intl';
+
+vi.mock('@/components/marketing/locale-switcher', () => ({ LocaleSwitcher: () => null }));
 import type { PublicBlogPostSummary } from '@fit/types';
 import { LeadCtaProvider } from '@/components/marketing/lead-cta-provider';
 import { BlogListPage } from './blog-list-page';

@@ -9,7 +9,7 @@ export function BlogShell({ lang, children }: { lang: BlogLang; children: ReactN
       className="relative overflow-x-clip bg-surface font-sans text-fg antialiased selection:bg-brand-500/30"
     >
       <Aurora />
-      <MarketingNav active="Blog" />
+      <MarketingNav active="blog" />
       <main className="relative z-10 mx-auto min-h-[60vh] max-w-[1180px] px-6 pb-20 pt-12 lg:px-10 lg:pt-16">
         {children}
       </main>

@@ -33,16 +33,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
     })),
   );
-  return [...staticPages, ...items.flatMap((post) =>
-    post.langs.map((lang) => ({
-      url: localeUrl(lang, `/blog/${post.slug}`),
-      lastModified: post.updatedAt,
-      alternates: {
-        languages: Object.fromEntries(post.langs.map((language) =>
-          [language, localeUrl(language, `/blog/${post.slug}`)]
-        )),
-      },
-    }))
-  )];
+  return [
+    ...staticPages,
+    ...items.flatMap((post) =>
+      post.langs.map((lang) => ({
+        url: localeUrl(lang, `/blog/${post.slug}`),
+        lastModified: post.updatedAt,
+        alternates: {
+          languages: Object.fromEntries(
+            post.langs.map((language) => [language, localeUrl(language, `/blog/${post.slug}`)]),
+          ),
+        },
+      })),
+    ),
+  ];
 }
-

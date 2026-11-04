@@ -10,5 +10,9 @@ export default createMiddleware(routing);
 
 export const config = {
   // Run on every route except API handlers, Next.js internals and files.
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+  matcher: [
+    '/blog/feed.xml',
+    '/:locale/blog/feed.xml',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)',
+  ],
 };

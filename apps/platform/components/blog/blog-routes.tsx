@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { localeUrl, localeAlternates } from '@/src/i18n/metadata';
 import type { BlogLang, PublicBlogPost } from '@fit/types';
 import { notFound, redirect } from 'next/navigation';
 import { fetchBlogCategories, fetchBlogPost, fetchBlogPosts, fetchBlogTags } from '@/lib/blog';
@@ -15,8 +16,8 @@ export function listMetadata(lang: BlogLang): Metadata {
     title: `${dictionary[lang].blog} - FormaCore`,
     description: dictionary[lang].description,
     alternates: {
-      canonical: `${BLOG_ORIGIN}${blogPath(lang)}`,
-      languages: { en: `${BLOG_ORIGIN}/blog`, ka: `${BLOG_ORIGIN}/ka/blog` },
+      canonical: localeUrl(lang, '/blog'),
+      ...localeAlternates('/blog'),
       types: { 'application/rss+xml': `${BLOG_ORIGIN}${blogPath(lang)}/feed.xml` },
     },
   };
