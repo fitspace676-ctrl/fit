@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { en } from '@fit/i18n';
 import { ProductForm } from './product-form';
 import { createProductAction, updateProductAction } from './actions';
@@ -39,8 +41,8 @@ function renderWithIntl(ui: React.ReactElement) {
   );
 }
 
-function branchSelect(): HTMLSelectElement {
-  return screen.getByLabelText<HTMLSelectElement>('Branch');
+function branchSelect(): HTMLElement {
+  return screen.getByLabelText('Branch');
 }
 
 function createProduct(): void {
@@ -83,16 +85,17 @@ describe('ProductForm — branch exclusivity', () => {
     activeLocation.locationId = 'loc-downtown';
     renderWithIntl(<ProductForm mode="create" categories={[]} />);
 
-    expect(branchSelect().value).toBe('');
+    expect(selectedValue(branchSelect())).toBe('');
     createProduct();
     await waitFor(() => expect(createProductAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createProductAction).mock.calls[0]![0].locationId).toBeNull();
   });
 
   it('sends the branch picked in the select', async () => {
+    const user = userEvent.setup();
     renderWithIntl(<ProductForm mode="create" categories={[]} />);
 
-    fireEvent.change(branchSelect(), { target: { value: 'loc-riverside' } });
+    await chooseOption(user, branchSelect(), 'Riverside');
     createProduct();
     await waitFor(() => expect(createProductAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(createProductAction).mock.calls[0]![0].locationId).toBe('loc-riverside');
@@ -102,16 +105,17 @@ describe('ProductForm — branch exclusivity', () => {
     activeLocation.locationId = 'loc-downtown';
     renderEdit();
 
-    expect(branchSelect().value).toBe('loc-riverside');
+    expect(selectedValue(branchSelect())).toBe('loc-riverside');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateProductAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(updateProductAction).mock.calls[0]![1].locationId).toBe('loc-riverside');
   });
 
   it('sends null, not an empty string, when an edit widens the product to every branch', async () => {
+    const user = userEvent.setup();
     renderEdit();
 
-    fireEvent.change(branchSelect(), { target: { value: '' } });
+    await chooseOption(user, branchSelect(), 'All branches');
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateProductAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(updateProductAction).mock.calls[0]![1].locationId).toBeNull();

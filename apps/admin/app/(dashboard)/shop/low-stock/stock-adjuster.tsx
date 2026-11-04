@@ -4,8 +4,9 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { MANUAL_STOCK_REASONS, type ManualStockReason } from '@fit/types';
-import { Badge, Button, Dialog, SelectField } from '@fit/ui-kit';
+import { Badge, Button, Dialog } from '@fit/ui-kit';
 import { Icon, useToast } from '@/components/ui';
+import { SelectField } from '@/components/ui/select-field';
 import { useActiveLocation } from '@/components/active-location';
 import { adjustStockAction } from '../actions';
 

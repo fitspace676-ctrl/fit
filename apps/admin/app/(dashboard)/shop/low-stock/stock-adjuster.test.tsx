@@ -14,6 +14,10 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { NextIntlClientProvider } from 'next-intl';
+import { en } from '@fit/i18n';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { ToastProvider } from '@/components/ui';
 import { StockAdjuster } from './stock-adjuster';
 
@@ -44,18 +48,20 @@ vi.mock('@/components/active-location', () => ({
 
 function renderAdjuster(props: Partial<React.ComponentProps<typeof StockAdjuster>> = {}) {
   return render(
-    <ToastProvider>
-      <StockAdjuster
-        productId="p-1"
-        productName="Whey protein"
-        variantIndex={0}
-        variantName="1kg"
-        sku="WP-1KG"
-        stock={4}
-        stockLocationId={null}
-        {...props}
-      />
-    </ToastProvider>,
+    <NextIntlClientProvider locale="en" messages={en}>
+      <ToastProvider>
+        <StockAdjuster
+          productId="p-1"
+          productName="Whey protein"
+          variantIndex={0}
+          variantName="1kg"
+          sku="WP-1KG"
+          stock={4}
+          stockLocationId={null}
+          {...props}
+        />
+      </ToastProvider>
+    </NextIntlClientProvider>,
   );
 }
 
@@ -119,10 +125,11 @@ describe('StockAdjuster', () => {
     renderAdjuster({ stockLocationId: null });
     open();
 
-    expect(screen.getByRole('combobox', { name: 'Branch' })).toHaveValue('loc-downtown');
+    expect(selectedValue(screen.getByRole('combobox', { name: 'Branch' }))).toBe('loc-downtown');
   });
 
-  it('refuses to submit in All locations mode until a branch is chosen', () => {
+  it('refuses to submit in All locations mode until a branch is chosen', async () => {
+    const user = userEvent.setup();
     mocks.locationId.current = undefined;
     renderAdjuster({ stockLocationId: null, stock: 40 });
     open();
@@ -136,9 +143,7 @@ describe('StockAdjuster', () => {
     fireEvent.click(apply);
     expect(mocks.adjust).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Branch' }), {
-      target: { value: 'loc-riverside' },
-    });
+    await chooseOption(user, screen.getByRole('combobox', { name: 'Branch' }), 'Riverside');
     expect(screen.getByRole('button', { name: /Apply adjustment/ })).toBeEnabled();
   });
 
