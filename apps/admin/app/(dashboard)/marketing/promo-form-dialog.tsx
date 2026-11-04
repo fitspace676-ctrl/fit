@@ -11,7 +11,8 @@ import type {
   PromoScope,
   UpdatePromoCodeInput,
 } from '@fit/types';
-import { Button, Drawer, Field, SelectField, TextareaField } from '@fit/ui-kit';
+import { Button, Drawer, Field, TextareaField } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import { Icon, useToast } from '@/components/ui';
 import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import { createPromoAction, updatePromoAction } from './actions';

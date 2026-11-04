@@ -23,12 +23,12 @@ import {
   Field,
   FilterBar,
   FilterChips,
-  SelectField,
   TableSearch,
   nextSortDir,
   type Column,
   type FilterChip,
 } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import { Icon, useToast } from '@/components/ui';
 import { CampaignWizard, type CampaignWizardInitial } from './campaign-wizard';
 import {
