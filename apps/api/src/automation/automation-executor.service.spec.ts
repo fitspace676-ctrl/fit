@@ -8,6 +8,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { RedisService } from '../redis/redis.service';
 import type { MailerService } from '../mail/mailer.service';
 import type { AutomationMergeService } from './automation-merge.service';
+import type { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import type {
   NotificationService,
   SendNotificationInput,
@@ -26,11 +27,16 @@ interface FireRule {
   id: string;
   triggerType: AutomationTriggerType;
   actionType: AutomationActionType;
-  actionConfig: { body: string; subject?: string };
+  actionConfig: {
+    body: string;
+    subject?: string;
+    offer?: { discountPercent?: number; bonusPoints?: number; offerCode?: string };
+  };
   triggerConfig: { days?: number };
   name: string;
   conditions: AutomationCondition[];
   timingOffset: string;
+  recipient: 'member' | 'trainer';
 }
 
 function activeRule(over: Partial<FireRule> = {}): FireRule {
@@ -43,6 +49,7 @@ function activeRule(over: Partial<FireRule> = {}): FireRule {
     triggerType: AutomationTriggerType.member_joined,
     actionType: AutomationActionType.email,
     actionConfig: { body: 'Welcome' },
+    recipient: 'member',
     ...over,
   };
 }
@@ -60,7 +67,18 @@ function setup(overrides?: {
   runCreateThrows?: boolean;
   ruleFindManyThrows?: boolean;
   /** What the merge service resolves to; `null` means "nobody to send to". */
-  mergeTarget?: { recipient: string | null; values: Record<string, string> } | null;
+  mergeTarget?: {
+    recipient: string | null;
+    values: Record<string, string>;
+    memberId?: string | null;
+    userId?: string | null;
+  } | null;
+  /** The booking / class instance / PT session the anchor and cancel checks read. */
+  booking?: unknown;
+  classInstance?: unknown;
+  serviceSession?: unknown;
+  /** What `LoyaltyPointsService.awardAutomationBonus` resolves to (or throws). */
+  bonusAwarded?: boolean | 'throws';
   /** `false` stands in for an unconfigured mail transport (Resend key unset). */
   mailSent?: boolean;
   mailThrows?: boolean;
@@ -109,6 +127,18 @@ function setup(overrides?: {
   const taskCreate = vi
     .fn<(args: AnyArgs) => Promise<unknown>>()
     .mockResolvedValue({ id: 'task-1' });
+  // Entity reads are held to gym-1: another gym's id finds nothing.
+  const inGym = (row: unknown) =>
+    vi.fn((args: AnyArgs) => Promise.resolve(args.where?.gymId === 'gym-1' ? (row ?? null) : null));
+  const bookingFindFirst = inGym(overrides?.booking);
+  const classInstanceFindFirst = inGym(overrides?.classInstance);
+  const sessionFindFirst = inGym(overrides?.serviceSession);
+  const awardBonus = vi.fn(() =>
+    overrides?.bonusAwarded === 'throws'
+      ? Promise.reject(new Error('ledger down'))
+      : Promise.resolve(overrides?.bonusAwarded ?? true),
+  );
+  const loyalty = { awardAutomationBonus: awardBonus } as unknown as LoyaltyPointsService;
   const loadFacts = vi.fn().mockResolvedValue(overrides?.facts ?? null);
   const factsService = { loadConditionFacts: loadFacts } as unknown as AutomationFactsService;
   const client = {
@@ -123,6 +153,9 @@ function setup(overrides?: {
     pushToken: { count: pushTokenCount },
     memberTask: { create: taskCreate },
     invoice: { findMany: invoiceFindMany },
+    booking: { findFirst: bookingFindFirst },
+    classInstance: { findFirst: classInstanceFindFirst },
+    serviceSession: { findFirst: sessionFindFirst },
     gym: { findMany: gymFindMany },
     subscription: { findMany: subFindMany },
   };
@@ -136,7 +169,12 @@ function setup(overrides?: {
   const mergeResolve = vi.fn(() =>
     Promise.resolve(
       overrides?.mergeTarget === undefined
-        ? { recipient: 'nino@example.com', values: { member_first_name: 'Nino' } }
+        ? {
+            recipient: 'nino@example.com',
+            memberId: overrides?.memberId === undefined ? 'gm-1' : overrides.memberId,
+            userId: overrides?.memberUser === null ? null : 'user-1',
+            values: { member_first_name: 'Nino' },
+          }
         : overrides.mergeTarget,
     ),
   );
@@ -192,7 +230,12 @@ function setup(overrides?: {
       mailer,
       factsService,
       notifications,
+      loyalty,
     ),
+    awardBonus,
+    bookingFindFirst,
+    classInstanceFindFirst,
+    sessionFindFirst,
     notifySend,
     memberFindFirst,
     pushTokenCount,
@@ -466,9 +509,8 @@ describe('AutomationExecutorService — push and task delivery', () => {
   }
 
   it('pushes to the member with an interpolated title and a per-day dedupe key', async () => {
-    const { notifySend, memberFindFirst, pushTokenCount, mailSend, data } = await fire(pushRule);
+    const { notifySend, pushTokenCount, mailSend, data } = await fire(pushRule);
 
-    expect(memberFindFirst.mock.calls[0]?.[0]?.where).toEqual({ id: 'gm-1', gymId: 'gym-1' });
     expect(notifySend.mock.calls[0]?.[0]).toEqual({
       gymId: 'gym-1',
       userId: 'user-1',
@@ -516,7 +558,7 @@ describe('AutomationExecutorService — push and task delivery', () => {
   });
 
   it('sends nothing when the trigger resolves to no member', async () => {
-    const { notifySend, data } = await fire(pushRule, { memberId: null });
+    const { notifySend, data } = await fire(pushRule, { mergeTarget: null });
 
     expect(notifySend).not.toHaveBeenCalled();
     expect(data).toMatchObject({ status: 'SUCCESS', detail: 'No recipient' });
@@ -925,5 +967,239 @@ describe('AutomationExecutorService — gym-recipient trigger', () => {
     await expect(service.dispatchForGym('gym-1', 'product_stock_low', ctx)).resolves.toBe(1);
     expect(loadFacts).not.toHaveBeenCalled();
     expect(mailSend).toHaveBeenCalledOnce();
+  });
+});
+
+describe('timing in hours and anchored to the class start', () => {
+  const NOW_T = new Date('2026-07-08T12:00:00Z');
+  const HOUR = 60 * 60 * 1000;
+  const reminder = activeRule({
+    triggerType: 'class_booked',
+    timingOffset: '-24h',
+    actionConfig: { body: 'See you tomorrow' },
+  });
+  const bookingCtx = { entityId: 'b-1', entityType: 'booking', now: NOW_T } as const;
+
+  it('queues a +2h rule two hours from now', async () => {
+    const { service, runCreate, mailSend } = setup();
+    await service.fireRule('gym-1', activeRule({ timingOffset: '2h' }), {
+      entityId: 'gm-1',
+      entityType: 'member',
+      now: NOW_T,
+    });
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'QUEUED',
+      scheduledFor: new Date(NOW_T.getTime() + 2 * HOUR),
+    });
+    expect(mailSend).not.toHaveBeenCalled();
+  });
+
+  it('queues -24h on class_booked for a day before the class starts', async () => {
+    const startsAt = new Date(NOW_T.getTime() + 72 * HOUR);
+    const { service, runCreate, mailSend, classInstanceFindFirst } = setup({
+      booking: { classInstanceId: 'ci-1' },
+      classInstance: { startsAt },
+    });
+    expect(await service.fireRule('gym-1', reminder, bookingCtx)).toBe(true);
+    expect(classInstanceFindFirst.mock.calls[0]?.[0]?.where).toEqual({
+      id: 'ci-1',
+      gymId: 'gym-1',
+    });
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'QUEUED',
+      scheduledFor: new Date(startsAt.getTime() - 24 * HOUR),
+    });
+    expect(mailSend).not.toHaveBeenCalled();
+  });
+
+  it('sends at once when the class starts sooner than the offset', async () => {
+    const { service, runCreate, mailSend } = setup({
+      booking: { classInstanceId: 'ci-1' },
+      classInstance: { startsAt: new Date(NOW_T.getTime() + HOUR) },
+    });
+    await service.fireRule('gym-1', reminder, bookingCtx);
+    expect(mailSend).toHaveBeenCalledOnce();
+    expect(runCreate.mock.calls[0]?.[0].data?.status).toBe('SUCCESS');
+  });
+
+  it('anchors pt_session_booked to the session start', async () => {
+    const startsAt = new Date(NOW_T.getTime() + 48 * HOUR);
+    const { service, runCreate } = setup({ serviceSession: { startsAt } });
+    await service.fireRule(
+      'gym-1',
+      activeRule({ triggerType: 'pt_session_booked', timingOffset: '-2h' }),
+      { entityId: 's-1', entityType: 'service_session', now: NOW_T },
+    );
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'QUEUED',
+      scheduledFor: new Date(startsAt.getTime() - 2 * HOUR),
+    });
+  });
+
+  it('skips with a note when the booking is not in this gym', async () => {
+    const { service, runCreate, mailSend } = setup({
+      booking: { classInstanceId: 'ci-1' },
+      classInstance: { startsAt: new Date(NOW_T.getTime() + 72 * HOUR) },
+    });
+    await service.fireRule('gym-2', reminder, bookingCtx);
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      gymId: 'gym-2',
+      status: 'SKIPPED',
+      detail: 'Entity not found',
+    });
+    expect(mailSend).not.toHaveBeenCalled();
+  });
+});
+
+describe('due reminders for a cancelled booking or session', () => {
+  const NOW_D = new Date('2026-07-08T12:00:00Z');
+  const due = (entityType: string) => [
+    { id: 'run-1', gymId: 'gym-1', ruleId: 'rule-1', entityId: 'e-1', entityType },
+  ];
+  const classRule = activeRule({ triggerType: 'class_booked', timingOffset: '-24h' });
+
+  it.each([
+    [
+      'a cancelled booking',
+      { status: 'CANCELED', classInstanceId: 'ci-1' },
+      { status: 'SCHEDULED' },
+    ],
+    ['a cancelled class', { status: 'BOOKED', classInstanceId: 'ci-1' }, { status: 'CANCELED' }],
+    ['a no-show', { status: 'NO_SHOW', classInstanceId: 'ci-1' }, { status: 'SCHEDULED' }],
+  ])('skips the reminder for %s', async (_label, booking, classInstance) => {
+    env.AUTOMATION_EXECUTOR_ENABLED = true;
+    const { service, runUpdate, mailSend } = setup({
+      ruleFindFirst: classRule,
+      runFindMany: due('booking'),
+      booking,
+      classInstance,
+    });
+    await service.runDueQueued(NOW_D);
+    expect((runUpdate.mock.calls[0]?.[0] as AnyArgs | undefined)?.data).toMatchObject({
+      status: 'SKIPPED',
+      detail: 'Booking cancelled',
+    });
+    expect(mailSend).not.toHaveBeenCalled();
+  });
+
+  it('sends the reminder for a booking that still stands', async () => {
+    env.AUTOMATION_EXECUTOR_ENABLED = true;
+    const { service, runUpdate, mailSend } = setup({
+      ruleFindFirst: classRule,
+      runFindMany: due('booking'),
+      booking: { status: 'BOOKED', classInstanceId: 'ci-1' },
+      classInstance: { status: 'SCHEDULED' },
+    });
+    await service.runDueQueued(NOW_D);
+    expect((runUpdate.mock.calls[0]?.[0] as AnyArgs | undefined)?.data?.status).toBe('SUCCESS');
+    expect(mailSend).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['cancelled', { status: 'CANCELLED', memberId: 'gm-1' }],
+    ['released', { status: 'OPEN', memberId: null }],
+  ])('skips a PT reminder for a %s session', async (_label, serviceSession) => {
+    env.AUTOMATION_EXECUTOR_ENABLED = true;
+    const { service, runUpdate } = setup({
+      ruleFindFirst: activeRule({ triggerType: 'pt_session_booked', timingOffset: '-2h' }),
+      runFindMany: due('service_session'),
+      serviceSession,
+    });
+    await service.runDueQueued(NOW_D);
+    expect((runUpdate.mock.calls[0]?.[0] as AnyArgs | undefined)?.data).toMatchObject({
+      status: 'SKIPPED',
+      detail: 'Session cancelled',
+    });
+  });
+
+  it('still sends a delayed follow-up about a cancellation', async () => {
+    env.AUTOMATION_EXECUTOR_ENABLED = true;
+    const { service, runUpdate, bookingFindFirst } = setup({
+      ruleFindFirst: activeRule({ triggerType: 'class_cancelled_member', timingOffset: '1h' }),
+      runFindMany: due('booking'),
+      booking: { status: 'CANCELED', classInstanceId: 'ci-1' },
+    });
+    await service.runDueQueued(NOW_D);
+    expect(bookingFindFirst).not.toHaveBeenCalled();
+    expect((runUpdate.mock.calls[0]?.[0] as AnyArgs | undefined)?.data?.status).toBe('SUCCESS');
+  });
+});
+
+describe('recipient, offer and bonus', () => {
+  const ctx = { entityId: 'b-1', entityType: 'booking' } as const;
+
+  it('passes the rule recipient and pushes to the trainer account', async () => {
+    const { service, mergeResolve, notifySend } = setup({
+      mergeTarget: {
+        recipient: 'gio@irongym.ge',
+        memberId: 'gm-1',
+        userId: 'user-staff',
+        values: { recipient_name: 'Gio' },
+      },
+    });
+    await service.fireRule(
+      'gym-1',
+      activeRule({
+        triggerType: 'class_booked',
+        recipient: 'trainer',
+        actionType: 'push_notification',
+        actionConfig: { body: 'Hi {{recipient_name}}' },
+      }),
+      ctx,
+    );
+    expect((mergeResolve.mock.calls[0] as unknown[])[1]).toMatchObject({ recipient: 'trainer' });
+    expect(notifySend.mock.calls[0]?.[0]).toMatchObject({ userId: 'user-staff', body: 'Hi Gio' });
+  });
+
+  it('hands the offer to the merge service as tokens, beside the dispatcher’s values', async () => {
+    const { service, mergeResolve } = setup();
+    await service.fireRule(
+      'gym-1',
+      activeRule({
+        actionConfig: { body: 'x', offer: { discountPercent: 20, offerCode: 'BACK20' } },
+      }),
+      { ...ctx, extraValues: { cancelled_by: 'member' } },
+    );
+    expect((mergeResolve.mock.calls[0] as unknown[])[1]).toMatchObject({
+      recipient: 'member',
+      extraValues: {
+        cancelled_by: 'member',
+        discount_percent: '20',
+        bonus_points: '',
+        offer_code: 'BACK20',
+        offer_expiry: '',
+      },
+    });
+  });
+
+  const bonusRule = activeRule({ actionConfig: { body: 'x', offer: { bonusPoints: 50 } } });
+
+  it('credits the bonus once per rule and entity, and says so', async () => {
+    const { service, awardBonus, runCreate } = setup();
+    await service.fireRule('gym-1', bonusRule, ctx);
+    expect(awardBonus).toHaveBeenCalledWith('gym-1', 'gm-1', 50, 'automation:rule-1:b-1', 'Rule');
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'Emailed nino@example.com (+50 points)',
+    });
+  });
+
+  it.each([
+    ['already credited', false],
+    ['the ledger throws', 'throws'],
+  ] as const)('still sends when %s', async (_label, bonusAwarded) => {
+    const { service, runCreate, mailSend } = setup({ bonusAwarded });
+    await service.fireRule('gym-1', bonusRule, ctx);
+    expect(mailSend).toHaveBeenCalledOnce();
+    expect(runCreate.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'SUCCESS',
+      detail: 'Emailed nino@example.com',
+    });
+  });
+
+  it('credits no bonus on a trainer-recipient rule', async () => {
+    const { service, awardBonus } = setup();
+    await service.fireRule('gym-1', { ...bonusRule, recipient: 'trainer' }, ctx);
+    expect(awardBonus).not.toHaveBeenCalled();
   });
 });

@@ -4,11 +4,14 @@ import {
   AutomationActionType,
   AutomationRunStatus,
   AutomationTriggerType,
+  BookingStatus,
   GymStatus,
+  InstanceStatus,
   MemberTaskStatus,
   NotificationCategory,
   NotificationChannel,
   Prisma,
+  ServiceSessionStatus,
   SubscriptionStatus,
 } from '@fit/db';
 import {
@@ -22,6 +25,7 @@ import {
   GYM_RECIPIENT_ACTION_MESSAGE,
   GYM_RECIPIENT_TRIGGERS,
   type AutomationEntityType,
+  type AutomationOffer,
   type AutomationRecipient,
 } from '@fit/types';
 import { automationTriggerConfigSchema } from '@fit/types';
@@ -31,9 +35,14 @@ import { MailerService } from '../mail/mailer.service';
 import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { emailStrings } from '../mail/email-strings';
-import { AutomationMergeService } from './automation-merge.service';
+import {
+  AutomationMergeService,
+  type AutomationBrand,
+  type AutomationMergeTarget,
+} from './automation-merge.service';
 import { AutomationFactsService } from './automation-facts.service';
 import { NotificationService } from '../notifications/notification.service';
+import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { env } from '../config/env';
 
 /**
@@ -93,6 +102,7 @@ const RULE_SELECT = {
   triggerType: true,
   actionType: true,
   actionConfig: true,
+  recipient: true,
 } satisfies Prisma.AutomationRuleSelect;
 
 type RuleRecord = Prisma.AutomationRuleGetPayload<{ select: typeof RULE_SELECT }>;
@@ -157,6 +167,7 @@ export class AutomationExecutorService {
     private readonly mailer: MailerService,
     private readonly facts: AutomationFactsService,
     private readonly notifications: NotificationService,
+    private readonly loyalty: LoyaltyPointsService,
   ) {}
 
   /**
@@ -229,21 +240,26 @@ export class AutomationExecutorService {
       const now = context.now ?? new Date();
       const offset = parseTimingOffset(rule.timingOffset).ms;
       const trigger = AUTOMATION_TRIGGER_CATALOG.find((entry) => entry.value === rule.triggerType);
+      // "1 day before the class": a negative offset on an anchored trigger counts
+      // back from the class / session start, not from the moment it was booked.
+      if (offset < 0 && context.immediate !== true && trigger?.anchor === 'entity_start') {
+        const startsAt = await this.entityStartsAt(gymId, context);
+        if (!startsAt) {
+          await this.writeRun(gymId, rule, context, {
+            status: AutomationRunStatus.SKIPPED,
+            detail: 'Entity not found',
+          });
+          return true;
+        }
+        const scheduledFor = new Date(startsAt.getTime() + offset);
+        // Already inside the window (booked late): send now rather than never.
+        if (scheduledFor.getTime() <= now.getTime())
+          return await this.recordRun(gymId, rule, context);
+        await this.queueRun(gymId, rule, context, scheduledFor, now);
+        return true;
+      }
       if (offset > 0 && context.immediate !== true && trigger?.kind !== 'scan') {
-        const scheduledFor = new Date(now.getTime() + offset);
-        await this.prisma.client.automationRun.create({
-          data: {
-            gymId,
-            ruleId: rule.id,
-            triggerType: rule.triggerType,
-            status: 'QUEUED',
-            entityId: context.entityId ?? null,
-            entityType: context.entityType ?? null,
-            scheduledFor,
-            ranAt: now,
-            detail: `Scheduled for ${scheduledFor.toISOString()}`,
-          },
-        });
+        await this.queueRun(gymId, rule, context, new Date(now.getTime() + offset), now);
         return true;
       }
       return await this.recordRun(gymId, rule, context);
@@ -251,6 +267,120 @@ export class AutomationExecutorService {
       this.logger.warn(`Automation rule ${rule.id} failed: ${errMsg(error)}`);
       return false;
     }
+  }
+
+  /** Write a QUEUED row the due sweep delivers at `scheduledFor`. */
+  private async queueRun(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+    scheduledFor: Date,
+    now: Date,
+  ): Promise<void> {
+    await this.prisma.client.automationRun.create({
+      data: {
+        gymId,
+        ruleId: rule.id,
+        triggerType: rule.triggerType,
+        status: 'QUEUED',
+        entityId: context.entityId ?? null,
+        entityType: context.entityType ?? null,
+        scheduledFor,
+        ranAt: now,
+        detail: `Scheduled for ${scheduledFor.toISOString()}`,
+      },
+    });
+  }
+
+  /** Write a finished run row with `outcome`. Throws on a write error. */
+  private async writeRun(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+    outcome: ActionOutcome,
+  ): Promise<void> {
+    await this.prisma.client.automationRun.create({
+      data: {
+        gymId,
+        ruleId: rule.id,
+        triggerType: rule.triggerType,
+        status: outcome.status,
+        entityId: context.entityId ?? null,
+        entityType: context.entityType ?? null,
+        detail: outcome.detail.slice(0, 500),
+      },
+    });
+  }
+
+  /** When the booked class / PT session starts, within `gymId`; null if unknown. */
+  private async entityStartsAt(
+    gymId: string,
+    context: AutomationDispatchContext,
+  ): Promise<Date | null> {
+    const id = context.entityId;
+    if (!id) return null;
+    if (context.entityType === 'booking') {
+      const booking = await this.prisma.client.booking.findFirst({
+        where: { id, gymId },
+        select: { classInstanceId: true },
+      });
+      if (!booking) return null;
+      const instance = await this.prisma.client.classInstance.findFirst({
+        where: { id: booking.classInstanceId, gymId },
+        select: { startsAt: true },
+      });
+      return instance?.startsAt ?? null;
+    }
+    if (context.entityType === 'service_session') {
+      const session = await this.prisma.client.serviceSession.findFirst({
+        where: { id, gymId },
+        select: { startsAt: true },
+      });
+      return session?.startsAt ?? null;
+    }
+    return null;
+  }
+
+  /**
+   * Why a queued reminder for an anchored trigger (`class_booked`,
+   * `pt_session_booked`) must not go out any more: the booking was cancelled
+   * (or the class was), or the PT session was cancelled or released. Null when
+   * it still stands. Other triggers are not checked: a follow-up to a
+   * cancellation or a no-show is about exactly such a booking.
+   */
+  private async anchorCancelled(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+  ): Promise<string | null> {
+    const trigger = AUTOMATION_TRIGGER_CATALOG.find((entry) => entry.value === rule.triggerType);
+    const id = context.entityId;
+    if (trigger?.anchor !== 'entity_start' || !id) return null;
+    if (context.entityType === 'booking') {
+      const booking = await this.prisma.client.booking.findFirst({
+        where: { id, gymId },
+        select: { status: true, classInstanceId: true },
+      });
+      const live =
+        booking?.status === BookingStatus.BOOKED || booking?.status === BookingStatus.ATTENDED;
+      const instance = live
+        ? await this.prisma.client.classInstance.findFirst({
+            where: { id: booking.classInstanceId, gymId },
+            select: { status: true },
+          })
+        : null;
+      return instance && instance.status !== InstanceStatus.CANCELED ? null : 'Booking cancelled';
+    }
+    if (context.entityType === 'service_session') {
+      const session = await this.prisma.client.serviceSession.findFirst({
+        where: { id, gymId },
+        select: { status: true, memberId: true },
+      });
+      return session && session.status !== ServiceSessionStatus.CANCELLED && session.memberId
+        ? null
+        : 'Session cancelled';
+    }
+    return null;
   }
 
   private async conditionsMet(
@@ -293,11 +423,14 @@ export class AutomationExecutorService {
             immediate: true,
             now,
           };
+          const cancelled = rule ? await this.anchorCancelled(run.gymId, rule, context) : null;
           const outcome = !rule
             ? { status: AutomationRunStatus.SKIPPED, detail: 'Rule inactive' }
-            : !(await this.conditionsMet(run.gymId, rule, context))
-              ? { status: AutomationRunStatus.SKIPPED, detail: 'Conditions no longer met' }
-              : await this.performAction(run.gymId, rule, context);
+            : cancelled
+              ? { status: AutomationRunStatus.SKIPPED, detail: cancelled }
+              : !(await this.conditionsMet(run.gymId, rule, context))
+                ? { status: AutomationRunStatus.SKIPPED, detail: 'Conditions no longer met' }
+                : await this.performAction(run.gymId, rule, context);
           await this.prisma.client.automationRun.updateMany({
             where: { id: run.id, gymId: run.gymId, status: 'QUEUED' },
             data: { status: outcome.status, detail: outcome.detail.slice(0, 500), ranAt: now },
@@ -329,17 +462,7 @@ export class AutomationExecutorService {
     const outcome = await this.performAction(gymId, rule, context);
 
     try {
-      await this.prisma.client.automationRun.create({
-        data: {
-          gymId,
-          ruleId: rule.id,
-          triggerType: rule.triggerType,
-          status: outcome.status,
-          entityId: context.entityId ?? null,
-          entityType: context.entityType ?? null,
-          detail: outcome.detail.slice(0, 500),
-        },
-      });
+      await this.writeRun(gymId, rule, context, outcome);
       return true;
     } catch (error) {
       this.logger.warn(`Automation run for rule ${rule.id} failed to record: ${errMsg(error)}`);
@@ -389,69 +512,25 @@ export class AutomationExecutorService {
         return { status: AutomationRunStatus.SKIPPED, detail: GYM_RECIPIENT_ACTION_MESSAGE };
       }
 
+      const recipient: AutomationRecipient = rule.recipient === 'trainer' ? 'trainer' : 'member';
       const brand = await this.merge.brand(gymId);
       const target = await this.merge.resolve(
         gymId,
-        { ...context, triggerType: rule.triggerType },
+        {
+          ...context,
+          triggerType: rule.triggerType,
+          recipient,
+          extraValues: { ...context.extraValues, ...offerValues(action.data.offer) },
+        },
         brand,
       );
-      const subject = interpolateMergeFields(action.data.subject ?? '', target?.values ?? {});
-      const body = interpolateMergeFields(action.data.body, target?.values ?? {});
-      if (rule.actionType === AutomationActionType.push_notification) {
-        return await this.sendPush(gymId, rule, context, subject || rule.name, body);
-      }
-      if (rule.actionType === AutomationActionType.create_task) {
-        return await this.createTask(gymId, context, body);
-      }
-      if (rule.actionType !== AutomationActionType.email) {
-        return {
-          status: AutomationRunStatus.SUCCESS,
-          detail: `${undeliveredActionDetail(rule.actionType)}; message: ${body.slice(0, 300)}`,
-        };
-      }
-      if (toGym && target && !target.recipient) {
-        return {
-          status: AutomationRunStatus.SUCCESS,
-          detail: 'No gym email configured — nothing sent',
-        };
-      }
-      if (!target?.recipient) {
-        return {
-          status: AutomationRunStatus.SUCCESS,
-          detail: 'No recipient for this trigger — nothing sent',
-        };
-      }
-
-      // The same expansion the one-off staff email uses: a known token with no
-      // value is blanked, so a raw `{{…}}` can never reach a member.
-
-      const locale = resolveEmailLocale(brand.language);
-      const html = renderBrandedEmail({
-        locale,
-        senderName: escapeHtml(brand.name),
-        heading: escapeHtml(subject),
-        contentHtml: renderEmailParagraphs(body),
-        footerNote: escapeHtml(emailStrings(locale).shell.sentBy(brand.name)),
+      const outcome = await this.deliver(gymId, rule, context, target, brand, {
+        subject: action.data.subject ?? '',
+        body: action.data.body,
+        toGym,
       });
-
-      const { sent } = await this.mailer.send({
-        to: target.recipient,
-        subject,
-        html,
-        text: body,
-      });
-
-      // An unconfigured transport is a skip, not a failure — a dev machine with no
-      // RESEND_API_KEY should read honestly rather than fill the log with FAILED.
-      return sent
-        ? {
-            status: AutomationRunStatus.SUCCESS,
-            detail: toGym ? `Emailed gym ${target.recipient}` : `Emailed ${target.recipient}`,
-          }
-        : {
-            status: AutomationRunStatus.SUCCESS,
-            detail: 'Email not sent — mail transport is not configured',
-          };
+      const bonus = recipient === 'member' ? (action.data.offer?.bonusPoints ?? 0) : 0;
+      return await this.applyBonus(gymId, rule, context, target, bonus, outcome);
     } catch (error) {
       const label = actionLabel(rule.actionType);
       this.logger.warn(
@@ -459,6 +538,106 @@ export class AutomationExecutorService {
       );
       return { status: AutomationRunStatus.FAILED, detail: `${label} failed: ${errMsg(error)}` };
     }
+  }
+
+  /**
+   * Credit a rule's offer bonus to the member it is about, once per rule and
+   * entity, when the action went out and the gym runs a loyalty programme. A
+   * credit that fails is logged; the message has already been sent either way.
+   */
+  private async applyBonus(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+    target: AutomationMergeTarget | null,
+    points: number,
+    outcome: ActionOutcome,
+  ): Promise<ActionOutcome> {
+    if (points <= 0 || !target?.memberId || outcome.status !== AutomationRunStatus.SUCCESS) {
+      return outcome;
+    }
+    let awarded = false;
+    try {
+      awarded = await this.loyalty.awardAutomationBonus(
+        gymId,
+        target.memberId,
+        points,
+        `automation:${rule.id}:${context.entityId ?? target.memberId}`,
+        rule.name,
+      );
+    } catch (error) {
+      this.logger.warn(`Automation bonus for rule ${rule.id} failed: ${errMsg(error)}`);
+    }
+    return awarded ? { ...outcome, detail: `${outcome.detail} (+${points} points)` } : outcome;
+  }
+
+  /** Send the personalised message through the rule's action. Throws on transport errors. */
+  private async deliver(
+    gymId: string,
+    rule: RuleRecord,
+    context: AutomationDispatchContext,
+    target: AutomationMergeTarget | null,
+    brand: AutomationBrand,
+    message: { subject: string; body: string; toGym: boolean },
+  ): Promise<ActionOutcome> {
+    const { toGym } = message;
+    const subject = interpolateMergeFields(message.subject, target?.values ?? {});
+    const body = interpolateMergeFields(message.body, target?.values ?? {});
+    if (rule.actionType === AutomationActionType.push_notification) {
+      return await this.sendPush(gymId, rule, context, target, subject || rule.name, body);
+    }
+    if (rule.actionType === AutomationActionType.create_task) {
+      return await this.createTask(gymId, context, body);
+    }
+    if (rule.actionType !== AutomationActionType.email) {
+      return {
+        status: AutomationRunStatus.SUCCESS,
+        detail: `${undeliveredActionDetail(rule.actionType)}; message: ${body.slice(0, 300)}`,
+      };
+    }
+    if (toGym && target && !target.recipient) {
+      return {
+        status: AutomationRunStatus.SUCCESS,
+        detail: 'No gym email configured — nothing sent',
+      };
+    }
+    if (!target?.recipient) {
+      return {
+        status: AutomationRunStatus.SUCCESS,
+        detail: 'No recipient for this trigger — nothing sent',
+      };
+    }
+
+    // The same expansion the one-off staff email uses: a known token with no
+    // value is blanked, so a raw `{{…}}` can never reach a member.
+
+    const locale = resolveEmailLocale(brand.language);
+    const html = renderBrandedEmail({
+      locale,
+      senderName: escapeHtml(brand.name),
+      heading: escapeHtml(subject),
+      contentHtml: renderEmailParagraphs(body),
+      footerNote: escapeHtml(emailStrings(locale).shell.sentBy(brand.name)),
+    });
+
+    const { sent } = await this.mailer.send({
+      to: target.recipient,
+      subject,
+      html,
+      text: body,
+    });
+
+    // An unconfigured transport is a skip, not a failure — a dev machine with no
+    // RESEND_API_KEY should read honestly rather than fill the log with FAILED.
+    return sent
+      ? {
+          status: AutomationRunStatus.SUCCESS,
+          detail: toGym ? `Emailed gym ${target.recipient}` : `Emailed ${target.recipient}`,
+        }
+      : {
+          status: AutomationRunStatus.SUCCESS,
+          detail: 'Email not sent — mail transport is not configured',
+        };
   }
 
   /**
@@ -470,27 +649,24 @@ export class AutomationExecutorService {
     gymId: string,
     rule: RuleRecord,
     context: AutomationDispatchContext,
+    target: AutomationMergeTarget | null,
     title: string,
     body: string,
   ): Promise<ActionOutcome> {
-    const memberId = await this.merge.resolveMemberId(gymId, context);
-    const member = memberId
-      ? await this.prisma.client.gymMember.findFirst({
-          where: { id: memberId, gymId },
-          select: { userId: true },
-        })
-      : null;
-    if (!member) return { status: AutomationRunStatus.SUCCESS, detail: 'No recipient' };
+    // The resolved recipient's account: the member's, or the trainer's for a
+    // trainer-recipient rule.
+    const userId = target?.userId;
+    if (!userId) return { status: AutomationRunStatus.SUCCESS, detail: 'No recipient' };
 
     const day = (context.now ?? new Date()).toISOString().slice(0, 10);
     const result = await this.notifications.send({
       gymId,
-      userId: member.userId,
+      userId,
       category: NotificationCategory.SYSTEM,
       title,
       body,
       channels: [NotificationChannel.PUSH, NotificationChannel.IN_APP],
-      dedupeKey: `automation:${rule.id}:${context.entityId ?? memberId}:${day}`,
+      dedupeKey: `automation:${rule.id}:${context.entityId ?? target.memberId ?? userId}:${day}`,
     });
     if (result.deduped) {
       return { status: AutomationRunStatus.SKIPPED, detail: 'Already notified today' };
@@ -500,7 +676,7 @@ export class AutomationExecutorService {
     );
     if (pushed) {
       const devices = await this.prisma.client.pushToken.count({
-        where: { userId: member.userId },
+        where: { userId },
       });
       return { status: AutomationRunStatus.SUCCESS, detail: `Pushed to ${devices} device(s)` };
     }
@@ -772,6 +948,17 @@ export class AutomationExecutorService {
       return false;
     }
   }
+}
+
+/** The `{{discount_percent}}`-style tokens a rule's offer fills; '' when unset. */
+function offerValues(offer: AutomationOffer | undefined): Record<string, string> {
+  const text = (value: number | string | undefined) => (value === undefined ? '' : String(value));
+  return {
+    discount_percent: text(offer?.discountPercent),
+    bonus_points: text(offer?.bonusPoints),
+    offer_code: text(offer?.offerCode),
+    offer_expiry: text(offer?.offerExpiry),
+  };
 }
 
 /**

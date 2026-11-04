@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, SubscriptionStatus } from '@fit/db';
-import { GYM_RECIPIENT_TRIGGERS, gymSettingsStoredSchema } from '@fit/types';
+import {
+  AUTOMATION_MERGE_FIELDS,
+  GYM_RECIPIENT_TRIGGERS,
+  gymSettingsStoredSchema,
+  mergeFieldNames,
+} from '@fit/types';
 import type { GymBusinessSettings, GymLanguage, MergeValues } from '@fit/types';
 import { money } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +21,44 @@ export interface AutomationBrand {
   business: GymBusinessSettings;
   language: GymLanguage;
   currency: string;
+}
+
+/** Primary token name (no braces) -> every name it answers to: itself plus aliases. */
+const MERGE_NAMES = new Map<string, readonly string[]>(
+  AUTOMATION_MERGE_FIELDS.map((field) => [mergeFieldNames(field)[0] ?? '', mergeFieldNames(field)]),
+);
+
+/** Every catalogue token and alias, blank: a token no source fills reads as ''. */
+const BLANK_CATALOG: MergeValues = Object.fromEntries(
+  AUTOMATION_MERGE_FIELDS.flatMap(mergeFieldNames).map((name) => [name, '']),
+);
+
+/** Set `value` under `token` and every alias of it, so old and new names agree. */
+function setAll(values: MergeValues, token: string, value: string): void {
+  for (const name of MERGE_NAMES.get(token) ?? [token]) values[name] = value;
+}
+
+/** Expand a record keyed by primary token names to every alias as well. */
+function withAliases(primary: MergeValues): MergeValues {
+  const values: MergeValues = {};
+  for (const [token, value] of Object.entries(primary)) setAll(values, token, value);
+  return values;
+}
+
+/** Who cancelled a PT session, in the gym's language; an unknown code blanks. */
+const CANCELLED_BY_LABELS: Record<string, Record<string, string>> = {
+  en: { member: 'member', trainer: 'trainer' },
+  ka: { member: 'წევრი', trainer: 'მწვრთნელი' },
+};
+
+function cancelledByLabel(code: string, language: GymLanguage): string {
+  const labels = CANCELLED_BY_LABELS[language] ?? CANCELLED_BY_LABELS.en;
+  return labels?.[code] ?? '';
+}
+
+/** Whole days from `from` to `to`, floored and never negative. */
+function wholeDays(from: Date, to: Date): string {
+  return String(Math.max(0, Math.floor((to.getTime() - from.getTime()) / DAY_MS)));
 }
 
 /** An ISO `YYYY-MM-DD` date, or an empty string when the value is absent. */
@@ -53,6 +96,8 @@ const MEMBER_SELECT = {
       currentPeriodEnd: true,
       currentPeriodStart: true,
       frozenUntil: true,
+      frozenAt: true,
+      canceledAt: true,
       status: true,
       priceAmount: true,
       currency: true,
@@ -63,6 +108,14 @@ const MEMBER_SELECT = {
 } satisfies Prisma.GymMemberSelect;
 
 type MemberRecord = Prisma.GymMemberGetPayload<{ select: typeof MEMBER_SELECT }>;
+type SubscriptionRecord = MemberRecord['subscriptions'][number];
+
+/** The staff member a trainer-recipient rule addresses. */
+interface StaffRecipient {
+  name: string;
+  email: string | null;
+  userId: string | null;
+}
 
 /** Who a fired rule's message is about, and the tokens to personalise it with. */
 export interface AutomationMergeTarget {
@@ -117,16 +170,109 @@ export class AutomationMergeService {
     const member = await this.loadMember(gymId, context);
     if (!member) return null;
 
+    const now = context.now ?? new Date();
     const points = await this.pointsBalance(gymId, member.id);
-    return {
-      recipient: member.user.email || null,
-      memberId: member.id,
-      userId: member.user.id,
-      values: {
-        ...this.mergeValues(member, brand, points),
-        ...(await this.contextValues(gymId, context, brand)),
-      },
+    const values: MergeValues = {
+      ...BLANK_CATALOG,
+      ...this.mergeValues(member, brand, points, now),
+      ...withAliases(await this.contextValues(gymId, context, brand, now)),
+      ...this.extraValues(context, brand),
     };
+
+    if (context.recipient !== 'trainer') {
+      return {
+        recipient: member.user.email || null,
+        memberId: member.id,
+        userId: member.user.id,
+        values,
+      };
+    }
+    // A trainer-recipient rule: the message goes to the class / session's
+    // trainer, but it is still about the member, so the member tokens stay.
+    const staff = await this.resolveStaff(gymId, context);
+    values.recipient_name = staff?.name ?? '';
+    return {
+      recipient: staff?.email ?? null,
+      memberId: member.id,
+      userId: staff?.userId ?? null,
+      values,
+    };
+  }
+
+  /**
+   * The dispatcher's and the rule's own values (`cancelled_by`, the offer
+   * tokens). `cancelled_by` arrives as a code and is shown in the gym's language.
+   */
+  private extraValues(context: AutomationDispatchContext, brand: AutomationBrand): MergeValues {
+    const extra: MergeValues = { ...context.extraValues };
+    if (extra.cancelled_by !== undefined) {
+      extra.cancelled_by = cancelledByLabel(extra.cancelled_by, brand.language);
+    }
+    return extra;
+  }
+
+  /**
+   * The trainer a booking or PT session belongs to, within `gymId`: the class
+   * instance's trainer (or its template's) for a booking, the session's staff
+   * member for a PT session. `email` / `userId` are null when the trainer has no
+   * staff account to reach; the whole result is null when there is no trainer.
+   */
+  private async resolveStaff(
+    gymId: string,
+    context: AutomationDispatchContext,
+  ): Promise<StaffRecipient | null> {
+    const id = context.entityId;
+    if (!id) return null;
+    if (context.entityType === 'booking') {
+      const booking = await this.prisma.client.booking.findFirst({
+        where: { id, gymId },
+        select: { classInstanceId: true },
+      });
+      if (!booking) return null;
+      const instance = await this.prisma.client.classInstance.findFirst({
+        where: { id: booking.classInstanceId, gymId },
+        select: { trainerId: true, template: { where: { gymId }, select: { trainerId: true } } },
+      });
+      const trainerId = instance?.trainerId ?? instance?.template?.trainerId;
+      if (!trainerId) return null;
+      const trainer = await this.prisma.client.trainer.findFirst({
+        where: { id: trainerId, gymId },
+        select: { name: true, staffId: true },
+      });
+      if (!trainer) return null;
+      const staff = trainer.staffId ? await this.loadStaff(gymId, trainer.staffId) : null;
+      return {
+        name: trainer.name,
+        email: staff?.user.email || null,
+        userId: staff?.user.id ?? null,
+      };
+    }
+    if (context.entityType === 'service_session') {
+      const session = await this.prisma.client.serviceSession.findFirst({
+        where: { id, gymId },
+        select: { staffId: true },
+      });
+      const staff = session ? await this.loadStaff(gymId, session.staffId) : null;
+      if (!staff) return null;
+      return {
+        name: staffName(staff),
+        email: staff.user.email || null,
+        userId: staff.user.id,
+      };
+    }
+    return null;
+  }
+
+  /** A staff membership and its account, within `gymId`. */
+  private loadStaff(gymId: string, staffId: string) {
+    return this.prisma.client.gymMember.findFirst({
+      where: { id: staffId, gymId, deletedAt: null },
+      select: {
+        firstName: true,
+        lastName: true,
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
   }
 
   /**
@@ -144,7 +290,9 @@ export class AutomationMergeService {
     let orderValues: MergeValues = {};
     if (context.entityId) {
       if (context.entityType !== 'order') return null;
-      orderValues = await this.contextValues(gymId, context, brand);
+      orderValues = withAliases(
+        await this.contextValues(gymId, context, brand, context.now ?? new Date()),
+      );
       if (Object.keys(orderValues).length === 0) return null;
     }
     return {
@@ -269,10 +417,16 @@ export class AutomationMergeService {
     }
   }
 
+  /**
+   * The values the triggering entity carries, keyed by primary token name
+   * ({@link withAliases} spreads them to the aliases). Every lookup is held to
+   * `gymId`; an entity outside it yields `{}`.
+   */
   private async contextValues(
     gymId: string,
     context: AutomationDispatchContext,
     brand: AutomationBrand,
+    now: Date,
   ): Promise<MergeValues> {
     if (!context.entityId) return {};
     const where = { id: context.entityId, gymId };
@@ -285,87 +439,87 @@ export class AutomationMergeService {
         },
       });
       if (!sub?.currentPeriodEnd) return {};
-      const price = money(sub.priceAmount, brand.language, sub.currency);
       return {
-        member_plan_name: sub.plan?.name ?? '',
-        member_expiry_date: isoDate(sub.currentPeriodEnd),
-        member_days_until_expiry: String(
-          Math.max(0, Math.floor((sub.currentPeriodEnd.getTime() - Date.now()) / DAY_MS)),
-        ),
-        payment_amount: price,
-        member_plan_price: price,
-        payment_due_date: isoDate(sub.currentPeriodEnd),
-        member_subscription_status: sub.status,
-        member_period_start: isoDate(sub.currentPeriodStart),
-        member_frozen_until: isoDate(sub.frozenUntil),
-        plan_name: sub.plan?.name ?? '',
-        expiry_date: isoDate(sub.currentPeriodEnd),
-        renewal_date: isoDate(sub.currentPeriodEnd),
+        ...this.subscriptionValues(sub, brand, now),
+        cancellation_date: isoDate(sub.canceledAt),
+        // Not stored anywhere yet; the token stays known so it blanks cleanly.
+        cancellation_reason: '',
       };
     }
-    if (context.entityType === 'booking') {
-      const booking = await this.prisma.client.booking.findFirst({
-        where,
-        select: { classInstanceId: true },
-      });
-      if (!booking) return {};
-      const instance = await this.prisma.client.classInstance.findFirst({
-        where: { id: booking.classInstanceId, gymId },
-        select: {
-          startsAt: true,
-          template: {
-            where: { gymId },
-            select: {
-              title: true,
-              trainer: { where: { gymId }, select: { name: true } },
-              location: { select: { gymId: true, name: true } },
-            },
-          },
-          classType: { where: { gymId }, select: { name: true } },
-          trainer: { where: { gymId }, select: { name: true } },
-          location: { where: { gymId }, select: { name: true } },
-        },
-      });
-      if (!instance) return {};
-      return {
-        class_name: instance.classType?.name ?? instance.template?.title ?? '',
-        class_date: isoDate(instance.startsAt),
-        class_time: instance.startsAt.toISOString().slice(11, 16),
-        class_trainer_name: instance.trainer?.name ?? instance.template?.trainer?.name ?? '',
-        class_location:
-          instance.location?.name ??
-          (instance.template?.location.gymId === gymId ? instance.template.location.name : ''),
-      };
-    }
+    if (context.entityType === 'booking') return this.bookingValues(gymId, context.entityId);
     if (context.entityType === 'invoice') {
       const invoice = await this.prisma.client.invoice.findFirst({
         where,
-        select: { number: true, amount: true, currency: true, issuedAt: true },
+        select: {
+          number: true,
+          amount: true,
+          currency: true,
+          issuedAt: true,
+          dueDate: true,
+          orderId: true,
+        },
       });
-      return invoice
-        ? {
-            invoice_number: invoice.number,
-            invoice_amount: money(invoice.amount, brand.language, invoice.currency),
-            invoice_date: isoDate(invoice.issuedAt),
-          }
-        : {};
+      if (!invoice) return {};
+      const [payment, refund] = invoice.orderId
+        ? await Promise.all([
+            this.prisma.client.payment.findFirst({
+              where: { orderId: invoice.orderId, gymId },
+              select: { method: true },
+            }),
+            this.latestRefund(gymId, invoice.orderId),
+          ])
+        : [null, null];
+      return {
+        invoice_number: invoice.number,
+        amount: money(invoice.amount, brand.language, invoice.currency),
+        payment_date: isoDate(invoice.issuedAt),
+        due_date: isoDate(invoice.dueDate),
+        payment_method: payment?.method.toLowerCase() ?? '',
+        // Failed charges keep no reason on the invoice yet.
+        failure_reason: '',
+        refund_amount: refund ? money(refund.amount, brand.language, invoice.currency) : '',
+        refund_date: isoDate(refund?.createdAt),
+      };
     }
     if (context.entityType === 'order') {
       const order = await this.prisma.client.order.findFirst({
         where,
-        select: { total: true, currency: true, items: { select: { label: true, qty: true } } },
+        select: {
+          id: true,
+          total: true,
+          currency: true,
+          createdAt: true,
+          items: { select: { label: true, qty: true } },
+          invoices: {
+            where: { gymId },
+            orderBy: { issuedAt: 'asc' },
+            take: 1,
+            select: { number: true },
+          },
+        },
       });
-      return order
-        ? {
-            order_total: money(order.total, brand.language, order.currency),
-            order_items: order.items.map((item) => `${item.label} × ${item.qty}`).join(', '),
-          }
-        : {};
+      if (!order) return {};
+      const refund = await this.latestRefund(gymId, order.id);
+      return {
+        order_total: money(order.total, brand.language, order.currency),
+        order_items: order.items.map((item) => `${item.label} × ${item.qty}`).join(', '),
+        product_name: order.items.map((item) => item.label).join(', '),
+        // Orders carry no number of their own; the invoice raised for one does.
+        order_number: order.invoices[0]?.number ?? '',
+        purchase_date: isoDate(order.createdAt),
+        refund_amount: refund ? money(refund.amount, brand.language, order.currency) : '',
+        refund_date: isoDate(refund?.createdAt),
+      };
     }
     if (context.entityType === 'service_session') {
       const session = await this.prisma.client.serviceSession.findFirst({
         where,
-        select: { startsAt: true, serviceId: true, staffId: true },
+        select: {
+          startsAt: true,
+          serviceId: true,
+          staffId: true,
+          location: { select: { gymId: true, name: true } },
+        },
       });
       if (!session) return {};
       const [service, staff] = await Promise.all([
@@ -373,110 +527,170 @@ export class AutomationMergeService {
           where: { id: session.serviceId, gymId },
           select: { name: true },
         }),
-        this.prisma.client.gymMember.findFirst({
-          where: { id: session.staffId, gymId, deletedAt: null },
-          select: { firstName: true, lastName: true, user: { select: { name: true } } },
-        }),
+        this.loadStaff(gymId, session.staffId),
       ]);
       return {
-        session_name: service?.name ?? '',
+        session_type: service?.name ?? '',
         session_date: isoDate(session.startsAt),
         session_time: session.startsAt.toISOString().slice(11, 16),
-        session_trainer_name:
-          [staff?.firstName, staff?.lastName].filter(Boolean).join(' ') || staff?.user.name || '',
+        trainer_name: staff ? staffName(staff) : '',
+        location: session.location?.gymId === gymId ? session.location.name : '',
       };
     }
     return {};
   }
 
+  /** The class a booking is for: its name, time, trainer, place and fill. */
+  private async bookingValues(gymId: string, bookingId: string): Promise<MergeValues> {
+    const booking = await this.prisma.client.booking.findFirst({
+      where: { id: bookingId, gymId },
+      select: { classInstanceId: true, waitlistPosition: true },
+    });
+    if (!booking) return {};
+    const instance = await this.prisma.client.classInstance.findFirst({
+      where: { id: booking.classInstanceId, gymId },
+      select: {
+        startsAt: true,
+        bookedCount: true,
+        capacityOverride: true,
+        template: {
+          where: { gymId },
+          select: {
+            title: true,
+            capacity: true,
+            trainer: { where: { gymId }, select: { name: true } },
+            location: { select: { gymId: true, name: true } },
+          },
+        },
+        classType: { where: { gymId }, select: { name: true, capacity: true } },
+        trainer: { where: { gymId }, select: { name: true } },
+        location: { where: { gymId }, select: { name: true } },
+      },
+    });
+    if (!instance) return {};
+    const className = instance.classType?.name ?? instance.template?.title ?? '';
+    const classDate = isoDate(instance.startsAt);
+    const capacity =
+      instance.capacityOverride ?? instance.template?.capacity ?? instance.classType?.capacity;
+    return {
+      class_name: className,
+      class_date: classDate,
+      class_time: instance.startsAt.toISOString().slice(11, 16),
+      trainer_name: instance.trainer?.name ?? instance.template?.trainer?.name ?? '',
+      location:
+        instance.location?.name ??
+        (instance.template?.location.gymId === gymId ? instance.template.location.name : ''),
+      waitlist_position: booking.waitlistPosition === null ? '' : String(booking.waitlistPosition),
+      spots_filled: String(instance.bookedCount),
+      spots_total: capacity === undefined ? '' : String(capacity),
+      missed_class_name: className,
+      missed_class_date: classDate,
+    };
+  }
+
+  /** The most recent refund against an order, within `gymId`. */
+  private latestRefund(gymId: string, orderId: string) {
+    return this.prisma.client.refund.findFirst({
+      where: { orderId, gymId },
+      orderBy: { createdAt: 'desc' },
+      select: { amount: true, createdAt: true },
+    });
+  }
+
   /**
-   * The token values for one member.
-   *
-   * Carries both the `{{member_*}}` automation tokens and the bare marketing
-   * aliases that name the same facts (`{{first_name}}`, `{{full_name}}`, …), so a
-   * body pasted from either editor personalises the same way. Its twin on the
-   * marketing side is `buildMemberMergeValues` (`members/member-merge-values.ts`),
-   * which the member email drawer sends through. The two now agree token for
-   * token on the automation vocabulary — including `member_checkin_count` and
-   * `member_points_balance`, which the drawer's caller feeds its resolver the
-   * same way this service queries them here — so a rule body personalises
-   * identically whichever pipeline sends it.
-   *
-   * Retired tokens (`RETIRED_MERGE_TOKENS`, `RETIRED_MARKETING_TOKENS` — the
-   * `class_*` group and friends) are absent from both on purpose: no trigger can
-   * back them, and `interpolateMergeFields` blanks a known token with no value, so
-   * they vanish instead of reaching a member as literal braces.
+   * The membership tokens for one subscription (or blanks without one), keyed
+   * by primary token name. Shared by the member's live subscription and the
+   * subscription a trigger names, so both quote it the same way.
    */
-  private mergeValues(member: MemberRecord, brand: AutomationBrand, points: number): MergeValues {
-    const fullName = (member.user.name ?? '').trim();
-    const [firstName, ...rest] = fullName.length > 0 ? fullName.split(/\s+/) : [''];
-    const first = firstName ?? '';
-    const last = rest.join(' ');
-    const subscription = member.subscriptions[0];
-    const phone = member.user.phone ?? '';
-    const planName = subscription?.plan?.name ?? '';
+  private subscriptionValues(
+    subscription: SubscriptionRecord | undefined,
+    brand: AutomationBrand,
+    now: Date,
+  ): MergeValues {
     const expiry = isoDate(subscription?.currentPeriodEnd);
-    // Floor, so "1 day left" holds for the whole of the day before expiry rather
-    // than rounding up to 2 in the morning and down to 0 after lunch.
-    const daysLeft = subscription?.currentPeriodEnd
-      ? String(
-          Math.max(0, Math.floor((subscription.currentPeriodEnd.getTime() - Date.now()) / DAY_MS)),
-        )
-      : '';
     const price = subscription
       ? money(subscription.priceAmount, brand.language, subscription.currency)
       : '';
-
     return {
-      // Bare marketing aliases, so a body written in either editor personalises.
-      // One per marketing token that names a fact this resolver already holds —
-      // an alias left out is not a visible `{{full_name}}` the staff can spot, it
-      // is a blank in the member's inbox, because the marketing catalogue makes
-      // every one of these a *known* key.
-      first_name: first,
-      last_name: last,
+      membership_plan: subscription?.plan?.name ?? '',
+      expiry_date: expiry,
+      // Floor, so "1 day left" holds for the whole of the day before expiry rather
+      // than rounding up to 2 in the morning and down to 0 after lunch.
+      days_remaining: subscription?.currentPeriodEnd
+        ? wholeDays(now, subscription.currentPeriodEnd)
+        : '',
+      payment_amount: price,
+      plan_price: price,
+      renewal_date: expiry,
+      member_subscription_status: subscription?.status ?? '',
+      member_period_start: isoDate(subscription?.currentPeriodStart),
+      freeze_end_date: isoDate(subscription?.frozenUntil),
+      freeze_start_date: isoDate(subscription?.frozenAt),
+      access_end_date: expiry,
+    };
+  }
+
+  /**
+   * The token values for one member, under every name the catalogue gives them
+   * (`{{first_name}}` and `{{member_first_name}}` alike), so a body written with
+   * either the current or an older token personalises the same way. Its twin on
+   * the marketing side is `buildMemberMergeValues` (`members/member-merge-values.ts`).
+   *
+   * Retired tokens (`RETIRED_MERGE_TOKENS`) are absent on purpose:
+   * `interpolateMergeFields` blanks a known token with no value, so they vanish
+   * instead of reaching a member as literal braces.
+   */
+  private mergeValues(
+    member: MemberRecord,
+    brand: AutomationBrand,
+    points: number,
+    now: Date,
+  ): MergeValues {
+    const fullName = (member.user.name ?? '').trim();
+    const [firstName, ...rest] = fullName.length > 0 ? fullName.split(/\s+/) : [''];
+    const lastCheckIn = member.checkIns[0]?.checkedInAt;
+
+    return withAliases({
+      // The person.
+      first_name: firstName ?? '',
+      last_name: rest.join(' '),
       full_name: fullName,
       email: member.user.email,
-      phone,
-      join_date: isoDate(member.joinedAt),
-      birthday: isoDate(member.dateOfBirth),
-      plan_name: planName,
-      expiry_date: expiry,
-      days_until_expiry: daysLeft,
-      renewal_date: expiry,
-
-      // The person.
-      member_first_name: first,
-      member_last_name: last,
-      member_full_name: fullName,
-      member_email: member.user.email,
-      member_phone: phone,
+      phone: member.user.phone ?? '',
       member_status: member.status,
-      member_join_date: isoDate(member.joinedAt),
+      member_since: isoDate(member.joinedAt),
       member_birthday: isoDate(member.dateOfBirth),
       member_checkin_count: String(member._count.checkIns),
       member_points_balance: String(points),
       member_gender: member.gender ?? '',
-      member_age: String(ageAt(member.dateOfBirth, new Date()) ?? ''),
+      member_age: String(ageAt(member.dateOfBirth, now) ?? ''),
       member_tags: member.tags.join(', '),
-      member_branch_name: member.location?.name ?? '',
+      branch_name: member.location?.name ?? '',
       member_branch_address: member.location?.address ?? '',
       member_branch_phone: member.location?.phone ?? '',
-      member_last_checkin_date: isoDate(member.checkIns[0]?.checkedInAt),
+      last_checkin_date: isoDate(lastCheckIn),
+      // Days since the last visit, or since joining for someone never seen.
+      days_inactive: wholeDays(lastCheckIn ?? member.joinedAt, now),
 
       // Their membership.
-      member_plan_name: planName,
-      member_expiry_date: expiry,
-      member_days_until_expiry: daysLeft,
-      payment_amount: price,
-      member_plan_price: price,
-      member_subscription_status: subscription?.status ?? '',
-      member_period_start: isoDate(subscription?.currentPeriodStart),
-      member_frozen_until: isoDate(subscription?.frozenUntil),
-      payment_due_date: expiry,
+      ...this.subscriptionValues(member.subscriptions[0], brand, now),
+
+      // Who gets it (the member, unless the rule addresses the trainer) and who
+      // it is about.
+      recipient_name: fullName,
+      related_member_name: fullName,
 
       // The gym.
       ...this.businessValues(brand),
-    };
+    });
   }
+}
+
+/** A staff member's display name: profile name first, account name second. */
+function staffName(staff: {
+  firstName: string | null;
+  lastName: string | null;
+  user: { name: string | null };
+}): string {
+  return [staff.firstName, staff.lastName].filter(Boolean).join(' ') || staff.user.name || '';
 }
