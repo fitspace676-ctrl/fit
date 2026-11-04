@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { AdminServiceRow, ServiceCategory, ServiceStaffOption, ServiceType } from '@fit/types';
 import { Button } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import {
   createServiceAction,
   requestServiceCoverUploadAction,
@@ -214,51 +215,30 @@ export function ServiceForm(props: Props) {
         <p {...stylex.props(styles.hint)}>{t('form.ptNameHint')}</p>
       )}
 
-      <div {...stylex.props(styles.field)}>
-        <label htmlFor="service-staff" {...stylex.props(styles.label)}>
-          {t('form.staff')}
-        </label>
-        <select
-          id="service-staff"
-          value={staffId}
-          onChange={(e) => setStaffId(e.target.value)}
-          required
-          {...stylex.props(styles.input)}
-        >
-          <option value="">{t('form.choose')}</option>
-          {staffOptions.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        {type === 'PERSONAL_TRAINING' && staffOptions.length === 0 ? (
-          <p {...stylex.props(styles.hint)}>{t('form.noTrainers')}</p>
-        ) : null}
-      </div>
+      <SelectField
+        label={t('form.staff')}
+        value={staffId}
+        onChange={(e) => setStaffId(e.target.value)}
+        required
+        placeholder={t('form.choose')}
+        options={staffOptions.map((s) => ({ value: s.id, label: s.name }))}
+        hint={
+          type === 'PERSONAL_TRAINING' && staffOptions.length === 0
+            ? t('form.noTrainers')
+            : undefined
+        }
+      />
 
-      <div {...stylex.props(styles.field)}>
-        <label htmlFor="service-category" {...stylex.props(styles.label)}>
-          {t('form.category')}{' '}
-          <span {...stylex.props(styles.labelOptional)}>{t('form.optional')}</span>
-        </label>
-        <select
-          id="service-category"
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          {...stylex.props(styles.input)}
-        >
-          <option value="">{t('form.noCategory')}</option>
-          {props.categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-        {props.categories.length === 0 ? (
-          <p {...stylex.props(styles.hint)}>{t('form.noCategoriesHint')}</p>
-        ) : null}
-      </div>
+      <SelectField
+        label={`${t('form.category')} ${t('form.optional')}`}
+        value={categoryId}
+        onChange={(e) => setCategoryId(e.target.value)}
+        options={[
+          { value: '', label: t('form.noCategory') },
+          ...props.categories.map((category) => ({ value: category.id, label: category.name })),
+        ]}
+        hint={props.categories.length === 0 ? t('form.noCategoriesHint') : undefined}
+      />
 
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.field)}>

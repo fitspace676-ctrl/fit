@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { useActiveLocation } from '@/components/active-location';
 import { LOCATION_PARAM } from '@/lib/active-location';
+import { SelectField } from '@/components/ui/select-field';
 import type { ServiceCategory } from '@fit/types';
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
@@ -142,45 +143,33 @@ export function ServicesFilters({
         />
       </div>
 
-      <div {...stylex.props(styles.typeWrap)}>
-        <label htmlFor="service-category-filter" {...stylex.props(styles.srOnly)}>
-          {t('filters.categoryLabel')}
-        </label>
-        <select
-          id="service-category-filter"
-          value={categoryId}
-          onChange={(event) => commit({ categoryId: event.target.value })}
-          {...stylex.props(styles.control)}
-        >
-          <option value="">{t('filters.allCategories')}</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        label={t('filters.categoryLabel')}
+        labelHidden
+        size="chrome"
+        value={categoryId}
+        onChange={(event) => commit({ categoryId: event.target.value })}
+        options={[
+          { value: '', label: t('filters.allCategories') },
+          ...categories.map((category) => ({ value: category.id, label: category.name })),
+        ]}
+        xstyle={styles.typeWrap}
+      />
 
       {showBranchFilter ? (
-        <div {...stylex.props(styles.typeWrap)}>
-          <label htmlFor="service-branch-filter" {...stylex.props(styles.srOnly)}>
-            {tCommon('locationLabel')}
-          </label>
-          <select
-            id="service-branch-filter"
-            // Always `''` while it renders — see `showBranchFilter`.
-            value=""
-            onChange={(event) => commit({ [LOCATION_PARAM]: event.target.value })}
-            {...stylex.props(styles.control)}
-          >
-            <option value="">{tCommon('allLocations')}</option>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          label={tCommon('locationLabel')}
+          labelHidden
+          size="chrome"
+          // Always `''` while it renders — see `showBranchFilter`.
+          value=""
+          onChange={(event) => commit({ [LOCATION_PARAM]: event.target.value })}
+          options={[
+            { value: '', label: tCommon('allLocations') },
+            ...locations.map((location) => ({ value: location.id, label: location.name })),
+          ]}
+          xstyle={styles.typeWrap}
+        />
       ) : null}
     </div>
   );
