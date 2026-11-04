@@ -219,6 +219,8 @@ import type {
   ListAutomationRulesResponse,
   ListAutomationTemplatesResponse,
   AutomationCatalogResponse,
+  AutomationAssistRequest,
+  AutomationAssistResponse,
   AutomationStats,
   GetAutomationRuleResponse,
   CreateAutomationRuleInput,
@@ -2817,6 +2819,22 @@ export async function createAutomationRule(
     cache: 'no-store',
   });
   return unwrap<GetAutomationRuleResponse>(res);
+}
+
+/**
+ * `POST /automation/assist` — turn a natural-language request into a draft rule
+ * (or a clarifying question). Never saves anything; the builder applies the draft.
+ */
+export async function assistAutomationRule(
+  input: AutomationAssistRequest,
+): Promise<AutomationAssistResponse> {
+  const res = await fetch(`${apiBaseUrl()}/automation/assist`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AutomationAssistResponse>(res);
 }
 
 /** `PATCH /automation/rules/:id` — edit a rule; returns the updated detail. */

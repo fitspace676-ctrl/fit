@@ -7,9 +7,7 @@ import * as stylex from '@stylexjs/stylex';
 import {
   automationConditionsSchema,
   mergeFieldsForTrigger,
-  type AutomationCondition,
   AUTOMATION_TRIGGER_CATALOG,
-  type AutomationActionType,
   type AutomationRuleRow,
   type AutomationTriggerType,
   AUTOMATION_MERGE_FIELDS,
@@ -18,13 +16,9 @@ import {
 import { Button, Drawer, Field, FieldGroup, SelectField, TextareaField } from '@fit/ui-kit';
 import { Icon, useToast } from '@/components/ui';
 import { ConditionBuilder, type BuilderCatalog } from './condition-builder';
-import {
-  TimingField,
-  timingState,
-  timingOffset,
-  validTiming,
-  type TimingState,
-} from './timing-field';
+import { TimingField, timingState, timingOffset, validTiming } from './timing-field';
+import { applyDraftToForm, formToDraft, type FormState } from './draft-form';
+import { AssistPanel } from './assist-panel';
 import { createAutomationRuleAction, updateAutomationRuleAction } from './actions';
 import {
   ACTION_ICONS,
@@ -188,6 +182,9 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
+  assistToggle: {
+    display: 'flex',
+  },
   footerRow: {
     display: 'flex',
     alignItems: 'center',
@@ -224,18 +221,6 @@ const styles = stylex.create({
     transform: 'translateX(1.25rem)',
   },
 });
-
-/** The controlled form state — inputs as the browser hands them over. */
-interface FormState extends TimingState {
-  name: string;
-  triggerType: AutomationTriggerType | '';
-  days: string;
-  conditions: AutomationCondition[];
-  actionType: AutomationActionType;
-  subject: string;
-  body: string;
-  active: boolean;
-}
 
 /** Seed the form from an existing rule / template (edit or create-from), else capture defaults. */
 function seedForm(seed: RuleFormSeed): FormState {
@@ -278,6 +263,7 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => seedForm(seed));
+  const [assistOpen, setAssistOpen] = useState(false);
   const editId = mode === 'edit' ? seed?.id : undefined;
   // Exit animation: flip `closing` to play the drawer's slide-out, then drop the
   // dialog once it has finished (~0.26s) so it animates away instead of vanishing.
@@ -438,6 +424,15 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
         <p {...stylex.props(styles.description)}>
           {mode === 'create' ? t('form.addDescription') : t('form.editDescription')}
         </p>
+        <div {...stylex.props(styles.assistToggle)}>
+          <Button
+            variant="secondary"
+            size="card"
+            aria-expanded={assistOpen}
+            onClick={() => setAssistOpen((open) => !open)}
+            label={assistOpen ? t('assist.close') : t('assist.toggle')}
+          />
+        </div>
 
         {error ? (
           <div {...stylex.props(styles.errorCard)}>
@@ -446,6 +441,16 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
               {error}
             </p>
           </div>
+        ) : null}
+
+        {assistOpen ? (
+          <AssistPanel
+            draft={formToDraft(form)}
+            onApply={(draft) => {
+              setForm((prev) => applyDraftToForm(prev, draft));
+              setError(null);
+            }}
+          />
         ) : null}
 
         <Field

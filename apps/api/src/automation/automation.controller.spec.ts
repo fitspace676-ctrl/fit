@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { AutomationController } from './automation.controller';
+import type { AutomationAssistService } from './automation-assist.service';
 import type { AutomationService } from './automation.service';
 
 /**
@@ -31,9 +32,14 @@ function setup() {
     saveAsTemplate,
     deleteRule,
   } as unknown as AutomationService;
+  const assist = vi.fn(() =>
+    Promise.resolve({ kind: 'question', question: 'Which branch?', model: 'haiku' }),
+  );
+  const assistant = { assist } as unknown as AutomationAssistService;
 
   return {
-    controller: new AutomationController(service),
+    controller: new AutomationController(service, assistant),
+    assist,
     catalog,
     listRules,
     createRule,
@@ -113,6 +119,24 @@ describe('AutomationController', () => {
     const ctx = setup();
     await ctx.controller.saveAsTemplate('rule-1', undefined);
     expect(ctx.saveAsTemplate).toHaveBeenCalledWith('rule-1', {});
+  });
+
+  it('delegates a valid assist body, parsed', async () => {
+    const ctx = setup();
+    await ctx.controller.assist({ message: '  ახალ წევრს მისალმება ', gymId: 'other-gym' });
+    expect(ctx.assist).toHaveBeenCalledWith({
+      message: 'ახალ წევრს მისალმება',
+      locale: 'ka',
+      history: [],
+    });
+  });
+
+  it('400s an assist body with an empty message', async () => {
+    const ctx = setup();
+    await expect(ctx.controller.assist({ message: '   ' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(ctx.assist).not.toHaveBeenCalled();
   });
 
   it('deletes a rule', async () => {

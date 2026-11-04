@@ -69,3 +69,4 @@ export * from './src/mobile-app-theme';
 
 export * from './src/automation-conditions';
 export * from './src/automation-timing';
+export * from './src/automation-assist';
