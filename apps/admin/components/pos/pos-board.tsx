@@ -160,6 +160,8 @@ export function PosBoard({
     (product: PosProductRow) => {
       addItem({
         productId: product.id,
+        variantIndex: product.variantIndex,
+        sku: product.sku,
         name: product.name,
         unitPrice: product.priceAmount,
         currency: product.currency,

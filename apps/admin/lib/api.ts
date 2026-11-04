@@ -69,6 +69,7 @@ import type {
   ListMembersResponse,
   ListAdminProductsQuery,
   ListAdminProductsResponse,
+  ListPosProductsResponse,
   ListLowStockResponse,
   ListOrdersQueryInput,
   ListOrdersResponse,
@@ -729,6 +730,17 @@ export function productsQueryString(query: Partial<ListAdminProductsQuery>): str
   }
   const qs = params.toString();
   return qs ? `?${qs}` : '';
+}
+
+/** Active positions at the till's selling branch. */
+export async function fetchPosProducts(
+  query: Partial<ListAdminProductsQuery> = {},
+): Promise<ListPosProductsResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/products/pos${productsQueryString(query)}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListPosProductsResponse>(res);
 }
 
 /** `GET /admin/products` — one filtered, server-paginated page of the gym's products. */

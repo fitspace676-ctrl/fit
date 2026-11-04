@@ -13,6 +13,7 @@ import {
   type GetAdminProductResponse,
   type ListAdminProductsQuery,
   type ListAdminProductsResponse,
+  type ListPosProductsResponse,
   type InventoryPositionRow,
   type InventoryQuery,
   type InventorySummary,
@@ -221,6 +222,57 @@ export class AdminProductsService {
     private readonly locale: GymLocaleService,
     private readonly media: MediaCleanupService,
   ) {}
+
+  /** Active sellable positions, with prices and counts at the till's branch. */
+  async listPosProducts(query: ListAdminProductsQuery): Promise<ListPosProductsResponse> {
+    const gymId = this.tenant.gymId;
+    const locationId = query.locationId ?? (await findDefaultLocationId(this.prisma.client, gymId));
+    if (!locationId) {
+      return { data: [] };
+    }
+    await this.resolveBranchScope(locationId);
+    const rows = await this.prisma.client.product.findMany({
+      where: { ...this.buildWhere({ ...query, locationId }), gymId, status: ProductStatus.ACTIVE },
+      select: PRODUCT_SELECT,
+      orderBy: { name: 'asc' },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+    const holdings = await this.branchHoldings(
+      locationId,
+      rows.map((row) => row.id),
+    );
+    return {
+      data: rows.flatMap((row): ListPosProductsResponse['data'] => {
+        const variants = this.parseVariants(row.variants);
+        const holding = holdings.get(row.id);
+        const base = {
+          id: row.id,
+          currency: row.currency,
+          imageUrl: row.images[0] ?? null,
+        };
+        return variants.length > 0
+          ? variants.map((variant, variantIndex) => ({
+              ...base,
+              variantIndex,
+              name: `${row.name} (${variant.name})`,
+              sku: variant.sku,
+              priceAmount: variant.priceAmount ?? row.priceAmount,
+              stock: holding?.variants[variantIndex] ?? 0,
+            }))
+          : [
+              {
+                ...base,
+                variantIndex: null,
+                name: row.name,
+                sku: '',
+                priceAmount: row.priceAmount,
+                stock: row.stock === null ? null : (holding?.stock ?? 0),
+              },
+            ];
+      }),
+    };
+  }
 
   /**
    * One page of the gym's products, filtered + sorted server-side. `total` is the
@@ -557,7 +609,7 @@ export class AdminProductsService {
       return null;
     }
     const location = await this.prisma.client.location.findFirst({
-      where: { id: locationId },
+      where: { id: locationId, gymId: this.tenant.gymId },
       select: { id: true, name: true },
     });
     if (!location) {
@@ -582,7 +634,7 @@ export class AdminProductsService {
       return new Map();
     }
     const rows = await this.prisma.client.productStock.findMany({
-      where: { locationId, productId: { in: productIds } },
+      where: { gymId: this.tenant.gymId, locationId, productId: { in: productIds } },
       select: { productId: true, stock: true, variants: true, lowStockThreshold: true },
     });
     return new Map(

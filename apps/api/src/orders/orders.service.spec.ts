@@ -727,29 +727,52 @@ describe('OrdersService.recordSale — stock', () => {
     expect(branchStock.rows.has('p1')).toBe(false);
   });
 
-  it('draws down the named variant when the line sells one', async () => {
-    const { service, productUpdate } = setup({
-      productFindMany: [
-        {
-          id: 'p1',
-          variants: [{ name: 'M', sku: 'BAR-M', priceAmount: null, stock: 5 }],
-          stock: null,
-        },
-      ],
-    });
-
-    await service.recordSale({
+  it('draws down only the sold size at the selling branch and the roll-up', async () => {
+    const variants = ['S', 'M', 'L', 'XL'].map((name, index) => ({
+      name,
+      sku: `SHRT-${name}`,
+      priceAmount: null,
+      stock: [15, 25, 30, 10][index]!,
+    }));
+    const ctx = setup({ productFindMany: [{ id: 'p1', variants, stock: null }] });
+    ctx.branchStock.rows.set('p1', { stock: null, variants: [4, 7, 9, 2] });
+    await ctx.service.recordSale({
       ...stockSaleInput,
       receipt: {
         ...stockSaleInput.receipt,
-        items: [{ ...stockSaleInput.receipt.items[0]!, variantIndex: 0 }],
+        items: [{ ...stockSaleInput.receipt.items[0]!, variantIndex: 1 }],
       },
     });
-
-    const updateArgs = productUpdate.mock.calls[0]![0] as {
-      data: { variants: Array<{ stock: number }> };
-    };
-    expect(updateArgs.data.variants[0]!.stock).toBe(3);
+    expect(ctx.branchStock.rows.get('p1')!.variants).toEqual([4, 5, 9, 2]);
+    expect(ctx.branchStock.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { gymId: 'gym-1', productId: 'p1', locationId: 'loc-1' },
+      }),
+    );
+    expect(ctx.productFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { gymId: 'gym-1', id: { in: ['p1'] } },
+      }),
+    );
+    expect(ctx.productUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: {
+        variants: variants.map((variant, index) =>
+          index === 1 ? { ...variant, stock: 23 } : variant,
+        ),
+      },
+    });
+    expect(ctx.movementCreateMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          gymId: 'gym-1',
+          locationId: 'loc-1',
+          variantIndex: 1,
+          delta: -2,
+          resultingStock: 5,
+        }),
+      ],
+    });
   });
 
   it('records a SALE movement tied to the order, so the count is explained', async () => {
