@@ -8,8 +8,7 @@
 //
 // A `.test.tsx` under jest-expo rather than a `.spec.ts` under Vitest, even
 // though nothing here renders: `vitest.config.ts` includes only `lib/**` and
-// `hooks/**`, so a spec under `components/` would be run by neither. Same
-// placement as `components/goals/goal-editor.test.tsx`, for the same reason.
+// `hooks/**`, so a spec under `components/` would be run by neither.
 
 import type { MeProfile } from '@fit/types';
 

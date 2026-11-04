@@ -13,8 +13,6 @@
 import type {
   GetMeProfileResponse,
   GetMeSubscriptionResponse,
-  ListMeGoalsResponse,
-  PutMeGoalsInput,
   UpdateMeProfileInput,
   UpdateMeProfileResponse,
 } from '@fit/types';
@@ -43,31 +41,6 @@ export async function updateMyProfile(
 ): Promise<UpdateMeProfileResponse> {
   return apiJson<UpdateMeProfileResponse>(endpointPath(ENDPOINTS.updateMyProfile), {
     method: ENDPOINTS.updateMyProfile.method,
-    json: input,
-    signal: options.signal,
-  });
-}
-
-/** `GET /me/goals` — the caller's training goals with current/target progress. */
-export async function getMyGoals(options: FetchOptions = {}): Promise<ListMeGoalsResponse> {
-  return apiJson<ListMeGoalsResponse>(endpointPath(ENDPOINTS.getMyGoals), {
-    method: ENDPOINTS.getMyGoals.method,
-    signal: options.signal,
-  });
-}
-
-/**
- * `PUT /me/goals` — replace the whole goal set (max 8).
- *
- * A `PUT`, not a `PATCH`: the body **is** the new set, so an editor that drops a
- * goal from the array deletes it. Sending `{ goals: [] }` clears them all.
- */
-export async function replaceMyGoals(
-  input: PutMeGoalsInput,
-  options: FetchOptions = {},
-): Promise<ListMeGoalsResponse> {
-  return apiJson<ListMeGoalsResponse>(endpointPath(ENDPOINTS.replaceMyGoals), {
-    method: ENDPOINTS.replaceMyGoals.method,
     json: input,
     signal: options.signal,
   });

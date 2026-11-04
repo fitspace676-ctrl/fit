@@ -39,10 +39,6 @@
 //   * `trainers` / `personal training` — both are on Home (`home.tsx:376`,
 //     `:427`). The hub's copies were the second and third.
 //   * `bookings` — moved to the Classes tab.
-//   * `goals` — `/profile/goals` still exists and still renders; the hub was
-//     its only link, and it now has none. Left standing rather than deleted:
-//     the screen is written, and a row for it belongs wherever goals are
-//     eventually surfaced, not tacked onto a list this long.
 //   * The notification-preference switches, for the reason they never shipped:
 //     there is no notification-preferences controller on the API at all (plan
 //     §7). `/profile/notification-settings` answers that question honestly,
