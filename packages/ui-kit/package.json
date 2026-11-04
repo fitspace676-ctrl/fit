@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
-    "test": "echo '[@fit/ui-kit] test: nothing to do yet'",
+    "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,9 +18,16 @@
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0",
+    "jsdom": "^25",
+    "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14",
+    "@testing-library/jest-dom": "^6",
+    "@types/react-dom": "^19.2.0"
   },
   "peerDependencies": {
-    "react": "^19"
+    "react": "^19",
+    "react-dom": "^19"
   }
 }

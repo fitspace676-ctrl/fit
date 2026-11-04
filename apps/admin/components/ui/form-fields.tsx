@@ -1,15 +1,15 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useFormContext, type FieldValues, type RegisterOptions } from 'react-hook-form';
-import { fieldErrorText } from '@/components/ui';
 import {
-  Field,
-  SelectField as KitSelectField,
-  type FieldProps,
-  type SelectOption,
-  type SelectOptionGroup,
-} from '@fit/ui-kit';
+  useFormContext,
+  useController,
+  type FieldValues,
+  type RegisterOptions,
+} from 'react-hook-form';
+import { fieldErrorText } from '@/components/ui';
+import { SelectField as KitSelectField } from './select-field';
+import { Field, type FieldProps, type SelectOption, type SelectOptionGroup } from '@fit/ui-kit';
 
 /**
  * The console's react-hook-form fields, on `@fit/ui-kit`.
@@ -90,11 +90,14 @@ export interface BoundSelectProps {
 
 /** A select bound to the form by `name`. */
 export function SelectField({ name, label, hint, options, rules, disabled }: BoundSelectProps) {
-  const {
-    register,
-    formState: { errors },
-  } = useFormContext();
-  const error = fieldErrorText(errors, name);
+  const { control } = useFormContext();
+  const { field, fieldState } = useController({
+    name,
+    control,
+    rules,
+    disabled,
+  });
+  const error = fieldState.error?.message;
   return (
     <KitSelectField
       label={label}
@@ -102,7 +105,8 @@ export function SelectField({ name, label, hint, options, rules, disabled }: Bou
       invalid={Boolean(error)}
       options={options}
       disabled={disabled}
-      {...register(name, rules)}
+      {...field}
+      value={String(field.value ?? '')}
     />
   );
 }

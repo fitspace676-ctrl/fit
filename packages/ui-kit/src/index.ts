@@ -52,6 +52,7 @@ export {
   type SelectOptionGroup,
   type TextareaFieldProps,
 } from './field';
+export { ComboboxField, type ComboboxFieldProps, type ComboboxLabels } from './combobox-field';
 export { DateField, type DateFieldLabels, type DateFieldProps } from './date-field';
 export { Stepper, NumberField, type StepperProps, type NumberFieldProps } from './stepper';
 export { Switch, type SwitchProps } from './switch';

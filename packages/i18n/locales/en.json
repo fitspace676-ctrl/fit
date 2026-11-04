@@ -192,6 +192,10 @@
       "signedInPrompt": "Password set. Sign in to open your console."
     },
     "common": {
+      "select": {
+        "searchPlaceholder": "Search…",
+        "empty": "Nothing found"
+      },
       "brand": "FormaCore",
       "brandTagline": "Management platform",
       "consoleName": "FormaCore Admin",

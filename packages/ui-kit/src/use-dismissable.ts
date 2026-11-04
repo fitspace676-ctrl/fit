@@ -28,7 +28,11 @@ import { useEffect, useRef, type RefObject } from 'react';
  * without it looks identical and is unusable without a mouse.
  */
 
+/** Last opened overlay owns dismissal, including portals outside its parent. */
+const layers: symbol[] = [];
+
 /** Everything the browser will let you Tab to, minus the things it will not. */
+
 const FOCUSABLE = [
   'a[href]',
   'button:not([disabled])',
@@ -43,7 +47,8 @@ function focusableWithin(root: HTMLElement): HTMLElement[] {
     // `offsetParent` is null for anything `display:none`; the rect check catches
     // `visibility:hidden` and zero-size elements, which are focusable in theory
     // and a dead end in practice.
-    (el) => el.offsetParent !== null || el.getBoundingClientRect().height > 0,
+    (el) =>
+      el.tabIndex !== -1 && (el.offsetParent !== null || el.getBoundingClientRect().height > 0),
   );
 }
 
@@ -65,6 +70,10 @@ export interface DismissableOptions {
    * was just pressed.
    */
   focusRef?: RefObject<HTMLElement | null>;
+  /** An additional dismiss boundary for content rendered through a portal. */
+  portalRef?: RefObject<HTMLElement | null>;
+  /** Set false for Tab dismissal, which must preserve the browser's focus move. */
+  restoreFocus?: RefObject<boolean>;
   /**
    * Keep Tab inside the overlay. True for a dialog or a drawer, which are modal;
    * false for a popover, which is not — Tabbing out of a popover and on into the
@@ -97,6 +106,8 @@ export function useDismissable({
   onClose,
   ref,
   focusRef,
+  portalRef,
+  restoreFocus,
   trap = false,
   lockScroll = false,
   returnFocusTo,
@@ -133,11 +144,11 @@ export function useDismissable({
       // `isConnected` guards the case where the trigger itself was removed while
       // the overlay was open — focusing a detached node silently sends focus to
       // `<body>`, and the reader loses their place with no way to tell why.
-      if (target?.isConnected) {
+      if (restoreFocus?.current !== false && target?.isConnected) {
         target.focus({ preventScroll: true });
       }
     };
-  }, [open, focusTarget, returnFocusTo]);
+  }, [open, focusTarget, returnFocusTo, restoreFocus]);
 
   /* ------------------------------ scroll lock ---------------------------- */
   useEffect(() => {
@@ -163,7 +174,11 @@ export function useDismissable({
   useEffect(() => {
     if (!open) return;
 
+    const layer = Symbol('dismissable');
+    layers.push(layer);
+
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (layers.at(-1) !== layer) return;
       if (event.key === 'Escape') {
         // Stop the event either way: a non-dismissible overlay still SWALLOWS
         // Escape rather than letting it reach whatever is behind it.
@@ -200,9 +215,16 @@ export function useDismissable({
     };
 
     const onPointerDown = (event: PointerEvent): void => {
-      if (!dismissible) return;
+      if (layers.at(-1) !== layer || !dismissible) return;
       const root = ref.current;
-      if (root && !root.contains(event.target as Node)) {
+      if (
+        root &&
+        !root.contains(event.target as Node) &&
+        !portalRef?.current?.contains(event.target as Node)
+      ) {
+        // A field popup returns focus to its trigger even for pointer dismissal.
+        // Prevent the following mouse default from taking that focus away.
+        if (restoreFocus?.current) event.preventDefault();
         onCloseRef.current();
       }
     };
@@ -210,8 +232,10 @@ export function useDismissable({
     document.addEventListener('keydown', onKeyDown, true);
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
+      const index = layers.indexOf(layer);
+      if (index !== -1) layers.splice(index, 1);
       document.removeEventListener('keydown', onKeyDown, true);
       document.removeEventListener('pointerdown', onPointerDown, true);
     };
-  }, [open, trap, ref, focusTarget, dismissible]);
+  }, [open, trap, ref, focusTarget, dismissible, portalRef, restoreFocus]);
 }

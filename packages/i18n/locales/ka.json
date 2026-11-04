@@ -192,6 +192,10 @@
       "signedInPrompt": "პაროლი დაყენებულია. გაიარეთ ავტორიზაცია პლათფორმის გასახსნელად."
     },
     "common": {
+      "select": {
+        "searchPlaceholder": "ძიება...",
+        "empty": "ვერაფერი მოიძებნა"
+      },
       "brand": "FormaCore",
       "brandTagline": "მართვის პლატფორმა",
       "consoleName": "FormaCore ადმინი",

@@ -65,6 +65,7 @@ describe('member portal copy', () => {
  * so this list grows one feature at a time rather than covering `admin.*` wholesale.
  */
 const CONSOLE_NAMESPACES = [
+  'admin.common.select',
   'admin.services',
   'admin.pos.products',
   'admin.ptCalendar',
