@@ -13,6 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import { en } from '@fit/i18n';
 import type { MemberPlanMix, MemberRow, MemberTabCounts } from '@fit/types';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { ToastProvider } from '@/components/ui';
@@ -151,10 +152,10 @@ describe('MembersTable — the branch filter', () => {
     renderRoster();
 
     await user.click(screen.getByRole('button', { name: 'Filter' }));
-    const select = screen.getByLabelText<HTMLSelectElement>('Location');
-    expect(select.value).toBe('');
+    const select = screen.getByLabelText('Location');
+    expect(selectedValue(select)).toBe('');
 
-    await user.selectOptions(select, 'loc-downtown');
+    await chooseOption(user, select, 'Downtown');
 
     // The same param the top-bar switcher owns, and page 1 — a narrower roster
     // must never leave the pager past the end of the result set.
