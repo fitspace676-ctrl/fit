@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cartItemKey,
   lineDiscountAmount,
   lineTotal,
   selectDiscountTotal,
@@ -85,5 +86,37 @@ describe('service lines', () => {
       currency: 'GEL',
     });
     expect(usePosCart.getState().items).toHaveLength(2);
+  });
+});
+
+describe('product variants', () => {
+  it('keeps sizes separate and edits only the selected position', () => {
+    usePosCart.getState().clear();
+    const small = {
+      productId: 'shirt',
+      variantIndex: 0,
+      sku: 'SHRT-S',
+      name: 'Shirt (S)',
+      unitPrice: 2500,
+      currency: 'GEL',
+    };
+    const medium = { ...small, variantIndex: 1, sku: 'SHRT-M', name: 'Shirt (M)', unitPrice: 3000 };
+    const cart = usePosCart.getState();
+    cart.addItem(small);
+    cart.addItem(medium);
+    cart.addItem(small);
+    expect(usePosCart.getState().items).toMatchObject([
+      { ...small, qty: 2 },
+      { ...medium, qty: 1 },
+    ]);
+    cart.setQty(cartItemKey(medium), 3);
+    cart.setLineDiscount(cartItemKey(medium), 10);
+    expect(usePosCart.getState().items).toMatchObject([
+      { ...small, qty: 2, lineDiscountPct: 0 },
+      { ...medium, qty: 3, lineDiscountPct: 10 },
+    ]);
+    cart.removeItem(cartItemKey(small));
+    expect(usePosCart.getState().items).toMatchObject([{ ...medium, qty: 3 }]);
+    usePosCart.getState().clear();
   });
 });

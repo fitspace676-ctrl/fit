@@ -1148,3 +1148,68 @@ describe('AdminProductsService — base-position stock', () => {
     expect(result.data[0]).toMatchObject({ totalStock: 14, stock: null });
   });
 });
+
+describe('POS sellable positions', () => {
+  it('returns every size with its SKU, resolved price and selling-branch count', async () => {
+    const ctx = setup({
+      findMany: [row()],
+      branchRows: [branchRow({ variants: [3, 2] })],
+    });
+    const result = await ctx.service.listPosProducts(query({ locationId: 'loc-1' }));
+    expect(result.data).toEqual([
+      expect.objectContaining({
+        id: 'p-1',
+        variantIndex: 0,
+        name: 'Branded Tee (Small)',
+        sku: 'TS-S',
+        priceAmount: 2500,
+        stock: 3,
+      }),
+      expect.objectContaining({
+        id: 'p-1',
+        variantIndex: 1,
+        name: 'Branded Tee (Large)',
+        sku: '',
+        priceAmount: 2999,
+        stock: 2,
+      }),
+    ]);
+    const where = ctx.findMany.mock.calls[0]![0].where;
+    expect(where).toMatchObject({ gymId: 'gym-1', status: 'ACTIVE' });
+    expect(where?.AND).toBeDefined();
+    expect(ctx.branchFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { gymId: 'gym-1', locationId: 'loc-1', productId: { in: ['p-1'] } },
+      }),
+    );
+  });
+
+  it('does not substitute gym-wide stock for an empty branch', async () => {
+    const ctx = setup({ findMany: [row()] });
+    const { data } = await ctx.service.listPosProducts(query({ locationId: 'loc-1' }));
+    expect(data.map((position) => position.stock)).toEqual([0, 0]);
+  });
+
+  it('keeps base products sellable and preserves an untracked count', async () => {
+    const ctx = setup({ findMany: [row({ variants: [], stock: null })] });
+    const { data } = await ctx.service.listPosProducts(query());
+    expect(data).toEqual([
+      expect.objectContaining({ variantIndex: null, priceAmount: 2999, stock: null }),
+    ]);
+    expect(ctx.locationFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { gymId: 'gym-1', isDefault: true } }),
+    );
+  });
+
+  it("rejects another gym's branch before reading products or holdings", async () => {
+    const ctx = setup({ defaultLocation: null });
+    await expect(
+      ctx.service.listPosProducts(query({ locationId: 'foreign-branch' })),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(ctx.locationFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'foreign-branch', gymId: 'gym-1' } }),
+    );
+    expect(ctx.findMany).not.toHaveBeenCalled();
+    expect(ctx.branchFindMany).not.toHaveBeenCalled();
+  });
+});

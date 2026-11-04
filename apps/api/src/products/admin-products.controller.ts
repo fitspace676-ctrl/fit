@@ -26,6 +26,7 @@ import {
   type CreateProductResponse,
   type GetAdminProductResponse,
   type ListAdminProductsResponse,
+  type ListPosProductsResponse,
   type ListInventoryResponse,
   type ListLowStockResponse,
   type ListStockMovementsResponse,
@@ -93,6 +94,14 @@ export class AdminProductsController {
   @RequirePermissions(Permission.ProductRead)
   async list(@Query() query: unknown): Promise<ListAdminProductsResponse> {
     return this.products.listProducts(parse(listAdminProductsQuerySchema, query));
+  }
+
+  /** POS catalogue: positions, prices and selling-branch stock. */
+  @Get('pos')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProductRead)
+  async pos(@Query() query: unknown): Promise<ListPosProductsResponse> {
+    return this.products.listPosProducts(parse(listAdminProductsQuerySchema, query));
   }
 
   /**

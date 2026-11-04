@@ -5,7 +5,7 @@ import {
   recordPosSaleSchema,
   roleHasPermission,
   sendReceiptSchema,
-  type AdminProductRow,
+  type PosProductRow,
   type MemberKind,
   type MemberRow,
   type MemberStatus,
@@ -22,7 +22,7 @@ import {
   fetchLocations,
   fetchMembers,
   fetchProductCategories,
-  fetchProducts,
+  fetchPosProducts,
   fetchSubscriptionPlans,
   recordPosSale,
   sendPosReceipt,
@@ -31,18 +31,7 @@ import {
 /** Discriminated result returned to the client — a Server Action never throws across the boundary. */
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-/**
- * One product as the POS grid renders it — the catalogue fields a sale needs and
- * nothing else (no variant list, no timestamps). `priceAmount` is in the
- * currency's minor units; `imageUrl` is the primary gallery image or `null`.
- */
-export interface PosProductRow {
-  id: string;
-  name: string;
-  priceAmount: number;
-  currency: string;
-  imageUrl: string | null;
-}
+export type { PosProductRow } from '@fit/types';
 
 /** One shelf as the till's category filter renders it — the id it filters by, and its label. */
 export interface PosCategoryRow {
@@ -106,17 +95,6 @@ function toMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unexpected error';
 }
 
-/** Project an admin product row onto the lean POS shape. */
-function toPosProduct(row: AdminProductRow): PosProductRow {
-  return {
-    id: row.id,
-    name: row.name,
-    priceAmount: row.priceAmount,
-    currency: row.currency,
-    imageUrl: row.imageUrl,
-  };
-}
-
 /** Project a member roster row onto the lean POS lookup shape. */
 function toPosMember(row: MemberRow): PosMemberRow {
   return {
@@ -134,7 +112,7 @@ function toPosMember(row: MemberRow): PosMemberRow {
 
 /**
  * Search the gym's **active** catalogue for the POS grid. Reuses the tenant-scoped
- * `GET /admin/products` roster endpoint (which already filters by name and is
+ * `GET /admin/products/pos` endpoint (which already filters by name and is
  * gym-scoped from the session token), narrowed to `ACTIVE` so a sale can never add
  * a discontinued product. A blank query returns the first page of the catalogue so
  * the grid is populated before the operator types. Enforces `ProductRead`.
@@ -148,12 +126,14 @@ function toPosMember(row: MemberRow): PosMemberRow {
 export async function searchPosProductsAction(
   query: string,
   categoryId = '',
+  locationId?: string,
 ): Promise<ActionResult<PosProductRow[]>> {
   if (!(await sessionHas(Permission.ProductRead))) {
     return { ok: false, error: 'Not authorized' };
   }
   try {
-    const result = await fetchProducts({
+    const result = await fetchPosProducts({
+      locationId,
       search: query.trim() || undefined,
       categoryId: categoryId.trim() || undefined,
       status: 'ACTIVE',
@@ -161,7 +141,7 @@ export async function searchPosProductsAction(
       sort: 'name',
       dir: 'asc',
     });
-    return { ok: true, data: result.data.map(toPosProduct) };
+    return { ok: true, data: result.data };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }
