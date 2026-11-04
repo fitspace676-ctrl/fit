@@ -3387,6 +3387,7 @@ enum AutomationTriggerType {
   class_cancelled_member
   class_full
   attendance_marked
+  first_class_attended
   pt_session_booked
   pt_session_cancelled
   // Payments
@@ -3410,6 +3411,14 @@ enum AutomationActionType {
   sms
   push_notification
   create_task
+}
+
+/// Who receives a rule's message. `member` is the member the trigger is about;
+/// `trainer` is the class trainer or PT session staff member (only for
+/// booking / service-session triggers). Mirrors `automationRecipientSchema`.
+enum AutomationRecipient {
+  member
+  trainer
 }
 
 /// Outcome of one {@link AutomationRun} (T12.5). A run is `QUEUED` when a match
@@ -3444,6 +3453,7 @@ model AutomationRule {
   conditions    Json                  @default("[]")
   actionType    AutomationActionType
   actionConfig  Json                  @default("{}")
+  recipient     AutomationRecipient   @default(member)
   active        Boolean               @default(true)
   isTemplate    Boolean               @default(false)
   createdById   String?

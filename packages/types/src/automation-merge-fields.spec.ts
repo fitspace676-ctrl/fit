@@ -81,3 +81,69 @@ describe('contextual merge fields', () => {
     expect(mergeFieldsForTrigger('lead_created')).toEqual([]);
   });
 });
+
+describe('merge field aliases', () => {
+  it('keeps every old token name known through aliases', () => {
+    for (const old of [
+      'member_first_name',
+      'member_join_date',
+      'join_date',
+      'member_plan_name',
+      'plan_name',
+      'member_days_until_expiry',
+      'payment_due_date',
+      'class_trainer_name',
+      'session_trainer_name',
+      'class_location',
+      'session_name',
+      'invoice_amount',
+      'invoice_date',
+    ]) {
+      expect(AUTOMATION_MERGE_KEYS).toContain(old);
+      expect(interpolateMergeFields(`x {{${old}}} y`, {})).toBe('x  y');
+    }
+  });
+
+  it('never reuses a name as both a token and an alias', () => {
+    const tokens = AUTOMATION_MERGE_FIELDS.map((f) => f.token.replace(/[{}]/g, ''));
+    const aliases = AUTOMATION_MERGE_FIELDS.flatMap((f) => f.aliases ?? []);
+    expect(new Set(aliases).size).toBe(aliases.length);
+    for (const alias of aliases) expect(tokens).not.toContain(alias);
+  });
+
+  it('drops the separate session trainer entry', () => {
+    expect(AUTOMATION_MERGE_FIELDS.map((f) => f.key)).not.toContain('sessionTrainerName');
+  });
+});
+
+describe('trainer and location tokens', () => {
+  it('offers trainer_name and location on class and PT session triggers', () => {
+    for (const trigger of ['class_booked', 'pt_session_booked'] as const) {
+      const tokens = mergeFieldsForTrigger(trigger).map((f) => f.token);
+      expect(tokens).toContain('{{trainer_name}}');
+      expect(tokens).toContain('{{location}}');
+    }
+    expect(mergeFieldsForTrigger('member_joined').map((f) => f.token)).not.toContain(
+      '{{trainer_name}}',
+    );
+  });
+
+  it('offers cancelled_by only on PT sessions and refunds on invoice and order', () => {
+    expect(mergeFieldsForTrigger('pt_session_cancelled').map((f) => f.token)).toContain(
+      '{{cancelled_by}}',
+    );
+    expect(mergeFieldsForTrigger('class_booked').map((f) => f.token)).not.toContain(
+      '{{cancelled_by}}',
+    );
+    expect(mergeFieldsForTrigger('refund_issued').map((f) => f.token)).toContain(
+      '{{refund_amount}}',
+    );
+  });
+
+  it('offers offer and staff tokens on every member trigger', () => {
+    const tokens = mergeFieldsForTrigger('member_joined').map((f) => f.token);
+    expect(tokens).toEqual(
+      expect.arrayContaining(['{{discount_percent}}', '{{offer_code}}', '{{recipient_name}}']),
+    );
+  });
+});

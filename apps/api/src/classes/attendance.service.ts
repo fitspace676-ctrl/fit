@@ -115,7 +115,10 @@ export class AttendanceService {
   ): Promise<AttendanceRoster> {
     // Bookings this call newly marks ATTENDED — each fires `attendance_marked`
     // once the batch commits. A re-mark of an already-attended seat is a no-op.
-    const newlyAttended: string[] = [];
+    const newlyAttended: { id: string; memberId: string }[] = [];
+    // Bookings this call newly marks NO_SHOW — they fire `attendance_marked` too,
+    // so a rule can follow up on a missed class (`booking_attendance` condition).
+    const newlyNoShow: string[] = [];
 
     const roster = await this.prisma.client.$transaction(async (tx) => {
       const instance = await tx.classInstance.findFirst({
@@ -140,11 +143,11 @@ export class AttendanceService {
 
       // Resolve every referenced booking up front so a single bad id rejects the
       // whole batch before any write — attendance is recorded all-or-nothing.
-      const previous = new Map<string, BookingStatus>();
+      const previous = new Map<string, { status: BookingStatus; memberId: string }>();
       for (const entry of data.entries) {
         const booking = await tx.booking.findFirst({
           where: { id: entry.bookingId, classInstanceId },
-          select: { id: true, status: true },
+          select: { id: true, status: true, memberId: true },
         });
         if (!booking) {
           throw new NotFoundException({
@@ -160,7 +163,7 @@ export class AttendanceService {
             code: 'BOOKING_NOT_ATTENDABLE',
           });
         }
-        previous.set(booking.id, booking.status);
+        previous.set(booking.id, { status: booking.status, memberId: booking.memberId });
       }
 
       for (const entry of data.entries) {
@@ -168,12 +171,21 @@ export class AttendanceService {
           where: { id: entry.bookingId },
           data: { status: entry.status },
         });
+        const before = previous.get(entry.bookingId);
+        if (!before) continue;
         if (
           entry.status === BookingStatus.ATTENDED &&
-          previous.get(entry.bookingId) !== BookingStatus.ATTENDED &&
-          !newlyAttended.includes(entry.bookingId)
+          before.status !== BookingStatus.ATTENDED &&
+          !newlyAttended.some((b) => b.id === entry.bookingId)
         ) {
-          newlyAttended.push(entry.bookingId);
+          newlyAttended.push({ id: entry.bookingId, memberId: before.memberId });
+        }
+        if (
+          entry.status === BookingStatus.NO_SHOW &&
+          before.status !== BookingStatus.NO_SHOW &&
+          !newlyNoShow.includes(entry.bookingId)
+        ) {
+          newlyNoShow.push(entry.bookingId);
         }
       }
 
@@ -199,17 +211,45 @@ export class AttendanceService {
       );
     });
 
-    // Automation trigger (T12.5) per newly attended seat — best-effort and not
-    // awaited, so automation can never block or fail the roster save.
-    for (const bookingId of newlyAttended) {
-      void this.automation.dispatchForGym(
-        this.tenant.gymId,
-        AutomationTriggerType.attendance_marked,
-        { entityId: bookingId, entityType: 'booking' },
-      );
+    // Automation trigger (T12.5) per newly attended or no-show seat — best-effort
+    // and not awaited, so automation can never block or fail the roster save.
+    const gymId = this.tenant.gymId;
+    for (const bookingId of [...newlyAttended.map((b) => b.id), ...newlyNoShow]) {
+      void this.automation.dispatchForGym(gymId, AutomationTriggerType.attendance_marked, {
+        entityId: bookingId,
+        entityType: 'booking',
+      });
+    }
+    if (newlyAttended.length > 0) {
+      void this.dispatchFirstClassAttended(gymId, newlyAttended);
     }
 
     return roster;
+  }
+
+  /**
+   * `first_class_attended` for each newly attended seat whose member now has
+   * exactly one ATTENDED booking in the gym. Swallows its own errors: the
+   * roster save has already committed.
+   */
+  private async dispatchFirstClassAttended(
+    gymId: string,
+    attended: { id: string; memberId: string }[],
+  ): Promise<void> {
+    try {
+      for (const booking of attended) {
+        const count = await this.prisma.client.booking.count({
+          where: { gymId, memberId: booking.memberId, status: BookingStatus.ATTENDED },
+        });
+        if (count !== 1) continue;
+        void this.automation.dispatchForGym(gymId, AutomationTriggerType.first_class_attended, {
+          entityId: booking.id,
+          entityType: 'booking',
+        });
+      }
+    } catch {
+      // Best-effort, like the executor itself.
+    }
   }
 
   /** Project an occurrence + its held-seat bookings to the wire roster shape. */

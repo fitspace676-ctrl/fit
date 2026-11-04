@@ -140,6 +140,41 @@ describe('buildMemberMergeValues', () => {
     }
   });
 
+  // Older token names stay in saved rule bodies; they must keep filling.
+  it('fills every automation alias too', () => {
+    const values = build();
+
+    for (const field of AUTOMATION_MERGE_FIELDS) {
+      for (const alias of field.aliases ?? []) {
+        expect(values[alias], `alias ${alias} of ${field.token} is never filled`).toBeDefined();
+      }
+    }
+  });
+
+  it('fills the new member and membership tokens from the member', () => {
+    const values = build({
+      member: {
+        ...member,
+        location: { name: 'Vake', address: null, phone: null },
+        checkIns: [{ checkedInAt: new Date('2026-08-02T07:30:00Z') }],
+      },
+    });
+
+    expect(values.member_since).toBe('2025-03-04');
+    expect(values.membership_plan).toBe('Unlimited');
+    expect(values.days_remaining).toBe('20');
+    expect(values.access_end_date).toBe('2026-09-01');
+    expect(values.branch_name).toBe('Vake');
+    expect(values.last_checkin_date).toBe('2026-08-02');
+    expect(values.days_inactive).toBe('9');
+    expect(values.recipient_name).toBe('Nino Beridze');
+    expect(values.cancellation_reason).toBe('');
+  });
+
+  it('counts days inactive from joining when the member never checked in', () => {
+    expect(build({ today: new Date('2025-03-14T00:00:00Z') }).days_inactive).toBe('10');
+  });
+
   it('fills the check-in count and points balance the caller supplies', () => {
     const values = build();
 

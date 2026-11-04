@@ -2768,7 +2768,17 @@
         "conditionsValue": "მნიშვნელობა",
         "conditionsChoose": "აირჩიე მნიშვნელობა",
         "conditionsRemove": "პირობის წაშლა",
-        "conditionsAdd": "პირობის დამატება"
+        "conditionsAdd": "პირობის დამატება",
+        "recipient": "ვის გაეგზავნოს",
+        "recipientHint": "წევრს, ან კლასის თუ სესიის მწვრთნელს.",
+        "recipient_member": "წევრი",
+        "recipient_trainer": "მწვრთნელი",
+        "offer": "შეთავაზება",
+        "offerHint": "არასავალდებულოა. ავსებს შეთავაზების ცვლადებს. ბონუს ქულები წევრის ბალანსს ემატება.",
+        "discountPercent": "ფასდაკლება (%)",
+        "bonusPoints": "ბონუს ქულები",
+        "offerCode": "შეთავაზების კოდი",
+        "offerExpiry": "შეთავაზების ვადა"
       },
       "categories": {
         "members": "წევრები",
@@ -2793,6 +2803,7 @@
         "class_cancelled_member": "ვარჯიში გაუქმდა წევრის მიერ",
         "class_full": "ვარჯიში შევსებულია",
         "attendance_marked": "დასწრება დაფიქსირდა",
+        "first_class_attended": "პირველ კლასს დაესწრო",
         "pt_session_booked": "PT სესია დაიჯავშნა",
         "pt_session_cancelled": "PT სესია გაუქმდა",
         "payment_received": "გადახდა მიღებულია",
@@ -2826,7 +2837,9 @@
         "class": "კლასი",
         "invoice": "ინვოისი",
         "order": "შეკვეთა",
-        "session": "სესია"
+        "session": "სესია",
+        "offer": "შეთავაზება",
+        "staff": "ადრესატი"
       },
       "mergeVars": {
         "memberFirstName": "სახელი",
@@ -2863,17 +2876,41 @@
         "className": "კლასის სახელი",
         "classDate": "კლასის თარიღი",
         "classTime": "კლასის დრო",
-        "classTrainerName": "კლასის მწვრთნელი",
-        "classLocation": "კლასის მდებარეობა",
+        "classTrainerName": "მწვრთნელი",
+        "classLocation": "ლოკაცია",
         "invoiceNumber": "ინვოისის ნომერი",
-        "invoiceAmount": "ინვოისის თანხა",
-        "invoiceDate": "ინვოისის თარიღი",
+        "invoiceAmount": "თანხა",
+        "invoiceDate": "გადახდის თარიღი",
         "orderTotal": "შეკვეთის ჯამი",
         "orderItems": "შეკვეთის პროდუქტები",
-        "sessionName": "სესიის სახელი",
+        "sessionName": "სესიის ტიპი",
         "sessionDate": "სესიის თარიღი",
         "sessionTime": "სესიის დრო",
-        "sessionTrainerName": "სესიის მწვრთნელი"
+        "memberDaysInactive": "უაქტივო დღეები",
+        "membershipFreezeStart": "გაყინვის დაწყება",
+        "membershipCancellationDate": "გაუქმების თარიღი",
+        "membershipCancellationReason": "გაუქმების მიზეზი",
+        "membershipAccessEndDate": "წვდომის ბოლო დღე",
+        "classWaitlistPosition": "რიგში ადგილი",
+        "classSpotsFilled": "დაკავებული ადგილები",
+        "classSpotsTotal": "სულ ადგილები",
+        "missedClassName": "გაცდენილი კლასი",
+        "missedClassDate": "გაცდენილი კლასის თარიღი",
+        "sessionCancelledBy": "ვინ გააუქმა",
+        "invoiceDueDate": "გადახდის ვადა",
+        "invoicePaymentMethod": "გადახდის მეთოდი",
+        "invoiceFailureReason": "წარუმატებლობის მიზეზი",
+        "refundAmount": "დაბრუნებული თანხა",
+        "refundDate": "დაბრუნების თარიღი",
+        "orderProductName": "პროდუქტი",
+        "orderNumber": "შეკვეთის ნომერი",
+        "orderPurchaseDate": "ყიდვის თარიღი",
+        "offerDiscountPercent": "ფასდაკლება (%)",
+        "offerBonusPoints": "ბონუს ქულები",
+        "offerCode": "შეთავაზების კოდი",
+        "offerExpiry": "შეთავაზების ვადა",
+        "recipientName": "ადრესატის სახელი",
+        "relatedMemberName": "წევრის სახელი"
       },
       "templates": {
         "saved": "შაბლონი შენახულია.",
@@ -2883,7 +2920,10 @@
         "nameLabel": "შაბლონის სახელი",
         "use": "შაბლონის გამოყენება",
         "emptyTitle": "შაბლონები ჯერ არ არის",
-        "emptyHint": "შეინახეთ ავტომატიზაცია შაბლონად, რათა გამოიყენოთ ის ახალი წესების საწყის ეტაპად."
+        "emptyHint": "შეინახეთ ავტომატიზაცია შაბლონად, რათა გამოიყენოთ ის ახალი წესების საწყის ეტაპად.",
+        "builtIn": "მზა შაბლონები",
+        "custom": "შენი შაბლონები",
+        "builtInHint": "მზა ავტომატიზაციები. აირჩიე და შენახვამდე შეცვალე."
       },
       "errors": {
         "notAuthorized": "თქვენ არ გაქვთ ავტომატიზაციების მართვის უფლება.",
@@ -2895,7 +2935,8 @@
         "loadRules": "ავტომატიზაციების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
         "loadTemplates": "შაბლონების ჩატვირთვა ვერ მოხერხდა ({status}): {message}",
         "apiUnreachable": "API მიუწვდომელია. გთხოვთ, სცადოთ ცოტა ხანში.",
-        "conditionsInvalid": "შეავსე პირობები ველისა და ოპერატორის შესაბამისი მნიშვნელობებით."
+        "conditionsInvalid": "შეავსე პირობები ველისა და ოპერატორის შესაბამისი მნიშვნელობებით.",
+        "recipientNotAllowed": "მწვრთნელს მხოლოდ კლასის და PT სესიის ტრიგერები უგზავნის."
       },
       "stats": {
         "active": "აქტიური ავტომატიზაციები",
@@ -2915,7 +2956,8 @@
         "member_checkin_count": "ვიზიტების რაოდენობა",
         "subscription_plan": "აბონემენტის გეგმა",
         "subscription_status": "აბონემენტის სტატუსი",
-        "subscription_days_until_expiry": "ვადის გასვლამდე დარჩენილი დღეები"
+        "subscription_days_until_expiry": "ვადის გასვლამდე დარჩენილი დღეები",
+        "booking_attendance": "დასწრება"
       },
       "conditionOperators": {
         "eq": "უდრის",
@@ -2933,7 +2975,8 @@
       },
       "conditionGroups": {
         "member": "წევრი",
-        "subscription": "აბონემენტი"
+        "subscription": "აბონემენტი",
+        "booking": "ჯავშანი"
       },
       "conditionValues": {
         "member_gender": {
@@ -2958,6 +3001,10 @@
           "FROZEN": "გაყინული",
           "CANCELED": "გაუქმებული",
           "EXPIRED": "ვადაგასული"
+        },
+        "booking_attendance": {
+          "ATTENDED": "დაესწრო",
+          "NO_SHOW": "არ მოვიდა"
         }
       },
       "timing": {
@@ -2975,7 +3022,8 @@
         "amount": "რაოდენობა",
         "unit": "ერთეული",
         "eventHint": "გაშვება ხდება მოვლენის მომენტში ან მითითებული დღეების ან საათების შემდეგ.",
-        "invalid": "შეიყვანე მთელი რიცხვი: 0-365 დღე ან 0-8760 საათი."
+        "invalid": "შეიყვანე მთელი რიცხვი: 0-365 დღე ან 0-8760 საათი.",
+        "anchorHint": "\"მანამდე\" ითვლება კლასის ან სესიის დაწყებიდან."
       },
       "conditions": {
         "count": "{count} პირობა"
