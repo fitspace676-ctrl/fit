@@ -13,7 +13,8 @@ import {
   AUTOMATION_MERGE_FIELDS,
   AUTOMATION_MERGE_GROUPS,
 } from '@fit/types';
-import { Button, Drawer, Field, FieldGroup, SelectField, TextareaField } from '@fit/ui-kit';
+import { Button, Drawer, Field, FieldGroup, TextareaField } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 import { Icon, useToast } from '@/components/ui';
 import { ConditionBuilder, type BuilderCatalog } from './condition-builder';
 import { TimingField, timingState, timingOffset, validTiming } from './timing-field';
@@ -467,16 +468,14 @@ export function RuleFormDialog({ mode, seed, onClose, catalog }: Props) {
           hint={t('form.triggerHint')}
           value={form.triggerType}
           onChange={(event) => selectTrigger(event.target.value)}
-          options={[
-            { value: '', label: t('form.triggerPlaceholder'), disabled: true },
-            ...triggerGroups.map((group) => ({
-              label: t(`categories.${CATEGORY_KEY[group.category]}`),
-              options: group.triggers.map((tg) => ({
-                value: tg.value,
-                label: t(`triggers.${tg.value}`),
-              })),
+          placeholder={t('form.triggerPlaceholder')}
+          options={triggerGroups.map((group) => ({
+            label: t(`categories.${CATEGORY_KEY[group.category]}`),
+            options: group.triggers.map((tg) => ({
+              value: tg.value,
+              label: t(`triggers.${tg.value}`),
             })),
-          ]}
+          }))}
         />
 
         <div {...stylex.props(styles.grid2)}>

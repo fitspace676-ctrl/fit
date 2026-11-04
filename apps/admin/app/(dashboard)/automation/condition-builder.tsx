@@ -9,7 +9,8 @@ import {
   type AutomationCondition,
   type AutomationCatalogResponse,
 } from '@fit/types';
-import { Button, Field, FieldGroup, SelectField } from '@fit/ui-kit';
+import { Button, Field, FieldGroup, SelectField as NativeSelectField } from '@fit/ui-kit';
+import { SelectField } from '@/components/ui/select-field';
 
 export type BuilderCatalog = Pick<
   AutomationCatalogResponse,
@@ -139,28 +140,26 @@ export function ConditionBuilder({
                       value={typeof condition.value === 'string' ? condition.value : ''}
                       onChange={(e) => replace(index, { ...condition, value: e.target.value })}
                     />
-                  ) : (
-                    <SelectField
+                  ) : multiple ? (
+                    // The searchable select is single-value; multi-value enums keep the native list box.
+                    <NativeSelectField
                       label={t('form.conditionsValue')}
-                      multiple={multiple}
-                      placeholder={multiple ? undefined : t('form.conditionsChoose')}
-                      value={
-                        multiple
-                          ? Array.isArray(condition.value)
-                            ? condition.value
-                            : []
-                          : typeof condition.value === 'string'
-                            ? condition.value
-                            : ''
-                      }
+                      multiple
+                      value={Array.isArray(condition.value) ? condition.value : []}
                       onChange={(e) =>
                         replace(index, {
                           ...condition,
-                          value: multiple
-                            ? Array.from(e.target.selectedOptions, (option) => option.value)
-                            : e.target.value,
+                          value: Array.from(e.target.selectedOptions, (option) => option.value),
                         })
                       }
+                      options={options}
+                    />
+                  ) : (
+                    <SelectField
+                      label={t('form.conditionsValue')}
+                      placeholder={t('form.conditionsChoose')}
+                      value={typeof condition.value === 'string' ? condition.value : ''}
+                      onChange={(e) => replace(index, { ...condition, value: e.target.value })}
                       options={options}
                     />
                   ))}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { chooseOption, selectedValue } from '@fit/ui-kit/testing';
 import { NextIntlClientProvider } from 'next-intl';
 import messages from '@fit/i18n/locales/en.json';
 import {
@@ -36,37 +38,41 @@ function Harness({
 }
 
 describe('ConditionBuilder', () => {
-  it('adds, validates, changes field and removes a condition', () => {
+  it('adds, validates, changes field and removes a condition', async () => {
+    const user = userEvent.setup();
     render(<Harness />);
     expect(screen.getByText('This rule runs for all members')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Add condition' }));
     expect(screen.getByRole('alert')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'FEMALE' } });
+    await chooseOption(user, screen.getByLabelText('Value'), 'Female');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Field'), { target: { value: 'member_age' } });
+    await chooseOption(user, screen.getByLabelText('Field'), 'Age');
     expect(screen.getByLabelText('Value')).toHaveValue(null);
     fireEvent.change(screen.getByLabelText('Value'), { target: { value: '25' } });
     expect(screen.getByRole('status')).toHaveTextContent('"value":25');
-    fireEvent.change(screen.getByLabelText('Operator'), { target: { value: 'gte' } });
+    await chooseOption(user, screen.getByLabelText('Operator'), 'At least');
     expect(screen.getByLabelText('Value')).toHaveValue(null);
     fireEvent.click(screen.getByRole('button', { name: 'Remove condition' }));
     expect(screen.getByText('This rule runs for all members')).toBeInTheDocument();
     cleanup();
   });
-  it('supports multiple enum values and clears them for emptiness checks', () => {
+  it('supports multiple enum values and clears them for emptiness checks', async () => {
+    const user = userEvent.setup();
     render(
       <Harness seed={[{ field: 'member_gender', operator: 'in', value: ['MALE', 'FEMALE'] }]} />,
     );
     expect(screen.getByLabelText('Value')).toHaveValue(['MALE', 'FEMALE']);
-    fireEvent.change(screen.getByLabelText('Operator'), { target: { value: 'is_empty' } });
+    await chooseOption(user, screen.getByLabelText('Operator'), 'Is empty');
     expect(screen.queryByLabelText('Value')).not.toBeInTheDocument();
     expect(screen.getByRole('status')).not.toHaveTextContent('value');
     cleanup();
   });
-  it('shows tenant option labels and stores their IDs', () => {
+  it('shows tenant option labels and stores their IDs', async () => {
+    const user = userEvent.setup();
     render(<Harness seed={[{ field: 'member_branch', operator: 'eq' }]} />);
-    fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'branch-1' } });
-    expect(screen.getByRole('option', { name: 'Downtown' })).toBeInTheDocument();
+    await chooseOption(user, screen.getByLabelText('Value'), 'Downtown');
+    expect(screen.getByLabelText('Value')).toHaveTextContent('Downtown');
+    expect(selectedValue(screen.getByLabelText('Value'))).toBe('branch-1');
     expect(screen.getByRole('status')).toHaveTextContent('branch-1');
     cleanup();
   });
