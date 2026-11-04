@@ -22,6 +22,7 @@ import {
   GYM_RECIPIENT_ACTION_MESSAGE,
   GYM_RECIPIENT_TRIGGERS,
   type AutomationEntityType,
+  type AutomationRecipient,
 } from '@fit/types';
 import { automationTriggerConfigSchema } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -67,6 +68,13 @@ export interface AutomationDispatchContext {
    * whose `triggerConfig.days` equals it fire — "10th visit" is not "50th visit".
    */
   milestone?: number;
+  /** Who the rule addresses (the rule's `recipient`); the executor sets it. */
+  recipient?: AutomationRecipient;
+  /**
+   * Extra merge values from the dispatcher or the rule (`cancelled_by`, the
+   * offer tokens), layered over the resolved member / entity values.
+   */
+  extraValues?: Record<string, string>;
 }
 
 /** What a performed action leaves on its run row. */

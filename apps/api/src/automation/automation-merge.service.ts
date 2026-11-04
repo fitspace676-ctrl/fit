@@ -44,7 +44,7 @@ const MEMBER_SELECT = {
   tags: true,
   location: { select: { name: true, address: true, phone: true } },
   checkIns: { orderBy: { checkedInAt: 'desc' }, take: 1, select: { checkedInAt: true } },
-  user: { select: { name: true, email: true, phone: true } },
+  user: { select: { id: true, name: true, email: true, phone: true } },
   subscriptions: {
     where: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
     orderBy: { currentPeriodEnd: 'desc' },
@@ -74,6 +74,8 @@ export interface AutomationMergeTarget {
   recipient: string | null;
   /** The member the message is about; `null` for a gym-recipient trigger. */
   memberId: string | null;
+  /** The recipient's User id (for push); `null` when there is no account. */
+  userId: string | null;
   /** Token values for {@link interpolateMergeFields}, keyed without braces. */
   values: MergeValues;
 }
@@ -119,6 +121,7 @@ export class AutomationMergeService {
     return {
       recipient: member.user.email || null,
       memberId: member.id,
+      userId: member.user.id,
       values: {
         ...this.mergeValues(member, brand, points),
         ...(await this.contextValues(gymId, context, brand)),
@@ -147,6 +150,7 @@ export class AutomationMergeService {
     return {
       recipient: brand.business.email?.trim() || null,
       memberId: null,
+      userId: null,
       values: { ...this.businessValues(brand), ...orderValues },
     };
   }

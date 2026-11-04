@@ -71,6 +71,7 @@ export class AutomationFactsService {
       subscription_days_until_expiry: subscription
         ? Math.floor((subscription.currentPeriodEnd.getTime() - now.getTime()) / DAY_MS)
         : null,
+      booking_attendance: null,
     };
   }
 }

@@ -235,13 +235,18 @@ export function validateAutomationDraft(
     const fields = draft.triggerType
       ? mergeFieldsForTrigger(draft.triggerType)
       : AUTOMATION_MERGE_FIELDS;
-    const allowed = new Set(fields.map((field) => field.token));
+    const offered = fields.map((field) => field.token);
+    // Older alias names still interpolate, so a draft using one is not wrong.
+    const allowed = new Set([
+      ...offered,
+      ...fields.flatMap((field) => (field.aliases ?? []).map((alias) => `{{${alias}}}`)),
+    ]);
     const unknown = [
       ...unknownTokens(draft.actionConfig.subject, allowed),
       ...unknownTokens(draft.actionConfig.body, allowed),
     ].filter((token, index, all) => all.indexOf(token) === index);
     for (const token of unknown) {
-      issues.push(`Unknown merge token: ${token}. Allowed: ${[...allowed].join(', ')}`);
+      issues.push(`Unknown merge token: ${token}. Allowed: ${offered.join(', ')}`);
     }
   }
 

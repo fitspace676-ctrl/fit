@@ -615,6 +615,7 @@ const CONDITION_FACTS: AutomationConditionFacts = {
   subscription_plan: null,
   subscription_status: null,
   subscription_days_until_expiry: null,
+  booking_attendance: null,
 };
 const adult: AutomationCondition[] = [{ field: 'member_age', operator: 'gte', value: 18 }];
 const NOW = new Date('2026-07-08T12:00:00Z');

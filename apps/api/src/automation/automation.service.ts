@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@fit/db';
 import {
   GYM_RECIPIENT_TRIGGERS,
+  TRAINER_RECIPIENT_TRIGGERS,
   TRIGGERS_NEEDING_DAYS,
   automationActionConfigSchema,
   automationConditionsSchema,
@@ -15,6 +16,7 @@ import {
   AUTOMATION_TRIGGER_CATALOG,
   type AutomationActionConfig,
   type AutomationCatalogResponse,
+  type AutomationRecipient,
   type AutomationRef,
   type AutomationRuleDetail,
   type AutomationRuleRow,
@@ -57,6 +59,7 @@ const RULE_SELECT = {
   timingOffset: true,
   actionType: true,
   actionConfig: true,
+  recipient: true,
   active: true,
   isTemplate: true,
   createdAt: true,
@@ -204,6 +207,7 @@ export class AutomationService {
   async createRule(input: CreateAutomationRuleInput): Promise<GetAutomationRuleResponse> {
     this.validateTiming(input.triggerType, input.timingOffset);
     this.validateRecipientAction(input.triggerType, input.actionType);
+    this.validateRecipient(input.triggerType, input.recipient);
     const created = await this.prisma.client.automationRule.create({
       data: {
         gymId: this.tenant.gymId,
@@ -215,6 +219,7 @@ export class AutomationService {
         conditions: input.conditions as Prisma.InputJsonValue,
         actionType: input.actionType,
         actionConfig: input.actionConfig satisfies AutomationActionConfig as Prisma.InputJsonValue,
+        recipient: input.recipient,
         active: input.active,
         isTemplate: false,
         createdById: this.tenant.userId ?? null,
@@ -239,6 +244,7 @@ export class AutomationService {
     const nextTrigger = input.triggerType ?? existing.triggerType;
     this.validateTiming(nextTrigger, input.timingOffset ?? existing.timingOffset);
     this.validateRecipientAction(nextTrigger, input.actionType ?? existing.actionType);
+    this.validateRecipient(nextTrigger, input.recipient ?? existing.recipient);
     const nextConfig =
       input.triggerConfig ?? automationTriggerConfigSchema.parse(existing.triggerConfig ?? {});
     if (TRIGGERS_NEEDING_DAYS.has(nextTrigger) && nextConfig.days === undefined) {
@@ -265,6 +271,7 @@ export class AutomationService {
         ...(input.actionConfig !== undefined
           ? { actionConfig: input.actionConfig as Prisma.InputJsonValue }
           : {}),
+        ...(input.recipient !== undefined ? { recipient: input.recipient } : {}),
         ...(input.active !== undefined ? { active: input.active } : {}),
       },
       select: RULE_SELECT,
@@ -309,6 +316,7 @@ export class AutomationService {
         conditions: automationConditionsSchema.safeParse(source.conditions).data ?? [],
         actionType: source.actionType,
         actionConfig: (source.actionConfig ?? {}) as Prisma.InputJsonValue,
+        recipient: source.recipient,
         active: false,
         isTemplate: true,
         createdById: this.tenant.userId ?? null,
@@ -379,7 +387,10 @@ export class AutomationService {
 
   private validateTiming(triggerType: string, timingOffset: string): void {
     const trigger = AUTOMATION_TRIGGER_CATALOG.find((entry) => entry.value === triggerType);
-    if (trigger?.kind !== 'scan' && parseTimingOffset(timingOffset).ms < 0) {
+    // "Before" needs something to count back from: a scan's date window, or the
+    // start of the booked class / PT session (`anchor: 'entity_start'`).
+    const canLead = trigger?.kind === 'scan' || trigger?.anchor === 'entity_start';
+    if (!canLead && parseTimingOffset(timingOffset).ms < 0) {
       throw new BadRequestException({
         code: 'AUTOMATION_TIMING_BEFORE_NOT_ALLOWED',
         message: 'AUTOMATION_TIMING_BEFORE_NOT_ALLOWED',
@@ -404,6 +415,22 @@ export class AutomationService {
     }
   }
 
+  /**
+   * A `trainer` recipient only fits a class-booking or PT-session trigger; any
+   * other trigger has no trainer to address. Checked on the merged record.
+   */
+  private validateRecipient(triggerType: string, recipient: AutomationRecipient): void {
+    if (
+      recipient === 'trainer' &&
+      !TRAINER_RECIPIENT_TRIGGERS.has(triggerType as AutomationTriggerType)
+    ) {
+      throw new BadRequestException({
+        code: 'AUTOMATION_RECIPIENT_NOT_ALLOWED',
+        message: 'AUTOMATION_RECIPIENT_NOT_ALLOWED',
+      });
+    }
+  }
+
   private toRuleRow(rule: RuleRecord): AutomationRuleRow {
     return {
       id: rule.id,
@@ -414,6 +441,7 @@ export class AutomationService {
       conditions: automationConditionsSchema.safeParse(rule.conditions).data ?? [],
       actionType: rule.actionType,
       actionConfig: parseActionConfig(rule.actionConfig),
+      recipient: rule.recipient,
       active: rule.active,
       isTemplate: rule.isTemplate,
       createdBy: toRef(rule.createdBy),

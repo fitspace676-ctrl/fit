@@ -74,6 +74,7 @@ describe('AutomationFactsService', () => {
       subscription_plan: 'plan-1',
       subscription_status: 'ACTIVE',
       subscription_days_until_expiry: 2,
+      booking_attendance: null,
     });
     for (const mock of [member, sub, last, count]) {
       for (const [args] of mock.mock.calls)
