@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { localeUrl, localeAlternates } from '@/src/i18n/metadata';
 import type { BlogLang, PublicBlogPost } from '@fit/types';
 import { notFound, redirect } from 'next/navigation';
-import { fetchBlogCategories, fetchBlogPost, fetchBlogPosts, fetchBlogTags } from '@/lib/blog';
+import { fetchBlogPost, fetchBlogPosts, fetchBlogTags } from '@/lib/blog';
 import { BlogListPage } from './blog-list-page';
 import { BlogPostPage } from './blog-post-page';
 import { blogPath, dictionary, postPath } from './dictionary';
@@ -13,11 +13,11 @@ export type BlogPostParams = Promise<{ slug: string }>;
 
 export function listMetadata(lang: BlogLang): Metadata {
   return {
-    title: `${dictionary[lang].blog} - FormaCore`,
+    title: `${dictionary[lang].resources} - FormaCore`,
     description: dictionary[lang].description,
     alternates: {
-      canonical: localeUrl(lang, '/blog'),
-      ...localeAlternates('/blog'),
+      canonical: localeUrl(lang, '/resources'),
+      ...localeAlternates('/resources'),
       types: { 'application/rss+xml': `${BLOG_ORIGIN}${blogPath(lang)}/feed.xml` },
     },
   };
@@ -34,12 +34,11 @@ export async function BlogListingRoute({
   const tag = typeof query.tag === 'string' ? query.tag : undefined;
   const rawPage = typeof query.page === 'string' ? Number(query.page) : 1;
   const page = Number.isInteger(rawPage) && rawPage >= 1 && rawPage <= 10000 ? rawPage : 1;
-  const [posts, categories, tags] = await Promise.all([
+  const [posts, tags] = await Promise.all([
     fetchBlogPosts({ lang, category, tag, page }),
-    fetchBlogCategories(lang),
     fetchBlogTags(lang),
   ]);
-  return <BlogListPage {...{ lang, posts, categories, tags, category, tag }} />;
+  return <BlogListPage {...{ lang, posts, tags, category, tag }} />;
 }
 async function resolvePost(slug: string, lang: BlogLang): Promise<PublicBlogPost> {
   const post = await fetchBlogPost(slug, lang);

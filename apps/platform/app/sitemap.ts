@@ -11,7 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const paths = [
     '/',
     '/pricing',
-    '/blog',
+    '/resources',
     '/features',
     '/built-for',
     '/register-gym',
@@ -37,11 +37,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...staticPages,
     ...items.flatMap((post) =>
       post.langs.map((lang) => ({
-        url: localeUrl(lang, `/blog/${post.slug}`),
+        url: localeUrl(lang, `/resources/${post.slug}`),
         lastModified: post.updatedAt,
         alternates: {
           languages: Object.fromEntries(
-            post.langs.map((language) => [language, localeUrl(language, `/blog/${post.slug}`)]),
+            post.langs.map((language) => [
+              language,
+              localeUrl(language, `/resources/${post.slug}`),
+            ]),
           ),
         },
       })),
