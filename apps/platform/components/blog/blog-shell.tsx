@@ -6,11 +6,11 @@ export function BlogShell({ lang, children }: { lang: BlogLang; children: ReactN
   return (
     <div
       lang={lang}
-      className="relative overflow-x-clip bg-surface font-sans text-fg antialiased selection:bg-brand-500/30"
+      className="relative flex min-h-dvh flex-col overflow-x-clip bg-surface font-sans text-fg antialiased selection:bg-brand-500/30"
     >
       <Aurora />
-      <MarketingNav active="blog" />
-      <main className="relative z-10 mx-auto min-h-[60vh] max-w-[1180px] px-6 pb-20 pt-12 lg:px-10 lg:pt-16">
+      <MarketingNav active="resources" />
+      <main className="relative z-10 mx-auto w-full max-w-[1180px] flex-1 px-6 pb-20 pt-12 lg:px-10 lg:pt-16">
         {children}
       </main>
       <MarketingFooter />

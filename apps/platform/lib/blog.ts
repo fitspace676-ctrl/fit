@@ -2,7 +2,6 @@ import type {
   BlogLang,
   PublicBlogPost,
   PublicBlogPostListResponse,
-  PublicBlogCategoryListResponse,
   PublicBlogTagListResponse,
   PublicBlogIndexResponse,
 } from '@fit/types';
@@ -38,9 +37,6 @@ export async function fetchBlogPosts({
 }
 export function fetchBlogPost(slug: string, lang: BlogLang): Promise<PublicBlogPost | null> {
   return blogFetch<PublicBlogPost>(`posts/${encodeURIComponent(slug)}?lang=${lang}`, true);
-}
-export async function fetchBlogCategories(lang: BlogLang): Promise<PublicBlogCategoryListResponse> {
-  return (await blogFetch<PublicBlogCategoryListResponse>(`categories?lang=${lang}`))!;
 }
 export async function fetchBlogTags(lang: BlogLang): Promise<PublicBlogTagListResponse> {
   return (await blogFetch<PublicBlogTagListResponse>(`tags?lang=${lang}`))!;
