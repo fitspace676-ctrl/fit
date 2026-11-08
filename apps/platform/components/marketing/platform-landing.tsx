@@ -17,6 +17,28 @@ import { useLeadCta } from './lead-cta-context';
 import { ProductTour } from './product-tour';
 import { Aurora, Btn, I, Icon, MarketingFooter, MarketingNav } from './marketing-ui';
 
+/**
+ * FormaCore's two offices, shown on both language versions of the contact
+ * section. `pin` places each dot on the dotted world map, in percent; `below`
+ * puts a label under its dot so the two labels, a few dots apart, never meet.
+ */
+const OFFICES = [
+  {
+    id: 'tbilisi',
+    phone: '+995 593 10 07 33',
+    tel: '+995593100733',
+    pin: { left: '62%', top: '32%' },
+    below: true,
+  },
+  {
+    id: 'warsaw',
+    phone: '+48 511 364 569',
+    tel: '+48511364569',
+    pin: { left: '55.6%', top: '25%' },
+    below: false,
+  },
+] as const;
+
 /* ────────────────────────────────────────────────────────────────────────
    FormaCore — Platform overview  ·  "Aurora Glass"
    A product page selling FormaCore's modules to gym & studio owners: the
@@ -349,23 +371,28 @@ export default function PlatformLanding() {
               {t('contact.title')}
             </h2>
             <p className="mt-5 max-w-md text-lg text-muted leading-relaxed">{t('contact.body')}</p>
-            <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-strong">
+            <div className="mt-8 space-y-2.5 text-sm text-strong">
               <a
                 href="mailto:info@formacore.io"
                 className="-my-3 inline-block py-3 transition hover:text-fg"
               >
                 info@formacore.io
               </a>
-              <span className="text-dim">•</span>
-              <a
-                href="tel:+995593100733"
-                className="-my-3 inline-block py-3 transition hover:text-fg"
-              >
-                +995 593 10 07 33
-              </a>
+              {OFFICES.map((office) => (
+                <p key={office.id} className="flex flex-wrap items-center gap-x-3">
+                  <span>{t(`contact.offices.${office.id}`)}</span>
+                  <span className="text-dim">•</span>
+                  <a
+                    href={`tel:${office.tel}`}
+                    className="-my-3 inline-block py-3 transition hover:text-fg"
+                  >
+                    {office.phone}
+                  </a>
+                </p>
+              ))}
             </div>
 
-            {/* dotted world map + "we are here" pin */}
+            {/* dotted world map + a pin for each office */}
             <div className="relative mt-12 aspect-[139/70] w-full max-w-lg">
               <div
                 className="absolute inset-0 bg-fg/[0.22]"
@@ -380,22 +407,33 @@ export default function PlatformLanding() {
                   WebkitMaskPosition: 'center',
                 }}
               />
-              <div
-                className="absolute -translate-x-1/2 -translate-y-1/2"
-                style={{ left: '62%', top: '32%' }}
-              >
-                {/* beam */}
-                <span className="absolute bottom-2 left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-t from-brand-500/0 to-brand-500/80" />
-                {/* glowing pin */}
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_14px_3px_rgba(26,127,214,0.7)]" />
-                </span>
-                {/* label */}
-                <div className="absolute bottom-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-overlay/[0.08] px-2.5 py-1 text-xs font-medium text-fg ring-1 ring-inset ring-overlay/15 backdrop-blur">
-                  {t('contact.here')}
+              {OFFICES.map((office) => (
+                <div
+                  key={office.id}
+                  className="absolute -translate-x-1/2 -translate-y-1/2"
+                  style={office.pin}
+                >
+                  {/* beam */}
+                  <span
+                    className={`absolute left-1/2 h-6 w-px -translate-x-1/2 from-brand-500/0 to-brand-500/80 ${
+                      office.below ? 'top-2 bg-gradient-to-b' : 'bottom-2 bg-gradient-to-t'
+                    }`}
+                  />
+                  {/* glowing pin */}
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-500 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-500 shadow-[0_0_14px_3px_rgba(26,127,214,0.7)]" />
+                  </span>
+                  {/* label */}
+                  <div
+                    className={`absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-overlay/[0.08] px-2.5 py-1 text-xs font-medium text-fg ring-1 ring-inset ring-overlay/15 backdrop-blur ${
+                      office.below ? 'top-9' : 'bottom-9'
+                    }`}
+                  >
+                    {t(`contact.offices.${office.id}`)}
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
 

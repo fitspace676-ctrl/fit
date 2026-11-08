@@ -6,6 +6,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { isLocale } from '@fit/i18n';
 import '../globals.css';
+import { CookieConsent } from '@/components/marketing/cookie-consent';
 import { LeadCtaProvider } from '@/components/marketing/lead-cta-provider';
 import { SiteLoader } from '@/components/marketing/site-loader';
 import { pageMetadata } from '@/src/i18n/metadata';
@@ -121,6 +122,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider locale={locale} messages={messages}>
           <SiteLoader />
           <LeadCtaProvider>{children}</LeadCtaProvider>
+          <CookieConsent />
         </NextIntlClientProvider>
       </body>
     </html>

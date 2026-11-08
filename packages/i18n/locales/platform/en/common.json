@@ -7,6 +7,7 @@
   "loader": "Loading FormaCore",
   "cta": {
     "bookDemo": "Book a demo",
+    "navBookDemo": "Book a demo",
     "requestCall": "Request a call",
     "bookFreeDemo": "Book a free demo"
   },
@@ -37,6 +38,13 @@
     "terms": "Terms & Conditions",
     "privacy": "Privacy Policy",
     "dpa": "DPA"
+  },
+  "cookies": {
+    "title": "We use cookies",
+    "body": "Necessary cookies keep the site working. With your consent we also use analytics cookies to understand how the site is used and improve it.",
+    "policy": "Privacy Policy",
+    "accept": "Accept",
+    "decline": "Decline"
   },
   "modal": {
     "close": "Close"

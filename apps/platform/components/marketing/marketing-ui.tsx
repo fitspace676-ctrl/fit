@@ -338,7 +338,7 @@ export const MobileDock = ({ onMenu }: { onMenu: () => void }) => {
         </button>
         <div className="min-w-0 flex-1">
           <Btn v="primary" size="md" full icon={I.arrow} onClick={() => openLead('demo')}>
-            {t('cta.bookDemo')}
+            {t('cta.navBookDemo')}
           </Btn>
         </div>
         <button
@@ -585,7 +585,7 @@ export const MarketingNav = ({
               <AnimatedThemeToggler />
               <LocaleSwitcher />
               <Btn v="primary" size="md" icon={I.arrow} onClick={() => openLead('demo')}>
-                {t('cta.bookDemo')}
+                {t('cta.navBookDemo')}
               </Btn>
               <button
                 type="button"
@@ -710,7 +710,7 @@ export const MarketingNav = ({
                   openLead('demo');
                 }}
               >
-                {t('cta.bookDemo')}
+                {t('cta.navBookDemo')}
               </Btn>
               <Btn
                 v="glass"
@@ -788,20 +788,23 @@ export const MarketingFooter = () => {
           >
             {t('footer.dpa')}
           </Link>
-          {SOCIAL_LINKS.map((s) => (
-            <a
-              key={s.name}
-              href={s.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={s.name}
-              className="-mx-2 -my-3 inline-block p-3 transition-colors hover:text-[#1F4A72] dark:hover:text-[#DEEDF2]"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-4 w-4">
-                <path d={s.path} />
-              </svg>
-            </a>
-          ))}
+          {/* On phones the icons take a row of their own, under the links. */}
+          <div className="flex w-full items-center justify-center gap-x-5 sm:w-auto">
+            {SOCIAL_LINKS.map((s) => (
+              <a
+                key={s.name}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={s.name}
+                className="-mx-2 -my-3 inline-block p-3 transition-colors hover:text-[#1F4A72] dark:hover:text-[#DEEDF2]"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-4 w-4">
+                  <path d={s.path} />
+                </svg>
+              </a>
+            ))}
+          </div>
         </div>
       </div>
     </footer>
