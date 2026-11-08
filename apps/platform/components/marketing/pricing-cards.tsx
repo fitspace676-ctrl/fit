@@ -83,7 +83,6 @@ export function getTiers(t: MessageReader): Tier[] {
 /** The three-up plan card grid on desktop; a swipeable snap-carousel on mobile. */
 export const PricingCards = () => {
   const t = useTranslations('pricing');
-  const tCommon = useTranslations('common');
   const tiers = getTiers(t);
   // Opens the shared "Book a demo" / "Request a call" forms.
   const openLead = useLeadCta();
@@ -159,7 +158,7 @@ export const PricingCards = () => {
                 icon={I.arrow}
                 onClick={() => openLead('demo')}
               >
-                {tCommon('cta.bookDemo')}
+                {t('cards.requestDemo')}
               </Btn>
             </div>
           </div>
