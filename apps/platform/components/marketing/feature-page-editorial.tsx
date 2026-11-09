@@ -45,7 +45,12 @@ const SHOTS = {
     w: 360,
     h: 780,
   },
-  members: { light: '/tour/members-light.webp', dark: '/tour/members-dark.webp', w: 1600, h: 1000 },
+  members: {
+    light: '/tour/members-light-{locale}.webp',
+    dark: '/tour/members-dark-{locale}.webp',
+    w: 1600,
+    h: 1000,
+  },
 };
 const CROPS = {
   memberPlans: [374, 284, 1196, 156],
