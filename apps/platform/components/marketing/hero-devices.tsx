@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
 type Theme = 'light' | 'dark';
 
@@ -9,7 +9,9 @@ type Theme = 'light' | 'dark';
  * The hero's product showcase: a laptop running the staff console and a phone
  * running the member mobile app, standing side by side. Each screen is a real
  * screen recording of the app (`public/hero/*.mp4`, captured from a seeded
- * demo gym), in the variant that matches the page theme.
+ * demo gym by `apps/e2e/scripts/record-hero.mjs`), in the variant that matches
+ * the page theme and the page language: the Georgian landing shows the product
+ * in Georgian, every other locale sees it in English.
  *
  * The landing renders one hero per theme and hides the other with `dark:`
  * classes, so each instance is told which theme it belongs to. Both copies keep
@@ -79,7 +81,8 @@ function Screen({
   still: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
-  const src = `/hero/${name}-${theme}`;
+  const locale = useLocale() === 'ka' ? 'ka' : 'en';
+  const src = `/hero/${name}-${theme}-${locale}`;
   const className = 'absolute inset-0 h-full w-full object-cover object-top';
 
   useEffect(() => {
