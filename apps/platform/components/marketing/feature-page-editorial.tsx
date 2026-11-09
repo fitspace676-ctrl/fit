@@ -32,10 +32,19 @@ import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './
 
 /* ── product imagery ─────────────────────────────────────────────────── */
 
-/** Named crops keep screenshot coordinates out of the figure compositions. */
+/**
+ * Named crops keep screenshot coordinates out of the figure compositions. A
+ * `{locale}` in a path is filled in by `Slice`: the hero stills exist per UI
+ * language (`ka` on the Georgian site, `en` everywhere else).
+ */
 type Shot = { light: string; dark: string; w: number; h: number };
 const SHOTS = {
-  phone: { light: '/hero/app-light.webp', dark: '/hero/app-dark.webp', w: 360, h: 780 },
+  phone: {
+    light: '/hero/app-light-{locale}.webp',
+    dark: '/hero/app-dark-{locale}.webp',
+    w: 360,
+    h: 780,
+  },
   members: { light: '/tour/members-light.webp', dark: '/tour/members-dark.webp', w: 1600, h: 1000 },
 };
 const CROPS = {
@@ -327,6 +336,7 @@ function ProductSlice({
 
 /** A crop of a shot at its own aspect ratio, light and dark swapped by the `.dark` class. */
 function Slice({ shot, crop }: { shot: Shot; crop?: Layer['crop'] }) {
+  const shotLocale = useLocale() === 'ka' ? 'ka' : 'en';
   const [x, y, cw, ch] = crop ? CROPS[crop] : [0, 0, shot.w, shot.h];
   const img: CSSProperties = {
     position: 'absolute',
@@ -340,7 +350,7 @@ function Slice({ shot, crop }: { shot: Shot; crop?: Layer['crop'] }) {
       {(['light', 'dark'] as const).map((theme) => (
         <img
           key={theme}
-          src={shot[theme]}
+          src={shot[theme].replace('{locale}', shotLocale)}
           alt=""
           width={shot.w}
           height={shot.h}
