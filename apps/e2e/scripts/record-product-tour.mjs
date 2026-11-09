@@ -142,10 +142,10 @@ async function typeSlow(page, text, delay = 110) {
 const SCENES = {
   members: {
     frame: 'desktop',
-    async setup(page, locale) {
+    async setup(page) {
       await page.goto(`${ADMIN}/members`, { waitUntil: 'networkidle' });
     },
-    async play(page, L) {
+    async play(page) {
       await page.mouse.move(900, 640);
       await page.waitForTimeout(700);
       const search = page.locator('input[type="search"], input[placeholder*="earch"]').first();
@@ -161,7 +161,7 @@ const SCENES = {
   },
   schedule: {
     frame: 'desktop',
-    async setup(page, locale) {
+    async setup(page) {
       await page.goto(`${ADMIN}/classes`, { waitUntil: 'networkidle' });
     },
     async play(page, L) {
@@ -186,7 +186,7 @@ const SCENES = {
   },
   dashboard: {
     frame: 'desktop',
-    async setup(page, locale) {
+    async setup(page) {
       await page.goto(`${ADMIN}/`, { waitUntil: 'networkidle' });
     },
     async play(page, L) {
@@ -210,7 +210,7 @@ const SCENES = {
   },
   reports: {
     frame: 'desktop',
-    async setup(page, locale) {
+    async setup(page) {
       await page.goto(`${ADMIN}/reports`, { waitUntil: 'networkidle' });
     },
     async play(page, L) {
