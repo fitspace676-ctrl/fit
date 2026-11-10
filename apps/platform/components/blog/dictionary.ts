@@ -14,7 +14,9 @@ export const dictionary = {
     next: 'Next',
     empty: 'No resources yet',
     otherLanguage: 'Other language',
-    description: 'News and practical guidance from FormaCore.',
+    metaTitle: 'Gym Management Guides and Resources | FormaCore',
+    description:
+      'Practical guides for gym and studio owners: memberships, class bookings, member retention and running the front desk, from the FormaCore team.',
   },
   ka: {
     resources: 'რესურსები',
@@ -29,7 +31,9 @@ export const dictionary = {
     next: 'შემდეგი',
     empty: 'რესურსები ჯერ არ არის',
     otherLanguage: 'სხვა ენა',
-    description: 'სიახლეები და პრაქტიკული რჩევები FormaCore-ისგან.',
+    metaTitle: 'დარბაზის მართვის რჩევები და რესურსები | FormaCore',
+    description:
+      'პრაქტიკული რჩევები დარბაზებისა და სტუდიების მფლობელებისთვის: აბონემენტები, ჯავშნები, წევრების შენარჩუნება და მიმღების მუშაობა. FormaCore-ის გუნდისგან.',
   },
 } satisfies Record<BlogLang, Record<string, string>>;
 

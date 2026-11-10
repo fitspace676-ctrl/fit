@@ -7,6 +7,7 @@ import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server
 import { isLocale } from '@fit/i18n';
 import '../globals.css';
 import { CookieConsent } from '@/components/marketing/cookie-consent';
+import { JsonLd, organizationLd } from '@/components/seo/json-ld';
 import { LeadCtaProvider } from '@/components/marketing/lead-cta-provider';
 import { SiteLoader } from '@/components/marketing/site-loader';
 import { pageMetadata } from '@/src/i18n/metadata';
@@ -42,6 +43,8 @@ const jetbrainsMono = localFont({
   weight: '400 700',
   variable: '--font-jetbrains-mono',
   display: 'swap',
+  // Small accents only; not worth competing with the hero for bandwidth.
+  preload: false,
 });
 
 /**
@@ -55,6 +58,9 @@ const notoGeorgian = localFont({
   weight: '400 900',
   variable: '--font-noto-georgian',
   display: 'swap',
+  // Not preloaded: an English page must not download it, and on a Georgian
+  // page the browser fetches it as soon as Georgian text needs it.
+  preload: false,
 });
 
 type Params = { params: Promise<{ locale: string }> };
@@ -116,6 +122,7 @@ export default async function LocaleLayout({
         <script dangerouslySetInnerHTML={{ __html: splashScript }} />
         <link rel="preload" as="image" href="/brand-mark.png" />
         <link rel="preload" as="image" href="/logo-dark.webp" />
+        <JsonLd data={organizationLd()} />
       </head>
       <body className="min-h-screen bg-surface font-sans text-fg antialiased">
         <SentryInit />
