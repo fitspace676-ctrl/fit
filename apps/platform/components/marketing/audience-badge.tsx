@@ -13,12 +13,15 @@ import { Icon } from './icons';
 export function AudienceBadge({
   audience,
   cover = false,
+  as: Tag = 'span',
 }: {
   audience: Pick<AudiencePage, 'name' | 'icon'>;
   cover?: boolean;
+  /** `h1` on an audience's own page, where its name is the page heading. */
+  as?: 'span' | 'h1';
 }) {
   return (
-    <span
+    <Tag
       className={cn(
         'relative inline-flex w-fit shrink-0 items-center gap-2.5 overflow-hidden rounded-pill py-1 pl-1 pr-4 ring-1 ring-inset ring-white/25 backdrop-blur-md',
         cover
@@ -52,7 +55,7 @@ export function AudienceBadge({
       >
         {audience.name}
       </span>
-    </span>
+    </Tag>
   );
 }
 

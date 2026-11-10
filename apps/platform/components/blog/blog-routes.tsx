@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { localeUrl, localeAlternates } from '@/src/i18n/metadata';
+import { pageMetadata, SHARE_IMAGE } from '@/src/i18n/metadata';
 import type { BlogLang, PublicBlogPost } from '@fit/types';
 import { notFound, redirect } from 'next/navigation';
 import { fetchBlogPost, fetchBlogPosts, fetchBlogTags } from '@/lib/blog';
@@ -12,12 +12,16 @@ export type BlogSearchParams = Promise<Record<string, string | string[] | undefi
 export type BlogPostParams = Promise<{ slug: string }>;
 
 export function listMetadata(lang: BlogLang): Metadata {
-  return {
-    title: `${dictionary[lang].resources} - FormaCore`,
+  const metadata = pageMetadata({
+    locale: lang,
+    path: '/resources',
+    title: dictionary[lang].metaTitle,
     description: dictionary[lang].description,
+  });
+  return {
+    ...metadata,
     alternates: {
-      canonical: localeUrl(lang, '/resources'),
-      ...localeAlternates('/resources'),
+      ...metadata.alternates,
       types: { 'application/rss+xml': `${BLOG_ORIGIN}${blogPath(lang)}/feed.xml` },
     },
   };
@@ -51,8 +55,11 @@ export async function postMetadata(params: BlogPostParams, lang: BlogLang): Prom
   const post = await resolvePost(slug, lang);
   const title = post.metaTitle ?? post.title;
   const description = post.metaDescription ?? post.excerpt ?? undefined;
-  const image = post.ogImageUrl ?? post.coverImageUrl;
+  const image = post.ogImageUrl ?? post.coverImageUrl ?? SHARE_IMAGE;
   const canonical = `${BLOG_ORIGIN}${postPath(slug, lang)}`;
+  const languages = Object.fromEntries(
+    post.availableLangs.map((language) => [language, `${BLOG_ORIGIN}${postPath(slug, language)}`]),
+  );
   return {
     title,
     description,
@@ -61,18 +68,19 @@ export async function postMetadata(params: BlogPostParams, lang: BlogLang): Prom
       title,
       description,
       url: canonical,
+      siteName: 'FormaCore',
+      locale: lang === 'ka' ? 'ka_GE' : 'en_US',
       publishedTime: post.publishAt,
       modifiedTime: post.updatedAt,
-      ...(image ? { images: [image] } : {}),
+      images: [image],
     },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
     alternates: {
       canonical,
-      languages: Object.fromEntries(
-        post.availableLangs.map((language) => [
-          language,
-          `${BLOG_ORIGIN}${postPath(slug, language)}`,
-        ]),
-      ),
+      languages: {
+        ...languages,
+        'x-default': languages.en ?? languages[post.availableLangs[0]!],
+      },
     },
   };
 }

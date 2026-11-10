@@ -638,9 +638,12 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
           <FlowBackground />
 
           <div className="relative">
-            <h1 className="max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]">
-              {page.headline}
+            <h1 className="mb-4 text-sm font-semibold tracking-wide text-white/75">
+              {page.eyebrow}
             </h1>
+            <h2 className="max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]">
+              {page.headline}
+            </h2>
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg">
               {page.subline}
             </p>

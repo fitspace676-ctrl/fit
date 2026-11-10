@@ -92,7 +92,18 @@ function Screen({
     else video.pause();
   }, [play]);
 
-  if (still) return <img src={`${src}.webp`} alt="" draggable={false} className={className} />;
+  // The laptop still is the page's Largest Contentful Paint, so the browser
+  // should ask for it ahead of everything else on the page.
+  if (still)
+    return (
+      <img
+        src={`${src}.webp`}
+        alt=""
+        draggable={false}
+        fetchPriority={name === 'admin' ? 'high' : undefined}
+        className={className}
+      />
+    );
   return (
     <video
       ref={ref}

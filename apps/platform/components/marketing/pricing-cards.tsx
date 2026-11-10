@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { PLANS } from '@/data/plans';
 import type { PlatformMessages } from '@fit/i18n/platform';
 import { useLeadCta } from './lead-cta-context';
 import { Btn, I, Icon } from './marketing-ui';
@@ -51,9 +52,9 @@ type TierMeta = {
 };
 
 export const TIER_META: readonly TierMeta[] = [
-  { id: 'studio', tone: 'iris', monthly: 219, ctaVariant: 'glassGradient' },
-  { id: 'club', tone: 'brand', monthly: 449, ctaVariant: 'primary', highlight: true },
-  { id: 'core', tone: 'accent', monthly: 649, ctaVariant: 'glassGradient' },
+  { id: 'studio', tone: 'iris', monthly: PLANS[0].monthly, ctaVariant: 'glassGradient' },
+  { id: 'club', tone: 'brand', monthly: PLANS[1].monthly, ctaVariant: 'primary', highlight: true },
+  { id: 'core', tone: 'accent', monthly: PLANS[2].monthly, ctaVariant: 'glassGradient' },
 ];
 
 /**

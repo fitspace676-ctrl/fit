@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const SITE_URL = 'https://formacore.io';
-const SHARE_IMAGE = `${SITE_URL}/og/formacore-og.jpg`;
+export const SHARE_IMAGE = `${SITE_URL}/og/formacore-og.jpg`;
 
 export function localeUrl(locale: string, path: string): string {
   return `${SITE_URL}${locale === 'ka' ? '/ka' : ''}${path === '/' ? '' : path}`;

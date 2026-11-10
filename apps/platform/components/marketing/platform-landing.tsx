@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { AuroraBackground } from '@/components/ui/aurora-background';
 import { AuroraText } from '@/components/ui/aurora-text';
@@ -64,42 +63,50 @@ const FeatureCard = ({
   icon,
   title,
   body,
+  href,
   className = 'w-80',
 }: {
   icon: string;
   title: string;
   body: string;
+  /** The module's own page; the whole card links to it. */
+  href: string;
   /** Width utility — defaults to the fixed `w-80` the marquee needs; the static
       grid passes `w-full` so cards fill their column. */
   className?: string;
 }) => (
-  <figure
-    className={`group/card relative h-full overflow-hidden rounded-card border border-overlay/10 bg-panel/70 p-5 shadow-[0_10px_30px_-14px_rgba(16,18,33,0.25)] backdrop-blur-xl transition dark:bg-overlay/[0.03] dark:shadow-none ${className}`}
+  <Link
+    href={href}
+    className="block h-full rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60"
   >
-    {/* gradient that slides up from the bottom on hover */}
-    <div className="absolute inset-0 translate-y-full bg-gradient-to-r from-brand-600 to-iris-600 transition-transform duration-300 ease-out group-hover/card:translate-y-0" />
-    {/* oversized decorative corner icon */}
-    <Icon
-      d={icon}
-      c="pointer-events-none absolute -top-10 -right-10 z-10 h-36 w-36 text-fg/[0.04] transition-transform duration-300 group-hover/card:rotate-12 group-hover/card:text-white/25"
-      sw={1.5}
-    />
-    <div className="relative z-10 flex items-center gap-3">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-btn bg-gradient-to-br from-brand-400/30 to-iris-600/20 ring-1 ring-inset ring-brand-500/20 transition-colors duration-300 group-hover/card:bg-none group-hover/card:bg-white/20 group-hover/card:ring-white/30">
-        <Icon
-          d={icon}
-          c="w-5 h-5 text-brand-600 transition-colors duration-300 dark:text-brand-300 group-hover/card:text-white"
-          sw={2}
-        />
-      </span>
-      <figcaption className="font-display text-base font-bold tracking-tight text-fg transition-colors duration-300 group-hover/card:text-white">
-        {title}
-      </figcaption>
-    </div>
-    <blockquote className="relative z-10 mt-3 text-sm text-muted leading-relaxed transition-colors duration-300 group-hover/card:text-white/80">
-      {body}
-    </blockquote>
-  </figure>
+    <figure
+      className={`group/card relative h-full overflow-hidden rounded-card border border-overlay/10 bg-panel/70 p-5 shadow-[0_10px_30px_-14px_rgba(16,18,33,0.25)] backdrop-blur-xl transition dark:bg-overlay/[0.03] dark:shadow-none ${className}`}
+    >
+      {/* gradient that slides up from the bottom on hover */}
+      <div className="absolute inset-0 translate-y-full bg-gradient-to-r from-brand-600 to-iris-600 transition-transform duration-300 ease-out group-hover/card:translate-y-0" />
+      {/* oversized decorative corner icon */}
+      <Icon
+        d={icon}
+        c="pointer-events-none absolute -top-10 -right-10 z-10 h-36 w-36 text-fg/[0.04] transition-transform duration-300 group-hover/card:rotate-12 group-hover/card:text-white/25"
+        sw={1.5}
+      />
+      <div className="relative z-10 flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-btn bg-gradient-to-br from-brand-400/30 to-iris-600/20 ring-1 ring-inset ring-brand-500/20 transition-colors duration-300 group-hover/card:bg-none group-hover/card:bg-white/20 group-hover/card:ring-white/30">
+          <Icon
+            d={icon}
+            c="w-5 h-5 text-brand-600 transition-colors duration-300 dark:text-brand-300 group-hover/card:text-white"
+            sw={2}
+          />
+        </span>
+        <figcaption className="font-display text-base font-bold tracking-tight text-fg transition-colors duration-300 group-hover/card:text-white">
+          {title}
+        </figcaption>
+      </div>
+      <blockquote className="relative z-10 mt-3 text-sm text-muted leading-relaxed transition-colors duration-300 group-hover/card:text-white/80">
+        {body}
+      </blockquote>
+    </figure>
+  </Link>
 );
 
 export default function PlatformLanding() {
@@ -115,6 +122,7 @@ export default function PlatformLanding() {
     icon: f.icon,
     title: f.name,
     body: f.summary ?? f.subline,
+    href: `/features/${f.slug}`,
   }));
   const firstRow = features.slice(0, features.length / 2);
   const secondRow = features.slice(features.length / 2);
@@ -127,10 +135,6 @@ export default function PlatformLanding() {
      identical in both themes; dedicated audience pages keep their own palette. */
   const audiences = getBuiltFor(tBuiltFor);
 
-  // Hero product showcase eases in once mounted (slide + fade), matching the
-  // member app's animated hero element without pulling in a motion dependency.
-  const [showcaseIn, setShowcaseIn] = useState(false);
-  useEffect(() => setShowcaseIn(true), []);
   // Opens the shared "Book a demo" / "Request a call" forms.
   const openLead = useLeadCta();
 
@@ -149,18 +153,18 @@ export default function PlatformLanding() {
 
         <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-36 lg:pb-10">
           <div className="grid items-center gap-10 lg:grid-cols-2">
-            {/* left: copy — slides in from the left (linear) */}
-            <div
-              className={`text-left transition-all duration-1000 ease-linear ${
-                showcaseIn ? 'translate-x-0 opacity-100' : '-translate-x-16 opacity-0'
-              }`}
-            >
-              <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
+            {/* left: copy, visible from the first paint (it is the page's main
+                content for search engines and for the LCP) */}
+            <div className="text-left">
+              <h1 className="mb-4 text-sm font-semibold tracking-wide text-white/75">
+                {t('hero.eyebrow')}
+              </h1>
+              <h2 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
                 {t('hero.titleLead')}{' '}
                 <AuroraText colors={['#B8DDFF', '#67D9F8', '#7CC4FF']}>
                   {t('hero.titleAccent')}
                 </AuroraText>
-              </h1>
+              </h2>
               <p className="mt-6 text-lg text-white/80 max-w-xl leading-relaxed">
                 {t('hero.body')}
               </p>
@@ -200,18 +204,20 @@ export default function PlatformLanding() {
 
         <div className="relative z-10 w-full max-w-[1180px] mx-auto px-6 lg:px-10 pt-28 pb-10">
           <div className="grid items-center gap-10 lg:grid-cols-2">
-            {/* left: copy — slides in from the left (linear) */}
-            <div
-              className={`text-left transition-all duration-1000 ease-linear ${
-                showcaseIn ? 'translate-x-0 opacity-100' : '-translate-x-16 opacity-0'
-              }`}
-            >
-              <h1 className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
+            {/* left: copy, visible from the first paint (it is the page's main
+                content for search engines and for the LCP) */}
+            <div className="text-left">
+              {/* The light hero above holds the page's headings; this copy repeats
+                  them for dark mode, so plain elements keep one H1 in the HTML. */}
+              <p className="mb-4 text-sm font-semibold tracking-wide text-muted">
+                {t('hero.eyebrow')}
+              </p>
+              <p className="font-display text-[2.75rem] sm:text-[3.5rem] lg:text-[4rem] font-black tracking-tight leading-[0.95]">
                 {t('hero.titleLead')}{' '}
                 <AuroraText colors={['#7CC4FF', '#67D9F8', '#93B4FD']}>
                   {t('hero.titleAccent')}
                 </AuroraText>
-              </h1>
+              </p>
               <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">{t('hero.body')}</p>
               <div className="flex flex-wrap items-center gap-3 mt-9">
                 <Btn v="primary" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
@@ -315,6 +321,13 @@ export default function PlatformLanding() {
                     <Icon d={I.handset} c="h-4 w-4" />
                     {tCommon('cta.requestCall')}
                   </button>
+                  <Link
+                    href={`/built-for/${a.slug}`}
+                    className="inline-flex h-11 items-center gap-1.5 rounded-btn px-3 text-sm font-semibold text-white/90 underline-offset-4 transition hover:text-white hover:underline"
+                  >
+                    {tBuiltFor('hub.explore', { name: a.name })}
+                    <Icon d={I.arrow} c="h-4 w-4" />
+                  </Link>
                 </div>
 
                 {/* stats strip */}
