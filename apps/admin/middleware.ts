@@ -130,7 +130,28 @@ function redirectTo(req: NextRequest, path: string): NextResponse {
 function forward(req: NextRequest): NextResponse {
   const headers = new Headers(req.headers);
   headers.set(CONSOLE_PATHNAME_HEADER, req.nextUrl.pathname);
+  if (isRootRscRequest(req)) {
+    const target = req.nextUrl.clone();
+    target.pathname = '/index';
+    return NextResponse.rewrite(target, { request: { headers } });
+  }
   return NextResponse.next({ request: { headers } });
+}
+
+/**
+ * The dashboard's RSC request: the basePath root (`/admin`) asked for by
+ * `router.refresh()` or a client navigation.
+ *
+ * On Vercel that request is looked up as `/admin.rsc`, which sits outside the
+ * basePath and 404s; the router answers a 404 by loading the whole page again.
+ * With the dashboard's live polling (`useLiveRefresh`), the console reloaded
+ * itself every interval and on every return to the tab. The same payload is
+ * served at `/admin/index` (`/index.rsc`), so the root's RSC request is
+ * rewritten there. The address bar does not change, and HTML loads of `/admin`
+ * are left alone.
+ */
+function isRootRscRequest(req: NextRequest): boolean {
+  return req.nextUrl.pathname === '/' && req.headers.get('rsc') === '1';
 }
 
 /**
