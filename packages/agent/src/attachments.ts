@@ -14,10 +14,17 @@ function isSpreadsheet(a: AgentAttachment): boolean {
   return /spreadsheet|ms-excel|excel/i.test(a.mimeType) || /\.(xlsx|xls|xlsm)$/i.test(a.name);
 }
 
+/**
+ * Image types both providers take. Anything else (HEIC from an iPhone, SVG,
+ * TIFF…) is a 400 on at least one of them — and a fallback can switch provider
+ * mid-request, so only the common set goes through.
+ */
+const MODEL_IMAGES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+
 /** MIME types the models take inline as-is (images, PDF, text-family). */
 function isModelReady(mimeType: string): boolean {
   return (
-    mimeType.startsWith('image/') ||
+    MODEL_IMAGES.has(mimeType) ||
     mimeType === 'application/pdf' ||
     mimeType.startsWith('text/') ||
     mimeType === 'application/json'
@@ -58,7 +65,7 @@ export function normalizeAttachments(attachments: AgentAttachment[]): AgentAttac
       name: a.name,
       mimeType: 'text/plain',
       data: encodeText(
-        `[Unsupported file "${a.name}" (${a.mimeType}). Ask the user for CSV, PDF, an image, or plain text.]`,
+        `[Unsupported file "${a.name}" (${a.mimeType}). Ask the user for CSV, PDF, a PNG/JPEG image, or plain text.]`,
       ),
     };
   });

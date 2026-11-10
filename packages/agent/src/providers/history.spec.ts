@@ -39,3 +39,32 @@ describe('replayed tool calls without text', () => {
     });
   });
 });
+
+describe('blank user turns', () => {
+  const png = { name: 'a.png', mimeType: 'image/png', data: 'AAAA' };
+  const blank: AgentHistoryMessage[] = [
+    { role: 'user', text: '' },
+    { role: 'assistant', text: 'ok', toolCalls: [] },
+    { role: 'user', text: '', attachments: [png] },
+  ];
+
+  it('never send Claude an empty text block', () => {
+    const messages = toAnthropicMessages(blank);
+    expect(messages[0]).toEqual({ role: 'user', content: '(no text)' });
+    expect(messages[2]).toEqual({
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+      ],
+    });
+  });
+
+  it('never send Gemini an empty text part', () => {
+    const contents = toGeminiContents(blank);
+    expect(contents[0]).toEqual({ role: 'user', parts: [{ text: '(no text)' }] });
+    expect(contents[2]).toEqual({
+      role: 'user',
+      parts: [{ inlineData: { mimeType: 'image/png', data: 'AAAA' } }],
+    });
+  });
+});

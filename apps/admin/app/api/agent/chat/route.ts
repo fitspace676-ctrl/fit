@@ -42,7 +42,18 @@ export async function POST(request: Request): Promise<Response> {
       authorization: `Bearer ${token}`,
     },
     body,
-  });
+    // The operator's Stop aborts the browser's request; pass it on so the API
+    // drops the turn instead of finishing it unseen.
+    signal: request.signal,
+  }).catch(() => null);
+  if (!upstream) {
+    // Stopped by the operator, or the API is unreachable — the console reads
+    // the code either way, instead of an unhandled-route 500.
+    return new Response(JSON.stringify({ code: 'agent_failed' }), {
+      status: 502,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
 
   // Stream the API's NDJSON response through to the browser unchanged.
   return new Response(upstream.body, {
