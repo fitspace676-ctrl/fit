@@ -133,7 +133,10 @@ function forward(req: NextRequest): NextResponse {
   if (isRootRscRequest(req)) {
     const target = req.nextUrl.clone();
     target.pathname = '/index';
-    return NextResponse.rewrite(target, { request: { headers } });
+    const res = NextResponse.rewrite(target, { request: { headers } });
+    // Lets a production check confirm the rewrite ran (it is invisible otherwise).
+    res.headers.set('x-console-rewrite', 'index');
+    return res;
   }
   return NextResponse.next({ request: { headers } });
 }
@@ -149,9 +152,15 @@ function forward(req: NextRequest): NextResponse {
  * served at `/admin/index` (`/index.rsc`), so the root's RSC request is
  * rewritten there. The address bar does not change, and HTML loads of `/admin`
  * are left alone.
+ *
+ * Detected by the `_rsc` cache-busting query as well as the `RSC` header: on
+ * Vercel the header does not reach the middleware for this request (the first
+ * version keyed on it alone and never fired), but the client puts `_rsc` on
+ * every RSC fetch and a plain page load never carries it.
  */
 function isRootRscRequest(req: NextRequest): boolean {
-  return req.nextUrl.pathname === '/' && req.headers.get('rsc') === '1';
+  if (req.nextUrl.pathname !== '/') return false;
+  return req.headers.get('rsc') === '1' || req.nextUrl.searchParams.has('_rsc');
 }
 
 /**

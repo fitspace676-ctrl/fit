@@ -147,6 +147,15 @@ describe('admin middleware — the dashboard’s RSC request', () => {
     expect(rewrite.pathname).toBe('/index');
     expect(rewrite.searchParams.get('_rsc')).toBe('abc');
     expect(res.headers.get('location')).toBeNull();
+    expect(res.headers.get('x-console-rewrite')).toBe('index');
+  });
+
+  it('recognises the root RSC request by its `_rsc` query alone', async () => {
+    const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'downtown' });
+    const res = await middleware(request('/?_rsc=abc', `accessToken=${token}`));
+    expect(new URL(res.headers.get('x-middleware-rewrite') ?? 'about:blank').pathname).toBe(
+      '/index',
+    );
   });
 
   it('leaves the HTML load of the root and other RSC requests alone', async () => {
