@@ -41,7 +41,10 @@ describe('platform sitemap', () => {
     }
     expect(
       entries.find(({ url }) => url.endsWith('/ka/resources/georgian-only'))?.alternates?.languages,
-    ).toEqual({ ka: 'https://formacore.io/ka/resources/georgian-only' });
+    ).toEqual({
+      ka: 'https://formacore.io/ka/resources/georgian-only',
+      'x-default': 'https://formacore.io/ka/resources/georgian-only',
+    });
     expect(entries.some(({ url }) => url === 'https://formacore.io/resources/georgian-only')).toBe(
       false,
     );
@@ -50,6 +53,16 @@ describe('platform sitemap', () => {
     ).toEqual({
       ka: 'https://formacore.io/ka/resources/bilingual',
       en: 'https://formacore.io/resources/bilingual',
+      'x-default': 'https://formacore.io/resources/bilingual',
     });
+  });
+
+  it('still lists the static pages when the blog API fails', async () => {
+    vi.mocked(fetchBlogIndex).mockRejectedValue(new Error('Blog API failed: 503'));
+    const entries = await sitemap();
+    expect(entries.map(({ url }) => url)).toEqual(
+      expect.arrayContaining(['https://formacore.io', 'https://formacore.io/ka/pricing']),
+    );
+    expect(entries.some(({ url }) => url.includes('/resources/'))).toBe(false);
   });
 });

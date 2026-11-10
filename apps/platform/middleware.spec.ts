@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import middleware, { COUNTRY_HEADER, LOCALE_COOKIE, georgianRedirect } from './middleware';
 
-function request(path: string, init: { country?: string; cookie?: string; method?: string } = {}) {
+function request(
+  path: string,
+  init: { country?: string; cookie?: string; method?: string; ua?: string } = {},
+) {
   const headers = new Headers();
+  if (init.ua) headers.set('user-agent', init.ua);
   if (init.country) headers.set(COUNTRY_HEADER, init.country);
   if (init.cookie) headers.set('cookie', `${LOCALE_COOKIE}=${init.cookie}`);
   return new NextRequest(new URL(path, 'https://formacore.io'), {
@@ -31,6 +35,22 @@ describe('georgianRedirect', () => {
     expect(georgianRedirect(request('/', { country: 'GE', cookie: 'ka' }))?.pathname).toBe('/ka');
   });
 
+  it('never redirects search engines or link-preview bots', () => {
+    for (const ua of [
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+      'facebookexternalhit/1.1',
+      'LinkedInBot/1.0',
+      'Twitterbot/1.0',
+    ]) {
+      expect(georgianRedirect(request('/pricing', { country: 'GE', ua }))).toBeNull();
+    }
+    const browser = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131';
+    expect(georgianRedirect(request('/pricing', { country: 'GE', ua: browser }))?.pathname).toBe(
+      '/ka/pricing',
+    );
+  });
+
   it('leaves Georgian pages, files and non-page requests alone', () => {
     expect(georgianRedirect(request('/ka/pricing', { country: 'GE' }))).toBeNull();
     expect(georgianRedirect(request('/resources/feed.xml', { country: 'GE' }))).toBeNull();
@@ -43,6 +63,7 @@ describe('middleware', () => {
     const response = middleware(request('/built-for', { country: 'GE' }));
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('https://formacore.io/ka/built-for');
+    expect(response.headers.get('vary')).toContain(COUNTRY_HEADER);
   });
 
   it('hands everyone else to the locale routing', () => {

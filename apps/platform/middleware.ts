@@ -15,6 +15,13 @@ export const COUNTRY_HEADER = 'x-vercel-ip-country';
 export const LOCALE_COOKIE = 'NEXT_LOCALE';
 
 /**
+ * Search engines and link-preview bots always get the page the URL names, so the
+ * English pages stay crawlable and shareable from a Georgian IP too.
+ */
+const BOT =
+  /bot|crawl|spider|slurp|facebookexternalhit|facebookcatalog|embedly|whatsapp|telegram|skype|vkshare|pinterest|lighthouse|preview/i;
+
+/**
  * Where a visitor from Georgia should go instead of an English page, or `null`
  * to serve the URL as asked. Only unprefixed (English) page URLs are moved, and
  * never once the visitor has picked English with the switcher. Elsewhere, and
@@ -23,6 +30,7 @@ export const LOCALE_COOKIE = 'NEXT_LOCALE';
 export function georgianRedirect(request: NextRequest): URL | null {
   if (request.method !== 'GET' && request.method !== 'HEAD') return null;
   if (request.headers.get(COUNTRY_HEADER)?.toUpperCase() !== 'GE') return null;
+  if (BOT.test(request.headers.get('user-agent') ?? '')) return null;
   if (request.cookies.get(LOCALE_COOKIE)?.value === 'en') return null;
 
   const { pathname, search } = request.nextUrl;
@@ -38,7 +46,10 @@ export function georgianRedirect(request: NextRequest): URL | null {
 
 export default function middleware(request: NextRequest) {
   const target = georgianRedirect(request);
-  return target ? NextResponse.redirect(target, 307) : intl(request);
+  const response = target ? NextResponse.redirect(target, 307) : intl(request);
+  // The answer to an English URL depends on these, so no cache may share it.
+  response.headers.append('Vary', `${COUNTRY_HEADER}, Cookie, User-Agent`);
+  return response;
 }
 
 export const config = {
