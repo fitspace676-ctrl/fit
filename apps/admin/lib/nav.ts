@@ -86,7 +86,7 @@ export type NavIcon =
  * route does — see that file for why.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { labelKey: 'nav.dashboard', href: '/', icon: 'dashboard' },
+  { labelKey: 'nav.dashboard', href: '/dashboard', icon: 'dashboard' },
   {
     labelKey: 'nav.members',
     href: '/members',
@@ -205,7 +205,7 @@ export interface NavGroup {
  * own hub sub-tabs) mirrors the reference admin while keeping our grouped rail.
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
-  { labelKey: 'navGroups.overview', hrefs: ['/'] },
+  { labelKey: 'navGroups.overview', hrefs: ['/dashboard'] },
   { labelKey: 'navGroups.people', hrefs: ['/members', '/trainers', '/staff'] },
   { labelKey: 'navGroups.operations', hrefs: ['/classes'] },
   { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/services', '/pos'] },

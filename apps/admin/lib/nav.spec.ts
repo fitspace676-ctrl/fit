@@ -137,8 +137,11 @@ describe('sidebar nav ⇄ route guards', () => {
     // capability itself and renders the rest of the dashboard without it.
     expect(routeGuardForPath('/')?.permission).toBeUndefined();
     expect(routeGuardForPath('/admin')?.permission).toBeUndefined();
+    expect(routeGuardForPath('/dashboard')).not.toBeNull();
+    expect(routeGuardForPath('/dashboard')?.permission).toBeUndefined();
+    expect(routeGuardForPath('/admin/dashboard')?.permission).toBeUndefined();
     for (const role of ['RECEPTIONIST', 'TRAINER'] as Role[]) {
-      expect(defaultNav(role)).toContain('/');
+      expect(defaultNav(role)).toContain('/dashboard');
     }
     // …and the destination the row really governs is gated.
     expect(routeGuardForPath('/reports')?.permission).toBe(Permission.ReportView);

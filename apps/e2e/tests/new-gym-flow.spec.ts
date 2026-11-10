@@ -203,7 +203,7 @@ test.describe('A new gym, from provisioning to its first member', () => {
     await page.locator('input[name="password"]').fill(owner.password);
     await page.locator('form button[type="submit"]').click();
     await page.waitForURL((url) => !url.pathname.startsWith('/admin/login'), { timeout: 60_000 });
-    await expect(page).toHaveURL(new RegExp(`^${escapeRegExp(NEW_GYM)}/admin/?(\\?|$)`));
+    await expect(page).toHaveURL(new RegExp(`^${escapeRegExp(NEW_GYM)}/admin/dashboard/?(\\?|$)`));
 
     const access = await cookieFor(ownerContext, NEW_GYM, ACCESS_COOKIE);
     expect(access, 'the console sign-in left a session on the gym host').toBeDefined();

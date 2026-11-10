@@ -16,7 +16,7 @@ import { getTranslations } from 'next-intl/server';
 import { getServerSession } from '@/lib/session';
 import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchDashboardOverview } from '@/lib/api';
-import { SegmentedDashboard } from './segments/segmented-dashboard';
+import { SegmentedDashboard } from '../segments/segmented-dashboard';
 
 const styles = stylex.create({
   stack: {
