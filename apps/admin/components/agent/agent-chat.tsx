@@ -7,10 +7,11 @@
 // transcript and a composer. Turns stream in over NDJSON from `/api/agent/chat`
 // via `useAgentChat`; the tool-call chrome lives in `tool-calls.tsx`.
 //
-// The look follows the FormaCore console: warm ink monochrome, the one blue
-// only on the primary action (send, approve) and the live-status dot, the
-// operator's own messages as inverted ink blocks. Every colour is a theme token,
-// so the panel follows the console into dark mode.
+// The look follows the FormaCore console: warm ink monochrome, with the gym's
+// accent on the launcher, the agent badge, the primary actions (send, approve)
+// and the live-status dot; the operator's own messages are inverted ink blocks.
+// Every colour is a theme token, so the panel follows the gym's chosen accent
+// and the console into dark mode.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -73,7 +74,7 @@ function readAttachment(file: File): Promise<ChatAttachment> {
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
 const styles = stylex.create({
-  // Launcher — an inverted ink pill with the blue spark disc.
+  // Launcher — a pill in the gym's accent, with a lighter disc for the spark.
   launcher: {
     position: 'fixed',
     insetBlockEnd: '1.5rem',
@@ -87,8 +88,11 @@ const styles = stylex.create({
     paddingInlineEnd: '1rem',
     borderRadius: 'var(--radius-full)',
     borderWidth: 0,
-    backgroundColor: 'var(--color-text-primary)',
-    color: 'var(--color-background-surface)',
+    backgroundColor: {
+      default: 'var(--color-accent)',
+      ':hover': 'color-mix(in srgb, var(--color-accent) 88%, var(--color-on-accent))',
+    },
+    color: 'var(--color-on-accent)',
     boxShadow: 'var(--shadow-high)',
     cursor: 'pointer',
     fontFamily: 'var(--font-family-body)',
@@ -112,7 +116,7 @@ const styles = stylex.create({
     width: '1.75rem',
     height: '1.75rem',
     borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent)',
+    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 18%, transparent)',
     color: 'var(--color-on-accent)',
   },
   launcherIcon: { width: '1rem', height: '1rem' },
@@ -123,7 +127,7 @@ const styles = stylex.create({
     borderRadius: '0.375rem',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: 'color-mix(in srgb, var(--color-background-surface) 30%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--color-on-accent) 35%, transparent)',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.625rem',
     opacity: 0.75,
@@ -180,8 +184,8 @@ const styles = stylex.create({
     height: '2.5rem',
     flexShrink: 0,
     borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-text-primary)',
-    color: 'var(--color-background-surface)',
+    backgroundColor: 'var(--color-accent)',
+    color: 'var(--color-on-accent)',
   },
   headerBadgeIcon: { width: '1.25rem', height: '1.25rem' },
   headerText: { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 },
@@ -601,8 +605,8 @@ const styles = stylex.create({
     width: '3rem',
     height: '3rem',
     borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--fc-ghost)',
-    color: 'var(--color-icon-primary)',
+    backgroundColor: 'var(--color-accent-muted)',
+    color: 'var(--color-icon-accent)',
   },
   emptyBadgeIcon: { width: '1.5rem', height: '1.5rem' },
   emptyTitle: {
