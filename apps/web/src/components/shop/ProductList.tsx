@@ -56,18 +56,9 @@ export interface ProductListProps {
   onCart: (cart: CartView) => void;
 }
 
-/**
- * The gym's catalogue as a stack of product rows, headed by the product count.
- * Each row is told how many units of its product the cart already holds — summed
- * across that product's lines, since a product with variants can occupy more
- * than one — so the row's control can show a stepper instead of an add button.
- */
+/** The catalogue shares the live cart so each selected variant has its own quantity. */
 export function ProductList({ products, cart, onCart }: ProductListProps) {
   const t = useTranslations('shop');
-
-  /** Units of one product in the cart, across every variant line of it. */
-  const unitsOf = (productId: string) =>
-    cart.items.reduce((sum, item) => (item.productId === productId ? sum + item.qty : sum), 0);
 
   return (
     <section {...stylex.props(styles.section)}>
@@ -79,7 +70,7 @@ export function ProductList({ products, cart, onCart }: ProductListProps) {
       <ul aria-label={t('grid.label')} {...stylex.props(styles.list)}>
         {products.map((product) => (
           <li key={product.id}>
-            <ProductRow product={product} qty={unitsOf(product.id)} onCart={onCart} />
+            <ProductRow product={product} cart={cart} onCart={onCart} />
           </li>
         ))}
       </ul>
