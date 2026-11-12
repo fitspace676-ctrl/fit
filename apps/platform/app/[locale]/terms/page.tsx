@@ -55,7 +55,7 @@ function TermsEn() {
         FormaCore is a multi-tenant Wellness &amp; Leisure Management SaaS platform for gyms,
         fitness studios, spas, salons, and similar businesses. The Service includes an admin panel
         (member management, class scheduling, payments, POS, staff management, CRM, automation,
-        marketing, and reporting modules), a self-service Member Portal, and — once released —
+        marketing, and reporting modules), a self-service Member Portal, and - once released -
         mobile applications for iOS and Android.
       </p>
       <p>
