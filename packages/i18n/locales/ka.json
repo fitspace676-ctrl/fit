@@ -1865,7 +1865,7 @@
       "roles": {
         "OWNER": "მფლობელი",
         "MANAGER": "მენეჯერი",
-        "RECEPTIONIST": "ადმინისტრატორი",
+        "RECEPTIONIST": "მიმღები",
         "TRAINER": "მწვრთნელი"
       },
       "status": {
