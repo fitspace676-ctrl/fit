@@ -47,7 +47,9 @@ function TermsEn() {
       <p>
         By creating an account or using the Service, you (&quot;Customer,&quot; &quot;you&quot;)
         agree to be bound by these Terms. If you are entering into these Terms on behalf of a
-        business, you represent that you have authority to bind that business.
+        business, you represent that you have authority to bind that business. If you have signed a
+        service agreement with FormaCore, that agreement forms part of these Terms and prevails over
+        them in case of conflict.
       </p>
 
       <h2>1. The Service</h2>
@@ -55,7 +57,7 @@ function TermsEn() {
         FormaCore is a multi-tenant Wellness &amp; Leisure Management SaaS platform for gyms,
         fitness studios, spas, salons, and similar businesses. The Service includes an admin panel
         (member management, class scheduling, payments, POS, staff management, CRM, automation,
-        marketing, and reporting modules), a self-service Member Portal, and — once released —
+        marketing, and reporting modules), a self-service Member Portal, and - once released -
         mobile applications for iOS and Android.
       </p>
       <p>
@@ -74,26 +76,44 @@ function TermsEn() {
       <h2>3. Subscription, Billing, and Pricing</h2>
       <ul className="list-disc space-y-2 pl-6">
         <li>
-          FormaCore is offered on a per-location subscription pricing model, published transparently
-          and not subject to undisclosed or retroactive repricing during an active subscription
-          term.
+          FormaCore is offered on a per-location subscription pricing model. The plan, locations,
+          fees and billing period are set out in the service agreement signed with Customer.
         </li>
         <li>
-          Fees are billed in advance on a recurring basis as specified at signup or in your order
-          form.
+          Subscriptions are concluded for a term of 12 months, unless the service agreement states
+          otherwise, and renew automatically for the same term unless either party gives written
+          notice at least 30 days before the end of the current term.
         </li>
         <li>
-          Accepted payment methods include cash and, once integrated, card/bank payments via Bank of
-          Georgia and/or TBC Bank. You authorize us (or our payment processor) to charge your
-          designated payment method for card/bank payments.
+          Fees are invoiced in advance at the start of each billing period and are payable within 14
+          days of the invoice date.
         </li>
         <li>
-          Failure to pay may result in suspension or termination of access, subject to reasonable
-          notice.
+          Fees are stated in GEL and exclude VAT and other applicable taxes, unless stated
+          otherwise.
         </li>
-        <li>Future price changes will be communicated with reasonable advance notice.</li>
         <li>
-          Except as required by law or expressly stated in an order form, fees are non-refundable.
+          Accepted payment methods are bank transfer and online payment. For online payments, you
+          authorize us (or our payment processor) to charge your designated payment method.
+        </li>
+        <li>
+          If an invoice is not paid within 14 days, access to the Service is blocked until payment
+          is received. Customer data is retained unchanged during this period. Blocking does not
+          release Customer from its payment obligations.
+        </li>
+        <li>
+          Upon renewal, fees may be indexed by up to 10%, no more than once every 12 months, with at
+          least 30 days&apos; written notice. No other price increases apply during a subscription
+          term. Additional locations, add-ons or services requested by Customer are charged
+          separately at the price agreed at the time of the request.
+        </li>
+        <li>
+          If Customer terminates or stops using the Service before the end of the subscription term,
+          the fees for the remaining term remain payable in full.
+        </li>
+        <li>
+          Except as required by law or expressly stated in the service agreement, fees are
+          non-refundable.
         </li>
       </ul>
 
@@ -143,7 +163,8 @@ function TermsEn() {
       <p>
         The Service integrates with third-party providers, including payment processing and
         AI-assisted features. Use of these integrated features may be subject to the applicable
-        third party&apos;s own terms, to the extent disclosed to you.
+        third party&apos;s own terms, to the extent disclosed to you. Outputs of AI-assisted
+        features are suggestions only; Customer should review them before acting on them.
       </p>
 
       <h2>8. Mobile Applications</h2>
@@ -158,8 +179,7 @@ function TermsEn() {
       <h2>9. Service Availability</h2>
       <p>
         We aim to provide reliable access but do not guarantee uninterrupted or error-free
-        operation. Planned maintenance will be communicated in advance where practicable. Specific
-        uptime commitments, if any, are set out in a separate SLA for eligible plans.
+        operation. Planned maintenance will be communicated in advance where practicable.
       </p>
 
       <h2>10. Term and Termination</h2>
@@ -167,8 +187,10 @@ function TermsEn() {
         These Terms remain in effect for as long as you maintain an active subscription. Either
         party may terminate for the other&apos;s material breach if not cured within a reasonable
         period after notice. We may suspend or terminate immediately for violations of Section 5 or
-        non-payment. Upon termination, Customer&apos;s access ends; data export/deletion follows
-        Section 4 and the DPA.
+        non-payment. Termination or discontinued use by Customer, other than for our uncured
+        material breach, does not release Customer from paying the fees for the remaining
+        subscription term under Section 3. Upon termination, Customer&apos;s access ends; data
+        export/deletion follows Section 4 and the DPA.
       </p>
 
       <h2>11. Disclaimers</h2>
@@ -196,24 +218,53 @@ function TermsEn() {
       <h2>14. Governing Law and Disputes</h2>
       <p>
         These Terms are governed by the laws of Georgia. Any disputes arising under these Terms are
-        subject to the jurisdiction of the competent courts of Georgia, unless mandatory local law
-        applicable to Customer requires otherwise.
+        subject to the jurisdiction of Tbilisi City Court.
       </p>
 
       <h2>15. Changes to These Terms</h2>
       <p>
         We may update these Terms from time to time. Material changes will be communicated via email
-        or in-app notice with reasonable advance notice before taking effect. Continued use after
-        changes take effect constitutes acceptance.
+        or in-app notice at least 30 days before taking effect. Continued use after changes take
+        effect constitutes acceptance.
       </p>
 
-      <h2>16. Contact</h2>
+      <h2>16. Confidentiality</h2>
       <p>
-        FormaCore
+        Each party will keep confidential any non-public business, technical or financial
+        information received from the other party in connection with the Service, including pricing,
+        discounts, business figures and product information, and will use it only to perform these
+        Terms. This does not apply to information that is public, already known to the recipient,
+        independently developed, or required to be disclosed by law. These obligations continue for
+        3 years after termination. Personal data of Members is governed by the{' '}
+        <Link href="/dpa">DPA</Link>.
+      </p>
+
+      <h2>17. Force Majeure</h2>
+      <p>
+        Neither party is liable for delays or failures caused by events beyond its reasonable
+        control.
+      </p>
+
+      <h2>18. General Provisions</h2>
+      <p>
+        If any provision of these Terms is found invalid, the remaining provisions stay in force.
+        Customer may not assign its rights or obligations without our prior written consent; we may
+        assign them to a successor in connection with a merger, acquisition or sale of our business.
+        All notices and communication under these Terms are made by email. FormaCore&apos;s address
+        is <a href="mailto:info@formacore.io">info@formacore.io</a>; Customer&apos;s address is the
+        one stated in the service agreement or account. A notice is considered received on the
+        business day after it is sent. These Terms are published in Georgian and English; if the
+        versions differ, the Georgian version prevails.
+      </p>
+
+      <h2>19. Contact</h2>
+      <p>
+        FormaCore LLC
         <br />
-        Georgia, Tbilisi, Zaza Panaskertel-Tsitsishvili Street, Building 1, Apartment 180
+        Email (for all communication): <a href="mailto:info@formacore.io">info@formacore.io</a>
         <br />
-        Email: <a href="mailto:info@formacore.io">info@formacore.io</a>
+        Registered address: Georgia, Tbilisi, Zaza Panaskertel-Tsitsishvili Street, Building 1,
+        Apartment 180
       </p>
     </>
   );
