@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import BuiltForPage from '@/components/marketing/built-for-page';
 import { BUILT_FOR_SLUGS, getAudience } from '@/data/built-for';
+import { JsonLd, breadcrumbLd } from '@/components/seo/json-ld';
 import { pageMetadata } from '@/src/i18n/metadata';
 
 type Params = { params: Promise<{ locale: string; slug: string }> };
@@ -35,5 +36,17 @@ export default async function Page({ params }: Params) {
   const t = await getTranslations('builtFor');
   const audience = getAudience(t, slug);
   if (!audience) notFound();
-  return <BuiltForPage audience={audience} />;
+  const tCommon = await getTranslations('common');
+  return (
+    <>
+      <JsonLd
+        data={breadcrumbLd(locale, [
+          { name: 'FormaCore', path: '/' },
+          { name: tCommon('nav.items.builtFor'), path: '/built-for' },
+          { name: audience.name, path: `/built-for/${slug}` },
+        ])}
+      />
+      <BuiltForPage audience={audience} />
+    </>
+  );
 }

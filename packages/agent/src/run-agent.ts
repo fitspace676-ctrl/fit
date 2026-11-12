@@ -70,6 +70,11 @@ export interface RunAgentOptions {
   attachments?: AgentAttachment[];
   onFallback?: (from: AgentModel, to: AgentModel, reason: string) => void;
   /**
+   * Fires when the operator stops the turn (the browser went away). The loop
+   * then runs nothing further — not even an approved write — and emits nothing.
+   */
+  signal?: AbortSignal;
+  /**
    * Tool domains + always-on core. Defaults to the catalog @fit/mcp exports;
    * `null` (or a catalog with no domains) loads every tool up front.
    */
@@ -151,6 +156,18 @@ function callKey(call: AgentToolCall): string {
   return `${call.name}\u0000${JSON.stringify(stable(call.input))}`;
 }
 
+/** Shown under a reply the model ran out of output tokens on. */
+function truncatedNotice(droppedCalls: boolean, locale?: 'ka' | 'en'): string {
+  if (locale === 'en') {
+    return droppedCalls
+      ? '\n\n_The reply was cut off before the action was complete, so nothing was run. Try asking for it in smaller steps._'
+      : '\n\n_The reply was cut off. Ask me to continue._';
+  }
+  return droppedCalls
+    ? '\n\n_პასუხი ქმედების დასრულებამდე შეწყდა, ამიტომ არაფერი შესრულებულა. სცადე ნაწილ-ნაწილ მოთხოვნა._'
+    : '\n\n_პასუხი შეწყდა. გასაგრძელებლად მომწერე._';
+}
+
 /** The step-limit notice, so a turn that ran out never just stops mid-thought. */
 function stepLimitNotice(done: string[], locale?: 'ka' | 'en'): string {
   const list = [...new Set(done)].join(', ');
@@ -202,8 +219,13 @@ export async function runAgentLoop(args: {
   createDriver: (model: AgentModel) => ModelDriver;
   spares?: AgentModel[];
 }): Promise<void> {
-  const { messages, model, emit, options, client } = args;
+  const { messages, model, options, client } = args;
   const locale = options.context?.locale;
+  const signal = options.signal;
+  // Once the operator has gone, nothing is left to read the stream.
+  const emit = (event: AgentStreamEvent): void => {
+    if (!signal?.aborted) args.emit(event);
+  };
 
   // The requested model, plus a spare from every other configured provider. A
   // rejected key or a provider outage then costs a pricier turn instead of the
@@ -248,12 +270,14 @@ export async function runAgentLoop(args: {
 
   // Blank assistant turns (a reply that was only a tool card) carry nothing,
   // and both providers reject an empty assistant message.
+  // A blank user turn (files only) stays, as `''` — each driver puts a
+  // placeholder in rather than the empty text block the providers reject.
   const history: AgentHistoryMessage[] = messages
     .filter((m) => m.role === 'user' || m.content.trim() !== '')
     .map((m) =>
       m.role === 'assistant'
         ? { role: 'assistant', text: m.content, toolCalls: [] }
-        : { role: 'user', text: m.content },
+        : { role: 'user', text: m.content.trim() },
     );
   // Attach the uploaded files to the latest user turn, if any. Normalize first
   // so the model only ever sees types it accepts (xlsx → CSV, etc.).
@@ -300,6 +324,9 @@ export async function runAgentLoop(args: {
           : { ...base, status: 'complete', durationMs: 0, resultSummary: domainTitles(res.opened) },
       );
       return { id: call.id, name: call.name, output: res.output, isError: res.isError };
+    }
+    if (signal?.aborted) {
+      return { id: call.id, name: call.name, output: 'Stopped by the operator.', isError: true };
     }
     const key = callKey(call);
     if ((failures.get(key) ?? 0) >= MAX_REPEAT_FAILURES) {
@@ -399,9 +426,15 @@ export async function runAgentLoop(args: {
   const streamTurn = async (): Promise<ModelTurn> => {
     for (;;) {
       try {
-        return await driver.runTurn({ system, tools: toolbox.visible(), history, onDelta });
+        return await driver.runTurn({
+          system,
+          tools: toolbox.visible(),
+          history,
+          onDelta,
+          ...(signal ? { signal } : {}),
+        });
       } catch (err) {
-        const spare = streamed ? undefined : spares.shift();
+        const spare = streamed || signal?.aborted ? undefined : spares.shift();
         if (!spare) throw err;
         options.onFallback?.(active, spare, err instanceof Error ? err.message : 'unknown');
         driver = args.createDriver(spare);
@@ -411,14 +444,45 @@ export async function runAgentLoop(args: {
   };
 
   let finished = false;
+  /** Whether this request has shown the operator anything (text or a tool). */
+  let shown = (options.approvals?.length ?? 0) > 0;
+  /** A malformed call (Gemini) is retried once before it is reported. */
+  let retriedMalformed = false;
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
+    if (signal?.aborted) return;
     const turn = await streamTurn();
+    if (streamed) shown = true;
     streamed = false;
+    if (signal?.aborted) return;
 
-    if (turn.toolCalls.length === 0) {
+    // Cut off mid-reply: a tool call in it may be missing arguments, so none of
+    // them runs or goes up for approval.
+    if (turn.stop === 'max_tokens') {
+      emit({ t: 'delta', v: truncatedNotice(turn.toolCalls.length > 0, locale) });
       finished = true;
       break;
     }
+
+    if (turn.toolCalls.length === 0) {
+      if (turn.stop === 'malformed' && !turn.text && !retriedMalformed) {
+        retriedMalformed = true;
+        continue;
+      }
+      // Nothing at all came back (a malformed call, a safety stop, an empty
+      // candidate) — say so rather than leave an empty bubble.
+      if (!turn.text && !shown) {
+        emit({
+          t: 'error',
+          code: 'empty_reply',
+          message: 'The model returned no reply.',
+        });
+        emit({ t: 'done' });
+        return;
+      }
+      finished = true;
+      break;
+    }
+    shown = true;
 
     // A call to a real tool the model was not shown opens its domain and is
     // handled like any other call.

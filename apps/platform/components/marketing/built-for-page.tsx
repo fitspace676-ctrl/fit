@@ -63,15 +63,15 @@ export function BuiltForPage({
           <AudienceEmblem audience={audience} cover />
 
           <div className="relative">
-            <AudienceBadge audience={audience} cover />
-            <h1
+            <AudienceBadge audience={audience} cover as="h1" />
+            <h2
               className={cn(
                 'mt-5 max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]',
                 room,
               )}
             >
               {audience.headline}
-            </h1>
+            </h2>
             <p
               className={cn(
                 'mt-5 max-w-2xl whitespace-pre-line text-base leading-relaxed text-white/85 md:text-lg',

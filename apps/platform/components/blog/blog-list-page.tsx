@@ -1,10 +1,5 @@
 import Link from 'next/link';
-import type {
-  BlogLang,
-  PublicBlogPostListResponse,
-  PublicBlogCategoryListResponse,
-  PublicBlogTagListResponse,
-} from '@fit/types';
+import type { BlogLang, PublicBlogPostListResponse, PublicBlogTagListResponse } from '@fit/types';
 import { BlogShell } from './blog-shell';
 import { blogDate, blogPath, dictionary, postPath } from './dictionary';
 
@@ -26,14 +21,12 @@ function chipClass(active: boolean): string {
 export function BlogListPage({
   lang,
   posts,
-  categories,
   tags,
   category,
   tag,
 }: {
   lang: BlogLang;
   posts: PublicBlogPostListResponse;
-  categories: PublicBlogCategoryListResponse;
   tags: PublicBlogTagListResponse;
   category?: string;
   tag?: string;
@@ -46,60 +39,35 @@ export function BlogListPage({
         <p className="mb-4 font-mono text-xs tracking-widest text-brand-600 dark:text-brand-300">
           FormaCore
         </p>
-        <h1 className="font-display text-5xl font-black tracking-tight sm:text-7xl">{d.blog}</h1>
-        <p className="mt-6 text-lg leading-relaxed text-muted">{d.intro}</p>
-        <Link
-          href={blogPath(lang === 'en' ? 'ka' : 'en')}
-          hrefLang={lang === 'en' ? 'ka' : 'en'}
-          className="mt-5 inline-block text-sm text-brand-600 underline dark:text-brand-300"
-        >
-          {d.otherLanguage}: {lang === 'en' ? 'ქართული' : 'English'}
-        </Link>
+        <h1 className="font-display text-5xl font-black tracking-tight sm:text-7xl">
+          {d.resources}
+        </h1>
       </header>
-      <div className="mb-10 space-y-5 border-y border-overlay/10 py-6">
-        <nav aria-label={d.categories} className="flex flex-wrap items-center gap-2">
-          <span className="mr-3 text-sm font-semibold text-muted">{d.categories}</span>
+      {tags.items.length > 0 && (
+        <nav
+          aria-label={d.tags}
+          className="mb-10 flex flex-wrap items-center gap-2 border-y border-overlay/10 py-6"
+        >
+          <span className="mr-3 text-sm font-semibold text-muted">{d.tags}</span>
           <Link
-            href={blogListUrl(lang, { tag })}
-            aria-current={!category ? 'page' : undefined}
-            className={chipClass(!category)}
+            href={blogListUrl(lang, { category })}
+            aria-current={!tag ? 'page' : undefined}
+            className={chipClass(!tag)}
           >
             {d.allPosts}
           </Link>
-          {categories.items.map((item) => (
+          {tags.items.map((item) => (
             <Link
-              key={item.slug}
-              href={blogListUrl(lang, { category: item.slug, tag })}
-              aria-current={category === item.slug ? 'page' : undefined}
-              className={chipClass(category === item.slug)}
+              key={item.tag}
+              href={blogListUrl(lang, { category, tag: item.tag })}
+              aria-current={tag === item.tag ? 'page' : undefined}
+              className={chipClass(tag === item.tag)}
             >
-              {item.name}
+              #{item.tag}
             </Link>
           ))}
         </nav>
-        {tags.items.length > 0 && (
-          <nav aria-label={d.tags} className="flex flex-wrap items-center gap-2">
-            <span className="mr-3 text-sm font-semibold text-muted">{d.tags}</span>
-            <Link
-              href={blogListUrl(lang, { category })}
-              aria-current={!tag ? 'page' : undefined}
-              className={chipClass(!tag)}
-            >
-              {d.allPosts}
-            </Link>
-            {tags.items.map((item) => (
-              <Link
-                key={item.tag}
-                href={blogListUrl(lang, { category, tag: item.tag })}
-                aria-current={tag === item.tag ? 'page' : undefined}
-                className={chipClass(tag === item.tag)}
-              >
-                #{item.tag}
-              </Link>
-            ))}
-          </nav>
-        )}
-      </div>
+      )}
       {posts.items.length === 0 ? (
         <p className="rounded-3xl border border-overlay/10 bg-overlay/[0.03] px-6 py-20 text-center text-lg text-muted">
           {d.empty}

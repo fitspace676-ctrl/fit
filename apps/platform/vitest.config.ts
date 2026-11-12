@@ -36,6 +36,7 @@ export default defineConfig({
     ],
     setupFiles: ['./vitest.setup.ts'],
     include: [
+      'middleware.spec.ts',
       'app/**/*.spec.ts',
       'lib/**/*.spec.ts',
       'lib/**/*.test.ts',

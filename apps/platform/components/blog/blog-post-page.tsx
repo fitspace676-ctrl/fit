@@ -4,12 +4,40 @@ import { sanitizeBlogHtml } from '@/lib/blog-html';
 import { BlogShell } from './blog-shell';
 import { blogDate, blogPath, dictionary, postPath } from './dictionary';
 import { blogListUrl } from './blog-list-page';
+import { JsonLd, breadcrumbLd } from '@/components/seo/json-ld';
+import { SHARE_IMAGE, SITE_URL } from '@/src/i18n/metadata';
 
 export function BlogPostPage({ post, lang }: { post: PublicBlogPost; lang: BlogLang }) {
   const d = dictionary[lang];
   const other = lang === 'en' ? 'ka' : 'en';
+  const url = `${SITE_URL}${postPath(post.slug, lang)}`;
   return (
     <BlogShell lang={lang}>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'BlogPosting',
+          headline: post.title,
+          description: post.metaDescription ?? post.excerpt ?? undefined,
+          image: post.ogImageUrl ?? post.coverImageUrl ?? SHARE_IMAGE,
+          datePublished: post.publishAt,
+          dateModified: post.updatedAt,
+          inLanguage: lang,
+          mainEntityOfPage: url,
+          url,
+          author: post.author
+            ? { '@type': 'Person', name: post.author.name }
+            : { '@id': `${SITE_URL}/#organization` },
+          publisher: { '@id': `${SITE_URL}/#organization` },
+        }}
+      />
+      <JsonLd
+        data={breadcrumbLd(lang, [
+          { name: 'FormaCore', path: '/' },
+          { name: d.resources, path: '/resources' },
+          { name: post.title, path: `/resources/${post.slug}` },
+        ])}
+      />
       <article>
         <div className="mx-auto max-w-[760px]">
           <Link href={blogPath(lang)} className="text-sm text-brand-600 dark:text-brand-300">
@@ -63,7 +91,7 @@ export function BlogPostPage({ post, lang }: { post: PublicBlogPost; lang: BlogL
         {post.coverImageUrl && (
           <img
             src={post.coverImageUrl}
-            alt=""
+            alt={post.title}
             className="mb-12 aspect-[16/9] w-full rounded-3xl object-cover"
           />
         )}
