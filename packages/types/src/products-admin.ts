@@ -709,3 +709,20 @@ export interface ListInventoryResponse {
   limit: number;
   summary: InventorySummary;
 }
+
+/** One sellable POS position. Stock belongs to the requested selling branch. */
+export interface PosProductRow {
+  id: string;
+  variantIndex: number | null;
+  name: string;
+  sku: string;
+  priceAmount: number;
+  currency: string;
+  imageUrl: string | null;
+  /** null for an untracked base product; missing variant holdings read as zero. */
+  stock: number | null;
+}
+
+export interface ListPosProductsResponse {
+  data: PosProductRow[];
+}

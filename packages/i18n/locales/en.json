@@ -906,6 +906,7 @@
       "shortcuts": "F1 search products · F2 find member · Esc clear sale",
       "endOfDay": "End-of-day report",
       "products": {
+        "branchStock": "At this branch: {count}",
         "searchLabel": "Search products (F1)",
         "searchPlaceholder": "Search products by name…  (F1)",
         "empty": "No active products match this search.",

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useTransition, type RefObject } from 'react';
+import { usePosCart, cartItemKey } from '@/stores/pos-cart-store';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
@@ -425,6 +426,8 @@ export function ProductGrid({
   selectedMemberId: string | null;
 }) {
   const t = useTranslations('admin.pos.products');
+  const locationId = usePosCart((state) => state.locationId);
+  const itemCount = usePosCart((state) => state.items.length);
   const [catalogue, setCatalogue] = useState<Catalogue>('memberships');
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<PosProductRow[]>([]);
@@ -499,7 +502,7 @@ export function ProductGrid({
   useEffect(() => {
     let cancelled = false;
     startTransition(async () => {
-      const result = await searchPosProductsAction(query, categoryId);
+      const result = await searchPosProductsAction(query, categoryId, locationId);
       if (cancelled) {
         return;
       }
@@ -514,7 +517,7 @@ export function ProductGrid({
     return () => {
       cancelled = true;
     };
-  }, [query, categoryId]);
+  }, [query, categoryId, locationId, itemCount]);
 
   // The roster is only fetched while its tab is open — a till that spends the day
   // on Products has no reason to carry a member list it is not showing. It then
@@ -691,7 +694,9 @@ export function ProductGrid({
           ) : (
             <ul {...stylex.props(styles.grid)}>
               {products.map((product) => (
-                <li key={product.id}>
+                <li
+                  key={cartItemKey({ productId: product.id, variantIndex: product.variantIndex })}
+                >
                   <button
                     type="button"
                     onClick={() => onAdd(product)}
@@ -707,6 +712,10 @@ export function ProductGrid({
                       )}
                     </div>
                     <span {...stylex.props(styles.tileName)}>{product.name}</span>
+                    {product.sku ? <span>{product.sku}</span> : null}
+                    {product.stock !== null ? (
+                      <span>{t('branchStock', { count: product.stock })}</span>
+                    ) : null}
                     <span {...stylex.props(styles.tilePrice)}>
                       {formatPrice(product.priceAmount, product.currency)}
                     </span>

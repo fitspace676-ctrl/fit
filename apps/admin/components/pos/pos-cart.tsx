@@ -6,6 +6,7 @@ import * as stylex from '@stylexjs/stylex';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
 import { useGymCurrency } from '@/components/gym-currency';
 import {
+  cartItemKey,
   lineTotal,
   selectDiscountTotal,
   selectItemCount,
@@ -344,17 +345,20 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
         ) : (
           <ul {...stylex.props(styles.lineList)}>
             {items.map((item) => (
-              <li key={item.productId} {...stylex.props(styles.line)}>
+              <li key={cartItemKey(item)} {...stylex.props(styles.line)}>
                 <div {...stylex.props(styles.lineHead)}>
                   <div {...stylex.props(styles.lineInfo)}>
-                    <p {...stylex.props(styles.lineName)}>{item.name}</p>
+                    <p {...stylex.props(styles.lineName)}>
+                      {item.name}
+                      {item.sku ? ` · ${item.sku}` : ''}
+                    </p>
                     <p {...stylex.props(styles.lineEach)}>
                       {t('each', { price: formatPrice(item.unitPrice, item.currency) })}
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeItem(item.productId)}
+                    onClick={() => removeItem(cartItemKey(item))}
                     aria-label={t('removeItem', { name: item.name })}
                     {...stylex.props(styles.removeBtn)}
                   >
@@ -366,7 +370,7 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
                   <div {...stylex.props(styles.stepper)}>
                     <button
                       type="button"
-                      onClick={() => setQty(item.productId, item.qty - 1)}
+                      onClick={() => setQty(cartItemKey(item), item.qty - 1)}
                       aria-label={t('decrease', { name: item.name })}
                       {...stylex.props(styles.stepBtn)}
                     >
@@ -377,14 +381,14 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
                       min={1}
                       value={item.qty}
                       onChange={(event) =>
-                        setQty(item.productId, Math.trunc(Number(event.target.value)))
+                        setQty(cartItemKey(item), Math.trunc(Number(event.target.value)))
                       }
                       aria-label={t('quantity', { name: item.name })}
                       {...stylex.props(styles.qtyInput)}
                     />
                     <button
                       type="button"
-                      onClick={() => setQty(item.productId, item.qty + 1)}
+                      onClick={() => setQty(cartItemKey(item), item.qty + 1)}
                       aria-label={t('increase', { name: item.name })}
                       {...stylex.props(styles.stepBtn)}
                     >
@@ -401,7 +405,7 @@ export function PosCart({ onCharge }: { onCharge: () => void }) {
                       step="1"
                       defaultValue={item.lineDiscountPct > 0 ? String(item.lineDiscountPct) : ''}
                       onChange={(event) =>
-                        setLineDiscount(item.productId, Number(event.target.value))
+                        setLineDiscount(cartItemKey(item), Number(event.target.value))
                       }
                       placeholder="0"
                       aria-label={t('lineDiscountLabel', { name: item.name })}
