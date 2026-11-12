@@ -106,8 +106,12 @@ describe('the member slice', () => {
     // 2026-10-01, the register form's own checks: 1127 → 1128. An empty name
     // is refused at the field (`auth.register.errors.nameRequired`); the email
     // and password reuse the sign-in's sentences and the password hint.
-    expect(enKeys).toHaveLength(1128);
-    expect(kaKeys).toHaveLength(1128);
+    //
+    // 2026-11-12, product variants in the member shop: 1128 → 1129. A product
+    // with variants asks for one before it goes in the cart
+    // (`member.shop.detail.chooseOption`).
+    expect(enKeys).toHaveLength(1129);
+    expect(kaKeys).toHaveLength(1129);
   });
 });
 
