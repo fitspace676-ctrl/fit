@@ -267,7 +267,7 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
       'downtown',
     );
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as { html: string };
-    expect(body.html).toContain('https://downtown.formacore.io/admin/onboarding/id.signature');
+    expect(body.html).toContain('https://app.formacore.io/admin/onboarding/id.signature');
     expect(body.html).not.toContain('/activate');
   });
 
@@ -517,13 +517,13 @@ describe('buildVerificationUrl', () => {
 describe('buildOwnerLiveOnboardingUrl', () => {
   afterEach(() => configure());
 
-  it('uses the gym console wizard even when the old activation URL is configured', () => {
+  it('uses the platform console wizard, not the gym host or the old activation URL', () => {
     configure({
       PLATFORM_ROOT_DOMAIN: 'formacore.io',
       OWNER_ONBOARDING_URL: 'https://old.example/activate',
     });
     expect(buildOwnerLiveOnboardingUrl('id.signature', 'downtown')).toBe(
-      'https://downtown.formacore.io/admin/onboarding/id.signature',
+      'https://app.formacore.io/admin/onboarding/id.signature',
     );
   });
 

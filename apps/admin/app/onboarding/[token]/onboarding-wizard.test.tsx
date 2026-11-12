@@ -5,7 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { GYM_ONBOARDING_STEPS, WEEKDAYS, type GymOnboardingState } from '@fit/types';
 import messages from '@fit/i18n/locales/en.json';
 import { navigationMock } from '@/test/next-navigation-mock';
-import { OnboardingWizard } from './onboarding-wizard';
+import { OnboardingWizard, gymLoginUrl } from './onboarding-wizard';
 
 vi.mock('next/navigation', () => navigationMock.factory());
 
@@ -74,11 +74,36 @@ describe('OnboardingWizard', () => {
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 
-  it('opens approved links on the sign-in screen', async () => {
+  it('offers sign-in on an approved link', async () => {
     fetchMock.mockResolvedValue(response(initial({ status: 'APPROVED' })));
     renderWizard();
-    await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
-    expect(navigationMock.replace).toHaveBeenCalledWith('/login?email=owner%40example.com');
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeEnabled();
+  });
+
+  it("sends an approved owner to the gym's own console host, not the platform's", () => {
+    // The wizard lives on `app.<root>`; the gym lives on `<slug>.<root>`.
+    expect(
+      gymLoginUrl(
+        { protocol: 'https:', host: 'app.formacore.io', pathname: '/admin/onboarding/id.sig' },
+        'studio',
+        'owner@example.com',
+      ),
+    ).toBe('https://studio.formacore.io/admin/login?email=owner%40example.com');
+    expect(
+      gymLoginUrl(
+        { protocol: 'http:', host: 'app.localhost:3002', pathname: '/admin/onboarding/id.sig' },
+        'studio',
+        'a@b.co',
+      ),
+    ).toBe('http://studio.localhost:3002/admin/login?email=a%40b.co');
+    // No label to swap on a bare host: stay put rather than invent one.
+    expect(
+      gymLoginUrl(
+        { protocol: 'http:', host: 'localhost:3002', pathname: '/onboarding/id.sig' },
+        'studio',
+        'a@b.co',
+      ),
+    ).toBe('http://localhost:3002/login?email=a%40b.co');
   });
 
   it('checks password length and confirmation without writing', async () => {

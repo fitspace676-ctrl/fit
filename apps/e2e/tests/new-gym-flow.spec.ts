@@ -159,7 +159,7 @@ test.describe('A new gym, from provisioning to its first member', () => {
     console.log(`--- last 200 lines of ${API_LOG_FILE} ---\n${tail}`);
   });
 
-  test("a platform operator opens a gym request and its owner is mailed a link on the gym's future host", async ({
+  test("a platform operator opens a gym request and its owner is mailed a link on the platform's host", async ({
     request,
   }) => {
     operatorToken = await apiLogin(request, superAdmin);
@@ -184,8 +184,9 @@ test.describe('A new gym, from provisioning to its first member', () => {
     expect(tenant.status(), 'no gym exists before approval').toBe(404);
 
     activationLink = await mailedLink(owner.email, '/admin/onboarding/');
-    expect(activationLink.origin, 'the onboarding link names the future gym host').toBe(
-      `http://${tenantHost(SLUG)}`,
+    // On the platform's own host: the gym's subdomain is not the owner's until approval.
+    expect(activationLink.origin, "the onboarding link is on the platform's host").toBe(
+      `http://${tenantHost('app')}`,
     );
     expect(activationLink.pathname.split('/').pop(), 'the link carries its token').toBeTruthy();
   });

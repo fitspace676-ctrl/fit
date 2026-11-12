@@ -451,10 +451,27 @@ export function buildOwnerOnboardingUrl(token: string, gymSlug?: string | null):
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 
-/** The wizard URL deliberately ignores the legacy activation URL override. */
-export function buildOwnerLiveOnboardingUrl(token: string, gymSlug?: string | null): string {
+/**
+ * The platform's own console host label (`app.<root>`): reserved, so no gym can
+ * hold it, and served by the same proxy as every gym host.
+ */
+const PLATFORM_CONSOLE_LABEL = 'app';
+
+/**
+ * The owner's onboarding wizard URL — on the PLATFORM's host
+ * (`https://app.<root>/admin/onboarding/<token>`), not the gym's.
+ *
+ * The gym and its subdomain do not exist until the operator approves the request,
+ * so a link on `<slug>.<root>` would hand the owner an address that is not theirs
+ * yet. `gymSlug` is accepted for the callers' sake and deliberately unused. The
+ * legacy activation URL override is ignored, as before.
+ */
+export function buildOwnerLiveOnboardingUrl(token: string, _gymSlug?: string | null): string {
   const path = `onboarding/${encodeURIComponent(token)}`;
-  return buildConsoleUrl(path, gymSlug) ?? `http://localhost:3002${env.ADMIN_BASE_PATH}/${path}`;
+  return (
+    buildConsoleUrl(path, PLATFORM_CONSOLE_LABEL) ??
+    `http://localhost:3002${env.ADMIN_BASE_PATH}/${path}`
+  );
 }
 
 /**
