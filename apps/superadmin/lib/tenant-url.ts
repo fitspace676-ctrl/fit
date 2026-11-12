@@ -28,8 +28,14 @@ export function tenantAdminUrl(slug: string): string | null {
   return origin ? `${origin}/admin` : null;
 }
 
-/** The owner's tokenized onboarding wizard on the gym's console host. */
-export function tenantOnboardingUrl(slug: string, token: string): string | null {
-  const adminUrl = tenantAdminUrl(slug);
+/**
+ * The owner's tokenized onboarding wizard — on the platform's own console host
+ * (`https://app.<root>/admin/onboarding/<token>`), because the gym's subdomain
+ * does not exist until the request is approved. `app` is a reserved label, so no
+ * gym can ever hold it. Must match the URL the API emails
+ * (`buildOwnerLiveOnboardingUrl`).
+ */
+export function onboardingUrl(token: string): string | null {
+  const adminUrl = tenantAdminUrl('app');
   return adminUrl ? `${adminUrl}/onboarding/${encodeURIComponent(token)}` : null;
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { FormProvider, useForm } from 'react-hook-form';
 import * as stylex from '@stylexjs/stylex';
@@ -37,6 +36,22 @@ const paymentKeys = [
   'acceptBankTransfer',
   'acceptPrepaidCredits',
 ] as const;
+/**
+ * The approved gym's own console sign-in. The wizard is served on the platform's
+ * host (`app.<root>`), so the gym's host is this one with its first label swapped
+ * for the gym's subdomain; everything before `/onboarding/` is the console's base
+ * path. A host with no dot (bare `localhost`) has no label to swap and is kept.
+ */
+export function gymLoginUrl(
+  { protocol, host, pathname }: Pick<Location, 'protocol' | 'host' | 'pathname'>,
+  subdomainSlug: string,
+  email: string,
+): string {
+  const [, ...parent] = host.split('.');
+  const gymHost = parent.length > 0 ? `${subdomainSlug}.${parent.join('.')}` : host;
+  const base = pathname.split('/onboarding/')[0] ?? '';
+  return `${protocol}//${gymHost}${base}/login?email=${encodeURIComponent(email)}`;
+}
 function firstStep(state: GymOnboardingState): Screen {
   if (state.status === 'CODE_SENT') return 'code';
   return (
@@ -117,7 +132,6 @@ const styles = stylex.create({
 export function OnboardingWizard({ token }: { token: string }) {
   const t = useTranslations('admin.onboarding');
   const tAuth = useTranslations('auth');
-  const router = useRouter();
   const [state, setState] = useState<GymOnboardingState | null>(null);
   const [step, setStep] = useState<Screen>('account');
   const [pending, setPending] = useState(true);
@@ -341,7 +355,11 @@ export function OnboardingWizard({ token }: { token: string }) {
         <Banner tone="success">{t('approved')}</Banner>
         <Button
           label={t('signIn')}
-          onClick={() => router.replace(`/login?email=${encodeURIComponent(state.owner.email)}`)}
+          onClick={() =>
+            window.location.assign(
+              gymLoginUrl(window.location, state.gym.subdomainSlug, state.owner.email),
+            )
+          }
         />
       </div>
     );

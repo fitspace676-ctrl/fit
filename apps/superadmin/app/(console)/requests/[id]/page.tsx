@@ -5,7 +5,7 @@ import { WEEKDAYS, WEEKDAY_LABELS, formatDayHours, type AdminGymRequest } from '
 import { BackLink, Cap, Fact, Mono, OpsCard, PageHead, SectionTitle } from '@/components/ops';
 import { ButtonLink } from '@/components/button-link';
 import { ApiError, fetchGymRequest } from '@/lib/api';
-import { tenantOnboardingUrl, tenantPortalUrl } from '@/lib/tenant-url';
+import { onboardingUrl, tenantPortalUrl } from '@/lib/tenant-url';
 import { requestDate, RequestStatus } from '../request-status';
 import { RequestLinkCard } from './link-card';
 import { RequestActions } from './request-actions';
@@ -151,7 +151,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
               requestId={request.id}
               slug={request.subdomainSlug}
               request={request}
-              url={request.token ? tenantOnboardingUrl(request.subdomainSlug, request.token) : null}
+              url={request.token ? onboardingUrl(request.token) : null}
             >
               <Fact label="Expires" value={<Mono>{requestDate(request.expiresAt)}</Mono>} />
               {request.status === 'EXPIRED' ? (
