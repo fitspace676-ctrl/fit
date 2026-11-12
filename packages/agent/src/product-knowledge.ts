@@ -18,7 +18,7 @@ function page(
 }
 
 export const CONSOLE_PAGES: ConsolePage[] = [
-  page('/', 'Dashboard', 'მართვის პანელი', 'Review gym performance.', 'insights'),
+  page('/dashboard', 'Dashboard', 'მართვის პანელი', 'Review gym performance.', 'insights'),
   page('/members', 'Members', 'წევრები', 'Find and filter members.', 'members'),
   page('/members/:id', 'Member', 'წევრი', 'Review membership, credits and activity.', 'members'),
   page('/members/:id/edit', 'Edit member', 'წევრის რედაქტირება', 'Edit member details.', 'members'),

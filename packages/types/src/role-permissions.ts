@@ -926,7 +926,7 @@ export const PERMISSION_MATRIX_SECTIONS: readonly PermissionMatrixSection[] = [
         resource: 'revenue',
         labelKey: 'permissions.resources.revenue',
         label: 'Revenue',
-        hrefs: ['/'],
+        hrefs: ['/dashboard'],
         cells: { kind: 'single', permission: Permission.RevenueRead },
       },
       {
@@ -1073,7 +1073,7 @@ export const PERMISSION_MATRIX_SECTIONS: readonly PermissionMatrixSection[] = [
         resource: 'reports',
         labelKey: 'permissions.resources.reports',
         label: 'Reports & dashboard',
-        hrefs: ['/', '/reports'],
+        hrefs: ['/dashboard', '/reports'],
         cells: {
           kind: 'viewManage',
           view: Permission.ReportView,

@@ -139,35 +139,24 @@ describe('admin middleware — wrong-gym sessions', () => {
   });
 });
 
-describe('admin middleware — the dashboard’s RSC request', () => {
-  it('rewrites the root RSC request to the index payload, keeping the query', async () => {
+describe('admin middleware — the basePath root', () => {
+  it('sends staff on to /dashboard, keeping the query', async () => {
     const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'downtown' });
-    const res = await middleware(request('/?_rsc=abc', `accessToken=${token}`, { rsc: '1' }));
-    const rewrite = new URL(res.headers.get('x-middleware-rewrite') ?? 'about:blank');
-    expect(rewrite.pathname).toBe('/index');
-    expect(rewrite.searchParams.get('_rsc')).toBe('abc');
+    const res = await middleware(request('/?period=week', `accessToken=${token}`));
+    const location = new URL(res.headers.get('location') ?? 'about:blank');
+    expect(location.origin).toBe('https://downtown.formacore.io');
+    expect(location.pathname).toMatch(/\/dashboard$/);
+    expect(location.searchParams.get('period')).toBe('week');
+  });
+
+  it('lets /dashboard itself through', async () => {
+    const token = await accessToken({ sub: 'u1', role: 'RECEPTIONIST', gymSlug: 'downtown' });
+    const res = await middleware(request('/dashboard', `accessToken=${token}`));
     expect(res.headers.get('location')).toBeNull();
-    expect(res.headers.get('x-console-rewrite')).toBe('index');
   });
 
-  it('recognises the root RSC request by its `_rsc` query alone', async () => {
-    const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'downtown' });
-    const res = await middleware(request('/?_rsc=abc', `accessToken=${token}`));
-    expect(new URL(res.headers.get('x-middleware-rewrite') ?? 'about:blank').pathname).toBe(
-      '/index',
-    );
-  });
-
-  it('leaves the HTML load of the root and other RSC requests alone', async () => {
-    const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'downtown' });
-    const html = await middleware(request('/', `accessToken=${token}`));
-    const members = await middleware(request('/members', `accessToken=${token}`, { rsc: '1' }));
-    expect(html.headers.get('x-middleware-rewrite')).toBeNull();
-    expect(members.headers.get('x-middleware-rewrite')).toBeNull();
-  });
-
-  it('still sends a signed-out root RSC request to the sign-in', async () => {
-    const res = await middleware(request('/?_rsc=abc', '', { rsc: '1' }));
+  it('still sends a signed-out visit to the root to the sign-in', async () => {
+    const res = await middleware(request('/', ''));
     expect(res.headers.get('location')).toContain('/login');
   });
 });
