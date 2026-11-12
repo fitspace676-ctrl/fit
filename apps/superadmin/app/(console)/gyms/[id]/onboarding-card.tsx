@@ -29,7 +29,6 @@ const STATUS: Record<GymOnboardingStatus, { label: string; tone: BadgeTone }> = 
 const STEP_LABELS: Record<GymOnboardingStep, string> = {
   account: 'Owner account',
   business: 'Business details',
-  locale: 'Language & currency',
   brand: 'Brand colour',
   location: 'First location',
   payments: 'Payment methods',

@@ -3,7 +3,6 @@ import {
   GYM_ONBOARDING_STEPS,
   GYM_ONBOARDING_STEP_SCHEMAS,
   gymOnboardingAccountSchema,
-  gymOnboardingLocaleSchema,
   gymOnboardingBrandSchema,
   gymOnboardingLocationSchema,
 } from './gym-onboarding';
@@ -29,18 +28,7 @@ describe('gym onboarding contracts', () => {
       );
     }
   });
-  it('validates locale and colours', () => {
-    expect(
-      gymOnboardingLocaleSchema.safeParse({
-        language: 'ka',
-        currency: 'GEL',
-        timezone: 'Asia/Tbilisi',
-      }).success,
-    ).toBe(true);
-    expect(
-      gymOnboardingLocaleSchema.safeParse({ language: 'ka', currency: 'gel', timezone: 'invalid' })
-        .success,
-    ).toBe(false);
+  it('validates colours', () => {
     expect(gymOnboardingBrandSchema.safeParse({ primaryColor: '#aabbCC' }).success).toBe(true);
     expect(gymOnboardingBrandSchema.safeParse({ primaryColor: 'red' }).success).toBe(false);
   });

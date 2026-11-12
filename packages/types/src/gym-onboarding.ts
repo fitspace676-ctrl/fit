@@ -1,12 +1,11 @@
 import { z } from 'zod';
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from './auth';
-import { gymLanguageSchema, isValidTimeZone, HEX_COLOR_PATTERN } from './gym-settings';
+import { HEX_COLOR_PATTERN } from './gym-settings';
 import { locationHoursSchema } from './locations-admin';
 
 export const GYM_ONBOARDING_STEPS = [
   'account',
   'business',
-  'locale',
   'brand',
   'location',
   'payments',
@@ -28,13 +27,6 @@ export const gymOnboardingBusinessSchema = z
     phone: z.string().max(40).nullable(),
     email: z.string().email().nullable(),
     website: z.string().max(200).nullable(),
-  })
-  .strict();
-export const gymOnboardingLocaleSchema = z
-  .object({
-    language: gymLanguageSchema,
-    currency: z.string().regex(/^[A-Z]{3}$/),
-    timezone: z.string().refine(isValidTimeZone, 'Unknown time zone'),
   })
   .strict();
 export const gymOnboardingBrandSchema = z
@@ -61,14 +53,12 @@ export const gymOnboardingPaymentsSchema = z
 export const GYM_ONBOARDING_STEP_SCHEMAS: Record<GymOnboardingStep, z.ZodTypeAny> = {
   account: gymOnboardingAccountSchema,
   business: gymOnboardingBusinessSchema,
-  locale: gymOnboardingLocaleSchema,
   brand: gymOnboardingBrandSchema,
   location: gymOnboardingLocationSchema,
   payments: gymOnboardingPaymentsSchema,
 };
 export type GymOnboardingAccountInput = z.infer<typeof gymOnboardingAccountSchema>;
 export type GymOnboardingBusinessInput = z.infer<typeof gymOnboardingBusinessSchema>;
-export type GymOnboardingLocaleInput = z.infer<typeof gymOnboardingLocaleSchema>;
 export type GymOnboardingBrandInput = z.infer<typeof gymOnboardingBrandSchema>;
 export type GymOnboardingLocationInput = z.infer<typeof gymOnboardingLocationSchema>;
 export type GymOnboardingPaymentsInput = z.infer<typeof gymOnboardingPaymentsSchema>;
@@ -81,7 +71,6 @@ export interface GymOnboardingState {
   completedSteps: GymOnboardingStep[];
   values: {
     business: GymOnboardingBusinessInput;
-    locale: GymOnboardingLocaleInput;
     brand: GymOnboardingBrandInput;
     location: GymOnboardingLocationInput;
     payments: GymOnboardingPaymentsInput;

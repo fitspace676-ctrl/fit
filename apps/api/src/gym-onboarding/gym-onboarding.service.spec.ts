@@ -104,7 +104,7 @@ describe('GymOnboardingService', () => {
       status: 'PENDING',
       owner: { hasPassword: false },
       completedSteps: [],
-      values: { locale: { currency: 'GEL' }, location: { name: 'Gym' } },
+      values: { brand: { primaryColor: '#4f46e5' }, location: { name: 'Gym' } },
     });
     expect(JSON.stringify(state)).not.toContain('passwordHash');
   });
@@ -267,21 +267,26 @@ describe('GymOnboardingService', () => {
     expect(locationCreate).not.toHaveBeenCalled();
   });
 
-  it('persists locale and payment methods and rejects invalid step bodies', async () => {
+  it('persists brand and payment methods and rejects invalid step bodies', async () => {
     const { service, token, gymUpdate } = setup();
-    await expect(
-      service.saveStep(token, 'locale', { language: 'ka', currency: 'bad', timezone: 'bad' }),
-    ).rejects.toMatchObject({ status: 400 });
+    await expect(service.saveStep(token, 'brand', { primaryColor: 'red' })).rejects.toMatchObject({
+      status: 400,
+    });
     expect(gymUpdate).not.toHaveBeenCalled();
-    const locale = { language: 'ka', currency: 'USD', timezone: 'Europe/London' };
+    const brand = { primaryColor: '#112233' };
     const payments = {
       acceptCash: true,
       acceptCard: false,
       acceptBankTransfer: true,
       acceptPrepaidCredits: false,
     };
-    await service.saveStep(token, 'locale', locale);
+    await service.saveStep(token, 'brand', brand);
     await service.saveStep(token, 'payments', payments);
-    expect((await service.getState(token)).values).toMatchObject({ locale, payments });
+    const state = await service.getState(token);
+    expect(state.values).toMatchObject({ brand, payments });
+    // Language, currency and time zone are not part of onboarding: the gym keeps
+    // its defaults and the owner changes them in Settings.
+    expect(state.steps).not.toContain('locale');
+    expect(state.values).not.toHaveProperty('locale');
   });
 });

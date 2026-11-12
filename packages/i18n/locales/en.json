@@ -3953,9 +3953,6 @@
       "phone": "Phone",
       "email": "Contact email",
       "website": "Website",
-      "language": "Language",
-      "currency": "Currency",
-      "timezone": "Time zone",
       "locationName": "First branch name",
       "hours": "Weekly opening hours",
       "closed": "Closed",
@@ -3967,7 +3964,6 @@
       "steps": {
         "account": "Your account",
         "business": "Business",
-        "locale": "Language & region",
         "brand": "Brand",
         "location": "First branch",
         "payments": "Payments",
@@ -3994,9 +3990,6 @@
         "phone": "Phone",
         "email": "Contact email",
         "website": "Website",
-        "language": "Language",
-        "currency": "Currency",
-        "timezone": "Time zone",
         "primaryColor": "Primary colour"
       },
       "color": {

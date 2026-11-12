@@ -200,7 +200,7 @@ test.describe('A new gym, from provisioning to its first member', () => {
     // heading, so "the heading changed" is the step having been accepted — read
     // structurally, because the wizard's copy follows the gym's language.
     const heading = page.locator('form h3');
-    for (let screen = 0; screen < 7; screen += 1) {
+    for (let screen = 0; screen < 6; screen += 1) {
       if (new URL(page.url()).pathname === '/admin/login') break;
       const before = await heading.textContent();
       await page.locator('form button[type="submit"]').click();

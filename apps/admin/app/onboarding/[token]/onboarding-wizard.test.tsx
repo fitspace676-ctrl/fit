@@ -20,7 +20,6 @@ function initial(overrides: Partial<GymOnboardingState> = {}): GymOnboardingStat
     completedAt: null,
     values: {
       business: { gymName: 'Studio', address: null, phone: null, email: null, website: null },
-      locale: { language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' },
       brand: { primaryColor: '#336699' },
       location: {
         name: 'Studio',
@@ -126,7 +125,7 @@ describe('OnboardingWizard', () => {
     renderWizard();
     expect(await screen.findByLabelText('Gym name')).toHaveValue('Studio');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await screen.findByLabelText('Currency');
+    await screen.findByRole('heading', { name: 'Brand' });
     const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(JSON.parse(init.body as string)).toEqual(next.values.business);
   });
@@ -144,7 +143,7 @@ describe('OnboardingWizard', () => {
     await screen.findByLabelText('Gym name');
     await user.clear(screen.getByLabelText('Gym name'));
     await user.type(screen.getByLabelText('Gym name'), 'Unsaved name');
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 4; i++)
       await user.click(await screen.findByRole('button', { name: 'Skip for now' }));
     expect(screen.queryByText('Unsaved name')).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -232,7 +231,7 @@ describe('OnboardingWizard', () => {
       ),
     );
     renderWizard();
-    await screen.findByLabelText('Currency');
+    await screen.findByRole('heading', { name: 'Brand' });
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(await screen.findByLabelText('Gym name')).toHaveValue('Studio');
     expect(screen.queryByLabelText('New password')).not.toBeInTheDocument();
