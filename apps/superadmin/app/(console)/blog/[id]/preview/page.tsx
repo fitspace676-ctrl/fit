@@ -138,7 +138,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
             tone={VISIBILITY[post.visibility].tone}
           />
           {post.publishAt ? <span>{formatWhen(post.publishAt)}</span> : null}
-          <span>/blog/{post.slug}</span>
+          <span>/resources/{post.slug}</span>
         </div>
       </div>
 

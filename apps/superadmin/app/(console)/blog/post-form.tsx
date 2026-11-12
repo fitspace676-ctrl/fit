@@ -475,7 +475,7 @@ export function PostForm({
               hint={
                 slugInvalid
                   ? 'Lowercase Latin letters, digits and single hyphens only.'
-                  : `formacore.io/blog/${state.slug || '…'}`
+                  : `formacore.io/resources/${state.slug || '…'}`
               }
               invalid={slugInvalid}
               value={state.slug}

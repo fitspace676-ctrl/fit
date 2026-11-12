@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { PLANS } from '@/data/plans';
 import type { PlatformMessages } from '@fit/i18n/platform';
 import { useLeadCta } from './lead-cta-context';
 import { Btn, I, Icon } from './marketing-ui';
@@ -51,9 +52,9 @@ type TierMeta = {
 };
 
 export const TIER_META: readonly TierMeta[] = [
-  { id: 'studio', tone: 'iris', monthly: 219, ctaVariant: 'glassGradient' },
-  { id: 'club', tone: 'brand', monthly: 449, ctaVariant: 'primary', highlight: true },
-  { id: 'core', tone: 'accent', monthly: 649, ctaVariant: 'glassGradient' },
+  { id: 'studio', tone: 'iris', monthly: PLANS[0].monthly, ctaVariant: 'glassGradient' },
+  { id: 'club', tone: 'brand', monthly: PLANS[1].monthly, ctaVariant: 'primary', highlight: true },
+  { id: 'core', tone: 'accent', monthly: PLANS[2].monthly, ctaVariant: 'glassGradient' },
 ];
 
 /**
@@ -83,7 +84,6 @@ export function getTiers(t: MessageReader): Tier[] {
 /** The three-up plan card grid on desktop; a swipeable snap-carousel on mobile. */
 export const PricingCards = () => {
   const t = useTranslations('pricing');
-  const tCommon = useTranslations('common');
   const tiers = getTiers(t);
   // Opens the shared "Book a demo" / "Request a call" forms.
   const openLead = useLeadCta();
@@ -159,7 +159,7 @@ export const PricingCards = () => {
                 icon={I.arrow}
                 onClick={() => openLead('demo')}
               >
-                {tCommon('cta.bookDemo')}
+                {t('cards.requestDemo')}
               </Btn>
             </div>
           </div>

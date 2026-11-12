@@ -3689,7 +3689,7 @@
       "model": "Model",
       "attach": "Attach files",
       "removeAttachment": "Remove",
-      "attachLimit": "Up to {max} files (max 5 MB each).",
+      "attachLimit": "Up to {max} files (max 5 MB each, 15 MB in total).",
       "history": "History",
       "newChat": "New chat",
       "noSessions": "No saved sessions yet.",
@@ -3697,6 +3697,36 @@
       "untitled": "Untitled chat",
       "dropHere": "Drop files to attach",
       "retry": "Try again",
+      "retryUnsafe": "An approved action already ran, so it won't be repeated. Send a message to continue.",
+      "statusWorking": "Working…",
+      "statusWaiting": "Waiting for your approval",
+      "chat": "Chat",
+      "more": "More",
+      "lockedHint": "Approve or reject the action above first",
+      "sendHint": "Enter to send · Shift+Enter for a new line",
+      "needsApproval": "Needs your approval",
+      "irreversible": "Irreversible change",
+      "approveAndDelete": "Approve and delete",
+      "approveAllCount": "Approve all ({count})",
+      "toolsRunning": "Checking the data…",
+      "toolsDone": "{count, plural, one {# action} other {# actions}} done",
+      "approvalNote": "The agent only makes changes or deletes anything after you approve it.",
+      "starters": {
+        "members": {
+          "title": "Members and check-ins",
+          "first": "Who hasn't come in for 2 weeks?",
+          "second": "Today's check-ins"
+        },
+        "classes": {
+          "title": "Classes and schedule",
+          "first": "Which class is almost full tomorrow?"
+        },
+        "sales": {
+          "title": "Sales and invoices",
+          "first": "This month's revenue by plan",
+          "second": "Unpaid invoices"
+        }
+      },
       "approve": "Confirm",
       "reject": "Reject",
       "approveAll": "Confirm all",
@@ -3785,7 +3815,8 @@
         "rate_limited": "Too many requests. Wait a moment and try again.",
         "invalid_request": "The request could not be processed.",
         "unknown_tool": "This action is unavailable.",
-        "agent_failed": "The agent could not finish. Try again."
+        "agent_failed": "The agent could not finish. Try again.",
+        "empty_reply": "The model didn't return a reply. Try again or rephrase."
       }
     },
     "permissions": {

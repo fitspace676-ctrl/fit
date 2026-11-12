@@ -383,3 +383,83 @@ describe('summarizeResult', () => {
     expect(summarizeResult('not json')).toBeUndefined();
   });
 });
+
+describe('turns that end abnormally', () => {
+  it('runs and gates nothing from a reply cut off at max_tokens', async () => {
+    const { events, callTool, runTurn } = await run(
+      [{ text: 'Creating', toolCalls: [readCall, writeCall], stop: 'max_tokens' }],
+      { context: contextIn('en') },
+    );
+    expect(callTool).not.toHaveBeenCalled();
+    expect(toolEvents(events)).toEqual([]);
+    expect(runTurn).toHaveBeenCalledTimes(1);
+    const text = events.flatMap((e) => (e.t === 'delta' ? [e.v] : [])).join('');
+    expect(text).toContain('cut off before the action was complete');
+    expect(events.at(-1)).toEqual({ t: 'done' });
+  });
+
+  it('retries a malformed call once before reporting it', async () => {
+    const { events, runTurn } = await run([
+      { text: '', toolCalls: [], stop: 'malformed' },
+      { text: 'Here you go', toolCalls: [] },
+    ]);
+    expect(runTurn).toHaveBeenCalledTimes(2);
+    expect(events.some((e) => e.t === 'error')).toBe(false);
+  });
+
+  it('reports an empty reply instead of ending silently', async () => {
+    const { events } = await run([
+      { text: '', toolCalls: [], stop: 'malformed' },
+      { text: '', toolCalls: [], stop: 'malformed' },
+    ]);
+    expect(events).toEqual([
+      { t: 'error', code: 'empty_reply', message: 'The model returned no reply.' },
+      { t: 'done' },
+    ]);
+  });
+
+  it('keeps a reply that is only tool work and then an empty final turn', async () => {
+    const { events } = await run([
+      { text: '', toolCalls: [readCall] },
+      { text: '', toolCalls: [] },
+    ]);
+    expect(events.some((e) => e.t === 'error')).toBe(false);
+    expect(events.at(-1)).toEqual({ t: 'done' });
+  });
+});
+
+describe('a stopped turn', () => {
+  it('runs no approved write and emits nothing once aborted', async () => {
+    const abort = new AbortController();
+    abort.abort();
+    const { events, callTool, runTurn } = await run([], {
+      approvals: [{ call: writeCall, decision: 'approve' }],
+      signal: abort.signal,
+    });
+    expect(callTool).not.toHaveBeenCalled();
+    expect(runTurn).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+  });
+
+  it('stops between rounds and hands the signal to the driver', async () => {
+    const abort = new AbortController();
+    const { driver, runTurn } = fakeDriver([{ text: '', toolCalls: [readCall] }]);
+    runTurn.mockImplementationOnce((args: RunTurnArgs) => {
+      expect(args.signal).toBe(abort.signal);
+      abort.abort();
+      return Promise.resolve({ text: '', toolCalls: [readCall] });
+    });
+    const { client, callTool } = fakeClient();
+    await runAgentLoop({
+      messages: [{ role: 'user', content: 'hi' }],
+      model: MODEL,
+      emit: () => {},
+      options: { signal: abort.signal },
+      client,
+      createDriver: () => driver,
+      spares: [],
+    });
+    expect(callTool).not.toHaveBeenCalled();
+    expect(runTurn).toHaveBeenCalledTimes(1);
+  });
+});

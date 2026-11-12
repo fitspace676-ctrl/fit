@@ -7,11 +7,14 @@ import { localeUrl } from '@/src/i18n/metadata';
 export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const { items } = await fetchBlogIndex();
+  // A blog API outage must not take the static pages out of the sitemap with it.
+  const items = await fetchBlogIndex()
+    .then((index) => index.items)
+    .catch(() => []);
   const paths = [
     '/',
     '/pricing',
-    '/blog',
+    '/resources',
     '/features',
     '/built-for',
     '/register-gym',
@@ -37,12 +40,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...staticPages,
     ...items.flatMap((post) =>
       post.langs.map((lang) => ({
-        url: localeUrl(lang, `/blog/${post.slug}`),
+        url: localeUrl(lang, `/resources/${post.slug}`),
         lastModified: post.updatedAt,
         alternates: {
-          languages: Object.fromEntries(
-            post.langs.map((language) => [language, localeUrl(language, `/blog/${post.slug}`)]),
-          ),
+          languages: {
+            ...Object.fromEntries(
+              post.langs.map((language) => [
+                language,
+                localeUrl(language, `/resources/${post.slug}`),
+              ]),
+            ),
+            'x-default': localeUrl(
+              post.langs.includes('en') ? 'en' : post.langs[0]!,
+              `/resources/${post.slug}`,
+            ),
+          },
         },
       })),
     ),

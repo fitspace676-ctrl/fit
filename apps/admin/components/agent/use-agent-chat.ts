@@ -3,7 +3,14 @@
 import { useCallback, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useActiveLocation } from '../active-location';
-import { approvalPayload, errorKey, foldEvent, restoreTranscript } from './chat-state';
+import {
+  approvalPayload,
+  errorKey,
+  foldEvent,
+  payloadContent,
+  restoreTranscript,
+  toPayload,
+} from './chat-state';
 import type { AgentApproval, AgentMessage, AgentStreamEvent, ChatAttachment } from './types';
 
 const ENDPOINT = `${process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? ''}/api/agent/chat`;
@@ -11,6 +18,8 @@ let seq = 0;
 const nextId = (prefix: string) => `${prefix}-${++seq}-${Date.now()}`;
 interface Turn {
   id: string;
+  /** The transcript up to and including the user turn this reply answers. */
+  base: { role: 'user' | 'assistant'; content: string }[];
   body: {
     messages: { role: 'user' | 'assistant'; content: string }[];
     model?: string;
@@ -28,6 +37,9 @@ export function useAgentChat() {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // False once a run has started an approved write: replaying it would run the
+  // write a second time, so a failure after that point offers no retry.
+  const [canRetry, setCanRetry] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const turnRef = useRef<Turn | null>(null);
   const transcriptRef = useRef(messages);
@@ -54,7 +66,11 @@ export function useAgentChat() {
       const controller = new AbortController();
       abortRef.current = controller;
       setError(null);
+      setCanRetry(true);
       setIsStreaming(true);
+      const approved = new Set(
+        (turn.body.approvals ?? []).filter((a) => a.decision === 'approve').map((a) => a.call.id),
+      );
       patch(turn.id, (m) => ({ ...m, streaming: true }));
       void (async () => {
         try {
@@ -81,7 +97,10 @@ export function useAgentChat() {
               return;
             }
             if (event.t === 'error') setError(t(errorKey(event.code)));
-            else patch(turn.id, (m) => foldEvent(m, event));
+            else {
+              if (event.t === 'tool' && approved.has(event.id)) setCanRetry(false);
+              patch(turn.id, (m) => foldEvent(m, event));
+            }
           };
           for (;;) {
             const { value, done } = await reader.read();
@@ -123,6 +142,7 @@ export function useAgentChat() {
         attachments: attachments?.map((a) => a.name),
       };
       const id = nextId('a');
+      const base = toPayload([...messages, user]);
       decisionsRef.current = {};
       setMessages((prev) => [
         ...prev,
@@ -131,8 +151,9 @@ export function useAgentChat() {
       ]);
       run({
         id,
+        base,
         body: {
-          messages: [...messages, user].map(({ role, content }) => ({ role, content })),
+          messages: base,
           model,
           attachments,
           locationId,
@@ -157,7 +178,15 @@ export function useAgentChat() {
       const approvals = approvalPayload(pendingApprovals, decisionsRef.current);
       if (!approvals) return;
       decisionsRef.current = {};
-      run({ ...turnRef.current, body: { ...turnRef.current.body, approvals } });
+      // The reply so far rides along as the assistant turn the calls belong to
+      // — with every call already settled in it, so after a chain of approvals
+      // the model still knows the earlier writes ran.
+      const turn = turnRef.current;
+      const reply = transcriptRef.current.find((m) => m.id === turn.id);
+      const messages = reply
+        ? [...turn.base, { role: reply.role, content: payloadContent(reply) }]
+        : turn.base;
+      run({ ...turn, body: { ...turn.body, messages, approvals } });
     },
     [patch, pendingApprovals, run],
   );
@@ -176,18 +205,19 @@ export function useAgentChat() {
   }, []);
   const reset = useCallback(() => loadTranscript([]), [loadTranscript]);
   const retry = useCallback(() => {
-    if (turnRef.current && !abortRef.current) {
+    if (turnRef.current && !abortRef.current && canRetry) {
       if (retryBaseRef.current) {
         const baseline = retryBaseRef.current;
         patch(turnRef.current.id, () => baseline);
       }
       run(turnRef.current, true);
     }
-  }, [patch, run]);
+  }, [patch, run, canRetry]);
   return {
     messages,
     isStreaming,
     error,
+    canRetry,
     send,
     stop,
     reset,

@@ -63,6 +63,7 @@ export interface AgentRuntime {
       approvals?: Approval[];
       attachments?: Attachment[];
       onFallback?: (from: AgentModelRef, to: AgentModelRef, reason: string) => void;
+      signal?: AbortSignal;
     },
   ) => Promise<void>;
   resolveModel: (id?: string) => AgentModelRef | undefined;
@@ -96,8 +97,21 @@ const chatExtrasSchema = z.object({
     .optional(),
 });
 
+/**
+ * The conversation, kept to well-formed turns: anything else (a stale client, a
+ * hand-made request) would otherwise throw deep in the loop.
+ */
+export function readMessages(raw: unknown): ChatTurn[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((m: unknown): ChatTurn[] => {
+    const turn = m as { role?: unknown; content?: unknown } | null;
+    if (!turn || (turn.role !== 'user' && turn.role !== 'assistant')) return [];
+    return [{ role: turn.role, content: typeof turn.content === 'string' ? turn.content : '' }];
+  });
+}
+
 interface ChatBody {
-  messages?: ChatTurn[];
+  messages?: unknown;
   attachments?: Attachment[];
   model?: string;
   locationId?: unknown;
@@ -179,15 +193,23 @@ export class AgentChatController {
     const token = extractBearer(authorization);
     const agent = this.runtime();
     const model = agent.resolveModel(body.model);
-    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const messages = readMessages(body.messages);
     const attachments = Array.isArray(body.attachments) ? body.attachments : undefined;
 
     res.setHeader('content-type', 'application/x-ndjson; charset=utf-8');
     res.setHeader('cache-control', 'no-cache, no-transform');
     res.setHeader('connection', 'keep-alive');
 
+    // The operator pressed Stop or closed the console: the proxy drops the
+    // connection, and the turn stops with it — no more tokens, no more tool
+    // calls, including an approved write that had not started yet.
+    const abort = new AbortController();
+    res.on('close', () => {
+      if (!res.writableFinished) abort.abort();
+    });
+
     const emit = (event: StreamEvent): void => {
-      res.write(`${JSON.stringify(event)}\n`);
+      if (!abort.signal.aborted) res.write(`${JSON.stringify(event)}\n`);
     };
 
     try {
@@ -242,8 +264,14 @@ export class AgentChatController {
         approvals: extras.data.approvals,
         attachments,
         onFallback,
+        signal: abort.signal,
       });
     } catch (err) {
+      // A stop is not a failure; the provider SDK throws its abort error.
+      if (abort.signal.aborted) {
+        this.logger.log('agent turn stopped by the operator');
+        return;
+      }
       // Log before streaming: the provider's own message (bad key, retired model
       // id, rate limit) is the only thing that identifies the fault, and the 200
       // status means nothing else in the stack will record it. The operator gets
