@@ -178,7 +178,6 @@ export class GymOnboardingService {
           email: settings.business.email,
           website: settings.business.website,
         },
-        locale: settings.locale,
         brand: { primaryColor: settings.brand.primaryColor },
         payments: settings.payments,
         location: {

@@ -9,8 +9,6 @@ import { Banner, Button, Field, Form, Switch } from '@fit/ui-kit';
 import {
   GYM_ONBOARDING_STEP_SCHEMAS,
   PASSWORD_MIN_LENGTH,
-  SUPPORTED_LANGUAGES,
-  LANGUAGE_LABELS,
   ONBOARDING_LINK_INVALID_CODE,
   ONBOARDING_LINK_EXPIRED_CODE,
   ONBOARDING_COMPLETED_CODE,
@@ -23,7 +21,7 @@ import {
 } from '@fit/types';
 import { browserTenantHeaders } from '@/lib/tenant-host';
 import { AccentColorField } from '@/components/accent-color-field';
-import { SelectField, TextField } from '@/components/ui/form-fields';
+import { TextField } from '@/components/ui/form-fields';
 
 /** The API's error envelope, or — on success — the payload itself. */
 type ApiBody = { code?: string; message?: string | string[] };
@@ -37,30 +35,6 @@ const paymentKeys = [
   'acceptBankTransfer',
   'acceptPrepaidCredits',
 ] as const;
-// Same suggested zones and Intl list as Settings; always retain the stored value.
-const suggestedZones = [
-  'Asia/Tbilisi',
-  'Europe/Istanbul',
-  'Asia/Baku',
-  'Asia/Yerevan',
-  'Europe/Kyiv',
-  'Europe/Moscow',
-  'Europe/Berlin',
-  'Europe/London',
-  'Asia/Dubai',
-  'America/New_York',
-  'America/Los_Angeles',
-  'UTC',
-];
-function zones(current: string) {
-  const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] })
-    .supportedValuesOf;
-  try {
-    return [...new Set([current, ...suggestedZones, ...(supported?.('timeZone') ?? [])])];
-  } catch {
-    return [...new Set([current, ...suggestedZones])];
-  }
-}
 function firstStep(state: GymOnboardingState): Screen {
   return (
     state.steps.find(
@@ -398,36 +372,6 @@ export function OnboardingWizard({ token }: { token: string }) {
               {text('business.phone', 'phone')}
               {text('business.email', 'email', 'email')}
               {text('business.website', 'website')}
-            </>
-          )}
-          {step === 'locale' && (
-            <>
-              <SelectField
-                disabled={pending}
-                name="locale.language"
-                label={t('language')}
-                options={SUPPORTED_LANGUAGES.map((value) => ({
-                  value,
-                  label: LANGUAGE_LABELS[value],
-                }))}
-              />
-              <SelectField
-                disabled={pending}
-                name="locale.currency"
-                label={t('currency')}
-                options={[...new Set(['GEL', 'USD', 'EUR', state.values.locale.currency])].map(
-                  (value) => ({ value, label: value }),
-                )}
-              />
-              <SelectField
-                disabled={pending}
-                name="locale.timezone"
-                label={t('timezone')}
-                options={zones(state.values.locale.timezone).map((value) => ({
-                  value,
-                  label: value,
-                }))}
-              />
             </>
           )}
           {step === 'brand' && (
