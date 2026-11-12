@@ -230,3 +230,37 @@ describe('validateAutomationDraft', () => {
     expect(result.complete).toBe(false);
   });
 });
+
+describe('validateAutomationDraft merge aliases', () => {
+  it('accepts both a current token and an old alias', () => {
+    const result = validateAutomationDraft(
+      {
+        ...fullDraft,
+        actionConfig: { body: 'Hi {{first_name}} ({{member_first_name}}), see {{expiry_date}}.' },
+      },
+      OPTIONS,
+    );
+    expect(result.issues).toEqual([]);
+  });
+
+  it('accepts the session trainer alias on a PT trigger only', () => {
+    const pt = validateAutomationDraft(
+      {
+        name: 'PT',
+        triggerType: 'pt_session_booked',
+        actionType: 'email',
+        actionConfig: { body: 'With {{session_trainer_name}} / {{trainer_name}}' },
+      },
+      OPTIONS,
+    );
+    expect(pt.issues).toEqual([]);
+    const member = validateAutomationDraft(
+      {
+        ...fullDraft,
+        actionConfig: { body: 'With {{session_trainer_name}}' },
+      },
+      OPTIONS,
+    );
+    expect(member.issues[0]).toMatch(/Unknown merge token: \{\{session_trainer_name\}\}/);
+  });
+});

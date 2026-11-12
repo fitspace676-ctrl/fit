@@ -187,9 +187,10 @@ export class ServiceSessionsService {
       select: { id: true },
     });
     // Cancelling a slot a member had booked tells automation (T12.5); an empty
-    // OPEN slot has no one to notify.
+    // OPEN slot has no one to notify. This path is staff-only, so the
+    // `{{cancelled_by}}` merge value is always the trainer side.
     if (to === ServiceSessionStatus.CANCELLED && existing.memberId) {
-      this.dispatch(AutomationTriggerType.pt_session_cancelled, id);
+      this.dispatch(AutomationTriggerType.pt_session_cancelled, id, { cancelled_by: 'trainer' });
     }
     return this.getAdmin(id);
   }
@@ -198,10 +199,15 @@ export class ServiceSessionsService {
    * Fire a session-scoped automation trigger. Not awaited: the executor swallows
    * its own errors, so automation can never block or fail the session flow.
    */
-  private dispatch(triggerType: AutomationTriggerType, sessionId: string): void {
+  private dispatch(
+    triggerType: AutomationTriggerType,
+    sessionId: string,
+    extraValues?: Record<string, string>,
+  ): void {
     void this.automation.dispatchForGym(this.tenant.gymId, triggerType, {
       entityId: sessionId,
       entityType: 'service_session',
+      ...(extraValues ? { extraValues } : {}),
     });
   }
 

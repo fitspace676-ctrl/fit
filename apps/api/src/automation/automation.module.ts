@@ -6,6 +6,7 @@ import { AutomationExecutorService } from './automation-executor.service';
 import { AutomationMergeService } from './automation-merge.service';
 import { AutomationService } from './automation.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 /**
  * Automation: the staff console's "when X happens, do Y" surface (`/automation`,
@@ -22,10 +23,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
  * {@link AutomationMergeService} resolves who a fired rule is about and the tokens
  * that personalise their message; the executor delivers `email` actions through
  * the `@Global` `MailModule`'s transport, and `push_notification` actions through
- * the {@link NotificationsModule}'s `NotificationService`.
+ * the {@link NotificationsModule}'s `NotificationService`. A rule's offer bonus
+ * points are credited through the {@link LoyaltyModule}'s `LoyaltyPointsService`.
  */
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, LoyaltyModule],
   controllers: [AutomationController],
   providers: [
     AutomationAssistService,

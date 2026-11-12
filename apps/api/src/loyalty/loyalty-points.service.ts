@@ -77,6 +77,37 @@ export class LoyaltyPointsService {
     }
   }
 
+  /**
+   * Credit an automation rule's offer bonus (`actionConfig.offer.bonusPoints`)
+   * as a `manual` ledger entry noted with the rule's name. Idempotent per
+   * `refId` (`automation:<ruleId>:<entityId>`): a rule re-firing for the same
+   * entity never credits twice. Returns whether points were credited; false when
+   * the programme is off, the member is not in `gymId`, it was already credited,
+   * or the write failed. Never throws.
+   */
+  async awardAutomationBonus(
+    gymId: string,
+    memberId: string,
+    points: number,
+    refId: string,
+    note: string,
+  ): Promise<boolean> {
+    try {
+      if (!Number.isInteger(points) || points <= 0) return false;
+      const program = await this.loadProgram(gymId);
+      if (!program?.enabled) return false;
+      const member = await this.prisma.client.gymMember.findFirst({
+        where: { id: memberId, gymId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!member) return false;
+      return await this.award(gymId, memberId, points, 'manual', refId, note.slice(0, 200));
+    } catch (error) {
+      this.warn('automation bonus', memberId, error);
+      return false;
+    }
+  }
+
   private loadProgram(gymId: string) {
     return this.prisma.client.loyaltyProgram.findUnique({
       where: { gymId },
@@ -101,13 +132,14 @@ export class LoyaltyPointsService {
     delta: number,
     reason: LoyaltyReason,
     refId: string | null,
-  ): Promise<void> {
+    note?: string,
+  ): Promise<boolean> {
     const duplicate = await this.prisma.client.loyaltyLedgerEntry.findFirst({
       where: { gymId, memberId, reason, refId },
       select: { id: true },
     });
     if (duplicate) {
-      return;
+      return false;
     }
 
     const agg = await this.prisma.client.loyaltyLedgerEntry.aggregate({
@@ -117,8 +149,9 @@ export class LoyaltyPointsService {
     const balanceAfter = (agg._sum.delta ?? 0) + delta;
 
     await this.prisma.client.loyaltyLedgerEntry.create({
-      data: { gymId, memberId, delta, reason, refId, balanceAfter },
+      data: { gymId, memberId, delta, reason, refId, balanceAfter, ...(note ? { note } : {}) },
     });
+    return true;
   }
 
   private warn(hook: string, memberId: string, error: unknown): void {

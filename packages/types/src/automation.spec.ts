@@ -17,10 +17,10 @@ describe('automation trigger catalog', () => {
     }
   });
 
-  it('covers all 24 offered triggers with unique values', () => {
+  it('covers all 25 offered triggers with unique values', () => {
     const values = AUTOMATION_TRIGGER_CATALOG.map((t) => t.value);
-    expect(values).toHaveLength(24);
-    expect(new Set(values).size).toBe(24);
+    expect(values).toHaveLength(25);
+    expect(new Set(values).size).toBe(25);
   });
 
   it('leaves out the triggers nothing fires yet', () => {
@@ -155,5 +155,111 @@ describe('listAutomationRulesQuerySchema', () => {
 
   it('rejects a non-boolean active flag', () => {
     expect(listAutomationRulesQuerySchema.safeParse({ active: 'maybe' }).success).toBe(false);
+  });
+});
+
+import { TRAINER_RECIPIENT_TRIGGERS, automationOfferSchema } from './automation';
+
+describe('first_class_attended and anchors', () => {
+  it('lists first_class_attended as a booking event in Classes', () => {
+    const meta = AUTOMATION_TRIGGER_CATALOG.find((t) => t.value === 'first_class_attended');
+    expect(meta).toMatchObject({
+      category: 'Classes',
+      entityType: 'booking',
+      kind: 'event',
+      recipient: 'member',
+      label: 'First class attended',
+    });
+    expect(automationTriggerTypeSchema.safeParse('first_class_attended').success).toBe(true);
+  });
+
+  it('anchors class_booked and pt_session_booked to the entity start', () => {
+    const anchored = AUTOMATION_TRIGGER_CATALOG.filter((t) => t.anchor === 'entity_start').map(
+      (t) => t.value,
+    );
+    expect(anchored.sort()).toEqual(['class_booked', 'pt_session_booked']);
+  });
+});
+
+describe('rule recipient', () => {
+  const base = {
+    name: 'Rule',
+    actionType: 'email' as const,
+    actionConfig: { body: 'Hello' },
+  };
+
+  it('derives trainer triggers from booking and session entities', () => {
+    expect(TRAINER_RECIPIENT_TRIGGERS.has('class_booked')).toBe(true);
+    expect(TRAINER_RECIPIENT_TRIGGERS.has('pt_session_cancelled')).toBe(true);
+    expect(TRAINER_RECIPIENT_TRIGGERS.has('first_class_attended')).toBe(true);
+    expect(TRAINER_RECIPIENT_TRIGGERS.has('member_joined')).toBe(false);
+  });
+
+  it('defaults to member', () => {
+    const parsed = createAutomationRuleSchema.parse({ ...base, triggerType: 'member_joined' });
+    expect(parsed.recipient).toBe('member');
+  });
+
+  it('accepts a trainer on a class trigger', () => {
+    const parsed = createAutomationRuleSchema.safeParse({
+      ...base,
+      triggerType: 'class_booked',
+      recipient: 'trainer',
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('rejects a trainer on a member trigger', () => {
+    const parsed = createAutomationRuleSchema.safeParse({
+      ...base,
+      triggerType: 'member_joined',
+      recipient: 'trainer',
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0]).toMatchObject({
+      path: ['recipient'],
+      message: 'recipientNotAllowed',
+    });
+  });
+
+  it('checks the pair on update and keeps recipient optional there', () => {
+    expect(
+      updateAutomationRuleSchema.safeParse({ triggerType: 'member_joined', recipient: 'trainer' })
+        .success,
+    ).toBe(false);
+    expect(updateAutomationRuleSchema.parse({ name: 'x' }).recipient).toBeUndefined();
+  });
+});
+
+describe('automationOfferSchema', () => {
+  it('accepts an empty offer and every field at its limits', () => {
+    expect(automationOfferSchema.safeParse({}).success).toBe(true);
+    expect(
+      automationOfferSchema.safeParse({
+        discountPercent: 100,
+        bonusPoints: 100000,
+        offerCode: 'x'.repeat(40),
+        offerExpiry: '2026-12-31',
+      }).success,
+    ).toBe(true);
+    expect(automationOfferSchema.safeParse({ discountPercent: 0, bonusPoints: 0 }).success).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    { discountPercent: -1 },
+    { discountPercent: 101 },
+    { bonusPoints: 100001 },
+    { bonusPoints: 1.5 },
+    { offerCode: 'x'.repeat(41) },
+    { offerExpiry: '31/12/2026' },
+  ])('rejects %o', (offer) => {
+    expect(automationOfferSchema.safeParse(offer).success).toBe(false);
+  });
+
+  it('rides along in actionConfig', () => {
+    const parsed = automationActionConfigSchema.parse({ body: 'x', offer: { bonusPoints: 50 } });
+    expect(parsed.offer).toEqual({ bonusPoints: 50 });
   });
 });

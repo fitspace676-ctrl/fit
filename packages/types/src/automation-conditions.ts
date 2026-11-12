@@ -13,6 +13,7 @@ export const automationConditionFieldSchema = z.enum([
   'subscription_plan',
   'subscription_status',
   'subscription_days_until_expiry',
+  'booking_attendance',
 ]);
 export type AutomationConditionField = z.infer<typeof automationConditionFieldSchema>;
 export const automationConditionOperatorSchema = z.enum([
@@ -31,10 +32,11 @@ export const automationConditionOperatorSchema = z.enum([
 ]);
 export type AutomationConditionOperator = z.infer<typeof automationConditionOperatorSchema>;
 export type AutomationConditionFieldType = 'enum' | 'number' | 'date' | 'list' | 'select';
+export type AutomationConditionGroup = 'member' | 'subscription' | 'booking';
 export interface AutomationConditionFieldMeta {
   key: AutomationConditionField;
   type: AutomationConditionFieldType;
-  group: 'member' | 'subscription';
+  group: AutomationConditionGroup;
   optionsSource?: 'locations' | 'plans' | 'tags';
   enumValues?: readonly string[];
 }
@@ -66,6 +68,13 @@ export const AUTOMATION_CONDITION_FIELDS: readonly AutomationConditionFieldMeta[
     enumValues: ['TRIAL', 'ACTIVE', 'PAST_DUE', 'FROZEN', 'CANCELED', 'EXPIRED'],
   },
   { key: 'subscription_days_until_expiry', type: 'number', group: 'subscription' },
+  // Only set for booking triggers (attendance_marked): did they come or not?
+  {
+    key: 'booking_attendance',
+    type: 'enum',
+    group: 'booking',
+    enumValues: ['ATTENDED', 'NO_SHOW'],
+  },
 ];
 export const OPERATORS_BY_TYPE: Record<
   AutomationConditionFieldType,
@@ -135,6 +144,8 @@ export interface AutomationConditionFacts {
   subscription_plan: string | null;
   subscription_status: string | null;
   subscription_days_until_expiry: number | null;
+  /** The booking's status for booking triggers; null for every other trigger. */
+  booking_attendance: string | null;
 }
 
 /** Missing facts only match explicit emptiness checks; comparisons never coerce null to zero. */

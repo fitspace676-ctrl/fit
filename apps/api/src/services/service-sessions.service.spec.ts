@@ -286,7 +286,7 @@ describe('ServiceSessionsService.book', () => {
 describe('ServiceSessionsService.cancel / complete', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('fires pt_session_cancelled when a booked session is cancelled (T12.5)', async () => {
+  it('fires pt_session_cancelled with cancelled_by trainer when staff cancel a booked session', async () => {
     const { svc, sessionUpdate, automation } = setup({
       slot: { status: 'BOOKED', memberId: 'gm-9' },
     });
@@ -295,6 +295,7 @@ describe('ServiceSessionsService.cancel / complete', () => {
     expect(automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'pt_session_cancelled', {
       entityId: 'ss-1',
       entityType: 'service_session',
+      extraValues: { cancelled_by: 'trainer' },
     });
   });
 
