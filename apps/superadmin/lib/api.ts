@@ -12,6 +12,7 @@ import type {
   AdminBlogPost,
   AdminBlogPostListResponse,
   AdminGymDetail,
+  AdminGymOnboarding,
   BlogAuthor,
   BlogAuthorListResponse,
   BlogCategory,
@@ -102,6 +103,19 @@ export async function createGym(input: CreateAdminGymInput): Promise<CreateAdmin
     cache: 'no-store',
   });
   return unwrap<CreateAdminGymResponse>(res);
+}
+
+/** `POST /admin/gyms/:id/onboarding-link` — create or regenerate the owner's link. */
+export async function createGymOnboardingLink(gymId: string): Promise<AdminGymOnboarding> {
+  const res = await fetch(
+    `${apiBaseUrl()}/admin/gyms/${encodeURIComponent(gymId)}/onboarding-link`,
+    {
+      method: 'POST',
+      headers: await authHeaders(),
+      cache: 'no-store',
+    },
+  );
+  return unwrap<AdminGymOnboarding>(res);
 }
 
 /** `PATCH /admin/gyms/:id/status` — suspend or reactivate a gym. */

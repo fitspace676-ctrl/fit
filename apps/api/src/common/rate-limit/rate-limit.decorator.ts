@@ -76,4 +76,12 @@ export const RATE_LIMITS = {
    * leaves that untouched while capping a naive flood.
    */
   leads: { name: 'platform-leads', limit: 10, windowSec: 3600 } satisfies RateLimitOptions,
+  /**
+   * The gym owner's onboarding wizard (`/gym-onboarding/:token/*`). Its own bucket
+   * rather than `auth`: one honest pass is a read plus a save per step, and going
+   * Back or reloading doubles that, so the ten-a-minute credential budget cuts a
+   * real owner off mid-setup. The token is a 256-bit HMAC, so the limit is here to
+   * cap load, not to slow guessing.
+   */
+  gymOnboarding: { name: 'gym-onboarding', limit: 60, windowSec: 60 } satisfies RateLimitOptions,
 } as const;

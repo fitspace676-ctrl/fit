@@ -24,12 +24,18 @@ const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
 /** Every absolute http(s) URL on a line. */
 const URLS = /https?:\/\/[^\s"'<>]+/g;
 
-/** The newest link to `pathname` logged for `recipient`, or `undefined`. */
+/**
+ * The newest link to `pathname` logged for `recipient`, or `undefined`. A
+ * `pathname` ending in `/` is a prefix — the onboarding link carries its token as
+ * the last path segment (`/admin/onboarding/<token>`), not in the query.
+ */
 function lastLoggedLink(log: string, recipient: string, pathname: string): string | undefined {
+  const matches = (path: string): boolean =>
+    pathname.endsWith('/') ? path.startsWith(pathname) : path === pathname;
   const lines = log.replace(ANSI, '').split('\n').reverse();
   for (const line of lines) {
     if (!line.includes(recipient)) continue;
-    const link = line.match(URLS)?.find((url) => new URL(url).pathname === pathname);
+    const link = line.match(URLS)?.find((url) => matches(new URL(url).pathname));
     if (link) return link;
   }
   return undefined;

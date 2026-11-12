@@ -2935,6 +2935,13 @@ describe('AuthService.registerGym', () => {
 
   afterEach(() => vi.clearAllMocks());
 
+  it('skips both activation token and activation email for operator live onboarding', async () => {
+    await ctx.service.registerGym(VALID_GYM, 'operator-1', null, { skipOnboardingEmail: true });
+    expect(ctx.gymCreate).toHaveBeenCalledOnce();
+    expect(ctx.set).not.toHaveBeenCalled();
+    expect(ctx.sendOwnerOnboardingEmail).not.toHaveBeenCalled();
+  });
+
   it('creates a new owner, gym, and OWNER membership, then sends the onboarding email', async () => {
     const result = await ctx.service.registerGym(VALID_GYM);
 
@@ -3096,5 +3103,69 @@ describe('AuthService.registerGym', () => {
 
     expect(error).toBeInstanceOf(ConflictException);
     expect((error as ConflictException).getResponse()).toMatchObject({ code: 'EMAIL_TAKEN' });
+  });
+});
+
+describe('AuthService.activateOnboardingOwner', () => {
+  function transaction(changed: number) {
+    return {
+      gymCredential: {
+        updateMany: vi.fn(() => Promise.resolve({ count: changed })),
+        update: vi.fn(() => Promise.resolve({})),
+      },
+      user: {
+        findUnique: vi.fn(() => Promise.resolve({ email: 'owner@example.com' })),
+        updateMany: vi.fn(() => Promise.resolve({ count: 1 })),
+        update: vi.fn(() => Promise.resolve({})),
+      },
+    };
+  }
+
+  it('atomically sets only an empty gym password, verifies it, and writes both names', async () => {
+    const { service } = setupGym();
+    const db = transaction(1);
+    argonHash.mockResolvedValue('argon2-hash');
+    await service.activateOnboardingOwner(
+      'owner-1',
+      'gym-1',
+      'Owner',
+      'password',
+      db as unknown as Prisma.TransactionClient,
+    );
+    expect(db.gymCredential.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { userId: 'owner-1', gymId: 'gym-1', passwordHash: null },
+      data: { passwordHash: 'argon2-hash' },
+    });
+    expect(db.gymCredential.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { userId: 'owner-1', gymId: 'gym-1', emailVerifiedAt: null },
+      data: { emailVerifiedAt: expect.any(Date) as Date },
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'owner-1' },
+      data: { name: 'Owner' },
+    });
+    expect(db.gymCredential.update).toHaveBeenCalledWith({
+      where: { userId_gymId: { userId: 'owner-1', gymId: 'gym-1' } },
+      data: { name: 'Owner' },
+    });
+  });
+
+  it('refuses a password set concurrently through another activation path', async () => {
+    const { service } = setupGym();
+    const db = transaction(0);
+    await expect(
+      service.activateOnboardingOwner(
+        'owner-1',
+        'gym-1',
+        'Owner',
+        'password',
+        db as unknown as Prisma.TransactionClient,
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: { code: 'ONBOARDING_ACCOUNT_ALREADY_SET' },
+    });
+    expect(db.user.update).not.toHaveBeenCalled();
+    expect(db.gymCredential.update).not.toHaveBeenCalled();
   });
 });

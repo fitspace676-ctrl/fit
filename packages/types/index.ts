@@ -71,3 +71,5 @@ export * from './src/automation-conditions';
 export * from './src/automation-timing';
 export * from './src/automation-assist';
 export * from './src/automation-templates';
+
+export * from './src/gym-onboarding';

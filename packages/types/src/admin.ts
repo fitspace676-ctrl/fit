@@ -1,3 +1,4 @@
+import type { AdminGymOnboarding } from './gym-onboarding';
 // @fit/types — SuperAdmin platform console contracts (T2.12).
 //
 // Cross-tenant operator endpoints under `/admin/gyms`, reachable only by a
@@ -66,6 +67,7 @@ export interface ListAdminGymsResponse {
  * and who else can get in (`staff`).
  */
 export interface AdminGymDetail extends AdminGymSummary {
+  onboarding: AdminGymOnboarding | null;
   /** The owner, with the onboarding state the summary omits. */
   owner: AdminGymOwner | null;
   /** Memberships holding a staff role — everyone who can reach the console. */

@@ -191,6 +191,29 @@ export class EmailService {
     );
   }
 
+  /** The operator-created gym's revocable, multi-step onboarding link. */
+  async sendOwnerLiveOnboardingEmail(
+    to: string,
+    token: string,
+    gymName: string,
+    name?: string,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+    gymSlug?: string | null,
+  ): Promise<void> {
+    const url = buildOwnerLiveOnboardingUrl(token, gymSlug);
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — owner onboarding link for ${to}: ${url}`,
+      );
+      return;
+    }
+    await this.deliver(
+      to,
+      buildOwnerOnboardingEmail(url, gymName, name, locale),
+      'owner onboarding',
+    );
+  }
+
   /**
    * Send the staff-invitation email (T4.7) containing the single-use accept link.
    * The link points at the API's `GET /auth/accept-invite` route, which verifies
@@ -395,6 +418,12 @@ export function buildOwnerOnboardingUrl(token: string, gymSlug?: string | null):
     buildConsoleUrl('activate', gymSlug) ??
     `http://localhost:3002${env.ADMIN_BASE_PATH}/activate`;
   return `${base}?token=${encodeURIComponent(token)}`;
+}
+
+/** The wizard URL deliberately ignores the legacy activation URL override. */
+export function buildOwnerLiveOnboardingUrl(token: string, gymSlug?: string | null): string {
+  const path = `onboarding/${encodeURIComponent(token)}`;
+  return buildConsoleUrl(path, gymSlug) ?? `http://localhost:3002${env.ADMIN_BASE_PATH}/${path}`;
 }
 
 /**

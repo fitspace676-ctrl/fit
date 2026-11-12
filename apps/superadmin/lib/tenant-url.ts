@@ -27,3 +27,9 @@ export function tenantAdminUrl(slug: string): string | null {
   const origin = tenantOrigin(slug);
   return origin ? `${origin}/admin` : null;
 }
+
+/** The owner's tokenized onboarding wizard on the gym's console host. */
+export function tenantOnboardingUrl(slug: string, token: string): string | null {
+  const adminUrl = tenantAdminUrl(slug);
+  return adminUrl ? `${adminUrl}/onboarding/${encodeURIComponent(token)}` : null;
+}

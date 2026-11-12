@@ -15,6 +15,7 @@ import {
   GYM_SELECTION_REQUIRED_CODE,
   MEMBERSHIP_NOT_ACTIVE_CODE,
   NOT_A_MEMBER_CODE,
+  ONBOARDING_ACCOUNT_ALREADY_SET_CODE,
   TENANT_MISMATCH_CODE,
   gymPublicMemberIntake,
   gymPublicStartDatePolicy,
@@ -654,6 +655,7 @@ export class AuthService {
     input: RegisterGymInput,
     createdBy?: string,
     locale: EmailLocale | null = null,
+    options: { skipOnboardingEmail?: boolean } = {},
   ): Promise<RegisterGymResponse> {
     const [existingGym, existingOwner] = await Promise.all([
       this.prisma.client.gym.findUnique({
@@ -731,31 +733,33 @@ export class AuthService {
       throw error;
     }
 
-    const token = generateVerificationToken();
-    await this.redis.client.set(
-      verifyKey(token),
-      encodeTokenSubject({ userId: provisioned.ownerId, gymId: provisioned.gymId }),
-      'EX',
-      env.EMAIL_VERIFICATION_TTL,
-    );
+    if (!options.skipOnboardingEmail) {
+      const token = generateVerificationToken();
+      await this.redis.client.set(
+        verifyKey(token),
+        encodeTokenSubject({ userId: provisioned.ownerId, gymId: provisioned.gymId }),
+        'EX',
+        env.EMAIL_VERIFICATION_TTL,
+      );
 
-    // Best-effort, exactly like registration: the gym + owner already exist, so a
-    // transient mail failure must not 500 a request that already succeeded.
-    try {
-      await this.email.sendOwnerOnboardingEmail(
-        input.ownerEmail,
-        token,
-        input.gymName,
-        input.ownerName,
-        locale ?? DEFAULT_EMAIL_LOCALE,
-        input.subdomainSlug,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to send owner onboarding email to ${input.ownerEmail}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      // Best-effort, exactly like registration: the gym + owner already exist, so a
+      // transient mail failure must not 500 a request that already succeeded.
+      try {
+        await this.email.sendOwnerOnboardingEmail(
+          input.ownerEmail,
+          token,
+          input.gymName,
+          input.ownerName,
+          locale ?? DEFAULT_EMAIL_LOCALE,
+          input.subdomainSlug,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to send owner onboarding email to ${input.ownerEmail}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
 
     return {
@@ -803,13 +807,17 @@ export class AuthService {
    * timestamp; `updateMany` tolerates a missing row. The user's own stamp is set
    * alongside a per-gym one because it is still what a platform credential reads.
    */
-  private async stampVerified(userId: string, gymId: string | null): Promise<void> {
+  private async stampVerified(
+    userId: string,
+    gymId: string | null,
+    db: Prisma.TransactionClient = this.prisma.client,
+  ): Promise<void> {
     const now = new Date();
-    await this.prisma.client.gymCredential.updateMany({
+    await db.gymCredential.updateMany({
       where: { userId, ...(gymId ? { gymId } : {}), emailVerifiedAt: null },
       data: { emailVerifiedAt: now },
     });
-    await this.prisma.client.user.updateMany({
+    await db.user.updateMany({
       where: { id: userId, emailVerifiedAt: null },
       data: { emailVerifiedAt: now },
     });
@@ -897,6 +905,23 @@ export class AuthService {
     return { email: user.email };
   }
 
+  /** Set the owner's first gym password through the activation write path. */
+  async activateOnboardingOwner(
+    userId: string,
+    gymId: string,
+    name: string,
+    password: string,
+    db: Prisma.TransactionClient,
+  ): Promise<void> {
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    await this.writePassword(userId, gymId, passwordHash, db, true);
+    await db.user.update({ where: { id: userId }, data: { name } });
+    await db.gymCredential.update({
+      where: { userId_gymId: { userId, gymId } },
+      data: { name },
+    });
+  }
+
   /**
    * Set a password from an emailed token, and stamp the address verified —
    * completing the flow proves inbox control just as the verification link does.
@@ -911,31 +936,46 @@ export class AuthService {
     userId: string,
     gymId: string | null,
     passwordHash: string,
+    db: Prisma.TransactionClient = this.prisma.client,
+    firstPasswordOnly = false,
   ): Promise<{ email: string }> {
     if (gymId) {
-      await this.prisma.client.gymCredential.upsert({
-        where: { userId_gymId: { userId, gymId } },
-        create: { userId, gymId, passwordHash },
-        update: { passwordHash },
-      });
-      await this.stampVerified(userId, gymId);
-      const user = await this.prisma.client.user.findUnique({
+      if (firstPasswordOnly) {
+        const changed = await db.gymCredential.updateMany({
+          where: { userId, gymId, passwordHash: null },
+          data: { passwordHash },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException({
+            message: 'Owner already has a password',
+            code: ONBOARDING_ACCOUNT_ALREADY_SET_CODE,
+          });
+        }
+      } else {
+        await db.gymCredential.upsert({
+          where: { userId_gymId: { userId, gymId } },
+          create: { userId, gymId, passwordHash },
+          update: { passwordHash },
+        });
+      }
+      await this.stampVerified(userId, gymId, db);
+      const user = await db.user.findUnique({
         where: { id: userId },
         select: { email: true },
       });
       return { email: user?.email ?? '' };
     }
 
-    const user = await this.prisma.client.user.update({
+    const user = await db.user.update({
       where: { id: userId },
       data: { passwordHash },
       select: { email: true },
     });
-    await this.prisma.client.gymCredential.updateMany({
+    await db.gymCredential.updateMany({
       where: { userId },
       data: { passwordHash },
     });
-    await this.stampVerified(userId, null);
+    await this.stampVerified(userId, null, db);
     return user;
   }
 
