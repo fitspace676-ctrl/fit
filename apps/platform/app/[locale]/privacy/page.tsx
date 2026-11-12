@@ -28,11 +28,7 @@ export default async function Page({ params }: Params) {
   setRequestLocale(locale);
   const t = await getTranslations('legal');
   return (
-    // The English text carries no effective/updated line; the Georgian keeps its own.
-    <LegalPage
-      title={t('privacy.heading')}
-      updated={locale === 'ka' ? t('privacy.updated') : undefined}
-    >
+    <LegalPage title={t('privacy.heading')} updated={t('privacy.updated')}>
       {locale === 'ka' ? <PrivacyKa /> : <PrivacyEn />}
     </LegalPage>
   );
