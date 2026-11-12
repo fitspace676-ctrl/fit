@@ -5,8 +5,8 @@ import { env } from '@/lib/env';
 import { NewGymForm } from './new-gym-form';
 
 export const metadata: Metadata = {
-  title: 'New gym | FormaCore SuperAdmin',
-  description: 'Provision a gym and onboard its first owner.',
+  title: 'New gym request | FormaCore SuperAdmin',
+  description: 'Create an onboarding request for a gym.',
 };
 
 const styles = stylex.create({
@@ -74,14 +74,17 @@ const styles = stylex.create({
 });
 
 const next = [
-  { title: 'Tenant is created', body: 'Active from the first minute, with no locations yet.' },
   {
-    title: 'Owner account is created',
-    body: 'A brand-new account. The owner sets their own password.',
+    title: 'A link is created and emailed',
+    body: 'Only a request exists at this stage. The link also appears on the next screen to copy.',
   },
   {
-    title: 'Onboarding link is emailed',
-    body: 'The same link appears on the next screen, ready to copy.',
+    title: 'The owner confirms their details',
+    body: 'They fill in the details and confirm with a code sent to this email.',
+  },
+  {
+    title: 'You approve the request',
+    body: 'Only then are the gym, its subdomain and the owner’s sign-in created.',
   },
 ];
 
@@ -90,8 +93,8 @@ export default function NewGymPage() {
     <div {...stylex.props(styles.page)}>
       <PageHead
         eyebrow={<BackLink href="/" label="Gyms" />}
-        title="New gym"
-        description="Creates the tenant and a brand-new owner account, then emails that owner their onboarding link. They set their own password from it."
+        title="New gym request"
+        description="Create a link for the owner to fill in their details. Review their verified request before creating the gym."
       />
       <div {...stylex.props(styles.layout)}>
         <OpsCard xstyle={styles.card}>
@@ -125,7 +128,7 @@ export default function NewGymPage() {
             >
               <path d="m12 3 10 18H2L12 3Z M12 9v5m0 3v1" />
             </svg>
-            <span>The subdomain is permanent. Check the spelling before you create the gym.</span>
+            <span>The subdomain is held for this request. It becomes permanent on approval.</span>
           </div>
         </aside>
       </div>

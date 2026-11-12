@@ -585,3 +585,125 @@ body {
 form > .ops-search {
   flex: 1 1 auto;
 }
+
+/* Request review uses the same surfaces and typography as the gym roster. */
+.ops-nav-count {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  background: var(--ops-forma-100);
+  color: var(--ops-forma-800);
+  font-family: var(--font-family-code);
+  font-size: 10px;
+  text-align: center;
+}
+.ops-stat-link {
+  display: block;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.ops-stat-link > div {
+  height: 100%;
+}
+.ops-stat-link:focus-visible {
+  outline: 2px solid var(--ops-forma-400);
+  outline-offset: 3px;
+  border-radius: var(--radius-container);
+}
+.ops-request-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.ops-request-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ops-request-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.ops-request-name {
+  color: var(--ops-ink-950);
+  font-weight: 600;
+  text-decoration: none;
+}
+.ops-request-name:hover {
+  color: var(--color-text-accent);
+}
+.ops-request-secondary {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.ops-request-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.ops-request-facts,
+.ops-request-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.ops-request-host {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ops-request-swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--ops-ink-200);
+  border-radius: 50%;
+}
+.ops-request-hours {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 13px;
+}
+.ops-request-hours > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.ops-request-hours dd {
+  margin: 0;
+}
+.ops-request-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--ops-ink-200);
+  border-radius: var(--radius-element);
+  background: var(--ops-white);
+  color: var(--ops-ink-950);
+  font: inherit;
+  resize: vertical;
+}
+.ops-request-textarea:focus-visible {
+  outline: 2px solid var(--ops-forma-400);
+  outline-offset: 2px;
+}
+@media (min-width: 768px) {
+  .ops-request-facts {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .ops-request-columns {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  }
+}
+@media (max-width: 639px) {
+  .gym-roster-stats > .ops-stat-link > div {
+    padding: 16px 10px;
+  }
+}

@@ -15,7 +15,6 @@ import {
   GYM_SELECTION_REQUIRED_CODE,
   MEMBERSHIP_NOT_ACTIVE_CODE,
   NOT_A_MEMBER_CODE,
-  ONBOARDING_ACCOUNT_ALREADY_SET_CODE,
   TENANT_MISMATCH_CODE,
   gymPublicMemberIntake,
   gymPublicStartDatePolicy,
@@ -617,6 +616,63 @@ export class AuthService {
     return branch.id;
   }
 
+  /** Shared transactional tenant provisioning; callers own the transaction and email delivery. */
+  async provisionGym(
+    tx: Prisma.TransactionClient,
+    input: RegisterGymInput,
+    options: {
+      existingOwner?: { id: string } | null;
+      passwordHash: string | null;
+      createdBy?: string;
+      emailVerifiedAt?: Date;
+      settings?: Prisma.InputJsonValue;
+    },
+  ): Promise<{ gymId: string; ownerId: string }> {
+    const owner =
+      options.existingOwner ??
+      (await tx.user.create({
+        data: {
+          email: input.ownerEmail,
+          name: input.ownerName ?? null,
+          passwordHash: options.passwordHash,
+          ...(options.emailVerifiedAt ? { emailVerifiedAt: options.emailVerifiedAt } : {}),
+        },
+        select: { id: true },
+      }));
+
+    const gym = await tx.gym.create({
+      data: {
+        name: input.gymName,
+        slug: input.subdomainSlug,
+        ownerId: owner.id,
+        createdByUserId: options.createdBy ?? owner.id,
+        ...(options.settings ? { settings: options.settings } : {}),
+      },
+      select: { id: true },
+    });
+
+    await tx.gymMember.create({
+      data: {
+        userId: owner.id,
+        gymId: gym.id,
+        role: Role.OWNER,
+        status: GymMemberStatus.ACTIVE,
+      },
+    });
+
+    await tx.gymCredential.create({
+      data: {
+        userId: owner.id,
+        gymId: gym.id,
+        passwordHash: options.passwordHash,
+        name: input.ownerName ?? null,
+        ...(options.emailVerifiedAt ? { emailVerifiedAt: options.emailVerifiedAt } : {}),
+      },
+    });
+
+    return { gymId: gym.id, ownerId: owner.id };
+  }
+
   /**
    * Provision a new gym tenant and onboard its first OWNER
    * (`POST /auth/register-gym`).
@@ -683,46 +739,7 @@ export class AuthService {
     let provisioned: { gymId: string; ownerId: string };
     try {
       provisioned = await this.prisma.client.$transaction(async (tx) => {
-        const owner =
-          existingOwner ??
-          (await tx.user.create({
-            data: {
-              email: input.ownerEmail,
-              name: input.ownerName ?? null,
-              passwordHash,
-            },
-            select: { id: true },
-          }));
-
-        const gym = await tx.gym.create({
-          data: {
-            name: input.gymName,
-            slug: input.subdomainSlug,
-            ownerId: owner.id,
-            createdByUserId: createdBy ?? owner.id,
-          },
-          select: { id: true },
-        });
-
-        await tx.gymMember.create({
-          data: {
-            userId: owner.id,
-            gymId: gym.id,
-            role: Role.OWNER,
-            status: GymMemberStatus.ACTIVE,
-          },
-        });
-
-        await tx.gymCredential.create({
-          data: {
-            userId: owner.id,
-            gymId: gym.id,
-            passwordHash,
-            name: input.ownerName ?? null,
-          },
-        });
-
-        return { gymId: gym.id, ownerId: owner.id };
+        return this.provisionGym(tx, input, { existingOwner, passwordHash, createdBy });
       });
     } catch (error) {
       // Lost a unique-constraint race against a concurrent provision — surface
@@ -905,23 +922,6 @@ export class AuthService {
     return { email: user.email };
   }
 
-  /** Set the owner's first gym password through the activation write path. */
-  async activateOnboardingOwner(
-    userId: string,
-    gymId: string,
-    name: string,
-    password: string,
-    db: Prisma.TransactionClient,
-  ): Promise<void> {
-    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-    await this.writePassword(userId, gymId, passwordHash, db, true);
-    await db.user.update({ where: { id: userId }, data: { name } });
-    await db.gymCredential.update({
-      where: { userId_gymId: { userId, gymId } },
-      data: { name },
-    });
-  }
-
   /**
    * Set a password from an emailed token, and stamp the address verified —
    * completing the flow proves inbox control just as the verification link does.
@@ -937,27 +937,13 @@ export class AuthService {
     gymId: string | null,
     passwordHash: string,
     db: Prisma.TransactionClient = this.prisma.client,
-    firstPasswordOnly = false,
   ): Promise<{ email: string }> {
     if (gymId) {
-      if (firstPasswordOnly) {
-        const changed = await db.gymCredential.updateMany({
-          where: { userId, gymId, passwordHash: null },
-          data: { passwordHash },
-        });
-        if (changed.count !== 1) {
-          throw new ConflictException({
-            message: 'Owner already has a password',
-            code: ONBOARDING_ACCOUNT_ALREADY_SET_CODE,
-          });
-        }
-      } else {
-        await db.gymCredential.upsert({
-          where: { userId_gymId: { userId, gymId } },
-          create: { userId, gymId, passwordHash },
-          update: { passwordHash },
-        });
-      }
+      await db.gymCredential.upsert({
+        where: { userId_gymId: { userId, gymId } },
+        create: { userId, gymId, passwordHash },
+        update: { passwordHash },
+      });
       await this.stampVerified(userId, gymId, db);
       const user = await db.user.findUnique({
         where: { id: userId },

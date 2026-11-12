@@ -1,69 +1,53 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
-import type { Prisma } from '@fit/db';
-import { type GymOnboarding, type Location } from '@fit/db';
+import * as argon2 from 'argon2';
+import { type GymOnboarding, type Prisma } from '@fit/db';
 import type { PrismaService } from '../prisma/prisma.service';
-import type { AuthService } from '../auth/auth.service';
+import type { EmailService } from '../auth/email.service';
 import { GymOnboardingService, GYM_ONBOARDING_TTL_MS } from './gym-onboarding.service';
 
 vi.mock('../config/env', () => ({ env: { JWT_SECRET: 'onboarding-test-secret' } }));
 
-function setup(options: { password?: string; expired?: boolean; completed?: boolean } = {}) {
+function setup(overrides: Partial<GymOnboarding> = {}) {
   const now = new Date();
   let row: GymOnboarding = {
-    id: 'onboarding1',
-    gymId: 'gym1',
-    nonce: 'initial-nonce',
+    id: 'request1',
+    gymId: null,
+    gymName: 'Gym',
+    subdomainSlug: 'gym',
+    ownerEmail: 'owner@example.com',
+    ownerName: null,
+    passwordHash: null,
+    draft: {},
+    nonce: 'nonce',
     completedSteps: [],
     startedAt: null,
-    completedAt: options.completed ? now : null,
-    expiresAt: new Date(now.getTime() + (options.expired ? -1000 : GYM_ONBOARDING_TTL_MS)),
+    completedAt: null,
+    expiresAt: new Date(now.getTime() + GYM_ONBOARDING_TTL_MS),
     createdByUserId: 'operator1',
     createdAt: now,
     updatedAt: now,
+    codeHash: null,
+    codeExpiresAt: null,
+    codeSentAt: null,
+    codeAttempts: 0,
+    submittedAt: null,
+    approvedAt: null,
+    approvedByUserId: null,
+    rejectedAt: null,
+    rejectedByUserId: null,
+    rejectionReason: null,
+    ...overrides,
   };
-  const gym = {
-    id: 'gym1',
-    name: 'Gym',
-    slug: 'gym',
-    ownerId: 'owner1',
-    settings: {} as Prisma.JsonValue,
-  };
-  const credential = {
-    userId: 'owner1',
-    gymId: 'gym1',
-    name: 'Owner',
-    passwordHash: options.password ?? null,
-  };
-  const locationFind = vi.fn<() => Promise<Location | null>>(() => Promise.resolve(null));
-  const locationCreate = vi.fn(() => Promise.resolve({ id: 'location1' }));
-  const locationUpdate = vi.fn(() => Promise.resolve({ id: 'location1' }));
-  const gymUpdate = vi.fn(({ data }: { data: { name: string; settings: Prisma.JsonValue } }) => {
-    Object.assign(gym, data);
-    return Promise.resolve(gym);
-  });
   const db = {
-    $queryRaw: vi.fn(() => Promise.resolve([{ id: gym.id }])),
-    gym: { findUnique: vi.fn(() => Promise.resolve(gym)), update: gymUpdate },
-    user: {
-      findUnique: vi.fn(() =>
-        Promise.resolve({ id: 'owner1', email: 'owner@example.com', name: 'Owner' }),
-      ),
-    },
-    gymCredential: { findUnique: vi.fn(() => Promise.resolve(credential)) },
-    location: { findFirst: locationFind, create: locationCreate, update: locationUpdate },
+    $queryRaw: vi.fn(() => Promise.resolve([])),
     gymOnboarding: {
-      findUnique: vi.fn(({ where }: { where: { id?: string; gymId?: string } }) =>
-        Promise.resolve(where.id && where.id !== row.id ? null : row),
+      findUnique: vi.fn(({ where }: { where: { id: string } }) =>
+        Promise.resolve(where.id === row.id ? row : null),
       ),
-      update: vi.fn(({ data }: { data: Partial<GymOnboarding> }) => {
-        row = { ...row, ...data };
-        return Promise.resolve(row);
-      }),
-      upsert: vi.fn(({ update }: { update: Partial<GymOnboarding> }) => {
-        row = { ...row, ...update };
-        return Promise.resolve(row);
-      }),
+      update: vi.fn(({ data }: { data: Partial<GymOnboarding> }) =>
+        Promise.resolve((row = { ...row, ...data })),
+      ),
     },
   };
   const prisma = {
@@ -73,220 +57,152 @@ function setup(options: { password?: string; expired?: boolean; completed?: bool
         fn(db as unknown as Prisma.TransactionClient),
     },
   } as unknown as PrismaService;
-  const activateOnboardingOwner = vi.fn(() => {
-    credential.passwordHash = 'hashed';
-    return Promise.resolve();
-  });
-  const auth = { activateOnboardingOwner } as unknown as AuthService;
-  const token = `${row.id}.${createHmac('sha256', 'onboarding-test-secret').update(`gym-onboarding:${row.id}:${row.nonce}`).digest('base64url')}`;
+  const sendOnboardingCodeEmail = vi.fn((_to: string, _code: string) => Promise.resolve());
+  const service = new GymOnboardingService(prisma, {
+    sendOnboardingCodeEmail,
+  } as unknown as EmailService);
+  const token = service.token(row);
   return {
-    service: new GymOnboardingService(prisma, auth),
+    service,
     token,
     db,
-    gym,
-    credential,
-    activateOnboardingOwner,
-    locationCreate,
-    locationUpdate,
-    gymUpdate,
+    row: () => row,
+    sendOnboardingCodeEmail,
+    code: () => sendOnboardingCodeEmail.mock.calls.at(-1)![1],
   };
 }
-
-const account = { ownerName: 'New Owner', password: 'new-password' };
 const error = (status: number, code: string) => ({ status, response: { code } });
+const account = { ownerName: 'Owner', password: 'new-password' };
 
-describe('GymOnboardingService', () => {
-  it('round-trips a derived token and returns defaults without exposing credential hashes', async () => {
+describe('GymOnboardingService requests', () => {
+  it('returns defaults without any gym, user or location lookup', async () => {
     const { service, token } = setup();
-    expect((await service.getAdminState('gym1'))?.token).toBe(token);
     const state = await service.getState(token);
     expect(state).toMatchObject({
       status: 'PENDING',
-      owner: { hasPassword: false },
-      completedSteps: [],
-      values: { brand: { primaryColor: '#4f46e5' }, location: { name: 'Gym' } },
+      gym: { name: 'Gym', subdomainSlug: 'gym' },
+      owner: { email: 'owner@example.com', hasPassword: false },
+      values: { business: { gymName: 'Gym' }, location: { name: 'Gym' } },
     });
-    expect(JSON.stringify(state)).not.toContain('passwordHash');
+    expect(state).not.toHaveProperty('passwordHash');
+    expect(state).not.toHaveProperty('codeHash');
   });
-
-  it('refuses garbled, unknown, and forged tokens', async () => {
-    const { service, token } = setup();
-    for (const invalid of [
-      'garbled',
-      token.replace('onboarding1', 'unknown'),
-      `${token.slice(0, -1)}!`,
-      `${token.slice(0, -43)}${'a'.repeat(43)}`,
-    ]) {
-      await expect(service.getState(invalid)).rejects.toMatchObject(
-        error(404, 'ONBOARDING_LINK_INVALID'),
-      );
-    }
+  it('stores draft steps and a replaceable argon2id password only on the request', async () => {
+    const { service, token, row } = setup();
+    await service.saveStep(token, 'brand', { primaryColor: '#abcdef' });
+    await service.saveStep(token, 'account', account);
+    expect(row().draft).toEqual({ brand: { primaryColor: '#abcdef' } });
+    expect(row().passwordHash).toMatch(/^\$argon2id\$/);
+    expect(await argon2.verify(row().passwordHash!, account.password)).toBe(true);
+    await service.saveStep(token, 'account', { ...account, password: 'replacement-password' });
+    expect(await argon2.verify(row().passwordHash!, 'replacement-password')).toBe(true);
+    expect(row().gymId).toBeNull();
   });
-
-  it('rotates the nonce, invalidates the old link and keeps saved progress', async () => {
-    const { service, token } = setup();
-    await service.saveStep(token, 'brand', { primaryColor: '#123456' });
-    const regenerated = await service.regenerate('gym1', 'operator1');
-    expect(regenerated.token).not.toBe(token);
-    expect(regenerated.completedSteps).toEqual(['brand']);
-    await expect(service.getState(token)).rejects.toMatchObject(
-      error(404, 'ONBOARDING_LINK_INVALID'),
-    );
-    expect((await service.getState(regenerated.token!)).status).toBe('IN_PROGRESS');
-  });
-
-  it('rejects expired links but lets the operator regenerate them', async () => {
-    const { service, token } = setup({ expired: true });
-    await expect(service.getState(token)).rejects.toMatchObject(
-      error(410, 'ONBOARDING_LINK_EXPIRED'),
-    );
-    expect((await service.getAdminState('gym1'))?.status).toBe('EXPIRED');
-    const regenerated = await service.regenerate('gym1', 'operator1');
-    await expect(service.getState(regenerated.token!)).resolves.toMatchObject({
-      status: 'PENDING',
-    });
-  });
-
-  it('rechecks token validity inside the write transaction', async () => {
-    const { service, token, db } = setup();
-    db.$queryRaw.mockImplementationOnce(async () => {
-      await db.gymOnboarding.update({ data: { nonce: 'rotated-by-concurrent-request' } });
-      return [{ id: 'gym1' }];
-    });
-    await expect(
-      service.saveStep(token, 'brand', { primaryColor: '#123456' }),
-    ).rejects.toMatchObject(error(404, 'ONBOARDING_LINK_INVALID'));
-    expect(db.gym.update).not.toHaveBeenCalled();
-  });
-
-  it('sets the account through AuthService and makes it complete', async () => {
-    const { service, token, activateOnboardingOwner, db } = setup();
-    const state = await service.saveStep(token, 'account', account);
-    expect(activateOnboardingOwner).toHaveBeenCalledWith(
-      'owner1',
-      'gym1',
-      'New Owner',
-      'new-password',
-      db,
-    );
-    expect(state.completedSteps).toEqual(['account']);
-    expect(state.status).toBe('IN_PROGRESS');
-  });
-
-  it('counts an already activated owner as complete and refuses to overwrite the password', async () => {
-    const { service, token, activateOnboardingOwner } = setup({ password: 'existing' });
-    expect((await service.getState(token)).completedSteps).toEqual(['account']);
-    await expect(service.saveStep(token, 'account', account)).rejects.toMatchObject(
-      error(409, 'ONBOARDING_ACCOUNT_ALREADY_SET'),
-    );
-    expect(activateOnboardingOwner).not.toHaveBeenCalled();
-  });
-
-  it('requires the account, but allows all optional steps to be skipped', async () => {
-    const { service, token } = setup();
-    await expect(service.complete(token)).rejects.toMatchObject(
+  it('requires account, sends to the fixed owner email, and enforces cooldown', async () => {
+    const { service, token, row, sendOnboardingCodeEmail, code } = setup();
+    await expect(service.submit(token)).rejects.toMatchObject(
       error(400, 'ONBOARDING_ACCOUNT_REQUIRED'),
     );
     await service.saveStep(token, 'account', account);
-    expect(await service.complete(token)).toEqual({ email: 'owner@example.com' });
-    expect((await service.getAdminState('gym1'))?.token).toBeNull();
-  });
-
-  it('allows completed GET even past expiry; refuses all writes and regeneration', async () => {
-    const { service, token } = setup({ completed: true, expired: true, password: 'existing' });
-    expect((await service.getState(token)).status).toBe('COMPLETED');
-    await expect(
-      service.saveStep(token, 'brand', { primaryColor: '#123456' }),
-    ).rejects.toMatchObject(error(409, 'ONBOARDING_COMPLETED'));
-    await expect(service.complete(token)).rejects.toMatchObject(error(409, 'ONBOARDING_COMPLETED'));
-    await expect(service.regenerate('gym1', 'operator1')).rejects.toMatchObject(
-      error(409, 'ONBOARDING_COMPLETED'),
+    expect((await service.submit(token)).status).toBe('CODE_SENT');
+    expect(sendOnboardingCodeEmail).toHaveBeenCalledWith(
+      'owner@example.com',
+      expect.stringMatching(/^\d{6}$/),
+    );
+    expect(row().codeHash).not.toBe(code());
+    expect(row().codeExpiresAt!.getTime() - row().codeSentAt!.getTime()).toBeCloseTo(
+      15 * 60 * 1000,
+      -2,
+    );
+    await expect(service.submit(token)).rejects.toMatchObject(
+      error(429, 'ONBOARDING_CODE_COOLDOWN'),
     );
   });
-
-  it('merges real settings and gym name while retaining other sections', async () => {
-    const { service, token, gym } = setup();
-    gym.settings = {
-      brand: { primaryColor: '#abcdef', secondaryColor: '#112233' },
-      business: { address: 'Old' },
-    };
-    await service.saveStep(token, 'brand', { primaryColor: '#123456' });
-    await service.saveStep(token, 'business', {
-      gymName: 'New Gym',
-      address: 'New',
-      phone: null,
-      email: null,
-      website: null,
+  it('resends after cooldown, replacing the code hash and resetting attempts', async () => {
+    const { service, token, db, row, code } = setup({ passwordHash: 'hash' });
+    await service.submit(token);
+    await db.gymOnboarding.update({
+      data: { codeSentAt: new Date(Date.now() - 61000), codeAttempts: 4 },
     });
-    const state = await service.getState(token);
-    expect(state.gym.name).toBe('New Gym');
-    expect(state.values.business.address).toBe('New');
-    expect(gym.settings).toMatchObject({
-      brand: { primaryColor: '#123456', secondaryColor: '#112233' },
-    });
+    await service.submit(token);
+    expect(row().codeAttempts).toBe(0);
+    expect(row().codeHash).toBe(
+      createHmac('sha256', 'onboarding-test-secret')
+        .update(`gym-onboarding-code:request1:${code()}`)
+        .digest('hex'),
+    );
   });
-
-  it('creates the default location with a full week of hours', async () => {
-    const { service, token, locationCreate } = setup();
-    await service.saveStep(token, 'location', {
-      name: 'Main',
-      address: '',
-      phone: null,
-      hours: {},
-    });
-    expect(locationCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        gymId: 'gym1',
-        isDefault: true,
-        hours: expect.objectContaining({
-          mon: expect.any(Object) as object,
-          sun: expect.any(Object) as object,
-        }) as object,
-      }) as object,
-    });
+  it('commits wrong attempts and voids the code after five guesses', async () => {
+    const { service, token, row, code } = setup({ passwordHash: 'hash' });
+    await service.submit(token);
+    const wrong = code() === '000000' ? '000001' : '000000';
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      await expect(service.verify(token, wrong)).rejects.toMatchObject(
+        error(400, 'ONBOARDING_CODE_INVALID'),
+      );
+      expect(row().codeAttempts).toBe(attempt);
+    }
+    expect(row().codeHash).toBeNull();
+    await expect(service.verify(token, code())).rejects.toMatchObject(
+      error(400, 'ONBOARDING_CODE_EXPIRED'),
+    );
   });
-  it('updates the existing default location rather than creating a second default', async () => {
-    const { service, token, db, locationCreate, locationUpdate } = setup();
-    db.location.findFirst.mockResolvedValue({
-      id: 'default1',
-      name: 'Old',
-      address: '',
-      phone: null,
-      hours: {},
-    } as Location);
-    await service.saveStep(token, 'location', {
-      name: 'New branch',
-      address: 'Street',
-      phone: null,
-      hours: {},
-    });
-    expect(locationUpdate).toHaveBeenCalledWith({
-      where: { id: 'default1' },
-      data: expect.objectContaining({ name: 'New branch', address: 'Street' }) as object,
-    });
-    expect(locationCreate).not.toHaveBeenCalled();
+  it('keeps the pending code valid across edits and submits only after verification', async () => {
+    const { service, token, code, db } = setup({ passwordHash: 'hash' });
+    await service.submit(token);
+    expect((await service.saveStep(token, 'brand', { primaryColor: '#abcdef' })).status).toBe(
+      'CODE_SENT',
+    );
+    expect((await service.verify(token, code())).status).toBe('SUBMITTED');
+    await db.gymOnboarding.update({ data: { expiresAt: new Date(0) } });
+    expect((await service.getState(token)).status).toBe('SUBMITTED');
+    await expect(service.saveStep(token, 'account', account)).rejects.toMatchObject(
+      error(409, 'ONBOARDING_SUBMITTED'),
+    );
+    await expect(service.submit(token)).rejects.toMatchObject(error(409, 'ONBOARDING_SUBMITTED'));
+    await expect(service.verify(token, code())).rejects.toMatchObject(
+      error(409, 'ONBOARDING_SUBMITTED'),
+    );
   });
-
-  it('persists brand and payment methods and rejects invalid step bodies', async () => {
-    const { service, token, gymUpdate } = setup();
-    await expect(service.saveStep(token, 'brand', { primaryColor: 'red' })).rejects.toMatchObject({
-      status: 400,
-    });
-    expect(gymUpdate).not.toHaveBeenCalled();
-    const brand = { primaryColor: '#112233' };
-    const payments = {
-      acceptCash: true,
-      acceptCard: false,
-      acceptBankTransfer: true,
-      acceptPrepaidCredits: false,
-    };
-    await service.saveStep(token, 'brand', brand);
-    await service.saveStep(token, 'payments', payments);
-    const state = await service.getState(token);
-    expect(state.values).toMatchObject({ brand, payments });
-    // Language, currency and time zone are not part of onboarding: the gym keeps
-    // its defaults and the owner changes them in Settings.
-    expect(state.steps).not.toContain('locale');
-    expect(state.values).not.toHaveProperty('locale');
+  it.each(['approvedAt', 'rejectedAt'] as const)(
+    'reads terminal %s despite link TTL, but refuses writes',
+    async (field) => {
+      const { service, token } = setup({ [field]: new Date(), expiresAt: new Date(0) });
+      expect((await service.getState(token)).status).toBe(
+        field === 'approvedAt' ? 'APPROVED' : 'REJECTED',
+      );
+      await expect(service.submit(token)).rejects.toMatchObject(error(409, 'ONBOARDING_SUBMITTED'));
+    },
+  );
+  it('expires an unsubmitted link and rejects unknown/altered tokens', async () => {
+    const { service, token } = setup({ expiresAt: new Date(0) });
+    await expect(service.getState(token)).rejects.toMatchObject(
+      error(410, 'ONBOARDING_LINK_EXPIRED'),
+    );
+    await expect(service.getState('bad')).rejects.toMatchObject(
+      error(404, 'ONBOARDING_LINK_INVALID'),
+    );
+    await expect(
+      service.getState(token.slice(0, -1) + (token.endsWith('a') ? 'b' : 'a')),
+    ).rejects.toMatchObject(error(404, 'ONBOARDING_LINK_INVALID'));
+  });
+  it('expires codes that were never sent or passed their fifteen minutes', async () => {
+    const { service, token, db, code } = setup({ passwordHash: 'hash' });
+    await expect(service.verify(token, '123456')).rejects.toMatchObject(
+      error(400, 'ONBOARDING_CODE_EXPIRED'),
+    );
+    await service.submit(token);
+    await db.gymOnboarding.update({ data: { codeExpiresAt: new Date(0) } });
+    await expect(service.verify(token, code())).rejects.toMatchObject(
+      error(400, 'ONBOARDING_CODE_EXPIRED'),
+    );
+  });
+  it('invalidates the original token on rotation', async () => {
+    const { service, token, db, row } = setup();
+    await db.gymOnboarding.update({ data: service.rotation() });
+    await expect(service.getState(token)).rejects.toMatchObject(
+      error(404, 'ONBOARDING_LINK_INVALID'),
+    );
+    expect((await service.getState(service.token(row()))).status).toBe('PENDING');
   });
 });

@@ -1,9 +1,10 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { PageHead, StatCard } from '@/components/ops';
 import { Banner } from '@fit/ui-kit';
 import { ButtonLink } from '@/components/button-link';
-import { ApiError, fetchGyms } from '@/lib/api';
+import { ApiError, fetchGyms, fetchGymRequests } from '@/lib/api';
 import { tenantAdminUrl, tenantPortalUrl } from '@/lib/tenant-url';
 import { GymsTable, type GymRow } from './gyms-table';
 
@@ -38,23 +39,21 @@ const styles = stylex.create({
 export default async function GymsPage() {
   let content;
   try {
-    const { gyms } = await fetchGyms();
+    const [{ gyms }, requests] = await Promise.all([
+      fetchGyms(),
+      fetchGymRequests().catch(() => null),
+    ]);
     const rows: GymRow[] = gyms.map((gym) => ({
       ...gym,
       portalUrl: tenantPortalUrl(gym.subdomainSlug),
       adminUrl: tenantAdminUrl(gym.subdomainSlug),
     }));
     const active = gyms.filter((gym) => gym.status === 'ACTIVE').length;
-    const onboarding = gyms.filter(
-      (gym) =>
-        gym.onboardingProgress?.status === 'PENDING' ||
-        gym.onboardingProgress?.status === 'IN_PROGRESS',
-    );
-    const now = Date.now();
-    const expiring = onboarding.filter((gym) => {
-      const expires = Date.parse(gym.onboardingProgress!.expiresAt);
-      return expires >= now && expires <= now + 3 * 24 * 60 * 60 * 1000;
-    }).length;
+    const openRequests = requests?.requests.filter((request) =>
+      ['PENDING', 'IN_PROGRESS', 'CODE_SENT', 'SUBMITTED'].includes(request.status),
+    ).length;
+    const awaiting =
+      requests?.requests.filter((request) => request.status === 'SUBMITTED').length ?? 0;
     content = (
       <>
         <div className="gym-roster-stats">
@@ -68,17 +67,19 @@ export default async function GymsPage() {
             value={gyms.reduce((sum, gym) => sum + gym.memberCount, 0).toLocaleString('en-US')}
             sub={`across ${gyms.length} gyms`}
           />
-          <StatCard
-            label="Onboarding"
-            value={onboarding.length}
-            sub={
-              onboarding.length
-                ? expiring
-                  ? `${expiring} ${expiring === 1 ? 'link expires' : 'links expire'} within 3 days`
-                  : 'No links expiring soon'
-                : undefined
-            }
-          />
+          <Link href="/requests" className="ops-stat-link">
+            <StatCard
+              label="Requests"
+              value={openRequests ?? '—'}
+              sub={
+                requests
+                  ? awaiting
+                    ? `${awaiting} awaiting approval`
+                    : 'None awaiting approval'
+                  : 'Could not load requests'
+              }
+            />
+          </Link>
         </div>
         <GymsTable gyms={rows} />
       </>
@@ -101,7 +102,7 @@ export default async function GymsPage() {
         actions={
           <ButtonLink
             href="/gyms/new"
-            label="New gym"
+            label="New gym request"
             icon={
               <svg
                 aria-hidden="true"

@@ -1,14 +1,4 @@
 import * as stylex from '@stylexjs/stylex';
-import { Badge, type BadgeTone } from '@fit/ui-kit';
-import type { GymOnboardingStatus } from '@fit/types';
-
-const STATUS: Record<GymOnboardingStatus, { label: string; tone: BadgeTone }> = {
-  PENDING: { label: 'Not started', tone: 'neutral' },
-  IN_PROGRESS: { label: 'In progress', tone: 'pending' },
-  COMPLETED: { label: 'Completed', tone: 'positive' },
-  EXPIRED: { label: 'Expired', tone: 'danger' },
-};
-
 const styles = stylex.create({
   avatar: {
     display: 'grid',
@@ -53,8 +43,4 @@ export function InitialsAvatar({
       {initials?.toUpperCase()}
     </span>
   );
-}
-
-export function OnboardingStatusBadge({ status }: { status: GymOnboardingStatus }) {
-  return <Badge label={STATUS[status].label} tone={STATUS[status].tone} />;
 }

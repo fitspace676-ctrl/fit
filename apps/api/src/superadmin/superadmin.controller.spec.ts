@@ -11,12 +11,10 @@ function setup(userId: string | null = 'admin-1') {
   const impersonate = vi.fn(() =>
     Promise.resolve({ handoffCode: 'handoff-code', expiresInSeconds: 60 }),
   );
-  const regenerateOnboardingLink = vi.fn(() => Promise.resolve({ token: 'live-token' }));
   const superadmin = {
     listGyms,
     setGymStatus,
     impersonate,
-    regenerateOnboardingLink,
   } as unknown as SuperAdminService;
   // `null` models "no authenticated actor" — the controller reads `undefined`
   // from a real TenantContext, so coerce it here. (A `= undefined` default
@@ -25,7 +23,6 @@ function setup(userId: string | null = 'admin-1') {
   return {
     controller: new SuperAdminController(superadmin, tenant),
     listGyms,
-    regenerateOnboardingLink,
     setGymStatus,
     impersonate,
   };
@@ -73,11 +70,6 @@ describe('SuperAdminController', () => {
       expect(ctx.impersonate).toHaveBeenCalledWith('admin-1', 'gym-1');
       expect(result).toEqual({ handoffCode: 'handoff-code', expiresInSeconds: 60 });
     });
-  });
-
-  it('forwards the actor and gym when regenerating an onboarding link', async () => {
-    await ctx.controller.onboardingLink('gym-1');
-    expect(ctx.regenerateOnboardingLink).toHaveBeenCalledWith('admin-1', 'gym-1');
   });
 
   describe('missing actor', () => {

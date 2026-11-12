@@ -14,7 +14,7 @@ import { Badge, EmptyState, type BadgeTone, type Column } from '@fit/ui-kit';
 import { FilterPills, OpsTable } from '@/components/ops';
 
 /** Tones by action family: creating is neutral, cutting off and acting-as are not. */
-const ACTION_TONES: Record<AuditAction, BadgeTone> = {
+const ACTION_TONES: Partial<Record<AuditAction, BadgeTone>> = {
   'gym.create': 'positive',
   'gym.status.update': 'pending',
   'gym.impersonate': 'neutral',
@@ -39,7 +39,10 @@ function formatWhen(iso: string): string {
  * without waiting for a label.
  */
 function actionLabel(action: string): string {
-  return AUDIT_ACTION_LABELS[action as AuditAction] ?? action;
+  return (
+    AUDIT_ACTION_LABELS[action as AuditAction] ??
+    action.replace(/[._-]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase())
+  );
 }
 
 function actionTone(action: string): BadgeTone {
@@ -128,7 +131,7 @@ const COLUMNS: ReadonlyArray<Column<AdminAuditLogRow>> = [
         </div>
       ) : (
         // The trail outlives what it references, so this is an answer, not a gap.
-        <span {...stylex.props(styles.secondary)}>deleted gym</span>
+        <span {...stylex.props(styles.secondary)}>No gym</span>
       ),
   },
   {
@@ -224,11 +227,11 @@ export function ActivityFilters({
   }
   const options = [
     { value: '', label: 'All actions' },
-    ...AUDIT_ACTIONS.map((value) => ({ value, label: AUDIT_ACTION_LABELS[value] })),
+    ...AUDIT_ACTIONS.filter((value) => AUDIT_ACTION_LABELS[value]).map((value) => ({
+      value,
+      label: AUDIT_ACTION_LABELS[value],
+    })),
   ];
-  if (action && !options.some((option) => option.value === action)) {
-    options.push({ value: action, label: actionLabel(action) });
-  }
   return (
     <div {...stylex.props(filterStyles.root)}>
       <div {...stylex.props(filterStyles.pills)}>

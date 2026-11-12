@@ -195,12 +195,6 @@ describe('SuperAdminService', () => {
             memberCount: 12,
             createdAt: '2026-01-15T10:00:00.000Z',
             owner: { email: 'alex@example.com', name: 'Alex' },
-            onboardingProgress: {
-              status: 'IN_PROGRESS',
-              completedSteps: 2,
-              totalSteps: 6,
-              expiresAt: '2999-01-01T00:00:00.000Z',
-            },
           },
           {
             id: 'gym-2',
@@ -210,7 +204,6 @@ describe('SuperAdminService', () => {
             memberCount: 0,
             createdAt: '2026-02-20T10:00:00.000Z',
             owner: null,
-            onboardingProgress: null,
           },
         ],
       });
@@ -296,7 +289,6 @@ describe('SuperAdminService', () => {
         subdomainSlug: 'downtown',
         memberCount: 12,
         locationCount: 2,
-        onboarding: null,
         owner: {
           id: 'owner-1',
           email: 'alex@example.com',
@@ -360,87 +352,6 @@ describe('SuperAdminService', () => {
     it('404s for an unknown gym', async () => {
       const { service } = setup({ findUnique: () => Promise.resolve(null) });
       await expect(service.getGym('missing')).rejects.toBeInstanceOf(NotFoundException);
-    });
-  });
-
-  it('audits onboarding-link regeneration without recording its credential', async () => {
-    const { service, regenerate, auditCreate } = setup();
-    await service.regenerateOnboardingLink('admin-1', 'gym-1');
-    expect(regenerate).toHaveBeenCalledWith('gym-1', 'admin-1');
-    expect(auditCreate).toHaveBeenCalledWith({
-      data: {
-        action: 'gym.onboarding-link.regenerate',
-        actorId: 'admin-1',
-        gymId: 'gym-1',
-        targetId: 'gym-1',
-      },
-    });
-  });
-
-  describe('createGym', () => {
-    it('provisions through the self-signup path, naming the operator as creator', async () => {
-      const { service, registerGym, auditCreate, regenerate, sendOwnerLiveOnboardingEmail } =
-        setup();
-
-      const result = await service.createGym('admin-1', {
-        gymName: 'New Gym',
-        subdomainSlug: 'newgym',
-        ownerEmail: 'owner@example.com',
-      });
-
-      expect(result).toEqual({
-        gymId: 'gym-new',
-        subdomainSlug: 'newgym',
-        ownerUserId: 'owner-new',
-      });
-      expect(regenerate).toHaveBeenCalledWith('gym-new', 'admin-1');
-      expect(sendOwnerLiveOnboardingEmail).toHaveBeenCalledWith(
-        'owner@example.com',
-        'onboarding.live-token',
-        'New Gym',
-        undefined,
-        undefined,
-        'newgym',
-      );
-      expect(registerGym).toHaveBeenCalledWith(
-        expect.objectContaining({ subdomainSlug: 'newgym' }),
-        'admin-1',
-        null,
-        { skipOnboardingEmail: true },
-      );
-      expect(auditCreate.mock.calls[0]![0].data).toMatchObject({
-        action: 'gym.create',
-        actorId: 'admin-1',
-        gymId: 'gym-new',
-        targetId: 'owner-new',
-      });
-    });
-
-    it('keeps the provisioned gym successful when live-link email delivery fails', async () => {
-      const { service, sendOwnerLiveOnboardingEmail, auditCreate } = setup();
-      sendOwnerLiveOnboardingEmail.mockRejectedValueOnce(new Error('mail unavailable'));
-      await expect(
-        service.createGym('admin-1', {
-          gymName: 'New Gym',
-          subdomainSlug: 'newgym',
-          ownerEmail: 'owner@example.com',
-        }),
-      ).resolves.toMatchObject({ gymId: 'gym-new' });
-      expect(auditCreate).toHaveBeenCalledOnce();
-    });
-
-    it('does not audit a gym that failed to provision', async () => {
-      const { service, registerGym, auditCreate } = setup();
-      registerGym.mockRejectedValueOnce(new Error('SUBDOMAIN_TAKEN'));
-
-      await expect(
-        service.createGym('admin-1', {
-          gymName: 'New Gym',
-          subdomainSlug: 'taken',
-          ownerEmail: 'owner@example.com',
-        }),
-      ).rejects.toThrow();
-      expect(auditCreate).not.toHaveBeenCalled();
     });
   });
 

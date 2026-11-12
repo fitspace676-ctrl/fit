@@ -1,3 +1,4 @@
+import { AdminGymRequestsController } from './admin-gym-requests.controller';
 import { GymOnboardingModule } from '../gym-onboarding/gym-onboarding.module';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
@@ -31,6 +32,7 @@ import { SuperAdminService } from './superadmin.service';
   imports: [AuthModule, AuditModule, GymOnboardingModule],
   controllers: [
     SuperAdminController,
+    AdminGymRequestsController,
     AdminAuditController,
     AdminOperatorController,
     ImpersonationController,

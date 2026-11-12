@@ -2,16 +2,20 @@
 
 import { revalidatePath } from 'next/cache';
 import {
-  createAdminGymSchema,
-  type AdminGymOnboarding,
-  type CreateAdminGymInput,
+  createAdminGymRequestSchema,
+  rejectAdminGymRequestSchema,
+  type AdminGymRequest,
+  type ApproveAdminGymRequestResponse,
+  type CreateAdminGymRequestInput,
   type GymStatus,
 } from '@fit/types';
 import { requireOperator } from '@/lib/operator';
 import {
   ApiError,
-  createGym,
-  createGymOnboardingLink,
+  createGymRequest,
+  regenerateGymRequestLink,
+  approveGymRequest,
+  rejectGymRequest,
   impersonateGym,
   setGymStatus,
 } from '@/lib/api';
@@ -87,55 +91,67 @@ export async function startImpersonationAction(
   }
 }
 
-/**
- * Provision a gym on an owner's behalf.
- *
- * The body is validated HERE with the API's own schema before the request is
- * made, so a mistyped subdomain is answered in the form rather than by a round
- * trip — and validated again by the API, which is the one that decides. The
- * reserved-label and DNS-shape rules live in `gymSlugSchema`, so the console
- * cannot drift from what the platform will actually accept.
- *
- * Returns the new gym's id rather than redirecting: the caller is a client
- * component that already knows how to navigate, and a `redirect()` thrown
- * through a Server Action would lose the form's own error handling.
- */
-export async function createGymAction(
-  input: CreateAdminGymInput,
-): Promise<ActionResult<{ gymId: string }>> {
-  if (!(await requireOperator())) {
-    return { ok: false, error: 'Not authorized' };
-  }
+function refreshRequests(id: string) {
+  revalidatePath('/');
+  revalidatePath('/requests');
+  revalidatePath(`/requests/${id}`);
+  revalidatePath('/', 'layout');
+}
 
-  const parsed = createAdminGymSchema.safeParse(input);
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    return {
-      ok: false,
-      error: first ? `${first.path.join('.')}: ${first.message}` : 'Invalid details',
-    };
-  }
-
+export async function createGymRequestAction(
+  input: CreateAdminGymRequestInput,
+): Promise<ActionResult<AdminGymRequest>> {
+  if (!(await requireOperator())) return { ok: false, error: 'Not authorized' };
+  const parsed = createAdminGymRequestSchema.safeParse(input);
+  if (!parsed.success)
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid details' };
   try {
-    const { gymId } = await createGym(parsed.data);
-    revalidatePath('/');
-    return { ok: true, data: { gymId } };
+    const request = await createGymRequest(parsed.data);
+    refreshRequests(request.id);
+    return { ok: true, data: request };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }
 }
 
-/** Create or replace the onboarding link and refresh its progress on the detail page. */
-export async function createOnboardingLinkAction(
-  gymId: string,
-): Promise<ActionResult<AdminGymOnboarding>> {
-  if (!(await requireOperator())) {
-    return { ok: false, error: 'Not authorized' };
-  }
+export async function regenerateGymRequestLinkAction(
+  id: string,
+): Promise<ActionResult<AdminGymRequest>> {
+  if (!(await requireOperator())) return { ok: false, error: 'Not authorized' };
   try {
-    const onboarding = await createGymOnboardingLink(gymId);
-    revalidatePath(`/gyms/${gymId}`);
-    return { ok: true, data: onboarding };
+    const request = await regenerateGymRequestLink(id);
+    refreshRequests(id);
+    return { ok: true, data: request };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+export async function approveGymRequestAction(
+  id: string,
+): Promise<ActionResult<ApproveAdminGymRequestResponse>> {
+  if (!(await requireOperator())) return { ok: false, error: 'Not authorized' };
+  try {
+    const result = await approveGymRequest(id);
+    refreshRequests(id);
+    revalidatePath(`/gyms/${result.gymId}`);
+    return { ok: true, data: result };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+export async function rejectGymRequestAction(
+  id: string,
+  reason?: string,
+): Promise<ActionResult<AdminGymRequest>> {
+  if (!(await requireOperator())) return { ok: false, error: 'Not authorized' };
+  const parsed = rejectAdminGymRequestSchema.safeParse({ reason });
+  if (!parsed.success) return { ok: false, error: 'Reason must be 500 characters or fewer.' };
+  try {
+    const request = await rejectGymRequest(id, parsed.data.reason);
+    refreshRequests(id);
+    return { ok: true, data: request };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

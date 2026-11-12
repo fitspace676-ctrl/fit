@@ -62,3 +62,25 @@ export async function mailedLink(recipient: string, pathname: string): Promise<U
     .not.toBeNull();
   return new URL(link!);
 }
+
+/** The newest six-digit onboarding code mailed to this exact recipient. */
+export async function mailedCode(recipient: string): Promise<string> {
+  let code: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        const log = await readFile(API_LOG_FILE, 'utf8').catch(() => '');
+        const prefix = `Resend not configured (RESEND_API_KEY unset) — onboarding code for ${recipient}: `;
+        const line = log
+          .replace(ANSI, '')
+          .split('\n')
+          .reverse()
+          .find((line) => line.includes(prefix));
+        code = line?.slice(line.indexOf(prefix) + prefix.length).match(/^(\d{6})(?:\s|$)/)?.[1];
+        return code ?? null;
+      },
+      { message: `an onboarding code logged for ${recipient} in ${API_LOG_FILE}`, timeout: 20_000 },
+    )
+    .not.toBeNull();
+  return code!;
+}

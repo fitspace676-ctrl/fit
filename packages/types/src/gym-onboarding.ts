@@ -12,7 +12,14 @@ export const GYM_ONBOARDING_STEPS = [
 ] as const;
 export type GymOnboardingStep = (typeof GYM_ONBOARDING_STEPS)[number];
 export const gymOnboardingStepSchema = z.enum(GYM_ONBOARDING_STEPS);
-export type GymOnboardingStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'EXPIRED';
+export type GymOnboardingStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'CODE_SENT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXPIRED';
 
 export const gymOnboardingAccountSchema = z
   .object({
@@ -76,23 +83,18 @@ export interface GymOnboardingState {
     payments: GymOnboardingPaymentsInput;
   };
   expiresAt: string;
-  completedAt: string | null;
+  codeSentAt: string | null;
+  codeResendAvailableAt: string | null;
+  submittedAt: string | null;
 }
-export interface CompleteGymOnboardingResponse {
-  email: string;
-}
-export interface AdminGymOnboarding {
-  status: GymOnboardingStatus;
-  token: string | null;
-  completedSteps: GymOnboardingStep[];
-  totalSteps: number;
-  expiresAt: string;
-  startedAt: string | null;
-  completedAt: string | null;
-  createdAt: string;
-}
+export const verifyGymOnboardingCodeSchema = z
+  .object({ code: z.string().regex(/^\d{6}$/) })
+  .strict();
 export const ONBOARDING_LINK_INVALID_CODE = 'ONBOARDING_LINK_INVALID';
 export const ONBOARDING_LINK_EXPIRED_CODE = 'ONBOARDING_LINK_EXPIRED';
-export const ONBOARDING_COMPLETED_CODE = 'ONBOARDING_COMPLETED';
-export const ONBOARDING_ACCOUNT_ALREADY_SET_CODE = 'ONBOARDING_ACCOUNT_ALREADY_SET';
 export const ONBOARDING_ACCOUNT_REQUIRED_CODE = 'ONBOARDING_ACCOUNT_REQUIRED';
+export const ONBOARDING_CODE_COOLDOWN_CODE = 'ONBOARDING_CODE_COOLDOWN';
+export const ONBOARDING_CODE_INVALID_CODE = 'ONBOARDING_CODE_INVALID';
+export const ONBOARDING_CODE_EXPIRED_CODE = 'ONBOARDING_CODE_EXPIRED';
+export const ONBOARDING_SUBMITTED_CODE = 'ONBOARDING_SUBMITTED';
+export const ONBOARDING_NOT_SUBMITTED_CODE = 'ONBOARDING_NOT_SUBMITTED';

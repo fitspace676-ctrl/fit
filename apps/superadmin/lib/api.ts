@@ -13,7 +13,9 @@ import type {
   AdminBlogPostListResponse,
   AdminGymDetail,
   AdminOperator,
-  AdminGymOnboarding,
+  AdminGymRequest,
+  ListAdminGymRequestsResponse,
+  ApproveAdminGymRequestResponse,
   BlogAuthor,
   BlogAuthorListResponse,
   BlogCategory,
@@ -28,8 +30,7 @@ import type {
   UpdateBlogPostInput,
   ListAdminAuditLogQuery,
   ListAdminAuditLogResponse,
-  CreateAdminGymInput,
-  CreateAdminGymResponse,
+  CreateAdminGymRequestInput,
   GymStatus,
   ImpersonateResponse,
   ListAdminGymsResponse,
@@ -104,28 +105,30 @@ export async function fetchGym(id: string): Promise<AdminGymDetail> {
   return unwrap<AdminGymDetail>(res);
 }
 
-/** `POST /admin/gyms` — provision a gym and onboard its first owner. */
-export async function createGym(input: CreateAdminGymInput): Promise<CreateAdminGymResponse> {
-  const res = await fetch(`${apiBaseUrl()}/admin/gyms`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  return unwrap<CreateAdminGymResponse>(res);
+export async function createGymRequest(
+  input: CreateAdminGymRequestInput,
+): Promise<AdminGymRequest> {
+  return unwrap(await send('/admin/gym-requests', 'POST', input));
 }
-
-/** `POST /admin/gyms/:id/onboarding-link` — create or regenerate the owner's link. */
-export async function createGymOnboardingLink(gymId: string): Promise<AdminGymOnboarding> {
-  const res = await fetch(
-    `${apiBaseUrl()}/admin/gyms/${encodeURIComponent(gymId)}/onboarding-link`,
-    {
-      method: 'POST',
-      headers: await authHeaders(),
-      cache: 'no-store',
-    },
-  );
-  return unwrap<AdminGymOnboarding>(res);
+export async function fetchGymRequests(): Promise<ListAdminGymRequestsResponse> {
+  return unwrap(await send('/admin/gym-requests', 'GET'));
+}
+export async function fetchGymRequest(requestId: string): Promise<AdminGymRequest> {
+  return unwrap(await send(`/admin/gym-requests/${id(requestId)}`, 'GET'));
+}
+export async function regenerateGymRequestLink(requestId: string): Promise<AdminGymRequest> {
+  return unwrap(await send(`/admin/gym-requests/${id(requestId)}/link`, 'POST'));
+}
+export async function approveGymRequest(
+  requestId: string,
+): Promise<ApproveAdminGymRequestResponse> {
+  return unwrap(await send(`/admin/gym-requests/${id(requestId)}/approve`, 'POST'));
+}
+export async function rejectGymRequest(
+  requestId: string,
+  reason?: string,
+): Promise<AdminGymRequest> {
+  return unwrap(await send(`/admin/gym-requests/${id(requestId)}/reject`, 'POST', { reason }));
 }
 
 /** `PATCH /admin/gyms/:id/status` — suspend or reactivate a gym. */

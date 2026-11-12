@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  verifyGymOnboardingCodeSchema,
   GYM_ONBOARDING_STEPS,
   GYM_ONBOARDING_STEP_SCHEMAS,
   gymOnboardingAccountSchema,
@@ -8,6 +9,16 @@ import {
 } from './gym-onboarding';
 
 describe('gym onboarding contracts', () => {
+  it('accepts only a six-digit code and no mutable owner email', () => {
+    expect(verifyGymOnboardingCodeSchema.parse({ code: '012345' })).toEqual({ code: '012345' });
+    for (const body of [
+      { code: '12345' },
+      { code: 123456 },
+      { code: '123456', email: 'other@example.com' },
+    ]) {
+      expect(verifyGymOnboardingCodeSchema.safeParse(body).success).toBe(false);
+    }
+  });
   it('defines every ordered step and rejects unknown fields', () => {
     expect(Object.keys(GYM_ONBOARDING_STEP_SCHEMAS)).toEqual([...GYM_ONBOARDING_STEPS]);
     expect(

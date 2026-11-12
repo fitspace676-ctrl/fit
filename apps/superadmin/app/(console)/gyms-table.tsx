@@ -35,14 +35,6 @@ const styles = stylex.create({
   },
   search: { width: { default: '100%', '@media (min-width: 640px)': '18rem' } },
   status: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.375rem' },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'var(--ops-ink-200)',
-    color: 'var(--ops-ink-600)',
-    fontWeight: 500,
-  },
   stack: {
     display: 'flex',
     flexDirection: 'column',
@@ -205,17 +197,6 @@ export function GymsTable({ gyms }: { gyms: GymRow[] }) {
               </svg>
             }
           />
-          {gym.onboardingProgress && gym.onboardingProgress.status !== 'COMPLETED' ? (
-            <Badge
-              tone="pending"
-              xstyle={styles.outline}
-              label={
-                gym.onboardingProgress.status === 'EXPIRED'
-                  ? 'Onboarding expired'
-                  : `Onboarding ${gym.onboardingProgress.completedSteps}/${gym.onboardingProgress.totalSteps}`
-              }
-            />
-          ) : null}
         </div>
       ),
     },

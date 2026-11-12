@@ -214,6 +214,37 @@ export class EmailService {
     );
   }
 
+  async sendOnboardingCodeEmail(
+    to: string,
+    code: string,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+  ): Promise<void> {
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — onboarding code for ${to}: ${code}`,
+      );
+      return;
+    }
+    await this.deliver(to, buildOnboardingCodeEmail(code, locale), 'onboarding code');
+  }
+
+  async sendGymReadyEmail(
+    to: string,
+    gymName: string,
+    slug: string,
+    locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+  ): Promise<void> {
+    const url =
+      buildConsoleUrl('login', slug) ?? `http://localhost:3002${env.ADMIN_BASE_PATH}/login`;
+    if (!this.isConfigured) {
+      this.logger.warn(
+        `Resend not configured (RESEND_API_KEY unset) — gym ready link for ${to}: ${url}`,
+      );
+      return;
+    }
+    await this.deliver(to, buildGymReadyEmail(url, gymName, locale), 'gym ready');
+  }
+
   /**
    * Send the staff-invitation email (T4.7) containing the single-use accept link.
    * The link points at the API's `GET /auth/accept-invite` route, which verifies
@@ -987,4 +1018,55 @@ export function buildDailySummaryEmail(summary: DailySummary): {
   const text = `${t.daily.textTitle(seller, summary.date)}\n\n${textRows}${linkText}`;
 
   return { subject, html, text };
+}
+
+/** Pure builders for the request verification and approval notifications. */
+export function buildOnboardingCodeEmail(
+  code: string,
+  locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+): { subject: string; html: string; text: string } {
+  const subject =
+    locale === 'ka' ? 'დადასტურების კოდი: ' + code : 'Your verification code: ' + code;
+  const body =
+    locale === 'ka'
+      ? `თქვენი კოდია ${code}. კოდი მოქმედებს 15 წუთის განმავლობაში.`
+      : `Your code is ${code}. It is valid for 15 minutes.`;
+  return {
+    subject,
+    text: body,
+    html: renderBrandedEmail({
+      locale,
+      senderName: PLATFORM_NAME,
+      heading: escapeHtml(subject),
+      preheader: body,
+      contentHtml: paragraph(escapeHtml(body)),
+    }),
+  };
+}
+
+export function buildGymReadyEmail(
+  url: string,
+  gymName: string,
+  locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
+): { subject: string; html: string; text: string } {
+  const subject = locale === 'ka' ? `${gymName} მზადაა` : `${gymName} is ready`;
+  const body =
+    locale === 'ka'
+      ? 'თქვენი მოთხოვნა დადასტურებულია. შედით მართვის პანელში არჩეული პაროლით.'
+      : 'Your request has been approved. Sign in to your console with the password you chose.';
+  const label = locale === 'ka' ? 'შესვლა' : 'Sign in';
+  return {
+    subject,
+    text: `${subject}\n\n${body}\n${url}`,
+    html: renderBrandedEmail({
+      locale,
+      senderName: PLATFORM_NAME,
+      heading: escapeHtml(subject),
+      preheader: body,
+      contentHtml:
+        paragraph(escapeHtml(body)) +
+        renderEmailButton(url, escapeHtml(label)) +
+        renderEmailLinkFallback(url, locale),
+    }),
+  };
 }

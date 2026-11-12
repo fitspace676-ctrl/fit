@@ -28,7 +28,7 @@ Exports from `index.tsx`:
 
 Direct modules: `logo.tsx` exports OpsLogo/OpsMark; `controls.tsx` exports
 SurfaceButton/FilterPills/OpsTable; `search-field.tsx` exports SearchField;
-`nav.tsx` exports `OpsNav()` (no props).
+`nav.tsx` exports `OpsNav({ pendingRequests?: number })`; the shell supplies the awaiting-approval count.
 
 Examples:
 
