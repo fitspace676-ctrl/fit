@@ -50,6 +50,12 @@ const SUBPROCESSORS = [
     address:
       '29a Gagarini Street, Tbilisi, 0160. 7 K. Marjanishvili Street, Chugureti District, Tbilisi, 0102, Georgia.',
   },
+  {
+    category: 'AI language processing',
+    name: 'Provider selected from those supported in the Service (currently Google, OpenAI or Anthropic)',
+    site: null,
+    address: 'As published by the selected provider',
+  },
 ];
 
 /**
@@ -83,20 +89,20 @@ function DpaEn() {
 
       <h2>1. Definitions</h2>
       <p>
-        <strong>&quot;Personal Data&quot;</strong> — any information relating to an identified or
+        <strong>&quot;Personal Data&quot;</strong> - any information relating to an identified or
         identifiable natural person processed by FormaCore on behalf of the Controller through the
         Service.
       </p>
       <p>
-        <strong>&quot;Processing&quot;</strong> — has the meaning given under the Law of Georgia
+        <strong>&quot;Processing&quot;</strong> - has the meaning given under the Law of Georgia
         &quot;On Personal Data Protection.&quot;
       </p>
       <p>
-        <strong>&quot;Data Subjects&quot;</strong> — the Controller&apos;s Members, staff, or other
+        <strong>&quot;Data Subjects&quot;</strong> - the Controller&apos;s Members, staff, or other
         individuals whose Personal Data is processed through the Service.
       </p>
       <p>
-        <strong>&quot;Subprocessor&quot;</strong> — any third party engaged by FormaCore to process
+        <strong>&quot;Subprocessor&quot;</strong> - any third party engaged by FormaCore to process
         Personal Data on the Controller&apos;s behalf.
       </p>
 
@@ -147,7 +153,7 @@ function DpaEn() {
       <ul className="list-disc space-y-2 pl-6">
         <li>
           Process Personal Data only on Controller&apos;s documented instructions, including as set
-          out in the Terms of Service and this DPA, unless otherwise required by law — and will
+          out in the Terms of Service and this DPA, unless otherwise required by law - and will
           inform Controller if an instruction appears to conflict with applicable law;
         </li>
         <li>
@@ -160,7 +166,7 @@ function DpaEn() {
         </li>
         <li>
           Notify Controller without undue delay, and in any event within 48 hours of becoming aware,
-          of a Personal Data breach affecting Controller&apos;s data — so Controller can meet its
+          of a Personal Data breach affecting Controller&apos;s data - so Controller can meet its
           own 72-hour notification obligation to the Personal Data Protection Service;
         </li>
         <li>
@@ -207,7 +213,10 @@ function DpaEn() {
         Continued use of the Service after that period constitutes acceptance. FormaCore remains
         responsible for each Subprocessor&apos;s compliance with obligations equivalent to those in
         this DPA. FormaCore will keep this table current and publish it at www.formacore.io for
-        reference by Controllers and Members.
+        reference by Controllers and Members. The AI language-processing provider is set by
+        FormaCore by default and may be changed to another supported provider at Controller&apos;s
+        request. Where Controller connects its own AI provider account, that provider is engaged by
+        Controller directly and is not a Subprocessor of FormaCore.
       </p>
 
       <h2>7. Security Measures</h2>
@@ -242,8 +251,8 @@ function DpaEn() {
         Upon reasonable written request, no more than once per year (unless required by a
         supervisory authority or following a security incident, and with at least 30 days&apos;
         advance notice), FormaCore will provide Controller with information reasonably necessary to
-        demonstrate compliance with this DPA — which may include relevant documentation or a written
-        questionnaire response — in lieu of an on-site audit.
+        demonstrate compliance with this DPA - which may include relevant documentation or a written
+        questionnaire response - in lieu of an on-site audit.
       </p>
 
       <h2>11. Liability and Precedence</h2>
