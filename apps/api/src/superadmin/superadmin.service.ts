@@ -14,12 +14,14 @@ import type {
   AdminGymStaffMember,
   CreateAdminGymInput,
   CreateAdminGymResponse,
+  GymOnboardingStatus,
   ImpersonateResponse,
   ImpersonationExchangeResponse,
   ListAdminGymsResponse,
   StaffRole,
   UpdateGymStatusResponse,
 } from '@fit/types';
+import { GYM_ONBOARDING_STEPS } from '@fit/types';
 import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -71,6 +73,17 @@ interface HandoffGrant {
  * exactly what a cross-tenant roster needs. The SUPER_ADMIN gate lives at the
  * controller (`@AllowCrossTenant` + {@link TenantGuard}); this service trusts it.
  */
+/** The same derivation `GymOnboardingService` uses: expiry is computed, never stored. */
+function onboardingStatus(row: {
+  startedAt: Date | null;
+  completedAt: Date | null;
+  expiresAt: Date;
+}): GymOnboardingStatus {
+  if (row.completedAt) return 'COMPLETED';
+  if (row.expiresAt.getTime() < Date.now()) return 'EXPIRED';
+  return row.startedAt ? 'IN_PROGRESS' : 'PENDING';
+}
+
 @Injectable()
 export class SuperAdminService {
   private readonly logger = new Logger(SuperAdminService.name);
@@ -109,6 +122,9 @@ export class SuperAdminService {
         createdAt: true,
         ownerId: true,
         _count: { select: { members: true } },
+        onboarding: {
+          select: { completedSteps: true, startedAt: true, completedAt: true, expiresAt: true },
+        },
       },
     });
 
@@ -131,6 +147,20 @@ export class SuperAdminService {
           status: gym.status,
           memberCount: gym._count.members,
           createdAt: gym.createdAt.toISOString(),
+          onboardingProgress: gym.onboarding
+            ? {
+                status: onboardingStatus(gym.onboarding),
+                // Counted from what the wizard recorded. An owner who set their
+                // password through the older `/activate` link is credited with the
+                // account step on the detail screen, which looks the credential up;
+                // the roster does not pay for that lookup per row.
+                completedSteps: gym.onboarding.completedSteps.filter((step) =>
+                  (GYM_ONBOARDING_STEPS as readonly string[]).includes(step),
+                ).length,
+                totalSteps: GYM_ONBOARDING_STEPS.length,
+                expiresAt: gym.onboarding.expiresAt.toISOString(),
+              }
+            : null,
           // An `ownerId` pointing at a user row that no longer exists reports as
           // no owner, which is what it functionally is.
           owner: owner ? { email: owner.email, name: owner.name } : null,
@@ -212,6 +242,8 @@ export class SuperAdminService {
       ];
     });
 
+    const onboarding = await this.onboarding.getAdminState(gym.id);
+
     return {
       id: gym.id,
       name: gym.name,
@@ -229,7 +261,15 @@ export class SuperAdminService {
           }
         : null,
       staff,
-      onboarding: await this.onboarding.getAdminState(gym.id),
+      onboarding,
+      onboardingProgress: onboarding
+        ? {
+            status: onboarding.status,
+            completedSteps: onboarding.completedSteps.length,
+            totalSteps: onboarding.totalSteps,
+            expiresAt: onboarding.expiresAt,
+          }
+        : null,
     };
   }
 

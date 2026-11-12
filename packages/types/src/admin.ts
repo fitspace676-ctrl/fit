@@ -1,4 +1,4 @@
-import type { AdminGymOnboarding } from './gym-onboarding';
+import type { AdminGymOnboarding, GymOnboardingStatus } from './gym-onboarding';
 // @fit/types — SuperAdmin platform console contracts (T2.12).
 //
 // Cross-tenant operator endpoints under `/admin/gyms`, reachable only by a
@@ -47,6 +47,21 @@ export interface AdminGymSummary {
    * exactly the gym that cannot be impersonated (`GYM_HAS_NO_OWNER`).
    */
   owner: { email: string; name: string | null } | null;
+  /**
+   * How far the owner's onboarding has got, for the roster's badge — or `null`
+   * for a gym that predates onboarding links. The counts only: the link itself
+   * is a credential and stays on the detail response.
+   */
+  onboardingProgress: AdminGymOnboardingProgress | null;
+}
+
+/** The roster's view of one gym's onboarding: its state and how many steps are done. */
+export interface AdminGymOnboardingProgress {
+  status: GymOnboardingStatus;
+  completedSteps: number;
+  totalSteps: number;
+  /** When the current link stops working, ISO-8601. */
+  expiresAt: string;
 }
 
 /**

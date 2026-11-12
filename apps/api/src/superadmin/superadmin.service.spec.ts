@@ -22,6 +22,13 @@ interface GymRow {
   createdAt: Date;
   ownerId: string | null;
   _count: { members: number };
+  /** The roster's slice of the gym's onboarding row; absent on gyms that predate it. */
+  onboarding?: {
+    completedSteps: string[];
+    startedAt: Date | null;
+    completedAt: Date | null;
+    expiresAt: Date;
+  } | null;
 }
 
 /** A user row as the batched lookup returns it (owner and/or staff). */
@@ -155,6 +162,13 @@ describe('SuperAdminService', () => {
             createdAt: new Date('2026-01-15T10:00:00.000Z'),
             ownerId: 'owner-1',
             _count: { members: 12 },
+            onboarding: {
+              // An unknown step name is not counted: the roster reports the six real ones.
+              completedSteps: ['account', 'business', 'legacy-step'],
+              startedAt: new Date('2026-01-15T11:00:00.000Z'),
+              completedAt: null,
+              expiresAt: new Date('2999-01-01T00:00:00.000Z'),
+            },
           },
           {
             id: 'gym-2',
@@ -181,6 +195,12 @@ describe('SuperAdminService', () => {
             memberCount: 12,
             createdAt: '2026-01-15T10:00:00.000Z',
             owner: { email: 'alex@example.com', name: 'Alex' },
+            onboardingProgress: {
+              status: 'IN_PROGRESS',
+              completedSteps: 2,
+              totalSteps: 6,
+              expiresAt: '2999-01-01T00:00:00.000Z',
+            },
           },
           {
             id: 'gym-2',
@@ -190,6 +210,7 @@ describe('SuperAdminService', () => {
             memberCount: 0,
             createdAt: '2026-02-20T10:00:00.000Z',
             owner: null,
+            onboardingProgress: null,
           },
         ],
       });
