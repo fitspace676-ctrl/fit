@@ -28,7 +28,11 @@ export default async function Page({ params }: Params) {
   setRequestLocale(locale);
   const t = await getTranslations('legal');
   return (
-    <LegalPage title={t('privacy.heading')} updated={t('privacy.updated')}>
+    // The English text carries no effective/updated line; the Georgian keeps its own.
+    <LegalPage
+      title={t('privacy.heading')}
+      updated={locale === 'ka' ? t('privacy.updated') : undefined}
+    >
       {locale === 'ka' ? <PrivacyKa /> : <PrivacyEn />}
     </LegalPage>
   );
@@ -54,19 +58,19 @@ function PrivacyEn() {
 
       <h2>2. Two Relationships, Two Roles</h2>
       <p>
-        <strong>FormaCore as Controller</strong> — for data about our Customers themselves (the
+        <strong>FormaCore as Controller</strong> - for data about our Customers themselves (the
         businesses that sign up) and their staff users: account details, billing, support history.
         We decide how this data is used, for our own operational purposes.
       </p>
       <p>
-        <strong>FormaCore as Processor</strong> — for data about a Customer&apos;s own Members
+        <strong>FormaCore as Processor</strong> - for data about a Customer&apos;s own Members
         (gym-goers, clients), which the Customer submits to or generates on the platform. Here, the
         Customer is the Controller; we process this data only on their instructions, under the terms
         of our <Link href="/dpa">Data Processing Agreement</Link> (Annex to this policy).
       </p>
       <p>
         If you are a Member of a business that uses FormaCore, that business is responsible for
-        informing you how your data is used — please also check their own privacy notice.
+        informing you how your data is used - please also check their own privacy notice.
       </p>
 
       <h2>3. What We Collect</h2>
@@ -82,7 +86,7 @@ function PrivacyEn() {
       </p>
       <p>
         <strong>Collected automatically:</strong> usage and log data, device/browser information,
-        and — once mobile apps are live — mobile-specific data described in Section 9.
+        and - once mobile apps are live - mobile-specific data described in Section 9.
       </p>
       <p>
         <strong>AI-assisted features:</strong> certain features are supported by a third-party AI
@@ -103,16 +107,17 @@ function PrivacyEn() {
       <p>
         Depending on the processing activity: performance of a contract with the Customer, our
         legitimate interests (security, fraud prevention, service improvement), your consent (e.g.,
-        direct marketing — see Section 8), or compliance with a legal obligation.
+        direct marketing - see Section 8), or compliance with a legal obligation.
       </p>
 
       <h2>6. Who We Share Data With</h2>
       <ul className="list-disc space-y-2 pl-6">
         <li>
           Infrastructure and service providers, currently: Railway and Hetzner (application/database
-          hosting), Vercel (application hosting), Bank of Georgia and/or TBC Bank (card/bank payment
-          processing — integration not yet live; cash payments are also accepted and are not
-          processed through this channel), and Resend (email delivery for Member communications).
+          hosting), Vercel (application hosting), Bank of Georgia and/or TBC Bank (online payment
+          processing), Resend (email delivery for Member communications), and an AI
+          language-processing provider selected from those supported in the Service (for AI-assisted
+          features).
         </li>
         <li>Professional advisors (legal, accounting) as needed.</li>
         <li>Regulatory or law enforcement authorities where legally required.</li>
@@ -150,15 +155,15 @@ function PrivacyEn() {
       </p>
       <ul className="list-disc space-y-2 pl-6">
         <li>
-          Enable core site functionality (strictly necessary — set without consent, as they are
+          Enable core site functionality (strictly necessary - set without consent, as they are
           required for the site to work)
         </li>
         <li>
-          Analyze site traffic and usage patterns (analytics/performance — set only with your
+          Analyze site traffic and usage patterns (analytics/performance - set only with your
           consent)
         </li>
         <li>
-          Measure the effectiveness of marketing activity (functionality/advertising — set only with
+          Measure the effectiveness of marketing activity (functionality/advertising - set only with
           your consent)
         </li>
       </ul>
@@ -177,13 +182,13 @@ function PrivacyEn() {
         purpose:
       </p>
       <ul className="list-disc space-y-2 pl-6">
-        <li>Camera — for QR-code check-in and profile photo capture</li>
-        <li>Push notifications — for booking confirmations, reminders, and account alerts</li>
-        <li>Device identifiers — for session security and app diagnostics</li>
+        <li>Camera - for QR-code check-in and profile photo capture</li>
+        <li>Push notifications - for booking confirmations, reminders, and account alerts</li>
+        <li>Device identifiers - for session security and app diagnostics</li>
       </ul>
       <p>
         Device-level biometric login (Face ID / fingerprint), if offered, is handled entirely by the
-        device operating system — FormaCore does not receive or store biometric data in this case.
+        device operating system - FormaCore does not receive or store biometric data in this case.
         Before the apps go live, this section will be finalized to match the actual permissions
         requested, and a corresponding disclosure will be filed with Apple&apos;s App Store and
         Google Play as required.
