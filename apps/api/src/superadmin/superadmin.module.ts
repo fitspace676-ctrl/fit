@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { AdminAuditController } from './admin-audit.controller';
+import { AdminOperatorController } from './admin-operator.controller';
 import { ImpersonationController } from './impersonation.controller';
 import { SuperAdminController } from './superadmin.controller';
 import { SuperAdminService } from './superadmin.service';
@@ -28,7 +29,12 @@ import { SuperAdminService } from './superadmin.service';
  */
 @Module({
   imports: [AuthModule, AuditModule, GymOnboardingModule],
-  controllers: [SuperAdminController, AdminAuditController, ImpersonationController],
+  controllers: [
+    SuperAdminController,
+    AdminAuditController,
+    AdminOperatorController,
+    ImpersonationController,
+  ],
   providers: [SuperAdminService],
 })
 export class SuperAdminModule {}

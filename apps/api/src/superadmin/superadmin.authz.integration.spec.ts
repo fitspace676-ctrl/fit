@@ -10,6 +10,7 @@ import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter';
 import { TenantContext, tenantStorage, type TenantState } from '../common/tenant/tenant.context';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { SuperAdminController } from './superadmin.controller';
+import { AdminOperatorController } from './admin-operator.controller';
 import { SuperAdminService } from './superadmin.service';
 
 /**
@@ -44,12 +45,13 @@ describe('SuperAdmin authorization (integration)', () => {
     setGymStatus: (_actor: string, id: string) => Promise.resolve({ id, status: 'SUSPENDED' }),
     regenerateOnboardingLink: () => Promise.resolve({ token: 'id.signature' }),
     impersonate: () => Promise.resolve({ handoffCode: 'handoff-code', expiresInSeconds: 60 }),
+    getOperator: (id: string) => Promise.resolve({ id, email: 'ops@example.com', name: 'Ops' }),
   };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [LoggerModule.forRoot(loggerConfig())],
-      controllers: [SuperAdminController],
+      controllers: [SuperAdminController, AdminOperatorController],
       providers: [
         TenantContext,
         TenantGuard,
@@ -90,6 +92,19 @@ describe('SuperAdmin authorization (integration)', () => {
       });
       expect(res.status).toBe(role === Role.SUPER_ADMIN ? 200 : 403);
     }
+  });
+
+  it('tells only a SUPER_ADMIN who they are', async () => {
+    const ok = await fetch(`${baseUrl}/admin/me`, {
+      headers: { 'x-test-role': 'SUPER_ADMIN', 'x-test-user': 'admin-1' },
+    });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ id: 'admin-1', email: 'ops@example.com', name: 'Ops' });
+
+    const denied = await fetch(`${baseUrl}/admin/me`, {
+      headers: { 'x-test-role': 'OWNER', 'x-test-user': 'owner-1', 'x-test-gym': 'gym-1' },
+    });
+    expect(denied.status).toBe(403);
   });
 
   it('lets a SUPER_ADMIN list every gym', async () => {

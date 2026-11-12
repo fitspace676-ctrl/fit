@@ -12,6 +12,7 @@ import type {
   AdminBlogPost,
   AdminBlogPostListResponse,
   AdminGymDetail,
+  AdminOperator,
   AdminGymOnboarding,
   BlogAuthor,
   BlogAuthorListResponse,
@@ -73,6 +74,15 @@ async function unwrap<T>(res: Response): Promise<T> {
     // Non-JSON error body — keep the synthetic code.
   }
   throw new ApiError(res.status, code);
+}
+
+/** `GET /admin/me` — the signed-in operator, for the shell's user card. */
+export async function fetchOperator(): Promise<AdminOperator> {
+  const res = await fetch(`${apiBaseUrl()}/admin/me`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminOperator>(res);
 }
 
 /** `GET /admin/gyms` — the platform-wide roster with status, members, and owner. */

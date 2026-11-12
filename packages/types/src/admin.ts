@@ -21,6 +21,17 @@ export const gymStatusSchema = z.enum(['ACTIVE', 'SUSPENDED']);
 export type GymStatus = z.infer<typeof gymStatusSchema>;
 
 /**
+ * Successful `GET /admin/me` response — the signed-in operator, for the console's
+ * own chrome. A SUPER_ADMIN session carries no gym, so the tenant-scoped
+ * `/me/profile` cannot answer for one.
+ */
+export interface AdminOperator {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
+/**
  * A single gym as listed by `GET /admin/gyms` for the operator console.
  * `subdomainSlug` is the tenant's DNS label (`<subdomainSlug>.<root>`), which is
  * also how the console builds a link into that gym's portal and staff console.

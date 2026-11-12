@@ -2,33 +2,38 @@ import type { ReactNode } from 'react';
 import { SignOutButton } from '@/components/sign-out-button';
 import { OpsLogo } from '@/components/ops/logo';
 import { OpsNav } from '@/components/ops/nav';
-import { getServerSession } from '@/lib/session';
+import { fetchOperator } from '@/lib/api';
+
+/** Up to two initials: from a name's first two words, else an address's first letter. */
+function initials(label: string): string {
+  const words = label
+    .split('@')[0]!
+    .split(/[\s._-]+/)
+    .filter(Boolean);
+  return words
+    .slice(0, 2)
+    .map((word) => word[0]!.toUpperCase())
+    .join('');
+}
 
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
-  const session = await getServerSession();
+  // Who is signed in. Best-effort: the shell must still render (and offer Sign
+  // out) when this one read fails, so a failure simply leaves the card out.
+  const operator = await fetchOperator().catch(() => null);
   return (
     <div className="ops-shell">
       <aside className="ops-rail">
         <OpsLogo />
         <OpsNav />
         <div className="ops-rail-foot">
-          {session ? (
+          {operator ? (
             <div className="ops-user">
-              <svg
-                aria-hidden="true"
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <circle cx="12" cy="8" r="4" />
-                <path d="M5 21a7 7 0 0 1 14 0" />
-              </svg>
+              <span className="ops-user-initials" aria-hidden="true">
+                {initials(operator.name ?? operator.email)}
+              </span>
               <div>
-                <strong>Operator</strong>
-                <span title={session.userId}>{session.userId}</span>
+                <strong>{operator.name ?? 'Operator'}</strong>
+                <span title={operator.email}>{operator.email}</span>
               </div>
             </div>
           ) : null}

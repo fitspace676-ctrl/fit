@@ -287,6 +287,19 @@ body {
   background: var(--ops-forma-100);
   color: var(--ops-forma-800);
 }
+.ops-user-initials {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--ops-forma-100);
+  color: var(--ops-forma-800);
+  font-family: var(--font-family-body);
+  font-size: 11px;
+  font-weight: 700;
+}
 .ops-user > div {
   min-width: 0;
   display: flex;
@@ -295,7 +308,7 @@ body {
 .ops-user strong {
   font-size: 13px;
 }
-.ops-user span {
+.ops-user div > span {
   font-family: var(--font-family-code);
   font-size: 11px;
   color: var(--ops-ink-500);

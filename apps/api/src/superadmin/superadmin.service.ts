@@ -10,6 +10,7 @@ import {
 import { GymStatus, Prisma, Role } from '@fit/db';
 import type {
   AdminGymDetail,
+  AdminOperator,
   AdminGymOnboarding,
   AdminGymStaffMember,
   CreateAdminGymInput,
@@ -95,6 +96,21 @@ export class SuperAdminService {
     private readonly onboarding: GymOnboardingService,
     private readonly email: EmailService,
   ) {}
+
+  /**
+   * The signed-in operator's own identity, for the console's chrome. `404` when
+   * the session's user row is gone — the token outlived the account.
+   */
+  async getOperator(userId: string): Promise<AdminOperator> {
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true },
+    });
+    if (!user) {
+      throw new NotFoundException({ message: 'Operator not found', code: 'USER_NOT_FOUND' });
+    }
+    return user;
+  }
 
   /**
    * List every gym, newest first, each with its platform status, membership
