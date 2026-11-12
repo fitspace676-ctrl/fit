@@ -1,8 +1,10 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
+import { OpsTable } from '@/components/ops';
+import { InitialsAvatar } from './detail-primitives';
 import type { AdminGymStaffMember, StaffStatus } from '@fit/types';
-import { Badge, DataTable, EmptyState, type BadgeTone, type Column } from '@fit/ui-kit';
+import { Badge, EmptyState, type BadgeTone, type Column } from '@fit/ui-kit';
 
 const STATUS_TONES: Record<StaffStatus, BadgeTone> = {
   ACTIVE: 'positive',
@@ -17,6 +19,13 @@ function formatDate(iso: string): string {
 }
 
 const styles = stylex.create({
+  person: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
   cellText: {
     color: 'var(--color-text-primary)',
   },
@@ -35,14 +44,25 @@ const COLUMNS: ReadonlyArray<Column<AdminGymStaffMember>> = [
     key: 'person',
     header: 'Person',
     xstyle: styles.cellText,
-    cell: (member) => member.name ?? member.email,
+    cell: (member) => (
+      <div {...stylex.props(styles.person)}>
+        <InitialsAvatar name={member.name} email={member.email} />
+        {member.name ?? member.email}
+      </div>
+    ),
   },
   { key: 'email', header: 'Email', xstyle: styles.muted, cell: (member) => member.email },
   { key: 'role', header: 'Role', cell: (member) => <Badge label={member.role} tone="neutral" /> },
   {
     key: 'status',
     header: 'Status',
-    cell: (member) => <Badge label={member.status} tone={STATUS_TONES[member.status]} />,
+    cell: (member) => (
+      <Badge
+        label={member.status}
+        tone={STATUS_TONES[member.status]}
+        icon={<span aria-hidden="true">●</span>}
+      />
+    ),
   },
   {
     key: 'joined',
@@ -62,7 +82,7 @@ const COLUMNS: ReadonlyArray<Column<AdminGymStaffMember>> = [
  */
 export function StaffTable({ staff, gymName }: { staff: AdminGymStaffMember[]; gymName: string }) {
   return (
-    <DataTable
+    <OpsTable
       columns={COLUMNS}
       rows={staff}
       rowKey={(member) => member.userId}

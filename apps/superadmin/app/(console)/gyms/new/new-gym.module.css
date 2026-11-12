@@ -1,0 +1,49 @@
+/* Astryx TextInput has no end-content slot; the host suffix stays inside this control. */
+.slugLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+.slugControl {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--ops-ink-50);
+  font-family: var(--font-family-code);
+  font-size: 13px;
+  font-weight: 400;
+}
+.slugControl:focus-within {
+  outline: 2px solid var(--ops-forma-400);
+  outline-offset: 2px;
+}
+.slugControl input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 12px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+}
+.slugControl input::placeholder {
+  color: var(--color-text-tertiary);
+}
+.slugControl input:disabled {
+  color: var(--color-text-disabled);
+}
+.suffix {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow-wrap: anywhere;
+  padding-right: 12px;
+  color: var(--color-text-tertiary);
+}

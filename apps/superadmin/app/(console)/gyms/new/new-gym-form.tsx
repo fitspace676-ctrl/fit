@@ -5,17 +5,41 @@ import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { Banner, Button } from '@fit/ui-kit';
+import { Cap } from '@/components/ops';
+import css from './new-gym.module.css';
 import { createGymAction } from '../../actions';
 
 const styles = stylex.create({
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '1rem',
+    gap: '1.5rem',
+  },
+  input: {
+    height: '44px',
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--ops-ink-50)',
+  },
+  section: { display: 'flex', flexDirection: 'column', gap: '1.25rem' },
+  owner: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.25rem',
+    borderTop: '1px solid var(--ops-ink-100)',
+    paddingTop: '1.5rem',
+  },
+  ownerFields: {
+    display: 'grid',
+    gap: '1.25rem',
+    gridTemplateColumns: {
+      default: 'minmax(0, 1fr)',
+      '@media (min-width: 768px)': 'repeat(2, minmax(0, 1fr))',
+    },
   },
   hint: {
     margin: 0,
-    fontSize: '0.75rem',
+    fontSize: '0.78125rem',
+    lineHeight: 1.6,
     color: 'var(--color-text-secondary)',
   },
   host: {
@@ -26,7 +50,9 @@ const styles = stylex.create({
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '0.5rem',
-    marginTop: '0.5rem',
+    flexWrap: 'wrap',
+    paddingTop: '1.5rem',
+    borderTop: '1px solid var(--ops-ink-100)',
   },
 });
 
@@ -75,65 +101,80 @@ export function NewGymForm({ rootDomain }: { rootDomain: string | null }) {
     <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
       {error ? <Banner tone="error">{error}</Banner> : null}
 
-      <TextInput
-        label="Gym name"
-        htmlName="gymName"
-        size="lg"
-        placeholder="Downtown Strength"
-        value={gymName}
-        onChange={setGymName}
-        isRequired
-        isDisabled={pending}
-      />
-
-      <div>
+      <div {...stylex.props(styles.section)}>
+        <Cap>Gym</Cap>
         <TextInput
-          label="Subdomain"
-          htmlName="subdomainSlug"
+          label="Gym name"
+          htmlName="gymName"
           size="lg"
-          placeholder="downtown"
-          value={subdomainSlug}
-          onChange={setSubdomainSlug}
+          xstyle={styles.input}
+          placeholder="Downtown Strength"
+          value={gymName}
+          onChange={setGymName}
           isRequired
           isDisabled={pending}
         />
-        <p {...stylex.props(styles.hint)}>
-          {subdomainSlug && rootDomain ? (
-            <>
-              The gym will live at{' '}
-              <span {...stylex.props(styles.host)}>
-                {subdomainSlug.trim().toLowerCase()}.{rootDomain}
-              </span>
-              . Lowercase letters, numbers and single hyphens; it cannot be changed here later.
-            </>
-          ) : (
-            'Lowercase letters, numbers and single hyphens. This becomes the gym’s permanent host.'
-          )}
-        </p>
+
+        <div>
+          <label className={css.slugLabel}>
+            <span>
+              Subdomain <span aria-hidden="true">*</span>
+            </span>
+            <span className={css.slugControl}>
+              <input
+                aria-label="Subdomain"
+                name="subdomainSlug"
+                placeholder="downtown"
+                value={subdomainSlug}
+                onChange={(event) => setSubdomainSlug(event.target.value)}
+                aria-required="true"
+                disabled={pending}
+              />
+              {rootDomain ? <span className={css.suffix}>.{rootDomain}</span> : null}
+            </span>
+          </label>
+          <p {...stylex.props(styles.hint)}>
+            {subdomainSlug && rootDomain ? (
+              <>
+                The gym will live at{' '}
+                <span {...stylex.props(styles.host)}>
+                  {subdomainSlug.trim().toLowerCase()}.{rootDomain}
+                </span>
+                . Lowercase letters, numbers and single hyphens; it cannot be changed here later.
+              </>
+            ) : (
+              'Lowercase letters, numbers and single hyphens. This becomes the gym’s permanent host.'
+            )}
+          </p>
+        </div>
       </div>
+      <div {...stylex.props(styles.owner)}>
+        <Cap>Owner</Cap>
+        <div {...stylex.props(styles.ownerFields)}>
+          <TextInput
+            type="email"
+            label="Owner email"
+            htmlName="ownerEmail"
+            size="lg"
+            xstyle={styles.input}
+            placeholder="owner@example.com"
+            value={ownerEmail}
+            onChange={setOwnerEmail}
+            isRequired
+            isDisabled={pending}
+          />
 
-      <TextInput
-        type="email"
-        label="Owner email"
-        htmlName="ownerEmail"
-        size="lg"
-        placeholder="owner@example.com"
-        value={ownerEmail}
-        onChange={setOwnerEmail}
-        isRequired
-        isDisabled={pending}
-      />
-
-      <div>
-        <TextInput
-          label="Owner name"
-          htmlName="ownerName"
-          size="lg"
-          placeholder="Optional"
-          value={ownerName}
-          onChange={setOwnerName}
-          isDisabled={pending}
-        />
+          <TextInput
+            label="Owner name"
+            htmlName="ownerName"
+            size="lg"
+            xstyle={styles.input}
+            placeholder="Optional"
+            value={ownerName}
+            onChange={setOwnerName}
+            isDisabled={pending}
+          />
+        </div>
         <p {...stylex.props(styles.hint)}>
           The owner is emailed an onboarding link. The same link appears on the next screen, ready
           to copy and send by hand.

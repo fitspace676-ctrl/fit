@@ -21,6 +21,8 @@ export interface ActionableGym {
 }
 
 const styles = stylex.create({
+  pill: { borderRadius: 'var(--radius-full)' },
+  surface: { backgroundColor: { default: 'var(--ops-white)', ':hover': 'var(--ops-ink-50)' } },
   row: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -44,11 +46,13 @@ export function GymActions({
   gym,
   onError,
   size = 'inline',
+  placement = 'row',
 }: {
   gym: ActionableGym;
   onError: (message: string | null) => void;
   /** `inline` in a table row, `card` on the detail screen's header. */
   size?: 'inline' | 'card';
+  placement?: 'row' | 'header';
 }) {
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
@@ -101,6 +105,20 @@ export function GymActions({
         variant="secondary"
         size={size}
         label="Enter admin"
+        xstyle={[styles.pill, placement === 'header' && gym.owner !== null && styles.surface]}
+        icon={
+          <svg
+            aria-hidden="true"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
+            <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5M10 7l5 5-5 5M15 12H3" />
+          </svg>
+        }
         // A gym with no owner has nobody to act as — the API answers
         // `422 GYM_HAS_NO_OWNER`, so the console says so instead of asking.
         disabled={gym.owner === null}

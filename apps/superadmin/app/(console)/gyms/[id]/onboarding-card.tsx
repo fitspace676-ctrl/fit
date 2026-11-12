@@ -2,29 +2,10 @@
 
 import { type ReactNode, useState, useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  GYM_ONBOARDING_STEPS,
-  type AdminGymOnboarding,
-  type GymOnboardingStep,
-  type GymOnboardingStatus,
-} from '@fit/types';
-import {
-  Badge,
-  Banner,
-  Button,
-  Card,
-  ConfirmDialog,
-  EmptyState,
-  type BadgeTone,
-} from '@fit/ui-kit';
+import { GYM_ONBOARDING_STEPS, type AdminGymOnboarding, type GymOnboardingStep } from '@fit/types';
+import { Banner, Button, Card, ConfirmDialog, EmptyState } from '@fit/ui-kit';
+import { Cap, Mono } from '@/components/ops';
 import { createOnboardingLinkAction } from '../../actions';
-
-const STATUS: Record<GymOnboardingStatus, { label: string; tone: BadgeTone }> = {
-  PENDING: { label: 'Not started', tone: 'neutral' },
-  IN_PROGRESS: { label: 'In progress', tone: 'pending' },
-  COMPLETED: { label: 'Completed', tone: 'positive' },
-  EXPIRED: { label: 'Expired', tone: 'danger' },
-};
 
 const STEP_LABELS: Record<GymOnboardingStep, string> = {
   account: 'Owner account',
@@ -36,29 +17,110 @@ const STEP_LABELS: Record<GymOnboardingStep, string> = {
 };
 
 const styles = stylex.create({
-  stack: { display: 'flex', flexDirection: 'column', gap: '1rem' },
-  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' },
+  stack: { display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0 },
+  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' },
+  progress: { display: 'flex', flexDirection: 'column', gap: '0.625rem' },
+  summary: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+  },
+  segments: { display: 'flex', gap: '0.25rem' },
+  segment: {
+    height: '0.375rem',
+    flex: 1,
+    borderRadius: '999px',
+    backgroundColor: 'var(--ops-ink-100)',
+  },
+  doneSegment: { backgroundColor: 'var(--ops-forma-500)' },
   steps: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))',
-    gap: '0.5rem',
+    gridTemplateColumns: {
+      default: 'minmax(0, 1fr)',
+      '@media (min-width: 640px)': 'repeat(2, minmax(0, 1fr))',
+    },
+    gap: '0.625rem 1.5rem',
     listStyle: 'none',
     padding: 0,
     margin: 0,
   },
-  linkField: {
-    flexGrow: 1,
-    minWidth: 0,
-    padding: '0.75rem',
-    border: '1px solid var(--color-border)',
-    borderRadius: '0.5rem',
-    backgroundColor: 'transparent',
-    color: 'var(--color-text-primary)',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.8125rem',
+  step: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.625rem',
+    fontSize: '0.84375rem',
+    color: 'var(--ops-ink-400)',
   },
-  link: { color: 'var(--color-text-accent)', textDecoration: 'none' },
-  muted: { color: 'var(--color-text-secondary)', fontSize: '0.8125rem' },
+  doneStep: { color: 'var(--ops-ink-950)' },
+  circle: {
+    display: 'grid',
+    placeItems: 'center',
+    width: '1.25rem',
+    height: '1.25rem',
+    flexShrink: 0,
+    borderRadius: '999px',
+    border: '1px solid var(--ops-ink-300)',
+    fontSize: '0.75rem',
+  },
+  doneCircle: {
+    borderColor: 'var(--ops-forma-500)',
+    backgroundColor: 'var(--ops-forma-500)',
+    color: 'var(--ops-white)',
+  },
+  inset: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+    padding: '0.75rem',
+    borderRadius: '14px',
+    backgroundColor: 'var(--ops-ink-50)',
+    minWidth: 0,
+  },
+  field: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    flex: '1 1 10rem',
+    minWidth: 0,
+    paddingInline: '0.75rem',
+    height: '2.25rem',
+    border: '1px solid var(--color-border)',
+    borderRadius: '10px',
+    backgroundColor: 'var(--ops-white)',
+    color: 'var(--ops-ink-400)',
+  },
+  linkField: {
+    width: '100%',
+    minWidth: 0,
+    padding: 0,
+    border: 0,
+    backgroundColor: 'transparent',
+    color: 'var(--ops-ink-700)',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.75rem',
+    textOverflow: 'ellipsis',
+  },
+  link: {
+    color: 'var(--color-text-accent)',
+    textDecoration: 'none',
+    fontSize: '0.8125rem',
+    whiteSpace: 'nowrap',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clipPath: 'inset(50%)',
+    whiteSpace: 'nowrap',
+    border: 0,
+  },
+  linkIcon: { flexShrink: 0 },
 });
 
 export function OnboardingCard({
@@ -112,39 +174,74 @@ export function OnboardingCard({
         {error ? <Banner tone="error">{error}</Banner> : null}
         {onboarding ? (
           <>
-            <div {...stylex.props(styles.row)}>
-              <Badge
-                label={STATUS[onboarding.status].label}
-                tone={STATUS[onboarding.status].tone}
-              />
-              <span {...stylex.props(styles.muted)}>
-                {onboarding.completedSteps.length} of {onboarding.totalSteps} steps
-              </span>
+            <div {...stylex.props(styles.progress)}>
+              <div {...stylex.props(styles.summary)}>
+                <span>
+                  {onboarding.completedSteps.length} of {onboarding.totalSteps} steps
+                </span>
+                <Mono>
+                  {onboarding.totalSteps > 0
+                    ? Math.round((onboarding.completedSteps.length / onboarding.totalSteps) * 100)
+                    : 0}
+                  %
+                </Mono>
+              </div>
+              <div {...stylex.props(styles.segments)} aria-hidden="true">
+                {GYM_ONBOARDING_STEPS.map((step) => (
+                  <span
+                    key={step}
+                    {...stylex.props(
+                      styles.segment,
+                      onboarding.completedSteps.includes(step) && styles.doneSegment,
+                    )}
+                  />
+                ))}
+              </div>
             </div>
             <ul {...stylex.props(styles.steps)} aria-label="Onboarding steps">
               {GYM_ONBOARDING_STEPS.map((step) => {
                 const done = onboarding.completedSteps.includes(step);
                 return (
-                  <li key={step}>
-                    <span aria-hidden="true">{done ? '✓' : '○'} </span>
-                    {STEP_LABELS[step]}
-                    <span {...stylex.props(styles.muted)}> — {done ? 'Done' : 'Not done'}</span>
+                  <li key={step} {...stylex.props(styles.step, done && styles.doneStep)}>
+                    <span
+                      aria-hidden="true"
+                      {...stylex.props(styles.circle, done && styles.doneCircle)}
+                    >
+                      {done ? '✓' : null}
+                    </span>
+                    <span>{STEP_LABELS[step]}</span>
+                    <span {...stylex.props(styles.srOnly)}> — {done ? 'Done' : 'Not done'}</span>
                   </li>
                 );
               })}
             </ul>
             {onboarding.status !== 'COMPLETED' && link ? (
-              <>
+              <div {...stylex.props(styles.inset)}>
+                <Cap>Onboarding link</Cap>
                 <div {...stylex.props(styles.row)}>
-                  <input
-                    aria-label={
-                      url ? `Onboarding link for ${slug}` : `Onboarding token for ${slug}`
-                    }
-                    readOnly
-                    value={link}
-                    onFocus={(event) => event.currentTarget.select()}
-                    {...stylex.props(styles.linkField)}
-                  />
+                  <div {...stylex.props(styles.field)}>
+                    <svg
+                      aria-hidden="true"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      {...stylex.props(styles.linkIcon)}
+                    >
+                      <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2" />
+                    </svg>
+                    <input
+                      aria-label={
+                        url ? `Onboarding link for ${slug}` : `Onboarding token for ${slug}`
+                      }
+                      readOnly
+                      value={link}
+                      onFocus={(event) => event.currentTarget.select()}
+                      {...stylex.props(styles.linkField)}
+                    />
+                  </div>
                   <Button
                     variant="secondary"
                     size="inline"
@@ -157,17 +254,17 @@ export function OnboardingCard({
                       Open ↗
                     </a>
                   ) : null}
-                  <span role="status" {...stylex.props(styles.muted)}>
-                    {copied ? 'Copied to clipboard' : ''}
-                  </span>
                 </div>
+                <span role="status" {...stylex.props(styles.srOnly)}>
+                  {copied ? 'Copied to clipboard' : ''}
+                </span>
                 {!url ? (
                   <Banner tone="info">
                     NEXT_PUBLIC_ROOT_DOMAIN is not set. Set it to build the onboarding URL. The raw
                     token is shown above.
                   </Banner>
                 ) : null}
-              </>
+              </div>
             ) : null}
             {children}
             {onboarding.status !== 'COMPLETED' ? (

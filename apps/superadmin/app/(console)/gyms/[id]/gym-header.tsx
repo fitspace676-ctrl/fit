@@ -23,7 +23,7 @@ export function GymHeaderActions({ gym }: { gym: ActionableGym }) {
 
   return (
     <div {...stylex.props(styles.stack)}>
-      <GymActions gym={gym} onError={setError} size="card" />
+      <GymActions gym={gym} onError={setError} size="card" placement="header" />
       {error ? <Banner tone="error">{error}</Banner> : null}
     </div>
   );
