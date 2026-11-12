@@ -1,9 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
-import { AUDIT_ACTION_LABELS, type AdminAuditLogRow, type AuditAction } from '@fit/types';
-import { Badge, DataTable, EmptyState, type BadgeTone, type Column } from '@fit/ui-kit';
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ACTION_LABELS,
+  type AdminAuditLogRow,
+  type AuditAction,
+} from '@fit/types';
+import { Badge, EmptyState, type BadgeTone, type Column } from '@fit/ui-kit';
+
+import { FilterPills, OpsTable } from '@/components/ops';
 
 /** Tones by action family: creating is neutral, cutting off and acting-as are not. */
 const ACTION_TONES: Record<AuditAction, BadgeTone> = {
@@ -42,7 +50,7 @@ function actionTone(action: string): BadgeTone {
 function detail(row: AdminAuditLogRow): string | null {
   const meta = row.metadata;
   if (!meta) return null;
-  if (typeof meta.status === 'string') return `→ ${meta.status.toLowerCase()}`;
+  if (typeof meta.status === 'string') return `→ ${meta.status.toUpperCase()}`;
   if (typeof meta.subdomainSlug === 'string') return `${meta.subdomainSlug}`;
   if (typeof meta.ttlSeconds === 'number') return `${Math.round(meta.ttlSeconds / 60)} min session`;
   return null;
@@ -52,7 +60,8 @@ const styles = stylex.create({
   whoCell: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.125rem',
+    gap: '0.25rem',
+    alignItems: 'flex-start',
   },
   primary: {
     color: 'var(--color-text-primary)',
@@ -61,7 +70,11 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
+  statusBadge: {
+    boxShadow: 'inset 0 0 0 1px var(--ops-ink-200)',
+  },
   gymLink: {
+    fontWeight: 600,
     color: {
       default: 'var(--color-text-primary)',
       ':hover': 'var(--color-text-accent)',
@@ -93,8 +106,12 @@ const COLUMNS: ReadonlyArray<Column<AdminAuditLogRow>> = [
     header: 'Action',
     cell: (row) => (
       <div {...stylex.props(styles.whoCell)}>
-        <Badge label={actionLabel(row.action)} tone={actionTone(row.action)} />
-        {detail(row) ? <span {...stylex.props(styles.secondary)}>{detail(row)}</span> : null}
+        <Badge
+          label={actionLabel(row.action)}
+          tone={actionTone(row.action)}
+          xstyle={row.action === 'gym.status.update' ? styles.statusBadge : undefined}
+        />
+        {detail(row) ? <span {...stylex.props(styles.slug)}>{detail(row)}</span> : null}
       </div>
     ),
   },
@@ -144,7 +161,7 @@ const COLUMNS: ReadonlyArray<Column<AdminAuditLogRow>> = [
  */
 export function ActivityTable({ rows }: { rows: AdminAuditLogRow[] }) {
   return (
-    <DataTable
+    <OpsTable
       columns={COLUMNS}
       rows={rows}
       rowKey={(row) => row.id}
@@ -156,5 +173,92 @@ export function ActivityTable({ rows }: { rows: AdminAuditLogRow[] }) {
         />
       }
     />
+  );
+}
+
+const filterStyles = stylex.create({
+  root: { display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: 0 },
+  pills: { overflowX: 'auto', minWidth: 0 },
+  gym: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-secondary)',
+  },
+  select: {
+    maxWidth: '100%',
+    height: '2rem',
+    borderWidth: 0,
+    borderRadius: '999px',
+    paddingInline: '0.875rem',
+    backgroundColor: 'var(--ops-white)',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'inherit',
+    fontSize: '0.78125rem',
+    fontWeight: 600,
+    outline: { default: 'none', ':focus-visible': '2px solid var(--ops-forma-400)' },
+    outlineOffset: '2px',
+  },
+});
+
+/** Controls only navigate; the server still filters and paginates the audit. */
+export function ActivityFilters({
+  action,
+  gymId,
+  gyms,
+  rosterUnavailable,
+}: {
+  action?: string;
+  gymId?: string;
+  gyms: { id: string; name: string }[];
+  rosterUnavailable: boolean;
+}) {
+  const router = useRouter();
+  function navigate(nextAction: string | undefined, nextGym: string | undefined) {
+    const params = new URLSearchParams();
+    if (nextAction) params.set('action', nextAction);
+    if (nextGym) params.set('gymId', nextGym);
+    router.push(params.size ? `/activity?${params}` : '/activity');
+  }
+  const options = [
+    { value: '', label: 'All actions' },
+    ...AUDIT_ACTIONS.map((value) => ({ value, label: AUDIT_ACTION_LABELS[value] })),
+  ];
+  if (action && !options.some((option) => option.value === action)) {
+    options.push({ value: action, label: actionLabel(action) });
+  }
+  return (
+    <div {...stylex.props(filterStyles.root)}>
+      <div {...stylex.props(filterStyles.pills)}>
+        <FilterPills
+          label="Action"
+          value={action ?? ''}
+          options={options}
+          onChange={(value) => navigate(value, gymId)}
+        />
+      </div>
+      <div {...stylex.props(filterStyles.gym)}>
+        <label htmlFor="activity-gym">Gym</label>
+        <select
+          id="activity-gym"
+          value={gymId ?? ''}
+          {...stylex.props(filterStyles.select)}
+          onChange={(event) => navigate(action, event.target.value)}
+        >
+          <option value="">Any gym</option>
+          {gymId && !gyms.some((gym) => gym.id === gymId) ? (
+            <option value={gymId}>{gymId}</option>
+          ) : null}
+          {gyms.map((gym) => (
+            <option key={gym.id} value={gym.id}>
+              {gym.name}
+            </option>
+          ))}
+        </select>
+        {rosterUnavailable ? <span role="status">Could not load gym options.</span> : null}
+      </div>
+    </div>
   );
 }

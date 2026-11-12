@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
-import { AUDIT_ACTIONS, AUDIT_ACTION_LABELS, listAdminAuditLogQuerySchema } from '@fit/types';
+import { listAdminAuditLogQuerySchema } from '@fit/types';
 import { Banner } from '@fit/ui-kit';
-import { ApiError, fetchAuditLogs } from '@/lib/api';
+import { ApiError, fetchAuditLogs, fetchGyms } from '@/lib/api';
 import { ButtonLink } from '@/components/button-link';
-import { ActivityTable } from './activity-table';
+import { PageHead, SurfaceButton } from '@/components/ops';
+import { ActivityFilters, ActivityTable } from './activity-table';
 
 export const metadata: Metadata = {
   title: 'Activity | FormaCore SuperAdmin',
@@ -23,34 +24,13 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1.5rem',
     maxWidth: '72rem',
-  },
-  header: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-text-primary)',
-  },
-  subtitle: {
-    margin: 0,
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
-  filters: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
+    minWidth: 0,
   },
   pager: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: '1rem',
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
@@ -83,7 +63,7 @@ function hrefWith(current: { action?: string; gymId?: string; page?: number }, p
  * being minted from one. This screen is the reason those rows are written: a
  * trail nobody can read is a log file, not an audit.
  *
- * Filtering and paging are **links**, not client state. The whole screen is
+ * Filtering and paging navigate URLs, not local filtered state. The whole screen is
  * server-rendered from the query string, so a filtered view is a URL an operator
  * can keep, share, or land on from a gym's detail screen — and the browser's back
  * button does the obvious thing.
@@ -106,6 +86,9 @@ export default async function ActivityPage({
     page: query.page,
   };
 
+  // Roster failure must not hide the audit trail. The active ID remains clearable.
+  const roster = await fetchGyms().catch(() => null);
+
   let content;
   let pager = null;
   try {
@@ -124,18 +107,22 @@ export default async function ActivityPage({
             <ButtonLink
               href={hrefWith(active, page - 1)}
               label="Previous"
-              variant="secondary"
+              variant="surface"
               size="inline"
             />
-          ) : null}
+          ) : (
+            <SurfaceButton label="Previous" size="inline" disabled />
+          )}
           {to < total ? (
             <ButtonLink
               href={hrefWith(active, page + 1)}
               label="Next"
-              variant="secondary"
+              variant="surface"
               size="inline"
             />
-          ) : null}
+          ) : (
+            <SurfaceButton label="Next" size="inline" disabled />
+          )}
         </div>
       </div>
     );
@@ -151,31 +138,16 @@ export default async function ActivityPage({
 
   return (
     <div {...stylex.props(styles.page)}>
-      <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>Activity</h1>
-        <p {...stylex.props(styles.subtitle)}>
-          Every privileged action taken on the platform, newest first. Impersonation appears twice:
-          once when a code is requested, once when a session is actually opened with it.
-        </p>
-      </header>
-
-      <div {...stylex.props(styles.filters)}>
-        <ButtonLink
-          href={hrefWith({ gymId: active.gymId }, 1)}
-          label="All actions"
-          variant={active.action ? 'ghost' : 'primary'}
-          size="inline"
-        />
-        {AUDIT_ACTIONS.map((action) => (
-          <ButtonLink
-            key={action}
-            href={hrefWith({ action, gymId: active.gymId }, 1)}
-            label={AUDIT_ACTION_LABELS[action]}
-            variant={active.action === action ? 'primary' : 'ghost'}
-            size="inline"
-          />
-        ))}
-      </div>
+      <PageHead
+        title="Activity"
+        description="Every privileged action taken on the platform, newest first. Impersonation appears twice: once when a code is requested, once when a session is actually opened with it."
+      />
+      <ActivityFilters
+        action={active.action}
+        gymId={active.gymId}
+        gyms={roster?.gyms.map(({ id, name }) => ({ id, name })) ?? []}
+        rosterUnavailable={roster === null}
+      />
 
       {content}
       {pager}
