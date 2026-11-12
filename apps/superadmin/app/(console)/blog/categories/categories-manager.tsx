@@ -4,7 +4,8 @@ import { type FormEvent, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { BLOG_SLUG_PATTERN, type BlogCategory } from '@fit/types';
-import { Banner, Button, Card, ConfirmDialog, EmptyState, Field } from '@fit/ui-kit';
+import { OpsCard as Card, Cap } from '@/components/ops';
+import { Banner, Button, ConfirmDialog, EmptyState, Field } from '@fit/ui-kit';
 import {
   createBlogCategoryAction,
   deleteBlogCategoryAction,
@@ -17,12 +18,6 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
-  sectionTitle: {
-    margin: 0,
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
-  },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
@@ -30,15 +25,20 @@ const styles = stylex.create({
     alignItems: 'start',
   },
   actions: {
+    flexWrap: 'wrap',
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '0.375rem',
   },
   list: {
+    backgroundColor: 'var(--ops-white)',
+    borderRadius: '26px',
+    overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.75rem',
+    gap: 0,
   },
+  tableRow: { padding: '1.25rem', borderBottom: '1px solid var(--ops-ink-200)' },
   row: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -47,6 +47,7 @@ const styles = stylex.create({
     gap: '0.75rem',
   },
   names: {
+    overflowWrap: 'anywhere',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.125rem',
@@ -173,7 +174,7 @@ export function CategoriesManager({ categories }: { categories: BlogCategory[] }
 
       <Card>
         <form onSubmit={create} {...stylex.props(styles.stack)}>
-          <h2 {...stylex.props(styles.sectionTitle)}>New category</h2>
+          <Cap>New category</Cap>
           <CategoryFields draft={draft} onChange={setDraft} disabled={pending} />
           <div {...stylex.props(styles.actions)}>
             <Button type="submit" variant="primary" size="card" label="Add" loading={pending} />
@@ -186,7 +187,7 @@ export function CategoriesManager({ categories }: { categories: BlogCategory[] }
       ) : (
         <div {...stylex.props(styles.list)}>
           {categories.map((category) => (
-            <Card key={category.id} padding="sm">
+            <div key={category.id} {...stylex.props(styles.tableRow)}>
               {editing?.id === category.id ? (
                 <form onSubmit={update} {...stylex.props(styles.stack)}>
                   <CategoryFields
@@ -252,7 +253,7 @@ export function CategoriesManager({ categories }: { categories: BlogCategory[] }
                   </div>
                 </div>
               )}
-            </Card>
+            </div>
           ))}
         </div>
       )}

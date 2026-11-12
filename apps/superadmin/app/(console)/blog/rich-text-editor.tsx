@@ -29,6 +29,7 @@ const styles = stylex.create({
     overflow: 'hidden',
   },
   toolbar: {
+    backgroundColor: 'var(--ops-ink-50)',
     display: 'flex',
     flexWrap: 'wrap',
     gap: '0.25rem',
@@ -54,6 +55,35 @@ const styles = stylex.create({
 });
 
 /** Links the API keeps: anything else is stripped on save anyway. */
+const TOOL_PATHS: Record<string, string> = {
+  h2: 'M4 5v14m9-14v14M4 12h9m4 0c0-4 6-4 6 0 0 2-6 4-6 7h6',
+  h3: 'M3 5v14m9-14v14M3 12h9m5-4c5-2 7 4 2 4 5 0 5 7-2 6',
+  bold: 'M6 4h7a4 4 0 0 1 0 8H6m0-8v16h8a4 4 0 0 0 0-8H6',
+  italic: 'M10 4h8M6 20h8M14 4 10 20',
+  bullet: 'M9 6h12M9 12h12M9 18h12M3 6h1M3 12h1M3 18h1',
+  ordered: 'M10 6h11M10 12h11M10 18h11M3 4h1v5M2 13c4-3 5 1 2 3l-2 3h4',
+  quote: 'M4 5h6v7H4V5Zm0 7c0 4 1 6 4 7M14 5h6v7h-6V5Zm0 7c0 4 1 6 4 7',
+  link: 'm10 13 4-4m-6 6-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 2 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0',
+  image: 'M3 3h18v18H3V3Zm0 13 6-6 12 11M15 7h2',
+};
+function ToolIcon({ name }: { name: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={TOOL_PATHS[name]} />
+    </svg>
+  );
+}
+
 const SAFE_LINK = /^(https?:\/\/|mailto:)/i;
 
 const EXTENSIONS = [
@@ -185,8 +215,10 @@ export function RichTextEditor({
       key={key}
       type="button"
       size="inline"
-      variant={isActive ? 'secondary' : 'ghost'}
+      variant={isActive ? 'primary' : 'ghost'}
       label={text}
+      iconOnly
+      icon={<ToolIcon name={key} />}
       title={title ?? text}
       aria-label={title ?? text}
       aria-pressed={isActive ?? false}
@@ -252,6 +284,8 @@ export function RichTextEditor({
             size="inline"
             variant="ghost"
             label="Image"
+            iconOnly
+            icon={<ToolIcon name="image" />}
             title="Upload and insert an image"
             loading={uploading}
             disabled={off}

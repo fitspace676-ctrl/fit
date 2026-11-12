@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import { BackLink, PageHead } from '@/components/ops';
 import * as stylex from '@stylexjs/stylex';
 import { Banner } from '@fit/ui-kit';
 import { ApiError, fetchBlogAuthors } from '@/lib/api';
@@ -16,33 +16,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
-    maxWidth: '48rem',
-  },
-  header: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  back: {
-    fontSize: '0.875rem',
-    color: {
-      default: 'var(--color-text-secondary)',
-      ':hover': 'var(--color-text-accent)',
-    },
-    textDecoration: 'none',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-text-primary)',
-  },
-  subtitle: {
-    margin: 0,
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
+    maxWidth: '72rem',
   },
 });
 
@@ -63,15 +37,11 @@ export default async function BlogAuthorsPage() {
 
   return (
     <div {...stylex.props(styles.page)}>
-      <header {...stylex.props(styles.header)}>
-        <Link href="/blog" {...stylex.props(styles.back)}>
-          ← Blog
-        </Link>
-        <h1 {...stylex.props(styles.title)}>Authors</h1>
-        <p {...stylex.props(styles.subtitle)}>
-          The bylines a post can carry: a name, a photo and a short bio in each language.
-        </p>
-      </header>
+      <PageHead
+        title="Authors"
+        eyebrow={<BackLink href="/blog" label="Blog" />}
+        description="The bylines a post can carry: a name, a photo and a short bio in each language."
+      />
       {content}
     </div>
   );

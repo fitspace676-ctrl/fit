@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { listAdminBlogPostsQuerySchema, type BlogLang, type BlogPostStatus } from '@fit/types';
-import { Banner, Button, Field } from '@fit/ui-kit';
+import { Banner } from '@fit/ui-kit';
 import { ButtonLink } from '@/components/button-link';
 import { ApiError, fetchBlogPosts } from '@/lib/api';
+import { PageHead, SearchField, SurfaceButton } from '@/components/ops';
 import { PostsTable } from './posts-table';
 
 export const metadata: Metadata = {
@@ -23,54 +24,24 @@ const styles = stylex.create({
     gap: '1.5rem',
     maxWidth: '72rem',
   },
-  header: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: '1rem',
-  },
-  heading: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-text-primary)',
-  },
-  subtitle: {
-    margin: 0,
-    fontSize: '0.875rem',
-    color: 'var(--color-text-secondary)',
-  },
-  headerActions: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-  },
   toolbar: {
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: '1rem',
+    gap: '0.75rem',
   },
   search: {
     display: 'flex',
     alignItems: 'flex-end',
     gap: '0.5rem',
     flexGrow: 1,
-    maxWidth: '28rem',
+    width: '100%',
   },
-  searchField: {
-    flexGrow: 1,
-  },
+  filter: { borderRadius: '999px' },
   filters: {
+    backgroundColor: 'var(--ops-white)',
+    borderRadius: '999px',
+    padding: '0.25rem',
     display: 'flex',
     flexWrap: 'wrap',
     gap: '0.25rem',
@@ -158,7 +129,7 @@ export default async function BlogPage({
             <ButtonLink
               href={hrefWith(active, page - 1)}
               label="Previous"
-              variant="secondary"
+              variant="surface"
               size="inline"
             />
           ) : null}
@@ -166,7 +137,7 @@ export default async function BlogPage({
             <ButtonLink
               href={hrefWith(active, page + 1)}
               label="Next"
-              variant="secondary"
+              variant="surface"
               size="inline"
             />
           ) : null}
@@ -185,41 +156,41 @@ export default async function BlogPage({
 
   return (
     <div {...stylex.props(styles.page)}>
-      <header {...stylex.props(styles.header)}>
-        <div {...stylex.props(styles.heading)}>
-          <h1 {...stylex.props(styles.title)}>Blog</h1>
-          <p {...stylex.props(styles.subtitle)}>
-            Posts on formacore.io. Georgian is required on every post; English is optional.
-          </p>
-        </div>
-        <div {...stylex.props(styles.headerActions)}>
-          <ButtonLink href="/blog/categories" label="Categories" variant="ghost" />
-          <ButtonLink href="/blog/authors" label="Authors" variant="ghost" />
-          <ButtonLink href="/blog/new" label="New post" />
-        </div>
-      </header>
+      <PageHead
+        title="Blog"
+        description="Posts on formacore.io. Georgian is required on every post; English is optional."
+        actions={
+          <>
+            <ButtonLink href="/blog/categories" label="Categories" variant="ghost" />
+            <ButtonLink href="/blog/authors" label="Authors" variant="ghost" />
+            <ButtonLink
+              href="/blog/new"
+              label="New post"
+              icon={<span aria-hidden="true">＋</span>}
+            />
+          </>
+        }
+      />
 
       <div {...stylex.props(styles.toolbar)}>
         {/* A plain GET form: submitting it is just navigating to the filtered URL. */}
         <form method="get" action="/blog" {...stylex.props(styles.search)}>
           {active.status ? <input type="hidden" name="status" value={active.status} /> : null}
           {active.lang ? <input type="hidden" name="lang" value={active.lang} /> : null}
-          <Field
+          <SearchField
             label="Search"
-            labelHidden
             name="q"
-            type="search"
             placeholder="Search title or slug"
             defaultValue={active.q ?? ''}
-            xstyle={styles.searchField}
           />
-          <Button type="submit" variant="secondary" size="card" label="Search" />
+          <SurfaceButton type="submit" size="card" label="Search" />
         </form>
 
         <div {...stylex.props(styles.filters)}>
           {STATUS_FILTERS.map((option) => (
             <ButtonLink
               key={option.label}
+              xstyle={styles.filter}
               href={hrefWith({ ...active, status: option.value })}
               label={option.label}
               variant={active.status === option.value ? 'primary' : 'ghost'}
@@ -231,6 +202,7 @@ export default async function BlogPage({
           {LANG_FILTERS.map((option) => (
             <ButtonLink
               key={option.label}
+              xstyle={styles.filter}
               href={hrefWith({ ...active, lang: option.value })}
               label={option.label}
               variant={active.lang === option.value ? 'primary' : 'ghost'}

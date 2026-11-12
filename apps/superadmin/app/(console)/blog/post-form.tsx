@@ -12,16 +12,17 @@ import {
   type CreateBlogPostInput,
 } from '@fit/types';
 import {
-  Badge,
   Banner,
   Button,
-  Card,
   ConfirmDialog,
   Field,
   SelectField,
-  Tabs,
+  SegmentedControl,
   TextareaField,
 } from '@fit/ui-kit';
+import { BackLink, Cap, Mono, OpsCard as Card, PageHead } from '@/components/ops';
+import css from './blog.module.css';
+import { PostStatus } from './post-status';
 import { ButtonLink } from '@/components/button-link';
 import {
   createBlogPostAction,
@@ -32,9 +33,30 @@ import {
 } from './actions';
 import { ImageField } from './image-field';
 import { RichTextEditor } from './rich-text-editor';
-import { VISIBILITY, formatWhen } from './shared';
+import { formatWhen } from './shared';
 
 const styles = stylex.create({
+  columns: {
+    display: 'grid',
+    gridTemplateColumns: {
+      default: 'minmax(0, 1fr)',
+      '@media (min-width: 1024px)': 'minmax(0, 1fr) 20rem',
+    },
+    alignItems: 'start',
+    gap: '1.5rem',
+  },
+  content: { minWidth: 0 },
+  language: { flexWrap: 'wrap', alignSelf: 'flex-start', maxWidth: '100%' },
+  publicUrl: { overflowWrap: 'anywhere' },
+  seo: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem',
+    padding: '1rem',
+    borderRadius: '14px',
+    backgroundColor: 'var(--ops-ink-50)',
+  },
+  danger: { color: 'var(--color-text-red)' },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -45,12 +67,6 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
   },
-  sectionTitle: {
-    margin: 0,
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
-  },
   hint: {
     margin: 0,
     fontSize: '0.75rem',
@@ -58,23 +74,8 @@ const styles = stylex.create({
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))',
+    gridTemplateColumns: 'minmax(0, 1fr)',
     gap: '1rem',
-  },
-  saveBar: {
-    position: 'sticky',
-    bottom: 0,
-    zIndex: 1,
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-    paddingBlock: '0.75rem',
-    backgroundColor: 'var(--color-background-body)',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--color-border)',
   },
   row: {
     display: 'flex',
@@ -238,7 +239,7 @@ function toLocalInput(iso: string | null): string {
 
 const LANG_TABS = [
   { value: 'ka' as const, label: 'Georgian (KA)' },
-  { value: 'en' as const, label: 'English (EN)' },
+  { value: 'en' as const, label: 'English (EN) optional' },
 ];
 
 /**
@@ -399,252 +400,286 @@ export function PostForm({
 
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
-      {error ? <Banner tone="error">{error}</Banner> : null}
-      {notice ? <Banner tone="success">{notice}</Banner> : null}
-
-      <Card>
-        <Tabs
-          label="Post language"
-          idPrefix="post-lang"
-          value={lang}
-          onChange={setLang}
-          items={LANG_TABS}
-        >
-          {/* Keyed so the editor remounts with the other language's content. */}
-          <div key={lang} {...stylex.props(styles.stack)}>
-            {isKa ? null : (
-              <p {...stylex.props(styles.hint)}>
-                English is optional. Leave the title empty and the post appears only on the Georgian
-                blog.
-              </p>
-            )}
-            <Field
-              label={isKa ? 'Title (required)' : 'Title'}
-              size="field"
-              value={fields.title}
-              onChange={(event) => setLangField(lang, 'title', event.target.value)}
-              required={isKa}
-              maxLength={200}
-              disabled={pending}
-            />
-            <TextareaField
-              label="Excerpt"
-              hint="One or two sentences for the blog list and as the default meta description."
-              rows={2}
-              value={fields.excerpt}
-              onChange={(event) => setLangField(lang, 'excerpt', event.target.value)}
-              maxLength={500}
-              disabled={pending}
-            />
-            <RichTextEditor
-              label="Content"
-              value={fields.content}
-              onChange={(html) => setLangField(lang, 'content', html)}
-              onError={setError}
-              disabled={pending}
-            />
-            <div {...stylex.props(styles.grid)}>
-              <Field
-                label="Meta title"
-                hint="Search result title. Defaults to the title."
-                value={fields.metaTitle}
-                onChange={(event) => setLangField(lang, 'metaTitle', event.target.value)}
-                maxLength={120}
-                disabled={pending}
-              />
-              <TextareaField
-                label="Meta description"
-                hint="Search result snippet. Defaults to the excerpt."
-                rows={2}
-                value={fields.metaDescription}
-                onChange={(event) => setLangField(lang, 'metaDescription', event.target.value)}
-                maxLength={320}
-                disabled={pending}
-              />
-            </div>
-          </div>
-        </Tabs>
-      </Card>
-
-      <Card>
-        <div {...stylex.props(styles.stack)}>
-          <h2 {...stylex.props(styles.sectionTitle)}>Details</h2>
-          <div {...stylex.props(styles.grid)}>
-            <Field
-              label="Slug"
-              hint={
-                slugInvalid
-                  ? 'Lowercase Latin letters, digits and single hyphens only.'
-                  : `formacore.io/resources/${state.slug || '…'}`
-              }
-              invalid={slugInvalid}
-              value={state.slug}
-              onChange={(event) => {
-                setSlugTouched(true);
-                set('slug', event.target.value.toLowerCase());
-              }}
-              required
-              maxLength={120}
-              disabled={pending}
-            />
-            <Field
-              label="Tags"
-              hint="Comma-separated, e.g. training, nutrition"
-              value={state.tags}
-              onChange={(event) => set('tags', event.target.value)}
-              disabled={pending}
-            />
-            <SelectField
-              label="Category"
-              value={state.categoryId}
-              onChange={(event) => set('categoryId', event.target.value)}
-              options={[
-                { value: '', label: 'No category' },
-                ...categories.map((category) => ({
-                  value: category.id,
-                  label: `${category.nameEn} · ${category.nameKa}`,
-                })),
-              ]}
-              disabled={pending}
-            />
-            <SelectField
-              label="Author"
-              value={state.authorId}
-              onChange={(event) => set('authorId', event.target.value)}
-              options={[
-                { value: '', label: 'No author' },
-                ...authors.map((author) => ({ value: author.id, label: author.name })),
-              ]}
-              disabled={pending}
-            />
-          </div>
-          <div {...stylex.props(styles.grid)}>
-            <ImageField
-              label="Cover image"
-              hint="Shown on the blog list and at the top of the post."
-              value={state.coverImageUrl}
-              onChange={(url) => set('coverImageUrl', url)}
-              onError={setError}
-              disabled={pending}
-            />
-            <ImageField
-              label="Social image (OG)"
-              hint="Used when the post is shared. Defaults to the cover. 1200×630 works best."
-              value={state.ogImageUrl}
-              onChange={(url) => set('ogImageUrl', url)}
-              onError={setError}
-              disabled={pending}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {post ? (
-        <Card>
-          <div {...stylex.props(styles.stack)}>
-            <h2 {...stylex.props(styles.sectionTitle)}>Publishing</h2>
-            <div {...stylex.props(styles.status)}>
-              <Badge
-                label={VISIBILITY[post.visibility].label}
-                tone={VISIBILITY[post.visibility].tone}
-              />
-              {post.visibility === 'scheduled' ? (
-                <span>
-                  goes live <span {...stylex.props(styles.when)}>{formatWhen(post.publishAt)}</span>
-                </span>
-              ) : null}
-              {post.visibility === 'published' ? (
-                <span>
-                  live since{' '}
-                  <span {...stylex.props(styles.when)}>{formatWhen(post.publishAt)}</span>
-                </span>
-              ) : null}
-            </div>
-            <div {...stylex.props(styles.row)}>
-              {post.visibility === 'published' ? null : (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="card"
-                  label="Publish now"
-                  loading={pending}
-                  onClick={() => publish()}
-                />
-              )}
-              {post.status === 'PUBLISHED' ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="card"
-                  label="Unpublish"
-                  loading={pending}
-                  onClick={unpublish}
-                />
-              ) : null}
-            </div>
-            <div {...stylex.props(styles.schedule)}>
-              <Field
-                label="Schedule for"
-                type="datetime-local"
-                hint="Your local time."
-                value={scheduleAt}
-                onChange={(event) => setScheduleAt(event.target.value)}
-                disabled={pending}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                size="card"
-                label={post.visibility === 'scheduled' ? 'Reschedule' : 'Schedule'}
-                loading={pending}
-                onClick={schedule}
-              />
-            </div>
-            <div {...stylex.props(styles.row)}>
-              <Button
-                type="button"
+      <PageHead
+        title={post ? 'Edit post' : 'New post'}
+        eyebrow={<BackLink href="/blog" label="Blog" />}
+        description={
+          <>
+            <span {...stylex.props(styles.publicUrl)}>
+              <Mono>formacore.io/resources/{state.slug || '…'}</Mono>
+            </span>
+            {post ? (
+              <>
+                {' '}
+                · Saved <Mono>{formatWhen(post.updatedAt)}</Mono>
+              </>
+            ) : null}
+          </>
+        }
+        actions={
+          <>
+            {post ? (
+              <ButtonLink
+                href={`/blog/${post.id}/preview`}
+                label="Preview"
                 variant="ghost"
-                size="inline"
-                label="Delete post"
-                disabled={pending}
-                onClick={() => setConfirmDelete(true)}
+                icon={<span aria-hidden="true">↗</span>}
               />
-            </div>
-          </div>
-        </Card>
-      ) : null}
-
-      <div {...stylex.props(styles.saveBar)}>
-        <span {...stylex.props(styles.dirty)}>
-          {post
-            ? dirty
-              ? 'Unsaved changes'
-              : 'All changes saved'
-            : 'New posts are saved as drafts.'}
-        </span>
-        <div {...stylex.props(styles.row)}>
-          {post ? (
-            <ButtonLink href={`/blog/${post.id}/preview`} label="Preview" variant="ghost" />
-          ) : (
+            ) : null}
             <Button
               type="button"
               variant="ghost"
-              size="card"
               label="Cancel"
               disabled={pending}
               onClick={() => router.push('/blog')}
             />
-          )}
-          <Button
-            type="submit"
-            variant="primary"
-            size="card"
-            label={post ? 'Save' : 'Create draft'}
-            loading={pending}
-            disabled={post !== null && !dirty}
-          />
+            <Button
+              type="submit"
+              variant="primary"
+              label="Save"
+              loading={pending}
+              disabled={post !== null && !dirty}
+            />
+          </>
+        }
+      />
+      {error ? <Banner tone="error">{error}</Banner> : null}
+      {notice ? <Banner tone="success">{notice}</Banner> : null}
+
+      <div {...stylex.props(styles.columns)}>
+        <div {...stylex.props(styles.content)}>
+          <Card>
+            <div {...stylex.props(styles.stack)}>
+              <SegmentedControl
+                label="Post language"
+                value={lang}
+                onChange={setLang}
+                options={LANG_TABS}
+                xstyle={styles.language}
+              />
+              {/* Keyed so the editor remounts with the other language's content. */}
+              <div key={lang} {...stylex.props(styles.stack)}>
+                {isKa ? null : (
+                  <p {...stylex.props(styles.hint)}>
+                    English is optional. Leave the title empty and the post appears only on the
+                    Georgian blog.
+                  </p>
+                )}
+                <Field
+                  label={isKa ? 'Title (required)' : 'Title'}
+                  size="field"
+                  value={fields.title}
+                  onChange={(event) => setLangField(lang, 'title', event.target.value)}
+                  required={isKa}
+                  maxLength={200}
+                  disabled={pending}
+                />
+                <TextareaField
+                  label="Excerpt"
+                  hint="One or two sentences for the blog list and as the default meta description."
+                  rows={2}
+                  value={fields.excerpt}
+                  onChange={(event) => setLangField(lang, 'excerpt', event.target.value)}
+                  maxLength={500}
+                  disabled={pending}
+                />
+                <RichTextEditor
+                  label="Content"
+                  value={fields.content}
+                  onChange={(html) => setLangField(lang, 'content', html)}
+                  onError={setError}
+                  disabled={pending}
+                />
+                <div {...stylex.props(styles.seo)}>
+                  <Cap>Search &amp; sharing</Cap>
+                  <Field
+                    label="Meta title"
+                    hint="Search result title. Defaults to the title."
+                    value={fields.metaTitle}
+                    onChange={(event) => setLangField(lang, 'metaTitle', event.target.value)}
+                    maxLength={120}
+                    disabled={pending}
+                  />
+                  <TextareaField
+                    label="Meta description"
+                    hint="Search result snippet. Defaults to the excerpt."
+                    rows={2}
+                    value={fields.metaDescription}
+                    onChange={(event) => setLangField(lang, 'metaDescription', event.target.value)}
+                    maxLength={320}
+                    disabled={pending}
+                  />
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+        <div {...stylex.props(styles.stack)}>
+          {post ? (
+            <Card>
+              <div {...stylex.props(styles.stack)}>
+                <Cap>Publishing</Cap>
+                <div {...stylex.props(styles.status)}>
+                  <PostStatus visibility={post.visibility} />
+                  {post.visibility === 'scheduled' ? (
+                    <span>
+                      goes live{' '}
+                      <span {...stylex.props(styles.when)}>{formatWhen(post.publishAt)}</span>
+                    </span>
+                  ) : null}
+                  {post.visibility === 'published' ? (
+                    <span>
+                      live since{' '}
+                      <span {...stylex.props(styles.when)}>{formatWhen(post.publishAt)}</span>
+                    </span>
+                  ) : null}
+                </div>
+                <div {...stylex.props(styles.row)}>
+                  {post.visibility === 'published' ? null : (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="card"
+                      label="Publish now"
+                      loading={pending}
+                      onClick={() => publish()}
+                    />
+                  )}
+                  {post.status === 'PUBLISHED' ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="card"
+                      label="Unpublish"
+                      loading={pending}
+                      onClick={unpublish}
+                    />
+                  ) : null}
+                </div>
+                <div {...stylex.props(styles.schedule)}>
+                  <Field
+                    label="Schedule for"
+                    type="datetime-local"
+                    hint="Your local time."
+                    value={scheduleAt}
+                    onChange={(event) => setScheduleAt(event.target.value)}
+                    disabled={pending}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="card"
+                    label={post.visibility === 'scheduled' ? 'Reschedule' : 'Schedule'}
+                    loading={pending}
+                    onClick={schedule}
+                  />
+                </div>
+                <div {...stylex.props(styles.row)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="inline"
+                    label="Delete post"
+                    xstyle={styles.danger}
+                    disabled={pending}
+                    onClick={() => setConfirmDelete(true)}
+                  />
+                </div>
+              </div>
+            </Card>
+          ) : null}
+
+          <Card>
+            <div {...stylex.props(styles.stack)}>
+              <Cap>Details</Cap>
+              <div {...stylex.props(styles.grid)}>
+                <div className={css.slug}>
+                  <span aria-hidden="true" className={css.prefix}>
+                    /
+                  </span>
+                  <Field
+                    label="Slug"
+                    hint={
+                      slugInvalid
+                        ? 'Lowercase Latin letters, digits and single hyphens only.'
+                        : `formacore.io/resources/${state.slug || '…'}`
+                    }
+                    invalid={slugInvalid}
+                    value={state.slug}
+                    onChange={(event) => {
+                      setSlugTouched(true);
+                      set('slug', event.target.value.toLowerCase());
+                    }}
+                    required
+                    maxLength={120}
+                    disabled={pending}
+                  />
+                </div>
+                <Field
+                  label="Tags"
+                  hint="Comma-separated, e.g. training, nutrition"
+                  value={state.tags}
+                  onChange={(event) => set('tags', event.target.value)}
+                  disabled={pending}
+                />
+                <SelectField
+                  label="Category"
+                  value={state.categoryId}
+                  onChange={(event) => set('categoryId', event.target.value)}
+                  options={[
+                    { value: '', label: 'No category' },
+                    ...categories.map((category) => ({
+                      value: category.id,
+                      label: `${category.nameEn} · ${category.nameKa}`,
+                    })),
+                  ]}
+                  disabled={pending}
+                />
+                <SelectField
+                  label="Author"
+                  value={state.authorId}
+                  onChange={(event) => set('authorId', event.target.value)}
+                  options={[
+                    { value: '', label: 'No author' },
+                    ...authors.map((author) => ({ value: author.id, label: author.name })),
+                  ]}
+                  disabled={pending}
+                />
+              </div>
+            </div>
+          </Card>
+          <Card>
+            <div {...stylex.props(styles.stack)}>
+              <Cap>Images</Cap>
+              <div {...stylex.props(styles.grid)}>
+                <ImageField
+                  label="Cover image"
+                  hint="Shown on the blog list and at the top of the post."
+                  value={state.coverImageUrl}
+                  onChange={(url) => set('coverImageUrl', url)}
+                  onError={setError}
+                  disabled={pending}
+                />
+                <ImageField
+                  label="Social image (OG)"
+                  hint="Used when the post is shared. Defaults to the cover. 1200×630 works best."
+                  value={state.ogImageUrl}
+                  onChange={(url) => set('ogImageUrl', url)}
+                  onError={setError}
+                  disabled={pending}
+                />
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
+      <span {...stylex.props(styles.dirty)}>
+        {post
+          ? dirty
+            ? 'Unsaved changes'
+            : 'All changes saved'
+          : 'New posts are saved as drafts.'}
+      </span>
 
       {post ? (
         <ConfirmDialog

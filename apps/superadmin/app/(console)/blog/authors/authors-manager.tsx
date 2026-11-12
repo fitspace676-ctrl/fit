@@ -4,7 +4,8 @@ import { type FormEvent, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { BlogAuthor } from '@fit/types';
-import { Banner, Button, Card, ConfirmDialog, EmptyState, Field, TextareaField } from '@fit/ui-kit';
+import { Banner, Button, ConfirmDialog, EmptyState, Field, TextareaField } from '@fit/ui-kit';
+import { OpsCard as Card, Cap } from '@/components/ops';
 import { createBlogAuthorAction, deleteBlogAuthorAction, updateBlogAuthorAction } from '../actions';
 import { ImageField } from '../image-field';
 
@@ -13,12 +14,6 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
-  },
-  sectionTitle: {
-    margin: 0,
-    fontSize: '1rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
   },
   fields: {
     display: 'grid',
@@ -31,19 +26,24 @@ const styles = stylex.create({
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(14rem, 100%), 1fr))',
     gap: '0.75rem',
   },
   actions: {
+    flexWrap: 'wrap',
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '0.375rem',
   },
   list: {
+    backgroundColor: 'var(--ops-white)',
+    borderRadius: '26px',
+    overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.75rem',
+    gap: 0,
   },
+  tableRow: { padding: '1.25rem', borderBottom: '1px solid var(--ops-ink-200)' },
   row: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -66,6 +66,7 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-background-surface)',
   },
   names: {
+    overflowWrap: 'anywhere',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.125rem',
@@ -210,7 +211,7 @@ export function AuthorsManager({ authors }: { authors: BlogAuthor[] }) {
 
       <Card>
         <form onSubmit={create} {...stylex.props(styles.stack)}>
-          <h2 {...stylex.props(styles.sectionTitle)}>New author</h2>
+          <Cap>New author</Cap>
           <AuthorFields draft={draft} onChange={setDraft} onError={setError} disabled={pending} />
           <div {...stylex.props(styles.actions)}>
             <Button type="submit" variant="primary" size="card" label="Add" loading={pending} />
@@ -223,7 +224,7 @@ export function AuthorsManager({ authors }: { authors: BlogAuthor[] }) {
       ) : (
         <div {...stylex.props(styles.list)}>
           {authors.map((author) => (
-            <Card key={author.id} padding="sm">
+            <div key={author.id} {...stylex.props(styles.tableRow)}>
               {editing?.id === author.id ? (
                 <form onSubmit={update} {...stylex.props(styles.stack)}>
                   <AuthorFields
@@ -295,7 +296,7 @@ export function AuthorsManager({ authors }: { authors: BlogAuthor[] }) {
                   </div>
                 </div>
               )}
-            </Card>
+            </div>
           ))}
         </div>
       )}

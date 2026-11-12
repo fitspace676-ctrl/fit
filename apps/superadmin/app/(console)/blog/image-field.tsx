@@ -30,9 +30,9 @@ const styles = stylex.create({
     borderWidth: '1px',
     borderStyle: 'dashed',
     borderColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
+    backgroundColor: 'var(--ops-ink-50)',
     aspectRatio: '16 / 9',
-    maxWidth: '20rem',
+    width: '100%',
   },
   square: {
     aspectRatio: '1',
@@ -44,9 +44,14 @@ const styles = stylex.create({
     height: '100%',
     objectFit: 'cover',
   },
-  empty: {
-    fontSize: '0.75rem',
+  upload: {
+    border: 0,
+    backgroundColor: 'transparent',
+    width: '100%',
+    height: '100%',
+    cursor: 'pointer',
     color: 'var(--color-text-secondary)',
+    fontSize: '0.75rem',
   },
   actions: {
     display: 'flex',
@@ -104,7 +109,14 @@ export function ImageField({
           // A remote R2 object, shown as-is; next/image would need its host configured.
           <img src={value} alt="" {...stylex.props(styles.image)} />
         ) : (
-          <span {...stylex.props(styles.empty)}>No image</span>
+          <button
+            type="button"
+            disabled={disabled || uploading}
+            onClick={() => input.current?.click()}
+            {...stylex.props(styles.upload)}
+          >
+            {uploading ? 'Uploading…' : 'Upload image'}
+          </button>
         )}
       </div>
       {hint ? <p {...stylex.props(styles.hint)}>{hint}</p> : null}
