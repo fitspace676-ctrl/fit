@@ -10,10 +10,12 @@
 // under fake timers at all.
 
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { Pressable, Text as RNText } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, Text as RNText } from 'react-native';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-import { darkColors } from '../../tokens/semantic';
-import { TOAST_AUTO_HIDE_MS, TOAST_FADE_MS } from '../feedback-metrics';
+import { darkColors, lightColors } from '../../tokens/semantic';
+import { ThemeProvider } from '../../tokens/theme';
+import { TOAST_AUTO_HIDE_MS, TOAST_FADE_MS, TOAST_GAP } from '../feedback-metrics';
 
 import { ToastProvider } from './toast-provider';
 import { useToast, type ToastVariant } from './use-toast';
@@ -93,8 +95,10 @@ describe('useToast', () => {
 describe('ToastProvider', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
   });
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 
@@ -252,21 +256,160 @@ describe('ToastProvider', () => {
     expect(flatten(bad.getByTestId('toast').props.style).backgroundColor).toBe(darkColors.error);
   });
 
-  // ==========================================================================
-  // THE ANCHOR MOVED FROM TOP TO BOTTOM. All six artboards put a 44pt header
-  // action in the top-right; a top toast lands on it.
-  // ==========================================================================
-  it('sits above the space the tab capsule already reserves', () => {
+  it.each([0, 59])(
+    'sits below the top safe area (%s pt) and passes through host touches',
+    (top) => {
+      render(
+        <SafeAreaInsetsContext.Provider value={{ top, bottom: 34, left: 0, right: 0 }}>
+          <ToastProvider testID="toast">
+            <Trigger message="ok" />
+          </ToastProvider>
+        </SafeAreaInsetsContext.Provider>,
+      );
+      fireEvent.press(screen.getByTestId('fire'));
+      const host = screen.getByTestId('toast-host');
+      const style = flatten(host.props.style);
+      expect(style.top).toBe(top + TOAST_GAP);
+      expect(style.bottom).toBeUndefined();
+      // Clip entry/exit at the safe-area boundary, including multiline pills.
+      expect(style.overflow).toBe('hidden');
+      expect(host.props.pointerEvents).toBe('box-none');
+      expect(screen.getByTestId('toast-motion').props.pointerEvents).toBe('box-none');
+      fireEvent.press(screen.getByTestId('hide'));
+      settle(TOAST_FADE_MS + 1);
+      expect(screen.queryByRole('alert')).toBeNull();
+    },
+  );
+
+  it('slides a measured pill down from above and back up before removal', async () => {
+    const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: jest.fn(),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    }));
     render(
       <ToastProvider testID="toast">
-        <Trigger message="ok" />
+        <Trigger message="booked" />
+      </ToastProvider>,
+    );
+    await act(async () => {});
+    fireEvent.press(screen.getByTestId('fire'));
+    fireEvent(screen.getByTestId('toast-motion'), 'layout', {
+      nativeEvent: { layout: { height: 88, width: 300, x: 0, y: 0 } },
+    });
+    const motion = () => flatten(screen.getByTestId('toast-motion').props.style);
+    expect(motion().transform).toEqual([{ translateY: -88 }]);
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), {
+      toValue: 1,
+      duration: TOAST_FADE_MS,
+      useNativeDriver: true,
+    });
+    const progress = timing.mock.calls[0]![0] as Animated.Value;
+    act(() => {
+      progress.setValue(1);
+    });
+    expect(motion().transform).toEqual([{ translateY: 0 }]);
+    settle(TOAST_AUTO_HIDE_MS);
+    expect(timing).toHaveBeenLastCalledWith(progress, {
+      toValue: 0,
+      duration: TOAST_FADE_MS,
+      useNativeDriver: true,
+    });
+    act(() => {
+      progress.setValue(0);
+    });
+    expect(motion().transform).toEqual([{ translateY: -88 }]);
+    settle(TOAST_FADE_MS - 1);
+    expect(screen.queryByRole('alert')).toBeTruthy();
+    settle(1);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('skips motion when requested and still auto-dismisses', async () => {
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    const timing = jest.spyOn(Animated, 'timing');
+    render(
+      <ToastProvider testID="toast">
+        <Trigger message="booked" />
+      </ToastProvider>,
+    );
+    await act(async () => {});
+    fireEvent.press(screen.getByTestId('fire'));
+    expect(flatten(screen.getByTestId('toast-motion').props.style).transform).toEqual([
+      { translateY: 0 },
+    ]);
+    expect(timing).not.toHaveBeenCalled();
+    settle(TOAST_AUTO_HIDE_MS + 1);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(timing).not.toHaveBeenCalled();
+  });
+
+  it('honors live reduced-motion changes and unsubscribes on unmount', async () => {
+    const listener = jest.spyOn(
+      AccessibilityInfo,
+      'addEventListener',
+    ) as unknown as jest.SpyInstance<
+      ReturnType<typeof AccessibilityInfo.addEventListener>,
+      [string, (enabled: boolean) => void]
+    >;
+    listener.mockClear();
+    const timing = jest.spyOn(Animated, 'timing').mockImplementation(() => ({
+      start: jest.fn(),
+      stop: jest.fn(),
+      reset: jest.fn(),
+    }));
+    const view = render(
+      <ToastProvider testID="toast">
+        <Trigger message="booked" />
+      </ToastProvider>,
+    );
+    await act(async () => {});
+    fireEvent.press(screen.getByTestId('fire'));
+    expect(timing).toHaveBeenCalled();
+    const index = listener.mock.calls.findIndex(([name]) => name === 'reduceMotionChanged');
+    const change = listener.mock.calls[index]![1];
+    const subscription = listener.mock.results[index]!.value as { remove: () => void };
+    const remove = jest.spyOn(subscription, 'remove');
+    act(() => {
+      change(true);
+    });
+    expect(flatten(screen.getByTestId('toast-motion').props.style).transform).toEqual([
+      { translateY: 0 },
+    ]);
+    timing.mockClear();
+    fireEvent.press(screen.getByTestId('hide'));
+    settle(1);
+    expect(timing).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).toBeNull();
+    view.unmount();
+    expect(remove).toHaveBeenCalled();
+  });
+
+  it('does not let a pending dismissal remove a replacement toast', () => {
+    render(
+      <ToastProvider testID="toast">
+        <Trigger message="booked" />
       </ToastProvider>,
     );
     fireEvent.press(screen.getByTestId('fire'));
-    const style = flatten(screen.getByTestId('toast-host').props.style);
-    expect(style.top).toBeUndefined();
-    // `tabBarInset(0)` is 128 — the artboards' own `pb-32` — plus the 12pt gap.
-    expect(style.bottom).toBe(140);
+    fireEvent.press(screen.getByTestId('hide'));
+    fireEvent.press(screen.getByTestId('fire'));
+    settle(TOAST_FADE_MS + 1);
+    expect(screen.queryByRole('alert')).toBeTruthy();
+  });
+
+  it.each(['light', 'dark'] as const)('keeps the success pill readable in %s mode', (scheme) => {
+    const colors = scheme === 'light' ? lightColors : darkColors;
+    render(
+      <ThemeProvider scheme={scheme}>
+        <ToastProvider testID="toast">
+          <Trigger message="booked" />
+        </ToastProvider>
+      </ThemeProvider>,
+    );
+    fireEvent.press(screen.getByTestId('fire'));
+    expect(flatten(screen.getByTestId('toast').props.style).backgroundColor).toBe(colors.accent);
+    expect(flatten(screen.getByText('booked').props.style).color).toBe(colors.onAccent);
   });
 
   it('clears the 44pt touch target — it is tappable, so it is a control', () => {

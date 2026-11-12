@@ -1,63 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Animated, Pressable, View } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, View } from 'react-native';
 
 import { clampRadiusTo } from '../../internal/clamp-radius';
-import { useTabBarInset } from '../../navigation/floating-tab-bar';
+import { useSafeInsets } from '../../navigation/floating-tab-bar';
 import { Icon } from '../../primitives/icon/icon';
 import type { IconName } from '../../primitives/icon/paths';
 import { Text } from '../../primitives/text';
 import type { ColorRole } from '../../tokens/semantic';
 import { layout, spacing } from '../../tokens/spacing';
 import { useThemeColors } from '../../tokens/theme';
-import {
-  TOAST_AUTO_HIDE_MS,
-  TOAST_FADE_MS,
-  toastBottomOffset,
-  weightedType,
-} from '../feedback-metrics';
+import { TOAST_AUTO_HIDE_MS, TOAST_FADE_MS, TOAST_GAP, weightedType } from '../feedback-metrics';
 
 import { ToastContext, type ToastApi, type ToastVariant } from './use-toast';
 
-// ===========================================================================
-// THE TOAST HOST. Salvaged API, rebuilt visual, moved anchor.
-//
-// The API (`show`/`success`/`error`/`info`/`hide`) is kept verbatim — see
-// `use-toast.ts`. Two things are rewritten, and both were wrong rather than
-// merely dated:
-//
-//   THE VISUAL. The salvage drew a full-width rounded rectangle filled with
-//   `palette.success[600]` / `danger[600]` / `info[600]` — three ramps that no
-//   longer exist. `success` and `info` were retired outright by the August
-//   repaint (see `RETIRED_RAMPS`), so the old provider could not be ported;
-//   it could only be redrawn. The artboards have exactly one toast
-//   (`mobile-class-detail.tsx:232-237`) and it is a LIME PILL with a leading
-//   check: `rounded-pill bg-brand-300 px-4 py-2.5 text-[13px] font-bold
-//   text-ink-950`.
-//
-//   THE ANCHOR. The salvage pinned to `insets.top + 8`. All six artboards put
-//   a 44pt header action in the top-right — the cart, the filter, the settings
-//   button — so a top toast lands on the control the member is most likely to
-//   reach for next, and whether their tap dismisses the toast or opens the
-//   cart depends on a three-second timer. The bottom is free by construction:
-//   `useTabBarInset()` is the space every screen ALREADY reserves so its last
-//   row clears the floating capsule.
-//
-// ---------------------------------------------------------------------------
-// WHY RN `Animated` AND NOT REANIMATED HERE, WHEN `Sheet` USES REANIMATED.
-//
-// This is one interpolated opacity with no gesture input and no second
-// property to keep in sync — precisely the case RN's native driver exists for,
-// and precisely the case `primitives/spinner.tsx` already decided the same way
-// for the same reason. `Sheet` needs Reanimated because it drives a translate
-// and a scrim opacity off ONE clock across a `Modal` boundary; a toast drives
-// one number.
-//
-// The consequence that matters: the toast's REMOVAL is driven by
-// `setTimeout`, never by the animation's completion callback. An animation
-// callback under fake timers may never fire, and a toast that renders forever
-// in a test is a test that passes for the wrong reason.
-// ---------------------------------------------------------------------------
-// ===========================================================================
+// The shared host slides below the top safe area. Clip the moving pill so
+// neither entry nor exit paints over the status bar or notch. RN Animated's
+// native driver keeps translation and opacity on the same clock.
+// Removal stays on a JS timer, independent of animation completion callbacks.
 
 /** Variant -> fill, foreground, hairline and glyph. */
 const VARIANTS = {
@@ -120,19 +79,68 @@ export interface ToastProviderProps {
  * happens when five arrive at once; a member who has triggered two things in
  * three seconds needs the SECOND result, and the first is already stale.
  *
- * Mount it inside the `SafeAreaProvider` — it reads the bottom inset through
- * `useTabBarInset()`, which degrades to the artboards' no-inset geometry
+ * Mount it inside the `SafeAreaProvider` — it reads the top inset through
+ * `useSafeInsets()`, which degrades to no-inset geometry
  * rather than throwing if there is no provider.
  */
 export function ToastProvider({ children, testID }: ToastProviderProps) {
   const colors = useThemeColors();
-  const tabBarInset = useTabBarInset();
+  const insets = useSafeInsets();
+  const [pillHeight, setPillHeight] = useState<number>(PILL_MIN_HEIGHT);
 
   const [toast, setToast] = useState<ToastState | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const removeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const counter = useRef(0);
+  // Until the OS preference is known, avoid motion. Also handle live changes.
+  const reduceMotion = useRef(true);
+  const animationTarget = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    let preferenceChanged = false;
+    const update = (enabled: boolean) => {
+      if (!active) return;
+      reduceMotion.current = enabled;
+      if (enabled) {
+        opacity.stopAnimation();
+        opacity.setValue(animationTarget.current);
+      }
+    };
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
+      preferenceChanged = true;
+      update(enabled);
+    });
+    void AccessibilityInfo.isReduceMotionEnabled().then(
+      (enabled) => {
+        if (!preferenceChanged) update(enabled);
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+      subscription.remove();
+      opacity.stopAnimation();
+    };
+  }, [opacity]);
+
+  const animate = useCallback(
+    (toValue: number) => {
+      animationTarget.current = toValue;
+      opacity.stopAnimation();
+      if (reduceMotion.current) {
+        opacity.setValue(toValue);
+      } else {
+        Animated.timing(opacity, {
+          toValue,
+          duration: TOAST_FADE_MS,
+          useNativeDriver: true,
+        }).start();
+      }
+    },
+    [opacity],
+  );
 
   const clearTimers = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -143,16 +151,15 @@ export function ToastProvider({ children, testID }: ToastProviderProps) {
 
   const hide = useCallback(() => {
     clearTimers();
-    Animated.timing(opacity, {
-      toValue: 0,
-      duration: TOAST_FADE_MS,
-      useNativeDriver: true,
-    }).start();
+    animate(0);
     // Removal on a JS timer, NOT on the animation callback. See the header.
-    removeTimer.current = setTimeout(() => {
-      setToast(null);
-    }, TOAST_FADE_MS);
-  }, [clearTimers, opacity]);
+    removeTimer.current = setTimeout(
+      () => {
+        setToast(null);
+      },
+      reduceMotion.current ? 0 : TOAST_FADE_MS,
+    );
+  }, [animate, clearTimers]);
 
   const show = useCallback(
     (message: string, variant: ToastVariant = 'info') => {
@@ -160,14 +167,10 @@ export function ToastProvider({ children, testID }: ToastProviderProps) {
       counter.current += 1;
       setToast({ id: counter.current, message, variant });
       opacity.setValue(0);
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: TOAST_FADE_MS,
-        useNativeDriver: true,
-      }).start();
+      animate(1);
       hideTimer.current = setTimeout(hide, TOAST_AUTO_HIDE_MS);
     },
-    [clearTimers, hide, opacity],
+    [animate, clearTimers, hide, opacity],
   );
 
   // A provider unmounting mid-toast — a sign-out, a locale switch — must not
@@ -206,12 +209,30 @@ export function ToastProvider({ children, testID }: ToastProviderProps) {
             position: 'absolute',
             left: 0,
             right: 0,
-            bottom: toastBottomOffset(tabBarInset),
+            top: insets.top + TOAST_GAP,
+            overflow: 'hidden',
+            zIndex: 1,
             alignItems: 'center',
             paddingHorizontal: layout.screenGutter,
           }}
         >
-          <Animated.View style={{ opacity, maxWidth: '100%' }}>
+          <Animated.View
+            testID={testID ? `${testID}-motion` : undefined}
+            pointerEvents="box-none"
+            onLayout={(event) => setPillHeight(event.nativeEvent.layout.height)}
+            style={{
+              opacity,
+              maxWidth: '100%',
+              transform: [
+                {
+                  translateY: opacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-pillHeight, 0],
+                  }),
+                },
+              ],
+            }}
+          >
             <Pressable
               // `alert` + an ASSERTIVE live region: a toast is the only
               // feedback for an action the member just took, and a polite
