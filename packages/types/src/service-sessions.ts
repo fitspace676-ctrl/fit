@@ -79,6 +79,12 @@ export const createServiceSessionSchema = z.object({
 export type CreateServiceSessionInput = z.input<typeof createServiceSessionSchema>;
 export type CreateServiceSessionData = z.infer<typeof createServiceSessionSchema>;
 
+/** Body for `POST /admin/service-sessions/:id/book` - staff book an open slot for a member. */
+export const bookServiceSessionForMemberSchema = z.object({
+  memberId: z.string().min(1, 'Pick a member'),
+});
+export type BookServiceSessionForMemberInput = z.infer<typeof bookServiceSessionForMemberSchema>;
+
 /** The invoice a booked session raised, as the calendar and the portal show it. */
 export interface ServiceSessionInvoice {
   id: string;

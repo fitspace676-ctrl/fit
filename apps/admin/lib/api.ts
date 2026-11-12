@@ -998,6 +998,20 @@ export async function setServiceSessionStatus(
   return unwrap<AdminServiceSession>(res);
 }
 
+/** `POST /admin/service-sessions/:id/book` — book an open slot for a member. */
+export async function bookServiceSessionForMember(
+  id: string,
+  memberId: string,
+): Promise<AdminServiceSession> {
+  const res = await fetch(`${apiBaseUrl()}/admin/service-sessions/${encodeURIComponent(id)}/book`, {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'content-type': 'application/json' },
+    body: JSON.stringify({ memberId }),
+    cache: 'no-store',
+  });
+  return unwrap<AdminServiceSession>(res);
+}
+
 // ── Services (Services catalogue, stage 1) ────────────────────────────────────
 
 /** Serialise a services roster query to `?key=value`, dropping empty values. */

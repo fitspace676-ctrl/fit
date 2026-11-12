@@ -14,6 +14,7 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  bookServiceSessionForMemberSchema,
   createServiceSessionSchema,
   listAdminServiceSessionsQuerySchema,
   listServiceSlotsQuerySchema,
@@ -50,6 +51,15 @@ export class AdminServiceSessionsController {
   @RequirePermissions(Permission.PtSessionManage)
   async create(@Body() body: unknown): Promise<AdminServiceSession> {
     return this.sessions.create(parse(createServiceSessionSchema, body));
+  }
+
+  /** `POST /admin/service-sessions/:id/book` — book an open slot for a member: `{ memberId }`. */
+  @Post(':id/book')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.PtSessionManage)
+  async bookFor(@Param('id') id: string, @Body() body: unknown): Promise<AdminServiceSession> {
+    const { memberId } = parse(bookServiceSessionForMemberSchema, body);
+    return this.sessions.bookFor(id, memberId);
   }
 
   @Post(':id/cancel')

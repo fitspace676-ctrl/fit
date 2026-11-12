@@ -267,6 +267,39 @@ export class ServiceSessionsService {
    */
   async book(id: string): Promise<BookServiceSessionResult> {
     const memberId = await this.requireCallerMembership();
+    await this.claim(id, memberId);
+    const row = await this.prisma.client.serviceSession.findFirst({
+      where: { id },
+      select: SESSION_SELECT,
+    });
+    if (!row) throw this.notFound();
+    return { session: toMember(row) };
+  }
+
+  /**
+   * Staff book an OPEN slot for a member from the PT calendar - the same claim,
+   * invoice and `pt_session_booked` trigger as {@link book}, for a member the
+   * staff picked instead of the caller. The member must belong to this gym
+   * (`404 MEMBER_NOT_FOUND` otherwise).
+   */
+  async bookFor(id: string, memberId: string): Promise<AdminServiceSession> {
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new NotFoundException({ message: 'Member not found', code: 'MEMBER_NOT_FOUND' });
+    }
+    await this.claim(id, member.id);
+    return this.getAdmin(id);
+  }
+
+  /**
+   * Claim an OPEN, future slot for `memberId` and raise its PENDING invoice in
+   * one transaction, then fire `pt_session_booked`. Shared by the member's own
+   * booking and the staff booking on a member's behalf.
+   */
+  private async claim(id: string, memberId: string): Promise<void> {
     const gymId = this.tenant.gymId;
 
     const slot = await this.prisma.client.serviceSession.findFirst({
@@ -325,13 +358,6 @@ export class ServiceSessionsService {
     // The slot now belongs to a member — the `pt_session_booked` automation
     // trigger (T12.5), fired best-effort after the claim commits.
     this.dispatch(AutomationTriggerType.pt_session_booked, id);
-
-    const row = await this.prisma.client.serviceSession.findFirst({
-      where: { id },
-      select: SESSION_SELECT,
-    });
-    if (!row) throw this.notFound();
-    return { session: toMember(row) };
   }
 
   /** The calling user's membership in this gym — mirrors `MemberBookingsService`. */

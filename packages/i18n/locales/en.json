@@ -3689,7 +3689,7 @@
         "when": "When",
         "status": "Status",
         "member": "Member",
-        "nobodyYet": "Nobody yet. Members book it from the portal",
+        "nobodyYet": "Nobody yet. Members book it from the portal, or book one below.",
         "invoice": "Invoice",
         "noServices": "No active services yet. Add one under Services first.",
         "cancel": "Cancel",
@@ -3709,6 +3709,17 @@
           "PENDING": "Unpaid",
           "FAILED": "Failed",
           "REFUNDED": "Refunded"
+        },
+        "book": {
+          "title": "Book a member",
+          "searchLabel": "Search members",
+          "searchPlaceholder": "Search by name or email",
+          "hint": "Search for a member to book them onto this slot.",
+          "searching": "Searching…",
+          "noResults": "No members match “{query}”.",
+          "action": "Book",
+          "bookMember": "Book {member} onto this slot",
+          "add": "Add member"
         }
       },
       "categories": {

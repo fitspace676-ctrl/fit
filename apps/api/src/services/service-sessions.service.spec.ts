@@ -52,6 +52,8 @@ function setup(
     assignments?: string[];
     /** Whether a branch id the caller sent resolves to one of this gym's. */
     locationExists?: boolean;
+    /** Whether the member a staff booking names belongs to this gym. */
+    memberExists?: boolean;
   } = {},
 ) {
   const sessionCreate = vi.fn((args: Args) => Promise.resolve({ id: 'ss-1', ...args }));
@@ -95,7 +97,9 @@ function setup(
       create: sessionCreate,
       update: sessionUpdate,
     },
-    gymMember: { findFirst: vi.fn(() => Promise.resolve({ id: 'gm-9' })) },
+    gymMember: {
+      findFirst: vi.fn(() => Promise.resolve(over.memberExists === false ? null : { id: 'gm-9' })),
+    },
     location: { findFirst: locationFindFirst },
     locationStaff: { findMany: locationStaffFindMany },
     $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(tx)),
@@ -279,6 +283,47 @@ describe('ServiceSessionsService.book', () => {
     const { svc } = setup({ userId: null });
     await expect(svc.book('ss-1')).rejects.toMatchObject({
       response: { code: 'MEMBER_SESSION_REQUIRED' },
+    });
+  });
+});
+
+describe('ServiceSessionsService.bookFor (staff book a member)', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('claims the slot for the picked member, raises the invoice and fires pt_session_booked', async () => {
+    const { svc, sessionUpdateMany, issue, automation } = setup({
+      slot: { startsAt: new Date(Date.now() + 86_400_000) },
+      userId: 'staff-user',
+    });
+    await svc.bookFor('ss-1', 'gm-9');
+    expect(sessionUpdateMany.mock.calls[0]?.[0]).toMatchObject({
+      where: { id: 'ss-1', status: 'OPEN' },
+      data: { status: 'BOOKED', memberId: 'gm-9' },
+    });
+    expect(issue.mock.calls[0]?.[1]).toMatchObject({ memberId: 'gm-9', status: 'PENDING' });
+    expect(automation.dispatchForGym).toHaveBeenCalledWith('gym-1', 'pt_session_booked', {
+      entityId: 'ss-1',
+      entityType: 'service_session',
+    });
+  });
+
+  it('is a 404 MEMBER_NOT_FOUND for a member outside this gym', async () => {
+    const { svc, sessionUpdateMany } = setup({
+      slot: { startsAt: new Date(Date.now() + 86_400_000) },
+      memberExists: false,
+    });
+    await expect(svc.bookFor('ss-1', 'gm-other')).rejects.toMatchObject({
+      response: { code: 'MEMBER_NOT_FOUND' },
+    });
+    expect(sessionUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('refuses a slot that is no longer open', async () => {
+    const { svc } = setup({
+      slot: { status: 'BOOKED', startsAt: new Date(Date.now() + 86_400_000) },
+    });
+    await expect(svc.bookFor('ss-1', 'gm-9')).rejects.toMatchObject({
+      response: { code: 'SESSION_TAKEN' },
     });
   });
 });
