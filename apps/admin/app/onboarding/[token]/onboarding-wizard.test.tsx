@@ -74,6 +74,31 @@ describe('OnboardingWizard', () => {
     expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
   });
 
+  it('announces the current step and marks saved steps done in the stepper', async () => {
+    fetchMock.mockResolvedValueOnce(response(initial({ completedSteps: ['account'] })));
+    renderWizard();
+    const current = await screen.findByRole('button', { name: 'Business' });
+    expect(current).toHaveAttribute('aria-current', 'step');
+    expect(current.closest('li')).toHaveAttribute('data-current', 'true');
+    const saved = screen.getByRole('button', { name: 'Your account · Done' });
+    expect(saved.closest('li')).toHaveAttribute('data-done', 'true');
+    expect(saved).not.toHaveAttribute('aria-current');
+    expect(saved).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Brand' })).toBeDisabled();
+  });
+
+  it('shows all six steps done while entering the confirmation code', async () => {
+    fetchMock.mockResolvedValueOnce(response(initial({ status: 'CODE_SENT' })));
+    renderWizard();
+    await screen.findByLabelText('Confirmation code');
+    const steps = screen.getByRole('navigation', { name: 'Setup progress' }).querySelectorAll('li');
+    expect(steps).toHaveLength(6);
+    steps.forEach((step) => {
+      expect(step).toHaveAttribute('data-done', 'true');
+      expect(step.querySelector('button')).toBeDisabled();
+    });
+  });
+
   it('offers sign-in on an approved link', async () => {
     fetchMock.mockResolvedValue(response(initial({ status: 'APPROVED' })));
     renderWizard();

@@ -4000,7 +4000,9 @@
         "customise": "Choose a colour",
         "reset": "Use saved colour",
         "hexLabel": "{label}: hex code",
-        "pickerLabel": "{label}: colour picker"
+        "pickerLabel": "{label}: colour picker",
+        "previewTitle": "This is how it looks",
+        "booking": "Book"
       },
       "sendCode": "Send confirmation code",
       "ownerEmailHint": "The platform administrator set this email. Your confirmation code will be sent here.",
@@ -4019,7 +4021,25 @@
       "requestSent": "Request sent",
       "requestSentHint": "The platform team reviews your request. You will get an email at {email} when your gym is ready.",
       "approved": "Your gym is ready",
-      "rejected": "This request was not approved. Contact the platform administrator."
+      "rejected": "This request was not approved. Contact the platform administrator.",
+      "stepHints": {
+        "account": "Name and password",
+        "business": "Name and contact details",
+        "brand": "Primary colour",
+        "location": "Address and hours",
+        "payments": "What you accept",
+        "review": "One last check"
+      },
+      "resumeHint": "Your saved progress will be here — you can pause and return to this link later.",
+      "passwordMinimum": "At least {min} characters",
+      "invalidTitle": "Invalid link",
+      "expiredTitle": "This link has expired",
+      "invalidNoteTitle": "Check the link",
+      "invalidNote": "Copy the full link from the email — sometimes the last part gets cut off.",
+      "expiredNoteTitle": "Your saved progress is kept",
+      "expiredNote": "Ask the platform administrator to renew your link so you can continue.",
+      "approvedHint": "Your gym is ready. Sign in to open your management console.",
+      "rejectedTitle": "Request not approved"
     }
   },
   "auth": {

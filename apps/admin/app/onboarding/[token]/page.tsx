@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
-import { DoorFrame } from '@/components/door-frame';
+import { Suspense } from 'react';
 import { OnboardingWizard } from './onboarding-wizard';
 
 export const metadata: Metadata = {
@@ -10,10 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default async function OnboardingPage({ params }: { params: Promise<{ token: string }> }) {
-  const [{ token }, t] = await Promise.all([params, getTranslations('admin.onboarding')]);
+  const { token } = await params;
   return (
-    <DoorFrame title={t('title')} subtitle={t('subtitle')} footer={t('footer')}>
+    <Suspense fallback={null}>
       <OnboardingWizard token={token} />
-    </DoorFrame>
+    </Suspense>
   );
 }
