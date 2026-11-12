@@ -31,7 +31,6 @@ function renderList(items: PublicBlogPostSummary[], total = items.length) {
       <BlogListPage
         lang="en"
         posts={{ items, total, page: 1, pageSize: 12 }}
-        categories={{ items: [{ slug: 'guides', name: 'Guides', postCount: 1 }] }}
         tags={{ items: [{ tag: 'growth', count: 1 }] }}
         category="guides"
         tag="growth"
@@ -42,20 +41,18 @@ function renderList(items: PublicBlogPostSummary[], total = items.length) {
 describe('BlogListPage', () => {
   it('shows an empty state', () => {
     renderList([]);
-    expect(screen.getByText('No posts yet')).toBeInTheDocument();
+    expect(screen.getByText('No resources yet')).toBeInTheDocument();
   });
-  it('renders posts, category and tag filters', () => {
+  it('renders posts and tag filters, without the intro, language link or categories', () => {
     renderList([post], 13);
     expect(screen.getByRole('heading', { name: post.title })).toBeInTheDocument();
     expect(screen.getByText(post.excerpt!)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Guides' })).toHaveAttribute(
-      'href',
-      '/blog?category=guides&tag=growth',
-    );
+    expect(screen.queryByRole('navigation', { name: 'Categories' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Other language/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '#growth' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Next' })).toHaveAttribute(
       'href',
-      '/blog?category=guides&tag=growth&page=2',
+      '/resources?category=guides&tag=growth&page=2',
     );
   });
   it('keeps Georgian copy free of dashes and Mtavruli', () => {

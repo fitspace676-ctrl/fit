@@ -11,12 +11,12 @@ import { Btn } from './marketing-ui';
 const inputCls =
   'w-full h-11 rounded-btn border border-overlay/15 bg-overlay/[0.04] px-3.5 text-sm text-fg placeholder:text-faint outline-none transition focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/30';
 
-/** A required field's label carries a red asterisk; an optional one carries nothing. */
+/** A required field's label carries an asterisk; an optional one carries nothing. */
 const Label = ({ text, required }: { text: string; required?: boolean }) => (
   <>
     {text}
     {required && (
-      <span aria-hidden className="ml-0.5 text-red-500">
+      <span aria-hidden className="ml-0.5">
         *
       </span>
     )}
@@ -81,7 +81,7 @@ const CATEGORIES = [
   { key: 'other', value: 'Other' },
 ] as const;
 
-/** Name and surname, side by side from `sm` up. Both required. */
+/** Name and surname, side by side from `sm` up. Only the name is required. */
 const NameFields = () => {
   const t = useTranslations('common.leads');
   return (
@@ -96,14 +96,13 @@ const NameFields = () => {
           required
         />
       </Field>
-      <Field label={t('surname')} required>
+      <Field label={t('surname')}>
         <input
           className={inputCls}
           type="text"
           name="lastName"
           autoComplete="family-name"
           placeholder={t('surnamePlaceholder')}
-          required
         />
       </Field>
     </div>
@@ -162,32 +161,29 @@ const PhoneField = () => {
   );
 };
 
-/** The business's name, sent as the lead's `business`. Required. */
+/** The business's name, sent as the lead's `business`; optional. */
 const CompanyField = () => {
   const t = useTranslations('common.leads');
   return (
-    <Field label={t('company')} required>
+    <Field label={t('company')}>
       <input
         className={inputCls}
         type="text"
         name="company"
         autoComplete="organization"
         placeholder={t('companyPlaceholder')}
-        required
       />
     </Field>
   );
 };
 
-/** What kind of business it is. Required. */
+/** What kind of business it is; optional. */
 const CategoryField = () => {
   const t = useTranslations('common.leads');
   return (
-    <Field label={t('category')} required>
-      <select className={inputCls} name="category" defaultValue="" required>
-        <option value="" disabled>
-          {t('categoryPlaceholder')}
-        </option>
+    <Field label={t('category')}>
+      <select className={inputCls} name="category" defaultValue="">
+        <option value="">{t('categoryPlaceholder')}</option>
         {CATEGORIES.map((c) => (
           <option key={c.key} value={c.value}>
             {t(`categories.${c.key}`)}
@@ -329,7 +325,7 @@ const ThankYou = ({ message, onClose }: { message: string; onClose: () => void }
   );
 };
 
-/** Book-a-demo request form: everything required except the member count. */
+/** Book-a-demo request form: name, email and phone required; the rest optional. */
 export const DemoModal = ({ open, onClose }: LeadModalProps) => {
   const t = useTranslations('common.leads');
   const { status, error, submit, close } = useLeadSubmit(

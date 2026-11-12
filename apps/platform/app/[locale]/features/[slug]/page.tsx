@@ -5,6 +5,7 @@ import { FeaturePageEditorial } from '@/components/marketing/feature-page-editor
 import BuiltForPage from '@/components/marketing/built-for-page';
 import { getFeaturePage } from '@/data/feature-pages';
 import { FEATURE_SLUGS, getFeature } from '@/data/features';
+import { JsonLd, breadcrumbLd } from '@/components/seo/json-ld';
 import { pageMetadata } from '@/src/i18n/metadata';
 
 type Params = { params: Promise<{ locale: string; slug: string }> };
@@ -39,9 +40,21 @@ export default async function Page({ params }: Params) {
   const feature = getFeature(t, slug);
   if (!feature) notFound();
   const page = getFeaturePage(t, slug);
-  return page ? (
-    <FeaturePageEditorial page={page} />
-  ) : (
-    <BuiltForPage audience={feature} section="features" />
+  const tCommon = await getTranslations('common');
+  return (
+    <>
+      <JsonLd
+        data={breadcrumbLd(locale, [
+          { name: 'FormaCore', path: '/' },
+          { name: tCommon('nav.items.features'), path: '/features' },
+          { name: feature.name, path: `/features/${slug}` },
+        ])}
+      />
+      {page ? (
+        <FeaturePageEditorial page={page} />
+      ) : (
+        <BuiltForPage audience={feature} section="features" />
+      )}
+    </>
   );
 }

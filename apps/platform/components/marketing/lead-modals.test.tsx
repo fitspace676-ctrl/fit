@@ -22,11 +22,8 @@ const label = (text: string): RegExp => new RegExp(`^${text}\\*?$`);
 /** Fill every required field of the call form. */
 async function fillForm(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.type(screen.getByLabelText(label('Name')), 'Giorgi');
-  await user.type(screen.getByLabelText(label('Surname')), 'Beridze');
   await user.type(screen.getByLabelText(label('Phone')), '555 12 34 56');
   await user.type(screen.getByLabelText(label('Email')), 'giorgi@gym.ge');
-  await user.type(screen.getByLabelText(label('Company name')), 'Gym One');
-  await user.selectOptions(screen.getByLabelText(label('Category')), 'Yoga studio');
 }
 
 describe('CallModal', () => {
@@ -41,26 +38,26 @@ describe('CallModal', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('requires everything but the member count, and stars only the required labels', () => {
+  it('requires name, email and phone, and stars only those labels', () => {
     render(<CallModal open onClose={vi.fn()} />);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByLabelText(label('Name'))).toBeRequired();
-    expect(screen.getByLabelText(label('Surname'))).toBeRequired();
+    expect(screen.getByLabelText(label('Surname'))).not.toBeRequired();
     expect(screen.getByLabelText(label('Phone'))).toBeRequired();
     expect(screen.getByLabelText(label('Phone'))).toHaveAttribute('type', 'tel');
     expect(screen.getByLabelText(label('Country code'))).toHaveValue('+995');
     expect(screen.getByLabelText(label('Email'))).toBeRequired();
     expect(screen.getByLabelText(label('Email'))).toHaveAttribute('type', 'email');
-    expect(screen.getByLabelText(label('Company name'))).toBeRequired();
-    expect(screen.getByLabelText(label('Category'))).toBeRequired();
+    expect(screen.getByLabelText(label('Company name'))).not.toBeRequired();
+    expect(screen.getByLabelText(label('Category'))).not.toBeRequired();
     expect(screen.getByLabelText(label('Active members'))).not.toBeRequired();
     expect(screen.getByRole('option', { name: 'Other' })).toBeInTheDocument();
     // name, surname, phone, email and company; three pickers are comboboxes
     expect(screen.getAllByRole('textbox')).toHaveLength(5);
     expect(screen.getAllByRole('combobox')).toHaveLength(3);
-    // six required labels carry an asterisk; the optional member count does not
-    expect(screen.getAllByText('*')).toHaveLength(6);
+    // the three required labels carry an asterisk; the optional ones do not
+    expect(screen.getAllByText('*')).toHaveLength(3);
     expect(screen.queryByText(/optional/i)).not.toBeInTheDocument();
   });
 
@@ -70,6 +67,9 @@ describe('CallModal', () => {
     render(<CallModal open onClose={vi.fn()} />);
 
     await fillForm(user);
+    await user.type(screen.getByLabelText(label('Surname')), 'Beridze');
+    await user.type(screen.getByLabelText(label('Company name')), 'Gym One');
+    await user.selectOptions(screen.getByLabelText(label('Category')), 'Yoga studio');
     await user.selectOptions(screen.getByLabelText(label('Country code')), '+374');
     await user.selectOptions(screen.getByLabelText(label('Active members')), '100-300');
     await user.click(screen.getByRole('button', { name: 'Request a call' }));
