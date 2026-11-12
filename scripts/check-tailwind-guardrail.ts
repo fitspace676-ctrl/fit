@@ -95,7 +95,7 @@ const MIGRATED_PATHS: readonly string[] = [
   // sibling `kpi-card.tsx` is a dead FormaCore leftover the T11.24 sweep removes,
   // so it stays out of the manifest. The standalone analytics report this task also
   // migrated was folded into the dashboard by the IA consolidation (622a269).
-  'apps/admin/app/(dashboard)/page.tsx',
+  'apps/admin/app/(dashboard)/dashboard/page.tsx',
   'apps/admin/app/(dashboard)/dashboard-view.tsx',
   'apps/admin/app/(dashboard)/charts.tsx',
   // Dashboard-segments task 8 — the control-room overview split out of the
