@@ -60,7 +60,11 @@ describe('useAgentChat', () => {
       string,
       unknown
     >;
-    expect(second.messages).toEqual(first.messages);
+    // The reply so far comes back as the assistant turn the calls belong to.
+    expect(second.messages).toEqual([
+      ...(first.messages as unknown[]),
+      { role: 'assistant', content: 'Before tools. ' },
+    ]);
     expect(second.approvals).toEqual([
       {
         call: { id: '1', name: 'update', input: { value: '1' }, signature: 'signed-1' },
@@ -110,5 +114,74 @@ describe('useAgentChat', () => {
     await waitFor(() => expect(result.current.messages[1]?.content).toBe('Complete'));
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.error).toBeNull();
+  });
+
+  it('tells the next approval round which writes already ran', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response(pending('1'), { t: 'done' }))
+      .mockResolvedValueOnce(
+        response(
+          { t: 'tool', id: '1', name: 'update', status: 'running' },
+          { t: 'tool', id: '1', name: 'update', status: 'complete', target: 'Ana' },
+          pending('2'),
+          { t: 'done' },
+        ),
+      )
+      .mockResolvedValueOnce(response({ t: 'delta', v: 'Done' }, { t: 'done' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useAgentChat());
+    act(() => result.current.send('Two changes'));
+    await waitFor(() => expect(result.current.pendingApprovals).toHaveLength(1));
+    act(() => result.current.decide({ '1': 'approve' }));
+    await waitFor(() => expect(result.current.pendingApprovals[0]?.id).toBe('2'));
+    act(() => result.current.decide({ '2': 'approve' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    const third = JSON.parse(fetchMock.mock.calls[2]![1]!.body as string) as {
+      messages: { role: string; content: string }[];
+      approvals: { call: { id: string } }[];
+    };
+    expect(third.approvals.map((a) => a.call.id)).toEqual(['2']);
+    expect(third.messages).toEqual([
+      { role: 'user', content: 'Two changes' },
+      { role: 'assistant', content: '[Tool calls in this reply]\n- update (Ana): complete' },
+    ]);
+  });
+
+  it('offers no retry once an approved write has started', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response(pending('1'), { t: 'done' }))
+      .mockResolvedValueOnce(
+        response(
+          { t: 'tool', id: '1', name: 'update', status: 'complete' },
+          { t: 'error', code: 'provider_error', message: 'raw' },
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useAgentChat());
+    act(() => result.current.send('Change'));
+    await waitFor(() => expect(result.current.pendingApprovals).toHaveLength(1));
+    act(() => result.current.decide({ '1': 'approve' }));
+    await waitFor(() => expect(result.current.error).toBe('errors.provider_error'));
+    expect(result.current.canRetry).toBe(false);
+    act(() => result.current.retry());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('names the files of a turn sent without text', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response({ t: 'done' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useAgentChat());
+    act(() =>
+      result.current.send('', undefined, [
+        { name: 'list.csv', mimeType: 'text/csv', data: 'YQ==' },
+      ]),
+    );
+    await waitFor(() => expect(result.current.isStreaming).toBe(false));
+    const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string) as {
+      messages: unknown[];
+    };
+    expect(body.messages).toEqual([{ role: 'user', content: '[Attached: list.csv]' }]);
   });
 });

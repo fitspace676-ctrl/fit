@@ -13,10 +13,21 @@ import {
   type AgentHistoryMessage,
   type AgentToolCall,
   type ModelDriver,
+  type ModelStopReason,
   type RunTurnArgs,
 } from '../driver';
 
 const MAX_TOKENS = 2048;
+
+/** Stands in for a blank user turn, which the API rejects. */
+const EMPTY_USER_TEXT = '(no text)';
+
+/** Anthropic's stop reason in the loop's neutral terms. */
+function stopReason(reason: Anthropic.Message['stop_reason']): ModelStopReason | undefined {
+  if (reason === 'max_tokens') return 'max_tokens';
+  if (reason === 'refusal') return 'blocked';
+  return undefined;
+}
 
 /** Convert an attachment to Anthropic content blocks (image / PDF / inline text). */
 function attachmentBlocks(a: AgentAttachment): Anthropic.ContentBlockParam[] {
@@ -50,10 +61,11 @@ function attachmentBlocks(a: AgentAttachment): Anthropic.ContentBlockParam[] {
 export function toAnthropicMessages(history: AgentHistoryMessage[]): Anthropic.MessageParam[] {
   return history.map((m): Anthropic.MessageParam => {
     if (m.role === 'user') {
+      // An empty text block is a 400 ("text content blocks must be non-empty").
       if (!m.attachments || m.attachments.length === 0) {
-        return { role: 'user', content: m.text };
+        return { role: 'user', content: m.text || EMPTY_USER_TEXT };
       }
-      const content: Anthropic.ContentBlockParam[] = [{ type: 'text', text: m.text }];
+      const content: Anthropic.ContentBlockParam[] = m.text ? [{ type: 'text', text: m.text }] : [];
       for (const a of m.attachments) content.push(...attachmentBlocks(a));
       return { role: 'user', content };
     }
@@ -81,7 +93,7 @@ export function createClaudeDriver(modelId: string): ModelDriver {
   const anthropic = new Anthropic(); // reads ANTHROPIC_API_KEY from the environment
 
   return {
-    async runTurn({ system, tools, history, onDelta }: RunTurnArgs) {
+    async runTurn({ system, tools, history, onDelta, signal }: RunTurnArgs) {
       const anthropicTools: Anthropic.Tool[] = tools.map((t, i) => ({
         name: t.name,
         description: t.description,
@@ -91,13 +103,16 @@ export function createClaudeDriver(modelId: string): ModelDriver {
 
       const messages = toAnthropicMessages(history);
 
-      const stream = anthropic.messages.stream({
-        model: modelId,
-        max_tokens: MAX_TOKENS,
-        system,
-        tools: anthropicTools,
-        messages,
-      });
+      const stream = anthropic.messages.stream(
+        {
+          model: modelId,
+          max_tokens: MAX_TOKENS,
+          system,
+          tools: anthropicTools,
+          messages,
+        },
+        { signal },
+      );
       stream.on('text', (delta) => onDelta(delta));
       const message = await stream.finalMessage();
 
@@ -113,7 +128,8 @@ export function createClaudeDriver(modelId: string): ModelDriver {
           input: (b.input ?? {}) as Record<string, unknown>,
         }));
 
-      return { text, toolCalls };
+      const stop = stopReason(message.stop_reason);
+      return { text, toolCalls, ...(stop ? { stop } : {}) };
     },
   };
 }

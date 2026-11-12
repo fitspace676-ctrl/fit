@@ -14,7 +14,9 @@ import { isLocale, locales, type Locale } from '@fit/i18n';
  * `localeDetection` is off so a URL always means one language: `/` is English
  * for every visitor, `/ka` is Georgian, and neither `Accept-Language` nor the
  * `NEXT_LOCALE` cookie the switcher writes redirects anyone. Turn it on to send
- * returning visitors to the language they last chose.
+ * returning visitors to the language they last chose. The one exception is in
+ * `middleware.ts`: a visitor from Georgia who has not chosen English is sent
+ * from an English URL to its `/ka` twin.
  */
 export const routing = defineRouting({
   locales,

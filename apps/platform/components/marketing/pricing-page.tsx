@@ -407,7 +407,7 @@ export default function PricingPage() {
             </p>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
               <Btn v="onBlue" size="lg" icon={I.arrow} onClick={() => openLead('demo')}>
-                {tCommon('cta.bookDemo')}
+                {t('cards.requestDemo')}
               </Btn>
               <Btn v="glassOnBlue" size="lg" icon={I.handset} onClick={() => openLead('call')}>
                 {tCommon('cta.requestCall')}

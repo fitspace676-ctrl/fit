@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { AuroraBackground } from '@/components/ui/aurora-background';
 import { getTourScenes, type TourScene } from '@/data/product-tour';
 import { cn } from '@/lib/utils';
@@ -31,13 +31,14 @@ const PHONE_MEDIA = '(max-width: 767px)';
  * (`display: none`) is not fetched at all. Phones take the half-size WebP.
  */
 function Poster({ clip, className }: { clip: string; className: string }) {
+  const locale = useLocale() === 'ka' ? 'ka' : 'en';
   return (
     <>
       {(['light', 'dark'] as const).map((theme) => (
         <img
           key={theme}
-          src={`/tour/${clip}-${theme}.webp`}
-          srcSet={`/tour/${clip}-${theme}-m.webp 800w, /tour/${clip}-${theme}.webp 1600w`}
+          src={`/tour/${clip}-${theme}-${locale}.webp`}
+          srcSet={`/tour/${clip}-${theme}-${locale}-m.webp 800w, /tour/${clip}-${theme}-${locale}.webp 1600w`}
           sizes={`${PHONE_MEDIA} 100vw, 1040px`}
           alt=""
           draggable={false}
@@ -64,9 +65,11 @@ function Clip({
   videoRef: React.RefObject<HTMLVideoElement | null>;
 }) {
   const theme = useActiveTheme();
+  // The clips exist per UI language: Georgian on /ka, English everywhere else.
+  const locale = useLocale() === 'ka' ? 'ka' : 'en';
   const media = 'absolute inset-0 h-full w-full object-cover object-top';
   if (!playing || !theme) return <Poster clip={scene.clip} className={media} />;
-  const src = `/tour/${scene.clip}-${theme}`;
+  const src = `/tour/${scene.clip}-${theme}-${locale}`;
   return (
     <video
       key={src}
