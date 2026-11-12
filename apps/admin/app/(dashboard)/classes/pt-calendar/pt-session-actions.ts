@@ -9,12 +9,18 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  bookServiceSessionForMember,
   cancelPtSession,
   completePtSession,
   createServiceSession,
+  fetchMembers,
   setServiceSessionStatus,
 } from '@/lib/api';
 import type { ActionResult } from '../actions';
+import type { MemberSearchResult } from '../schedule/actions';
+
+/** How many member matches the slot's booking search shows. */
+const MEMBER_SEARCH_LIMIT = 8;
 
 /** Re-assert `PtSessionManage` inside the action (defence in depth; the API re-checks). */
 async function requireClassWrite(): Promise<boolean> {
@@ -45,6 +51,15 @@ function toMessage(error: unknown): string {
     }
     if (error.message === 'SESSION_STATUS_INVALID') {
       return 'That slot cannot change to this status.';
+    }
+    if (error.message === 'SESSION_TAKEN') {
+      return 'That slot has just been booked by someone else.';
+    }
+    if (error.message === 'SESSION_PAST') {
+      return 'That slot has already started.';
+    }
+    if (error.message === 'MEMBER_NOT_FOUND') {
+      return 'That member no longer exists.';
     }
     return `Request failed (${error.status}): ${error.message}`;
   }
@@ -122,6 +137,46 @@ export async function completeServiceSessionAction(
   }
   try {
     await setServiceSessionStatus(id, 'complete');
+    return { ok: true, data: { id } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** Find members to book onto an open slot (name or email). Enforces `PtSessionManage`. */
+export async function searchMembersForSlotAction(
+  query: string,
+): Promise<ActionResult<MemberSearchResult[]>> {
+  if (!(await requireClassWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  const search = query.trim();
+  if (!search) return { ok: true, data: [] };
+  try {
+    const { data } = await fetchMembers({ search, limit: MEMBER_SEARCH_LIMIT });
+    return {
+      ok: true,
+      data: data.map((member) => ({ id: member.id, name: member.name, email: member.email })),
+    };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/**
+ * Book an open slot for a member on their behalf
+ * (`POST /admin/service-sessions/:id/book`). Same outcome as the member booking
+ * it in the portal: the slot is theirs and a pending invoice is raised.
+ */
+export async function bookServiceSessionForMemberAction(
+  id: string,
+  memberId: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!(await requireClassWrite())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    await bookServiceSessionForMember(id, memberId);
     return { ok: true, data: { id } };
   } catch (error) {
     return { ok: false, error: toMessage(error) };

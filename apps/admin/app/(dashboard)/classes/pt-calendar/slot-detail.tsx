@@ -11,7 +11,12 @@ import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 import { Icon } from '@/components/ui';
 import type { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { zonedClock, zonedIsoDate } from '../schedule/week';
-import { cancelServiceSessionAction, completeServiceSessionAction } from './pt-session-actions';
+import {
+  bookServiceSessionForMemberAction,
+  cancelServiceSessionAction,
+  completeServiceSessionAction,
+} from './pt-session-actions';
+import { SlotBookMember } from './slot-book-member';
 
 const STATUS_TONE: Record<ServiceSessionStatus, BadgeTone> = {
   OPEN: 'neutral',
@@ -85,7 +90,13 @@ export function SlotDetail({
   const tCommon = useTranslations('admin.common');
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [bookingMemberId, setBookingMemberId] = useState<string | null>(null);
+  // The slot whose "Add member" search is open; keyed by id so it closes on another slot.
+  const [addingFor, setAddingFor] = useState<string | null>(null);
   if (!slot) return null;
+  // Staff may book a member onto a slot that is still open and has not started.
+  const canBook =
+    canWrite && slot.status === 'OPEN' && new Date(slot.startsAt).getTime() > Date.now();
 
   // The calendar day on the gym's clock, formatted as a UTC-midnight token (the
   // formatter reads UTC fields).
@@ -103,6 +114,23 @@ export function SlotDetail({
     const id = slot.id;
     startTransition(async () => {
       const result = await action(id);
+      if (result.ok) {
+        onChanged();
+        drawer.requestClose();
+      } else {
+        setError(result.error ?? t('unexpected'));
+      }
+    });
+  }
+
+  function book(memberId: string): void {
+    if (!slot) return;
+    setError(null);
+    setBookingMemberId(memberId);
+    const id = slot.id;
+    startTransition(async () => {
+      const result = await bookServiceSessionForMemberAction(id, memberId);
+      setBookingMemberId(null);
       if (result.ok) {
         onChanged();
         drawer.requestClose();
@@ -189,6 +217,10 @@ export function SlotDetail({
               </div>
             ) : null}
 
+            {canBook && addingFor === slot.id ? (
+              <SlotBookMember onBook={book} bookingMemberId={bookingMemberId} busy={pending} />
+            ) : null}
+
             {error ? (
               <Card padding="none" xstyle={styles.errorCard}>
                 <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -207,6 +239,15 @@ export function SlotDetail({
                     onClick={() => run(completeServiceSessionAction)}
                     disabled={pending}
                     label={t('markComplete')}
+                  />
+                ) : null}
+                {canBook && addingFor !== slot.id ? (
+                  <Button
+                    variant="primary"
+                    size="card"
+                    onClick={() => setAddingFor(slot.id)}
+                    disabled={pending}
+                    label={t('book.add')}
                   />
                 ) : null}
                 <Button
