@@ -399,7 +399,7 @@ export function OnboardingWizard({ token }: { token: string }) {
     if (step === 'code')
       return (
         <Form onSubmit={(event) => void submit(event)} noValidate>
-          <h3 {...stylex.props(styles.heading)}>{t('codeTitle')}</h3>
+          <h2 {...stylex.props(styles.heading)}>{t('codeTitle')}</h2>
           <p {...stylex.props(styles.muted)}>{t('codeHint', { email: state.owner.email })}</p>
           {error && <Banner tone="error">{error}</Banner>}
           <Field

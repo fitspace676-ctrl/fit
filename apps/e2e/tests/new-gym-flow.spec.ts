@@ -207,7 +207,7 @@ test.describe('A new gym, from provisioning to its first member', () => {
     // the wizard to its review. Each screen has one submit button and its own
     // heading, so "the heading changed" is the step having been accepted — read
     // structurally, because the wizard's copy follows the gym's language.
-    const heading = page.locator('form h3');
+    const heading = page.locator('form h2');
     for (let screen = 0; screen < 5; screen += 1) {
       const before = await heading.textContent();
       await page.locator('form button[type="submit"]').click();
