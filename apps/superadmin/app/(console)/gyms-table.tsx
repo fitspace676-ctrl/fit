@@ -37,7 +37,9 @@ const styles = stylex.create({
   status: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.375rem' },
   outline: {
     backgroundColor: 'transparent',
-    border: '1px solid var(--ops-ink-200)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--ops-ink-200)',
     color: 'var(--ops-ink-600)',
     fontWeight: 500,
   },
@@ -70,10 +72,14 @@ const styles = stylex.create({
   },
   hostCell: {
     display: 'flex',
-    alignItems: 'baseline',
-    gap: '0.5rem',
+    alignItems: 'center',
+    gap: '0.625rem',
+    whiteSpace: 'nowrap',
   },
   host: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.8125rem',
     color: {
@@ -99,6 +105,7 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-code)',
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
+    whiteSpace: 'nowrap',
   },
   actionsCell: {
     display: 'flex',

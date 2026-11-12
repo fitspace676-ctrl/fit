@@ -556,3 +556,32 @@ body {
     font-size: 26px;
   }
 }
+
+/* Fields. The design's inputs are white with a hairline border wherever they
+ * sit (a card, an inset block), and their labels are plain sentence-case text.
+ * The shared kit fills fields with `--fc-tile` and sets mono caps labels for the
+ * staff console; both are re-pointed here, on the field itself, so the token
+ * keeps its other meanings (banners, table rows) elsewhere in this app. The
+ * `!important`s are deliberate: StyleX raises its own atomic rules' specificity,
+ * so a plain app-level selector loses to the kit it is trying to re-skin. */
+.ops-content :is(input, textarea, select):not([type='checkbox'], [type='radio'], [type='file']) {
+  --fc-tile: var(--ops-white);
+}
+.ops-content .astryx-text-input,
+.ops-login .astryx-text-input {
+  background-color: var(--ops-white) !important;
+  border-color: var(--ops-ink-200) !important;
+}
+.ops-content label,
+.ops-content .astryx-field-label {
+  font-family: var(--font-family-body) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: var(--ops-ink-950) !important;
+}
+/* A search field inside a GET form takes the row; the submit button sits beside it. */
+form > .ops-search {
+  flex: 1 1 auto;
+}

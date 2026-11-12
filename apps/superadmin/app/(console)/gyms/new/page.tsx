@@ -25,7 +25,9 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
-    border: '1px solid var(--ops-ink-200)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--ops-ink-200)',
     borderRadius: 'var(--radius-container)',
     padding: '1.25rem',
   },
@@ -75,7 +77,7 @@ const next = [
   { title: 'Tenant is created', body: 'Active from the first minute, with no locations yet.' },
   {
     title: 'Owner account is created',
-    body: 'A forma-new account. The owner sets their own password.',
+    body: 'A brand-new account. The owner sets their own password.',
   },
   {
     title: 'Onboarding link is emailed',
@@ -89,7 +91,7 @@ export default function NewGymPage() {
       <PageHead
         eyebrow={<BackLink href="/" label="Gyms" />}
         title="New gym"
-        description="Creates the tenant and a forma-new owner account, then emails that owner their onboarding link. They set their own password from it."
+        description="Creates the tenant and a brand-new owner account, then emails that owner their onboarding link. They set their own password from it."
       />
       <div {...stylex.props(styles.layout)}>
         <OpsCard xstyle={styles.card}>
