@@ -31,6 +31,7 @@ function memberRow(over?: {
     joinedAt: new Date('2026-01-15T00:00:00.000Z'),
     dateOfBirth: new Date('1994-03-02T00:00:00.000Z'),
     user: {
+      id: 'user-1',
       name: over?.name === undefined ? 'Nino Beridze' : over.name,
       email: over?.email ?? 'nino@example.com',
       phone: over?.phone === undefined ? '555' : over.phone,
@@ -83,7 +84,17 @@ function setup(overrides?: {
   );
 
   const entityMocks = Object.fromEntries(
-    ['booking', 'invoice', 'order', 'serviceSession', 'classInstance', 'service'].map((model) => [
+    [
+      'booking',
+      'invoice',
+      'order',
+      'serviceSession',
+      'classInstance',
+      'service',
+      'trainer',
+      'payment',
+      'refund',
+    ].map((model) => [
       model,
       {
         findFirst: vi
@@ -339,7 +350,9 @@ describe('AutomationMergeService entity contexts', () => {
     booking: { memberId: 'gm-1', classInstanceId: 'class-1' },
     classInstance: {
       startsAt: new Date('2026-07-08T14:30:00Z'),
-      classType: { name: 'Yoga' },
+      bookedCount: 8,
+      capacityOverride: null,
+      classType: { name: 'Yoga', capacity: 20 },
       template: null,
       trainer: { name: 'Coach' },
       location: { name: 'Main' },
@@ -352,10 +365,13 @@ describe('AutomationMergeService entity contexts', () => {
       issuedAt: new Date('2026-07-08'),
     },
     order: {
+      id: 'order-1',
       memberId: 'gm-1',
       total: 24000,
       currency: 'GEL',
+      createdAt: new Date('2026-07-07T10:00:00Z'),
       items: [{ label: 'Bottle', qty: 2 }],
+      invoices: [{ number: 'INV-7' }],
     },
     serviceSession: {
       memberId: 'gm-1',
@@ -453,10 +469,13 @@ describe('AutomationMergeService entity contexts', () => {
 // `product_stock_low` is addressed to the gym, never the buyer.
 describe('AutomationMergeService gym-recipient trigger', () => {
   const order = {
+    id: 'order-1',
     memberId: 'gm-1',
     total: 24000,
     currency: 'GEL',
+    createdAt: new Date('2026-07-07T10:00:00Z'),
     items: [{ label: 'Protein bar', qty: 3 }],
+    invoices: [],
   };
   const ctx = {
     entityId: 'order-1',
@@ -500,5 +519,379 @@ describe('AutomationMergeService gym-recipient trigger', () => {
     });
     expect(target?.recipient).toBeNull();
     expect(target?.values.order_items).toBe('Protein bar × 3');
+  });
+});
+
+// The catalogue renamed most tokens; a saved rule written with the old name has
+// to read exactly what the new one does.
+describe('AutomationMergeService catalogue tokens and aliases', () => {
+  const NOW = new Date('2026-07-08T12:00:00Z');
+  const member = { entityId: 'gm-1', entityType: 'member', now: NOW } as const;
+
+  it('fills every new token and its aliases with the same value', async () => {
+    const { service } = setup();
+    const values = (await service.resolve('gym-1', member, BRAND))?.values ?? {};
+
+    for (const [token, aliases] of [
+      ['first_name', ['member_first_name']],
+      ['full_name', ['member_full_name']],
+      ['member_since', ['member_join_date', 'join_date']],
+      ['branch_name', ['member_branch_name']],
+      ['last_checkin_date', ['member_last_checkin_date']],
+      ['membership_plan', ['member_plan_name', 'plan_name']],
+      ['expiry_date', ['member_expiry_date']],
+      ['days_remaining', ['member_days_until_expiry', 'days_until_expiry']],
+      ['renewal_date', ['payment_due_date']],
+      ['plan_price', ['member_plan_price']],
+    ] as const) {
+      expect(values[token], token).not.toBeUndefined();
+      for (const alias of aliases) expect(values[alias], alias).toBe(values[token]);
+    }
+    expect(values).toMatchObject({
+      expiry_date: '2026-09-01',
+      member_since: '2026-01-15',
+      membership_plan: 'Gold',
+      access_end_date: '2026-09-01',
+      days_inactive: '7',
+      recipient_name: 'Nino Beridze',
+      related_member_name: 'Nino Beridze',
+    });
+  });
+
+  it('counts days inactive from joining when the member never checked in', async () => {
+    const { service } = setup({ member: { ...memberRow(), checkIns: [] } });
+    const values = (await service.resolve('gym-1', member, BRAND))?.values;
+    expect(values?.days_inactive).toBe('174');
+    expect(values?.last_checkin_date).toBe('');
+  });
+
+  it('blanks catalogue tokens no source fills, and carries the offer values', async () => {
+    const { service } = setup();
+    const plain = (await service.resolve('gym-1', member, BRAND))?.values;
+    expect(plain).toMatchObject({ discount_percent: '', offer_code: '', class_name: '' });
+
+    const offered = await service.resolve(
+      'gym-1',
+      {
+        ...member,
+        extraValues: {
+          discount_percent: '20',
+          bonus_points: '100',
+          offer_code: 'BACK20',
+          offer_expiry: '2026-08-01',
+        },
+      },
+      BRAND,
+    );
+    expect(offered?.values).toMatchObject({
+      discount_percent: '20',
+      bonus_points: '100',
+      offer_code: 'BACK20',
+      offer_expiry: '2026-08-01',
+    });
+  });
+
+  it.each([
+    ['en', 'member', 'member'],
+    ['en', 'trainer', 'trainer'],
+    ['ka', 'member', 'წევრი'],
+    ['ka', 'trainer', 'მწვრთნელი'],
+    ['ka', 'robot', ''],
+  ] as const)('shows cancelled_by in %s (%s)', async (language, code, expected) => {
+    const { service } = setup();
+    const target = await service.resolve(
+      'gym-1',
+      { ...member, extraValues: { cancelled_by: code } },
+      { ...BRAND, language },
+    );
+    expect(target?.values.cancelled_by).toBe(expected);
+  });
+
+  it('fills the subscription cancellation, freeze and access tokens', async () => {
+    const { service } = setup({
+      subscription: {
+        memberId: 'gm-1',
+        currentPeriodEnd: new Date('2026-07-31'),
+        currentPeriodStart: new Date('2026-07-01'),
+        frozenUntil: new Date('2026-07-20'),
+        frozenAt: new Date('2026-07-10'),
+        canceledAt: new Date('2026-07-05'),
+        priceAmount: 15000,
+        currency: 'GEL',
+        status: 'ACTIVE',
+        plan: { name: 'Silver' },
+      },
+    });
+    const values = (
+      await service.resolve(
+        'gym-1',
+        { entityId: 'sub-1', entityType: 'subscription', now: NOW },
+        BRAND,
+      )
+    )?.values;
+    expect(values).toMatchObject({
+      membership_plan: 'Silver',
+      member_plan_name: 'Silver',
+      cancellation_date: '2026-07-05',
+      cancellation_reason: '',
+      freeze_start_date: '2026-07-10',
+      freeze_end_date: '2026-07-20',
+      member_frozen_until: '2026-07-20',
+      access_end_date: '2026-07-31',
+      days_remaining: '22',
+    });
+  });
+
+  const entities = {
+    booking: { memberId: 'gm-1', classInstanceId: 'class-1', waitlistPosition: 3 },
+    classInstance: {
+      startsAt: new Date('2026-07-10T18:00:00Z'),
+      bookedCount: 12,
+      capacityOverride: null,
+      classType: { name: 'Spin', capacity: 15 },
+      template: {
+        title: 'Spin',
+        capacity: 14,
+        trainer: null,
+        location: { gymId: 'gym-1', name: 'Hall' },
+      },
+      trainer: { name: 'Coach Gio' },
+      location: null,
+      trainerId: 'tr-1',
+    },
+    invoice: {
+      memberId: 'gm-1',
+      number: 'INV-9',
+      amount: 5000,
+      currency: 'GEL',
+      issuedAt: new Date('2026-07-01'),
+      dueDate: new Date('2026-07-15'),
+      orderId: 'order-1',
+    },
+    payment: { method: 'CARD' },
+    refund: { amount: 2500, createdAt: new Date('2026-07-06T09:00:00Z') },
+    order: {
+      id: 'order-1',
+      memberId: 'gm-1',
+      total: 9000,
+      currency: 'GEL',
+      createdAt: new Date('2026-07-02T10:00:00Z'),
+      items: [
+        { label: 'Shaker', qty: 1 },
+        { label: 'Whey', qty: 2 },
+      ],
+      invoices: [{ number: 'INV-9' }],
+    },
+    serviceSession: {
+      memberId: 'gm-1',
+      startsAt: new Date('2026-07-09T08:00:00Z'),
+      staffId: 'staff-1',
+      serviceId: 'service-1',
+      location: { gymId: 'gym-1', name: 'Studio' },
+    },
+    service: { name: 'PT 60' },
+    trainer: { name: 'Coach Gio', staffId: 'staff-1' },
+  };
+
+  it('fills the class fill, waitlist and missed-class tokens on a booking', async () => {
+    const { service } = setup({ entities });
+    const values = (
+      await service.resolve('gym-1', { entityId: 'b-1', entityType: 'booking' }, BRAND)
+    )?.values;
+    expect(values).toMatchObject({
+      class_name: 'Spin',
+      trainer_name: 'Coach Gio',
+      class_trainer_name: 'Coach Gio',
+      location: 'Hall',
+      class_location: 'Hall',
+      waitlist_position: '3',
+      spots_filled: '12',
+      spots_total: '14',
+      missed_class_name: 'Spin',
+      missed_class_date: '2026-07-10',
+    });
+  });
+
+  it('fills the invoice due date, method and refund tokens', async () => {
+    const { service } = setup({ entities });
+    const values = (
+      await service.resolve('gym-1', { entityId: 'inv-1', entityType: 'invoice' }, BRAND)
+    )?.values;
+    expect(values).toMatchObject({
+      invoice_number: 'INV-9',
+      payment_date: '2026-07-01',
+      invoice_date: '2026-07-01',
+      due_date: '2026-07-15',
+      payment_method: 'card',
+      failure_reason: '',
+      refund_date: '2026-07-06',
+    });
+    expect(values?.amount).toContain('50');
+    expect(values?.invoice_amount).toBe(values?.amount);
+    expect(values?.refund_amount).toContain('25');
+  });
+
+  it('fills the order product, number, date and refund tokens', async () => {
+    const { service, entityMocks } = setup({ entities });
+    const values = (
+      await service.resolve('gym-1', { entityId: 'order-1', entityType: 'order' }, BRAND)
+    )?.values;
+    expect(values).toMatchObject({
+      product_name: 'Shaker, Whey',
+      order_number: 'INV-9',
+      purchase_date: '2026-07-02',
+      refund_date: '2026-07-06',
+    });
+    expect(entityMocks.refund!.findFirst.mock.calls[0]?.[0]).toMatchObject({
+      where: { orderId: 'order-1', gymId: 'gym-1' },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  it('fills the PT session tokens under the new and old names', async () => {
+    const { service } = setup({ entities });
+    const values = (
+      await service.resolve(
+        'gym-1',
+        {
+          entityId: 's-1',
+          entityType: 'service_session',
+          extraValues: { cancelled_by: 'trainer' },
+        },
+        BRAND,
+      )
+    )?.values;
+    expect(values).toMatchObject({
+      session_type: 'PT 60',
+      session_name: 'PT 60',
+      trainer_name: 'Nino Beridze',
+      session_trainer_name: 'Nino Beridze',
+      location: 'Studio',
+      cancelled_by: 'trainer',
+    });
+  });
+});
+
+// A trainer-recipient rule mails the trainer, but the message is still about
+// the member: the member tokens stay the member's.
+describe('AutomationMergeService trainer recipient', () => {
+  const staff = {
+    firstName: 'Gio',
+    lastName: 'Coach',
+    user: { id: 'user-staff', name: 'Gio Coach', email: 'gio@irongym.ge' },
+  };
+  const entities = {
+    booking: { memberId: 'gm-1', classInstanceId: 'class-1', waitlistPosition: null },
+    classInstance: {
+      startsAt: new Date('2026-07-10T18:00:00Z'),
+      bookedCount: 1,
+      capacityOverride: 10,
+      classType: { name: 'Spin', capacity: 15 },
+      template: null,
+      trainer: { name: 'Coach Gio' },
+      location: null,
+      trainerId: 'tr-1',
+    },
+    trainer: { name: 'Coach Gio', staffId: 'staff-1' },
+    serviceSession: {
+      memberId: 'gm-1',
+      startsAt: new Date('2026-07-09T08:00:00Z'),
+      staffId: 'staff-1',
+      serviceId: 'service-1',
+      location: null,
+    },
+    service: { name: 'PT 60' },
+  };
+
+  function trainerSetup(over?: { trainer?: unknown; staffGym?: string }) {
+    const ctx = setup({
+      entities: { ...entities, ...(over?.trainer === undefined ? {} : { trainer: over.trainer }) },
+    });
+    ctx.memberFindFirst.mockImplementation(({ where }) =>
+      Promise.resolve(
+        where?.id === 'staff-1'
+          ? where.gymId === (over?.staffGym ?? 'gym-1')
+            ? staff
+            : null
+          : memberRow(),
+      ),
+    );
+    return ctx;
+  }
+
+  it('addresses the class trainer’s staff account on a booking', async () => {
+    const { service, entityMocks, memberFindFirst } = trainerSetup();
+    const target = await service.resolve(
+      'gym-1',
+      { entityId: 'b-1', entityType: 'booking', recipient: 'trainer' },
+      BRAND,
+    );
+    expect(target).toMatchObject({
+      recipient: 'gio@irongym.ge',
+      userId: 'user-staff',
+      memberId: 'gm-1',
+      values: {
+        recipient_name: 'Coach Gio',
+        related_member_name: 'Nino Beridze',
+        first_name: 'Nino',
+        member_first_name: 'Nino',
+        class_name: 'Spin',
+        spots_total: '10',
+      },
+    });
+    expect(entityMocks.trainer!.findFirst.mock.calls[0]?.[0]).toMatchObject({
+      where: { id: 'tr-1', gymId: 'gym-1' },
+    });
+    for (const [args] of memberFindFirst.mock.calls) expect(args.where?.gymId).toBe('gym-1');
+  });
+
+  it('addresses the session staff member on a PT session', async () => {
+    const { service } = trainerSetup();
+    const target = await service.resolve(
+      'gym-1',
+      { entityId: 's-1', entityType: 'service_session', recipient: 'trainer' },
+      BRAND,
+    );
+    expect(target).toMatchObject({
+      recipient: 'gio@irongym.ge',
+      userId: 'user-staff',
+      values: { recipient_name: 'Gio Coach', related_member_name: 'Nino Beridze' },
+    });
+  });
+
+  it('has no recipient when the trainer has no staff account', async () => {
+    const { service } = trainerSetup({ trainer: { name: 'Coach Gio', staffId: null } });
+    const target = await service.resolve(
+      'gym-1',
+      { entityId: 'b-1', entityType: 'booking', recipient: 'trainer' },
+      BRAND,
+    );
+    expect(target).toMatchObject({
+      recipient: null,
+      userId: null,
+      values: { recipient_name: 'Coach Gio', first_name: 'Nino' },
+    });
+  });
+
+  it('never reaches a staff account in another gym', async () => {
+    const { service } = trainerSetup({ staffGym: 'gym-2' });
+    const target = await service.resolve(
+      'gym-1',
+      { entityId: 's-1', entityType: 'service_session', recipient: 'trainer' },
+      BRAND,
+    );
+    expect(target?.recipient).toBeNull();
+    expect(target?.userId).toBeNull();
+  });
+
+  it('resolves another gym’s booking to null', async () => {
+    const { service } = trainerSetup();
+    expect(
+      await service.resolve(
+        'gym-2',
+        { entityId: 'b-1', entityType: 'booking', recipient: 'trainer' },
+        BRAND,
+      ),
+    ).toBeNull();
   });
 });

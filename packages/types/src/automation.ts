@@ -9,6 +9,7 @@ import {
   type AutomationTimingOffset,
   type AutomationTimingMeta,
 } from './automation-timing';
+import type { AutomationBuiltInTemplate } from './automation-templates';
 export { automationTimingOffsetSchema, AUTOMATION_TIMING_PRESETS } from './automation-timing';
 export type { AutomationTimingOffset, AutomationTimingMeta } from './automation-timing';
 
@@ -76,6 +77,7 @@ export const automationTriggerTypeSchema = z.enum([
   'class_cancelled_member',
   'class_full',
   'attendance_marked',
+  'first_class_attended',
   'pt_session_booked',
   'pt_session_cancelled',
   // Payments
@@ -118,6 +120,12 @@ export interface AutomationTriggerMeta {
   recipient: 'member' | 'gym';
   /** What the `days` number means, for the field label (only when `needsDays`). */
   daysLabel?: string;
+  /**
+   * What a negative timing offset counts back from. `entity_start` means the
+   * start of the booked class / PT session ("2h before the class"), so these
+   * event triggers accept a "before" timing; others only allow "after".
+   */
+  anchor?: 'entity_start';
 }
 
 /**
@@ -217,6 +225,7 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     value: 'class_booked',
     entityType: 'booking',
     kind: 'event',
+    anchor: 'entity_start',
     recipient: 'member',
     label: 'Class booked',
     category: 'Classes',
@@ -250,9 +259,19 @@ export const AUTOMATION_TRIGGER_CATALOG: readonly AutomationTriggerMeta[] = [
     needsDays: false,
   },
   {
+    value: 'first_class_attended',
+    entityType: 'booking',
+    kind: 'event',
+    recipient: 'member',
+    label: 'First class attended',
+    category: 'Classes',
+    needsDays: false,
+  },
+  {
     value: 'pt_session_booked',
     entityType: 'service_session',
     kind: 'event',
+    anchor: 'entity_start',
     recipient: 'member',
     label: 'PT session booked',
     category: 'Classes',
@@ -367,6 +386,29 @@ export const GYM_RECIPIENT_TRIGGERS: ReadonlySet<AutomationTriggerType> = new Se
   AUTOMATION_TRIGGER_CATALOG.filter((t) => t.recipient === 'gym').map((t) => t.value),
 );
 
+/**
+ * Who a rule's message goes to (mirrors the Prisma `AutomationRecipient` enum):
+ * the member the trigger is about, or the trainer of the booked class / the
+ * staff member running the PT session.
+ */
+export const automationRecipientSchema = z.enum(['member', 'trainer']);
+
+/** Who a rule's message goes to: {@link automationRecipientSchema}. */
+export type AutomationRecipient = z.infer<typeof automationRecipientSchema>;
+
+/**
+ * The trigger types that can address the trainer: the ones about a class
+ * booking or a PT session, derived from the catalog.
+ */
+export const TRAINER_RECIPIENT_TRIGGERS: ReadonlySet<AutomationTriggerType> = new Set(
+  AUTOMATION_TRIGGER_CATALOG.filter(
+    (t) => t.entityType === 'booking' || t.entityType === 'service_session',
+  ).map((t) => t.value),
+);
+
+/** The issue message a trainer recipient on any other trigger is rejected with. */
+export const RECIPIENT_NOT_ALLOWED_MESSAGE = 'recipientNotAllowed';
+
 /** The message a gym-recipient trigger's non-email action is rejected with. */
 export const GYM_RECIPIENT_ACTION_MESSAGE = 'This trigger only supports the email action';
 
@@ -439,9 +481,29 @@ export type AutomationTriggerConfig = z.infer<typeof automationTriggerConfigSche
  * fills in), required so a rule always has something to send / a task title to
  * create; `subject` is the optional email subject line.
  */
+/**
+ * An optional offer a rule's message carries. Each part fills a merge token
+ * (`{{discount_percent}}`, `{{bonus_points}}`, `{{offer_code}}`,
+ * `{{offer_expiry}}`); `bonusPoints` is also credited to the member's loyalty
+ * balance when the gym runs a loyalty programme.
+ */
+export const automationOfferSchema = z.object({
+  discountPercent: z.number().min(0).max(100).optional(),
+  bonusPoints: z.number().int().min(0).max(100000).optional(),
+  offerCode: z.string().trim().max(40).optional(),
+  offerExpiry: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+});
+
+/** A rule's offer: {@link automationOfferSchema}. */
+export type AutomationOffer = z.infer<typeof automationOfferSchema>;
+
 export const automationActionConfigSchema = z.object({
   subject: z.string().trim().max(200).optional(),
   body: z.string().trim().min(1).max(2000),
+  offer: automationOfferSchema.optional(),
 });
 
 /** A rule's action config — {@link automationActionConfigSchema}. */
@@ -472,6 +534,7 @@ export interface AutomationRuleRow {
   conditions: AutomationCondition[];
   actionType: AutomationActionType;
   actionConfig: AutomationActionConfig;
+  recipient: AutomationRecipient;
   active: boolean;
   isTemplate: boolean;
   createdBy: AutomationRef | null;
@@ -548,9 +611,13 @@ export interface ListAutomationRulesResponse {
   limit: number;
 }
 
-/** Response of `GET /automation/templates` — every reusable template, newest first. */
+/**
+ * Response of `GET /automation/templates` — the gym's saved templates (newest
+ * first) and the static built-in starting points.
+ */
 export interface ListAutomationTemplatesResponse {
   data: AutomationRuleRow[];
+  builtIn: readonly AutomationBuiltInTemplate[];
 }
 
 /**
@@ -582,6 +649,7 @@ const automationRuleBase = z.object({
   conditions: automationConditionsSchema,
   actionType: automationActionTypeSchema,
   actionConfig: automationActionConfigSchema,
+  recipient: automationRecipientSchema.default('member'),
   active: z.boolean().default(true),
 });
 
@@ -619,6 +687,24 @@ function refineRecipientAction(
   }
 }
 
+/** A `trainer` recipient only fits {@link TRAINER_RECIPIENT_TRIGGERS}. */
+function refineRecipient(
+  value: { triggerType?: AutomationTriggerType; recipient?: AutomationRecipient },
+  ctx: z.RefinementCtx,
+): void {
+  if (
+    value.recipient === 'trainer' &&
+    value.triggerType !== undefined &&
+    !TRAINER_RECIPIENT_TRIGGERS.has(value.triggerType)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: RECIPIENT_NOT_ALLOWED_MESSAGE,
+      path: ['recipient'],
+    });
+  }
+}
+
 /**
  * Body of `POST /automation/rules`. `status` (active) defaults true; the author
  * is resolved from the session, never trusted from the body. See
@@ -627,10 +713,17 @@ function refineRecipientAction(
 export const createAutomationRuleSchema = automationRuleBase.superRefine((value, ctx) => {
   refineDays(value, ctx);
   refineRecipientAction(value, ctx);
+  refineRecipient(value, ctx);
 });
 
 /** Validated `POST /automation/rules` body — {@link createAutomationRuleSchema}. */
 export type CreateAutomationRuleInput = z.infer<typeof createAutomationRuleSchema>;
+
+/**
+ * What a client may send to `POST /automation/rules`: the schema's input, so
+ * defaulted fields (`recipient`, `active`, ...) can be left out.
+ */
+export type CreateAutomationRuleBody = z.input<typeof createAutomationRuleSchema>;
 
 /**
  * Body of `PATCH /automation/rules/:id` — every field optional; only provided
@@ -648,9 +741,14 @@ export const updateAutomationRuleSchema = z
     conditions: automationConditionsSchema.optional(),
     actionType: automationActionTypeSchema.optional(),
     actionConfig: automationActionConfigSchema.optional(),
+    // No default here: a PATCH without `recipient` keeps the stored one.
+    recipient: automationRecipientSchema.optional(),
     active: z.boolean().optional(),
   })
-  .superRefine(refineRecipientAction);
+  .superRefine((value, ctx) => {
+    refineRecipientAction(value, ctx);
+    refineRecipient(value, ctx);
+  });
 
 /** Validated `PATCH /automation/rules/:id` body — {@link updateAutomationRuleSchema}. */
 export type UpdateAutomationRuleInput = z.infer<typeof updateAutomationRuleSchema>;

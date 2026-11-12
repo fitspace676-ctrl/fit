@@ -13,7 +13,7 @@ import {
   updateAutomationRuleSchema,
   type AutomationAssistRequest,
   type AutomationAssistResponse,
-  type CreateAutomationRuleInput,
+  type CreateAutomationRuleBody,
   type UpdateAutomationRuleInput,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -69,7 +69,7 @@ function refresh(): void {
  * workspace. Returns the new rule's `id`.
  */
 export async function createAutomationRuleAction(
-  input: CreateAutomationRuleInput,
+  input: CreateAutomationRuleBody,
 ): Promise<ActionResult<{ id: string }>> {
   const t = await getTranslations('admin.automation');
   if (!(await requireManage())) {

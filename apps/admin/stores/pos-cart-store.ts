@@ -12,17 +12,15 @@
 // comes off what remains. Storing the percentage rather than a fixed amount means a
 // discount survives a quantity change; the minor-unit figures are derived.
 
-import type { PaymentMethod } from '@fit/types';
+import { encodeVariantRef, type PaymentMethod } from '@fit/types';
 import { create } from 'zustand';
 
 /** One line in the POS cart — a product added one-or-more times, with its own discount. */
 export interface CartItem {
-  /**
-   * The line key — a catalogue product's id, or a membership plan's id when this line
-   * is a membership. Either way an item appears at most once (quantity carries the
-   * count), so the id is what identifies the line.
-   */
+  /** Catalogue product id (or plan/service id); cartItemKey also includes the variant. */
   productId: string;
+  variantIndex?: number | null;
+  sku?: string;
   /**
    * Set when this line is a **membership** rather than a product: the subscription
    * plan being sold. The sale sends it to the API, which enrols the attached member
@@ -50,6 +48,8 @@ export interface CartItem {
 /** The minimal product shape {@link PosCartState.addItem} needs to open a line. */
 export interface AddItemInput {
   productId: string;
+  variantIndex?: number | null;
+  sku?: string;
   name: string;
   unitPrice: number;
   currency: string;
@@ -59,9 +59,16 @@ export interface AddItemInput {
   serviceId?: string;
 }
 
+/** Variants of one product are independently editable cart lines. */
+export function cartItemKey(item: Pick<CartItem, 'productId' | 'variantIndex'>): string {
+  return item.variantIndex == null
+    ? item.productId
+    : encodeVariantRef(item.productId, item.variantIndex);
+}
+
 /** The POS cart's state and the actions that mutate it (the T7.2 contract surface). */
 export interface PosCartState {
-  /** The lines in add order; a product is present at most once (qty carries the count). */
+  /** The lines in add order; a stock position is present at most once (qty carries the count). */
   items: CartItem[];
   /** The member this sale is attached to, or `undefined` for a walk-in sale. */
   memberId?: string;
@@ -84,11 +91,11 @@ export interface PosCartState {
   /** Add a product — increments the qty of an existing line, or opens a new one. */
   addItem: (product: AddItemInput) => void;
   /** Remove a product's line entirely. */
-  removeItem: (productId: string) => void;
+  removeItem: (lineKey: string) => void;
   /** Set a product line's quantity; a qty ≤ 0 removes the line. */
-  setQty: (productId: string, qty: number) => void;
+  setQty: (lineKey: string, qty: number) => void;
   /** Set a product line's discount percentage (clamped to `[0, 100]`). */
-  setLineDiscount: (productId: string, percent: number) => void;
+  setLineDiscount: (lineKey: string, percent: number) => void;
   /** Set the cart-level discount percentage (clamped to `[0, 100]`). */
   setCartDiscount: (percent: number) => void;
   /** Attach the sale to a member, or pass `undefined` to return to walk-in mode. */
@@ -176,7 +183,7 @@ export const usePosCart = create<PosCartState>((set) => ({
 
   addItem: (product) =>
     set((state) => {
-      const existing = state.items.find((item) => item.productId === product.productId);
+      const existing = state.items.find((item) => cartItemKey(item) === cartItemKey(product));
       if (existing) {
         // A membership can't be bought twice on one sale — enrolment refuses a member
         // who already holds a live subscription — so its quantity stays at one.
@@ -185,7 +192,7 @@ export const usePosCart = create<PosCartState>((set) => ({
         }
         return {
           items: state.items.map((item) =>
-            item.productId === product.productId ? { ...item, qty: item.qty + 1 } : item,
+            cartItemKey(item) === cartItemKey(product) ? { ...item, qty: item.qty + 1 } : item,
           ),
         };
       }
@@ -199,6 +206,8 @@ export const usePosCart = create<PosCartState>((set) => ({
           ...withoutOtherMembership,
           {
             productId: product.productId,
+            variantIndex: product.variantIndex,
+            sku: product.sku,
             // Always set (even to `undefined`) rather than spread-conditionally: a
             // consumer that checks `item.planId` truthily behaves identically either
             // way, and an explicit key lets `toMatchObject({ planId: undefined })`
@@ -216,23 +225,23 @@ export const usePosCart = create<PosCartState>((set) => ({
       };
     }),
 
-  removeItem: (productId) =>
-    set((state) => ({ items: state.items.filter((item) => item.productId !== productId) })),
+  removeItem: (lineKey) =>
+    set((state) => ({ items: state.items.filter((item) => cartItemKey(item) !== lineKey) })),
 
-  setQty: (productId, qty) =>
+  setQty: (lineKey, qty) =>
     set((state) => {
       if (qty <= 0) {
-        return { items: state.items.filter((item) => item.productId !== productId) };
+        return { items: state.items.filter((item) => cartItemKey(item) !== lineKey) };
       }
       return {
-        items: state.items.map((item) => (item.productId === productId ? { ...item, qty } : item)),
+        items: state.items.map((item) => (cartItemKey(item) === lineKey ? { ...item, qty } : item)),
       };
     }),
 
-  setLineDiscount: (productId, percent) =>
+  setLineDiscount: (lineKey, percent) =>
     set((state) => ({
       items: state.items.map((item) =>
-        item.productId === productId ? { ...item, lineDiscountPct: clampPercent(percent) } : item,
+        cartItemKey(item) === lineKey ? { ...item, lineDiscountPct: clampPercent(percent) } : item,
       ),
     })),
 

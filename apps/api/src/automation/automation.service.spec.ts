@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AutomationService } from './automation.service';
-import type { CreateAutomationRuleInput } from '@fit/types';
+import { AUTOMATION_BUILT_IN_TEMPLATES, type CreateAutomationRuleInput } from '@fit/types';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -16,6 +16,7 @@ function ruleRecord(over?: Record<string, unknown>) {
     conditions: [],
     actionType: 'email',
     actionConfig: { subject: 'Welcome', body: 'Welcome {{member_first_name}}!' },
+    recipient: 'member',
     active: true,
     isTemplate: false,
     createdAt: new Date('2026-07-01T00:00:00.000Z'),
@@ -162,6 +163,13 @@ describe('AutomationService.listTemplates', () => {
     expect(res.data[0]?.id).toBe('tmpl-1');
     expect(ruleFindMany.mock.calls[0]?.[0].where).toEqual({ isTemplate: true });
   });
+
+  it('serves the static built-in templates alongside', async () => {
+    const { service } = setup({ ruleFindMany: [] });
+    const res = await service.listTemplates();
+    expect(res.builtIn).toBe(AUTOMATION_BUILT_IN_TEMPLATES);
+    expect(res.builtIn).toHaveLength(26);
+  });
 });
 
 describe('AutomationService.createRule', () => {
@@ -175,6 +183,7 @@ describe('AutomationService.createRule', () => {
       conditions: [],
       actionType: 'email',
       actionConfig: { subject: 'Welcome', body: 'Hi {{member_first_name}}' },
+      recipient: 'member',
       active: true,
     });
     const data = ruleCreate.mock.calls[0]?.[0].data as Record<string, unknown>;
@@ -313,7 +322,7 @@ describe('AutomationService builder fields', () => {
       plans: [{ id: 'plan-1', name: 'Gold' }],
       tags: ['new', 'vip'],
     });
-    expect(result.conditionFields).toHaveLength(12);
+    expect(result.conditionFields).toHaveLength(13);
     expect(locations).toHaveBeenCalledWith(
       expect.objectContaining({ where: { gymId: 'gym-1', status: 'ACTIVE' } }),
     );
@@ -333,6 +342,7 @@ describe('AutomationService builder fields', () => {
       conditions: [...conditions],
       actionType: 'email',
       actionConfig: { body: 'Hi' },
+      recipient: 'member',
       active: true,
     });
     expect(ruleCreate.mock.calls[0]?.[0].data).toMatchObject({ timingOffset: '1d', conditions });
@@ -350,6 +360,7 @@ describe('AutomationService builder fields', () => {
         conditions: [],
         actionType: 'email',
         actionConfig: { body: 'Hi' },
+        recipient: 'member',
         active: true,
       }),
     ).rejects.toThrow('AUTOMATION_TIMING_BEFORE_NOT_ALLOWED');
@@ -379,6 +390,7 @@ describe('AutomationService gym-recipient triggers', () => {
     timingOffset: '0d',
     conditions: [],
     actionConfig: { body: 'Restock' },
+    recipient: 'member',
     active: true,
   };
 
@@ -408,5 +420,71 @@ describe('AutomationService gym-recipient triggers', () => {
     await expect(stock.service.updateRule('rule-1', { name: 'Renamed' })).resolves.toMatchObject({
       name: 'Renamed',
     });
+  });
+});
+
+describe('AutomationService anchored timing and trainer recipient', () => {
+  const base: CreateAutomationRuleInput = {
+    name: 'Class reminder',
+    triggerType: 'class_booked',
+    triggerConfig: {},
+    timingOffset: '-2h',
+    conditions: [],
+    actionType: 'email',
+    actionConfig: { body: 'See you at {{class_time}}' },
+    recipient: 'member',
+    active: true,
+  };
+
+  it('allows a "before" offset on a trigger anchored to the class start', async () => {
+    const { service, ruleCreate } = setup();
+    await service.createRule(base);
+    await service.createRule({ ...base, triggerType: 'pt_session_booked', timingOffset: '-1d' });
+    expect(ruleCreate).toHaveBeenCalledTimes(2);
+    await expect(
+      service.createRule({ ...base, triggerType: 'class_cancelled_member' }),
+    ).rejects.toThrow('AUTOMATION_TIMING_BEFORE_NOT_ALLOWED');
+  });
+
+  it('stores a trainer recipient on a class trigger and returns it', async () => {
+    const { service, ruleCreate } = setup();
+    await service.createRule({ ...base, timingOffset: '0d', recipient: 'trainer' });
+    expect(ruleCreate.mock.calls[0]?.[0].data).toMatchObject({ recipient: 'trainer' });
+  });
+
+  it('rejects a trainer recipient on a member trigger, on create and on the merged update', async () => {
+    const { service, ruleCreate } = setup();
+    await expect(
+      service.createRule({
+        ...base,
+        triggerType: 'member_joined',
+        timingOffset: '0d',
+        recipient: 'trainer',
+      }),
+    ).rejects.toThrow('AUTOMATION_RECIPIENT_NOT_ALLOWED');
+    expect(ruleCreate).not.toHaveBeenCalled();
+
+    const trainerRule = setup({
+      ruleFindFirst: ruleRecord({ triggerType: 'class_booked', recipient: 'trainer' }),
+    });
+    await expect(
+      trainerRule.service.updateRule('rule-1', { triggerType: 'member_joined' }),
+    ).rejects.toThrow('AUTOMATION_RECIPIENT_NOT_ALLOWED');
+    await expect(
+      trainerRule.service.updateRule('rule-1', {
+        triggerType: 'member_joined',
+        recipient: 'member',
+      }),
+    ).resolves.toBeDefined();
+    expect(trainerRule.ruleUpdate.mock.calls[0]?.[0].data).toMatchObject({ recipient: 'member' });
+  });
+
+  it('copies the recipient into a saved template and the row', async () => {
+    const { service, ruleCreate } = setup({
+      ruleFindFirst: ruleRecord({ triggerType: 'class_booked', recipient: 'trainer' }),
+    });
+    await service.saveAsTemplate('rule-1', {});
+    expect(ruleCreate.mock.calls[0]?.[0].data).toMatchObject({ recipient: 'trainer' });
+    expect((await service.getRule('rule-1')).recipient).toBe('trainer');
   });
 });

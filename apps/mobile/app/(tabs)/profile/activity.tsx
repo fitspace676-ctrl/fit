@@ -71,7 +71,7 @@ export default function ActivityScreen() {
               // TODO(i18n): no namespace-neutral "Back" exists — the string is
               // spelled in eight namespaces and none of them is shared chrome.
               // `notifications.back` is the sibling screen in this same stack,
-              // which is the choice `settings.tsx` and `goals.tsx` already made.
+              // which is the choice `settings.tsx` already made.
               accessibilityLabel={t('notifications.back')}
               onPress={() => {
                 if (router.canGoBack()) router.back();

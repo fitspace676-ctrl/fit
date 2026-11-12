@@ -20,6 +20,7 @@ const facts: AutomationConditionFacts = {
   subscription_plan: 'plan',
   subscription_status: 'ACTIVE',
   subscription_days_until_expiry: 5,
+  booking_attendance: null,
 };
 const matches = (condition: AutomationCondition) =>
   evaluateAutomationConditions([condition], facts);
@@ -99,5 +100,61 @@ describe('automation conditions', () => {
     { field: 'member_tags', operator: 'contains' },
   ])('rejects invalid condition %j', (condition) => {
     expect(automationConditionSchema.safeParse(condition).success).toBe(false);
+  });
+});
+
+describe('booking_attendance', () => {
+  const attended = { ...facts, booking_attendance: 'ATTENDED' };
+  const noShow = { ...facts, booking_attendance: 'NO_SHOW' };
+
+  it('matches eq / neq / in on the booking status', () => {
+    const isNoShow: AutomationCondition = {
+      field: 'booking_attendance',
+      operator: 'eq',
+      value: 'NO_SHOW',
+    };
+    expect(evaluateAutomationConditions([isNoShow], noShow)).toBe(true);
+    expect(evaluateAutomationConditions([isNoShow], attended)).toBe(false);
+    expect(
+      evaluateAutomationConditions(
+        [{ field: 'booking_attendance', operator: 'neq', value: 'NO_SHOW' }],
+        attended,
+      ),
+    ).toBe(true);
+    expect(
+      evaluateAutomationConditions(
+        [{ field: 'booking_attendance', operator: 'in', value: ['ATTENDED', 'NO_SHOW'] }],
+        attended,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not match a comparison when there is no booking', () => {
+    expect(
+      evaluateAutomationConditions(
+        [{ field: 'booking_attendance', operator: 'eq', value: 'ATTENDED' }],
+        facts,
+      ),
+    ).toBe(false);
+    expect(
+      evaluateAutomationConditions([{ field: 'booking_attendance', operator: 'is_empty' }], facts),
+    ).toBe(true);
+  });
+
+  it('rejects an unknown status and a number operator', () => {
+    expect(
+      automationConditionSchema.safeParse({
+        field: 'booking_attendance',
+        operator: 'eq',
+        value: 'BOOKED',
+      }).success,
+    ).toBe(false);
+    expect(
+      automationConditionSchema.safeParse({
+        field: 'booking_attendance',
+        operator: 'gt',
+        value: 1,
+      }).success,
+    ).toBe(false);
   });
 });

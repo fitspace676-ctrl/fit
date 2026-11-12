@@ -139,8 +139,6 @@ export const queryKeys = {
   // ── Account ──────────────────────────────────────────────────────────────
   /** The member's own profile. */
   profile: (gymId: string) => ['profile', gymId] as const,
-  /** The member's training goals. */
-  goals: (gymId: string) => ['goals', gymId] as const,
 
   // ── Personal training / services ─────────────────────────────────────────
   /** Bookable slots for one service, optionally narrowed to a date. */

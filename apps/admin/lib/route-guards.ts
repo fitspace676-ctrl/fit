@@ -153,7 +153,8 @@ export function routeGuardForPath(pathname: string): RouteGuard | null {
   const path = pathname.startsWith('/admin') ? pathname.slice('/admin'.length) || '/' : pathname;
   // The dashboard IS a report — every widget on it fetches behind `ReportView`,
   // which is also why the permission editor gives Reports and Dashboard one row.
-  if (path === '/' || path === '') {
+  // `/` itself only redirects to `/dashboard` (see `middleware.ts`).
+  if (path === '/' || path === '' || path === '/dashboard' || path.startsWith('/dashboard/')) {
     return DASHBOARD_GUARD;
   }
   for (const rule of ROUTE_PERMISSIONS) {

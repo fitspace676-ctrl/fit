@@ -43,7 +43,6 @@ const mockGetMySubscription = jest.fn();
 jest.mock('../../../lib/api/me', () => ({
   getMySubscription: () => mockGetMySubscription() as unknown,
   getMyProfile: () => Promise.resolve({ profile: {} }),
-  getMyGoals: () => Promise.resolve({ goals: [] }),
 }));
 
 const mockListMyCreditPacks = jest.fn();

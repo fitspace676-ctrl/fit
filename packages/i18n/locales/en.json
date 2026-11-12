@@ -10,14 +10,14 @@
       "nextUp": "Next up",
       "viewClass": "View class",
       "upcoming": "Upcoming",
-      "past": "Past",
+      "past": "History",
       "noUpcoming": "No upcoming classes",
       "noUpcomingHint": "Browse classes to book your next session.",
       "noPast": "No past classes here yet.",
       "noPastHint": "Classes you have attended will be listed here.",
       "when": "When",
       "details": "Trainer and location",
-      "viewLabel": "Upcoming or past bookings",
+      "viewLabel": "Upcoming bookings or history",
       "stats": {
         "upcoming": "Upcoming",
         "attended": "Attended",
@@ -90,7 +90,6 @@
         "billing": "Payments",
         "bookings": "My bookings",
         "activity": "Activity",
-        "goals": "Goals",
         "notifications": "Notifications"
       },
       "hints": {
@@ -101,9 +100,8 @@
         "trainers": "Trainer list.",
         "membership": "Membership details, packages and joining.",
         "billing": "Payment history and checkout.",
-        "bookings": "Upcoming and past bookings.",
+        "bookings": "Upcoming bookings and history.",
         "activity": "Visit and training activity.",
-        "goals": "Personal training goals.",
         "notifications": "Inbox and notification preferences."
       },
       "illustrations": {
@@ -116,7 +114,6 @@
         "billing": "A bank card in front of a payment receipt",
         "bookings": "A calendar with a checked date and a clock",
         "activity": "A smartwatch showing an activity chart beside a running shoe",
-        "goals": "An arrow in the centre of a target beside a rising chart and a flag",
         "notifications": "A ringing bell with a new-notification dot"
       },
       "color": {
@@ -906,6 +903,7 @@
       "shortcuts": "F1 search products · F2 find member · Esc clear sale",
       "endOfDay": "End-of-day report",
       "products": {
+        "branchStock": "At this branch: {count}",
         "searchLabel": "Search products (F1)",
         "searchPlaceholder": "Search products by name…  (F1)",
         "empty": "No active products match this search.",
@@ -2768,7 +2766,17 @@
         "conditionsValue": "Value",
         "conditionsChoose": "Choose a value",
         "conditionsRemove": "Remove condition",
-        "conditionsAdd": "Add condition"
+        "conditionsAdd": "Add condition",
+        "recipient": "Send to",
+        "recipientHint": "The member, or the trainer of the class or session.",
+        "recipient_member": "Member",
+        "recipient_trainer": "Trainer",
+        "offer": "Offer",
+        "offerHint": "Optional. Fills the offer variables. Bonus points are added to the member's loyalty balance.",
+        "discountPercent": "Discount (%)",
+        "bonusPoints": "Bonus points",
+        "offerCode": "Offer code",
+        "offerExpiry": "Offer expiry"
       },
       "categories": {
         "members": "Members",
@@ -2793,6 +2801,7 @@
         "class_cancelled_member": "Class cancelled by member",
         "class_full": "Class full",
         "attendance_marked": "Attendance marked",
+        "first_class_attended": "First class attended",
         "pt_session_booked": "PT session booked",
         "pt_session_cancelled": "PT session cancelled",
         "payment_received": "Payment received",
@@ -2826,7 +2835,9 @@
         "class": "Class",
         "invoice": "Invoice",
         "order": "Order",
-        "session": "Session"
+        "session": "Session",
+        "offer": "Offer",
+        "staff": "Recipient"
       },
       "mergeVars": {
         "memberFirstName": "First name",
@@ -2863,17 +2874,41 @@
         "className": "Class name",
         "classDate": "Class date",
         "classTime": "Class time",
-        "classTrainerName": "Class trainer",
-        "classLocation": "Class location",
+        "classTrainerName": "Trainer",
+        "classLocation": "Location",
         "invoiceNumber": "Invoice number",
-        "invoiceAmount": "Invoice amount",
-        "invoiceDate": "Invoice date",
+        "invoiceAmount": "Amount",
+        "invoiceDate": "Payment date",
         "orderTotal": "Order total",
         "orderItems": "Order items",
-        "sessionName": "Session name",
+        "sessionName": "Session type",
         "sessionDate": "Session date",
         "sessionTime": "Session time",
-        "sessionTrainerName": "Session trainer"
+        "memberDaysInactive": "Days inactive",
+        "membershipFreezeStart": "Freeze start date",
+        "membershipCancellationDate": "Cancellation date",
+        "membershipCancellationReason": "Cancellation reason",
+        "membershipAccessEndDate": "Access end date",
+        "classWaitlistPosition": "Waitlist position",
+        "classSpotsFilled": "Spots filled",
+        "classSpotsTotal": "Total spots",
+        "missedClassName": "Missed class",
+        "missedClassDate": "Missed class date",
+        "sessionCancelledBy": "Cancelled by",
+        "invoiceDueDate": "Due date",
+        "invoicePaymentMethod": "Payment method",
+        "invoiceFailureReason": "Failure reason",
+        "refundAmount": "Refund amount",
+        "refundDate": "Refund date",
+        "orderProductName": "Product name",
+        "orderNumber": "Order number",
+        "orderPurchaseDate": "Purchase date",
+        "offerDiscountPercent": "Discount percent",
+        "offerBonusPoints": "Bonus points",
+        "offerCode": "Offer code",
+        "offerExpiry": "Offer expiry",
+        "recipientName": "Recipient name",
+        "relatedMemberName": "Member name"
       },
       "templates": {
         "saved": "Template saved.",
@@ -2883,7 +2918,10 @@
         "nameLabel": "Template name",
         "use": "Use template",
         "emptyTitle": "No templates yet",
-        "emptyHint": "Save an automation as a template to reuse it as a starting point for new rules."
+        "emptyHint": "Save an automation as a template to reuse it as a starting point for new rules.",
+        "builtIn": "Built-in templates",
+        "custom": "Your templates",
+        "builtInHint": "Ready-made automations. Pick one and adjust it before saving."
       },
       "errors": {
         "notAuthorized": "You don’t have permission to manage automations.",
@@ -2895,7 +2933,8 @@
         "loadRules": "Couldn’t load automations ({status}): {message}",
         "loadTemplates": "Couldn’t load templates ({status}): {message}",
         "apiUnreachable": "The API is unreachable. Please try again shortly.",
-        "conditionsInvalid": "Complete the conditions with values matching each field and operator."
+        "conditionsInvalid": "Complete the conditions with values matching each field and operator.",
+        "recipientNotAllowed": "Only class and PT session triggers can send to the trainer."
       },
       "stats": {
         "active": "Active automations",
@@ -2915,7 +2954,8 @@
         "member_checkin_count": "Check-in count",
         "subscription_plan": "Membership plan",
         "subscription_status": "Subscription status",
-        "subscription_days_until_expiry": "Days until expiry"
+        "subscription_days_until_expiry": "Days until expiry",
+        "booking_attendance": "Attendance"
       },
       "conditionOperators": {
         "eq": "Equals",
@@ -2933,7 +2973,8 @@
       },
       "conditionGroups": {
         "member": "Member",
-        "subscription": "Subscription"
+        "subscription": "Subscription",
+        "booking": "Booking"
       },
       "conditionValues": {
         "member_gender": {
@@ -2958,6 +2999,10 @@
           "FROZEN": "Frozen",
           "CANCELED": "Canceled",
           "EXPIRED": "Expired"
+        },
+        "booking_attendance": {
+          "ATTENDED": "Attended",
+          "NO_SHOW": "No-show"
         }
       },
       "timing": {
@@ -2975,7 +3020,8 @@
         "amount": "Amount",
         "unit": "Unit",
         "eventHint": "Runs at the event or the specified number of days or hours afterwards.",
-        "invalid": "Enter a whole number: 0-365 days or 0-8760 hours."
+        "invalid": "Enter a whole number: 0-365 days or 0-8760 hours.",
+        "anchorHint": "Before counts back from the class or session start time."
       },
       "conditions": {
         "count": "{count, plural, one {# condition} other {# conditions}}"
@@ -4942,24 +4988,6 @@
       "eyebrow": "Checkout",
       "subtitle": "Review what you are collecting, then place the order.",
       "payment": "Payment"
-    },
-    "goals": {
-      "title": "Your goals",
-      "edit": "Edit",
-      "add": "Add goal",
-      "addFirst": "Add a goal",
-      "save": "Save",
-      "saving": "Saving…",
-      "cancel": "Cancel",
-      "remove": "Remove",
-      "empty": "No goals yet. Set a target to track your progress.",
-      "saved": "Goals saved",
-      "error": "Couldn't save goals",
-      "signIn": "Please sign in",
-      "labelPh": "Goal (e.g. Workouts / week)",
-      "unitPh": "unit",
-      "current": "Current",
-      "target": "Target"
     },
     "reviews": {
       "rate": "Rate this class",

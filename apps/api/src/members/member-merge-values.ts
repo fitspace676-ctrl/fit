@@ -21,6 +21,9 @@ export interface MemberMergeSource {
     currentPeriodEnd: Date | null;
     currentPeriodStart?: Date | null;
     frozenUntil?: Date | null;
+    /** Optional: a caller that does not select them reads blank tokens. */
+    frozenAt?: Date | null;
+    canceledAt?: Date | null;
     status?: string;
     plan: { name: string; priceAmount: number; currency: string } | null;
   }[];
@@ -84,6 +87,12 @@ export function buildMemberMergeValues(input: {
   // `AutomationMergeService.mergeValues`, which counts the same days for the same
   // member — the two must not disagree by one.
   const paymentAmount = price === undefined ? '' : money(price, language, currency);
+
+  // Days since the last check-in, or since joining for a member who never came.
+  const lastSeen = member.checkIns?.[0]?.checkedInAt ?? member.joinedAt;
+  const daysInactive = String(
+    Math.max(0, Math.floor((today.getTime() - lastSeen.getTime()) / DAY_MS)),
+  );
 
   const daysLeft = expiry
     ? String(Math.max(0, Math.floor((expiry.getTime() - today.getTime()) / DAY_MS)))
@@ -173,6 +182,51 @@ export function buildMemberMergeValues(input: {
     session_date: '',
     session_time: '',
     session_trainer_name: '',
+    // -- Automation vocabulary (current names) --
+    //
+    // The automation catalogue now offers short tokens; the `member_*` names
+    // above are kept as aliases. Member and membership tokens are filled from
+    // this member; the context-only ones (class, session, invoice, order, offer)
+    // have nothing behind a one-off email and read blank.
+    member_since: isoDate(member.joinedAt),
+    branch_name: member.location?.name ?? '',
+    last_checkin_date: isoDate(member.checkIns?.[0]?.checkedInAt),
+    days_inactive: daysInactive,
+    membership_plan: planName,
+    days_remaining: daysLeft,
+    plan_price: paymentAmount,
+    freeze_end_date: isoDate(sub?.frozenUntil),
+    freeze_start_date: isoDate(sub?.frozenAt),
+    cancellation_date: isoDate(sub?.canceledAt),
+    // Not stored anywhere yet.
+    cancellation_reason: '',
+    access_end_date: isoDate(expiry),
+    trainer_name: '',
+    location: '',
+    waitlist_position: '',
+    spots_filled: '',
+    spots_total: '',
+    missed_class_name: '',
+    missed_class_date: '',
+    session_type: '',
+    cancelled_by: '',
+    amount: '',
+    payment_date: '',
+    due_date: '',
+    payment_method: '',
+    failure_reason: '',
+    refund_amount: '',
+    refund_date: '',
+    product_name: '',
+    order_number: '',
+    purchase_date: '',
+    discount_percent: '',
+    bonus_points: '',
+    offer_code: '',
+    offer_expiry: '',
+    // A one-off member email goes to the member it is about.
+    recipient_name: fullName,
+    related_member_name: fullName,
   };
 
   return values;

@@ -124,10 +124,6 @@ export const ENDPOINTS = {
   getMyProfile: { method: 'GET', path: '/me/profile', permission: [Permission.ProfileManage] },
   /** `PATCH /me/profile` — partial; `phone: null` clears. */
   updateMyProfile: { method: 'PATCH', path: '/me/profile', permission: [Permission.ProfileManage] },
-  /** `GET /me/goals`. */
-  getMyGoals: { method: 'GET', path: '/me/goals', permission: [Permission.ProfileManage] },
-  /** `PUT /me/goals` — whole-set replace, max 8. */
-  replaceMyGoals: { method: 'PUT', path: '/me/goals', permission: [Permission.ProfileManage] },
   /** `GET /me/subscription` — the membership **and** its invoice history. */
   getMySubscription: {
     method: 'GET',

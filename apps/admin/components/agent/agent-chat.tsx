@@ -120,18 +120,6 @@ const styles = stylex.create({
     color: 'var(--color-on-accent)',
   },
   launcherIcon: { width: '1rem', height: '1rem' },
-  kbd: {
-    marginInlineStart: '0.25rem',
-    paddingInline: '0.375rem',
-    paddingBlock: '0.125rem',
-    borderRadius: '0.375rem',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: 'color-mix(in srgb, var(--color-on-accent) 35%, transparent)',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
-    opacity: 0.75,
-  },
   // Scrim behind the panel — subtle, closes on click.
   scrim: {
     position: 'fixed',
@@ -1013,9 +1001,6 @@ export function AgentChat() {
           <Icon name="spark" {...stylex.props(styles.launcherIcon)} />
         </span>
         <span>{t('launcher')}</span>
-        <kbd {...stylex.props(styles.kbd)} aria-hidden>
-          {isMac ? '⌘J' : 'Ctrl J'}
-        </kbd>
       </button>
 
       <div

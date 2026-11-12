@@ -118,3 +118,110 @@ describe('LoyaltyPointsService.awardSignupBonus', () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
+
+describe('LoyaltyPointsService.awardAutomationBonus', () => {
+  /** A ledger that remembers its writes, so idempotency is tested for real. */
+  function ledgerSetup(over?: { program?: Record<string, unknown> | null; memberGym?: string }) {
+    const entries: Record<string, unknown>[] = [];
+    const memberFindFirst = vi.fn((a: AnyArgs) =>
+      Promise.resolve(
+        a.where?.id === 'gm-1' && a.where.gymId === (over?.memberGym ?? 'gym-1')
+          ? { id: 'gm-1' }
+          : null,
+      ),
+    );
+    const client = {
+      loyaltyProgram: {
+        findUnique: vi.fn(() =>
+          Promise.resolve(over?.program === undefined ? ENABLED : over.program),
+        ),
+      },
+      gymMember: { findFirst: memberFindFirst },
+      loyaltyLedgerEntry: {
+        findFirst: vi.fn((a: AnyArgs) =>
+          Promise.resolve(
+            entries.find((entry) =>
+              Object.entries(a.where ?? {}).every(([key, value]) => entry[key] === value),
+            ) ?? null,
+          ),
+        ),
+        aggregate: vi.fn(() =>
+          Promise.resolve({
+            _sum: { delta: entries.reduce((sum, entry) => sum + (entry.delta as number), 0) },
+          }),
+        ),
+        create: vi.fn((a: AnyArgs) => {
+          entries.push(a.data ?? {});
+          return Promise.resolve(a.data);
+        }),
+      },
+    };
+    const prisma = { client } as unknown as PrismaService;
+    return { service: new LoyaltyPointsService(prisma), entries, memberFindFirst };
+  }
+
+  it('credits a manual entry noted with the rule, once per refId', async () => {
+    const { service, entries } = ledgerSetup();
+
+    const first = await service.awardAutomationBonus(
+      'gym-1',
+      'gm-1',
+      50,
+      'automation:r-1:b-1',
+      'Welcome',
+    );
+    const second = await service.awardAutomationBonus(
+      'gym-1',
+      'gm-1',
+      50,
+      'automation:r-1:b-1',
+      'Welcome',
+    );
+
+    expect([first, second]).toEqual([true, false]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      gymId: 'gym-1',
+      memberId: 'gm-1',
+      delta: 50,
+      reason: 'manual',
+      refId: 'automation:r-1:b-1',
+      note: 'Welcome',
+      balanceAfter: 50,
+    });
+  });
+
+  it('credits a different entity separately', async () => {
+    const { service, entries } = ledgerSetup();
+    await service.awardAutomationBonus('gym-1', 'gm-1', 50, 'automation:r-1:b-1', 'R');
+    await service.awardAutomationBonus('gym-1', 'gm-1', 50, 'automation:r-1:b-2', 'R');
+    expect(entries.map((entry) => entry.balanceAfter)).toEqual([50, 100]);
+  });
+
+  it('credits nothing when the programme is off', async () => {
+    const { service, entries } = ledgerSetup({ program: { ...ENABLED, enabled: false } });
+    expect(await service.awardAutomationBonus('gym-1', 'gm-1', 50, 'automation:x', 'R')).toBe(
+      false,
+    );
+    expect(entries).toHaveLength(0);
+  });
+
+  it('credits nothing for a member of another gym', async () => {
+    const { service, entries, memberFindFirst } = ledgerSetup({ memberGym: 'gym-2' });
+    expect(await service.awardAutomationBonus('gym-1', 'gm-1', 50, 'automation:x', 'R')).toBe(
+      false,
+    );
+    expect(memberFindFirst.mock.calls[0]?.[0]?.where).toMatchObject({ gymId: 'gym-1' });
+    expect(entries).toHaveLength(0);
+  });
+
+  it('returns false instead of throwing when the write fails', async () => {
+    const { service } = ledgerSetup();
+    service['prisma'].client.loyaltyLedgerEntry.create = vi.fn(() =>
+      Promise.reject(new Error('db down')),
+    ) as never;
+    await expect(
+      service.awardAutomationBonus('gym-1', 'gm-1', 50, 'automation:x', 'R'),
+    ).resolves.toBe(false);
+  });
+});

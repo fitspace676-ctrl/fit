@@ -289,7 +289,7 @@ describe('api-client', () => {
           : json(401, envelope('ACCESS_TOKEN_INVALID', 'expired'));
       });
 
-      const paths = ['/membership', '/bookings', '/classes', '/cart', '/notifications', '/goals'];
+      const paths = ['/membership', '/bookings', '/classes', '/cart', '/notifications'];
       const results = await Promise.all(paths.map((path) => apiJson<{ path: string }>(path)));
 
       expect(refreshCalls(mock)).toHaveLength(1);
