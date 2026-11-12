@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@astryxdesign/core/Button';
+import { Button } from '@fit/ui-kit';
 
 const styles = stylex.create({
   button: {
@@ -38,10 +38,10 @@ export function SignOutButton() {
   return (
     <Button
       type="button"
-      variant="secondary"
-      size="sm"
+      variant="ghost"
+      size="inline"
       label={pending ? 'Signing out…' : 'Sign out'}
-      isDisabled={pending}
+      disabled={pending}
       onClick={onClick}
       xstyle={styles.button}
     />

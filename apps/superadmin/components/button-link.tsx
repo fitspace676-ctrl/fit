@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import * as stylex from '@stylexjs/stylex';
 import type { StyleXStyles } from '@stylexjs/stylex';
 import {
   ButtonContent,
@@ -9,6 +10,13 @@ import {
   type ButtonSize,
   type ButtonVariant,
 } from '@fit/ui-kit';
+
+const styles = stylex.create({
+  surface: {
+    backgroundColor: { default: 'var(--ops-white)', ':hover': 'var(--ops-ink-50)' },
+    color: 'var(--ops-ink-950)',
+  },
+});
 
 /**
  * A `next/link` wearing the kit's button surface.
@@ -35,13 +43,20 @@ export function ButtonLink({
   href: string;
   label: string;
   children?: ReactNode;
-  variant?: ButtonVariant;
+  variant?: ButtonVariant | 'surface';
   size?: ButtonSize;
   icon?: ReactNode;
   xstyle?: StyleXStyles;
 }) {
   return (
-    <Link href={href} {...buttonSurfaceProps({ variant, size, xstyle })}>
+    <Link
+      href={href}
+      {...buttonSurfaceProps({
+        variant: variant === 'surface' ? 'secondary' : variant,
+        size,
+        xstyle: [variant === 'surface' && styles.surface, xstyle],
+      })}
+    >
       <ButtonContent label={label} icon={icon}>
         {children}
       </ButtonContent>

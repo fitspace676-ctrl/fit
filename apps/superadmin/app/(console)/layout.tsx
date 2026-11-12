@@ -1,119 +1,43 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
-import * as stylex from '@stylexjs/stylex';
-import { Badge } from '@fit/ui-kit';
 import { SignOutButton } from '@/components/sign-out-button';
+import { OpsLogo } from '@/components/ops/logo';
+import { OpsNav } from '@/components/ops/nav';
+import { getServerSession } from '@/lib/session';
 
-/**
- * The signed-in console shell: a fixed rail on the left, the page beside it.
- *
- * Every route in this group renders inside it; `/login` and `/403` sit outside
- * the group precisely so they don't — a signed-out request has no console to
- * frame. `middleware.ts` has already authenticated the request and asserted
- * SUPER_ADMIN before anything here renders, so the shell never has to reason
- * about who it is drawing for.
- *
- * A rail rather than a top bar because its destinations are siblings — the gym
- * roster and the platform's trail — and a list that grows downward costs nothing
- * to extend. Gym detail hangs off the roster rather than appearing here.
- */
-const styles = stylex.create({
-  frame: {
-    display: 'grid',
-    gridTemplateColumns: '15rem 1fr',
-    minHeight: '100vh',
-    '@media (max-width: 48rem)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
-  rail: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2rem',
-    borderRightWidth: '1px',
-    borderRightStyle: 'solid',
-    borderRightColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    paddingInline: '1.25rem',
-    paddingBlock: '1.5rem',
-    '@media (max-width: 48rem)': {
-      borderRightStyle: 'none',
-      borderBottomWidth: '1px',
-      borderBottomStyle: 'solid',
-      borderBottomColor: 'var(--color-border)',
-    },
-  },
-  brand: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  wordmark: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1rem',
-    fontWeight: 800,
-    letterSpacing: '-0.01em',
-    color: 'var(--color-text-primary)',
-  },
-  nav: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
-  navLink: {
-    borderRadius: 'var(--radius-element)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.5rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-secondary)',
-    textDecoration: 'none',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-overlay-hover)',
-    },
-  },
-  foot: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-    marginTop: 'auto',
-  },
-  content: {
-    minWidth: 0,
-    paddingInline: '2rem',
-    paddingBlock: '2rem',
-  },
-});
-
-export default function ConsoleLayout({ children }: { children: ReactNode }) {
+export default async function ConsoleLayout({ children }: { children: ReactNode }) {
+  const session = await getServerSession();
   return (
-    <div {...stylex.props(styles.frame)}>
-      <aside {...stylex.props(styles.rail)}>
-        <div {...stylex.props(styles.brand)}>
-          <p {...stylex.props(styles.wordmark)}>FormaCore</p>
-          <Badge label="Operator" tone="accent" />
-        </div>
-
-        <nav {...stylex.props(styles.nav)}>
-          <Link href="/" {...stylex.props(styles.navLink)}>
-            Gyms
-          </Link>
-          <Link href="/activity" {...stylex.props(styles.navLink)}>
-            Activity
-          </Link>
-          <Link href="/blog" {...stylex.props(styles.navLink)}>
-            Blog
-          </Link>
-        </nav>
-
-        <div {...stylex.props(styles.foot)}>
+    <div className="ops-shell">
+      <aside className="ops-rail">
+        <OpsLogo />
+        <OpsNav />
+        <div className="ops-rail-foot">
+          {session ? (
+            <div className="ops-user">
+              <svg
+                aria-hidden="true"
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <circle cx="12" cy="8" r="4" />
+                <path d="M5 21a7 7 0 0 1 14 0" />
+              </svg>
+              <div>
+                <strong>Operator</strong>
+                <span title={session.userId}>{session.userId}</span>
+              </div>
+            </div>
+          ) : null}
           <SignOutButton />
         </div>
       </aside>
-
-      <main {...stylex.props(styles.content)}>{children}</main>
+      <main className="ops-content">
+        <div className="ops-content-inner">{children}</div>
+      </main>
     </div>
   );
 }
