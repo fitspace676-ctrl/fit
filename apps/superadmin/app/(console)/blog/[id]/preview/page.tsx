@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import type { AdminBlogPost, BlogLang } from '@fit/types';
 import { Badge, Banner } from '@fit/ui-kit';
-import { ButtonLink } from '@/components/button-link';
+import { BackLink, Mono, OpsCard, PageHead } from '@/components/ops';
+import { PostStatus } from '../../post-status';
 import { ApiError, fetchBlogPost } from '@/lib/api';
-import { VISIBILITY, formatWhen } from '../../shared';
+import { formatWhen } from '../../shared';
 
 export const metadata: Metadata = {
   title: 'Preview — FormaCore SuperAdmin',
@@ -18,7 +19,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
-    maxWidth: '48rem',
+    maxWidth: '72rem',
   },
   bar: {
     display: 'flex',
@@ -40,9 +41,6 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
     paddingBlock: '1.5rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--color-border)',
   },
   langRow: {
     display: 'flex',
@@ -131,14 +129,14 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
   return (
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.bar)}>
-        <ButtonLink href={`/blog/${post.id}`} label="← Back to edit" variant="secondary" />
+        <PageHead
+          title="Preview"
+          eyebrow={<BackLink href={`/blog/${post.id}`} label="Back to edit" />}
+        />
         <div {...stylex.props(styles.barMeta)}>
-          <Badge
-            label={VISIBILITY[post.visibility].label}
-            tone={VISIBILITY[post.visibility].tone}
-          />
+          <PostStatus visibility={post.visibility} />
           {post.publishAt ? <span>{formatWhen(post.publishAt)}</span> : null}
-          <span>/resources/{post.slug}</span>
+          <Mono>/resources/{post.slug}</Mono>
         </div>
       </div>
 
@@ -146,50 +144,52 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
         const { title, excerpt, html } = view(post, lang);
         const available = post.availableLangs.includes(lang);
         return (
-          <article key={lang} lang={lang} {...stylex.props(styles.article)}>
-            <div {...stylex.props(styles.langRow)}>
-              <Badge label={lang.toUpperCase()} tone={available ? 'accent' : 'neutral'} />
-              {lang === 'ka' ? 'Georgian' : 'English'}
-            </div>
-            {available ? (
-              <>
-                {post.coverImageUrl ? (
-                  // The stored R2 URL, as the site will show it.
-                  <img src={post.coverImageUrl} alt="" {...stylex.props(styles.cover)} />
-                ) : null}
-                <h1 {...stylex.props(styles.title)}>{title}</h1>
-                {excerpt ? <p {...stylex.props(styles.excerpt)}>{excerpt}</p> : null}
-                <div {...stylex.props(styles.byline)}>
-                  {post.author?.photoUrl ? (
-                    <img src={post.author.photoUrl} alt="" {...stylex.props(styles.avatar)} />
+          <OpsCard key={lang}>
+            <article lang={lang} {...stylex.props(styles.article)}>
+              <div {...stylex.props(styles.langRow)}>
+                <Badge label={lang.toUpperCase()} tone={available ? 'accent' : 'neutral'} />
+                {lang === 'ka' ? 'Georgian' : 'English'}
+              </div>
+              {available ? (
+                <>
+                  {post.coverImageUrl ? (
+                    // The stored R2 URL, as the site will show it.
+                    <img src={post.coverImageUrl} alt="" {...stylex.props(styles.cover)} />
                   ) : null}
-                  {post.author ? <span>{post.author.name}</span> : null}
-                  {post.category ? (
-                    <Badge
-                      label={lang === 'ka' ? post.category.nameKa : post.category.nameEn}
-                      tone="neutral"
-                    />
-                  ) : null}
-                </div>
-                {html ? (
-                  <div className="blog-prose" dangerouslySetInnerHTML={{ __html: html }} />
-                ) : (
-                  <p {...stylex.props(styles.missing)}>No content yet.</p>
-                )}
-                {post.tags.length > 0 ? (
-                  <div {...stylex.props(styles.tags)}>
-                    {post.tags.map((tag) => (
-                      <Badge key={tag} label={`#${tag}`} tone="neutral" />
-                    ))}
+                  <h1 {...stylex.props(styles.title)}>{title}</h1>
+                  {excerpt ? <p {...stylex.props(styles.excerpt)}>{excerpt}</p> : null}
+                  <div {...stylex.props(styles.byline)}>
+                    {post.author?.photoUrl ? (
+                      <img src={post.author.photoUrl} alt="" {...stylex.props(styles.avatar)} />
+                    ) : null}
+                    {post.author ? <span>{post.author.name}</span> : null}
+                    {post.category ? (
+                      <Badge
+                        label={lang === 'ka' ? post.category.nameKa : post.category.nameEn}
+                        tone="neutral"
+                      />
+                    ) : null}
                   </div>
-                ) : null}
-              </>
-            ) : (
-              <p {...stylex.props(styles.missing)}>
-                No English version. The post appears only on the Georgian blog.
-              </p>
-            )}
-          </article>
+                  {html ? (
+                    <div className="blog-prose" dangerouslySetInnerHTML={{ __html: html }} />
+                  ) : (
+                    <p {...stylex.props(styles.missing)}>No content yet.</p>
+                  )}
+                  {post.tags.length > 0 ? (
+                    <div {...stylex.props(styles.tags)}>
+                      {post.tags.map((tag) => (
+                        <Badge key={tag} label={`#${tag}`} tone="neutral" />
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p {...stylex.props(styles.missing)}>
+                  No English version. The post appears only on the Georgian blog.
+                </p>
+              )}
+            </article>
+          </OpsCard>
         );
       })}
     </div>

@@ -4207,7 +4207,23 @@ model AgentChatSession {
 /// A revocable bearer link for configuring a newly provisioned gym.
 model GymOnboarding {
   id              String   @id @default(cuid())
-  gymId           String   @unique
+  gymId           String?  @unique
+  gymName         String
+  subdomainSlug   String @unique
+  ownerEmail      String
+  ownerName       String?
+  passwordHash    String?
+  draft           Json @default("{}")
+  codeHash        String?
+  codeExpiresAt   DateTime?
+  codeAttempts    Int @default(0)
+  codeSentAt      DateTime?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  approvedByUserId String?
+  rejectedAt      DateTime?
+  rejectedByUserId String?
+  rejectionReason String?
   nonce           String
   completedSteps  String[] @default([])
   startedAt       DateTime?
@@ -4216,7 +4232,7 @@ model GymOnboarding {
   createdByUserId String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  gym             Gym      @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gym             Gym?     @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
   @@map("gym_onboardings")
 }

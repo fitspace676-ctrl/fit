@@ -83,5 +83,10 @@ export const RATE_LIMITS = {
    * real owner off mid-setup. The token is a 256-bit HMAC, so the limit is here to
    * cap load, not to slow guessing.
    */
+  gymOnboardingCode: {
+    name: 'gym-onboarding-code',
+    limit: 10,
+    windowSec: 60,
+  } satisfies RateLimitOptions,
   gymOnboarding: { name: 'gym-onboarding', limit: 60, windowSec: 60 } satisfies RateLimitOptions,
 } as const;

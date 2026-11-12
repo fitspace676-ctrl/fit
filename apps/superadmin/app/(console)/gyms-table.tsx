@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import type { AdminGymSummary, GymStatus } from '@fit/types';
-import { Badge, Banner, DataTable, EmptyState, type BadgeTone, type Column } from '@fit/ui-kit';
+import { Badge, Banner, EmptyState, type BadgeTone, type Column } from '@fit/ui-kit';
+import { FilterPills, OpsTable, SearchField } from '@/components/ops';
 import { GymActions } from './gym-actions';
 
 /** One gym plus the tenant links the server resolved for it. */
@@ -25,6 +26,15 @@ function formatDate(iso: string): string {
 }
 
 const styles = stylex.create({
+  filters: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  search: { width: { default: '100%', '@media (min-width: 640px)': '18rem' } },
+  status: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.375rem' },
   stack: {
     display: 'flex',
     flexDirection: 'column',
@@ -54,10 +64,14 @@ const styles = stylex.create({
   },
   hostCell: {
     display: 'flex',
-    alignItems: 'baseline',
-    gap: '0.5rem',
+    alignItems: 'center',
+    gap: '0.625rem',
+    whiteSpace: 'nowrap',
   },
   host: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.8125rem',
     color: {
@@ -83,6 +97,7 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-code)',
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
+    whiteSpace: 'nowrap',
   },
   actionsCell: {
     display: 'flex',
@@ -103,6 +118,17 @@ const styles = stylex.create({
  */
 export function GymsTable({ gyms }: { gyms: GymRow[] }) {
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | GymStatus>('all');
+  const [query, setQuery] = useState('');
+  const active = gyms.filter((gym) => gym.status === 'ACTIVE').length;
+  const needle = query.trim().toLowerCase();
+  const rows = gyms.filter(
+    (gym) =>
+      (filter === 'all' || gym.status === filter) &&
+      [gym.name, gym.subdomainSlug, gym.owner?.email ?? '', gym.owner?.name ?? ''].some((value) =>
+        value.toLowerCase().includes(needle),
+      ),
+  );
 
   const columns: ReadonlyArray<Column<GymRow>> = [
     {
@@ -128,7 +154,18 @@ export function GymsTable({ gyms }: { gyms: GymRow[] }) {
         <div {...stylex.props(styles.hostCell)}>
           {gym.portalUrl ? (
             <a href={gym.portalUrl} target="_blank" rel="noreferrer" {...stylex.props(styles.host)}>
-              {gym.subdomainSlug}
+              {gym.subdomainSlug}{' '}
+              <svg
+                aria-hidden="true"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <path d="M14 3h7v7m0-7L10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" />
+              </svg>
             </a>
           ) : (
             <span {...stylex.props(styles.hostPlain)}>{gym.subdomainSlug}</span>
@@ -149,7 +186,19 @@ export function GymsTable({ gyms }: { gyms: GymRow[] }) {
     {
       key: 'status',
       header: 'Status',
-      cell: (gym) => <Badge label={STATUS[gym.status].label} tone={STATUS[gym.status].tone} />,
+      cell: (gym) => (
+        <div {...stylex.props(styles.status)}>
+          <Badge
+            label={STATUS[gym.status].label}
+            tone={STATUS[gym.status].tone}
+            icon={
+              <svg aria-hidden="true" width="6" height="6" viewBox="0 0 6 6">
+                <circle cx="3" cy="3" r="3" fill="currentColor" />
+              </svg>
+            }
+          />
+        </div>
+      ),
     },
     {
       key: 'members',
@@ -181,15 +230,39 @@ export function GymsTable({ gyms }: { gyms: GymRow[] }) {
     <div {...stylex.props(styles.stack)}>
       {error ? <Banner tone="error">{error}</Banner> : null}
 
-      <DataTable
+      <div {...stylex.props(styles.filters)}>
+        <FilterPills
+          label="Status"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: `All · ${gyms.length}` },
+            { value: 'ACTIVE', label: `Active · ${active}` },
+            { value: 'SUSPENDED', label: `Suspended · ${gyms.length - active}` },
+          ]}
+        />
+        <div {...stylex.props(styles.search)}>
+          <SearchField
+            label="Search gyms"
+            placeholder="Search name, subdomain, owner"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
+      </div>
+      <OpsTable
         columns={columns}
-        rows={gyms}
+        rows={rows}
         rowKey={(gym) => gym.id}
         caption="Every gym on the platform"
         empty={
           <EmptyState
-            title="No gyms yet"
-            body="A gym appears here as soon as an owner signs up on the marketing site."
+            title={gyms.length ? 'No gyms found' : 'No gyms yet'}
+            body={
+              gyms.length
+                ? 'Try another search or status filter.'
+                : 'A gym appears here as soon as an owner signs up on the marketing site.'
+            }
           />
         }
       />

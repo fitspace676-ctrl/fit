@@ -7,14 +7,14 @@ import {
   type Cookie,
 } from '@playwright/test';
 import { DEV_PASSWORD } from '../fixtures';
-import { API_LOG_FILE, mailedLink } from '../mail-log';
+import { API_LOG_FILE, mailedCode, mailedLink } from '../mail-log';
 
 /**
  * A new gym's first day, end to end, on its own subdomain — and not a trace of it
  * on anybody else's.
  *
  *   1. A platform operator (the seed's `superadmin@fit.local`) provisions the gym
- *      with `POST /admin/gyms`, the call the operator console's form makes. The
+ *      with `POST /admin/gym-requests`, the call the operator console's form makes. The
  *      owner is mailed an activation link on the gym's own console.
  *   2. The owner opens it, chooses a password, signs in, and lands in a console
  *      that is branded with their gym.
@@ -131,6 +131,8 @@ async function rosterEmails(
 
 test.describe('A new gym, from provisioning to its first member', () => {
   let gymId: string;
+  let requestId: string;
+  let operatorToken: string;
   let activationLink: URL;
   /** The owner's browser: the console session they sign in to in step 2. */
   let ownerContext: BrowserContext;
@@ -157,12 +159,12 @@ test.describe('A new gym, from provisioning to its first member', () => {
     console.log(`--- last 200 lines of ${API_LOG_FILE} ---\n${tail}`);
   });
 
-  test("a platform operator provisions the gym and its owner is mailed a link to the gym's own console", async ({
+  test("a platform operator opens a gym request and its owner is mailed a link on the gym's future host", async ({
     request,
   }) => {
-    const operatorToken = await apiLogin(request, superAdmin);
+    operatorToken = await apiLogin(request, superAdmin);
 
-    const res = await request.post(`${API_URL}/admin/gyms`, {
+    const res = await request.post(`${API_URL}/admin/gym-requests`, {
       headers: { authorization: `Bearer ${operatorToken}` },
       data: {
         gymName: GYM_NAME,
@@ -172,20 +174,25 @@ test.describe('A new gym, from provisioning to its first member', () => {
       },
     });
     expect(res.status(), await res.text()).toBe(201);
-    const created = (await res.json()) as { gymId: string; subdomainSlug: string };
+    const created = (await res.json()) as { id: string; subdomainSlug: string; status: string };
     expect(created.subdomainSlug).toBe(SLUG);
-    gymId = created.gymId;
+    expect(created.status).toBe('PENDING');
+    requestId = created.id;
 
-    // An operator-provisioned gym is mailed its onboarding link — the step-by-step
-    // setup whose first step sets the password — rather than the bare `/activate`.
+    // A request is only a request: no tenant answers on the subdomain yet.
+    const tenant = await request.get(`${API_URL}/gyms/by-subdomain/${SLUG}`);
+    expect(tenant.status(), 'no gym exists before approval').toBe(404);
+
     activationLink = await mailedLink(owner.email, '/admin/onboarding/');
-    expect(activationLink.origin, 'the onboarding link names the new gym').toBe(
+    expect(activationLink.origin, 'the onboarding link names the future gym host').toBe(
       `http://${tenantHost(SLUG)}`,
     );
     expect(activationLink.pathname.split('/').pop(), 'the link carries its token').toBeTruthy();
   });
 
-  test('the owner walks the onboarding link, signs in, and lands in a console branded with their gym', async () => {
+  test('the owner fills the wizard, confirms the emailed code, the operator approves, and the owner lands in a console branded with their gym', async ({
+    request,
+  }) => {
     const page = await ownerContext.newPage();
 
     await page.goto(onDevPort(activationLink));
@@ -195,31 +202,42 @@ test.describe('A new gym, from provisioning to its first member', () => {
     await passwords.nth(0).fill(owner.password);
     await passwords.nth(1).fill(owner.password);
 
-    // Then every remaining step as offered (each saves the gym's current values),
-    // and the review's Finish. Each screen has one submit button and its own
+    // Account, business, brand, first branch, payments — each as offered — bring
+    // the wizard to its review. Each screen has one submit button and its own
     // heading, so "the heading changed" is the step having been accepted — read
     // structurally, because the wizard's copy follows the gym's language.
     const heading = page.locator('form h3');
-    for (let screen = 0; screen < 7; screen += 1) {
-      if (new URL(page.url()).pathname === '/admin/login') break;
+    for (let screen = 0; screen < 5; screen += 1) {
       const before = await heading.textContent();
       await page.locator('form button[type="submit"]').click();
       await expect
-        .poll(
-          async () =>
-            new URL(page.url()).pathname === '/admin/login' ||
-            (await heading.textContent().catch(() => null)) !== before,
-          { timeout: 60_000 },
-        )
+        .poll(async () => (await heading.textContent().catch(() => null)) !== before, {
+          timeout: 60_000,
+        })
         .toBe(true);
     }
 
-    // Onboarding issues no session: it hands over to this host's console sign-in,
-    // with the address filled in.
-    await page.waitForURL(
-      (url) => url.pathname === '/admin/login' && url.searchParams.get('activated') === '1',
-      { timeout: 60_000 },
-    );
+    // The review's submit emails a code to the address the operator entered.
+    await page.locator('form button[type="submit"]').click();
+    const codeInput = page.locator('input[autocomplete="one-time-code"]');
+    await expect(codeInput).toBeVisible({ timeout: 60_000 });
+    await codeInput.fill(await mailedCode(owner.email));
+    await page.locator('form button[type="submit"]').click();
+    await expect(codeInput).toHaveCount(0, { timeout: 60_000 });
+
+    // Confirmed, but still only a request until the operator says so.
+    const pending = await request.get(`${API_URL}/gyms/by-subdomain/${SLUG}`);
+    expect(pending.status(), 'no gym exists before approval').toBe(404);
+
+    const approval = await request.post(`${API_URL}/admin/gym-requests/${requestId}/approve`, {
+      headers: { authorization: `Bearer ${operatorToken}` },
+    });
+    expect(approval.status(), await approval.text()).toBe(200);
+    gymId = ((await approval.json()) as { gymId: string }).gymId;
+
+    // Approval creates the gym and the owner's sign-in; the password is the one
+    // chosen in the wizard, and the code already proved the inbox.
+    await page.goto(`${NEW_GYM}/admin/login?email=${encodeURIComponent(owner.email)}`);
     expect(new URL(page.url()).origin).toBe(NEW_GYM);
     await expect(page.locator('input[name="email"]')).toHaveValue(owner.email);
 

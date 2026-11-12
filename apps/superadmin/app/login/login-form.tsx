@@ -3,7 +3,7 @@
 import { type FormEvent, useCallback, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useSearchParams } from 'next/navigation';
-import { Button } from '@astryxdesign/core/Button';
+import { Button } from '@fit/ui-kit';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import type { TokenPair } from '@fit/types';
 
@@ -136,10 +136,10 @@ export function OperatorLoginForm() {
       <Button
         type="submit"
         variant="primary"
-        size="lg"
+        size="card"
         label={pending ? 'Signing in…' : 'Sign in'}
-        isLoading={pending}
-        isDisabled={pending}
+        loading={pending}
+        disabled={pending}
         xstyle={styles.submit}
       />
     </form>

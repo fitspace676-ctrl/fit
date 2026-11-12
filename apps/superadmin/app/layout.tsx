@@ -33,14 +33,7 @@ export const metadata: Metadata = {
   description: 'FormaCore platform operator console.',
 };
 
-/**
- * The operator console's root layout.
- *
- * It mounts the SAME theme as the console and the portal — FormaCore "Lime
- * Block" — in **dark mode, fixed**. No toggle, and that is deliberate: a theme
- * switch is a preference surface, and this app has exactly one user who works in
- * one place. The tenant apps carry a toggle because their users don't.
- */
+/** App-local light operator theme; tenant applications keep their own theme. */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     // `<Theme>` syncs `data-theme` / `data-astryx-theme` onto <html> — but only
@@ -52,13 +45,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     // its own identical scope, so nothing conflicts.
     <html
       lang="en"
-      data-theme="dark"
+      data-theme="light"
       data-astryx-theme="formacore"
       className={`${notoGeorgian.variable} ${jetbrains.variable}`}
     >
       <body>
         <SentryInit />
-        <Theme theme={formacoreTheme} mode="dark">
+        <Theme theme={formacoreTheme} mode="light">
           {children}
         </Theme>
       </body>

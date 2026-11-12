@@ -1,3 +1,4 @@
+import { AdminGymRequestsController } from './admin-gym-requests.controller';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
@@ -10,6 +11,7 @@ import { AllExceptionsFilter } from '../common/filters/all-exceptions.filter';
 import { TenantContext, tenantStorage, type TenantState } from '../common/tenant/tenant.context';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { SuperAdminController } from './superadmin.controller';
+import { AdminOperatorController } from './admin-operator.controller';
 import { SuperAdminService } from './superadmin.service';
 
 /**
@@ -42,14 +44,20 @@ describe('SuperAdmin authorization (integration)', () => {
         ],
       }),
     setGymStatus: (_actor: string, id: string) => Promise.resolve({ id, status: 'SUSPENDED' }),
-    regenerateOnboardingLink: () => Promise.resolve({ token: 'id.signature' }),
+    createGymRequest: () => Promise.resolve({ id: 'request-1' }),
+    listGymRequests: () => Promise.resolve({ requests: [] }),
+    getGymRequest: () => Promise.resolve({ id: 'request-1' }),
+    regenerateGymRequestLink: () => Promise.resolve({ token: 'id.signature' }),
+    approveGymRequest: () => Promise.resolve({ gymId: 'gym-1', subdomainSlug: 'gym' }),
+    rejectGymRequest: () => Promise.resolve({ status: 'REJECTED' }),
     impersonate: () => Promise.resolve({ handoffCode: 'handoff-code', expiresInSeconds: 60 }),
+    getOperator: (id: string) => Promise.resolve({ id, email: 'ops@example.com', name: 'Ops' }),
   };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [LoggerModule.forRoot(loggerConfig())],
-      controllers: [SuperAdminController],
+      controllers: [SuperAdminController, AdminOperatorController, AdminGymRequestsController],
       providers: [
         TenantContext,
         TenantGuard,
@@ -82,14 +90,47 @@ describe('SuperAdmin authorization (integration)', () => {
     await app.close();
   });
 
-  it('allows only SUPER_ADMIN to regenerate an onboarding link', async () => {
-    for (const role of [Role.SUPER_ADMIN, Role.OWNER, Role.MEMBER]) {
-      const res = await fetch(`${baseUrl}/admin/gyms/gym-1/onboarding-link`, {
-        method: 'POST',
-        headers: { 'x-test-role': role, 'x-test-user': 'user-1' },
-      });
-      expect(res.status).toBe(role === Role.SUPER_ADMIN ? 200 : 403);
-    }
+  it.each([
+    [
+      'POST',
+      '',
+      201,
+      { gymName: 'Gym', subdomainSlug: 'new-gym', ownerEmail: 'owner@example.com' },
+    ],
+    ['GET', '', 200, undefined],
+    ['GET', '/request-1', 200, undefined],
+    ['POST', '/request-1/link', 200, undefined],
+    ['POST', '/request-1/approve', 200, undefined],
+    ['POST', '/request-1/reject', 200, { reason: 'Duplicate' }],
+  ] as const)(
+    '%s /admin/gym-requests%s requires SUPER_ADMIN',
+    async (method, suffix, status, body) => {
+      for (const role of [Role.SUPER_ADMIN, Role.OWNER, Role.MEMBER]) {
+        const res = await fetch(`${baseUrl}/admin/gym-requests${suffix}`, {
+          method,
+          headers: {
+            'x-test-role': role,
+            'x-test-user': 'user-1',
+            'content-type': 'application/json',
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+        expect(res.status).toBe(role === Role.SUPER_ADMIN ? status : 403);
+      }
+    },
+  );
+
+  it('tells only a SUPER_ADMIN who they are', async () => {
+    const ok = await fetch(`${baseUrl}/admin/me`, {
+      headers: { 'x-test-role': 'SUPER_ADMIN', 'x-test-user': 'admin-1' },
+    });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ id: 'admin-1', email: 'ops@example.com', name: 'Ops' });
+
+    const denied = await fetch(`${baseUrl}/admin/me`, {
+      headers: { 'x-test-role': 'OWNER', 'x-test-user': 'owner-1', 'x-test-gym': 'gym-1' },
+    });
+    expect(denied.status).toBe(403);
   });
 
   it('lets a SUPER_ADMIN list every gym', async () => {

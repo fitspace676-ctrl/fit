@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
+import { BackLink, PageHead } from '@/components/ops';
 import { Banner } from '@fit/ui-kit';
 import { ApiError, fetchBlogAuthors, fetchBlogCategories, fetchBlogPost } from '@/lib/api';
 import { PostForm } from '../post-form';
@@ -17,28 +17,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1.5rem',
-    maxWidth: '56rem',
-  },
-  header: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.375rem',
-  },
-  back: {
-    fontSize: '0.875rem',
-    color: {
-      default: 'var(--color-text-secondary)',
-      ':hover': 'var(--color-text-accent)',
-    },
-    textDecoration: 'none',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    color: 'var(--color-text-primary)',
+    maxWidth: '72rem',
   },
 });
 
@@ -46,35 +25,26 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
 
   let content;
-  let title = 'Edit post';
   try {
     const [post, categories, authors] = await Promise.all([
       fetchBlogPost(id),
       fetchBlogCategories(),
       fetchBlogAuthors(),
     ]);
-    title = post.titleKa;
     content = <PostForm post={post} categories={categories.items} authors={authors.items} />;
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
     content = (
-      <Banner tone="error">
-        {error instanceof ApiError
-          ? `Could not load the post (${error.status}): ${error.message}`
-          : 'Could not reach the FormaCore API.'}
-      </Banner>
+      <>
+        <PageHead title="Edit post" eyebrow={<BackLink href="/blog" label="Blog" />} />
+        <Banner tone="error">
+          {error instanceof ApiError
+            ? `Could not load the post (${error.status}): ${error.message}`
+            : 'Could not reach the FormaCore API.'}
+        </Banner>
+      </>
     );
   }
 
-  return (
-    <div {...stylex.props(styles.page)}>
-      <header {...stylex.props(styles.header)}>
-        <Link href="/blog" {...stylex.props(styles.back)}>
-          ← Blog
-        </Link>
-        <h1 {...stylex.props(styles.title)}>{title}</h1>
-      </header>
-      {content}
-    </div>
-  );
+  return <div {...stylex.props(styles.page)}>{content}</div>;
 }

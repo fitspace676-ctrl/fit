@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockEnv } = vi.hoisted(() => {
@@ -9,6 +10,8 @@ vi.mock('../config/env', () => ({ env: mockEnv }));
 import type { PosReceipt, ReportDigest } from '@fit/types';
 import {
   EmailService,
+  buildOnboardingCodeEmail,
+  buildGymReadyEmail,
   buildDailySummaryEmail,
   buildLowStockDigestEmail,
   buildReceiptEmail,
@@ -1024,5 +1027,61 @@ describe('EmailService ops-alert senders', () => {
     await expect(
       new EmailService().sendDailySummaryEmail('owner@example.com', dailySummary),
     ).rejects.toThrow(/500/);
+  });
+});
+
+describe('onboarding request emails', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+  it.each(['en', 'ka'] as const)(
+    'renders the code, expiry and ready sign-in link in %s',
+    (locale) => {
+      configure();
+      const code = buildOnboardingCodeEmail('012345', locale);
+      expect(code.subject).toContain('012345');
+      expect(code.text).toContain('15');
+      expect(code.html).toContain('012345');
+      expect(code.text).toContain(locale === 'ka' ? 'წუთის' : 'minutes');
+      const ready = buildGymReadyEmail('https://gym.example.com/admin/login', '<Gym>', locale);
+      expect(ready.html).toContain('&lt;Gym&gt;');
+      expect(ready.text).toContain('https://gym.example.com/admin/login');
+      expect(ready.subject).toContain(locale === 'ka' ? 'მზადაა' : 'is ready');
+    },
+  );
+  it('logs the exact code and ready link formats when Resend is unconfigured', async () => {
+    configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io' });
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const service = new EmailService();
+    await service.sendOnboardingCodeEmail('owner@example.com', '012345');
+    await service.sendGymReadyEmail('owner@example.com', 'Gym', 'gym');
+    expect(warn).toHaveBeenCalledWith(
+      'Resend not configured (RESEND_API_KEY unset) — onboarding code for owner@example.com: 012345',
+    );
+    expect(warn).toHaveBeenCalledWith(
+      'Resend not configured (RESEND_API_KEY unset) — gym ready link for owner@example.com: https://gym.formacore.io/admin/login',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('delivers both emails to the owner with localized copy', async () => {
+    configure({ RESEND_API_KEY: 're_test', PLATFORM_ROOT_DOMAIN: 'formacore.io' });
+    const fetchMock = vi.fn((_url: string, _init: RequestInit) =>
+      Promise.resolve(new Response('{}', { status: 200 })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const service = new EmailService();
+    await service.sendOnboardingCodeEmail('owner@example.com', '012345', 'ka');
+    await service.sendGymReadyEmail('owner@example.com', 'Gym', 'gym', 'ka');
+    const bodies = fetchMock.mock.calls.map(
+      (call) => JSON.parse(call[1].body as string) as { to: string[]; text: string },
+    );
+    expect(bodies[0]).toMatchObject({
+      to: ['owner@example.com'],
+      text: expect.stringContaining('012345') as string,
+    });
+    expect(bodies[1]?.text).toContain('https://gym.formacore.io/admin/login');
   });
 });

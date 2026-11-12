@@ -1,0 +1,17 @@
+.slug {
+  position: relative;
+  min-width: 0;
+}
+.slug input {
+  padding-inline-start: 2rem;
+  font-family: var(--font-family-code);
+}
+.prefix {
+  position: absolute;
+  inset-inline-start: 0.875rem;
+  top: 2.3rem;
+  z-index: 1;
+  pointer-events: none;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-code);
+}

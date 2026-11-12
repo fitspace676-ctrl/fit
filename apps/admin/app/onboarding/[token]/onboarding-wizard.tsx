@@ -9,59 +9,36 @@ import { Banner, Button, Field, Form, Switch } from '@fit/ui-kit';
 import {
   GYM_ONBOARDING_STEP_SCHEMAS,
   PASSWORD_MIN_LENGTH,
-  SUPPORTED_LANGUAGES,
-  LANGUAGE_LABELS,
   ONBOARDING_LINK_INVALID_CODE,
   ONBOARDING_LINK_EXPIRED_CODE,
-  ONBOARDING_COMPLETED_CODE,
-  ONBOARDING_ACCOUNT_ALREADY_SET_CODE,
+  ONBOARDING_SUBMITTED_CODE,
+  ONBOARDING_CODE_INVALID_CODE,
+  ONBOARDING_CODE_EXPIRED_CODE,
+  ONBOARDING_CODE_COOLDOWN_CODE,
+  verifyGymOnboardingCodeSchema,
   ONBOARDING_ACCOUNT_REQUIRED_CODE,
   WEEKDAYS,
   type GymOnboardingState,
   type GymOnboardingStep,
-  type CompleteGymOnboardingResponse,
 } from '@fit/types';
 import { browserTenantHeaders } from '@/lib/tenant-host';
 import { AccentColorField } from '@/components/accent-color-field';
-import { SelectField, TextField } from '@/components/ui/form-fields';
+import { TextField } from '@/components/ui/form-fields';
 
 /** The API's error envelope, or — on success — the payload itself. */
 type ApiBody = { code?: string; message?: string | string[] };
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 type Draft = GymOnboardingState['values'] & { account: { ownerName: string; password: string } };
-type Screen = GymOnboardingStep | 'review';
+type Screen = GymOnboardingStep | 'review' | 'code';
 const paymentKeys = [
   'acceptCash',
   'acceptCard',
   'acceptBankTransfer',
   'acceptPrepaidCredits',
 ] as const;
-// Same suggested zones and Intl list as Settings; always retain the stored value.
-const suggestedZones = [
-  'Asia/Tbilisi',
-  'Europe/Istanbul',
-  'Asia/Baku',
-  'Asia/Yerevan',
-  'Europe/Kyiv',
-  'Europe/Moscow',
-  'Europe/Berlin',
-  'Europe/London',
-  'Asia/Dubai',
-  'America/New_York',
-  'America/Los_Angeles',
-  'UTC',
-];
-function zones(current: string) {
-  const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] })
-    .supportedValuesOf;
-  try {
-    return [...new Set([current, ...suggestedZones, ...(supported?.('timeZone') ?? [])])];
-  } catch {
-    return [...new Set([current, ...suggestedZones])];
-  }
-}
 function firstStep(state: GymOnboardingState): Screen {
+  if (state.status === 'CODE_SENT') return 'code';
   return (
     state.steps.find(
       (step) =>
@@ -147,6 +124,21 @@ export function OnboardingWizard({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [dead, setDead] = useState<string | null>(null);
   const [confirm, setConfirm] = useState('');
+  const [code, setCode] = useState('');
+  const [now, setNow] = useState(Date.now);
+  const resendSeconds = Math.max(
+    0,
+    Math.ceil(
+      ((state?.codeResendAvailableAt ? Date.parse(state.codeResendAvailableAt) : 0) - now) / 1000,
+    ),
+  );
+
+  useEffect(() => {
+    if (step !== 'code') return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [step, state?.codeResendAvailableAt]);
   const busy = useRef(false);
   const form = useForm<Draft>();
   const values = form.watch();
@@ -198,7 +190,7 @@ export function OnboardingWizard({ token }: { token: string }) {
   }, [endpoint]);
 
   function navigate(target: Screen) {
-    if (!state || busy.current || (target === 'account' && state.owner.hasPassword)) return;
+    if (!state || busy.current) return;
     apply(state); // Unsaved edits never appear as saved in review.
     setStep(target);
     setError(null);
@@ -212,14 +204,25 @@ export function OnboardingWizard({ token }: { token: string }) {
     );
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submit(event?: FormEvent<HTMLFormElement>, resend = false) {
+    event?.preventDefault();
     if (!state || busy.current) return;
     setError(null);
     let body: unknown;
-    if (step !== 'review') {
+    if (step === 'code' && !resend) {
+      const parsed = verifyGymOnboardingCodeSchema.safeParse({ code });
+      if (!parsed.success) {
+        setError(t('codeFormat'));
+        return;
+      }
+      body = parsed.data;
+    } else if (step !== 'review' && step !== 'code') {
       const draft = form.getValues();
       if (step === 'account') {
+        if (state.owner.hasPassword && !draft.account.password && !confirm) {
+          navigate(following(step));
+          return;
+        }
         if (draft.account.password.length < PASSWORD_MIN_LENGTH) {
           setError(t('tooShort', { min: PASSWORD_MIN_LENGTH }));
           return;
@@ -257,9 +260,9 @@ export function OnboardingWizard({ token }: { token: string }) {
     setPending(true);
     try {
       const response = await fetch(
-        `${endpoint}/${step === 'review' ? 'complete' : `steps/${step}`}`,
+        `${endpoint}/${resend || step === 'review' ? 'submit' : step === 'code' ? 'verify' : `steps/${step}`}`,
         {
-          method: step === 'review' ? 'POST' : 'PUT',
+          method: step === 'review' || step === 'code' ? 'POST' : 'PUT',
           headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         },
@@ -273,12 +276,8 @@ export function OnboardingWizard({ token }: { token: string }) {
           setDead(result.code === ONBOARDING_LINK_EXPIRED_CODE ? 'expired' : 'invalid');
           return;
         }
-        if (result.code === ONBOARDING_COMPLETED_CODE) {
-          setState({ ...state, status: 'COMPLETED' });
-          return;
-        }
-        if (result.code === ONBOARDING_ACCOUNT_ALREADY_SET_CODE) {
-          // Another device has set the password. Reload the authoritative values.
+        if (result.code === ONBOARDING_SUBMITTED_CODE) {
+          // Another tab may have submitted or the operator may have decided.
           const refreshed = await fetch(endpoint, {
             headers: browserTenantHeaders(),
             cache: 'no-store',
@@ -289,20 +288,25 @@ export function OnboardingWizard({ token }: { token: string }) {
           setStep(firstStep(next));
           return;
         }
-        if (result.code === ONBOARDING_ACCOUNT_REQUIRED_CODE) setStep('account');
+        if (result.code === ONBOARDING_ACCOUNT_REQUIRED_CODE) {
+          apply(state);
+          setStep('account');
+        }
+        if (result.code === ONBOARDING_CODE_INVALID_CODE) throw new Error(t('codeInvalid'));
+        if (result.code === ONBOARDING_CODE_EXPIRED_CODE) throw new Error(t('codeExpired'));
+        if (result.code === ONBOARDING_CODE_COOLDOWN_CODE) throw new Error(t('codeCooldown'));
         throw new Error(
           Array.isArray(result.message)
             ? result.message.join(' · ')
             : result.message || tAuth('genericError'),
         );
       }
-      if (step === 'review') {
-        router.replace(
-          `/login?email=${encodeURIComponent((result as CompleteGymOnboardingResponse).email)}&activated=1`,
-        );
+      const next = result as GymOnboardingState;
+      apply(next);
+      if (step === 'review' || step === 'code') {
+        setCode('');
+        setStep(firstStep(next));
       } else {
-        const next = result as GymOnboardingState;
-        apply(next);
         setStep(following(step, next));
       }
     } catch (err: unknown) {
@@ -317,10 +321,24 @@ export function OnboardingWizard({ token }: { token: string }) {
   if (!state)
     return error ? <Banner tone="error">{error}</Banner> : <p role="status">{t('loading')}</p>;
   if (state.status === 'EXPIRED') return <Banner tone="error">{t('expired')}</Banner>;
-  if (state.status === 'COMPLETED')
+  if (state.status === 'SUBMITTED')
     return (
       <div {...stylex.props(styles.stack)}>
-        <Banner tone="success">{t('finished')}</Banner>
+        <h3 {...stylex.props(styles.heading)}>{t('requestSent')}</h3>
+        <div {...stylex.props(styles.card)}>
+          <strong>{state.gym.name}</strong>
+          <span>
+            {state.gym.subdomainSlug}.{process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost'}
+          </span>
+        </div>
+        <p {...stylex.props(styles.muted)}>{t('requestSentHint', { email: state.owner.email })}</p>
+      </div>
+    );
+  if (state.status === 'REJECTED') return <Banner tone="info">{t('rejected')}</Banner>;
+  if (state.status === 'APPROVED')
+    return (
+      <div {...stylex.props(styles.stack)}>
+        <Banner tone="success">{t('approved')}</Banner>
         <Button
           label={t('signIn')}
           onClick={() => router.replace(`/login?email=${encodeURIComponent(state.owner.email)}`)}
@@ -328,13 +346,53 @@ export function OnboardingWizard({ token }: { token: string }) {
       </div>
     );
 
-  const screens: Screen[] = [...state.steps, 'review'];
+  if (step === 'code')
+    return (
+      <Form onSubmit={(event) => void submit(event)} noValidate>
+        <h3 {...stylex.props(styles.heading)}>{t('codeTitle')}</h3>
+        <p {...stylex.props(styles.muted)}>{t('codeHint', { email: state.owner.email })}</p>
+        {error && <Banner tone="error">{error}</Banner>}
+        <Field
+          label={t('codeLabel')}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          value={code}
+          onChange={(event) => setCode(event.target.value)}
+          disabled={pending}
+        />
+        <Button
+          type="submit"
+          variant="primary"
+          label={t('confirmCode')}
+          disabled={pending}
+          loading={pending}
+        />
+        <div {...stylex.props(styles.actions)}>
+          <Button
+            type="button"
+            variant="ghost"
+            label={
+              resendSeconds > 0 ? t('resendCountdown', { seconds: resendSeconds }) : t('resendCode')
+            }
+            disabled={pending || resendSeconds > 0}
+            onClick={() => void submit(undefined, true)}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            label={t('backToDetails')}
+            disabled={pending}
+            onClick={() => navigate('review')}
+          />
+        </div>
+      </Form>
+    );
+
+  const screens: Exclude<Screen, 'code'>[] = [...state.steps, 'review'];
   const index = screens.indexOf(step);
-  const previous = screens
-    .slice(0, index)
-    .filter((item) => item !== 'account' || !state.owner.hasPassword)
-    .at(-1);
-  const done = (item: Screen) =>
+  const previous = screens.slice(0, index).at(-1);
+  const done = (item: Exclude<Screen, 'code'>) =>
     item !== 'review' &&
     (state.completedSteps.includes(item) || (item === 'account' && state.owner.hasPassword));
   const text = (name: string, label: string, type: 'text' | 'email' | 'password' = 'text') => (
@@ -360,9 +418,7 @@ export function OnboardingWizard({ token }: { token: string }) {
                 <button
                   type="button"
                   aria-current={item === step ? 'step' : undefined}
-                  disabled={
-                    pending || position > index || (item === 'account' && state.owner.hasPassword)
-                  }
+                  disabled={pending || position > index}
                   onClick={() => navigate(item)}
                   {...stylex.props(styles.step, item === step && styles.current)}
                 >
@@ -379,6 +435,10 @@ export function OnboardingWizard({ token }: { token: string }) {
           {step === 'account' && (
             <>
               <Field label={t('ownerEmail')} value={state.owner.email} readOnly />
+              <p {...stylex.props(styles.muted)}>{t('ownerEmailHint')}</p>
+              {state.owner.hasPassword && (
+                <p {...stylex.props(styles.muted)}>{t('savedPasswordHint')}</p>
+              )}
               {text('account.ownerName', 'ownerName')}
               {text('account.password', 'password', 'password')}
               <Field
@@ -398,36 +458,6 @@ export function OnboardingWizard({ token }: { token: string }) {
               {text('business.phone', 'phone')}
               {text('business.email', 'email', 'email')}
               {text('business.website', 'website')}
-            </>
-          )}
-          {step === 'locale' && (
-            <>
-              <SelectField
-                disabled={pending}
-                name="locale.language"
-                label={t('language')}
-                options={SUPPORTED_LANGUAGES.map((value) => ({
-                  value,
-                  label: LANGUAGE_LABELS[value],
-                }))}
-              />
-              <SelectField
-                disabled={pending}
-                name="locale.currency"
-                label={t('currency')}
-                options={[...new Set(['GEL', 'USD', 'EUR', state.values.locale.currency])].map(
-                  (value) => ({ value, label: value }),
-                )}
-              />
-              <SelectField
-                disabled={pending}
-                name="locale.timezone"
-                label={t('timezone')}
-                options={zones(state.values.locale.timezone).map((value) => ({
-                  value,
-                  label: value,
-                }))}
-              />
             </>
           )}
           {step === 'brand' && (
@@ -510,14 +540,13 @@ export function OnboardingWizard({ token }: { token: string }) {
                 <section key={item} {...stylex.props(styles.card)}>
                   <div {...stylex.props(styles.row)}>
                     <strong>{t(`steps.${item}`)}</strong>
-                    {!(item === 'account' && state.owner.hasPassword) && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        label={t('edit')}
-                        onClick={() => navigate(item)}
-                      />
-                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      label={t('edit')}
+                      disabled={pending}
+                      onClick={() => navigate(item)}
+                    />
                   </div>
                   <span {...stylex.props(styles.muted)}>
                     {done(item) ? t('saved') : t('defaults')}
@@ -581,7 +610,7 @@ export function OnboardingWizard({ token }: { token: string }) {
           <Button
             type="submit"
             variant="primary"
-            label={step === 'review' ? t('finish') : t('continue')}
+            label={step === 'review' ? t('sendCode') : t('continue')}
             disabled={pending}
             loading={pending}
           />

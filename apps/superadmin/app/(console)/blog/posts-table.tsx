@@ -3,12 +3,15 @@
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
 import type { AdminBlogPost } from '@fit/types';
-import { Badge, DataTable, EmptyState, type Column } from '@fit/ui-kit';
+import { Badge, EmptyState, type Column } from '@fit/ui-kit';
 import { ButtonLink } from '@/components/button-link';
-import { VISIBILITY, formatWhen } from './shared';
+import { OpsTable } from '@/components/ops';
+import { PostStatus } from './post-status';
+import { formatWhen } from './shared';
 
 const styles = stylex.create({
   titleCell: {
+    minWidth: '16rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
@@ -69,9 +72,7 @@ const COLUMNS: ReadonlyArray<Column<AdminBlogPost>> = [
   {
     key: 'status',
     header: 'Status',
-    cell: (post) => (
-      <Badge label={VISIBILITY[post.visibility].label} tone={VISIBILITY[post.visibility].tone} />
-    ),
+    cell: (post) => <PostStatus visibility={post.visibility} />,
   },
   {
     key: 'category',
@@ -118,7 +119,7 @@ const COLUMNS: ReadonlyArray<Column<AdminBlogPost>> = [
 /** One page of posts. Filtering and paging are links resolved on the server. */
 export function PostsTable({ posts, filtered }: { posts: AdminBlogPost[]; filtered: boolean }) {
   return (
-    <DataTable
+    <OpsTable
       columns={COLUMNS}
       rows={posts}
       rowKey={(post) => post.id}

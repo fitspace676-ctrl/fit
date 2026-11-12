@@ -2,6 +2,7 @@ import { GymOnboardingService } from '../gym-onboarding/gym-onboarding.service';
 import { EmailService } from '../auth/email.service';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,16 +11,20 @@ import {
 import { GymStatus, Prisma, Role } from '@fit/db';
 import type {
   AdminGymDetail,
-  AdminGymOnboarding,
+  AdminOperator,
   AdminGymStaffMember,
-  CreateAdminGymInput,
-  CreateAdminGymResponse,
+  CreateAdminGymRequestInput,
+  AdminGymRequest,
+  ListAdminGymRequestsResponse,
+  ApproveAdminGymRequestResponse,
   ImpersonateResponse,
   ImpersonationExchangeResponse,
   ListAdminGymsResponse,
   StaffRole,
   UpdateGymStatusResponse,
 } from '@fit/types';
+import { gymSettingsStoredSchema } from '@fit/types';
+import { submitted } from '../gym-onboarding/gym-onboarding.service';
 import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -28,7 +33,9 @@ import { AuthService, generateVerificationToken } from '../auth/auth.service';
 
 /** Audit-log action keys written by the SuperAdmin console. */
 const AUDIT_GYM_CREATE = 'gym.create';
-const AUDIT_GYM_ONBOARDING_LINK = 'gym.onboarding-link.regenerate';
+const AUDIT_GYM_REQUEST_CREATE = 'gym-request.create';
+const AUDIT_GYM_REQUEST_LINK = 'gym-request.link.regenerate';
+const AUDIT_GYM_REQUEST_REJECT = 'gym-request.reject';
 const AUDIT_IMPERSONATE = 'gym.impersonate';
 const AUDIT_IMPERSONATE_START = 'gym.impersonate.start';
 const AUDIT_STATUS_UPDATE = 'gym.status.update';
@@ -82,6 +89,21 @@ export class SuperAdminService {
     private readonly onboarding: GymOnboardingService,
     private readonly email: EmailService,
   ) {}
+
+  /**
+   * The signed-in operator's own identity, for the console's chrome. `404` when
+   * the session's user row is gone — the token outlived the account.
+   */
+  async getOperator(userId: string): Promise<AdminOperator> {
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true },
+    });
+    if (!user) {
+      throw new NotFoundException({ message: 'Operator not found', code: 'USER_NOT_FOUND' });
+    }
+    return user;
+  }
 
   /**
    * List every gym, newest first, each with its platform status, membership
@@ -229,67 +251,259 @@ export class SuperAdminService {
           }
         : null,
       staff,
-      onboarding: await this.onboarding.getAdminState(gym.id),
     };
   }
 
-  /**
-   * Provision a gym on an owner's behalf, then record who did it.
-   *
-   * Provisioning reuses AuthService with its activation email disabled. The
-   * operator flow creates a revocable wizard link and sends that instead;
-   * self-signup keeps its existing activation email.
-   *
-   * The audit row is written AFTER provisioning, unlike impersonation's, which is
-   * written before. The orderings answer different risks: an impersonation must
-   * never mint a credential that is not on the record, while a gym that failed to
-   * provision must not leave a row claiming it exists.
-   */
-  async createGym(actorId: string, input: CreateAdminGymInput): Promise<CreateAdminGymResponse> {
-    this.onboarding.assertConfigured();
-    const created = await this.auth.registerGym(input, actorId, null, {
-      skipOnboardingEmail: true,
+  private conflict(code: 'SUBDOMAIN_TAKEN' | 'EMAIL_TAKEN'): ConflictException {
+    return new ConflictException({
+      message: code === 'SUBDOMAIN_TAKEN' ? 'Subdomain is already taken' : 'Email is already taken',
+      code,
     });
-    const onboarding = await this.onboarding.regenerate(created.gymId, actorId);
+  }
+
+  private async requestRow(id: string, db: Prisma.TransactionClient = this.prisma.client) {
+    const row = await db.gymOnboarding.findUnique({ where: { id } });
+    if (!row)
+      throw new NotFoundException({
+        message: 'Gym request not found',
+        code: 'GYM_REQUEST_NOT_FOUND',
+      });
+    return row;
+  }
+
+  private async lockRequest(id: string, db: Prisma.TransactionClient) {
+    await db.$queryRaw`SELECT "id" FROM "gym_onboardings" WHERE "id" = ${id} FOR UPDATE`;
+    return this.requestRow(id, db);
+  }
+
+  private async requestConflicts(db: Prisma.TransactionClient, slug: string, email: string) {
+    if (await db.gym.findUnique({ where: { slug }, select: { id: true } }))
+      throw this.conflict('SUBDOMAIN_TAKEN');
+    if (await db.user.findUnique({ where: { email }, select: { id: true } }))
+      throw this.conflict('EMAIL_TAKEN');
+  }
+
+  private uniqueConflict(error: unknown): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const uniqueTarget = error.meta?.target;
+      const target =
+        typeof uniqueTarget === 'string'
+          ? uniqueTarget
+          : Array.isArray(uniqueTarget)
+            ? uniqueTarget.filter((field): field is string => typeof field === 'string').join(',')
+            : '';
+      throw this.conflict(/email/i.test(target) ? 'EMAIL_TAKEN' : 'SUBDOMAIN_TAKEN');
+    }
+    throw error;
+  }
+
+  async createGymRequest(
+    actorId: string,
+    input: CreateAdminGymRequestInput,
+  ): Promise<AdminGymRequest> {
+    this.onboarding.assertConfigured();
+    let row;
+    try {
+      row = await this.prisma.client.$transaction(async (db) => {
+        // Serialize competing email/slug reservations, including stale-row replacement.
+        // Stable ordering prevents two requests with overlapping keys from deadlocking.
+        for (const key of [
+          `onboarding-email:${input.ownerEmail}`,
+          `onboarding-slug:${input.subdomainSlug}`,
+        ].sort()) {
+          await db.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`;
+        }
+        await this.requestConflicts(db, input.subdomainSlug, input.ownerEmail);
+        const matches = await db.gymOnboarding.findMany({
+          where: { OR: [{ subdomainSlug: input.subdomainSlug }, { ownerEmail: input.ownerEmail }] },
+          orderBy: { id: 'asc' },
+        });
+        for (const match of matches) {
+          const existing = await this.lockRequest(match.id, db);
+          const status = this.onboarding.status(existing);
+          if (status === 'REJECTED' || status === 'EXPIRED') {
+            await db.gymOnboarding.delete({ where: { id: existing.id } });
+          } else {
+            throw this.conflict(
+              existing.subdomainSlug === input.subdomainSlug ? 'SUBDOMAIN_TAKEN' : 'EMAIL_TAKEN',
+            );
+          }
+        }
+        const created = await db.gymOnboarding.create({
+          data: { ...input, ...this.onboarding.rotation(), createdByUserId: actorId },
+        });
+        await db.auditLog.create({
+          data: {
+            action: AUDIT_GYM_REQUEST_CREATE,
+            actorId,
+            targetId: created.id,
+            metadata: { subdomainSlug: input.subdomainSlug, ownerEmail: input.ownerEmail },
+          },
+        });
+        return created;
+      });
+    } catch (error) {
+      return this.uniqueConflict(error);
+    }
+    const request = this.onboarding.adminState(row);
     try {
       await this.email.sendOwnerLiveOnboardingEmail(
-        input.ownerEmail,
-        onboarding.token!,
-        input.gymName,
-        input.ownerName,
+        row.ownerEmail,
+        request.token!,
+        row.gymName,
+        row.ownerName ?? undefined,
         undefined,
-        input.subdomainSlug,
+        row.subdomainSlug,
       );
     } catch (error) {
       this.logger.error(
         `Failed to send owner onboarding email: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-
-    await this.prisma.client.auditLog.create({
-      data: {
-        action: AUDIT_GYM_CREATE,
-        actorId,
-        gymId: created.gymId,
-        targetId: created.ownerUserId,
-        metadata: { subdomainSlug: created.subdomainSlug, ownerEmail: input.ownerEmail },
-      },
-    });
-
-    return created;
+    return request;
   }
 
-  async regenerateOnboardingLink(actorId: string, gymId: string): Promise<AdminGymOnboarding> {
-    const onboarding = await this.onboarding.regenerate(gymId, actorId);
-    await this.prisma.client.auditLog.create({
-      data: {
-        action: AUDIT_GYM_ONBOARDING_LINK,
-        actorId,
-        gymId,
-        targetId: gymId,
-      },
+  async listGymRequests(): Promise<ListAdminGymRequestsResponse> {
+    const rows = await this.prisma.client.gymOnboarding.findMany({
+      orderBy: { createdAt: 'desc' },
     });
-    return onboarding;
+    return { requests: rows.map((row) => this.onboarding.summary(row)) };
+  }
+  async getGymRequest(id: string): Promise<AdminGymRequest> {
+    return this.onboarding.adminState(await this.requestRow(id));
+  }
+
+  async regenerateGymRequestLink(actorId: string, id: string): Promise<AdminGymRequest> {
+    return this.prisma.client.$transaction(async (db) => {
+      const row = await this.lockRequest(id, db);
+      if (this.onboarding.isSubmitted(row)) throw submitted();
+      const updated = await db.gymOnboarding.update({
+        where: { id },
+        data: this.onboarding.rotation(),
+      });
+      await db.auditLog.create({ data: { action: AUDIT_GYM_REQUEST_LINK, actorId, targetId: id } });
+      return this.onboarding.adminState(updated);
+    });
+  }
+
+  async approveGymRequest(actorId: string, id: string): Promise<ApproveAdminGymRequestResponse> {
+    let result;
+    try {
+      result = await this.prisma.client.$transaction(async (db) => {
+        const row = await this.lockRequest(id, db);
+        if (this.onboarding.status(row) !== 'SUBMITTED')
+          throw new ConflictException({
+            message: 'Request must be submitted first',
+            code: 'ONBOARDING_NOT_SUBMITTED',
+          });
+        await this.requestConflicts(db, row.subdomainSlug, row.ownerEmail);
+        if (!row.passwordHash)
+          throw new BadRequestException({
+            message: 'Owner password required',
+            code: 'ONBOARDING_ACCOUNT_REQUIRED',
+          });
+        const values = this.onboarding.state(row).values;
+        const { gymName, ...business } = values.business;
+        const defaults = gymSettingsStoredSchema.parse({});
+        const settings = gymSettingsStoredSchema.parse({
+          ...defaults,
+          business: { ...defaults.business, ...business },
+          brand: { ...defaults.brand, ...values.brand },
+          payments: { ...defaults.payments, ...values.payments },
+        });
+        const now = new Date();
+        const provisioned = await this.auth.provisionGym(
+          db,
+          {
+            gymName,
+            subdomainSlug: row.subdomainSlug,
+            ownerEmail: row.ownerEmail,
+            ownerName: row.ownerName ?? undefined,
+          },
+          {
+            passwordHash: row.passwordHash,
+            createdBy: actorId,
+            emailVerifiedAt: now,
+            settings: settings as unknown as Prisma.InputJsonValue,
+          },
+        );
+        const location = row.completedSteps.includes('location')
+          ? values.location
+          : { ...values.location, name: gymName };
+        await db.location.create({
+          data: {
+            ...location,
+            hours: location.hours,
+            gymId: provisioned.gymId,
+            isDefault: true,
+          },
+        });
+        await db.gymOnboarding.update({
+          where: { id },
+          data: {
+            gymId: provisioned.gymId,
+            approvedAt: now,
+            approvedByUserId: actorId,
+            completedAt: now,
+          },
+        });
+        await db.auditLog.create({
+          data: {
+            action: AUDIT_GYM_CREATE,
+            actorId,
+            gymId: provisioned.gymId,
+            targetId: provisioned.ownerId,
+            metadata: {
+              subdomainSlug: row.subdomainSlug,
+              ownerEmail: row.ownerEmail,
+              requestId: id,
+            },
+          },
+        });
+        return {
+          gymId: provisioned.gymId,
+          subdomainSlug: row.subdomainSlug,
+          email: row.ownerEmail,
+          gymName,
+        };
+      });
+    } catch (error) {
+      return this.uniqueConflict(error);
+    }
+    try {
+      await this.email.sendGymReadyEmail(result.email, result.gymName, result.subdomainSlug);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send gym ready email: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return { gymId: result.gymId, subdomainSlug: result.subdomainSlug };
+  }
+
+  async rejectGymRequest(actorId: string, id: string, reason?: string): Promise<AdminGymRequest> {
+    return this.prisma.client.$transaction(async (db) => {
+      const row = await this.lockRequest(id, db);
+      if (row.approvedAt || row.rejectedAt) throw submitted();
+      const updated = await db.gymOnboarding.update({
+        where: { id },
+        data: {
+          rejectedAt: new Date(),
+          rejectedByUserId: actorId,
+          rejectionReason: reason ?? null,
+          codeHash: null,
+          codeExpiresAt: null,
+        },
+      });
+      await db.auditLog.create({
+        data: {
+          action: AUDIT_GYM_REQUEST_REJECT,
+          actorId,
+          targetId: id,
+          metadata: { reason: reason ?? null },
+        },
+      });
+      return this.onboarding.adminState(updated);
+    });
   }
 
   /**

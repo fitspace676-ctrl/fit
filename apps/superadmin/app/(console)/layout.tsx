@@ -1,119 +1,53 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
-import * as stylex from '@stylexjs/stylex';
-import { Badge } from '@fit/ui-kit';
 import { SignOutButton } from '@/components/sign-out-button';
+import { OpsLogo } from '@/components/ops/logo';
+import { OpsNav } from '@/components/ops/nav';
+import { fetchOperator, fetchGymRequests } from '@/lib/api';
 
-/**
- * The signed-in console shell: a fixed rail on the left, the page beside it.
- *
- * Every route in this group renders inside it; `/login` and `/403` sit outside
- * the group precisely so they don't — a signed-out request has no console to
- * frame. `middleware.ts` has already authenticated the request and asserted
- * SUPER_ADMIN before anything here renders, so the shell never has to reason
- * about who it is drawing for.
- *
- * A rail rather than a top bar because its destinations are siblings — the gym
- * roster and the platform's trail — and a list that grows downward costs nothing
- * to extend. Gym detail hangs off the roster rather than appearing here.
- */
-const styles = stylex.create({
-  frame: {
-    display: 'grid',
-    gridTemplateColumns: '15rem 1fr',
-    minHeight: '100vh',
-    '@media (max-width: 48rem)': {
-      gridTemplateColumns: '1fr',
-    },
-  },
-  rail: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2rem',
-    borderRightWidth: '1px',
-    borderRightStyle: 'solid',
-    borderRightColor: 'var(--color-border)',
-    backgroundColor: 'var(--color-background-surface)',
-    paddingInline: '1.25rem',
-    paddingBlock: '1.5rem',
-    '@media (max-width: 48rem)': {
-      borderRightStyle: 'none',
-      borderBottomWidth: '1px',
-      borderBottomStyle: 'solid',
-      borderBottomColor: 'var(--color-border)',
-    },
-  },
-  brand: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  wordmark: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1rem',
-    fontWeight: 800,
-    letterSpacing: '-0.01em',
-    color: 'var(--color-text-primary)',
-  },
-  nav: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
-  navLink: {
-    borderRadius: 'var(--radius-element)',
-    paddingInline: '0.75rem',
-    paddingBlock: '0.5rem',
-    fontSize: '0.875rem',
-    fontWeight: 600,
-    color: 'var(--color-text-secondary)',
-    textDecoration: 'none',
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-overlay-hover)',
-    },
-  },
-  foot: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-    marginTop: 'auto',
-  },
-  content: {
-    minWidth: 0,
-    paddingInline: '2rem',
-    paddingBlock: '2rem',
-  },
-});
+/** Up to two initials: from a name's first two words, else an address's first letter. */
+function initials(label: string): string {
+  const words = label
+    .split('@')[0]!
+    .split(/[\s._-]+/)
+    .filter(Boolean);
+  return words
+    .slice(0, 2)
+    .map((word) => word[0]!.toUpperCase())
+    .join('');
+}
 
-export default function ConsoleLayout({ children }: { children: ReactNode }) {
+export default async function ConsoleLayout({ children }: { children: ReactNode }) {
+  // Who is signed in. Best-effort: the shell must still render (and offer Sign
+  // out) when this one read fails, so a failure simply leaves the card out.
+  const [operator, requests] = await Promise.all([
+    fetchOperator().catch(() => null),
+    fetchGymRequests().catch(() => null),
+  ]);
+  const pendingRequests =
+    requests?.requests.filter((request) => request.status === 'SUBMITTED').length ?? 0;
   return (
-    <div {...stylex.props(styles.frame)}>
-      <aside {...stylex.props(styles.rail)}>
-        <div {...stylex.props(styles.brand)}>
-          <p {...stylex.props(styles.wordmark)}>FormaCore</p>
-          <Badge label="Operator" tone="accent" />
-        </div>
-
-        <nav {...stylex.props(styles.nav)}>
-          <Link href="/" {...stylex.props(styles.navLink)}>
-            Gyms
-          </Link>
-          <Link href="/activity" {...stylex.props(styles.navLink)}>
-            Activity
-          </Link>
-          <Link href="/blog" {...stylex.props(styles.navLink)}>
-            Blog
-          </Link>
-        </nav>
-
-        <div {...stylex.props(styles.foot)}>
+    <div className="ops-shell">
+      <aside className="ops-rail">
+        <OpsLogo />
+        <OpsNav pendingRequests={pendingRequests} />
+        <div className="ops-rail-foot">
+          {operator ? (
+            <div className="ops-user">
+              <span className="ops-user-initials" aria-hidden="true">
+                {initials(operator.name ?? operator.email)}
+              </span>
+              <div>
+                <strong>{operator.name ?? 'Operator'}</strong>
+                <span title={operator.email}>{operator.email}</span>
+              </div>
+            </div>
+          ) : null}
           <SignOutButton />
         </div>
       </aside>
-
-      <main {...stylex.props(styles.content)}>{children}</main>
+      <main className="ops-content">
+        <div className="ops-content-inner">{children}</div>
+      </main>
     </div>
   );
 }

@@ -39,13 +39,15 @@ export default function GlobalError({
           gap: '0.75rem',
           padding: '2rem',
           textAlign: 'center',
-          backgroundColor: '#131312',
-          color: '#F7F7F6',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          backgroundColor: '#EEEEED',
+          color: '#131312',
+          fontFamily: '"Noto Sans Georgian", system-ui, -apple-system, sans-serif',
         }}
       >
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>Something went wrong</h1>
-        <p style={{ margin: 0, maxWidth: '28rem', fontSize: '0.875rem', color: '#BABAB7' }}>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800, color: '#16213E' }}>
+          Something went wrong
+        </h1>
+        <p style={{ margin: 0, maxWidth: '28rem', fontSize: '0.875rem', color: '#53534F' }}>
           The operator console failed to load. Please try again.
         </p>
         {reference ? (
@@ -56,10 +58,10 @@ export default function GlobalError({
           onClick={reset}
           style={{
             marginTop: '0.5rem',
-            border: '1px solid #3E3E3B',
-            borderRadius: '0.5rem',
-            background: 'transparent',
-            color: '#F7F7F6',
+            border: 0,
+            borderRadius: '14px',
+            background: '#2F7896',
+            color: '#FFFFFF',
             padding: '0.5rem 1rem',
             fontSize: '0.875rem',
             cursor: 'pointer',

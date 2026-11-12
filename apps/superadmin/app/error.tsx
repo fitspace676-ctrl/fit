@@ -3,8 +3,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { useEffect, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@fit/ui-kit';
+import { Button, Card } from '@fit/ui-kit';
 
 /**
  * Route-segment error boundary. Next.js renders this in place of the segment
@@ -37,7 +36,7 @@ const styles = stylex.create({
     fontFamily: 'var(--font-family-heading)',
     fontSize: '1.375rem',
     fontWeight: 800,
-    color: 'var(--color-text-primary)',
+    color: 'var(--ops-forma-950)',
   },
   body: {
     margin: 0,
@@ -78,7 +77,7 @@ export default function Error({
           Something went wrong in the operator console. Trying again often clears it.
         </p>
         {reference ? <p {...stylex.props(styles.reference)}>Reference: {reference}</p> : null}
-        <Button type="button" variant="primary" size="sm" label="Try again" onClick={reset} />
+        <Button type="button" variant="primary" size="card" label="Try again" onClick={reset} />
       </Card>
     </main>
   );

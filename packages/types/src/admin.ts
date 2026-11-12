@@ -1,4 +1,4 @@
-import type { AdminGymOnboarding } from './gym-onboarding';
+import type { GymOnboardingState, GymOnboardingStep, GymOnboardingStatus } from './gym-onboarding';
 // @fit/types — SuperAdmin platform console contracts (T2.12).
 //
 // Cross-tenant operator endpoints under `/admin/gyms`, reachable only by a
@@ -8,7 +8,7 @@ import type { AdminGymOnboarding } from './gym-onboarding';
 // drifts between the operator UI and the backend.
 
 import { z } from 'zod';
-import { registerGymSchema, type RegisterGymResponse } from './gyms';
+import { gymSlugSchema } from './gyms';
 import type { StaffRole, StaffStatus } from './staff';
 
 /**
@@ -19,6 +19,17 @@ import type { StaffRole, StaffStatus } from './staff';
 export const gymStatusSchema = z.enum(['ACTIVE', 'SUSPENDED']);
 
 export type GymStatus = z.infer<typeof gymStatusSchema>;
+
+/**
+ * Successful `GET /admin/me` response — the signed-in operator, for the console's
+ * own chrome. A SUPER_ADMIN session carries no gym, so the tenant-scoped
+ * `/me/profile` cannot answer for one.
+ */
+export interface AdminOperator {
+  id: string;
+  email: string;
+  name: string | null;
+}
 
 /**
  * A single gym as listed by `GET /admin/gyms` for the operator console.
@@ -67,7 +78,6 @@ export interface ListAdminGymsResponse {
  * and who else can get in (`staff`).
  */
 export interface AdminGymDetail extends AdminGymSummary {
-  onboarding: AdminGymOnboarding | null;
   /** The owner, with the onboarding state the summary omits. */
   owner: AdminGymOwner | null;
   /** Memberships holding a staff role — everyone who can reach the console. */
@@ -99,26 +109,6 @@ export interface AdminGymStaffMember {
   /** ISO-8601. */
   joinedAt: string;
 }
-
-/**
- * Body for `POST /admin/gyms` — provision a gym on an owner's behalf.
- *
- * Deliberately the SAME shape as `registerGymSchema`, the self-signup body, and
- * served by the same provisioning code: a gym an operator creates and a gym an
- * owner creates must not be able to differ, or the platform would grow two
- * kinds of tenant. The one difference is recorded rather than structural — the
- * gym's `createdByUserId` names the operator, while `ownerId` names the owner.
- */
-export const createAdminGymSchema = registerGymSchema;
-
-export type CreateAdminGymInput = z.infer<typeof createAdminGymSchema>;
-
-/**
- * Successful `POST /admin/gyms` response (`201`). No session is issued: the
- * owner finishes onboarding through the emailed link, exactly as they would have
- * on self-signup.
- */
-export type CreateAdminGymResponse = RegisterGymResponse;
 
 /**
  * Body for `PATCH /admin/gyms/:id/status`. The only mutable field is the gym's
@@ -189,4 +179,50 @@ export interface ImpersonationExchangeResponse {
   };
   /** The owner being impersonated — what the console's banner names. */
   ownerEmail: string;
+}
+
+export const createAdminGymRequestSchema = z
+  .object({
+    gymName: z.string().trim().min(1).max(100),
+    subdomainSlug: gymSlugSchema,
+    ownerEmail: z.string().trim().toLowerCase().email(),
+    ownerName: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict();
+export type CreateAdminGymRequestInput = z.infer<typeof createAdminGymRequestSchema>;
+export interface AdminGymRequestSummary {
+  id: string;
+  gymName: string;
+  subdomainSlug: string;
+  ownerEmail: string;
+  ownerName: string | null;
+  status: GymOnboardingStatus;
+  completedSteps: number;
+  totalSteps: number;
+  createdAt: string;
+  expiresAt: string;
+  submittedAt: string | null;
+  decidedAt: string | null;
+  gymId: string | null;
+}
+export interface AdminGymRequest extends AdminGymRequestSummary {
+  token: string | null;
+  steps: GymOnboardingStep[];
+  completedStepKeys: GymOnboardingStep[];
+  values: GymOnboardingState['values'];
+  startedAt: string | null;
+  codeSentAt: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+}
+export interface ListAdminGymRequestsResponse {
+  requests: AdminGymRequestSummary[];
+}
+export const rejectAdminGymRequestSchema = z
+  .object({ reason: z.string().trim().max(500).optional() })
+  .strict();
+export interface ApproveAdminGymRequestResponse {
+  gymId: string;
+  subdomainSlug: string;
 }
