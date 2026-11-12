@@ -176,22 +176,45 @@ test.describe('A new gym, from provisioning to its first member', () => {
     expect(created.subdomainSlug).toBe(SLUG);
     gymId = created.gymId;
 
-    activationLink = await mailedLink(owner.email, '/admin/activate');
-    expect(activationLink.origin, 'the activation link names the new gym').toBe(
+    // An operator-provisioned gym is mailed its onboarding link — the step-by-step
+    // setup whose first step sets the password — rather than the bare `/activate`.
+    activationLink = await mailedLink(owner.email, '/admin/onboarding/');
+    expect(activationLink.origin, 'the onboarding link names the new gym').toBe(
       `http://${tenantHost(SLUG)}`,
     );
-    expect(activationLink.searchParams.get('token')).toBeTruthy();
+    expect(activationLink.pathname.split('/').pop(), 'the link carries its token').toBeTruthy();
   });
 
-  test('the owner activates, signs in, and lands in a console branded with their gym', async () => {
+  test('the owner walks the onboarding link, signs in, and lands in a console branded with their gym', async () => {
     const page = await ownerContext.newPage();
 
     await page.goto(onDevPort(activationLink));
-    await page.locator('input[name="password"]').fill(owner.password);
-    await page.locator('input[name="confirmPassword"]').fill(owner.password);
-    await page.locator('form button[type="submit"]').click();
+    // Step 1 of the wizard: the password and its confirmation.
+    const passwords = page.locator('form input[type="password"]');
+    await expect(passwords).toHaveCount(2, { timeout: 60_000 });
+    await passwords.nth(0).fill(owner.password);
+    await passwords.nth(1).fill(owner.password);
 
-    // Activation issues no session: it hands over to this host's console sign-in,
+    // Then every remaining step as offered (each saves the gym's current values),
+    // and the review's Finish. Each screen has one submit button and its own
+    // heading, so "the heading changed" is the step having been accepted — read
+    // structurally, because the wizard's copy follows the gym's language.
+    const heading = page.locator('form h3');
+    for (let screen = 0; screen < 7; screen += 1) {
+      if (new URL(page.url()).pathname === '/admin/login') break;
+      const before = await heading.textContent();
+      await page.locator('form button[type="submit"]').click();
+      await expect
+        .poll(
+          async () =>
+            new URL(page.url()).pathname === '/admin/login' ||
+            (await heading.textContent().catch(() => null)) !== before,
+          { timeout: 60_000 },
+        )
+        .toBe(true);
+    }
+
+    // Onboarding issues no session: it hands over to this host's console sign-in,
     // with the address filled in.
     await page.waitForURL(
       (url) => url.pathname === '/admin/login' && url.searchParams.get('activated') === '1',
