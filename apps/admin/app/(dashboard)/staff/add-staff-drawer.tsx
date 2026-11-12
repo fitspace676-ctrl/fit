@@ -1,6 +1,7 @@
 'use client';
 
 import { type FormEvent, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { CreateStaffInput } from '@fit/types';
@@ -102,7 +103,7 @@ const styles = stylex.create({
  * details, assigned locations and a weekly shift schedule are optional. On success
  * the page revalidates so the new member joins the roster.
  *
- * It does not offer the TRAINER role. A coach created here would be a stub - this
+ * Picking TRAINER here does not create one: it leaves for /trainers/new. A coach created here would be a stub - this
  * form has no photo, headline, bio, specialties or availability field, so
  * `POST /staff` writes a `Trainer` row carrying nothing but a name that someone
  * then has to go finish on the Trainers screen. Two doors to one record, each
@@ -128,6 +129,7 @@ export function AddStaffDrawer({
   canAssignOwner: boolean;
 }) {
   const t = useTranslations('admin.staff');
+  const router = useRouter();
   // A new staff member starts rostered at the branch the console is scoped to, and
   // their week's shifts start staffing it — the roadmap's "create forms inherit the
   // active branch". The chips stay editable, because the assignment is a set and a
@@ -139,6 +141,12 @@ export function AddStaffDrawer({
   const [error, setError] = useState<string | null>(null);
 
   function patch(next: Partial<StaffFormValue>): void {
+    if (next.role === 'TRAINER') {
+      // Coaches get the full Trainers form; see the component doc above.
+      close();
+      router.push('/trainers/new');
+      return;
+    }
     setForm((prev) => ({ ...prev, ...next }));
   }
 
@@ -233,9 +241,7 @@ export function AddStaffDrawer({
           onChange={patch}
           locations={locations}
           pending={pending}
-          roleOptions={STAFF_ROLES.filter(
-            (role) => role !== 'TRAINER' && (role !== 'OWNER' || canAssignOwner),
-          )}
+          roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
         />
 
         {error ? (
