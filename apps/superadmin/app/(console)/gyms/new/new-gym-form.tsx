@@ -135,8 +135,8 @@ export function NewGymForm({ rootDomain }: { rootDomain: string | null }) {
           isDisabled={pending}
         />
         <p {...stylex.props(styles.hint)}>
-          A brand-new account is created for this address and emailed an onboarding link. An address
-          that already has an account is refused rather than quietly made an owner.
+          The owner is emailed an onboarding link. The same link appears on the next screen, ready
+          to copy and send by hand.
         </p>
       </div>
 

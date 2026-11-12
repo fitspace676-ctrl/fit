@@ -408,6 +408,7 @@ enum ServiceSessionStatus {
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
+  onboarding GymOnboarding?
   id              String    @id @default(cuid())
   name            String
   slug            String    @unique
@@ -4191,4 +4192,21 @@ model AgentChatSession {
 
   @@index([gymId, userId, updatedAt])
   @@map("agent_chat_sessions")
+}
+
+/// A revocable bearer link for configuring a newly provisioned gym.
+model GymOnboarding {
+  id              String   @id @default(cuid())
+  gymId           String   @unique
+  nonce           String
+  completedSteps  String[] @default([])
+  startedAt       DateTime?
+  completedAt     DateTime?
+  expiresAt       DateTime
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  gym             Gym      @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@map("gym_onboardings")
 }

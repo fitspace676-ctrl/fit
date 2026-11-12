@@ -4,9 +4,10 @@ import { notFound } from 'next/navigation';
 import * as stylex from '@stylexjs/stylex';
 import { Badge, Banner, Card, EmptyState } from '@fit/ui-kit';
 import { ApiError, fetchGym } from '@/lib/api';
-import { tenantAdminUrl, tenantPortalUrl } from '@/lib/tenant-url';
+import { tenantAdminUrl, tenantOnboardingUrl, tenantPortalUrl } from '@/lib/tenant-url';
 import { GymHeaderActions } from './gym-header';
 import { StaffTable } from './staff-table';
+import { OnboardingCard } from './onboarding-card';
 
 export const metadata: Metadata = {
   title: 'Gym | FormaCore SuperAdmin',
@@ -243,6 +244,35 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
             />
           )}
         </Card>
+      </section>
+
+      <section {...stylex.props(styles.section)}>
+        <h2 {...stylex.props(styles.sectionTitle)}>Onboarding</h2>
+        <OnboardingCard
+          key={gym.onboarding?.token ?? gym.onboarding?.status ?? 'none'}
+          gymId={gym.id}
+          slug={gym.subdomainSlug}
+          onboarding={gym.onboarding}
+          url={
+            gym.onboarding?.token
+              ? tenantOnboardingUrl(gym.subdomainSlug, gym.onboarding.token)
+              : null
+          }
+        >
+          {gym.onboarding ? (
+            <div {...stylex.props(styles.facts)}>
+              {gym.onboarding.status !== 'COMPLETED' ? (
+                <Fact label="Expires" value={formatDate(gym.onboarding.expiresAt)} numeric />
+              ) : null}
+              {gym.onboarding.startedAt && gym.onboarding.status !== 'COMPLETED' ? (
+                <Fact label="Started" value={formatDate(gym.onboarding.startedAt)} numeric />
+              ) : null}
+              {gym.onboarding.completedAt ? (
+                <Fact label="Completed" value={formatDate(gym.onboarding.completedAt)} numeric />
+              ) : null}
+            </div>
+          ) : null}
+        </OnboardingCard>
       </section>
 
       <section {...stylex.props(styles.section)}>

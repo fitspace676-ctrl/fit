@@ -16,6 +16,7 @@ import {
   createAdminGymSchema,
   updateGymStatusSchema,
   type AdminGymDetail,
+  type AdminGymOnboarding,
   type CreateAdminGymResponse,
   type ImpersonateResponse,
   type ListAdminGymsResponse,
@@ -77,6 +78,13 @@ export class SuperAdminController {
   @AllowCrossTenant()
   async detail(@Param('id') id: string): Promise<AdminGymDetail> {
     return this.superadmin.getGym(id);
+  }
+
+  @Post(':id/onboarding-link')
+  @HttpCode(HttpStatus.OK)
+  @AllowCrossTenant()
+  async onboardingLink(@Param('id') id: string): Promise<AdminGymOnboarding> {
+    return this.superadmin.regenerateOnboardingLink(this.actorId(), id);
   }
 
   /** `PATCH /admin/gyms/:id/status` — suspend or reactivate a gym. */

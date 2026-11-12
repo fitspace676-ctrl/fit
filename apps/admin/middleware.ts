@@ -94,7 +94,7 @@ const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '/admin';
  * be in. `/impersonation/exit` is public for the mirror-image reason — it must
  * still work when the impersonated token it is clearing has already expired.
  */
-const PUBLIC_PATHS = ['/login', '/activate', '/403', '/impersonation'];
+const PUBLIC_PATHS = ['/login', '/activate', '/onboarding', '/403', '/impersonation'];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));

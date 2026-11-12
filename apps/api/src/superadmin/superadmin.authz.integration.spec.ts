@@ -42,6 +42,7 @@ describe('SuperAdmin authorization (integration)', () => {
         ],
       }),
     setGymStatus: (_actor: string, id: string) => Promise.resolve({ id, status: 'SUSPENDED' }),
+    regenerateOnboardingLink: () => Promise.resolve({ token: 'id.signature' }),
     impersonate: () => Promise.resolve({ handoffCode: 'handoff-code', expiresInSeconds: 60 }),
   };
 
@@ -79,6 +80,16 @@ describe('SuperAdmin authorization (integration)', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('allows only SUPER_ADMIN to regenerate an onboarding link', async () => {
+    for (const role of [Role.SUPER_ADMIN, Role.OWNER, Role.MEMBER]) {
+      const res = await fetch(`${baseUrl}/admin/gyms/gym-1/onboarding-link`, {
+        method: 'POST',
+        headers: { 'x-test-role': role, 'x-test-user': 'user-1' },
+      });
+      expect(res.status).toBe(role === Role.SUPER_ADMIN ? 200 : 403);
+    }
   });
 
   it('lets a SUPER_ADMIN list every gym', async () => {

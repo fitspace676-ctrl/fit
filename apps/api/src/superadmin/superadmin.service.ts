@@ -1,12 +1,16 @@
+import { GymOnboardingService } from '../gym-onboarding/gym-onboarding.service';
+import { EmailService } from '../auth/email.service';
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { GymStatus, Prisma, Role } from '@fit/db';
 import type {
   AdminGymDetail,
+  AdminGymOnboarding,
   AdminGymStaffMember,
   CreateAdminGymInput,
   CreateAdminGymResponse,
@@ -24,6 +28,7 @@ import { AuthService, generateVerificationToken } from '../auth/auth.service';
 
 /** Audit-log action keys written by the SuperAdmin console. */
 const AUDIT_GYM_CREATE = 'gym.create';
+const AUDIT_GYM_ONBOARDING_LINK = 'gym.onboarding-link.regenerate';
 const AUDIT_IMPERSONATE = 'gym.impersonate';
 const AUDIT_IMPERSONATE_START = 'gym.impersonate.start';
 const AUDIT_STATUS_UPDATE = 'gym.status.update';
@@ -68,11 +73,14 @@ interface HandoffGrant {
  */
 @Injectable()
 export class SuperAdminService {
+  private readonly logger = new Logger(SuperAdminService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly redis: RedisService,
     private readonly auth: AuthService,
+    private readonly onboarding: GymOnboardingService,
+    private readonly email: EmailService,
   ) {}
 
   /**
@@ -221,18 +229,16 @@ export class SuperAdminService {
           }
         : null,
       staff,
+      onboarding: await this.onboarding.getAdminState(gym.id),
     };
   }
 
   /**
    * Provision a gym on an owner's behalf, then record who did it.
    *
-   * The provisioning itself is {@link AuthService.registerGym} — the SAME call
-   * the marketing site's self-signup makes, given the operator's id as the
-   * creator. Nothing about the resulting tenant differs, and nothing here
-   * re-implements the transaction, the `409` mapping, or the onboarding email;
-   * the owner receives exactly the email they would have received had they signed
-   * up themselves, and finishes onboarding through it.
+   * Provisioning reuses AuthService with its activation email disabled. The
+   * operator flow creates a revocable wizard link and sends that instead;
+   * self-signup keeps its existing activation email.
    *
    * The audit row is written AFTER provisioning, unlike impersonation's, which is
    * written before. The orderings answer different risks: an impersonation must
@@ -240,7 +246,25 @@ export class SuperAdminService {
    * provision must not leave a row claiming it exists.
    */
   async createGym(actorId: string, input: CreateAdminGymInput): Promise<CreateAdminGymResponse> {
-    const created = await this.auth.registerGym(input, actorId);
+    this.onboarding.assertConfigured();
+    const created = await this.auth.registerGym(input, actorId, null, {
+      skipOnboardingEmail: true,
+    });
+    const onboarding = await this.onboarding.regenerate(created.gymId, actorId);
+    try {
+      await this.email.sendOwnerLiveOnboardingEmail(
+        input.ownerEmail,
+        onboarding.token!,
+        input.gymName,
+        input.ownerName,
+        undefined,
+        input.subdomainSlug,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send owner onboarding email: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     await this.prisma.client.auditLog.create({
       data: {
@@ -253,6 +277,19 @@ export class SuperAdminService {
     });
 
     return created;
+  }
+
+  async regenerateOnboardingLink(actorId: string, gymId: string): Promise<AdminGymOnboarding> {
+    const onboarding = await this.onboarding.regenerate(gymId, actorId);
+    await this.prisma.client.auditLog.create({
+      data: {
+        action: AUDIT_GYM_ONBOARDING_LINK,
+        actorId,
+        gymId,
+        targetId: gymId,
+      },
+    });
+    return onboarding;
   }
 
   /**

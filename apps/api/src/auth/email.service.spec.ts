@@ -15,6 +15,7 @@ import {
   buildReportDigestEmail,
   buildVerificationUrl,
   buildOwnerOnboardingUrl,
+  buildOwnerLiveOnboardingUrl,
   buildPasswordResetUrl,
   buildVerificationEmail,
   buildPasswordResetEmail,
@@ -249,6 +250,22 @@ describe('EmailService.sendOwnerOnboardingEmail', () => {
     await service.sendOwnerOnboardingEmail('owner@example.com', 'tok123', 'Downtown', 'Olivia');
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends the live wizard link for operator-provisioned owners', async () => {
+    configure({ RESEND_API_KEY: 're_123', PLATFORM_ROOT_DOMAIN: 'formacore.io' });
+    const service = new EmailService();
+    await service.sendOwnerLiveOnboardingEmail(
+      'owner@example.com',
+      'id.signature',
+      'Downtown',
+      'Olivia',
+      'en',
+      'downtown',
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string) as { html: string };
+    expect(body.html).toContain('https://downtown.formacore.io/admin/onboarding/id.signature');
+    expect(body.html).not.toContain('/activate');
   });
 
   it('POSTs to Resend with a gym-framed subject, recipient, and the console activate link', async () => {
@@ -491,6 +508,27 @@ describe('buildVerificationUrl', () => {
   it('keeps the explicit EMAIL_VERIFICATION_URL for a slug with no root domain to host it', () => {
     configure({ EMAIL_VERIFICATION_URL: 'https://m.fit/verify', PLATFORM_ROOT_DOMAIN: '' });
     expect(buildVerificationUrl('abc', 'downtown')).toBe('https://m.fit/verify?token=abc');
+  });
+});
+
+describe('buildOwnerLiveOnboardingUrl', () => {
+  afterEach(() => configure());
+
+  it('uses the gym console wizard even when the old activation URL is configured', () => {
+    configure({
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+      OWNER_ONBOARDING_URL: 'https://old.example/activate',
+    });
+    expect(buildOwnerLiveOnboardingUrl('id.signature', 'downtown')).toBe(
+      'https://downtown.formacore.io/admin/onboarding/id.signature',
+    );
+  });
+
+  it('encodes the token on the console fallback', () => {
+    configure({ ADMIN_URL: 'https://console.example' });
+    expect(buildOwnerLiveOnboardingUrl('a b+c')).toBe(
+      'https://console.example/admin/onboarding/a%20b%2Bc',
+    );
   });
 });
 

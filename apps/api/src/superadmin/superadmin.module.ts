@@ -1,3 +1,4 @@
+import { GymOnboardingModule } from '../gym-onboarding/gym-onboarding.module';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
@@ -26,7 +27,7 @@ import { SuperAdminService } from './superadmin.service';
  * explicit import.
  */
 @Module({
-  imports: [AuthModule, AuditModule],
+  imports: [AuthModule, AuditModule, GymOnboardingModule],
   controllers: [SuperAdminController, AdminAuditController, ImpersonationController],
   providers: [SuperAdminService],
 })

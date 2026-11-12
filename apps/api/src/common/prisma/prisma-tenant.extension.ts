@@ -105,6 +105,7 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   // exactly like `registerGym` always has; listed for the gym-scoped handlers
   // (the members console's name/phone edit) that write them from inside a request.
   'GymCredential',
+  'GymOnboarding',
   // The member's own record and the staff-authored detail hanging off it. The
   // goals are the member's to edit from the portal; the notes and tasks are the
   // gym's about them. All three are keyed on `memberId` by their callers, which

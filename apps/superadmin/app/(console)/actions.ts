@@ -1,9 +1,20 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createAdminGymSchema, type CreateAdminGymInput, type GymStatus } from '@fit/types';
+import {
+  createAdminGymSchema,
+  type AdminGymOnboarding,
+  type CreateAdminGymInput,
+  type GymStatus,
+} from '@fit/types';
 import { requireOperator } from '@/lib/operator';
-import { ApiError, createGym, impersonateGym, setGymStatus } from '@/lib/api';
+import {
+  ApiError,
+  createGym,
+  createGymOnboardingLink,
+  impersonateGym,
+  setGymStatus,
+} from '@/lib/api';
 import { tenantAdminUrl } from '@/lib/tenant-url';
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
@@ -109,6 +120,22 @@ export async function createGymAction(
     const { gymId } = await createGym(parsed.data);
     revalidatePath('/');
     return { ok: true, data: { gymId } };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
+}
+
+/** Create or replace the onboarding link and refresh its progress on the detail page. */
+export async function createOnboardingLinkAction(
+  gymId: string,
+): Promise<ActionResult<AdminGymOnboarding>> {
+  if (!(await requireOperator())) {
+    return { ok: false, error: 'Not authorized' };
+  }
+  try {
+    const onboarding = await createGymOnboardingLink(gymId);
+    revalidatePath(`/gyms/${gymId}`);
+    return { ok: true, data: onboarding };
   } catch (error) {
     return { ok: false, error: toMessage(error) };
   }

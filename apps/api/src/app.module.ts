@@ -1,3 +1,4 @@
+import { GymOnboardingModule } from './gym-onboarding/gym-onboarding.module';
 import { Module, type MiddlewareConsumer, type NestModule, RequestMethod } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -166,6 +167,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     HealthModule,
     StorageModule,
     AuthModule,
+    GymOnboardingModule,
     ClassesModule,
     TrainersModule,
     LocationsModule,
@@ -258,6 +260,7 @@ export class AppModule implements NestModule {
       .apply(TenantMiddleware)
       .exclude(
         { path: 'auth/(.*)', method: RequestMethod.ALL },
+        { path: 'gym-onboarding/(.*)', method: RequestMethod.ALL },
         { path: 'health', method: RequestMethod.ALL },
         { path: 'docs', method: RequestMethod.GET },
         { path: 'docs/(.*)', method: RequestMethod.GET },
