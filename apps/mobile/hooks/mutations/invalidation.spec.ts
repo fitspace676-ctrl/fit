@@ -22,10 +22,7 @@ import {
   unfreezeSubscriptionMutationOptions,
 } from './useSubscriptionMutations';
 import { purchaseCreditPackMutationOptions } from './useCreditPackMutations';
-import {
-  replaceMyGoalsMutationOptions,
-  updateMyProfileMutationOptions,
-} from './useAccountMutations';
+import { updateMyProfileMutationOptions } from './useAccountMutations';
 import { createReviewMutationOptions } from './useReviewMutations';
 import { bookServiceSessionMutationOptions } from './useServiceSessionMutations';
 import {
@@ -132,7 +129,6 @@ const CASES: readonly Case[] = [
     build: updateMyProfileMutationOptions,
     result: { profile: { userId: 'u_1', name: 'A', email: 'a@b.test', phone: null } },
   },
-  { name: 'replaceMyGoals', build: replaceMyGoalsMutationOptions, result: { goals: [] } },
   { name: 'createReview', build: createReviewMutationOptions },
   { name: 'bookServiceSession', build: bookServiceSessionMutationOptions },
   { name: 'markNotificationsRead', build: markNotificationsReadMutationOptions },

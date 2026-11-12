@@ -50,8 +50,7 @@
 // still save a phone number with the name field left empty, because in that
 // case the empty field asks for nothing and the patch simply omits `name`.
 //
-// Pure, and therefore testable without a renderer — the same reason
-// `components/goals/goal-editor.ts` is a module rather than a hook.
+// Pure, and therefore testable without a renderer.
 
 import type { MeProfile, UpdateMeProfileInput } from '@fit/types';
 import { ApiError } from '../../lib/http/api-error';
@@ -88,9 +87,8 @@ export interface ProfileDraftErrors {
 /**
  * Which field the server would refuse, and for which reason.
  *
- * Answers the question the MEMBER has, not the one the Save button has — see
- * `goal-editor.ts`'s `draftErrors` for the same split and the same reason: a
- * disabled button swallows its own press and can never say why.
+ * Explains invalid fields when Save is pressed. A disabled button cannot
+ * explain why the draft is invalid.
  */
 export function draftErrors(
   draft: ProfileDraft,

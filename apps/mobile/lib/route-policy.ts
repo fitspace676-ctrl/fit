@@ -165,7 +165,6 @@ export const ROUTE_POLICY: Readonly<Record<string, RoutePolicy>> = {
   bookings: 'auth',
   membership: 'auth',
   billing: 'auth',
-  goals: 'auth',
   notifications: 'auth',
   settings: 'auth',
   profile: 'auth',

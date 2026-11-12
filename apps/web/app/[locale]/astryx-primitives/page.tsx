@@ -150,7 +150,7 @@ export default function AstryxPrimitivesPage() {
       <Section title="Progress & Dot">
         <div className="flex max-w-md flex-col gap-3">
           <Progress value={28} label="Onboarding" />
-          <Progress value={64} tone="bg-success-500" label="Goal" />
+          <Progress value={64} tone="bg-success-500" label="Progress" />
           <Progress value={92} tone="bg-warning-500" label="Storage" />
           <div className="flex items-center gap-4 text-sm">
             <span className="inline-flex items-center gap-1.5">

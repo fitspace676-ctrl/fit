@@ -22,7 +22,7 @@ import {
   membershipQueryOptions,
   packCatalogueQueryOptions,
 } from './useMembership';
-import { myGoalsQueryOptions, myProfileQueryOptions } from './useAccount';
+import { myProfileQueryOptions } from './useAccount';
 import {
   trainerQueryOptions,
   trainerReviewsQueryOptions,
@@ -99,7 +99,6 @@ const CASES: readonly Case[] = [
   { name: 'credit packs', build: creditPacksQueryOptions, url: '/members/me/credit-packs' },
   { name: 'pack catalogue', build: packCatalogueQueryOptions, url: '/credit-packs/catalogue' },
   { name: 'profile', build: myProfileQueryOptions, url: '/me/profile' },
-  { name: 'goals', build: myGoalsQueryOptions, url: '/me/goals' },
   { name: 'trainers', build: trainersQueryOptions, url: `/trainers?gymId=${GYM}` },
   {
     name: 'trainer detail',

@@ -108,7 +108,6 @@ const mockGetMySubscription = jest.fn();
 jest.mock('../../lib/api/me', () => ({
   getMyProfile: () => mockGetMyProfile() as unknown,
   getMySubscription: () => mockGetMySubscription() as unknown,
-  getMyGoals: () => Promise.resolve({ goals: [] }),
 }));
 
 const mockListMyBookings = jest.fn();

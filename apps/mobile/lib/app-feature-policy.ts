@@ -15,8 +15,7 @@ export function appFeaturesForPath(path: string): MobileAppFeature[] {
       child === 'membership' ||
       child === 'billing' ||
       child === 'bookings' ||
-      child === 'activity' ||
-      child === 'goals'
+      child === 'activity'
     )
       return [child];
     return [];

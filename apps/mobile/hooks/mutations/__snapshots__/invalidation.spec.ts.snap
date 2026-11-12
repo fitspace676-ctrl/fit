@@ -15,7 +15,6 @@ checkoutCart: cart, products, myOrders
 checkoutCartPriceChanged: cart
 checkoutCartOutOfStock: cart, products
 updateMyProfile: profile
-replaceMyGoals: goals
 createReview: trainers
 bookServiceSession: myServiceSessions, serviceSlots, membership
 markNotificationsRead: notifications

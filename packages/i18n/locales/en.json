@@ -90,7 +90,6 @@
         "billing": "Payments",
         "bookings": "My bookings",
         "activity": "Activity",
-        "goals": "Goals",
         "notifications": "Notifications"
       },
       "hints": {
@@ -103,7 +102,6 @@
         "billing": "Payment history and checkout.",
         "bookings": "Upcoming bookings and history.",
         "activity": "Visit and training activity.",
-        "goals": "Personal training goals.",
         "notifications": "Inbox and notification preferences."
       },
       "illustrations": {
@@ -116,7 +114,6 @@
         "billing": "A bank card in front of a payment receipt",
         "bookings": "A calendar with a checked date and a clock",
         "activity": "A smartwatch showing an activity chart beside a running shoe",
-        "goals": "An arrow in the centre of a target beside a rising chart and a flag",
         "notifications": "A ringing bell with a new-notification dot"
       },
       "color": {
@@ -4853,24 +4850,6 @@
       "eyebrow": "Checkout",
       "subtitle": "Review what you are collecting, then place the order.",
       "payment": "Payment"
-    },
-    "goals": {
-      "title": "Your goals",
-      "edit": "Edit",
-      "add": "Add goal",
-      "addFirst": "Add a goal",
-      "save": "Save",
-      "saving": "Saving…",
-      "cancel": "Cancel",
-      "remove": "Remove",
-      "empty": "No goals yet. Set a target to track your progress.",
-      "saved": "Goals saved",
-      "error": "Couldn't save goals",
-      "signIn": "Please sign in",
-      "labelPh": "Goal (e.g. Workouts / week)",
-      "unitPh": "unit",
-      "current": "Current",
-      "target": "Target"
     },
     "reviews": {
       "rate": "Rate this class",

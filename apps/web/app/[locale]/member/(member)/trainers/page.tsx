@@ -2,16 +2,12 @@ import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getActiveGymId } from '@/lib/active-gym';
-import { getServerSession } from '@/lib/session';
-import { fetchMyGoals } from '@/lib/goals';
 import { TrainersBrowser } from '@/src/components/trainers/TrainersBrowser';
 import { parseFilters } from '@/src/components/trainers/trainer-filters';
-import { GoalsCard } from '@/src/components/member/goals/goals-card';
 
 // Astryx migration (T11), now on the portal kit: the page shell (heading + subtitle) is authored in
 // compiled StyleX over the Fit brand tokens — no Tailwind utilities. The
-// interactive roster lives in the client `TrainersBrowser` below; the member-only
-// `GoalsCard` keeps its own (not-yet-migrated) styling during coexistence.
+// interactive roster lives in the client `TrainersBrowser` below.
 
 const styles = stylex.create({
   page: {
@@ -78,14 +74,8 @@ export default async function TrainersPage({
   const [{ locale }, sp] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
 
-  const [t, gymId, session] = await Promise.all([
-    getTranslations('trainers'),
-    getActiveGymId(),
-    getServerSession(),
-  ]);
+  const [t, gymId] = await Promise.all([getTranslations('trainers'), getActiveGymId()]);
 
-  // The "Your goals" card is member-only; signed-out visitors just see the roster.
-  const goals = session ? await fetchMyGoals().catch(() => []) : [];
   const filters = parseFilters(sp);
 
   return (
@@ -94,8 +84,6 @@ export default async function TrainersPage({
         <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
         <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
-
-      {session ? <GoalsCard initialGoals={goals} /> : null}
 
       <TrainersBrowser gymId={gymId} initialFilters={filters} />
     </div>

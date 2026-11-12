@@ -92,24 +92,6 @@ export const PROFILE_PENDING_COPY = {
 } as const;
 
 /**
- * Goals' unsayable refusal.
- *
- * `member.goals` carries `save`, `saving`, `saved` and `error` ("Couldn't save
- * goals") — every sentence about a save that HAPPENED, and none about one that
- * cannot start. `emptyGoal()` begins with a blank `target`, `isValidDraft`
- * needs a positive one, and a disabled `Button` swallows its own press, so the
- * screen had no way to say what was missing. The live-button + `showErrors`
- * pattern from `app/(join)/checkout.tsx` needs one sentence and the catalogue
- * has none.
- *
- * **Owed: `member.goals.invalid`.**
- */
-export const GOALS_PENDING_COPY = {
-  /** TODO(i18n) `member.goals.invalid` */
-  invalid: 'Every goal needs a name and a target above zero.',
-} as const;
-
-/**
  * The inbox's failed WRITE.
  *
  * `notifications` carries `error` — "We couldn't load your notifications." —
