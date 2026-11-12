@@ -59,10 +59,19 @@ export function decodeText(data: string): string {
   return Buffer.from(data, 'base64').toString('utf8');
 }
 
+/**
+ * Why a turn ended, normalized across providers. `max_tokens` means the reply
+ * was cut off (a tool call in it may be truncated); `malformed` is Gemini's
+ * MALFORMED_FUNCTION_CALL; `blocked` is a safety stop or refusal.
+ */
+export type ModelStopReason = 'end' | 'max_tokens' | 'malformed' | 'blocked';
+
 /** What one streamed model turn produced. */
 export interface ModelTurn {
   text: string;
   toolCalls: AgentToolCall[];
+  /** Absent means a normal end. */
+  stop?: ModelStopReason;
 }
 
 export interface RunTurnArgs {
@@ -70,6 +79,8 @@ export interface RunTurnArgs {
   tools: AgentTool[];
   history: AgentHistoryMessage[];
   onDelta: (text: string) => void;
+  /** Aborts the provider request when the operator stops the turn. */
+  signal?: AbortSignal;
 }
 
 /** A model provider bound to one concrete model id. */
@@ -138,6 +149,7 @@ export type AgentErrorCode =
   | 'rate_limited'
   | 'invalid_request'
   | 'unknown_tool'
+  | 'empty_reply'
   | 'agent_failed';
 
 /**

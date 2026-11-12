@@ -46,11 +46,44 @@ export function errorKey(code?: string) {
     case 'rate_limited':
     case 'invalid_request':
     case 'unknown_tool':
+    case 'empty_reply':
     case 'agent_failed':
       return `errors.${code}` as const;
     default:
       return 'error' as const;
   }
+}
+
+/** Tool calls whose outcome is settled, as the model will be told about them. */
+const SETTLED: ReadonlySet<AgentToolCall['status']> = new Set(['complete', 'error', 'rejected']);
+
+/**
+ * A transcript turn as the agent API reads it: `{role, content}`.
+ *
+ * The API is stateless, so a past turn's tool calls are otherwise lost — the
+ * model would not know that a write it asked for already ran (and could ask for
+ * it again). Each settled call is appended as one line. A user turn that was
+ * only files keeps their names, since a blank turn is rejected by the models.
+ */
+export function payloadContent(message: AgentMessage): string {
+  if (message.role === 'user') {
+    if (message.content || !message.attachments?.length) return message.content;
+    return `[Attached: ${message.attachments.join(', ')}]`;
+  }
+  const settled = (message.toolCalls ?? []).filter((c) => SETTLED.has(c.status));
+  if (!settled.length) return message.content;
+  const lines = settled.map((c) => {
+    const target = c.target ? ` (${c.target})` : '';
+    const detail = c.resultSummary ?? (c.status === 'error' ? c.errorMessage : undefined);
+    return `- ${c.name}${target}: ${c.status}${detail ? ` — ${detail.slice(0, 200)}` : ''}`;
+  });
+  const text = message.content.trimEnd();
+  return `${text ? `${text}\n\n` : ''}[Tool calls in this reply]\n${lines.join('\n')}`;
+}
+
+/** The whole transcript for the request body. */
+export function toPayload(messages: AgentMessage[]) {
+  return messages.map((m) => ({ role: m.role, content: payloadContent(m) }));
 }
 
 /** Interleave text and adjacent tool calls; old transcripts keep tools first. */

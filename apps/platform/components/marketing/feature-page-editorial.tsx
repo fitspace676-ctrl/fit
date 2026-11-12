@@ -32,11 +32,25 @@ import { Aurora, Btn, CtaMark, I, Icon, MarketingFooter, MarketingNav } from './
 
 /* ── product imagery ─────────────────────────────────────────────────── */
 
-/** Named crops keep screenshot coordinates out of the figure compositions. */
+/**
+ * Named crops keep screenshot coordinates out of the figure compositions. A
+ * `{locale}` in a path is filled in by `Slice`: the hero stills exist per UI
+ * language (`ka` on the Georgian site, `en` everywhere else).
+ */
 type Shot = { light: string; dark: string; w: number; h: number };
 const SHOTS = {
-  phone: { light: '/hero/app-light.webp', dark: '/hero/app-dark.webp', w: 360, h: 780 },
-  members: { light: '/tour/members-light.webp', dark: '/tour/members-dark.webp', w: 1600, h: 1000 },
+  phone: {
+    light: '/hero/app-light-{locale}.webp',
+    dark: '/hero/app-dark-{locale}.webp',
+    w: 360,
+    h: 780,
+  },
+  members: {
+    light: '/tour/members-light-{locale}.webp',
+    dark: '/tour/members-dark-{locale}.webp',
+    w: 1600,
+    h: 1000,
+  },
 };
 const CROPS = {
   memberPlans: [374, 284, 1196, 156],
@@ -327,6 +341,7 @@ function ProductSlice({
 
 /** A crop of a shot at its own aspect ratio, light and dark swapped by the `.dark` class. */
 function Slice({ shot, crop }: { shot: Shot; crop?: Layer['crop'] }) {
+  const shotLocale = useLocale() === 'ka' ? 'ka' : 'en';
   const [x, y, cw, ch] = crop ? CROPS[crop] : [0, 0, shot.w, shot.h];
   const img: CSSProperties = {
     position: 'absolute',
@@ -340,7 +355,7 @@ function Slice({ shot, crop }: { shot: Shot; crop?: Layer['crop'] }) {
       {(['light', 'dark'] as const).map((theme) => (
         <img
           key={theme}
-          src={shot[theme]}
+          src={shot[theme].replace('{locale}', shotLocale)}
           alt=""
           width={shot.w}
           height={shot.h}
@@ -623,9 +638,12 @@ export function FeaturePageEditorial({ page }: { page: FeaturePageCopy }) {
           <FlowBackground />
 
           <div className="relative">
-            <h1 className="max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]">
-              {page.headline}
+            <h1 className="mb-4 text-sm font-semibold tracking-wide text-white/75">
+              {page.eyebrow}
             </h1>
+            <h2 className="max-w-3xl font-display text-3xl font-black leading-[1.03] tracking-tight text-white sm:text-4xl md:text-[3.25rem]">
+              {page.headline}
+            </h2>
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/85 md:text-lg">
               {page.subline}
             </p>

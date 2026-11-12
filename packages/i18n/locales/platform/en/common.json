@@ -7,6 +7,7 @@
   "loader": "Loading FormaCore",
   "cta": {
     "bookDemo": "Book a demo",
+    "navBookDemo": "Book a demo",
     "requestCall": "Request a call",
     "bookFreeDemo": "Book a free demo"
   },
@@ -17,7 +18,6 @@
       "features": "Features",
       "builtFor": "Built For",
       "pricing": "Pricing",
-      "blog": "Blog",
       "resources": "Resources"
     },
     "seeAll": "See all",
@@ -34,10 +34,16 @@
     "ka": "Georgian"
   },
   "footer": {
-    "location": "Tbilisi, Georgia",
     "terms": "Terms & Conditions",
     "privacy": "Privacy Policy",
     "dpa": "DPA"
+  },
+  "cookies": {
+    "title": "We use cookies",
+    "body": "Necessary cookies keep the site working. With your consent we also use analytics cookies to understand how the site is used and improve it.",
+    "policy": "Privacy Policy",
+    "accept": "Accept",
+    "decline": "Decline"
   },
   "modal": {
     "close": "Close"
@@ -107,5 +113,10 @@
     "retry": "Try again",
     "globalTitle": "Something went wrong",
     "globalBody": "The platform site failed to load. Please try again."
+  },
+  "notFound": {
+    "title": "This page does not exist",
+    "body": "The link may be old or mistyped. These pages are a good place to start:",
+    "home": "Home"
   }
 }

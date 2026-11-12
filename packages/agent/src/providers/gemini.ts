@@ -9,6 +9,7 @@ import {
   GoogleGenAI,
   ThinkingLevel,
   type Content,
+  type FinishReason,
   type Part,
   type FunctionDeclaration,
 } from '@google/genai';
@@ -21,6 +22,7 @@ import {
   type AgentHistoryMessage,
   type AgentToolCall,
   type ModelDriver,
+  type ModelStopReason,
   type RunTurnArgs,
 } from '../driver';
 
@@ -28,6 +30,30 @@ const MAX_TOKENS = 2048;
 
 /** Signature Gemini accepts on a function call it did not generate itself. */
 const UNSIGNED_CALL_SIGNATURE = 'skip_thought_signature_validator';
+
+/** Stands in for a blank user turn, which the API rejects. */
+const EMPTY_USER_TEXT = '(no text)';
+
+/** Gemini's finish reason in the loop's neutral terms; a normal stop is undefined. */
+export function stopReason(reason: FinishReason | undefined): ModelStopReason | undefined {
+  // Compared as strings: the enum's values are its names, and a type-only
+  // import keeps this free of the SDK at runtime.
+  switch (reason as string | undefined) {
+    case 'MAX_TOKENS':
+      return 'max_tokens';
+    case 'MALFORMED_FUNCTION_CALL':
+    case 'UNEXPECTED_TOOL_CALL':
+      return 'malformed';
+    case 'SAFETY':
+    case 'RECITATION':
+    case 'BLOCKLIST':
+    case 'PROHIBITED_CONTENT':
+    case 'SPII':
+      return 'blocked';
+    default:
+      return undefined;
+  }
+}
 
 /** Convert an attachment to a Gemini part (inline binary, or decoded text). */
 function attachmentPart(a: AgentAttachment): Part {
@@ -50,8 +76,10 @@ function geminiApiKey(): string | undefined {
 export function toGeminiContents(history: AgentHistoryMessage[]): Content[] {
   return history.map((m): Content => {
     if (m.role === 'user') {
-      const parts: Part[] = [{ text: m.text }];
+      // An empty text part is a 400 ("empty text parameter").
+      const parts: Part[] = m.text ? [{ text: m.text }] : [];
       for (const a of m.attachments ?? []) parts.push(attachmentPart(a));
+      if (parts.length === 0) parts.push({ text: EMPTY_USER_TEXT });
       return { role: 'user', parts };
     }
     if (m.role === 'assistant') {
@@ -87,7 +115,7 @@ export function createGeminiDriver(modelId: string): ModelDriver {
   const ai = new GoogleGenAI({ apiKey: geminiApiKey() });
 
   return {
-    async runTurn({ system, tools, history, onDelta }: RunTurnArgs) {
+    async runTurn({ system, tools, history, onDelta, signal }: RunTurnArgs) {
       const functionDeclarations: FunctionDeclaration[] = tools.map((t) => ({
         name: t.name,
         description: t.description,
@@ -108,13 +136,18 @@ export function createGeminiDriver(modelId: string): ModelDriver {
           // models that reject `thinkingBudget: 0` with a 400; `minimal` is the
           // lowest level they accept.
           thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          ...(signal ? { abortSignal: signal } : {}),
         },
       });
 
       let text = '';
       const toolCalls: AgentToolCall[] = [];
       let counter = 0;
+      let stop: ModelStopReason | undefined;
       for await (const chunk of stream) {
+        // A blocked prompt has no candidate at all, only `promptFeedback`.
+        if (chunk.promptFeedback?.blockReason) stop = 'blocked';
+        stop = stopReason(chunk.candidates?.[0]?.finishReason) ?? stop;
         const delta = chunk.text;
         if (delta) {
           text += delta;
@@ -134,7 +167,7 @@ export function createGeminiDriver(modelId: string): ModelDriver {
         }
       }
 
-      return { text, toolCalls };
+      return { text, toolCalls, ...(stop ? { stop } : {}) };
     },
   };
 }

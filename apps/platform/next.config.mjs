@@ -12,6 +12,15 @@ const nextConfig = {
   // bundled ESLint pass — it expects eslint-config-next, which this monorepo
   // does not use.
   eslint: { ignoreDuringBuilds: true },
+  // The blog became Resources; links and search results to the old URLs follow.
+  async redirects() {
+    return [
+      { source: '/blog', destination: '/resources', permanent: true },
+      { source: '/blog/:path*', destination: '/resources/:path*', permanent: true },
+      { source: '/ka/blog', destination: '/ka/resources', permanent: true },
+      { source: '/ka/blog/:path*', destination: '/ka/resources/:path*', permanent: true },
+    ];
+  },
 };
 
 // Upload source maps to Sentry at build time so production stack traces are
