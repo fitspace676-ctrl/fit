@@ -92,6 +92,7 @@ export class ClassTypesService {
       select: {
         id: true,
         name: true,
+        description: true,
         durationMinutes: true,
         capacity: true,
         color: true,
@@ -105,6 +106,7 @@ export class ClassTypesService {
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      description: row.description ?? '',
       durationMinutes: row.durationMinutes,
       capacity: row.capacity,
       color: row.color,

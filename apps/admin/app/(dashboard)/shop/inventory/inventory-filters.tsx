@@ -34,10 +34,13 @@ const SEARCH_DEBOUNCE_MS = 200;
  * sold and counting it would overstate what is on the shelf. The label says so
  * rather than leaving the reader to infer it from a blank.
  */
-const STATUS_OPTIONS: ReadonlyArray<{ value: ProductStatus | ''; label: string }> = [
-  { value: '', label: 'Selling now' },
-  { value: 'ACTIVE', label: 'Active only' },
-  { value: 'INACTIVE', label: 'Deactivated' },
+const STATUS_OPTION_KEYS: ReadonlyArray<{
+  value: ProductStatus | '';
+  labelKey: 'selling' | 'ACTIVE' | 'INACTIVE';
+}> = [
+  { value: '', labelKey: 'selling' },
+  { value: 'ACTIVE', labelKey: 'ACTIVE' },
+  { value: 'INACTIVE', labelKey: 'INACTIVE' },
 ];
 
 const styles = stylex.create({
@@ -123,6 +126,7 @@ export function InventoryFilters({
   status: string;
   tracked: boolean;
 }) {
+  const t = useTranslations('admin.shop.inventoryFilters');
   const tCommon = useTranslations('admin.common');
   const router = useRouter();
   const pathname = usePathname();
@@ -160,24 +164,27 @@ export function InventoryFilters({
     <div {...stylex.props(styles.row)}>
       <div {...stylex.props(styles.searchWrap)}>
         <label htmlFor="inventory-search" {...stylex.props(styles.srOnly)}>
-          Search inventory by product name
+          {t('searchLabel')}
         </label>
         <input
           id="inventory-search"
           type="search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by product name…"
+          placeholder={t('searchPlaceholder')}
           {...stylex.props(styles.control)}
         />
       </div>
 
       <SelectField
-        label="Status"
+        label={t('statusLabel')}
         size="chrome"
         value={status}
         onChange={(event) => commit('status', event.target.value)}
-        options={[...STATUS_OPTIONS]}
+        options={STATUS_OPTION_KEYS.map((option) => ({
+          value: option.value,
+          label: t(`status.${option.labelKey}`),
+        }))}
         xstyle={styles.select}
       />
 
@@ -203,7 +210,7 @@ export function InventoryFilters({
           checked={tracked}
           onChange={(event) => commit('tracked', event.target.checked ? 'true' : '')}
         />
-        Counted only
+        {t('countedOnly')}
       </label>
     </div>
   );

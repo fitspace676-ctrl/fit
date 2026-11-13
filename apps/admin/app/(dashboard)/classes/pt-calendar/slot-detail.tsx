@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Dialog } from '@astryxdesign/core/Dialog';
+import { DialogHeader } from '@/components/ui/dialog-header';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import { serviceLabel, type AdminServiceSession, type ServiceSessionStatus } from '@fit/types';
 import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';

@@ -194,6 +194,7 @@
       "consoleName": "FormaCore Admin",
       "search": "Search…",
       "openNav": "Open navigation",
+      "close": "Close",
       "closeNav": "Close navigation",
       "skipToContent": "Skip to main content",
       "scrollUp": "Scroll up",
@@ -206,6 +207,7 @@
       "allLocations": "All locations",
       "profile": "Profile",
       "settings": "Settings",
+      "settingsOwnerOnly": "Only the gym owner can open Settings.",
       "signOut": "Sign out",
       "switchToLight": "Switch to light",
       "switchToDark": "Switch to dark",
@@ -797,6 +799,12 @@
       "clearSearch": "Clear search"
     },
     "billingPlans": {
+      "meta": {
+        "title": "Billing · Plans",
+        "description": "The gym’s recurring membership plans: pricing, renewal cadence, perks and live subscriber counts, with active/archived plans and a live MRR summary.",
+        "planTitle": "Subscription plan",
+        "editPlanTitle": "Edit subscription plan"
+      },
       "title": "Billing",
       "subtitle": "Your gym’s recurring membership plans: pricing, perks, and who’s subscribed. Create a plan, edit it, or archive one when it’s retired.",
       "kpi": {
@@ -809,6 +817,20 @@
         "active": "Active",
         "archived": "Archived"
       },
+      "status": {
+        "ACTIVE": "Active",
+        "INACTIVE": "Inactive"
+      },
+      "interval": {
+        "MONTH": "Monthly",
+        "YEAR": "Yearly"
+      },
+      "intervalSuffix": {
+        "MONTH": "/ mo",
+        "YEAR": "/ yr"
+      },
+      "creditsUnlimited": "Unlimited classes",
+      "creditsPerPeriod": "{count} classes / period",
       "newPlan": "New plan",
       "newPlanTitle": "New subscription plan",
       "planCount": "{count, plural, one {# plan} other {# plans}}",
@@ -830,7 +852,76 @@
       "toastRestored": "{name} is live",
       "toastError": "Couldn’t update the plan. Please try again.",
       "loadError": "Could not load billing plans ({status}): {message}",
-      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+      "form": {
+        "basicsHeading": "Basics & pricing",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Monthly Unlimited",
+        "descriptionLabel": "Description",
+        "optional": "(optional)",
+        "descriptionPlaceholder": "A short description of the plan.",
+        "priceLabel": "Price",
+        "billingLabel": "Billing",
+        "includedClassesHeading": "Included classes",
+        "includedClassesHint": "Pick the classes this plan covers. Members on it book them without paying per session.",
+        "noClassTypes": "No class types to include yet. Classes priced per session keep their own price and are set from the Classes screen.",
+        "freezeHeading": "Freeze policy",
+        "freezeLabel": "Freeze days / period",
+        "freezeHint": "Max days a member can pause. 0 = no freezing.",
+        "visibilityHeading": "Visibility",
+        "popularLabel": "Mark as “Most popular”",
+        "popularHint": "Highlights the plan with a badge on the pricing page.",
+        "statusLabel": "Status",
+        "statusHint": "Members can only subscribe to an active plan.",
+        "saving": "Saving…",
+        "saveChanges": "Save changes",
+        "createPlan": "Create plan",
+        "cancel": "Cancel",
+        "previewHeading": "Member preview",
+        "untitledPlan": "Untitled plan",
+        "previewHint": "This is roughly how members see the plan on the pricing page.",
+        "classSyncPartialError": "The plan was saved, but its classes could not be updated: {error}. Set them from the Classes screen, or try saving again."
+      },
+      "detail": {
+        "back": "Back to subscriptions",
+        "mostPopular": "Most popular",
+        "billing": "Billing",
+        "credits": "Credits",
+        "freezeAllowance": "Freeze allowance",
+        "freezeDays": "{count} days / period",
+        "noFreezing": "No freezing",
+        "freeTrial": "Free trial",
+        "trialDays": "{count} days",
+        "noTrial": "No trial",
+        "description": "Description",
+        "features": "Features",
+        "noFeatures": "No features listed.",
+        "addedAt": "Added {date}."
+      },
+      "planActions": {
+        "edit": "Edit",
+        "saving": "Saving…",
+        "reactivate": "Reactivate",
+        "deactivate": "Deactivate"
+      },
+      "editPage": {
+        "backToPlan": "Back to plan",
+        "title": "Edit subscription plan",
+        "subtitle": "Update {name}’s details, price, renewal cadence, and features."
+      },
+      "errors": {
+        "loadPlanFailed": "Could not load this subscription plan ({status}): {message}",
+        "planNotFound": "That subscription plan no longer exists.",
+        "notAuthorized": "Not authorized",
+        "invalidPlanDetails": "Invalid plan details",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error",
+        "validation": {
+          "nameRequired": "Name is required",
+          "priceInvalid": "Price cannot be negative",
+          "freezeInvalid": "Freeze days must be a non-negative whole number"
+        }
+      }
     },
     "checkin": {
       "title": "Reception",
@@ -1076,6 +1167,10 @@
       }
     },
     "schedule": {
+      "meta": {
+        "title": "Schedule",
+        "description": "The gym’s weekly class calendar: day columns of class occurrences with occupancy, trainer, and branch, scoped to the console’s active branch, filtered by trainer, and paged a week at a time."
+      },
       "title": "Schedule",
       "subtitle": "Your gym's week at a glance. Page between weeks and filter by trainer or location; each class shows its time, coach, branch, and how full it is.",
       "error": {
@@ -1226,6 +1321,10 @@
       }
     },
     "ptCalendar": {
+      "meta": {
+        "title": "Classes · PT Calendar",
+        "description": "The gym's personal-training calendar: every trainer's 1:1 sessions and service slots on the same day, week, month and list views as the class schedule, filterable by trainer."
+      },
       "title": "PT Calendar",
       "subtitle": "Every trainer's personal-session week on the same calendar as the class schedule: day, week, month or list. Open a slot the way you add a class, and cancel or complete a session from it. Narrow to one trainer with the filter.",
       "error": {
@@ -1307,6 +1406,22 @@
         "markComplete": "Mark complete",
         "cancel": "Cancel session",
         "unexpected": "Something went wrong"
+      },
+      "errors": {
+        "notAuthorized": "Not authorized",
+        "invalidSlotDetails": "Invalid slot details",
+        "ptSessionNotFound": "That PT session no longer exists.",
+        "trainerNotFound": "That trainer no longer exists.",
+        "classTypeNotFound": "That workout type no longer exists.",
+        "serviceNotFound": "That service no longer exists or is archived.",
+        "sessionNotFound": "That slot no longer exists.",
+        "staffBusy": "The staff member already has a session at that time.",
+        "sessionStatusInvalid": "That slot cannot change to this status.",
+        "sessionTaken": "That slot has just been booked by someone else.",
+        "sessionPast": "That slot has already started.",
+        "memberNotFound": "That member no longer exists.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error"
       }
     },
     "members": {
@@ -3574,6 +3689,228 @@
       "invoices": "Invoices",
       "ariaLabel": "Payments sections"
     },
+    "classes": {
+      "meta": {
+        "title": "Class Types",
+        "description": "The gym’s reusable class types: search, filter, sort, or add a new kind of class (Boxing, CrossFit) with capacity, duration, pricing, and a colour. The schedule uses this catalogue to create occurrences.",
+        "newClassTitle": "New class",
+        "classTitle": "Class",
+        "editClassTitle": "Edit class"
+      },
+      "errors": {
+        "loadClassTypesFailed": "Could not load class types ({status}): {message}",
+        "loadClassFailed": "Could not load this class ({status}): {message}",
+        "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+        "notAuthorized": "Not authorized",
+        "invalidClassDetails": "Invalid class details",
+        "invalidClassTypeDetails": "Invalid class-type details",
+        "classTemplateNotFound": "That class template no longer exists.",
+        "classTypeNotFound": "That class type no longer exists.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error"
+      },
+      "typesPage": {
+        "title": "Classes",
+        "subtitle": "Your gym’s reusable class types. Search by name, filter by status, sort any column, or add a new kind of class with capacity, duration, pricing, and a colour. The schedule then uses this catalogue to create occurrences."
+      },
+      "filters": {
+        "searchTemplatesAria": "Search class templates by title or category",
+        "searchTemplatesPlaceholder": "Search by title or category…",
+        "searchTypesAria": "Search class types by name",
+        "searchTypesPlaceholder": "Search by name…",
+        "statusAria": "Filter by status",
+        "allStatuses": "All statuses"
+      },
+      "status": {
+        "ACTIVE": "Active",
+        "PAUSED": "Paused",
+        "INACTIVE": "Inactive"
+      },
+      "duration": {
+        "minutesOnly": "{minutes}m",
+        "hoursOnly": "{hours}h",
+        "hoursMinutes": "{hours}h {minutes}m"
+      },
+      "pricing": {
+        "free": "Free",
+        "includedCount": "Included ({count})",
+        "paid": "Paid",
+        "paidAmount": "Paid · {amount}"
+      },
+      "pager": {
+        "range": "{from}-{to} of {total}",
+        "previous": "Previous",
+        "next": "Next"
+      },
+      "typesTable": {
+        "empty": "No class types match your filters yet. Add one to start scheduling.",
+        "columns": {
+          "name": "Name",
+          "duration": "Duration",
+          "capacity": "Capacity",
+          "min": "Min",
+          "pricing": "Pricing",
+          "status": "Status"
+        }
+      },
+      "templatesTable": {
+        "empty": "No class templates match your filters yet.",
+        "columns": {
+          "title": "Title",
+          "recurrence": "Recurrence",
+          "trainer": "Trainer",
+          "capacity": "Capacity",
+          "duration": "Duration",
+          "pricing": "Pricing",
+          "status": "Status",
+          "starts": "Starts"
+        }
+      },
+      "addTypeDrawer": {
+        "buttonLabel": "New class type",
+        "dialogAria": "New class type",
+        "dialogTitle": "Add New Class Type"
+      },
+      "editTypeDrawer": {
+        "editButton": "Edit",
+        "editAria": "Edit {name}",
+        "dialogTitle": "Edit {name}",
+        "loading": "Loading…"
+      },
+      "typeForm": {
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Boxing",
+        "descriptionLabel": "Description",
+        "optional": "(optional)",
+        "descriptionPlaceholder": "Describe the class…",
+        "durationLabel": "Duration (minutes)",
+        "capacityLabel": "Max capacity",
+        "minAttendanceLabel": "Min attendance",
+        "minAttendancePlaceholder": "e.g. 5",
+        "colorLabel": "Color",
+        "colorSwatchAria": "Colour {color}",
+        "pricingRuleLabel": "Pricing rule",
+        "pricingFree": "Free, included in all memberships",
+        "pricingIncluded": "Included in selected plans",
+        "pricingPaid": "Paid per session",
+        "priceLabel": "Price per session",
+        "pricePlaceholder": "e.g. 15.00",
+        "includedPlansLabel": "Included in plans",
+        "noPlans": "No membership plans yet. Create one first.",
+        "statusLabel": "Status",
+        "saving": "Saving…",
+        "submitSave": "Save changes",
+        "submitCreate": "Add class type",
+        "cancel": "Cancel"
+      },
+      "addClassDrawer": {
+        "defaultTrigger": "New class",
+        "dialogAria": "New class",
+        "dialogTitle": "New class"
+      },
+      "recurrence": {
+        "legend": "Repeats",
+        "frequencyLabel": "Frequency",
+        "freq": {
+          "ONCE": "One time",
+          "DAILY": "Daily",
+          "WEEKLY": "Weekly"
+        },
+        "onceHint": "Runs once, on the start date below. There is no end date.",
+        "weekdaysLabel": "On these days",
+        "weekdaysRequired": "Pick at least one weekday.",
+        "weekday": {
+          "MO": "Mon",
+          "TU": "Tue",
+          "WE": "Wed",
+          "TH": "Thu",
+          "FR": "Fri",
+          "SA": "Sat",
+          "SU": "Sun"
+        },
+        "summary": {
+          "ONCE": "Once",
+          "DAILY": "Every day",
+          "WEEKLY": "Every week",
+          "weeklyOn": "Every week on {days}"
+        }
+      },
+      "templateForm": {
+        "titleLabel": "Title",
+        "titlePlaceholder": "e.g. Morning HIIT",
+        "classTypeLabel": "Class type",
+        "noClassTypes": "No class types yet",
+        "selectClassType": "Select a class type…",
+        "colorLabel": "Color",
+        "descriptionLabel": "Description",
+        "optional": "(optional)",
+        "descriptionPlaceholder": "A short description of the class.",
+        "coverLabel": "Cover image",
+        "coverAlt": "Class cover",
+        "uploading": "Uploading…",
+        "replaceCover": "Replace",
+        "removeCover": "Remove",
+        "uploadCover": "Upload cover image",
+        "coverHint": "Shown when the class is opened. JPEG, PNG, WebP, or GIF, up to 5 MB.",
+        "uploadErrors": {
+          "invalidType": "Choose a JPEG, PNG, WebP, or GIF image.",
+          "tooLarge": "The image is larger than 5 MB. Choose a smaller file.",
+          "putFailed": "Upload failed ({status}). Please try again.",
+          "noPublicUrl": "Uploaded, but no public URL is configured for storage.",
+          "network": "Could not upload the image. Check your connection and try again."
+        },
+        "finishRecurrence": "Finish the recurrence",
+        "capacityLabel": "Capacity",
+        "durationLabel": "Duration (minutes)",
+        "startsAtLabel": "Starts at",
+        "dateLabel": "Date",
+        "startsLabel": "Starts",
+        "endsLabel": "Ends",
+        "trainerLabel": "Trainer",
+        "noDefaultTrainer": "No default trainer",
+        "locationLabel": "Location",
+        "selectLocation": "Select a location",
+        "statusLabel": "Status",
+        "saving": "Saving…",
+        "submitSave": "Save changes",
+        "submitCreate": "Create class",
+        "cancel": "Cancel"
+      },
+      "newPage": {
+        "back": "Back to classes",
+        "title": "New class",
+        "subtitle": "Add a class to your gym, either one-off or repeating. Set its capacity and duration, build the schedule with the visual recurrence editor, and pick a default trainer and location."
+      },
+      "detailPage": {
+        "back": "Back to classes",
+        "capacity": "Capacity",
+        "spots": "{count} spots",
+        "duration": "Duration",
+        "trainer": "Trainer",
+        "location": "Location",
+        "runs": "Runs",
+        "openEnded": "open-ended",
+        "description": "Description",
+        "addedAt": "Added {date}."
+      },
+      "editPage": {
+        "backToClasses": "Back to classes",
+        "backToClass": "Back to class",
+        "title": "Edit class",
+        "subtitle": "Update {title}’s details, schedule, capacity, duration, and default trainer and location."
+      },
+      "templateActions": {
+        "edit": "Edit",
+        "saving": "Saving…",
+        "resume": "Resume",
+        "pause": "Pause",
+        "deleting": "Deleting…",
+        "deleteConfirm": "Delete for good",
+        "keep": "Keep",
+        "delete": "Delete",
+        "confirmHint": "Deleting stops this class running. Sessions that already happened, and upcoming ones a member has booked, are kept on the calendar."
+      }
+    },
     "classesTabs": {
       "types": "Class Types",
       "schedule": "Schedule",
@@ -3581,11 +3918,107 @@
       "ariaLabel": "Classes sections"
     },
     "invoicesHub": {
+      "meta": {
+        "title": "Payments · Invoices",
+        "description": "The gym’s invoices, raised automatically for subscriptions and shop orders, or by hand against a member. Search, filter, download a PDF, or email one to the member."
+      },
       "title": "Invoices",
       "subtitle": "Raised automatically for subscriptions and shop orders, or by hand against a member. Download one as a PDF, or email it.",
       "invoiceCount": "{count, plural, one {# invoice} other {# invoices}}",
       "loadError": "Could not load invoices ({status}): {message}",
-      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.",
+      "types": {
+        "MEMBERSHIP": "Membership",
+        "PERSONAL_TRAINING": "Personal session",
+        "CLASS": "Class",
+        "PRODUCT": "Product",
+        "SERVICE": "Service",
+        "OTHER": "Other"
+      },
+      "filters": {
+        "searchPlaceholder": "Search invoice #, description or member…",
+        "searchAria": "Search invoices",
+        "typeAria": "Filter by type",
+        "allTypes": "All types",
+        "branchAria": "Filter by branch",
+        "allBranches": "All branches",
+        "issuedFromAria": "Issued from",
+        "issuedToAria": "Issued to",
+        "clear": "Clear"
+      },
+      "createDrawer": {
+        "button": "Create invoice",
+        "title": "New invoice",
+        "toastCreated": "Invoice {number} created"
+      },
+      "form": {
+        "memberHeading": "Member",
+        "memberRequired": "Pick the member this invoice is for.",
+        "noEmailWarning": "No email address. This invoice can be downloaded but not sent.",
+        "changeMember": "Change",
+        "memberSearchLabel": "Search by name or email",
+        "memberSearchPlaceholder": "Start typing a member's name…",
+        "searching": "Searching…",
+        "noMatches": "No members match that.",
+        "detailsHeading": "Details",
+        "typeLabel": "Type",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "e.g. Personal session block (10 sessions)",
+        "descriptionHint": "This is the line the member sees on the PDF.",
+        "amountLabel": "Amount",
+        "issueDateLabel": "Issue date",
+        "dueDateLabel": "Due date",
+        "optional": "(optional)",
+        "dueDateHint": "Leave blank if the invoice states no deadline.",
+        "creating": "Creating…",
+        "submit": "Create invoice",
+        "cancel": "Cancel",
+        "autoNumbered": "Numbered automatically"
+      },
+      "table": {
+        "toastSent": "Invoice {number} sent to {to}",
+        "emptyTitle": "No invoices yet",
+        "emptyBody": "Invoices raised for subscriptions and shop orders land here automatically. You can also create one by hand.",
+        "columns": {
+          "number": "Invoice #",
+          "member": "Member",
+          "branch": "Branch",
+          "type": "Type",
+          "issued": "Issued",
+          "due": "Due",
+          "amount": "Amount",
+          "actions": "Actions"
+        },
+        "overdue": "overdue",
+        "view": "View",
+        "viewAria": "View invoice {number}",
+        "pdf": "PDF",
+        "downloadAria": "Download invoice {number}",
+        "email": "Email",
+        "sending": "Sending…",
+        "emailTitle": "Email invoice {number} to {email}",
+        "noMemberEmail": "This member has no email address"
+      },
+      "errors": {
+        "emailNotConfigured": "Outbound email is not set up for this gym yet, so the invoice could not be sent.",
+        "noRecipient": "This invoice has no member with an email address, so there is nobody to send it to.",
+        "invoiceNotFound": "That invoice no longer exists.",
+        "memberNotFound": "That member no longer exists.",
+        "notAuthorized": "Not authorized",
+        "invalidInvoiceDetails": "Invalid invoice details",
+        "downloadFailed": "Download failed ({status})",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error",
+        "validation": {
+          "memberRequired": "Pick the member this invoice is for",
+          "descriptionRequired": "Describe what is being billed",
+          "descriptionTooLong": "Keep the description under 500 characters",
+          "amountPositive": "Amount must be above zero",
+          "amountTooLarge": "That amount is too large",
+          "amountInvalid": "Amount must be a valid figure",
+          "dateInvalid": "Enter a valid date"
+        }
+      }
     },
     "ptHub": {
       "title": "PT Calendar",
@@ -3763,7 +4196,7 @@
       "chat": "Chat",
       "more": "More",
       "lockedHint": "Approve or reject the action above first",
-      "sendHint": "Enter to send · Shift+Enter for a new line",
+      "sendHint": "Enter to send",
       "needsApproval": "Needs your approval",
       "irreversible": "Irreversible change",
       "approveAndDelete": "Approve and delete",
@@ -4051,6 +4484,369 @@
       "expiredNote": "Ask the platform administrator to renew your link so you can continue.",
       "approvedHint": "Your gym is ready. Sign in to open your management console.",
       "rejectedTitle": "Request not approved"
+    },
+    "shop": {
+      "meta": {
+        "title": "Shop",
+        "description": "The gym’s retail catalog: a product grid with stock badges and low-stock surfacing. Search, filter by status, sort, open a product, or add one with an image gallery and variants.",
+        "productTitle": "Product",
+        "editProductTitle": "Edit product",
+        "inventoryTitle": "Inventory",
+        "inventoryDescription": "What the gym stocks and how much of each: every product’s on-hand count, its status against the reorder threshold, and the value sitting on the shelf.",
+        "lowStockTitle": "Inventory · Low stock",
+        "lowStockDescription": "The gym’s inventory alerts: every active product carrying a variant at or below the reorder threshold, most urgent first, with a one-tap stock adjustment so staff can restock before a line sells out."
+      },
+      "errors": {
+        "notAuthorized": "Not authorized",
+        "invalidProductDetails": "Invalid product details",
+        "invalidCategoryName": "Invalid category name",
+        "invalidCategory": "Invalid category",
+        "invalidStockChange": "Invalid stock change",
+        "productNotFound": "That product no longer exists.",
+        "categoryConflict": "A category with that name already exists.",
+        "categoryNotFound": "That category no longer exists. Refresh the page.",
+        "storageNotConfigured": "Image storage is not configured. Save the product without images, or try again later.",
+        "requestFailed": "Request failed ({status}): {message}",
+        "unexpected": "Unexpected error",
+        "loadProductsFailed": "Could not load products ({status}): {message}",
+        "loadProductFailed": "Could not load this product ({status}): {message}",
+        "loadInventoryFailed": "Could not load the inventory ({status}): {message}",
+        "loadLowStockFailed": "Could not load low-stock alerts ({status}): {message}",
+        "apiUnreachable": "Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running."
+      },
+      "catalog": {
+        "title": "Shop",
+        "subtitle": "Your gym’s retail catalog. Search by name or description, filter by status, sort, and watch stock at a glance. Open a product to edit its gallery and variants, or add a new one.",
+        "scopeLabel": "Location",
+        "scopeCaveat": "The catalogue is gym-wide, and so are the stock figures on it - <inventory>Inventory</inventory> has {branch}’s shelves",
+        "inventoryLink": "Inventory",
+        "lowStockLink": "Low stock"
+      },
+      "summary": {
+        "products": "Products",
+        "active": "Active",
+        "lowStock": "Low stock",
+        "outOfStock": "Out of stock"
+      },
+      "tabs": {
+        "filterAriaLabel": "Filter products by status",
+        "all": "All",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "filters": {
+        "searchLabel": "Search products by name or description",
+        "searchPlaceholder": "Search by name or description…",
+        "categoryLabel": "Filter products by category",
+        "allCategories": "All categories",
+        "uncategorised": "Uncategorised",
+        "sortLabel": "Sort products",
+        "sort": {
+          "nameAsc": "Name (A-Z)",
+          "nameDesc": "Name (Z-A)",
+          "priceAsc": "Price (low → high)",
+          "priceDesc": "Price (high → low)",
+          "createdDesc": "Newest first",
+          "createdAsc": "Oldest first"
+        }
+      },
+      "stockBadge": {
+        "untracked": "Untracked",
+        "out": "Out of stock",
+        "low": "Low stock",
+        "in": "In stock",
+        "withCount": "{label} · {count}",
+        "titleCounted": "{label} · {count} across all branches, not {branch} alone",
+        "titleUncounted": "{label} across all branches, not {branch} alone"
+      },
+      "grid": {
+        "statusActive": "Active",
+        "statusInactive": "Inactive",
+        "empty": "No products match your filters yet.",
+        "variants": "{count, plural, =0 {No variants} one {{formattedCount} variant} other {{formattedCount} variants}}",
+        "margin": "{percent}% margin",
+        "pagerRange": "{from}-{to} of {total}",
+        "previous": "Previous",
+        "next": "Next",
+        "categoryPickerLabel": "Category for {name}",
+        "noCategory": "No category"
+      },
+      "addDrawer": {
+        "button": "New product",
+        "dialogLabel": "New product",
+        "title": "New product"
+      },
+      "categories": {
+        "button": "Categories",
+        "dialogLabel": "Categories",
+        "title": "Categories",
+        "intro": "Shelves you can file products under. Deleting one keeps its products; they just become uncategorised.",
+        "newNameLabel": "New category name",
+        "newPlaceholder": "e.g. Protein",
+        "add": "Add",
+        "empty": "No categories yet. Add one above, then pick it on any product.",
+        "deleteTitle": "Delete “{name}”?",
+        "deleteBodyEmpty": "No products are filed under it.",
+        "deleteBodyNonEmpty": "{count, plural, one {{formattedCount} product will become uncategorised.} other {{formattedCount} products will become uncategorised.}}",
+        "deleteConfirm": "Delete",
+        "cancel": "Cancel",
+        "renameLabel": "Rename {name}",
+        "save": "Save",
+        "productCount": "{count, plural, one {{formattedCount} product} other {{formattedCount} products}}",
+        "rename": "Rename"
+      },
+      "form": {
+        "statusActive": "Active",
+        "statusInactive": "Inactive",
+        "gallery": {
+          "tooManyImages": "A product can have at most {max} images.",
+          "invalidFileType": "Choose JPEG, PNG, WebP, or GIF images.",
+          "fileTooLarge": "“{name}” is larger than 5 MB. Choose a smaller file.",
+          "uploadFailed": "Upload failed ({status}). Please try again.",
+          "noPublicUrl": "Images uploaded but no public URL is configured for storage.",
+          "uploadNetworkError": "Could not upload an image. Check your connection and try again.",
+          "label": "Image gallery",
+          "hint": "(first is the primary)",
+          "primary": "Primary",
+          "makePrimary": "Make primary",
+          "remove": "Remove",
+          "empty": "No images yet",
+          "uploading": "Uploading…",
+          "limitReached": "Maximum of {max} images reached.",
+          "uploadRules": "JPEG, PNG, WebP or GIF, up to 5 MB each (max {max})."
+        },
+        "nameLabel": "Name",
+        "descriptionLabel": "Description",
+        "optional": "(optional)",
+        "descriptionPlaceholder": "A short description of the product.",
+        "basePriceLabel": "Base price ({currency})",
+        "costLabel": "Cost",
+        "currencyLabel": "Currency",
+        "profitMargin": "Profit margin: {percent}%",
+        "inventory": {
+          "legend": "Inventory",
+          "onHand": "On hand",
+          "notTrackedPlaceholder": "Not tracked",
+          "threshold": "Low-stock alert at",
+          "hintCountedVariants": "This product counts stock per variant. Counts already being kept are moved from the product page, so every change is logged with a reason; a variant added here starts from the count you type for it.",
+          "hintNewVariants": "This product counts stock per variant. Set each opening count in the rows above. After that, restock from the product page so every change is logged.",
+          "hintSingle": "Leave “On hand” empty to sell this product without counting it. Correcting it here is recorded in the product’s history; day-to-day restocking belongs on the product page, where you say why."
+        },
+        "variants": {
+          "legend": "Variants",
+          "colName": "Name",
+          "colSku": "SKU",
+          "colPrice": "Price",
+          "colStock": "Stock",
+          "colRemove": "Remove",
+          "rowNameLabel": "Variant {index} name",
+          "rowSkuLabel": "Variant {index} SKU",
+          "rowPriceLabel": "Variant {index} price",
+          "rowStockLabel": "Variant {index} stock",
+          "namePlaceholder": "e.g. Small / Black",
+          "skuPlaceholder": "SKU",
+          "pricePlaceholder": "Base",
+          "stockReadOnlyTitle": "Counted on the product page, where every change is logged with a reason.",
+          "remove": "Remove",
+          "empty": "No variants. Add sizes, colours, or flavours as purchasable options.",
+          "limitReached": "Maximum of {max} variants",
+          "addVariant": "Add variant"
+        },
+        "category": {
+          "label": "Category",
+          "none": "No category",
+          "newButton": "New category",
+          "newNameLabel": "New category name",
+          "newPlaceholder": "Drinks",
+          "adding": "Adding…",
+          "add": "Add",
+          "cancel": "Cancel",
+          "emptyHint": "No categories yet. “New category” adds one without leaving this form."
+        },
+        "statusLabel": "Status",
+        "saving": "Saving…",
+        "saveChanges": "Save changes",
+        "createProduct": "Create product",
+        "cancel": "Cancel"
+      },
+      "detail": {
+        "backToProducts": "Back to products",
+        "statusActive": "Active",
+        "statusInactive": "Inactive",
+        "imageAlt": "{name} image {index}",
+        "descriptionHeading": "Description",
+        "variantsHeading": "Variants",
+        "variantsColName": "Name",
+        "variantsColSku": "SKU",
+        "variantsColPrice": "Price",
+        "variantsColStock": "Stock (all branches)",
+        "noVariants": "No variants.",
+        "addedOn": "Added {date}.",
+        "actions": {
+          "edit": "Edit",
+          "saving": "Saving…",
+          "reactivate": "Reactivate",
+          "deactivate": "Deactivate"
+        }
+      },
+      "edit": {
+        "backToProducts": "Back to products",
+        "backToProduct": "Back to product",
+        "title": "Edit product",
+        "subtitle": "Update {name}’s details, price, images, and variants."
+      },
+      "stockPanel": {
+        "heading": "Inventory",
+        "thresholdDefault": "Low-stock alert at {threshold} (default)",
+        "thresholdCustom": "Low-stock alert at {threshold}",
+        "colPosition": "Position",
+        "colSku": "SKU",
+        "colOnHandAllBranches": "On hand (all branches)",
+        "colStatus": "Status",
+        "level": {
+          "untracked": "Not tracked",
+          "out": "Out",
+          "low": "Low",
+          "in": "In stock"
+        },
+        "gymWideNote": "These are gym-wide totals. To view one branch’s shelf and record a stocktake against it, open <inventory>Inventory</inventory>.",
+        "historyHeading": "Stock history",
+        "mostRecentFirst": "Most recent first",
+        "branchMostRecentFirst": "{branch} · most recent first",
+        "historyEmpty": "No movements recorded yet. Adjustments, sales and refunds will appear here.",
+        "colWhen": "When",
+        "colBranch": "Branch",
+        "colReason": "Reason",
+        "colChange": "Change",
+        "colLeftAtBranch": "Left at branch",
+        "colBy": "By",
+        "colNote": "Note",
+        "noBranchRecorded": "No branch recorded",
+        "checkoutActor": "Checkout",
+        "branchOnlyNote": "Movements at {branch} only. Rows recorded before stock was held per branch name no branch, and are listed under All locations.",
+        "reasons": {
+          "RECEIVE": "Delivery",
+          "ADJUSTMENT": "Correction",
+          "RECOUNT": "Recount",
+          "WRITE_OFF": "Write-off",
+          "SALE": "Sale",
+          "REFUND_RESTOCK": "Refund"
+        }
+      },
+      "inventory": {
+        "title": "Inventory",
+        "subtitle": "What you stock and how much of each. Adjust a count here and it is recorded with a reason, so the product’s history explains the number.",
+        "scopeAllBranches": "Not narrowed to the selected branch. These are gym-wide totals",
+        "scopePickBranch": "Counts are gym-wide totals. Pick a branch to see where the stock actually is",
+        "scopeBranchShelves": "Counts are this branch’s shelves only",
+        "lowStockLink": "Low stock",
+        "level": {
+          "untracked": "Not tracked",
+          "out": "Out",
+          "low": "Low",
+          "in": "In stock"
+        },
+        "notStockedHere": "Not stocked here",
+        "tiles": {
+          "unitsOnHand": "Units on hand",
+          "trackedPositions": "Tracked positions",
+          "trackedPositionsHint": "of {total} total",
+          "low": "Low",
+          "out": "Out",
+          "stockValue": "Stock value",
+          "stockValueHint": "{valued} of {tracked} priced"
+        },
+        "emptyAll": "Nothing to show. Add a product to start counting.",
+        "emptyBranch": "Nothing to show for {branch} under these filters.",
+        "colProduct": "Product",
+        "colPosition": "Position",
+        "colSku": "SKU",
+        "colOnHandAll": "On hand (all branches)",
+        "colOnHandBranch": "On hand at {branch}",
+        "colStatus": "Status",
+        "colValue": "Value",
+        "footerAll": "{total, plural, one {Showing {shown} of {totalFormatted} position.} other {Showing {shown} of {totalFormatted} positions.}}",
+        "footerBranch": "{total, plural, one {Showing {shown} of {totalFormatted} position at {branch}.} other {Showing {shown} of {totalFormatted} positions at {branch}.}}"
+      },
+      "inventoryFilters": {
+        "searchLabel": "Search inventory by product name",
+        "searchPlaceholder": "Search by product name…",
+        "statusLabel": "Status",
+        "status": {
+          "selling": "Selling now",
+          "ACTIVE": "Active only",
+          "INACTIVE": "Deactivated"
+        },
+        "countedOnly": "Counted only"
+      },
+      "lowStock": {
+        "title": "Inventory",
+        "subtitleDefault": "Active products with a position at or below each line’s own reorder point, most urgent first. Restock before a line sells out: adjust a variant’s on-hand count inline, or open the product to edit it in full.",
+        "subtitleThreshold": "Active products with a position at or below {threshold} on hand, most urgent first. Restock before a line sells out: adjust a variant’s on-hand count inline, or open the product to edit it in full.",
+        "scopeNotNarrowed": "Not narrowed to {branch}. These are gym-wide totals",
+        "scopeGymWide": "Gym-wide totals, judged against each line’s product-level cushion",
+        "allProductsLink": "All products",
+        "emptyDefaultAll": "Nothing is at or below each line’s own reorder point. You’re all stocked up.",
+        "emptyDefaultBranch": "Nothing is at or below each line’s own reorder point at {branch}. You’re all stocked up.",
+        "emptyThresholdAll": "Nothing is at or below {threshold} on hand. You’re all stocked up.",
+        "emptyThresholdBranch": "Nothing is at or below {threshold} on hand at {branch}. You’re all stocked up.",
+        "colProduct": "Product",
+        "colVariant": "Variant",
+        "colSku": "SKU",
+        "colOnHandAll": "On hand (all branches)",
+        "colOnHandBranch": "On hand at {branch}",
+        "colReorderAt": "Reorder at",
+        "colAdjustStock": "Adjust stock",
+        "badgeOut": "Out of stock",
+        "footerDefault": "{count, plural, one {{formattedCount} product at or below each line’s own reorder point.} other {{formattedCount} products at or below each line’s own reorder point.}}",
+        "footerThreshold": "{count, plural, one {{formattedCount} product at or below {threshold} on hand.} other {{formattedCount} products at or below {threshold} on hand.}}",
+        "tiles": {
+          "productsAffected": "Products affected",
+          "outOfStock": "Out of stock",
+          "runningLow": "Running low"
+        }
+      },
+      "thresholdPicker": {
+        "label": "Threshold",
+        "eachLinesOwn": "Each line’s own",
+        "customInputLabel": "Custom threshold",
+        "applyLabel": "Apply threshold",
+        "customButton": "Custom…"
+      },
+      "adjuster": {
+        "button": "Adjust",
+        "dialogTitle": "Adjust stock",
+        "cancel": "Cancel",
+        "saving": "Saving…",
+        "apply": "Apply adjustment",
+        "branchLabel": "Branch",
+        "noBranches": "No branches are available to record this against. Add a location before adjusting stock.",
+        "chooseBranch": "Choose a branch…",
+        "branchRequiredHint": "A count is a claim about one shelf, so this adjustment has to name the branch it changed.",
+        "onHandAtBranch": "On hand at {branch}",
+        "onHandAllBranches": "On hand, all branches",
+        "nothingRecorded": "Nothing recorded",
+        "outOfStock": "Out of stock",
+        "leftCount": "{count} left",
+        "decrease": "Decrease",
+        "increase": "Increase",
+        "newCountLabel": "New on-hand count",
+        "deltaCountLabel": "Change in units",
+        "reasonLabel": "Reason",
+        "reasons": {
+          "RECEIVE": "Delivery",
+          "ADJUSTMENT": "Correction",
+          "RECOUNT": "Recount",
+          "WRITE_OFF": "Write-off"
+        },
+        "noteLabel": "Note (optional)",
+        "notePlaceholder": "Supplier, damage, count sheet…",
+        "toastUpdated": "{variant} at {branch} set to {count}",
+        "previewAbsolute": "<target>{formattedAmount}</target> {amount, plural, one {unit} other {units}} at {branch}",
+        "previewDeltaBranch": "<delta>{signedDelta}</delta> units at {target}",
+        "chosenBranchFallback": "the branch you choose",
+        "allBranchesPreview": "(all branches: {from} → {to})"
+      }
     }
   },
   "auth": {

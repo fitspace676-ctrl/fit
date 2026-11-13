@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { MAX_LOW_STOCK_THRESHOLD } from '@fit/types';
 import { Icon } from '@/components/ui';
@@ -145,6 +147,8 @@ const styles = stylex.create({
  * absolute paths, which silently reset any other param on the page.
  */
 export function ThresholdPicker({ threshold }: { threshold: number | null }) {
+  const t = useTranslations('admin.shop.thresholdPicker');
+  const nf = createNumberFormat(useLocale());
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -192,14 +196,14 @@ export function ThresholdPicker({ threshold }: { threshold: number | null }) {
 
   return (
     <div {...stylex.props(styles.row)}>
-      <span {...stylex.props(styles.label)}>Threshold</span>
+      <span {...stylex.props(styles.label)}>{t('label')}</span>
 
       <Link
         href={hrefFor(null)}
         aria-current={threshold === null ? 'page' : undefined}
         {...stylex.props(styles.pill, threshold === null && styles.pillActive)}
       >
-        Each line’s own
+        {t('eachLinesOwn')}
       </Link>
 
       {THRESHOLD_PRESETS.map((preset) => (
@@ -209,7 +213,7 @@ export function ThresholdPicker({ threshold }: { threshold: number | null }) {
           aria-current={preset === threshold ? 'page' : undefined}
           {...stylex.props(styles.pill, preset === threshold && styles.pillActive)}
         >
-          ≤ {preset}
+          ≤ {nf.format(preset)}
         </Link>
       ))}
 
@@ -226,7 +230,7 @@ export function ThresholdPicker({ threshold }: { threshold: number | null }) {
             step={1}
             inputMode="numeric"
             autoFocus
-            aria-label="Custom threshold"
+            aria-label={t('customInputLabel')}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -237,7 +241,7 @@ export function ThresholdPicker({ threshold }: { threshold: number | null }) {
           <button
             type="submit"
             disabled={!valid}
-            aria-label="Apply threshold"
+            aria-label={t('applyLabel')}
             {...stylex.props(styles.customApply)}
           >
             <Icon name="check" sw={2.5} {...stylex.props(styles.customApplyIcon)} />
@@ -250,7 +254,7 @@ export function ThresholdPicker({ threshold }: { threshold: number | null }) {
           aria-current={isPreset || threshold === null ? undefined : 'page'}
           {...stylex.props(styles.pill, !isPreset && threshold !== null && styles.pillActive)}
         >
-          {isPreset || threshold === null ? 'Custom…' : `≤ ${threshold}`}
+          {isPreset || threshold === null ? t('customButton') : `≤ ${nf.format(threshold)}`}
         </button>
       )}
     </div>

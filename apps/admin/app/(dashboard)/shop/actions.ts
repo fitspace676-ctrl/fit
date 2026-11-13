@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   adjustStockSchema,
@@ -52,28 +53,31 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 const requireProductWrite = () => sessionHas(Permission.ProductWrite);
 const requireInventoryAdjust = () => sessionHas(Permission.InventoryAdjust);
 
+/** Translator for the `admin.shop.errors` namespace (from `getTranslations`). */
+type Translator = Awaited<ReturnType<typeof getTranslations>>;
+
 /** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+function toMessage(error: unknown, t: Translator): string {
   if (error instanceof ApiError) {
     if (error.message === 'PRODUCT_NOT_FOUND') {
-      return 'That product no longer exists.';
+      return t('productNotFound');
     }
     // `unwrap` surfaces the API's error *code*, not its prose, so these would
     // otherwise read as "Request failed (409): CONFLICT". Matched on the code
     // rather than the status: a missing *product* has its own code above, so
     // a bare NOT_FOUND reaching here is the category the write named.
     if (error.message === 'CONFLICT') {
-      return 'A category with that name already exists.';
+      return t('categoryConflict');
     }
     if (error.message === 'NOT_FOUND') {
-      return 'That category no longer exists. Refresh the page.';
+      return t('categoryNotFound');
     }
     if (error.status === 503) {
-      return 'Image storage is not configured. Save the product without images, or try again later.';
+      return t('storageNotConfigured');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('unexpected');
 }
 
 /**
@@ -84,19 +88,20 @@ function toMessage(error: unknown): string {
 export async function createProductAction(
   input: CreateProductInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = createProductSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid product details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalidProductDetails') };
   }
   try {
     const product = await createProduct(parsed.data);
     revalidatePath('/shop');
     return { ok: true, data: { id: product.id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -110,19 +115,20 @@ export async function createProductAction(
 export async function createProductCategoryAction(
   input: CreateProductCategoryInput,
 ): Promise<ActionResult<AdminProductCategory>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = createProductCategorySchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid category name' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalidCategoryName') };
   }
   try {
     const category = await createProductCategory(parsed.data);
     revalidatePath('/shop');
     return { ok: true, data: category };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -134,19 +140,20 @@ export async function renameProductCategoryAction(
   id: string,
   input: UpdateProductCategoryInput,
 ): Promise<ActionResult<AdminProductCategory>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = updateProductCategorySchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid category name' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalidCategoryName') };
   }
   try {
     const category = await renameProductCategory(id, parsed.data);
     revalidatePath('/shop');
     return { ok: true, data: category };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -158,15 +165,16 @@ export async function renameProductCategoryAction(
 export async function deleteProductCategoryAction(
   id: string,
 ): Promise<ActionResult<DeleteProductCategoryResponse>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     const result = await deleteProductCategory(id);
     revalidatePath('/shop');
     return { ok: true, data: result };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -178,12 +186,13 @@ export async function updateProductAction(
   id: string,
   input: UpdateProductInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = updateProductSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid product details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalidProductDetails') };
   }
   try {
     await updateProduct(id, parsed.data);
@@ -191,7 +200,7 @@ export async function updateProductAction(
     revalidatePath(`/shop/${id}`);
     return { ok: true, data: { id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -204,8 +213,9 @@ export async function setProductActiveAction(
   id: string,
   active: boolean,
 ): Promise<ActionResult<{ status: SetProductStatusResponse['status'] }>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     const product = active ? await reactivateProduct(id) : await deactivateProduct(id);
@@ -213,7 +223,7 @@ export async function setProductActiveAction(
     revalidatePath(`/shop/${id}`);
     return { ok: true, data: { status: product.status } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -230,12 +240,13 @@ export async function setProductCategoryAction(
   id: string,
   input: SetProductCategoryInput,
 ): Promise<ActionResult<{ categoryId: string | null }>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = setProductCategorySchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: 'Invalid category' };
+    return { ok: false, error: t('invalidCategory') };
   }
   try {
     const product = await setProductCategory(id, parsed.data.categoryId);
@@ -243,7 +254,7 @@ export async function setProductCategoryAction(
     revalidatePath(`/shop/${id}`);
     return { ok: true, data: { categoryId: product.category?.id ?? null } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -259,14 +270,15 @@ export async function requestProductImageUploadAction(input: {
   contentLength: number;
   fileName?: string;
 }): Promise<ActionResult<SignedUploadResponse>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireProductWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     const signed = await createUpload({ ...input, entity: 'products' });
     return { ok: true, data: signed };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -292,12 +304,13 @@ export async function adjustStockAction(
   productId: string,
   input: AdjustStockInput,
 ): Promise<ActionResult<{ stock: number }>> {
+  const t = await getTranslations('admin.shop.errors');
   if (!(await requireInventoryAdjust())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = adjustStockSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid stock change' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalidStockChange') };
   }
   try {
     const result = await adjustProductStock(productId, parsed.data);
@@ -307,6 +320,6 @@ export async function adjustStockAction(
     revalidatePath(`/shop/${productId}`);
     return { ok: true, data: { stock: result.stock } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }

@@ -30,8 +30,10 @@ import { useTranslations } from 'next-intl';
 import { TopNav } from '@astryxdesign/core/TopNav';
 import { MobileNavToggle } from '@astryxdesign/core/MobileNav';
 import { Avatar, Button, Popover, SelectField, focus } from '@fit/ui-kit';
+import { Permission } from '@fit/types';
 import { useSession } from '@/hooks/use-session';
-import { Icon } from '@/components/ui';
+import { usePermissions } from '@/hooks/use-permissions';
+import { Icon, useToast } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
 import { ALL_LOCATIONS } from '@/lib/active-location';
 import { useActiveLocation } from './active-location';
@@ -142,6 +144,8 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
   const { theme, toggle } = useTheme();
   const router = useRouter();
   const t = useTranslations('admin.common');
+  const { can } = usePermissions();
+  const { toast } = useToast();
   const isDark = theme === 'dark';
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -257,7 +261,13 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
               </button>
               <button
                 type="button"
-                onClick={fromMenu(() => router.push('/settings'))}
+                onClick={fromMenu(() =>
+                  // Settings is owner-only (GymManage). Say so here rather than
+                  // sending everyone else to the bare /403 page.
+                  can(Permission.GymManage)
+                    ? router.push('/settings')
+                    : toast(t('settingsOwnerOnly'), { tone: 'warning', icon: 'info' }),
+                )}
                 {...stylex.props(styles.menuItem, focus.ring)}
               >
                 <Icon name="settings" {...stylex.props(styles.glyph)} />

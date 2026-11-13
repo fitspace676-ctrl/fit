@@ -7,8 +7,11 @@
 // money/plan format. Mirrors the package-plans `format.ts` (T4.11) minus the
 // one-off cadence and session count — a recurring membership has neither.
 
+import type { useTranslations } from 'next-intl';
 import type { SubscriptionInterval } from '@fit/types';
 import { createNumberFormat, defaultLocale } from '@fit/i18n';
+
+type T = ReturnType<typeof useTranslations>;
 
 /** Assumed minor units per major unit (USD/EUR/GEL — all two-decimal). */
 const MINOR_PER_MAJOR = 100;
@@ -62,27 +65,30 @@ export function inputToMinor(value: string): number {
   return Math.round(major * MINOR_PER_MAJOR);
 }
 
-/** The selectable renewal cadences and their human labels, in display order. */
-export const SUBSCRIPTION_INTERVALS: ReadonlyArray<{ value: SubscriptionInterval; label: string }> =
-  [
-    { value: 'MONTH', label: 'Monthly' },
-    { value: 'YEAR', label: 'Yearly' },
-  ];
+/** The selectable renewal cadences and their translation keys, in display order. */
+export const SUBSCRIPTION_INTERVALS: ReadonlyArray<{
+  value: SubscriptionInterval;
+  labelKey: `interval.${SubscriptionInterval}`;
+}> = [
+  { value: 'MONTH', labelKey: 'interval.MONTH' },
+  { value: 'YEAR', labelKey: 'interval.YEAR' },
+];
 
 /** The short price suffix per cadence (`/ mo`, `/ yr`). */
-export function intervalSuffix(interval: SubscriptionInterval): string {
+export function intervalSuffix(interval: SubscriptionInterval, t: T): string {
   switch (interval) {
     case 'YEAR':
-      return '/ yr';
+      return t('intervalSuffix.YEAR');
     case 'MONTH':
     default:
-      return '/ mo';
+      return t('intervalSuffix.MONTH');
   }
 }
 
 /** The human label for a cadence, e.g. `Monthly`. */
-export function intervalLabel(interval: SubscriptionInterval): string {
-  return SUBSCRIPTION_INTERVALS.find((entry) => entry.value === interval)?.label ?? interval;
+export function intervalLabel(interval: SubscriptionInterval, t: T): string {
+  const entry = SUBSCRIPTION_INTERVALS.find((item) => item.value === interval);
+  return entry ? t(entry.labelKey) : interval;
 }
 
 /**
@@ -91,6 +97,12 @@ export function intervalLabel(interval: SubscriptionInterval): string {
  * many classes per period. Mirrors the formacore `billing-plan-edit` preview
  * (`0 = unlimited classes`).
  */
-export function creditsLabel(includedCredits: number): string {
-  return includedCredits <= 0 ? 'Unlimited classes' : `${includedCredits} classes / period`;
+export function creditsLabel(
+  includedCredits: number,
+  t: T,
+  locale: string = defaultLocale,
+): string {
+  return includedCredits <= 0
+    ? t('creditsUnlimited')
+    : t('creditsPerPeriod', { count: createNumberFormat(locale).format(includedCredits) });
 }

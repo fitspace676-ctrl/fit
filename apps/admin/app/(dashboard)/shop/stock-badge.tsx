@@ -1,14 +1,18 @@
+'use client';
+
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import { resolveStockLevel, type AdminProductRow, type StockLevel } from '@fit/types';
 import { Badge, type BadgeTone } from '@fit/ui-kit';
 
 export type { StockLevel };
 
-/** The badge label + tone each stock level wears on a catalog card. */
-const STOCK_STYLES: Record<StockLevel, { label: string; tone: BadgeTone }> = {
-  untracked: { label: 'Untracked', tone: 'neutral' },
-  out: { label: 'Out of stock', tone: 'danger' },
-  low: { label: 'Low stock', tone: 'pending' },
-  in: { label: 'In stock', tone: 'positive' },
+/** The badge tone each stock level wears on a catalog card. */
+const STOCK_TONES: Record<StockLevel, BadgeTone> = {
+  untracked: 'neutral',
+  out: 'danger',
+  low: 'pending',
+  in: 'positive',
 };
 
 /**
@@ -46,27 +50,22 @@ export function StockBadge({
   /** The console's active branch, or `null` in "All locations" mode. */
   branchName?: string | null;
 }) {
+  const t = useTranslations('admin.shop.stockBadge');
+  const locale = useLocale();
   const level = stockLevel(row);
-  const { label, tone } = STOCK_STYLES[level];
+  const label = t(level);
+  const tone = STOCK_TONES[level];
   const counted = level === 'low' || level === 'in';
-  const suffix = counted ? ` · ${row.totalStock}` : '';
-  const badge = (
-    <Badge
-      tone={tone}
-      label={
-        <>
-          {label} {suffix}
-        </>
-      }
-    />
-  );
+  const countText = counted ? createNumberFormat(locale).format(row.totalStock) : '';
+  const badgeText = counted ? t('withCount', { label, count: countText }) : label;
+  const badge = <Badge tone={tone} label={badgeText} />;
 
   if (branchName === null) {
     return badge;
   }
   const scope = counted
-    ? `${label}${suffix} across all branches, not ${branchName} alone`
-    : `${label} across all branches, not ${branchName} alone`;
+    ? t('titleCounted', { label, count: countText, branch: branchName })
+    : t('titleUncounted', { label, branch: branchName });
   return (
     <span title={scope} aria-label={scope}>
       {badge}

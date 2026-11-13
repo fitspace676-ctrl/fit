@@ -13,6 +13,8 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { NextIntlClientProvider } from 'next-intl';
+import { en, ka } from '@fit/i18n';
 import type { AdminInvoiceRow } from '@fit/types';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { ThemeProvider } from '@/components/theme/theme-provider';
@@ -52,13 +54,20 @@ function invoiceRow(overrides: Partial<AdminInvoiceRow> = {}): AdminInvoiceRow {
   };
 }
 
-function renderRoster(invoices: AdminInvoiceRow[], showBranch: boolean) {
+function renderRoster(
+  invoices: AdminInvoiceRow[],
+  showBranch: boolean,
+  locale: 'en' | 'ka' = 'en',
+) {
+  const messages = locale === 'ka' ? ka : en;
   return render(
-    <ThemeProvider initial="light">
-      <ToastProvider>
-        <InvoicesTable invoices={invoices} canManage showBranch={showBranch} />
-      </ToastProvider>
-    </ThemeProvider>,
+    <NextIntlClientProvider locale={locale} messages={messages}>
+      <ThemeProvider initial="light">
+        <ToastProvider>
+          <InvoicesTable invoices={invoices} canManage showBranch={showBranch} />
+        </ToastProvider>
+      </ThemeProvider>
+    </NextIntlClientProvider>,
   );
 }
 
@@ -93,5 +102,20 @@ describe('InvoicesTable — the branch column', () => {
 
     expect(screen.queryByRole('columnheader', { name: 'Branch' })).toBeNull();
     expect(screen.queryByRole('cell', { name: 'Riverside' })).toBeNull();
+  });
+
+  it('renders Georgian headers, type labels, actions, and dates when locale is ka', () => {
+    renderRoster([invoiceRow()], true, 'ka');
+
+    expect(screen.getByRole('columnheader', { name: 'ინვოისი #' })).toBeDefined();
+    expect(screen.getByRole('columnheader', { name: 'წევრი' })).toBeDefined();
+    expect(screen.getByRole('columnheader', { name: 'ფილიალი' })).toBeDefined();
+    expect(screen.getByRole('cell', { name: 'აბონემენტი' })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'ინვოისის ნახვა: INV-0001' })).toBeDefined();
+    expect(
+      screen.getByRole('button', {
+        name: 'ინვოისის INV-0001 გაგზავნა მისამართზე: ana@example.com',
+      }),
+    ).toBeDefined();
   });
 });

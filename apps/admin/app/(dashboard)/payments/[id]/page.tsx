@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
@@ -8,29 +9,35 @@ import { Badge, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { creditsLabel, formatPrice, intervalLabel, intervalSuffix } from '../format';
 import { PlanActions } from './plan-actions';
-import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
+import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 
-export const metadata: Metadata = {
-  title: 'Subscription plan',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.billingPlans.meta');
+  return {
+    title: t('planTitle'),
+  };
+}
 
 // The detail reflects live plan state and the staff session token, so it must
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
-  ACTIVE: { label: 'Active', tone: 'positive' },
-  INACTIVE: { label: 'Inactive', tone: 'neutral' },
+const STATUS_STYLES: Record<
+  string,
+  { labelKey: 'status.ACTIVE' | 'status.INACTIVE'; tone: BadgeTone }
+> = {
+  ACTIVE: { labelKey: 'status.ACTIVE', tone: 'positive' },
+  INACTIVE: { labelKey: 'status.INACTIVE', tone: 'neutral' },
 };
 
-/** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null): string {
+/** Render an ISO instant as a short local date, or a dash when absent. */
+function formatDate(iso: string | null, locale: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(defaultLocale, {
+    : createDateTimeFormat(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -51,6 +58,8 @@ export default async function SubscriptionPlanDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const [t, locale] = await Promise.all([getTranslations('admin.billingPlans'), getLocale()]);
+  const nf = createNumberFormat(locale);
 
   let plan;
   try {
@@ -61,15 +70,15 @@ export default async function SubscriptionPlanDetailPage({
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this subscription plan (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadPlanFailed', { status: error.status, message: error.message })
+        : t('apiUnreachable');
     return (
       <div className="flex flex-col gap-4">
         <Link
           href="/payments"
           className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
         >
-          <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
+          <Icon name="arrowLeft" className="h-4 w-4" /> {t('detail.back')}
         </Link>
         <p
           role="alert"
@@ -81,10 +90,10 @@ export default async function SubscriptionPlanDetailPage({
     );
   }
 
-  const status = STATUS_LABELS[plan.status] ?? {
-    label: plan.status,
-    tone: 'ink' as BadgeTone,
-  };
+  const statusEntry = STATUS_STYLES[plan.status];
+  const status = statusEntry
+    ? { label: t(statusEntry.labelKey), tone: statusEntry.tone }
+    : { label: plan.status, tone: 'neutral' as BadgeTone };
 
   // Write controls (edit + deactivate) are a `BillingManage` capability.
   const session = await getServerSession();
@@ -96,7 +105,7 @@ export default async function SubscriptionPlanDetailPage({
         href="/payments"
         className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300 dark:hover:text-brand-200"
       >
-        <Icon name="arrowLeft" className="h-4 w-4" /> Back to subscriptions
+        <Icon name="arrowLeft" className="h-4 w-4" /> {t('detail.back')}
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -106,12 +115,12 @@ export default async function SubscriptionPlanDetailPage({
               {plan.name}
             </h1>
             <Badge tone={status.tone} label={status.label} />
-            {plan.popular ? <Badge tone="accent" label="Most popular" /> : null}
+            {plan.popular ? <Badge tone="accent" label={t('detail.mostPopular')} /> : null}
           </div>
           <p className="font-mono text-lg font-semibold tabular-nums text-ink-800 dark:text-ink-100">
-            {formatPrice(plan.priceAmount, plan.currency)}{' '}
+            {formatPrice(plan.priceAmount, plan.currency, locale)}{' '}
             <span className="text-sm font-normal text-ink-400">
-              {intervalSuffix(plan.interval)}
+              {intervalSuffix(plan.interval, t)}
             </span>
           </p>
         </div>
@@ -121,34 +130,36 @@ export default async function SubscriptionPlanDetailPage({
       <section className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
-            Billing
+            {t('detail.billing')}
           </span>
-          <span className="text-ink-800 dark:text-ink-100">{intervalLabel(plan.interval)}</span>
+          <span className="text-ink-800 dark:text-ink-100">{intervalLabel(plan.interval, t)}</span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
-            Credits
+            {t('detail.credits')}
           </span>
           <span className="text-ink-800 dark:text-ink-100">
-            {creditsLabel(plan.includedCredits)}
+            {creditsLabel(plan.includedCredits, t, locale)}
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
-            Freeze allowance
+            {t('detail.freezeAllowance')}
           </span>
           <span className="text-ink-800 dark:text-ink-100">
             {plan.freezeDaysPerPeriod > 0
-              ? `${plan.freezeDaysPerPeriod} days / period`
-              : 'No freezing'}
+              ? t('detail.freezeDays', { count: nf.format(plan.freezeDaysPerPeriod) })
+              : t('detail.noFreezing')}
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
-            Free trial
+            {t('detail.freeTrial')}
           </span>
           <span className="text-ink-800 dark:text-ink-100">
-            {plan.trialDays > 0 ? `${plan.trialDays} days` : 'No trial'}
+            {plan.trialDays > 0
+              ? t('detail.trialDays', { count: nf.format(plan.trialDays) })
+              : t('detail.noTrial')}
           </span>
         </div>
       </section>
@@ -156,7 +167,7 @@ export default async function SubscriptionPlanDetailPage({
       {plan.description ? (
         <section className="flex flex-col gap-2">
           <h2 className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
-            Description
+            {t('detail.description')}
           </h2>
           <p className="max-w-2xl whitespace-pre-line text-sm text-ink-700 dark:text-ink-200">
             {plan.description}
@@ -165,7 +176,9 @@ export default async function SubscriptionPlanDetailPage({
       ) : null}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">Features</h2>
+        <h2 className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
+          {t('detail.features')}
+        </h2>
         {plan.features.length > 0 ? (
           <ul className="flex max-w-xl list-disc flex-col gap-1 pl-5 text-sm text-ink-700 dark:text-ink-200">
             {plan.features.map((feature, index) => (
@@ -173,11 +186,13 @@ export default async function SubscriptionPlanDetailPage({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-ink-400">No features listed.</p>
+          <p className="text-sm text-ink-400">{t('detail.noFeatures')}</p>
         )}
       </section>
 
-      <p className="text-xs text-ink-400">Added {formatDate(plan.createdAt)}.</p>
+      <p className="text-xs text-ink-400">
+        {t('detail.addedAt', { date: formatDate(plan.createdAt, locale) })}
+      </p>
     </div>
   );
 }

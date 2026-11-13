@@ -3,7 +3,8 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import {
   MAX_PRODUCT_CATEGORY_NAME,
@@ -26,9 +27,12 @@ import {
 } from './actions';
 
 /** Selectable initial statuses when creating (lifecycle change is a separate action). */
-const CREATE_STATUSES: ReadonlyArray<{ value: ProductStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
+const CREATE_STATUSES: ReadonlyArray<{
+  value: ProductStatus;
+  labelKey: 'statusActive' | 'statusInactive';
+}> = [
+  { value: 'ACTIVE', labelKey: 'statusActive' },
+  { value: 'INACTIVE', labelKey: 'statusInactive' },
 ];
 
 /** Accepted image MIME types for the gallery, matching the storage service map. */
@@ -538,7 +542,10 @@ export function ProductForm(props: Props) {
         categoryId: null,
       };
 
+  const t = useTranslations('admin.shop.form');
   const tCommon = useTranslations('admin.common');
+  const locale = useLocale();
+  const nf = createNumberFormat(locale);
   const branch = useBranchExclusivity(props.mode, initial.locationId);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
@@ -621,7 +628,7 @@ export function ProductForm(props: Props) {
 
     const room = MAX_PRODUCT_IMAGES - images.length;
     if (room <= 0) {
-      setUploadError(`A product can have at most ${MAX_PRODUCT_IMAGES} images.`);
+      setUploadError(t('gallery.tooManyImages', { max: nf.format(MAX_PRODUCT_IMAGES) }));
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -631,11 +638,11 @@ export function ProductForm(props: Props) {
     try {
       for (const file of files.slice(0, room)) {
         if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-          setUploadError('Choose JPEG, PNG, WebP, or GIF images.');
+          setUploadError(t('gallery.invalidFileType'));
           continue;
         }
         if (file.size > MAX_IMAGE_BYTES) {
-          setUploadError(`“${file.name}” is larger than 5 MB. Choose a smaller file.`);
+          setUploadError(t('gallery.fileTooLarge', { name: file.name }));
           continue;
         }
         const signed = await requestProductImageUploadAction({
@@ -653,11 +660,11 @@ export function ProductForm(props: Props) {
           body: file,
         });
         if (!put.ok) {
-          setUploadError(`Upload failed (${put.status}). Please try again.`);
+          setUploadError(t('gallery.uploadFailed', { status: put.status }));
           continue;
         }
         if (!signed.data.publicUrl) {
-          setUploadError('Images uploaded but no public URL is configured for storage.');
+          setUploadError(t('gallery.noPublicUrl'));
           continue;
         }
         uploaded.push(signed.data.publicUrl);
@@ -666,7 +673,7 @@ export function ProductForm(props: Props) {
         setImages((prev) => [...prev, ...uploaded].slice(0, MAX_PRODUCT_IMAGES));
       }
     } catch {
-      setUploadError('Could not upload an image. Check your connection and try again.');
+      setUploadError(t('gallery.uploadNetworkError'));
     } finally {
       setUploading(false);
       // Allow re-selecting the same file(s) after an error.
@@ -763,7 +770,7 @@ export function ProductForm(props: Props) {
       {/* Image gallery. */}
       <div {...stylex.props(styles.galleryGroup)}>
         <span {...stylex.props(styles.label)}>
-          Image gallery <span {...stylex.props(styles.optional)}>(first is the primary)</span>
+          {t('gallery.label')} <span {...stylex.props(styles.optional)}>{t('gallery.hint')}</span>
         </span>
         {images.length > 0 ? (
           <div {...stylex.props(styles.galleryRow)}>
@@ -772,14 +779,14 @@ export function ProductForm(props: Props) {
                 <img src={url} alt="" {...stylex.props(styles.galleryImg)} />
                 <div {...stylex.props(styles.galleryControls)}>
                   {index === 0 ? (
-                    <span {...stylex.props(styles.primaryTag)}>Primary</span>
+                    <span {...stylex.props(styles.primaryTag)}>{t('gallery.primary')}</span>
                   ) : (
                     <button
                       type="button"
                       onClick={() => makePrimary(url)}
                       {...stylex.props(styles.makePrimaryBtn)}
                     >
-                      Make primary
+                      {t('gallery.makePrimary')}
                     </button>
                   )}
                   <button
@@ -787,14 +794,14 @@ export function ProductForm(props: Props) {
                     onClick={() => removeImage(url)}
                     {...stylex.props(styles.removeBtn)}
                   >
-                    Remove
+                    {t('gallery.remove')}
                   </button>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <span {...stylex.props(styles.galleryEmpty)}>No images yet</span>
+          <span {...stylex.props(styles.galleryEmpty)}>{t('gallery.empty')}</span>
         )}
         <div {...stylex.props(styles.fileGroup)}>
           <input
@@ -808,10 +815,10 @@ export function ProductForm(props: Props) {
           />
           <span {...stylex.props(styles.fileHint)}>
             {uploading
-              ? 'Uploading…'
+              ? t('gallery.uploading')
               : atImageLimit
-                ? `Maximum of ${MAX_PRODUCT_IMAGES} images reached.`
-                : `JPEG, PNG, WebP or GIF, up to 5 MB each (max ${MAX_PRODUCT_IMAGES}).`}
+                ? t('gallery.limitReached', { max: nf.format(MAX_PRODUCT_IMAGES) })
+                : t('gallery.uploadRules', { max: nf.format(MAX_PRODUCT_IMAGES) })}
           </span>
         </div>
         {uploadError ? (
@@ -823,7 +830,7 @@ export function ProductForm(props: Props) {
 
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="product-name" {...stylex.props(styles.label)}>
-          Name
+          {t('nameLabel')}
         </label>
         <input
           id="product-name"
@@ -839,7 +846,7 @@ export function ProductForm(props: Props) {
 
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="product-description" {...stylex.props(styles.label)}>
-          Description <span {...stylex.props(styles.optional)}>(optional)</span>
+          {t('descriptionLabel')} <span {...stylex.props(styles.optional)}>{t('optional')}</span>
         </label>
         <textarea
           id="product-description"
@@ -847,7 +854,7 @@ export function ProductForm(props: Props) {
           rows={3}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="A short description of the product."
+          placeholder={t('descriptionPlaceholder')}
           {...stylex.props(styles.textarea)}
         />
       </div>
@@ -855,7 +862,7 @@ export function ProductForm(props: Props) {
       <div {...stylex.props(styles.priceRow)}>
         <div {...stylex.props(styles.priceGroup)}>
           <label htmlFor="product-price" {...stylex.props(styles.label)}>
-            Base price ({currency})
+            {t('basePriceLabel', { currency })}
           </label>
           <input
             id="product-price"
@@ -872,7 +879,7 @@ export function ProductForm(props: Props) {
         </div>
         <div {...stylex.props(styles.priceGroup)}>
           <label htmlFor="product-cost" {...stylex.props(styles.label)}>
-            Cost <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+            {t('costLabel')} <span {...stylex.props(styles.labelOptional)}>{t('optional')}</span>
           </label>
           <input
             id="product-cost"
@@ -888,7 +895,7 @@ export function ProductForm(props: Props) {
           />
         </div>
         <div {...stylex.props(styles.currencyGroup)}>
-          <span {...stylex.props(styles.label)}>Currency</span>
+          <span {...stylex.props(styles.label)}>{t('currencyLabel')}</span>
           {/* Read-only: the gym prices in one currency, set in Settings → General.
               A per-product override is what let a GEL gym create USD products. */}
           <p {...stylex.props(styles.currencyValue)}>{currency}</p>
@@ -896,20 +903,22 @@ export function ProductForm(props: Props) {
       </div>
 
       {marginPct !== null ? (
-        <p {...stylex.props(styles.marginHint)}>Profit margin: {marginPct}%</p>
+        <p {...stylex.props(styles.marginHint)}>
+          {t('profitMargin', { percent: nf.format(marginPct) })}
+        </p>
       ) : null}
 
       {/* Inventory. Only meaningful for a product sold as-is: once it carries
           variants each one holds its own count, edited in the rows above. */}
       <fieldset {...stylex.props(styles.fieldset)}>
         <legend {...stylex.props(styles.legend)}>
-          Inventory <span {...stylex.props(styles.optional)}>(optional)</span>
+          {t('inventory.legend')} <span {...stylex.props(styles.optional)}>{t('optional')}</span>
         </legend>
         <div {...stylex.props(styles.priceRow)}>
           {variants.length === 0 ? (
             <div {...stylex.props(styles.priceGroup)}>
               <label htmlFor="product-stock" {...stylex.props(styles.label)}>
-                On hand
+                {t('inventory.onHand')}
               </label>
               <input
                 id="product-stock"
@@ -920,14 +929,14 @@ export function ProductForm(props: Props) {
                 inputMode="numeric"
                 value={stock}
                 onChange={(event) => setStock(event.target.value)}
-                placeholder="Not tracked"
+                placeholder={t('inventory.notTrackedPlaceholder')}
                 {...stylex.props(styles.input)}
               />
             </div>
           ) : null}
           <div {...stylex.props(styles.priceGroup)}>
             <label htmlFor="product-threshold" {...stylex.props(styles.label)}>
-              Low-stock alert at
+              {t('inventory.threshold')}
             </label>
             <input
               id="product-threshold"
@@ -946,42 +955,42 @@ export function ProductForm(props: Props) {
         <p {...stylex.props(styles.stockHint)}>
           {variants.length > 0
             ? countedVariants > 0
-              ? 'This product counts stock per variant. Counts already being kept are moved from the product page, so every change is logged with a reason; a variant added here starts from the count you type for it.'
-              : 'This product counts stock per variant. Set each opening count in the rows above. After that, restock from the product page so every change is logged.'
-            : 'Leave “On hand” empty to sell this product without counting it. Correcting it here is recorded in the product’s history; day-to-day restocking belongs on the product page, where you say why.'}
+              ? t('inventory.hintCountedVariants')
+              : t('inventory.hintNewVariants')
+            : t('inventory.hintSingle')}
         </p>
       </fieldset>
 
       {/* Variants. */}
       <fieldset {...stylex.props(styles.fieldset)}>
         <legend {...stylex.props(styles.legend)}>
-          Variants <span {...stylex.props(styles.optional)}>(optional)</span>
+          {t('variants.legend')} <span {...stylex.props(styles.optional)}>{t('optional')}</span>
         </legend>
         {variants.length > 0 ? (
           <div {...stylex.props(styles.variantsWrap)}>
             <div {...stylex.props(styles.variantHeadRow)}>
-              <span>Name</span>
-              <span>SKU</span>
-              <span>Price</span>
-              <span>Stock</span>
-              <span {...stylex.props(styles.srOnly)}>Remove</span>
+              <span>{t('variants.colName')}</span>
+              <span>{t('variants.colSku')}</span>
+              <span>{t('variants.colPrice')}</span>
+              <span>{t('variants.colStock')}</span>
+              <span {...stylex.props(styles.srOnly)}>{t('variants.colRemove')}</span>
             </div>
             {variants.map((variant, index) => (
               <div key={index} {...stylex.props(styles.variantRow)}>
                 <input
                   type="text"
-                  aria-label={`Variant ${index + 1} name`}
+                  aria-label={t('variants.rowNameLabel', { index: nf.format(index + 1) })}
                   value={variant.name}
                   onChange={(event) => setVariant(index, { name: event.target.value })}
-                  placeholder="e.g. Small / Black"
+                  placeholder={t('variants.namePlaceholder')}
                   {...stylex.props(styles.input)}
                 />
                 <input
                   type="text"
-                  aria-label={`Variant ${index + 1} SKU`}
+                  aria-label={t('variants.rowSkuLabel', { index: nf.format(index + 1) })}
                   value={variant.sku}
                   onChange={(event) => setVariant(index, { sku: event.target.value })}
-                  placeholder="SKU"
+                  placeholder={t('variants.skuPlaceholder')}
                   {...stylex.props(styles.input)}
                 />
                 <input
@@ -989,10 +998,10 @@ export function ProductForm(props: Props) {
                   min="0"
                   step="0.01"
                   inputMode="decimal"
-                  aria-label={`Variant ${index + 1} price`}
+                  aria-label={t('variants.rowPriceLabel', { index: nf.format(index + 1) })}
                   value={variant.price}
                   onChange={(event) => setVariant(index, { price: event.target.value })}
-                  placeholder="Base"
+                  placeholder={t('variants.pricePlaceholder')}
                   {...stylex.props(styles.input)}
                 />
                 <input
@@ -1000,14 +1009,10 @@ export function ProductForm(props: Props) {
                   min="0"
                   step="1"
                   inputMode="numeric"
-                  aria-label={`Variant ${index + 1} stock`}
+                  aria-label={t('variants.rowStockLabel', { index: nf.format(index + 1) })}
                   value={variant.stock}
                   readOnly={index < countedVariants}
-                  title={
-                    index < countedVariants
-                      ? 'Counted on the product page, where every change is logged with a reason.'
-                      : undefined
-                  }
+                  title={index < countedVariants ? t('variants.stockReadOnlyTitle') : undefined}
                   onChange={(event) => setVariant(index, { stock: event.target.value })}
                   {...stylex.props(styles.input, index < countedVariants && styles.inputReadOnly)}
                 />
@@ -1016,15 +1021,13 @@ export function ProductForm(props: Props) {
                   onClick={() => removeVariant(index)}
                   {...stylex.props(styles.variantRemoveBtn)}
                 >
-                  Remove
+                  {t('variants.remove')}
                 </button>
               </div>
             ))}
           </div>
         ) : (
-          <p {...stylex.props(styles.noVariants)}>
-            No variants. Add sizes, colours, or flavours as purchasable options.
-          </p>
+          <p {...stylex.props(styles.noVariants)}>{t('variants.empty')}</p>
         )}
         <div>
           <Button
@@ -1032,14 +1035,18 @@ export function ProductForm(props: Props) {
             size="inline"
             onClick={addVariant}
             disabled={atVariantLimit}
-            label={atVariantLimit ? `Maximum of ${MAX_PRODUCT_VARIANTS} variants` : 'Add variant'}
+            label={
+              atVariantLimit
+                ? t('variants.limitReached', { max: nf.format(MAX_PRODUCT_VARIANTS) })
+                : t('variants.addVariant')
+            }
           />
         </div>
       </fieldset>
 
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="product-category" {...stylex.props(styles.label)}>
-          Category <span {...stylex.props(styles.optional)}>(optional)</span>
+          {t('category.label')} <span {...stylex.props(styles.optional)}>{t('optional')}</span>
         </label>
         <div {...stylex.props(styles.categoryRow)}>
           <select
@@ -1050,7 +1057,7 @@ export function ProductForm(props: Props) {
             disabled={shelves.length === 0}
             {...stylex.props(styles.input, styles.categorySelect)}
           >
-            <option value="">No category</option>
+            <option value="">{t('category.none')}</option>
             {shelves.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -1063,7 +1070,7 @@ export function ProductForm(props: Props) {
               size="card"
               type="button"
               onClick={() => setNamingShelf(true)}
-              label="New category"
+              label={t('category.newButton')}
             />
           ) : null}
         </div>
@@ -1071,7 +1078,7 @@ export function ProductForm(props: Props) {
         {namingShelf ? (
           <div {...stylex.props(styles.categoryRow)}>
             <label htmlFor="product-new-category" {...stylex.props(styles.srOnly)}>
-              New category name
+              {t('category.newNameLabel')}
             </label>
             <input
               id="product-new-category"
@@ -1079,7 +1086,7 @@ export function ProductForm(props: Props) {
               autoFocus
               maxLength={MAX_PRODUCT_CATEGORY_NAME}
               value={shelfName}
-              placeholder="Drinks"
+              placeholder={t('category.newPlaceholder')}
               onChange={(event) => setShelfName(event.target.value)}
               // The form around this one is the product's — Enter here must add the
               // shelf, not submit a half-filled product.
@@ -1100,7 +1107,7 @@ export function ProductForm(props: Props) {
               type="button"
               onClick={() => void createShelf()}
               disabled={savingShelf || shelfName.trim() === ''}
-              label={savingShelf ? 'Adding…' : 'Add'}
+              label={savingShelf ? t('category.adding') : t('category.add')}
             />
             <Button
               variant="secondary"
@@ -1110,7 +1117,7 @@ export function ProductForm(props: Props) {
                 setNamingShelf(false);
                 setShelfError(null);
               }}
-              label="Cancel"
+              label={t('category.cancel')}
             />
           </div>
         ) : null}
@@ -1121,9 +1128,7 @@ export function ProductForm(props: Props) {
           </p>
         ) : null}
         {shelves.length === 0 && !namingShelf ? (
-          <p {...stylex.props(styles.marginHint)}>
-            No categories yet. “New category” adds one without leaving this form.
-          </p>
+          <p {...stylex.props(styles.marginHint)}>{t('category.emptyHint')}</p>
         ) : null}
       </div>
 
@@ -1156,7 +1161,7 @@ export function ProductForm(props: Props) {
       {!isEdit ? (
         <div {...stylex.props(styles.fieldGroup)}>
           <label htmlFor="product-status" {...stylex.props(styles.label)}>
-            Status
+            {t('statusLabel')}
           </label>
           <select
             id="product-status"
@@ -1167,7 +1172,7 @@ export function ProductForm(props: Props) {
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.labelKey)}
               </option>
             ))}
           </select>
@@ -1189,7 +1194,7 @@ export function ProductForm(props: Props) {
             disabled={uploading}
             loading={pending}
             xstyle={props.onCancel ? styles.actionButton : undefined}
-            label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
+            label={pending ? t('saving') : isEdit ? t('saveChanges') : t('createProduct')}
           />
           {props.onCancel ? (
             <Button
@@ -1199,11 +1204,11 @@ export function ProductForm(props: Props) {
               onClick={props.onCancel}
               disabled={pending}
               xstyle={styles.actionButton}
-              label="Cancel"
+              label={t('cancel')}
             />
           ) : (
             <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
-              Cancel
+              {t('cancel')}
             </Link>
           )}
         </div>

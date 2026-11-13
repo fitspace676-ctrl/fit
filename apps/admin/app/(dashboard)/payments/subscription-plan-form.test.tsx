@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
-import { en } from '@fit/i18n';
+import { en, ka } from '@fit/i18n';
 import { SubscriptionPlanForm } from './subscription-plan-form';
 import { createSubscriptionPlanAction, updateSubscriptionPlanAction } from './actions';
 
@@ -30,9 +30,9 @@ vi.mock('./actions', () => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
 
-function renderWithIntl(ui: React.ReactElement) {
+function renderWithIntl(ui: React.ReactElement, locale: 'en' | 'ka' = 'en') {
   return render(
-    <NextIntlClientProvider locale="en" messages={en}>
+    <NextIntlClientProvider locale={locale} messages={locale === 'ka' ? ka : en}>
       {ui}
     </NextIntlClientProvider>,
   );
@@ -118,5 +118,14 @@ describe('SubscriptionPlanForm — branch exclusivity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateSubscriptionPlanAction).toHaveBeenCalledTimes(1));
     expect(vi.mocked(updateSubscriptionPlanAction).mock.calls[0]![1].locationId).toBeNull();
+  });
+
+  it('renders Georgian labels and preview copy when locale is ka', () => {
+    renderWithIntl(<SubscriptionPlanForm mode="create" classTypes={[]} />, 'ka');
+
+    expect(screen.getByText('ძირითადი ინფორმაცია და ფასი')).toBeDefined();
+    expect(screen.getByLabelText('სახელი')).toBeDefined();
+    expect(screen.getByText('წევრის ხედვის ნიმუში')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'პაკეტის შექმნა' })).toBeDefined();
   });
 });

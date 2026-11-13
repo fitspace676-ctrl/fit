@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
@@ -9,16 +10,15 @@ import {
 } from '@fit/types';
 import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
 import { StockAdjuster } from '../low-stock/stock-adjuster';
-import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
+import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 
-/** How each ledger reason reads to staff, and the tone its delta wears. */
-const REASON_LABELS: Record<StockMovementReason, string> = {
-  RECEIVE: 'Delivery',
-  ADJUSTMENT: 'Correction',
-  RECOUNT: 'Recount',
-  WRITE_OFF: 'Write-off',
-  SALE: 'Sale',
-  REFUND_RESTOCK: 'Refund',
+const REASON_KEYS: Record<StockMovementReason, StockMovementReason> = {
+  RECEIVE: 'RECEIVE',
+  ADJUSTMENT: 'ADJUSTMENT',
+  RECOUNT: 'RECOUNT',
+  WRITE_OFF: 'WRITE_OFF',
+  SALE: 'SALE',
+  REFUND_RESTOCK: 'REFUND_RESTOCK',
 };
 
 const styles = stylex.create({
@@ -112,12 +112,15 @@ const styles = stylex.create({
   },
 });
 
-/** The badge each derived level wears beside a position's count. */
-const LEVEL_TONES: Record<string, { label: string; tone: BadgeTone }> = {
-  untracked: { label: 'Not tracked', tone: 'neutral' },
-  out: { label: 'Out', tone: 'danger' },
-  low: { label: 'Low', tone: 'pending' },
-  in: { label: 'In stock', tone: 'positive' },
+/** The badge tone each derived level wears beside a position's count. */
+const LEVEL_TONES: Record<
+  string,
+  { labelKey: 'untracked' | 'out' | 'low' | 'in'; tone: BadgeTone }
+> = {
+  untracked: { labelKey: 'untracked', tone: 'neutral' },
+  out: { labelKey: 'out', tone: 'danger' },
+  low: { labelKey: 'low', tone: 'pending' },
+  in: { labelKey: 'in', tone: 'positive' },
 };
 
 /** One addressable stock position, flattened for the table. */
@@ -156,7 +159,7 @@ interface Position {
  * a drop between two stocktakes is explained rather than mysterious. It is the one
  * per-branch surface on the page, so every row names its branch.
  */
-export function StockPanel({
+export async function StockPanel({
   product,
   movements,
   canWrite,
@@ -172,6 +175,16 @@ export function StockPanel({
   /** The console's active branch, or `null` in "All locations" mode. */
   branchName: string | null;
 }) {
+  const [t, locale] = await Promise.all([getTranslations('admin.shop.stockPanel'), getLocale()]);
+  const nf = createNumberFormat(locale);
+  const dtf = createDateTimeFormat(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   const positions: Position[] =
     product.variants.length > 0
       ? product.variants.map((variant, index) => ({
@@ -183,14 +196,16 @@ export function StockPanel({
       : [{ variantIndex: null, label: product.name, sku: '', stock: product.stock }];
 
   const threshold = product.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD;
+  const thresholdFormatted = nf.format(threshold);
 
   return (
     <section {...stylex.props(styles.section)}>
       <div {...stylex.props(styles.headRow)}>
-        <h2 {...stylex.props(styles.heading)}>Inventory</h2>
+        <h2 {...stylex.props(styles.heading)}>{t('heading')}</h2>
         <span {...stylex.props(styles.subtle)}>
-          Low-stock alert at {threshold}
-          {product.lowStockThreshold === null ? ' (default)' : ''}
+          {product.lowStockThreshold === null
+            ? t('thresholdDefault', { threshold: thresholdFormatted })
+            : t('thresholdCustom', { threshold: thresholdFormatted })}
         </span>
       </div>
 
@@ -198,10 +213,10 @@ export function StockPanel({
         <table {...stylex.props(styles.table)}>
           <thead>
             <tr>
-              <th {...stylex.props(styles.th)}>Position</th>
-              <th {...stylex.props(styles.th)}>SKU</th>
-              <th {...stylex.props(styles.th, styles.num)}>On hand (all branches)</th>
-              <th {...stylex.props(styles.th)}>Status</th>
+              <th {...stylex.props(styles.th)}>{t('colPosition')}</th>
+              <th {...stylex.props(styles.th)}>{t('colSku')}</th>
+              <th {...stylex.props(styles.th, styles.num)}>{t('colOnHandAllBranches')}</th>
+              <th {...stylex.props(styles.th)}>{t('colStatus')}</th>
               {canWrite ? <th {...stylex.props(styles.th)} /> : null}
             </tr>
           </thead>
@@ -217,10 +232,10 @@ export function StockPanel({
                   <td {...stylex.props(styles.td)}>{position.label}</td>
                   <td {...stylex.props(styles.td, styles.muted)}>{position.sku || '-'}</td>
                   <td {...stylex.props(styles.td, styles.num)}>
-                    {position.stock === null ? '-' : position.stock}
+                    {position.stock === null ? '-' : nf.format(position.stock)}
                   </td>
                   <td {...stylex.props(styles.td)}>
-                    <Badge tone={badge.tone} label={badge.label} />
+                    <Badge tone={badge.tone} label={t(`level.${badge.labelKey}`)} />
                   </td>
                   {canWrite ? (
                     <td {...stylex.props(styles.td, styles.actionCell)}>
@@ -245,12 +260,13 @@ export function StockPanel({
       </Card>
 
       <p {...stylex.props(styles.note)}>
-        These are gym-wide totals. To view one branch’s shelf and record a stocktake against it,
-        open{' '}
-        <Link href="/shop/inventory" {...stylex.props(styles.link)}>
-          Inventory
-        </Link>
-        .
+        {t.rich('gymWideNote', {
+          inventory: (chunks) => (
+            <Link href="/shop/inventory" {...stylex.props(styles.link)}>
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
 
       {/* The ledger is a capability of its own (`StockMovementRead`): a
@@ -259,47 +275,41 @@ export function StockPanel({
       {canViewMovements ? (
         <>
           <div {...stylex.props(styles.headRow)}>
-            <h2 {...stylex.props(styles.heading)}>Stock history</h2>
+            <h2 {...stylex.props(styles.heading)}>{t('historyHeading')}</h2>
             <span {...stylex.props(styles.subtle)}>
-              {branchName === null ? 'Most recent first' : `${branchName} · most recent first`}
+              {branchName === null
+                ? t('mostRecentFirst')
+                : t('branchMostRecentFirst', { branch: branchName })}
             </span>
           </div>
 
           <Card padding="none" xstyle={styles.card}>
             {movements.length === 0 ? (
-              <p {...stylex.props(styles.empty)}>
-                No movements recorded yet. Adjustments, sales and refunds will appear here.
-              </p>
+              <p {...stylex.props(styles.empty)}>{t('historyEmpty')}</p>
             ) : (
               <table {...stylex.props(styles.table)}>
                 <thead>
                   <tr>
-                    <th {...stylex.props(styles.th)}>When</th>
+                    <th {...stylex.props(styles.th)}>{t('colWhen')}</th>
                     {/* The branch is on the ROW here, unlike the aggregate views: the
                         ledger really does mix branches, so the column changes down the
                         page and earns its place. */}
-                    <th {...stylex.props(styles.th)}>Branch</th>
-                    <th {...stylex.props(styles.th)}>Position</th>
-                    <th {...stylex.props(styles.th)}>Reason</th>
-                    <th {...stylex.props(styles.th, styles.num)}>Change</th>
+                    <th {...stylex.props(styles.th)}>{t('colBranch')}</th>
+                    <th {...stylex.props(styles.th)}>{t('colPosition')}</th>
+                    <th {...stylex.props(styles.th)}>{t('colReason')}</th>
+                    <th {...stylex.props(styles.th, styles.num)}>{t('colChange')}</th>
                     {/* Not the gym-wide figure the table above shows: this is what the
                         row's own branch held afterwards. */}
-                    <th {...stylex.props(styles.th, styles.num)}>Left at branch</th>
-                    <th {...stylex.props(styles.th)}>By</th>
-                    <th {...stylex.props(styles.th)}>Note</th>
+                    <th {...stylex.props(styles.th, styles.num)}>{t('colLeftAtBranch')}</th>
+                    <th {...stylex.props(styles.th)}>{t('colBy')}</th>
+                    <th {...stylex.props(styles.th)}>{t('colNote')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movements.map((movement) => (
                     <tr key={movement.id}>
                       <td {...stylex.props(styles.td, styles.muted)}>
-                        {createDateTimeFormat(defaultLocale, {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        }).format(new Date(movement.createdAt))}
+                        {dtf.format(new Date(movement.createdAt))}
                       </td>
                       {/* A movement with no branch is a row written before per-branch
                           stock existed, or one whose branch has since been retired.
@@ -307,12 +317,14 @@ export function StockPanel({
                       <td
                         {...stylex.props(styles.td, movement.locationName === null && styles.muted)}
                       >
-                        {movement.locationName ?? 'No branch recorded'}
+                        {movement.locationName ?? t('noBranchRecorded')}
                       </td>
                       <td {...stylex.props(styles.td)}>
                         {movement.variantIndex === null ? product.name : movement.variantLabel}
                       </td>
-                      <td {...stylex.props(styles.td)}>{REASON_LABELS[movement.reason]}</td>
+                      <td {...stylex.props(styles.td)}>
+                        {t(`reasons.${REASON_KEYS[movement.reason]}`)}
+                      </td>
                       <td
                         {...stylex.props(
                           styles.td,
@@ -320,12 +332,15 @@ export function StockPanel({
                           movement.delta > 0 ? styles.deltaUp : styles.deltaDown,
                         )}
                       >
-                        {movement.delta > 0 ? '+' : ''}
-                        {movement.delta}
+                        {movement.delta > 0
+                          ? `+${nf.format(movement.delta)}`
+                          : nf.format(movement.delta)}
                       </td>
-                      <td {...stylex.props(styles.td, styles.num)}>{movement.resultingStock}</td>
+                      <td {...stylex.props(styles.td, styles.num)}>
+                        {nf.format(movement.resultingStock)}
+                      </td>
                       <td {...stylex.props(styles.td, styles.muted)}>
-                        {movement.actorName ?? (movement.orderId ? 'Checkout' : '-')}
+                        {movement.actorName ?? (movement.orderId ? t('checkoutActor') : '-')}
                       </td>
                       <td {...stylex.props(styles.td, styles.muted)}>{movement.note || '-'}</td>
                     </tr>
@@ -336,10 +351,7 @@ export function StockPanel({
           </Card>
 
           {branchName === null ? null : (
-            <p {...stylex.props(styles.note)}>
-              Movements at {branchName} only. Rows recorded before stock was held per branch name no
-              branch, and are listed under All locations.
-            </p>
+            <p {...stylex.props(styles.note)}>{t('branchOnlyNote', { branch: branchName })}</p>
           )}
         </>
       ) : null}

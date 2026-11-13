@@ -14,6 +14,8 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { NextIntlClientProvider } from 'next-intl';
+import { en, ka } from '@fit/i18n';
 import { ToastProvider } from '@/components/ui';
 import { StockAdjuster } from './stock-adjuster';
 
@@ -42,20 +44,25 @@ vi.mock('@/components/active-location', () => ({
   }),
 }));
 
-function renderAdjuster(props: Partial<React.ComponentProps<typeof StockAdjuster>> = {}) {
+function renderAdjuster(
+  props: Partial<React.ComponentProps<typeof StockAdjuster>> = {},
+  locale: 'en' | 'ka' = 'en',
+) {
   return render(
-    <ToastProvider>
-      <StockAdjuster
-        productId="p-1"
-        productName="Whey protein"
-        variantIndex={0}
-        variantName="1kg"
-        sku="WP-1KG"
-        stock={4}
-        stockLocationId={null}
-        {...props}
-      />
-    </ToastProvider>,
+    <NextIntlClientProvider locale={locale} messages={locale === 'ka' ? ka : en}>
+      <ToastProvider>
+        <StockAdjuster
+          productId="p-1"
+          productName="Whey protein"
+          variantIndex={0}
+          variantName="1kg"
+          sku="WP-1KG"
+          stock={4}
+          stockLocationId={null}
+          {...props}
+        />
+      </ToastProvider>
+    </NextIntlClientProvider>,
   );
 }
 
@@ -161,5 +168,13 @@ describe('StockAdjuster', () => {
     renderAdjuster({ stockLocationId: 'loc-riverside', stock: null });
     open();
     expect(screen.getByText('Nothing recorded')).toBeInTheDocument();
+  });
+
+  it('renders Georgian adjuster controls and labels when locale is ka', () => {
+    renderAdjuster({ stockLocationId: null, stock: 40 }, 'ka');
+    fireEvent.click(screen.getByRole('button', { name: 'კორექტირება' }));
+    expect(screen.getByText('მარაგის კორექტირება')).toBeInTheDocument();
+    expect(screen.getByText('ნაშთი (ყველა ფილიალი)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ცვლილების შენახვა/ })).toBeInTheDocument();
   });
 });

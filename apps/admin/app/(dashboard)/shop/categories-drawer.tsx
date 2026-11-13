@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { MAX_PRODUCT_CATEGORY_NAME, type AdminProductCategory } from '@fit/types';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
@@ -161,6 +163,9 @@ type RowMode =
  * the confirmation needs to say.
  */
 export function CategoriesDrawer({ categories }: { categories: AdminProductCategory[] }) {
+  const t = useTranslations('admin.shop.categories');
+  const locale = useLocale();
+  const nf = createNumberFormat(locale);
   const router = useRouter();
   const drawer = useSlideDrawer();
   const [pending, startTransition] = useTransition();
@@ -216,7 +221,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
       <Button
         variant="secondary"
         size="block"
-        label="Categories"
+        label={t('button')}
         icon={<Icon name="tag" sw={2} {...stylex.props(styles.icon)} />}
         onClick={drawer.open}
       />
@@ -225,7 +230,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
         isOpen={drawer.isOpen}
         onOpenChange={drawer.handleOpenChange}
         purpose="info"
-        aria-label="Categories"
+        aria-label={t('dialogLabel')}
         width="26rem"
         maxHeight="100dvh"
         position={{ top: '0.75rem', right: '0.75rem', bottom: '0.75rem' }}
@@ -236,7 +241,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
           height="fill"
           header={
             <DialogHeader
-              title="Categories"
+              title={t('title')}
               hasDivider={false}
               onOpenChange={drawer.handleOpenChange}
               xstyle={styles.header}
@@ -245,19 +250,16 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
           content={
             <LayoutContent padding={0} isScrollable xstyle={styles.content}>
               <div {...stylex.props(styles.body)}>
-                <p {...stylex.props(styles.intro)}>
-                  Shelves you can file products under. Deleting one keeps its products; they just
-                  become uncategorised.
-                </p>
+                <p {...stylex.props(styles.intro)}>{t('intro')}</p>
 
                 <form onSubmit={add} {...stylex.props(styles.addRow)}>
                   <input
-                    aria-label="New category name"
+                    aria-label={t('newNameLabel')}
                     id="new-category-name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     maxLength={MAX_PRODUCT_CATEGORY_NAME}
-                    placeholder="e.g. Protein"
+                    placeholder={t('newPlaceholder')}
                     autoComplete="off"
                     {...stylex.props(styles.input)}
                   />
@@ -266,7 +268,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                     size="card"
                     type="submit"
                     disabled={pending || !name.trim()}
-                    label="Add"
+                    label={t('add')}
                   />
                 </form>
 
@@ -277,9 +279,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                 ) : null}
 
                 {categories.length === 0 ? (
-                  <p {...stylex.props(styles.empty)}>
-                    No categories yet. Add one above, then pick it on any product.
-                  </p>
+                  <p {...stylex.props(styles.empty)}>{t('empty')}</p>
                 ) : (
                   <div {...stylex.props(styles.list)}>
                     {categories.map((category) => {
@@ -290,12 +290,13 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                         return (
                           <div key={category.id} {...stylex.props(styles.confirm)}>
                             <p {...stylex.props(styles.confirmText)}>
-                              Delete “{category.name}”?{' '}
+                              {t('deleteTitle', { name: category.name })}{' '}
                               {category.productCount === 0
-                                ? 'No products are filed under it.'
-                                : `${category.productCount} product${
-                                    category.productCount === 1 ? '' : 's'
-                                  } will become uncategorised.`}
+                                ? t('deleteBodyEmpty')
+                                : t('deleteBodyNonEmpty', {
+                                    count: category.productCount,
+                                    formattedCount: nf.format(category.productCount),
+                                  })}
                             </p>
                             <div {...stylex.props(styles.confirmActions)}>
                               <Button
@@ -303,14 +304,14 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                                 size="inline"
                                 onClick={() => remove(category.id)}
                                 disabled={pending}
-                                label="Delete"
+                                label={t('deleteConfirm')}
                               />
                               <Button
                                 variant="secondary"
                                 size="inline"
                                 onClick={() => setMode(null)}
                                 disabled={pending}
-                                label="Cancel"
+                                label={t('cancel')}
                               />
                             </div>
                           </div>
@@ -322,7 +323,7 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                           {renaming ? (
                             <>
                               <input
-                                aria-label={`Rename ${category.name}`}
+                                aria-label={t('renameLabel', { name: category.name })}
                                 value={mode.draft}
                                 onChange={(event) =>
                                   setMode({
@@ -340,22 +341,24 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                                 size="inline"
                                 onClick={() => saveRename(category.id, mode.draft)}
                                 disabled={pending || !mode.draft.trim()}
-                                label="Save"
+                                label={t('save')}
                               />
                               <Button
                                 variant="ghost"
                                 size="inline"
                                 onClick={() => setMode(null)}
                                 disabled={pending}
-                                label="Cancel"
+                                label={t('cancel')}
                               />
                             </>
                           ) : (
                             <>
                               <span {...stylex.props(styles.rowName)}>{category.name}</span>
                               <span {...stylex.props(styles.count)}>
-                                {category.productCount}{' '}
-                                {category.productCount === 1 ? 'product' : 'products'}
+                                {t('productCount', {
+                                  count: category.productCount,
+                                  formattedCount: nf.format(category.productCount),
+                                })}
                               </span>
                               <Button
                                 variant="ghost"
@@ -364,14 +367,14 @@ export function CategoriesDrawer({ categories }: { categories: AdminProductCateg
                                   setMode({ kind: 'rename', id: category.id, draft: category.name })
                                 }
                                 disabled={pending}
-                                label="Rename"
+                                label={t('rename')}
                               />
                               <Button
                                 variant="ghost"
                                 size="inline"
                                 onClick={() => setMode({ kind: 'confirm', id: category.id })}
                                 disabled={pending}
-                                label="Delete"
+                                label={t('deleteConfirm')}
                               />
                             </>
                           )}

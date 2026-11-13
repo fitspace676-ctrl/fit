@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import {
   UNCATEGORISED_FILTER,
@@ -18,13 +19,17 @@ const SEARCH_DEBOUNCE_MS = 200;
  * `value` is the `sort:dir` pair the `<select>` round-trips; the grid no longer has
  * sortable column headers, so this is the catalog's one sort control.
  */
-const SORT_OPTIONS: ReadonlyArray<{ sort: ProductSort; dir: SortDir; label: string }> = [
-  { sort: 'name', dir: 'asc', label: 'Name (A-Z)' },
-  { sort: 'name', dir: 'desc', label: 'Name (Z-A)' },
-  { sort: 'price', dir: 'asc', label: 'Price (low → high)' },
-  { sort: 'price', dir: 'desc', label: 'Price (high → low)' },
-  { sort: 'createdAt', dir: 'desc', label: 'Newest first' },
-  { sort: 'createdAt', dir: 'asc', label: 'Oldest first' },
+const SORT_OPTIONS: ReadonlyArray<{
+  sort: ProductSort;
+  dir: SortDir;
+  labelKey: 'nameAsc' | 'nameDesc' | 'priceAsc' | 'priceDesc' | 'createdDesc' | 'createdAsc';
+}> = [
+  { sort: 'name', dir: 'asc', labelKey: 'nameAsc' },
+  { sort: 'name', dir: 'desc', labelKey: 'nameDesc' },
+  { sort: 'price', dir: 'asc', labelKey: 'priceAsc' },
+  { sort: 'price', dir: 'desc', labelKey: 'priceDesc' },
+  { sort: 'createdAt', dir: 'desc', labelKey: 'createdDesc' },
+  { sort: 'createdAt', dir: 'asc', labelKey: 'createdAsc' },
 ];
 
 const styles = stylex.create({
@@ -110,6 +115,7 @@ export function ProductsFilters({
   categoryId: string;
   categories: AdminProductCategory[];
 }) {
+  const t = useTranslations('admin.shop.filters');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -145,14 +151,14 @@ export function ProductsFilters({
     <div {...stylex.props(styles.row)}>
       <div {...stylex.props(styles.searchWrap)}>
         <label htmlFor="product-search" {...stylex.props(styles.srOnly)}>
-          Search products by name or description
+          {t('searchLabel')}
         </label>
         <input
           id="product-search"
           type="search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by name or description…"
+          placeholder={t('searchPlaceholder')}
           {...stylex.props(styles.control)}
         />
       </div>
@@ -161,7 +167,7 @@ export function ProductsFilters({
       {categories.length > 0 ? (
         <div {...stylex.props(styles.categoryWrap)}>
           <label htmlFor="product-category-filter" {...stylex.props(styles.srOnly)}>
-            Filter products by category
+            {t('categoryLabel')}
           </label>
           <select
             id="product-category-filter"
@@ -169,8 +175,8 @@ export function ProductsFilters({
             onChange={(event) => commit({ categoryId: event.target.value })}
             {...stylex.props(styles.control)}
           >
-            <option value="">All categories</option>
-            <option value={UNCATEGORISED_FILTER}>Uncategorised</option>
+            <option value="">{t('allCategories')}</option>
+            <option value={UNCATEGORISED_FILTER}>{t('uncategorised')}</option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
@@ -182,7 +188,7 @@ export function ProductsFilters({
 
       <div {...stylex.props(styles.sortWrap)}>
         <label htmlFor="product-sort" {...stylex.props(styles.srOnly)}>
-          Sort products
+          {t('sortLabel')}
         </label>
         <select
           id="product-sort"
@@ -195,7 +201,7 @@ export function ProductsFilters({
         >
           {SORT_OPTIONS.map((option) => (
             <option key={`${option.sort}:${option.dir}`} value={`${option.sort}:${option.dir}`}>
-              {option.label}
+              {t(`sort.${option.labelKey}`)}
             </option>
           ))}
         </select>

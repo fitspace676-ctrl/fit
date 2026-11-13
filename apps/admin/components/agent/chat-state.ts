@@ -1,7 +1,14 @@
 import type { AgentApproval, AgentMessage, AgentStreamEvent, AgentToolCall } from './types';
 
+/**
+ * Long dashes (— –) become a plain hyphen in everything the agent writes. The
+ * prompt already asks for that, but models slip; one character for one keeps
+ * every tool call's `textOffset` pointing at the same place.
+ */
+const plainDashes = (text: string): string => text.replace(/[–—]/g, '-');
+
 export function foldEvent(message: AgentMessage, event: AgentStreamEvent): AgentMessage {
-  if (event.t === 'delta') return { ...message, content: message.content + event.v };
+  if (event.t === 'delta') return { ...message, content: message.content + plainDashes(event.v) };
   if (event.t !== 'tool') return message;
   const { t: _t, ...call } = event;
   const calls = message.toolCalls ?? [];
@@ -16,6 +23,7 @@ export function foldEvent(message: AgentMessage, event: AgentStreamEvent): Agent
 export function restoreTranscript(messages: AgentMessage[]): AgentMessage[] {
   return messages.map((m) => ({
     ...m,
+    content: m.role === 'assistant' ? plainDashes(m.content) : m.content,
     streaming: false,
     toolCalls: m.toolCalls?.map((c) =>
       c.status === 'awaiting_approval' ? { ...c, status: 'cancelled' } : c,

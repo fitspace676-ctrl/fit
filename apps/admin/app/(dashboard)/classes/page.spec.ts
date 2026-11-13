@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fetchClassTypes = vi.hoisted(() => vi.fn());
 const getActiveLocationId = vi.hoisted(() => vi.fn());
 
+vi.mock('next-intl/server', () => ({
+  getTranslations: () => Promise.resolve((key: string) => key),
+}));
 vi.mock('@/lib/api', () => ({ ApiError: class ApiError extends Error {}, fetchClassTypes }));
 vi.mock('@/lib/active-location-server', () => ({ getActiveLocationId }));
 vi.mock('@/lib/session', () => ({ getServerSession: () => Promise.resolve(null) }));

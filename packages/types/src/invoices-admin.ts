@@ -189,3 +189,19 @@ export interface SendInvoiceEmailResponse {
   /** The address the invoice went to. */
   to: string;
 }
+
+/**
+ * Invoices minted before subscription wording went Georgian carry an English
+ * description (`"Premium — monthly renewal"`). Translate that one known shape for
+ * Georgian readers (the invoice PDF, the console's invoice list); anything else
+ * is returned as written. Long dashes become a plain hyphen.
+ */
+export function georgianInvoiceDescription(description: string): string {
+  const match = /^(.*) [—–-] (monthly|annual) (subscription|renewal)$/.exec(description);
+  if (!match) return description.replace(/[—–]/g, '-');
+  const [, plan, cadence, kind] = match;
+  const name = plan === 'Subscription' ? 'აბონემენტი' : plan;
+  return `${name} - ${cadence === 'annual' ? 'წლიური' : 'ყოველთვიური'} ${
+    kind === 'renewal' ? 'განახლება' : 'აბონემენტი'
+  }`;
+}

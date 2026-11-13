@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Dialog } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import { Icon, useToast } from '@/components/ui';
+import { DialogHeader } from '@/components/ui/dialog-header';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { InvoiceForm } from './invoice-form';
 
@@ -39,9 +40,10 @@ const styles = stylex.create({
  * presentation only — `createInvoiceAction` and the API both re-check.
  */
 export function CreateInvoiceDrawer() {
+  const t = useTranslations('admin.invoicesHub.createDrawer');
   const drawer = useSlideDrawer();
   const { toast } = useToast();
-  const [title] = useState('New invoice');
+  const title = t('title');
 
   return (
     <>
@@ -50,7 +52,7 @@ export function CreateInvoiceDrawer() {
         size="inline"
         onClick={drawer.open}
         icon={<Icon name="plus" />}
-        label="Create invoice"
+        label={t('button')}
       />
 
       <Dialog
@@ -83,7 +85,7 @@ export function CreateInvoiceDrawer() {
                 onSuccess={({ number }) => {
                   // The number is allocated server-side, so this is the staffer's
                   // first sight of the reference they just created.
-                  toast(`Invoice ${number} created`, { tone: 'success', icon: 'check' });
+                  toast(t('toastCreated', { number }), { tone: 'success', icon: 'check' });
                   drawer.requestClose();
                 }}
                 onCancel={drawer.requestClose}

@@ -23,11 +23,13 @@ import {
   zonedToday,
 } from './week';
 
-export const metadata: Metadata = {
-  title: 'Schedule',
-  description:
-    'The gym’s weekly class calendar: day columns of class occurrences with occupancy, trainer, and branch, scoped to the console’s active branch, filtered by trainer, and paged a week at a time.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.schedule.meta');
+  return {
+    title: t('title'),
+    description: t('description'),
+  };
+}
 
 // The calendar reflects live tenant state and the staff session token, so it must
 // never be statically rendered or cached.

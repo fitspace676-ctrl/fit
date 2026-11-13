@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -17,11 +18,13 @@ import { ClassTypesTable } from './class-types-table';
 import { AddClassTypeDrawer } from './add-class-type-drawer';
 import { loadRelationOptions } from './options';
 
-export const metadata: Metadata = {
-  title: 'Class Types',
-  description:
-    'The gym’s reusable class types: search, filter, sort, or add a new kind of class (Boxing, CrossFit) with capacity, duration, pricing, and a colour. The schedule uses this catalogue to create occurrences.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.classes.meta');
+  return {
+    title: t('title'),
+    description: t('description'),
+  };
+}
 
 // The roster reflects live tenant state and the staff session token, so it must
 // never be statically rendered or cached.
@@ -98,6 +101,7 @@ export default async function ClassTypesPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const t = await getTranslations('admin.classes');
   const raw = await searchParams;
   const parsed = listAdminClassTypesQuerySchema.safeParse(raw);
   const query: ListAdminClassTypesQuery = parsed.success
@@ -140,8 +144,8 @@ export default async function ClassTypesPage({
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load class types (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadClassTypesFailed', { status: error.status, message: error.message })
+        : t('errors.apiUnreachable');
     content = (
       <Card padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -156,12 +160,8 @@ export default async function ClassTypesPage({
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headTitles)}>
-          <h1 {...stylex.props(styles.title)}>Classes</h1>
-          <p {...stylex.props(styles.subtitle)}>
-            Your gym’s reusable class types. Search by name, filter by status, sort any column, or
-            add a new kind of class with capacity, duration, pricing, and a colour. The schedule
-            then uses this catalogue to create occurrences.
-          </p>
+          <h1 {...stylex.props(styles.title)}>{t('typesPage.title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('typesPage.subtitle')}</p>
         </div>
         {canWrite && relationOptions ? <AddClassTypeDrawer plans={relationOptions.plans} /> : null}
       </header>

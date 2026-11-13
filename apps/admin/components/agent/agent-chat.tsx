@@ -2,7 +2,7 @@
 
 // @fit/admin — AI Agent chat panel.
 //
-// A launcher pill (also ⌘J / Ctrl+J) opens a floating side panel: a header with
+// A launcher tab on the right edge (also ⌘J / Ctrl+J) opens a floating side panel: a header with
 // the agent's state, a Chat | History segment, the Astryx `ChatLayout`
 // transcript and a composer. Turns stream in over NDJSON from `/api/agent/chat`
 // via `useAgentChat`; the tool-call chrome lives in `tool-calls.tsx`.
@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChatLayout } from '@astryxdesign/core/Chat';
+import { AiMark } from './ai-mark';
 import { ChatMessageList } from '@astryxdesign/core/Chat';
 import { ChatMessage } from '@astryxdesign/core/Chat';
 import { ChatMessageBubble } from '@astryxdesign/core/Chat';
@@ -72,54 +73,108 @@ function readAttachment(file: File): Promise<ChatAttachment> {
 }
 
 const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+/** Strong ease-out for the launcher's press and reveal. */
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
 
 const styles = stylex.create({
-  // Launcher — a pill in the gym's accent, with a lighter disc for the spark.
+  // Launcher — a tab docked to the right edge at mid-height, out of the corner
+  // where it used to sit on top of page actions. At rest only the mark shows; on
+  // hover or keyboard focus the name slides out so people see what it is, and a
+  // click opens the panel. It is console surface, not a coloured pill: the one
+  // blue on it is the mark (see `ai-mark.tsx`).
   launcher: {
     position: 'fixed',
-    insetBlockEnd: '1.5rem',
-    insetInlineEnd: '1.5rem',
+    insetBlockStart: '50%',
+    insetInlineEnd: 0,
     zIndex: 45,
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
     height: '3rem',
-    paddingInlineStart: '0.625rem',
-    paddingInlineEnd: '1rem',
-    borderRadius: 'var(--radius-full)',
-    borderWidth: 0,
+    paddingInline: '0.5rem',
+    borderStartStartRadius: '0.875rem',
+    borderEndStartRadius: '0.875rem',
+    borderStartEndRadius: 0,
+    borderEndEndRadius: 0,
+    borderWidth: '1px',
+    borderInlineEndWidth: 0,
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
     backgroundColor: {
-      default: 'var(--color-accent)',
-      ':hover': 'color-mix(in srgb, var(--color-accent) 88%, var(--color-on-accent))',
+      default: 'var(--color-background-surface)',
+      ':hover': 'var(--fc-tile)',
     },
-    color: 'var(--color-on-accent)',
     boxShadow: 'var(--shadow-high)',
+    color: 'var(--color-text-primary)',
     cursor: 'pointer',
     fontFamily: 'var(--font-family-body)',
     fontSize: '0.875rem',
     fontWeight: 600,
-    transition: `transform var(--duration-fast) ${EASE}, opacity var(--duration-fast) ${EASE}`,
     transform: {
-      default: 'translateY(0)',
-      ':hover': 'translateY(-2px)',
+      default: 'translateY(-50%)',
+      ':active': 'translateY(-50%) scale(0.97)',
     },
+    transformOrigin: 'right center',
+    transition: `transform 160ms ${EASE_OUT}, opacity 160ms ${EASE_OUT}, background-color 160ms ${EASE_OUT}`,
     ':focus-visible': { outline: 'none', boxShadow: 'var(--fc-focus-ring)' },
   },
   launcherHidden: {
     opacity: 0,
     pointerEvents: 'none',
-    transform: 'translateY(1rem) scale(0.96)',
+    transform: 'translate(100%, -50%)',
   },
-  launcherDisc: {
-    display: 'grid',
-    placeItems: 'center',
-    width: '1.75rem',
-    height: '1.75rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 18%, transparent)',
-    color: 'var(--color-on-accent)',
+  launcherMark: { display: 'block', flexShrink: 0 },
+  // The name, collapsed to nothing at rest. It slides out while the MARK itself
+  // is hovered (the mark carries the marker, the label follows it as a sibling),
+  // stays out while the pointer is on the label, and shows on keyboard focus.
+  // Not `when.ancestor(':hover')`: page wrappers carry the default marker too, so
+  // that fired whenever the pointer was anywhere on the screen.
+  launcherLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    maxWidth: {
+      default: 0,
+      ':hover': '12rem',
+      [stylex.when.siblingBefore(':hover')]: '12rem',
+      [stylex.when.ancestor(':focus-visible')]: '12rem',
+    },
+    opacity: {
+      default: 0,
+      ':hover': 1,
+      [stylex.when.siblingBefore(':hover')]: 1,
+      [stylex.when.ancestor(':focus-visible')]: 1,
+    },
+    // Padding, not a flex gap, between mark and name: the space then belongs to
+    // the label, so the pointer crossing it does not collapse the tab.
+    paddingInlineStart: {
+      default: 0,
+      ':hover': '0.625rem',
+      [stylex.when.siblingBefore(':hover')]: '0.625rem',
+      [stylex.when.ancestor(':focus-visible')]: '0.625rem',
+    },
+    paddingInlineEnd: {
+      default: 0,
+      ':hover': '0.25rem',
+      [stylex.when.siblingBefore(':hover')]: '0.25rem',
+      [stylex.when.ancestor(':focus-visible')]: '0.25rem',
+    },
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    transition: `max-width 200ms ${EASE_OUT}, opacity 160ms ${EASE_OUT}, padding 200ms ${EASE_OUT}`,
   },
-  launcherIcon: { width: '1rem', height: '1rem' },
+  launcherKbd: {
+    paddingInline: '0.375rem',
+    paddingBlock: '0.125rem',
+    borderRadius: '0.375rem',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'var(--color-border)',
+    fontFamily: 'var(--font-family-mono)',
+    fontSize: '0.6875rem',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+  },
   // Scrim behind the panel — subtle, closes on click.
   scrim: {
     position: 'fixed',
@@ -165,17 +220,6 @@ const styles = stylex.create({
     borderBlockEndColor: 'var(--color-border)',
   },
   headerRow: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
-  headerBadge: {
-    display: 'grid',
-    placeItems: 'center',
-    width: '2.5rem',
-    height: '2.5rem',
-    flexShrink: 0,
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  headerBadgeIcon: { width: '1.25rem', height: '1.25rem' },
   headerText: { display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 },
   headerTitle: {
     fontSize: '1rem',
@@ -587,16 +631,6 @@ const styles = stylex.create({
     paddingBlockStart: '2rem',
     paddingBlockEnd: '1rem',
   },
-  emptyBadge: {
-    display: 'grid',
-    placeItems: 'center',
-    width: '3rem',
-    height: '3rem',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-accent-muted)',
-    color: 'var(--color-icon-accent)',
-  },
-  emptyBadgeIcon: { width: '1.5rem', height: '1.5rem' },
   emptyTitle: {
     marginBlockStart: '0.75rem',
     marginBlockEnd: 0,
@@ -630,28 +664,33 @@ const styles = stylex.create({
     fontWeight: 600,
     color: 'var(--color-text-secondary)',
   },
-  starterList: { display: 'flex', flexDirection: 'column', gap: '0.375rem' },
+  // Quiet rows rather than a stack of bordered cards: the tile fill and the arrow
+  // only arrive on hover or focus, so the list reads as one set of suggestions.
+  starterList: {
+    display: 'flex',
+    flexDirection: 'column',
+    marginInline: '-0.625rem',
+  },
   starter: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
-    minHeight: '2.75rem',
-    paddingInline: '0.875rem',
-    paddingBlock: '0.625rem',
+    minHeight: '2.5rem',
+    paddingInline: '0.625rem',
+    paddingBlock: '0.5rem',
     borderRadius: 'var(--radius-element)',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: {
-      default: 'var(--color-border)',
-      ':hover': 'var(--color-text-primary)',
+    borderWidth: 0,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--fc-tile)',
+      ':focus-visible': 'var(--fc-tile)',
     },
-    backgroundColor: 'var(--color-background-surface)',
     color: 'var(--color-text-primary)',
     textAlign: 'start',
     fontFamily: 'var(--font-family-body)',
     fontSize: '0.84375rem',
     cursor: 'pointer',
-    transition: `border-color var(--duration-fast) ${EASE}`,
+    transition: `background-color 160ms ${EASE_OUT}`,
     ':focus-visible': { outline: 'none', boxShadow: 'var(--fc-focus-ring)' },
   },
   starterText: { flex: 1 },
@@ -659,8 +698,18 @@ const styles = stylex.create({
     width: '1rem',
     height: '1rem',
     flexShrink: 0,
-    transform: 'rotate(45deg)',
-    color: 'var(--color-icon-disabled)',
+    color: 'var(--color-icon-secondary)',
+    opacity: {
+      default: 0,
+      [stylex.when.ancestor(':hover')]: 1,
+      [stylex.when.ancestor(':focus-visible')]: 1,
+    },
+    transform: {
+      default: 'translateX(-0.25rem) rotate(45deg)',
+      [stylex.when.ancestor(':hover')]: 'translateX(0) rotate(45deg)',
+      [stylex.when.ancestor(':focus-visible')]: 'translateX(0) rotate(45deg)',
+    },
+    transition: `opacity 160ms ${EASE_OUT}, transform 160ms ${EASE_OUT}`,
   },
   approvalNote: {
     display: 'flex',
@@ -949,9 +998,7 @@ export function AgentChat() {
 
   const emptyState = (
     <div {...stylex.props(styles.empty)}>
-      <span {...stylex.props(styles.emptyBadge)} aria-hidden>
-        <Icon name="spark" {...stylex.props(styles.emptyBadgeIcon)} />
-      </span>
+      <AiMark size={48} />
       <h2 {...stylex.props(styles.emptyTitle)}>{t('emptyTitle')}</h2>
       <p {...stylex.props(styles.emptyHint)}>{t('emptyHint')}</p>
       <div {...stylex.props(styles.starters)}>
@@ -969,7 +1016,7 @@ export function AgentChat() {
                     key={key}
                     type="button"
                     onClick={() => setDraft(prompt)}
-                    {...stylex.props(styles.starter)}
+                    {...stylex.props(stylex.defaultMarker(), styles.starter)}
                   >
                     <span {...stylex.props(styles.starterText)}>{prompt}</span>
                     <Icon name="arrowUp" {...stylex.props(styles.starterIcon)} />
@@ -995,12 +1042,13 @@ export function AgentChat() {
         aria-expanded={open}
         aria-keyshortcuts={isMac ? 'Meta+J' : 'Control+J'}
         onClick={() => setOpen(true)}
-        {...stylex.props(styles.launcher, open && styles.launcherHidden)}
+        {...stylex.props(stylex.defaultMarker(), styles.launcher, open && styles.launcherHidden)}
       >
-        <span {...stylex.props(styles.launcherDisc)} aria-hidden>
-          <Icon name="spark" {...stylex.props(styles.launcherIcon)} />
+        <AiMark size={32} {...stylex.props(stylex.defaultMarker(), styles.launcherMark)} />
+        <span {...stylex.props(styles.launcherLabel)}>
+          {t('launcher')}
+          <kbd {...stylex.props(styles.launcherKbd)}>{isMac ? '⌘J' : 'Ctrl J'}</kbd>
         </span>
-        <span>{t('launcher')}</span>
       </button>
 
       <div
@@ -1028,9 +1076,7 @@ export function AgentChat() {
         )}
         <header {...stylex.props(styles.header)}>
           <div {...stylex.props(styles.headerRow)}>
-            <span {...stylex.props(styles.headerBadge)} aria-hidden>
-              <Icon name="spark" {...stylex.props(styles.headerBadgeIcon)} />
-            </span>
+            <AiMark size={40} />
             <span {...stylex.props(styles.headerText)}>
               <span {...stylex.props(styles.headerTitle)}>{t('title')}</span>
               <span role="status" {...stylex.props(styles.headerStatus)}>

@@ -2,19 +2,26 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { ClassTemplateStatus, ClassTypeStatus } from '@fit/types';
 
 /** The status options offered by the filter, in roster-priority order. */
-const STATUS_OPTIONS: ReadonlyArray<{ value: ClassTemplateStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'PAUSED', label: 'Paused' },
+const STATUS_OPTIONS: ReadonlyArray<{
+  value: ClassTemplateStatus;
+  labelKey: `status.${ClassTemplateStatus}`;
+}> = [
+  { value: 'ACTIVE', labelKey: 'status.ACTIVE' },
+  { value: 'PAUSED', labelKey: 'status.PAUSED' },
 ];
 
 /** Status options for the class-type roster (active / soft-retired). */
-const TYPE_STATUS_OPTIONS: ReadonlyArray<{ value: ClassTypeStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
+const TYPE_STATUS_OPTIONS: ReadonlyArray<{
+  value: ClassTypeStatus;
+  labelKey: `status.${ClassTypeStatus}`;
+}> = [
+  { value: 'ACTIVE', labelKey: 'status.ACTIVE' },
+  { value: 'INACTIVE', labelKey: 'status.INACTIVE' },
 ];
 
 /** Debounce (ms) before a keystroke in the search box updates the URL. */
@@ -79,6 +86,7 @@ const styles = stylex.create({
  * Navigation runs in a transition so the input stays responsive.
  */
 export function ClassTemplatesFilters({ search, status }: { search: string; status: string }) {
+  const t = useTranslations('admin.classes');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -112,21 +120,21 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.searchWrap)}>
         <label htmlFor="class-search" {...stylex.props(styles.srOnly)}>
-          Search class templates by title or category
+          {t('filters.searchTemplatesAria')}
         </label>
         <input
           id="class-search"
           type="search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by title or category…"
+          placeholder={t('filters.searchTemplatesPlaceholder')}
           {...stylex.props(styles.control)}
         />
       </div>
 
       <div {...stylex.props(styles.selectWrap)}>
         <label htmlFor="class-status" {...stylex.props(styles.srOnly)}>
-          Filter by status
+          {t('filters.statusAria')}
         </label>
         <select
           id="class-status"
@@ -134,10 +142,10 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
           onChange={(event) => commit('status', event.target.value)}
           {...stylex.props(styles.control)}
         >
-          <option value="">All statuses</option>
+          <option value="">{t('filters.allStatuses')}</option>
           {STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {t(option.labelKey)}
             </option>
           ))}
         </select>
@@ -152,6 +160,7 @@ export function ClassTemplatesFilters({ search, status }: { search: string; stat
  * {@link ClassTemplatesFilters}, differing only in the status vocabulary.
  */
 export function ClassTypesFilters({ search, status }: { search: string; status: string }) {
+  const t = useTranslations('admin.classes');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -185,21 +194,21 @@ export function ClassTypesFilters({ search, status }: { search: string; status: 
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.searchWrap)}>
         <label htmlFor="class-type-search" {...stylex.props(styles.srOnly)}>
-          Search class types by name
+          {t('filters.searchTypesAria')}
         </label>
         <input
           id="class-type-search"
           type="search"
           value={searchValue}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search by name…"
+          placeholder={t('filters.searchTypesPlaceholder')}
           {...stylex.props(styles.control)}
         />
       </div>
 
       <div {...stylex.props(styles.selectWrap)}>
         <label htmlFor="class-type-status" {...stylex.props(styles.srOnly)}>
-          Filter by status
+          {t('filters.statusAria')}
         </label>
         <select
           id="class-type-status"
@@ -207,10 +216,10 @@ export function ClassTypesFilters({ search, status }: { search: string; status: 
           onChange={(event) => commit('status', event.target.value)}
           {...stylex.props(styles.control)}
         >
-          <option value="">All statuses</option>
+          <option value="">{t('filters.allStatuses')}</option>
           {TYPE_STATUS_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {t(option.labelKey)}
             </option>
           ))}
         </select>

@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Dialog } from '@astryxdesign/core/Dialog';
+import { DialogHeader } from '@/components/ui/dialog-header';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminClassTypeRow } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
@@ -77,6 +79,7 @@ export function EditClassTypeDrawer({
   type: AdminClassTypeRow;
   plans: RelationOption[];
 }) {
+  const t = useTranslations('admin.classes.editTypeDrawer');
   const drawer = useSlideDrawer();
   const [initial, setInitial] = useState<ClassTypeInitial | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,15 +105,15 @@ export function EditClassTypeDrawer({
         variant="secondary"
         size="inline"
         onClick={open}
-        aria-label={`Edit ${type.name}`}
-        label="Edit"
+        aria-label={t('editAria', { name: type.name })}
+        label={t('editButton')}
       />
 
       <Dialog
         isOpen={drawer.isOpen}
         onOpenChange={drawer.handleOpenChange}
         purpose="info"
-        aria-label={`Edit ${type.name}`}
+        aria-label={t('editAria', { name: type.name })}
         width="40rem"
         maxHeight="100dvh"
         position={{ top: '0.75rem', right: '0.75rem', bottom: '0.75rem' }}
@@ -121,7 +124,7 @@ export function EditClassTypeDrawer({
           height="fill"
           header={
             <DialogHeader
-              title={`Edit ${type.name}`}
+              title={t('dialogTitle', { name: type.name })}
               hasDivider={false}
               onOpenChange={drawer.handleOpenChange}
               xstyle={styles.header}
@@ -137,7 +140,7 @@ export function EditClassTypeDrawer({
                   </p>
                 </Card>
               ) : loading || !initial ? (
-                <div {...stylex.props(styles.centered)}>Loading…</div>
+                <div {...stylex.props(styles.centered)}>{t('loading')}</div>
               ) : (
                 <ClassTypeForm
                   key={drawer.contentKey}

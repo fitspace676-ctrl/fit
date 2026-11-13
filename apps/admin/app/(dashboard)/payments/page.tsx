@@ -7,11 +7,13 @@ import { PaymentsTabs } from '@/components/payments-tabs';
 import { BillingPlansView } from './billing-plans-view';
 import { fetchPlanClassTypeOptions } from './class-type-options';
 
-export const metadata: Metadata = {
-  title: 'Billing · Plans',
-  description:
-    'The gym’s recurring membership plans: pricing, renewal cadence, perks and live subscriber counts, with active/archived plans and a live MRR summary.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.billingPlans.meta');
+  return {
+    title: t('title'),
+    description: t('description'),
+  };
+}
 
 // The plans board reflects live tenant state (plan catalogue + live subscriber
 // counts) and the staff session token, so it must never be statically rendered or

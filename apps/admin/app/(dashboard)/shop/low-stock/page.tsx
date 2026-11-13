@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
@@ -14,13 +15,15 @@ import { Badge, Card } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
 import { StockAdjuster } from './stock-adjuster';
 import { ThresholdPicker } from './threshold-picker';
-import { createNumberFormat, defaultLocale } from '@fit/i18n';
+import { createNumberFormat } from '@fit/i18n';
 
-export const metadata: Metadata = {
-  title: 'Inventory · Low stock',
-  description:
-    'The gym’s inventory alerts: every active product carrying a variant at or below the reorder threshold, most urgent first, with a one-tap stock adjustment so staff can restock before a line sells out.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.shop.meta');
+  return {
+    title: t('lowStockTitle'),
+    description: t('lowStockDescription'),
+  };
+}
 
 // The alerts reflect live on-hand stock and the staff session token, so the page
 // must never be statically rendered or cached.
@@ -334,13 +337,18 @@ export default async function LowStockPage({
   // judge each line against its own cushion rather than one flat ceiling.
   const threshold = parsed.success ? parsed.data.threshold : undefined;
 
-  const [locationId, locations] = await Promise.all([
+  const [locationId, locations, session, t, tErrors, tCommon, locale] = await Promise.all([
     getActiveLocationId(raw),
     fetchActiveLocations(),
+    getServerSession(),
+    getTranslations('admin.shop.lowStock'),
+    getTranslations('admin.shop.errors'),
+    getTranslations('admin.common'),
+    getLocale(),
   ]);
+  const nf = createNumberFormat(locale);
 
   // Adjusting stock is a write; read-only staff still see the report + product links.
-  const session = await getServerSession();
   const canWrite = session !== null && roleHasPermission(session.role, Permission.InventoryAdjust);
 
   let report: ListLowStockResponse | null = null;
@@ -350,8 +358,8 @@ export default async function LowStockPage({
   } catch (caught) {
     error =
       caught instanceof ApiError
-        ? `Could not load low-stock alerts (${caught.status}): ${caught.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? tErrors('loadLowStockFailed', { status: caught.status, message: caught.message })
+        : tErrors('apiUnreachable');
   }
 
   // THE SCOPE IS READ BACK OFF THE REPORT, NEVER OFF THE REQUEST. The response
@@ -371,41 +379,37 @@ export default async function LowStockPage({
 
   // Tiles only earn their space when something is actually low; the all-clear
   // state below carries the "you're all stocked up" message on its own.
-  const tiles = report !== null && report.data.length > 0 ? summarize(report) : null;
+  const tiles = report !== null && report.data.length > 0 ? summarize(report, t) : null;
   const colSpan = canWrite ? 6 : 5;
-  // What the report was actually run at, as a phrase both the header and the
-  // footer reuse so the two can never drift apart.
-  const cushion =
-    report === null || report.threshold === null
-      ? 'each line’s own reorder point'
-      : `${report.threshold} on hand`;
+  const reportThreshold = report?.threshold ?? null;
+  const reportThresholdText = reportThreshold === null ? null : nf.format(reportThreshold);
 
   return (
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headTitles)}>
-          <h1 {...stylex.props(styles.title)}>Inventory</h1>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
           <p {...stylex.props(styles.subtitle)}>
-            Active products with a position at or below {cushion}, most urgent first. Restock before
-            a line sells out: adjust a variant’s on-hand count inline, or open the product to edit
-            it in full.
+            {reportThresholdText === null
+              ? t('subtitleDefault')
+              : t('subtitleThreshold', { threshold: reportThresholdText })}
           </p>
           <p {...stylex.props(styles.scope)}>
-            <span {...stylex.props(styles.scopeLabel)}>Location</span>
-            <span {...stylex.props(styles.scopeValue)}>{reportedBranch ?? 'All locations'}</span>
+            <span {...stylex.props(styles.scopeLabel)}>{tCommon('locationLabel')}</span>
+            <span {...stylex.props(styles.scopeValue)}>
+              {reportedBranch ?? tCommon('allLocations')}
+            </span>
             {branchNotApplied ? (
               <span {...stylex.props(styles.scopeCaveat)}>
-                Not narrowed to {activeBranchName}. These are gym-wide totals
+                {t('scopeNotNarrowed', { branch: activeBranchName ?? '' })}
               </span>
             ) : reportedBranch === null ? (
-              <span {...stylex.props(styles.scopeCaveat)}>
-                Gym-wide totals, judged against each line’s product-level cushion
-              </span>
+              <span {...stylex.props(styles.scopeCaveat)}>{t('scopeGymWide')}</span>
             ) : null}
           </p>
         </div>
         <Link href="/shop" {...stylex.props(styles.outlineLink)}>
-          All products
+          {t('allProductsLink')}
         </Link>
       </header>
 
@@ -416,9 +420,7 @@ export default async function LowStockPage({
           {tiles.map((tile) => (
             <Card key={tile.key} padding="none" xstyle={styles.tile}>
               <Icon name={tile.icon} {...stylex.props(styles.tileIcon, tile.tone)} />
-              <div {...stylex.props(styles.tileValue)}>
-                {createNumberFormat(defaultLocale).format(tile.value)}
-              </div>
+              <div {...stylex.props(styles.tileValue)}>{nf.format(tile.value)}</div>
               <div {...stylex.props(styles.tileLabel)}>{tile.label}</div>
             </Card>
           ))}
@@ -432,29 +434,37 @@ export default async function LowStockPage({
         </Card>
       ) : report !== null && report.data.length === 0 ? (
         <Card padding="none" xstyle={styles.emptyCard}>
-          Nothing is at or below {cushion}
-          {reportedBranch === null ? '' : ` at ${reportedBranch}`}. You’re all stocked up.
+          {reportThresholdText === null
+            ? reportedBranch === null
+              ? t('emptyDefaultAll')
+              : t('emptyDefaultBranch', { branch: reportedBranch })
+            : reportedBranch === null
+              ? t('emptyThresholdAll', { threshold: reportThresholdText })
+              : t('emptyThresholdBranch', {
+                  threshold: reportThresholdText,
+                  branch: reportedBranch,
+                })}
         </Card>
       ) : report !== null ? (
         <Card padding="none" xstyle={styles.tableCard}>
           <table {...stylex.props(styles.table)}>
             <thead>
               <tr {...stylex.props(styles.headRow)}>
-                <th {...stylex.props(styles.head)}>Product</th>
-                <th {...stylex.props(styles.head)}>Variant</th>
-                <th {...stylex.props(styles.head)}>SKU</th>
+                <th {...stylex.props(styles.head)}>{t('colProduct')}</th>
+                <th {...stylex.props(styles.head)}>{t('colVariant')}</th>
+                <th {...stylex.props(styles.head)}>{t('colSku')}</th>
                 <th {...stylex.props(styles.headRight)}>
                   {reportedBranch === null
-                    ? 'On hand (all branches)'
-                    : `On hand at ${reportedBranch}`}
+                    ? t('colOnHandAll')
+                    : t('colOnHandBranch', { branch: reportedBranch })}
                 </th>
                 {/* The cushion is per position since Stage 4, so it gets a column
                     rather than a single number in the header that would be wrong
                     the moment two lines disagree. */}
-                <th {...stylex.props(styles.headRight)}>Reorder at</th>
+                <th {...stylex.props(styles.headRight)}>{t('colReorderAt')}</th>
                 {canWrite ? (
                   <th {...stylex.props(styles.headRight)}>
-                    <span {...stylex.props(styles.srOnly)}>Adjust stock</span>
+                    <span {...stylex.props(styles.srOnly)}>{t('colAdjustStock')}</span>
                   </th>
                 ) : null}
               </tr>
@@ -480,10 +490,12 @@ export default async function LowStockPage({
                     <td {...stylex.props(styles.rightCell)}>
                       <Badge
                         tone={variant.stock === 0 ? 'danger' : 'pending'}
-                        label={variant.stock === 0 ? 'Out of stock' : variant.stock}
+                        label={variant.stock === 0 ? t('badgeOut') : nf.format(variant.stock)}
                       />
                     </td>
-                    <td {...stylex.props(styles.thresholdCell)}>≤ {variant.threshold}</td>
+                    <td {...stylex.props(styles.thresholdCell)}>
+                      ≤ {nf.format(variant.threshold)}
+                    </td>
                     {canWrite ? (
                       <td {...stylex.props(styles.rightCell)}>
                         <StockAdjuster
@@ -504,9 +516,16 @@ export default async function LowStockPage({
             <tfoot>
               <tr {...stylex.props(styles.footRow)}>
                 <td colSpan={colSpan} {...stylex.props(styles.footCell)}>
-                  {createNumberFormat(defaultLocale).format(report.data.length)} product
-                  {report.data.length === 1 ? '' : 's'} at or below {cushion}
-                  {reportedBranch === null ? '' : ` at ${reportedBranch}`}.
+                  {reportThresholdText === null
+                    ? t('footerDefault', {
+                        count: report.data.length,
+                        formattedCount: nf.format(report.data.length),
+                      })
+                    : t('footerThreshold', {
+                        count: report.data.length,
+                        formattedCount: nf.format(report.data.length),
+                        threshold: reportThresholdText,
+                      })}
                 </td>
               </tr>
             </tfoot>
@@ -523,7 +542,10 @@ export default async function LowStockPage({
  * still holding a thinning-but-nonzero count. Every variant on the report is at or
  * below the threshold, so the two variant buckets partition the flat list.
  */
-function summarize(report: ListLowStockResponse): Tile[] {
+function summarize(
+  report: ListLowStockResponse,
+  t: Awaited<ReturnType<typeof getTranslations>>,
+): Tile[] {
   const variants = report.data.flatMap((product) => product.variants);
   const outOfStock = variants.filter((variant) => variant.stock === 0).length;
   const running = variants.length - outOfStock;
@@ -531,21 +553,21 @@ function summarize(report: ListLowStockResponse): Tile[] {
   return [
     {
       key: 'products',
-      label: 'Products affected',
+      label: t('tiles.productsAffected'),
       icon: 'bag',
       tone: styles.toneBrand,
       value: report.data.length,
     },
     {
       key: 'out',
-      label: 'Out of stock',
+      label: t('tiles.outOfStock'),
       icon: 'info',
       tone: styles.toneDanger,
       value: outOfStock,
     },
     {
       key: 'low',
-      label: 'Running low',
+      label: t('tiles.runningLow'),
       icon: 'flame',
       tone: styles.toneWarning,
       value: running,

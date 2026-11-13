@@ -3,7 +3,9 @@
 import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
+import { createNumberFormat } from '@fit/i18n';
 import type {
   AdminClassTemplateRow,
   ClassTemplateSort,
@@ -82,8 +84,8 @@ const styles = stylex.create({
 });
 
 /** A status pill mirroring the packages roster styling. */
-function StatusPill({ status }: { status: ClassTemplateStatus }) {
-  const { label, tone } = STATUS_STYLES[status];
+function StatusPill({ status, label }: { status: ClassTemplateStatus; label: string }) {
+  const { tone } = STATUS_STYLES[status];
   return <Badge tone={tone} label={label} />;
 }
 
@@ -110,6 +112,9 @@ export function ClassTemplatesTable({
   sort: ClassTemplateSort;
   dir: SortDir;
 }) {
+  const t = useTranslations('admin.classes');
+  const locale = useLocale();
+  const nf = createNumberFormat(locale);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -142,7 +147,7 @@ export function ClassTemplatesTable({
   if (templates.length === 0) {
     return (
       <Card padding="none" xstyle={styles.emptyCard}>
-        No class templates match your filters yet.
+        {t('templatesTable.empty')}
       </Card>
     );
   }
@@ -150,7 +155,7 @@ export function ClassTemplatesTable({
   const columns: ReadonlyArray<Column<AdminClassTemplateRow>> = [
     {
       key: 'title',
-      header: 'Title',
+      header: t('templatesTable.columns.title'),
       sortKey: 'title',
       cell: (template) => (
         <div {...stylex.props(styles.titleCell)}>
@@ -170,46 +175,54 @@ export function ClassTemplatesTable({
     },
     {
       key: 'recurrence',
-      header: 'Recurrence',
+      header: t('templatesTable.columns.recurrence'),
       cell: (template) => <span {...stylex.props(styles.cellText)}>{template.recurrence}</span>,
     },
     {
       key: 'trainer',
-      header: 'Trainer',
+      header: t('templatesTable.columns.trainer'),
       cell: (template) => (
         <span {...stylex.props(styles.cellText)}>{template.trainerName ?? '-'}</span>
       ),
     },
     {
       key: 'capacity',
-      header: 'Capacity',
+      header: t('templatesTable.columns.capacity'),
       sortKey: 'capacity',
-      cell: (template) => <span {...stylex.props(styles.capacityText)}>{template.capacity}</span>,
+      cell: (template) => (
+        <span {...stylex.props(styles.capacityText)}>{nf.format(template.capacity)}</span>
+      ),
     },
     {
       key: 'duration',
-      header: 'Duration',
+      header: t('templatesTable.columns.duration'),
       cell: (template) => (
-        <span {...stylex.props(styles.cellText)}>{formatDuration(template.durationMinutes)}</span>
+        <span {...stylex.props(styles.cellText)}>
+          {formatDuration(template.durationMinutes, t, locale)}
+        </span>
       ),
     },
     {
       key: 'pricing',
-      header: 'Pricing',
-      cell: (template) => <span {...stylex.props(styles.cellText)}>{formatPricing(template)}</span>,
+      header: t('templatesTable.columns.pricing'),
+      cell: (template) => (
+        <span {...stylex.props(styles.cellText)}>{formatPricing(template, t, locale)}</span>
+      ),
     },
     {
       key: 'status',
-      header: 'Status',
+      header: t('templatesTable.columns.status'),
       sortKey: 'status',
-      cell: (template) => <StatusPill status={template.status} />,
+      cell: (template) => (
+        <StatusPill status={template.status} label={t(STATUS_STYLES[template.status].labelKey)} />
+      ),
     },
     {
       key: 'validFrom',
-      header: 'Starts',
+      header: t('templatesTable.columns.starts'),
       sortKey: 'validFrom',
       cell: (template) => (
-        <span {...stylex.props(styles.cellText)}>{formatDate(template.validFrom)}</span>
+        <span {...stylex.props(styles.cellText)}>{formatDate(template.validFrom, locale)}</span>
       ),
     },
   ];
@@ -228,7 +241,7 @@ export function ClassTemplatesTable({
       {/* Pager. */}
       <div {...stylex.props(styles.pagerRow)}>
         <span {...stylex.props(styles.pagerCount)}>
-          {from}-{to} of {total}
+          {t('pager.range', { from: nf.format(from), to: nf.format(to), total: nf.format(total) })}
         </span>
         <div {...stylex.props(styles.pagerBtns)}>
           <Button
@@ -238,7 +251,7 @@ export function ClassTemplatesTable({
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
             disabled={!hasPrev}
-            label="Previous"
+            label={t('pager.previous')}
           />
           <Button
             variant="secondary"
@@ -247,7 +260,7 @@ export function ClassTemplatesTable({
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
             disabled={!hasNext}
-            label="Next"
+            label={t('pager.next')}
           />
         </div>
       </div>

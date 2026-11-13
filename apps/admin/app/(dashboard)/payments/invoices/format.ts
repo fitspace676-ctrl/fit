@@ -4,22 +4,29 @@
 // invoices is the type vocabulary and the calendar-date handling, since a due date is
 // a *day* rather than a moment and must not drift with the viewer's timezone.
 
+import type { useTranslations } from 'next-intl';
 import type { InvoiceType } from '@fit/types';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
-/** The selectable invoice types and their human labels, in display order. */
-export const INVOICE_TYPES: ReadonlyArray<{ value: InvoiceType; label: string }> = [
-  { value: 'MEMBERSHIP', label: 'Membership' },
-  { value: 'PERSONAL_TRAINING', label: 'Personal session' },
-  { value: 'CLASS', label: 'Class' },
-  { value: 'PRODUCT', label: 'Product' },
-  { value: 'SERVICE', label: 'Service' },
-  { value: 'OTHER', label: 'Other' },
+type T = ReturnType<typeof useTranslations>;
+
+/** The selectable invoice types and their translation keys, in display order. */
+export const INVOICE_TYPES: ReadonlyArray<{
+  value: InvoiceType;
+  labelKey: `types.${InvoiceType}`;
+}> = [
+  { value: 'MEMBERSHIP', labelKey: 'types.MEMBERSHIP' },
+  { value: 'PERSONAL_TRAINING', labelKey: 'types.PERSONAL_TRAINING' },
+  { value: 'CLASS', labelKey: 'types.CLASS' },
+  { value: 'PRODUCT', labelKey: 'types.PRODUCT' },
+  { value: 'SERVICE', labelKey: 'types.SERVICE' },
+  { value: 'OTHER', labelKey: 'types.OTHER' },
 ];
 
 /** The human label for an invoice type, e.g. `Personal session`. */
-export function invoiceTypeLabel(type: InvoiceType): string {
-  return INVOICE_TYPES.find((entry) => entry.value === type)?.label ?? type;
+export function invoiceTypeLabel(type: InvoiceType, t: T): string {
+  const entry = INVOICE_TYPES.find((item) => item.value === type);
+  return entry ? t(entry.labelKey) : type;
 }
 
 /**
@@ -27,9 +34,9 @@ export function invoiceTypeLabel(type: InvoiceType): string {
  *
  * Formatted in **UTC**, deliberately: issue and due dates are stored anchored to UTC
  * midnight, so formatting them in the viewer's zone would show the previous day to
- * anyone west of Greenwich. A null (a paid invoice's due date) renders as an em dash.
+ * anyone west of Greenwich. A null (a paid invoice's due date) renders as a dash.
  */
-export function formatInvoiceDate(iso: string | null): string {
+export function formatInvoiceDate(iso: string | null, locale: string = defaultLocale): string {
   if (!iso) {
     return '-';
   }
@@ -37,7 +44,7 @@ export function formatInvoiceDate(iso: string | null): string {
   if (Number.isNaN(date.getTime())) {
     return '-';
   }
-  return createDateTimeFormat(defaultLocale, {
+  return createDateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

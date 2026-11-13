@@ -1,8 +1,10 @@
 'use client';
 
 import * as stylex from '@stylexjs/stylex';
+import { useTranslations } from 'next-intl';
 import { Button } from '@astryxdesign/core/Button';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Dialog } from '@astryxdesign/core/Dialog';
+import { DialogHeader } from '@/components/ui/dialog-header';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import { Icon } from '@/components/ui';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
@@ -41,6 +43,7 @@ const styles = stylex.create({
  * and the API both re-check.
  */
 export function AddClassTypeDrawer({ plans }: { plans: RelationOption[] }) {
+  const t = useTranslations('admin.classes.addTypeDrawer');
   const drawer = useSlideDrawer();
 
   return (
@@ -48,7 +51,7 @@ export function AddClassTypeDrawer({ plans }: { plans: RelationOption[] }) {
       <Button
         variant="primary"
         size="lg"
-        label="New class type"
+        label={t('buttonLabel')}
         icon={<Icon name="plus" sw={2} {...stylex.props(styles.icon)} />}
         onClick={drawer.open}
       />
@@ -57,7 +60,7 @@ export function AddClassTypeDrawer({ plans }: { plans: RelationOption[] }) {
         isOpen={drawer.isOpen}
         onOpenChange={drawer.handleOpenChange}
         purpose="info"
-        aria-label="New class type"
+        aria-label={t('dialogAria')}
         width="40rem"
         maxHeight="100dvh"
         position={{ top: '0.75rem', right: '0.75rem', bottom: '0.75rem' }}
@@ -68,7 +71,7 @@ export function AddClassTypeDrawer({ plans }: { plans: RelationOption[] }) {
           height="fill"
           header={
             <DialogHeader
-              title="Add New Class Type"
+              title={t('dialogTitle')}
               hasDivider={false}
               onOpenChange={drawer.handleOpenChange}
               xstyle={styles.header}

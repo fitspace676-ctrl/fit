@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import {
   MAX_SUBSCRIPTION_ALLOWANCE,
   type SubscriptionInterval,
@@ -42,9 +43,12 @@ export type PlanClassTypeOption = {
 };
 
 /** Selectable initial statuses when creating (lifecycle change is a separate action). */
-const CREATE_STATUSES: ReadonlyArray<{ value: SubscriptionPlanStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
+const CREATE_STATUSES: ReadonlyArray<{
+  value: SubscriptionPlanStatus;
+  labelKey: `status.${SubscriptionPlanStatus}`;
+}> = [
+  { value: 'ACTIVE', labelKey: 'status.ACTIVE' },
+  { value: 'INACTIVE', labelKey: 'status.INACTIVE' },
 ];
 
 /** Shared field styling so create + edit render identically. */
@@ -161,7 +165,9 @@ export function SubscriptionPlanForm(props: Props) {
         trialDays: 0,
       };
 
+  const t = useTranslations('admin.billingPlans');
   const tCommon = useTranslations('admin.common');
+  const locale = useLocale();
   const branch = useBranchExclusivity(props.mode, initial.locationId);
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
@@ -235,9 +241,7 @@ export function SubscriptionPlanForm(props: Props) {
       if (!coverage.ok) {
         // The plan itself is saved; only the class links failed. Say so rather than
         // reporting a clean success or a total failure, since neither is true.
-        setError(
-          `The plan was saved, but its classes could not be updated: ${coverage.error}. Set them from the Classes screen, or try saving again.`,
-        );
+        setError(t('form.classSyncPartialError', { error: coverage.error }));
         router.refresh();
         return;
       }
@@ -281,7 +285,7 @@ export function SubscriptionPlanForm(props: Props) {
         size="card"
         type="submit"
         disabled={pending}
-        label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create plan'}
+        label={pending ? t('form.saving') : isEdit ? t('form.saveChanges') : t('form.createPlan')}
       />
       {props.onCancel ? (
         <Button
@@ -290,14 +294,14 @@ export function SubscriptionPlanForm(props: Props) {
           type="button"
           onClick={props.onCancel}
           disabled={pending}
-          label="Cancel"
+          label={t('form.cancel')}
         />
       ) : (
         <Link
           href={cancelHref}
           className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
         >
-          Cancel
+          {t('form.cancel')}
         </Link>
       )}
     </div>
@@ -316,11 +320,11 @@ export function SubscriptionPlanForm(props: Props) {
       <div className="flex min-w-0 flex-col gap-5">
         {/* Basics & pricing */}
         <Card>
-          <h3 className={CARD_HEADING_CLASS}>Basics &amp; pricing</h3>
+          <h3 className={CARD_HEADING_CLASS}>{t('form.basicsHeading')}</h3>
           <div className="mt-4 flex flex-col gap-4">
             <div className="flex flex-col gap-1">
               <label htmlFor="plan-name" className={LABEL_CLASS}>
-                Name
+                {t('form.nameLabel')}
               </label>
               <input
                 id="plan-name"
@@ -330,14 +334,15 @@ export function SubscriptionPlanForm(props: Props) {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 autoComplete="off"
-                placeholder="e.g. Monthly Unlimited"
+                placeholder={t('form.namePlaceholder')}
                 className={FIELD_CLASS}
               />
             </div>
 
             <div className="flex flex-col gap-1">
               <label htmlFor="plan-description" className={LABEL_CLASS}>
-                Description <span className="font-normal text-ink-400">(optional)</span>
+                {t('form.descriptionLabel')}{' '}
+                <span className="font-normal text-ink-400">{t('form.optional')}</span>
               </label>
               <textarea
                 id="plan-description"
@@ -345,7 +350,7 @@ export function SubscriptionPlanForm(props: Props) {
                 rows={3}
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                placeholder="A short description of the plan."
+                placeholder={t('form.descriptionPlaceholder')}
                 className={FIELD_CLASS}
               />
             </div>
@@ -353,7 +358,7 @@ export function SubscriptionPlanForm(props: Props) {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
               <div className="flex flex-col gap-1">
                 <label htmlFor="plan-price" className={LABEL_CLASS}>
-                  Price
+                  {t('form.priceLabel')}
                 </label>
                 <div className="relative">
                   <input
@@ -377,7 +382,7 @@ export function SubscriptionPlanForm(props: Props) {
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="plan-interval" className={LABEL_CLASS}>
-                  Billing
+                  {t('form.billingLabel')}
                 </label>
                 <select
                   id="plan-interval"
@@ -388,7 +393,7 @@ export function SubscriptionPlanForm(props: Props) {
                 >
                   {SUBSCRIPTION_INTERVALS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -399,18 +404,15 @@ export function SubscriptionPlanForm(props: Props) {
 
         {/* Included classes */}
         <Card>
-          <h3 className={CARD_HEADING_CLASS}>Included classes</h3>
+          <h3 className={CARD_HEADING_CLASS}>{t('form.includedClassesHeading')}</h3>
           <p className="mt-0.5 text-sm text-ink-500 dark:text-ink-400">
-            Pick the classes this plan covers. Members on it book them without paying per session.
+            {t('form.includedClassesHint')}
           </p>
           {props.classTypes.length === 0 ? (
-            <p className="mt-3 text-sm text-ink-400">
-              No class types to include yet. Classes priced per session keep their own price and are
-              set from the Classes screen.
-            </p>
+            <p className="mt-3 text-sm text-ink-400">{t('form.noClassTypes')}</p>
           ) : (
             <fieldset className="mt-3 flex flex-wrap gap-2">
-              <legend className="sr-only">Included classes</legend>
+              <legend className="sr-only">{t('form.includedClassesHeading')}</legend>
               {props.classTypes.map((type) => {
                 const active = classTypeIds.includes(type.id);
                 return (
@@ -448,10 +450,10 @@ export function SubscriptionPlanForm(props: Props) {
 
         {/* Freeze policy */}
         <Card>
-          <h3 className={CARD_HEADING_CLASS}>Freeze policy</h3>
+          <h3 className={CARD_HEADING_CLASS}>{t('form.freezeHeading')}</h3>
           <div className="mt-4 flex flex-col gap-1 sm:max-w-xs">
             <label htmlFor="plan-freeze" className={LABEL_CLASS}>
-              Freeze days / period
+              {t('form.freezeLabel')}
             </label>
             <input
               id="plan-freeze"
@@ -466,13 +468,13 @@ export function SubscriptionPlanForm(props: Props) {
               placeholder="0"
               className={`${FIELD_CLASS} font-mono tabular-nums`}
             />
-            <p className="text-xs text-ink-400">Max days a member can pause. 0 = no freezing.</p>
+            <p className="text-xs text-ink-400">{t('form.freezeHint')}</p>
           </div>
         </Card>
 
         {/* Visibility */}
         <Card>
-          <h3 className={CARD_HEADING_CLASS}>Visibility</h3>
+          <h3 className={CARD_HEADING_CLASS}>{t('form.visibilityHeading')}</h3>
           <label className="mt-4 flex items-center gap-3 text-sm font-medium text-ink-700 dark:text-ink-200">
             <input
               type="checkbox"
@@ -482,9 +484,9 @@ export function SubscriptionPlanForm(props: Props) {
               className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-400 dark:border-white/20 dark:bg-white/10"
             />
             <span>
-              Mark as “Most popular”
+              {t('form.popularLabel')}
               <span className="mt-0.5 block text-xs font-normal text-ink-400">
-                Highlights the plan with a badge on the pricing page.
+                {t('form.popularHint')}
               </span>
             </span>
           </label>
@@ -518,7 +520,7 @@ export function SubscriptionPlanForm(props: Props) {
           {!isEdit ? (
             <div className="mt-4 flex flex-col gap-1">
               <label htmlFor="plan-status" className={LABEL_CLASS}>
-                Status
+                {t('form.statusLabel')}
               </label>
               <select
                 id="plan-status"
@@ -529,11 +531,11 @@ export function SubscriptionPlanForm(props: Props) {
               >
                 {CREATE_STATUSES.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-ink-400">Members can only subscribe to an active plan.</p>
+              <p className="text-xs text-ink-400">{t('form.statusHint')}</p>
             </div>
           ) : null}
         </Card>
@@ -557,15 +559,21 @@ export function SubscriptionPlanForm(props: Props) {
         <div className="flex items-center gap-2 px-1">
           <Icon name="star" className="h-4 w-4 text-ink-400" sw={2} />
           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-500 dark:text-ink-400">
-            Member preview
+            {t('form.previewHeading')}
           </span>
         </div>
         <Card>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-lg font-bold tracking-tight text-ink-900 dark:text-white">
-              {name.trim() || 'Untitled plan'}
+              {name.trim() || t('form.untitledPlan')}
             </h3>
-            {popular ? <Badge tone="neutral" icon="star" label="Popular" /> : null}
+            {popular ? (
+              <Badge
+                tone="neutral"
+                icon={<Icon name="star" className="h-3 w-3" />}
+                label={t('popular')}
+              />
+            ) : null}
           </div>
           {description.trim() ? (
             <p className="mt-1.5 text-xs text-ink-500 dark:text-ink-400">{description.trim()}</p>
@@ -573,10 +581,10 @@ export function SubscriptionPlanForm(props: Props) {
 
           <div className="mt-3 flex items-end gap-1">
             <span className="font-display text-4xl font-black tabular-nums tracking-tight text-ink-900 dark:text-white">
-              {formatPrice(inputToMinor(price), currency)}
+              {formatPrice(inputToMinor(price), currency, locale)}
             </span>
             <span className="mb-1.5 text-sm font-semibold text-ink-500 dark:text-ink-400">
-              {intervalSuffix(interval)}
+              {intervalSuffix(interval, t)}
             </span>
           </div>
 
@@ -584,7 +592,7 @@ export function SubscriptionPlanForm(props: Props) {
             <div className="mt-3 flex flex-wrap gap-1.5">
               <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
                 <Icon name="clock" className="h-3 w-3" sw={2} />
-                {previewFreeze}d freeze
+                {t('freeze', { days: createNumberFormat(locale).format(previewFreeze) })}
               </span>
             </div>
           ) : null}
@@ -607,9 +615,7 @@ export function SubscriptionPlanForm(props: Props) {
             </div>
           ) : null}
         </Card>
-        <p className="text-center text-[11px] text-ink-400">
-          This is roughly how members see the plan on the pricing page.
-        </p>
+        <p className="text-center text-[11px] text-ink-400">{t('form.previewHint')}</p>
       </aside>
 
       {inDrawer ? actions : null}

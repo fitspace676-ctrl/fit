@@ -30,11 +30,13 @@ import {
 import { PtCalendarBoard } from './pt-calendar-board';
 import type { ServiceOption } from './add-slot-drawer';
 
-export const metadata: Metadata = {
-  title: 'Classes · PT Calendar',
-  description:
-    "The gym's personal-training calendar: every trainer's 1:1 sessions and service slots on the same day, week, month and list views as the class schedule, filterable by trainer.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.ptCalendar.meta');
+  return {
+    title: t('title'),
+    description: t('description'),
+  };
+}
 
 // The calendar reflects live tenant state and the staff session token, so it must
 // never be statically rendered or cached.

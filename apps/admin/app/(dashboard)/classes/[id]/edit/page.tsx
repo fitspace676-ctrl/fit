@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -10,9 +11,12 @@ import { Icon } from '@/components/ui';
 import { ClassTemplateForm } from '../../class-template-form';
 import { loadRelationOptions } from '../../options';
 
-export const metadata: Metadata = {
-  title: 'Edit class',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.classes.meta');
+  return {
+    title: t('editClassTitle'),
+  };
+}
 
 // Reflects the staff session and writes live template state — never cached.
 export const dynamic = 'force-dynamic';
@@ -102,6 +106,8 @@ export default async function EditClassTemplatePage({
     redirect('/403');
   }
 
+  const t = await getTranslations('admin.classes');
+
   let template;
   try {
     template = await fetchClassTemplate(id);
@@ -111,13 +117,13 @@ export default async function EditClassTemplatePage({
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this class (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadClassFailed', { status: error.status, message: error.message })
+        : t('errors.apiUnreachable');
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/classes" {...stylex.props(styles.backLink)}>
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-          Back to classes
+          {t('editPage.backToClasses')}
         </Link>
         <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -135,14 +141,13 @@ export default async function EditClassTemplatePage({
     <div {...stylex.props(styles.page)}>
       <Link href={`/classes/${id}`} {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-        Back to class
+        {t('editPage.backToClass')}
       </Link>
 
       <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>Edit class</h1>
+        <h1 {...stylex.props(styles.title)}>{t('editPage.title')}</h1>
         <p {...stylex.props(styles.subtitle)}>
-          Update {template.title}’s details, schedule, capacity, duration, and default trainer and
-          location.
+          {t('editPage.subtitle', { title: template.title })}
         </p>
       </header>
 

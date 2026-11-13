@@ -14,11 +14,13 @@ import { CreateInvoiceDrawer } from './create-invoice-drawer';
 import { InvoiceFilters } from './invoice-filters';
 import { InvoicesTable } from './invoices-table';
 
-export const metadata: Metadata = {
-  title: 'Payments · Invoices',
-  description:
-    'The gym’s invoices, raised automatically for subscriptions and shop orders, or by hand against a member. Search, filter, download a PDF, or email one to the member.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.invoicesHub.meta');
+  return {
+    title: t('title'),
+    description: t('description'),
+  };
+}
 
 // The roster reflects live billing state and the staff session token, so it must never
 // be statically rendered or cached.

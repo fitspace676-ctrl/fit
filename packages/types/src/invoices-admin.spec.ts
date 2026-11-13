@@ -1,7 +1,11 @@
 // @fit/types — hand-raised invoice validation (the create body's guards).
 
 import { describe, expect, it } from 'vitest';
-import { createInvoiceSchema, listAdminInvoicesQuerySchema } from './invoices-admin';
+import {
+  createInvoiceSchema,
+  georgianInvoiceDescription,
+  listAdminInvoicesQuerySchema,
+} from './invoices-admin';
 
 /** A minimal valid create body; individual tests override what they exercise. */
 function base(over: Record<string, unknown> = {}) {
@@ -87,5 +91,22 @@ describe('listAdminInvoicesQuerySchema', () => {
   it('refuses an empty branch rather than treating it as all branches', () => {
     expect(listAdminInvoicesQuerySchema.safeParse({ locationId: '' }).success).toBe(false);
     expect(listAdminInvoicesQuerySchema.safeParse({ locationId: '   ' }).success).toBe(false);
+  });
+});
+
+describe('georgianInvoiceDescription', () => {
+  it('translates the pre-Georgian subscription wording', () => {
+    expect(georgianInvoiceDescription('Premium — monthly subscription')).toBe(
+      'Premium - ყოველთვიური აბონემენტი',
+    );
+    expect(georgianInvoiceDescription('Elite — annual renewal')).toBe('Elite - წლიური განახლება');
+    expect(georgianInvoiceDescription('Subscription — monthly renewal')).toBe(
+      'აბონემენტი - ყოველთვიური განახლება',
+    );
+  });
+
+  it('leaves any other description as written, minus long dashes', () => {
+    expect(georgianInvoiceDescription('PT - 2026-11-12')).toBe('PT - 2026-11-12');
+    expect(georgianInvoiceDescription('Locker — rental')).toBe('Locker - rental');
   });
 });

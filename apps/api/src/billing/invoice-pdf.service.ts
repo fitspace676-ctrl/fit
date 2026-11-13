@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
-import type { GymBusinessSettings } from '@fit/types';
+import { georgianInvoiceDescription, type GymBusinessSettings } from '@fit/types';
 
 /** Everything the invoice document renders — a flat snapshot, no DB access here. */
 export interface InvoicePdfData {
@@ -132,7 +132,7 @@ export class InvoicePdfService {
     const doc = new PDFDocument({
       size: 'A4',
       margin: PAGE_MARGIN,
-      info: { Title: `Invoice ${data.number}`, Author: data.gymName },
+      info: { Title: `ინვოისი ${data.number}`, Author: data.gymName },
     });
     const chunks: Buffer[] = [];
 
@@ -169,7 +169,7 @@ export class InvoicePdfService {
 
     const headerColumnWidth = 220;
     const headerX = right - headerColumnWidth;
-    label(doc, 'INVOICE', headerX, PAGE_MARGIN, { width: headerColumnWidth, align: 'right' });
+    label(doc, 'ინვოისი', headerX, PAGE_MARGIN, { width: headerColumnWidth, align: 'right' });
     doc
       .fillColor(INK)
       .font(FONT_MONO)
@@ -183,7 +183,7 @@ export class InvoicePdfService {
       .fillColor(INK_SECONDARY)
       .font(FONT_BODY)
       .fontSize(9.5)
-      .text(`Issued ${formatDate(data.issuedAt)}`, headerX, PAGE_MARGIN + 42, {
+      .text(`გაცემულია ${formatDate(data.issuedAt)}`, headerX, PAGE_MARGIN + 42, {
         width: headerColumnWidth,
         align: 'right',
         lineBreak: false,
@@ -197,12 +197,12 @@ export class InvoicePdfService {
     const gap = 12;
     const tileWidth = (width - gap) / 2;
     const billedTo: TileContent = {
-      heading: 'BILLED TO',
-      title: data.memberName ?? 'Member',
+      heading: 'გადამხდელი',
+      title: data.memberName ?? 'წევრი',
       lines: data.memberEmail ? [data.memberEmail] : [],
     };
     const issuedBy: TileContent = {
-      heading: 'ISSUED BY',
+      heading: 'გამცემი',
       title: data.gymName,
       lines: issuerLines(data.gymContact),
     };
@@ -215,13 +215,13 @@ export class InvoicePdfService {
     const amountWidth = 140;
     const amountX = right - amountWidth;
     const descriptionWidth = amountX - left - 24;
-    label(doc, 'DESCRIPTION', left, y);
-    label(doc, 'AMOUNT', amountX, y, { width: amountWidth, align: 'right' });
+    label(doc, 'აღწერა', left, y);
+    label(doc, 'თანხა', amountX, y, { width: amountWidth, align: 'right' });
     y += 14;
     hairline(doc, left, right, y);
     y += 14;
 
-    const description = data.description || 'Membership charge';
+    const description = georgianInvoiceDescription(data.description) || 'აბონემენტის გადასახადი';
     const money = formatMoney(data.amount, data.currency);
     doc.fillColor(INK).font(FONT_BODY).fontSize(11);
     const descriptionHeight = doc.heightOfString(description, { width: descriptionWidth });
@@ -241,7 +241,7 @@ export class InvoicePdfService {
     const blockHeight = 84;
     const blockX = right - blockWidth;
     doc.roundedRect(blockX, y, blockWidth, blockHeight, RADIUS).fill(BRAND);
-    label(doc, 'TOTAL', blockX + PAD, y + PAD, { color: ON_BRAND });
+    label(doc, 'სულ', blockX + PAD, y + PAD, { color: ON_BRAND });
 
     const digits = formatAmount(data.amount);
     doc.font(FONT_MONO).fontSize(30);
@@ -270,7 +270,7 @@ export class InvoicePdfService {
       .fillColor(INK_MUTED)
       .font(FONT_BODY)
       .fontSize(8.5)
-      .text(`${data.gymName} · Invoice ${data.number}`, left, footerY, {
+      .text(`${data.gymName} · ინვოისი ${data.number}`, left, footerY, {
         width: width / 2,
         lineBreak: false,
       })
@@ -497,7 +497,26 @@ function formatMoney(minorUnits: number, currency: string): string {
   return `${formatAmount(minorUnits)} ${currency}`;
 }
 
-/** `"4 Jul 2026"` in a fixed, locale-independent form (the document is not localised). */
+/** Georgian month names, nominative — the document is always Georgian. */
+const KA_MONTHS = [
+  'იანვარი',
+  'თებერვალი',
+  'მარტი',
+  'აპრილი',
+  'მაისი',
+  'ივნისი',
+  'ივლისი',
+  'აგვისტო',
+  'სექტემბერი',
+  'ოქტომბერი',
+  'ნოემბერი',
+  'დეკემბერი',
+];
+
+/**
+ * `"4 ივლისი 2026"`. Spelled out by hand rather than via `toLocaleDateString('ka')`,
+ * whose output depends on the ICU data the Node build ships with.
+ */
 function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${date.getUTCDate()} ${KA_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }

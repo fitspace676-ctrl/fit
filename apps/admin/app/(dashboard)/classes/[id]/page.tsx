@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getLocale, getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, roleHasPermission } from '@fit/types';
+import { createNumberFormat } from '@fit/i18n';
+import { Permission, RECURRENCE_WEEKDAYS, parseRRule, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { ApiError, fetchClassTemplate } from '@/lib/api';
 import { Badge, Card } from '@fit/ui-kit';
@@ -10,9 +12,12 @@ import { Icon } from '@/components/ui';
 import { STATUS_STYLES, formatDate, formatDateTime, formatDuration } from '../format';
 import { TemplateActions } from './template-actions';
 
-export const metadata: Metadata = {
-  title: 'Class',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.classes.meta');
+  return {
+    title: t('classTitle'),
+  };
+}
 
 // The detail reflects live template state and the staff session token, so it must
 // never be statically rendered or cached.
@@ -102,11 +107,6 @@ const styles = stylex.create({
   statValue: {
     color: 'var(--color-text-primary)',
   },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-  },
   descSection: {
     display: 'flex',
     flexDirection: 'column',
@@ -119,16 +119,6 @@ const styles = stylex.create({
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.15em',
-    color: 'var(--color-text-secondary)',
-  },
-  codeBox: {
-    width: 'fit-content',
-    borderRadius: 'var(--radius-element)',
-    backgroundColor: 'var(--color-background-muted)',
-    paddingInline: '0.5rem',
-    paddingBlock: '0.25rem',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
   descText: {
@@ -181,6 +171,9 @@ export default async function ClassTemplateDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getTranslations('admin.classes');
+  const locale = await getLocale();
+  const nf = createNumberFormat(locale);
 
   let template;
   try {
@@ -191,13 +184,13 @@ export default async function ClassTemplateDetailPage({
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this class (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? t('errors.loadClassFailed', { status: error.status, message: error.message })
+        : t('errors.apiUnreachable');
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/classes" {...stylex.props(styles.backLink)}>
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-          Back to classes
+          {t('detailPage.back')}
         </Link>
         <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -209,10 +202,24 @@ export default async function ClassTemplateDetailPage({
     );
   }
 
-  const status = STATUS_STYLES[template.status] ?? {
-    label: template.status,
-    tone: 'ink' as const,
-  };
+  const statusEntry = STATUS_STYLES[template.status];
+  const status = statusEntry
+    ? { label: t(statusEntry.labelKey), tone: statusEntry.tone }
+    : { label: template.status, tone: 'neutral' as const };
+
+  // The cadence in the console's language, built from the stored rrule rather
+  // than the API's English `recurrence` sentence. An rrule the editor can't model
+  // falls back to that sentence, which is still better than the raw string.
+  const recurrence = parseRRule(template.rrule);
+  const recurrenceText = !recurrence
+    ? template.recurrence
+    : recurrence.freq === 'WEEKLY' && recurrence.weekdays.length > 0
+      ? t('recurrence.summary.weeklyOn', {
+          days: RECURRENCE_WEEKDAYS.filter((day) => recurrence.weekdays.includes(day))
+            .map((day) => t(`recurrence.weekday.${day}`))
+            .join(', '),
+        })
+      : t(`recurrence.summary.${recurrence.freq}`);
 
   // Write controls (edit + pause) are a `ClassWrite` capability.
   const session = await getServerSession();
@@ -222,7 +229,7 @@ export default async function ClassTemplateDetailPage({
     <div {...stylex.props(styles.page)}>
       <Link href="/classes" {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-        Back to classes
+        {t('detailPage.back')}
       </Link>
 
       <header {...stylex.props(styles.header)}>
@@ -237,55 +244,56 @@ export default async function ClassTemplateDetailPage({
             <Badge tone={status.tone} label={status.label} />
             {template.category ? <Badge tone="neutral" label={template.category} /> : null}
           </div>
-          <p {...stylex.props(styles.recurrence)}>{template.recurrence}</p>
+          <p {...stylex.props(styles.recurrence)}>{recurrenceText}</p>
         </div>
         {canWrite ? <TemplateActions templateId={template.id} status={template.status} /> : null}
       </header>
 
       <Card padding="none" xstyle={styles.infoCard}>
         <div {...stylex.props(styles.stat)}>
-          <span {...stylex.props(styles.statLabel)}>Capacity</span>
-          <span {...stylex.props(styles.statValue)}>{template.capacity} spots</span>
-        </div>
-        <div {...stylex.props(styles.stat)}>
-          <span {...stylex.props(styles.statLabel)}>Duration</span>
+          <span {...stylex.props(styles.statLabel)}>{t('detailPage.capacity')}</span>
           <span {...stylex.props(styles.statValue)}>
-            {formatDuration(template.durationMinutes)}
+            {t('detailPage.spots', { count: nf.format(template.capacity) })}
           </span>
         </div>
         <div {...stylex.props(styles.stat)}>
-          <span {...stylex.props(styles.statLabel)}>Trainer</span>
+          <span {...stylex.props(styles.statLabel)}>{t('detailPage.duration')}</span>
+          <span {...stylex.props(styles.statValue)}>
+            {formatDuration(template.durationMinutes, t, locale)}
+          </span>
+        </div>
+        <div {...stylex.props(styles.stat)}>
+          <span {...stylex.props(styles.statLabel)}>{t('detailPage.trainer')}</span>
           <span {...stylex.props(styles.statValue)}>{template.trainerName ?? '-'}</span>
         </div>
         <div {...stylex.props(styles.stat)}>
-          <span {...stylex.props(styles.statLabel)}>Location</span>
+          <span {...stylex.props(styles.statLabel)}>{t('detailPage.location')}</span>
           <span {...stylex.props(styles.statValue)}>
             {template.locationName ?? '-'}
             {template.room ? ` · ${template.room}` : ''}
           </span>
         </div>
         <div {...stylex.props(styles.stat)}>
-          <span {...stylex.props(styles.statLabel)}>Runs</span>
+          <span {...stylex.props(styles.statLabel)}>{t('detailPage.runs')}</span>
           <span {...stylex.props(styles.statValue)}>
-            {formatDate(template.validFrom)} -{' '}
-            {template.validUntil ? formatDate(template.validUntil) : 'open-ended'}
+            {formatDate(template.validFrom, locale)} -{' '}
+            {template.validUntil
+              ? formatDate(template.validUntil, locale)
+              : t('detailPage.openEnded')}
           </span>
         </div>
       </Card>
 
-      <section {...stylex.props(styles.section)}>
-        <span {...stylex.props(styles.sectionLabel)}>Recurrence rule</span>
-        <code {...stylex.props(styles.codeBox)}>{template.rrule}</code>
-      </section>
-
       {template.description ? (
         <section {...stylex.props(styles.descSection)}>
-          <h2 {...stylex.props(styles.sectionLabel)}>Description</h2>
+          <h2 {...stylex.props(styles.sectionLabel)}>{t('detailPage.description')}</h2>
           <p {...stylex.props(styles.descText)}>{template.description}</p>
         </section>
       ) : null}
 
-      <p {...stylex.props(styles.footerText)}>Added {formatDateTime(template.createdAt)}.</p>
+      <p {...stylex.props(styles.footerText)}>
+        {t('detailPage.addedAt', { date: formatDateTime(template.createdAt, locale) })}
+      </p>
     </div>
   );
 }

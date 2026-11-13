@@ -10,9 +10,9 @@
 
 /**
  * Build an invoice's human-readable `description` for a subscription charge, so the
- * enrolment and renewal mint sites word it identically: `"Premium — monthly
- * subscription"` for the first (enrolment) charge and `"Premium — monthly renewal"` for
- * a recurring one. `planName` falls back to a generic label for a plan-less / renamed
+ * enrolment and renewal mint sites word it identically, always in Georgian: `"Premium - ყოველთვიური
+ * აბონემენტი"` for the first (enrolment) charge and `"Premium - ყოველთვიური განახლება"`
+ * for a recurring one. `planName` falls back to a generic label for a plan-less / renamed
  * subscription; `interval` picks the cadence adjective. Pure so it is shared and
  * unit-testable without a database.
  */
@@ -21,7 +21,7 @@ export function subscriptionInvoiceDescription(
   interval: 'MONTH' | 'YEAR',
   kind: 'enrolment' | 'renewal',
 ): string {
-  const label = planName?.trim() ? planName.trim() : 'Subscription';
-  const cadence = interval === 'YEAR' ? 'annual' : 'monthly';
-  return `${label} — ${cadence} ${kind === 'renewal' ? 'renewal' : 'subscription'}`;
+  const label = planName?.trim() ? planName.trim() : 'აბონემენტი';
+  const cadence = interval === 'YEAR' ? 'წლიური' : 'ყოველთვიური';
+  return `${label} - ${cadence} ${kind === 'renewal' ? 'განახლება' : 'აბონემენტი'}`;
 }

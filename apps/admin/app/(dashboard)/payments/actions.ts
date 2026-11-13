@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   createSubscriptionPlanSchema,
@@ -44,15 +45,32 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 
 const requireBillingManage = () => sessionHas(Permission.BillingManage);
 
+type ErrorT = Awaited<ReturnType<typeof getTranslations>>;
+
 /** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+function toMessage(error: unknown, t: ErrorT): string {
   if (error instanceof ApiError) {
     if (error.message === 'SUBSCRIPTION_PLAN_NOT_FOUND') {
-      return 'That subscription plan no longer exists.';
+      return t('planNotFound');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('unexpected');
+}
+
+/** Map the first Zod validation issue to a localized message. */
+function validationMessage(issues: ReadonlyArray<{ path: PropertyKey[] }>, t: ErrorT): string {
+  const field = issues[0]?.path[0];
+  if (field === 'name') {
+    return t('validation.nameRequired');
+  }
+  if (field === 'priceAmount') {
+    return t('validation.priceInvalid');
+  }
+  if (field === 'freezeDaysPerPeriod') {
+    return t('validation.freezeInvalid');
+  }
+  return t('invalidPlanDetails');
 }
 
 /**
@@ -63,19 +81,20 @@ function toMessage(error: unknown): string {
 export async function createSubscriptionPlanAction(
   input: CreateSubscriptionPlanInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.billingPlans.errors');
   if (!(await requireBillingManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = createSubscriptionPlanSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid plan details' };
+    return { ok: false, error: validationMessage(parsed.error.issues, t) };
   }
   try {
     const plan = await createSubscriptionPlan(parsed.data);
     revalidatePath('/payments');
     return { ok: true, data: { id: plan.id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -87,12 +106,13 @@ export async function updateSubscriptionPlanAction(
   id: string,
   input: UpdateSubscriptionPlanInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.billingPlans.errors');
   if (!(await requireBillingManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = updateSubscriptionPlanSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid plan details' };
+    return { ok: false, error: validationMessage(parsed.error.issues, t) };
   }
   try {
     await updateSubscriptionPlan(id, parsed.data);
@@ -100,7 +120,7 @@ export async function updateSubscriptionPlanAction(
     revalidatePath(`/payments/${id}`);
     return { ok: true, data: { id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -113,8 +133,9 @@ export async function setSubscriptionPlanActiveAction(
   id: string,
   active: boolean,
 ): Promise<ActionResult<{ status: SetSubscriptionPlanStatusResponse['status'] }>> {
+  const t = await getTranslations('admin.billingPlans.errors');
   if (!(await requireBillingManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     const plan = active
@@ -124,7 +145,7 @@ export async function setSubscriptionPlanActiveAction(
     revalidatePath(`/payments/${id}`);
     return { ok: true, data: { status: plan.status } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -154,8 +175,9 @@ export async function setPlanClassTypesAction(
   planId: string,
   classTypeIds: string[],
 ): Promise<ActionResult<{ updated: number }>> {
+  const t = await getTranslations('admin.billingPlans.errors');
   if (!(await requireBillingManage()) || !(await sessionHas(Permission.ClassWrite))) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     const wanted = new Set(classTypeIds);
@@ -190,6 +212,6 @@ export async function setPlanClassTypesAction(
     revalidatePath('/classes');
     return { ok: true, data: { updated } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
