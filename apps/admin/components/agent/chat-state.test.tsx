@@ -76,6 +76,24 @@ describe('agent stream and approval state', () => {
   });
 });
 
+describe('long dashes in agent text', () => {
+  it('turns streamed em and en dashes into a plain hyphen', () => {
+    const empty: AgentMessage = { id: 'a', role: 'assistant', content: '' };
+    expect(foldEvent(empty, { t: 'delta', v: 'ორი — სამი – ოთხი' }).content).toBe(
+      'ორი - სამი - ოთხი',
+    );
+  });
+
+  it('cleans saved assistant turns but leaves the operator’s own text alone', () => {
+    const [reply, own] = restoreTranscript([
+      { id: 'a', role: 'assistant', content: 'კი — მზადაა' },
+      { id: 'b', role: 'user', content: 'ა — ბ' },
+    ]);
+    expect(reply!.content).toBe('კი - მზადაა');
+    expect(own!.content).toBe('ა — ბ');
+  });
+});
+
 describe('console Markdown links', () => {
   it.each([
     ['[Settings](/app-settings)', '/admin', '[Settings](/admin/app-settings)'],

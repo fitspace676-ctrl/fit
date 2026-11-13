@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import {
   Permission,
@@ -18,11 +20,13 @@ import { formatPrice } from '../format-price';
 import { StockAdjuster } from '../low-stock/stock-adjuster';
 import { InventoryFilters } from './inventory-filters';
 
-export const metadata: Metadata = {
-  title: 'Inventory',
-  description:
-    'What the gym stocks and how much of each: every product’s on-hand count, its status against the reorder threshold, and the value sitting on the shelf.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.shop.meta');
+  return {
+    title: t('inventoryTitle'),
+    description: t('inventoryDescription'),
+  };
+}
 
 // Counts are live and the page is gated on the staff session, so it must never be
 // statically rendered or cached.
@@ -38,15 +42,15 @@ export const dynamic = 'force-dynamic';
  * stocktake exists to close, and calling it "Not tracked" would file it under a
  * property of the product instead.
  */
-const LEVEL_BADGES: Record<string, { label: string; tone: BadgeTone }> = {
-  untracked: { label: 'Not tracked', tone: 'neutral' },
-  out: { label: 'Out', tone: 'danger' },
-  low: { label: 'Low', tone: 'pending' },
-  in: { label: 'In stock', tone: 'positive' },
+const LEVEL_BADGES: Record<
+  string,
+  { labelKey: 'untracked' | 'out' | 'low' | 'in'; tone: BadgeTone }
+> = {
+  untracked: { labelKey: 'untracked', tone: 'neutral' },
+  out: { labelKey: 'out', tone: 'danger' },
+  low: { labelKey: 'low', tone: 'pending' },
+  in: { labelKey: 'in', tone: 'positive' },
 };
-
-/** The `untracked` label when the table is scoped to one branch. */
-const NOT_STOCKED_HERE = 'Not stocked here';
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
@@ -240,7 +244,14 @@ export default async function InventoryPage({
     locationId,
   });
 
-  const session = await getServerSession();
+  const [session, t, tErrors, tCommon, locale] = await Promise.all([
+    getServerSession(),
+    getTranslations('admin.shop.inventory'),
+    getTranslations('admin.shop.errors'),
+    getTranslations('admin.common'),
+    getLocale(),
+  ]);
+  const nf = createNumberFormat(locale);
   const canWrite = session !== null && roleHasPermission(session.role, Permission.InventoryAdjust);
 
   let result: ListInventoryResponse;
@@ -249,8 +260,8 @@ export default async function InventoryPage({
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load the inventory (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? tErrors('loadInventoryFailed', { status: error.status, message: error.message })
+        : tErrors('apiUnreachable');
     return (
       <div {...stylex.props(styles.page)}>
         <Card role="alert" padding="none" xstyle={styles.errorCard}>
@@ -276,32 +287,25 @@ export default async function InventoryPage({
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headTitles)}>
-          <h1 {...stylex.props(styles.title)}>Inventory</h1>
-          <p {...stylex.props(styles.subtitle)}>
-            What you stock and how much of each. Adjust a count here and it is recorded with a
-            reason, so the product’s history explains the number.
-          </p>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
           <p {...stylex.props(styles.scope)}>
-            <span {...stylex.props(styles.scopeLabel)}>Location</span>
-            <span {...stylex.props(styles.scopeValue)}>{branchName ?? 'All locations'}</span>
+            <span {...stylex.props(styles.scopeLabel)}>{tCommon('locationLabel')}</span>
+            <span {...stylex.props(styles.scopeValue)}>
+              {branchName ?? tCommon('allLocations')}
+            </span>
             {branchNotApplied ? (
-              <span {...stylex.props(styles.scopeCaveat)}>
-                Not narrowed to the selected branch. These are gym-wide totals
-              </span>
+              <span {...stylex.props(styles.scopeCaveat)}>{t('scopeAllBranches')}</span>
             ) : branchName === null ? (
-              <span {...stylex.props(styles.scopeCaveat)}>
-                Counts are gym-wide totals. Pick a branch to see where the stock actually is
-              </span>
+              <span {...stylex.props(styles.scopeCaveat)}>{t('scopePickBranch')}</span>
             ) : (
-              <span {...stylex.props(styles.scopeCaveat)}>
-                Counts are this branch’s shelves only
-              </span>
+              <span {...stylex.props(styles.scopeCaveat)}>{t('scopeBranchShelves')}</span>
             )}
           </p>
         </div>
         <Link href="/shop/low-stock" {...stylex.props(styles.outlineLink)}>
           <Icon name="info" sw={2} {...stylex.props(styles.linkIcon)} />
-          Low stock
+          {t('lowStockLink')}
         </Link>
       </header>
 
@@ -312,20 +316,23 @@ export default async function InventoryPage({
       />
 
       <div {...stylex.props(styles.tiles)}>
-        <Tile label="Units on hand" value={String(summary.totalUnits)} />
+        <Tile label={t('tiles.unitsOnHand')} value={nf.format(summary.totalUnits)} />
         <Tile
-          label="Tracked positions"
-          value={String(summary.trackedCount)}
-          hint={`of ${summary.positionCount} total`}
+          label={t('tiles.trackedPositions')}
+          value={nf.format(summary.trackedCount)}
+          hint={t('tiles.trackedPositionsHint', { total: nf.format(summary.positionCount) })}
         />
-        <Tile label="Low" value={String(summary.lowCount)} />
-        <Tile label="Out" value={String(summary.outCount)} />
+        <Tile label={t('tiles.low')} value={nf.format(summary.lowCount)} />
+        <Tile label={t('tiles.out')} value={nf.format(summary.outCount)} />
         <Tile
-          label="Stock value"
-          value={formatPrice(summary.totalValue, summary.currency)}
+          label={t('tiles.stockValue')}
+          value={formatPrice(summary.totalValue, summary.currency, locale)}
           hint={
             summary.valuedPositions < summary.trackedCount
-              ? `${summary.valuedPositions} of ${summary.trackedCount} priced`
+              ? t('tiles.stockValueHint', {
+                  valued: nf.format(summary.valuedPositions),
+                  tracked: nf.format(summary.trackedCount),
+                })
               : undefined
           }
         />
@@ -334,35 +341,53 @@ export default async function InventoryPage({
       <Card padding="none" xstyle={styles.card}>
         {data.length === 0 ? (
           <p {...stylex.props(styles.empty)}>
-            {branchName === null
-              ? 'Nothing to show. Add a product to start counting.'
-              : `Nothing to show for ${branchName} under these filters.`}
+            {branchName === null ? t('emptyAll') : t('emptyBranch', { branch: branchName })}
           </p>
         ) : (
           <table {...stylex.props(styles.table)}>
             <thead>
               <tr>
-                <th {...stylex.props(styles.th)}>Product</th>
-                <th {...stylex.props(styles.th)}>Position</th>
-                <th {...stylex.props(styles.th)}>SKU</th>
+                <th {...stylex.props(styles.th)}>{t('colProduct')}</th>
+                <th {...stylex.props(styles.th)}>{t('colPosition')}</th>
+                <th {...stylex.props(styles.th)}>{t('colSku')}</th>
                 <th {...stylex.props(styles.th, styles.num)}>
-                  {branchName === null ? 'On hand (all branches)' : `On hand at ${branchName}`}
+                  {branchName === null
+                    ? t('colOnHandAll')
+                    : t('colOnHandBranch', { branch: branchName })}
                 </th>
-                <th {...stylex.props(styles.th)}>Status</th>
-                <th {...stylex.props(styles.th, styles.num)}>Value</th>
+                <th {...stylex.props(styles.th)}>{t('colStatus')}</th>
+                <th {...stylex.props(styles.th, styles.num)}>{t('colValue')}</th>
                 {canWrite ? <th {...stylex.props(styles.th)} /> : null}
               </tr>
             </thead>
             <tbody>
-              {data.map((position) => (
-                <PositionRow
-                  key={`${position.productId}:${position.variantIndex ?? 'base'}`}
-                  position={position}
-                  canWrite={canWrite}
-                  locationId={summary.locationId}
-                  branchName={branchName}
-                />
-              ))}
+              {data.map((position) => {
+                const level = resolveStockLevel({
+                  lowestStock: position.stock,
+                  lowStockThreshold: position.lowStockThreshold,
+                });
+                const badge = LEVEL_BADGES[level]!;
+                const badgeLabel =
+                  level === 'untracked' && branchName !== null
+                    ? t('notStockedHere')
+                    : t(`level.${badge.labelKey}`);
+                return (
+                  <PositionRow
+                    key={`${position.productId}:${position.variantIndex ?? 'base'}`}
+                    position={position}
+                    canWrite={canWrite}
+                    locationId={summary.locationId}
+                    badgeTone={badge.tone}
+                    badgeLabel={badgeLabel}
+                    stockText={position.stock === null ? '-' : nf.format(position.stock)}
+                    valueText={
+                      position.value === null
+                        ? '-'
+                        : formatPrice(position.value, position.currency, locale)
+                    }
+                  />
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -372,8 +397,18 @@ export default async function InventoryPage({
           minimum honesty a truncated count owes its reader. */}
       {data.length > 0 ? (
         <p {...stylex.props(styles.footer)}>
-          Showing {data.length} of {result.total} position{result.total === 1 ? '' : 's'}
-          {branchName === null ? '' : ` at ${branchName}`}.
+          {branchName === null
+            ? t('footerAll', {
+                total: result.total,
+                shown: nf.format(data.length),
+                totalFormatted: nf.format(result.total),
+              })
+            : t('footerBranch', {
+                total: result.total,
+                shown: nf.format(data.length),
+                totalFormatted: nf.format(result.total),
+                branch: branchName,
+              })}
         </p>
       ) : null}
     </div>
@@ -394,21 +429,20 @@ function PositionRow({
   position,
   canWrite,
   locationId,
-  branchName,
+  badgeTone,
+  badgeLabel,
+  stockText,
+  valueText,
 }: {
   position: InventoryPositionRow;
   canWrite: boolean;
   /** The branch every count in this table belongs to, or `null` for the roll-up. */
   locationId: string | null;
-  branchName: string | null;
+  badgeTone: BadgeTone;
+  badgeLabel: string;
+  stockText: string;
+  valueText: string;
 }) {
-  const level = resolveStockLevel({
-    lowestStock: position.stock,
-    lowStockThreshold: position.lowStockThreshold,
-  });
-  const badge = LEVEL_BADGES[level]!;
-  const badgeLabel = level === 'untracked' && branchName !== null ? NOT_STOCKED_HERE : badge.label;
-
   return (
     <tr>
       <td {...stylex.props(styles.td)}>
@@ -420,15 +454,11 @@ function PositionRow({
         {position.variantIndex === null ? '-' : position.label}
       </td>
       <td {...stylex.props(styles.td, styles.muted)}>{position.sku || '-'}</td>
-      <td {...stylex.props(styles.td, styles.num)}>
-        {position.stock === null ? '-' : position.stock}
-      </td>
+      <td {...stylex.props(styles.td, styles.num)}>{stockText}</td>
       <td {...stylex.props(styles.td)}>
-        <Badge tone={badge.tone} label={badgeLabel} />
+        <Badge tone={badgeTone} label={badgeLabel} />
       </td>
-      <td {...stylex.props(styles.td, styles.num, styles.muted)}>
-        {position.value === null ? '-' : formatPrice(position.value, position.currency)}
-      </td>
+      <td {...stylex.props(styles.td, styles.num, styles.muted)}>{valueText}</td>
       {canWrite ? (
         <td {...stylex.props(styles.td, styles.actionCell)}>
           {/* `locationId` is what tells the adjuster whether the count beside it is

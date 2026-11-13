@@ -11,26 +11,36 @@
 
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { NextIntlClientProvider } from 'next-intl';
+import { en, ka } from '@fit/i18n';
 import { StockBadge } from './stock-badge';
 
 const row = { lowestStock: 4, totalStock: 12, lowStockThreshold: 5 };
 
+function renderBadge(props: React.ComponentProps<typeof StockBadge>, locale: 'en' | 'ka' = 'en') {
+  return render(
+    <NextIntlClientProvider locale={locale} messages={locale === 'ka' ? ka : en}>
+      <StockBadge {...props} />
+    </NextIntlClientProvider>,
+  );
+}
+
 describe('StockBadge', () => {
   it('says nothing about branches in All locations mode', () => {
-    render(<StockBadge row={row} />);
+    renderBadge({ row });
     // Nothing to disambiguate: one figure, one meaning.
     expect(screen.queryByLabelText(/all branches/)).not.toBeInTheDocument();
   });
 
   it('names the roll-up when the console is scoped to a branch', () => {
-    render(<StockBadge row={row} branchName="Riverside" />);
+    renderBadge({ row, branchName: 'Riverside' });
     expect(
       screen.getByLabelText('Low stock · 12 across all branches, not Riverside alone'),
     ).toBeInTheDocument();
   });
 
   it('keeps the count itself unchanged under a branch filter', () => {
-    render(<StockBadge row={row} branchName="Riverside" />);
+    renderBadge({ row, branchName: 'Riverside' });
     // The number is the product's gym-wide total either way. Rewriting it to the
     // branch is impossible (the roster carries no per-branch figure) and faking it
     // would be worse than labelling it.
@@ -38,14 +48,21 @@ describe('StockBadge', () => {
   });
 
   it('labels an untracked product without inventing a count', () => {
-    render(
-      <StockBadge
-        row={{ lowestStock: null, totalStock: 0, lowStockThreshold: null }}
-        branchName="Riverside"
-      />,
-    );
+    renderBadge({
+      row: { lowestStock: null, totalStock: 0, lowStockThreshold: null },
+      branchName: 'Riverside',
+    });
     expect(
       screen.getByLabelText('Untracked across all branches, not Riverside alone'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders Georgian labels and scope text when locale is ka', () => {
+    renderBadge({ row, branchName: 'Riverside' }, 'ka');
+    expect(
+      screen.getByLabelText(
+        'მცირე მარაგი · 12 ყველა ფილიალში ჯამურად და არა მხოლოდ „Riverside“ ფილიალში',
+      ),
     ).toBeInTheDocument();
   });
 });

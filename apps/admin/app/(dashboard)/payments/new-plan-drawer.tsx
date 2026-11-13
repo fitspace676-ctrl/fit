@@ -3,9 +3,10 @@
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Dialog } from '@astryxdesign/core/Dialog';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import { Icon } from '@/components/ui';
+import { DialogHeader } from '@/components/ui/dialog-header';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { SubscriptionPlanForm, type PlanClassTypeOption } from './subscription-plan-form';
 

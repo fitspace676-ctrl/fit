@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -8,9 +9,12 @@ import { Icon } from '@/components/ui';
 import { ClassTemplateForm } from '../class-template-form';
 import { loadRelationOptions } from '../options';
 
-export const metadata: Metadata = {
-  title: 'New class',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.classes.meta');
+  return {
+    title: t('newClassTitle'),
+  };
+}
 
 // Reflects the staff session and writes live tenant state — never cached.
 export const dynamic = 'force-dynamic';
@@ -70,21 +74,19 @@ export default async function NewClassTemplatePage() {
     redirect('/403');
   }
 
+  const t = await getTranslations('admin.classes.newPage');
   const { trainers, locations, plans, classTypes } = await loadRelationOptions();
 
   return (
     <div {...stylex.props(styles.page)}>
       <Link href="/classes" {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-        Back to classes
+        {t('back')}
       </Link>
 
       <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>New class</h1>
-        <p {...stylex.props(styles.subtitle)}>
-          Add a class to your gym, either one-off or repeating. Set its capacity and duration, build
-          the schedule with the visual recurrence editor, and pick a default trainer and location.
-        </p>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </header>
 
       <ClassTemplateForm

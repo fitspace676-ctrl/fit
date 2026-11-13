@@ -13,6 +13,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { NextIntlClientProvider } from 'next-intl';
+import { en, ka } from '@fit/i18n';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { InvoiceFilters } from './invoice-filters';
 
@@ -34,8 +36,14 @@ vi.mock('@/components/active-location', () => ({
   }),
 }));
 
-function renderFilters() {
-  return render(<InvoiceFilters search="" type="" issuedFrom="" issuedTo="" />);
+function renderFilters(props: { type?: string; locale?: 'en' | 'ka' } = {}) {
+  const locale = props.locale ?? 'en';
+  const messages = locale === 'ka' ? ka : en;
+  return render(
+    <NextIntlClientProvider locale={locale} messages={messages}>
+      <InvoiceFilters search="" type={props.type ?? ''} issuedFrom="" issuedTo="" />
+    </NextIntlClientProvider>,
+  );
 }
 
 beforeEach(() => {
@@ -76,11 +84,20 @@ describe('InvoiceFilters — the branch filter', () => {
     mocks.locationId.current = 'loc-downtown';
     navigationMock.setSearch('locationId=loc-downtown&type=CLASS&page=3');
     const user = userEvent.setup();
-    render(<InvoiceFilters search="" type="CLASS" issuedFrom="" issuedTo="" />);
+    renderFilters({ type: 'CLASS' });
 
     await user.click(screen.getByRole('button', { name: 'Clear' }));
 
     expect(navigationMock.push).not.toHaveBeenCalled();
     expect(navigationMock.replace).toHaveBeenCalledWith('/?locationId=loc-downtown');
+  });
+
+  it('renders Georgian filter labels and options when locale is ka', () => {
+    renderFilters({ type: 'CLASS', locale: 'ka' });
+
+    expect(screen.getByLabelText('ინვოისების ძებნა')).toBeDefined();
+    expect(screen.getByLabelText('ტიპით გაფილტვრა')).toBeDefined();
+    expect(screen.getByLabelText('ფილიალით გაფილტვრა')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'გასუფთავება' })).toBeDefined();
   });
 });

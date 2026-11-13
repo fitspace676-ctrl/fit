@@ -4,22 +4,22 @@ import { subscriptionInvoiceDescription } from './invoice-number';
 describe('subscriptionInvoiceDescription', () => {
   it('words the enrolment vs renewal charge and picks the cadence adjective', () => {
     expect(subscriptionInvoiceDescription('Premium', 'MONTH', 'enrolment')).toBe(
-      'Premium — monthly subscription',
+      'Premium - ყოველთვიური აბონემენტი',
     );
     expect(subscriptionInvoiceDescription('Premium', 'MONTH', 'renewal')).toBe(
-      'Premium — monthly renewal',
+      'Premium - ყოველთვიური განახლება',
     );
     expect(subscriptionInvoiceDescription('Elite', 'YEAR', 'renewal')).toBe(
-      'Elite — annual renewal',
+      'Elite - წლიური განახლება',
     );
   });
 
   it('falls back to a generic label for a plan-less / blank plan name', () => {
     expect(subscriptionInvoiceDescription(null, 'MONTH', 'enrolment')).toBe(
-      'Subscription — monthly subscription',
+      'აბონემენტი - ყოველთვიური აბონემენტი',
     );
     expect(subscriptionInvoiceDescription('   ', 'YEAR', 'renewal')).toBe(
-      'Subscription — annual renewal',
+      'აბონემენტი - წლიური განახლება',
     );
   });
 });

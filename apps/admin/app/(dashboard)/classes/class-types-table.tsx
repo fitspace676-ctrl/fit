@@ -2,7 +2,9 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
+import { createNumberFormat } from '@fit/i18n';
 import type { AdminClassTypeRow, ClassTypeSort, ClassTypeStatus, SortDir } from '@fit/types';
 import {
   Badge,
@@ -17,9 +19,12 @@ import { formatDuration, formatPricing } from './format';
 import { EditClassTypeDrawer } from './edit-class-type-drawer';
 import type { RelationOption } from './class-template-form';
 
-const STATUS_TONES: Record<ClassTypeStatus, { label: string; tone: BadgeTone }> = {
-  ACTIVE: { label: 'Active', tone: 'positive' },
-  INACTIVE: { label: 'Inactive', tone: 'neutral' },
+const STATUS_TONES: Record<
+  ClassTypeStatus,
+  { labelKey: `status.${ClassTypeStatus}`; tone: BadgeTone }
+> = {
+  ACTIVE: { labelKey: 'status.ACTIVE', tone: 'positive' },
+  INACTIVE: { labelKey: 'status.INACTIVE', tone: 'neutral' },
 };
 
 const styles = stylex.create({
@@ -79,8 +84,8 @@ const styles = stylex.create({
   },
 });
 
-function StatusPill({ status }: { status: ClassTypeStatus }) {
-  const { label, tone } = STATUS_TONES[status];
+function StatusPill({ status, label }: { status: ClassTypeStatus; label: string }) {
+  const { tone } = STATUS_TONES[status];
   return <Badge tone={tone} label={label} />;
 }
 
@@ -109,6 +114,9 @@ export function ClassTypesTable({
   plans: RelationOption[];
   canWrite: boolean;
 }) {
+  const t = useTranslations('admin.classes');
+  const locale = useLocale();
+  const nf = createNumberFormat(locale);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -140,7 +148,7 @@ export function ClassTypesTable({
   if (types.length === 0) {
     return (
       <Card padding="none" xstyle={styles.emptyCard}>
-        No class types match your filters yet. Add one to start scheduling.
+        {t('typesTable.empty')}
       </Card>
     );
   }
@@ -148,7 +156,7 @@ export function ClassTypesTable({
   const columns: ReadonlyArray<Column<AdminClassTypeRow>> = [
     {
       key: 'name',
-      header: 'Name',
+      header: t('typesTable.columns.name'),
       sortKey: 'name',
       cell: (type) => (
         <div {...stylex.props(styles.nameCell)}>
@@ -163,32 +171,42 @@ export function ClassTypesTable({
     },
     {
       key: 'duration',
-      header: 'Duration',
+      header: t('typesTable.columns.duration'),
       cell: (type) => (
-        <span {...stylex.props(styles.cellText)}>{formatDuration(type.durationMinutes)}</span>
+        <span {...stylex.props(styles.cellText)}>
+          {formatDuration(type.durationMinutes, t, locale)}
+        </span>
       ),
     },
     {
       key: 'capacity',
-      header: 'Capacity',
+      header: t('typesTable.columns.capacity'),
       sortKey: 'capacity',
-      cell: (type) => <span {...stylex.props(styles.numText)}>{type.capacity}</span>,
+      cell: (type) => <span {...stylex.props(styles.numText)}>{nf.format(type.capacity)}</span>,
     },
     {
       key: 'minAttendance',
-      header: 'Min',
-      cell: (type) => <span {...stylex.props(styles.numText)}>{type.minAttendance ?? '-'}</span>,
+      header: t('typesTable.columns.min'),
+      cell: (type) => (
+        <span {...stylex.props(styles.numText)}>
+          {type.minAttendance === null ? '-' : nf.format(type.minAttendance)}
+        </span>
+      ),
     },
     {
       key: 'pricing',
-      header: 'Pricing',
-      cell: (type) => <span {...stylex.props(styles.cellText)}>{formatPricing(type)}</span>,
+      header: t('typesTable.columns.pricing'),
+      cell: (type) => (
+        <span {...stylex.props(styles.cellText)}>{formatPricing(type, t, locale)}</span>
+      ),
     },
     {
       key: 'status',
-      header: 'Status',
+      header: t('typesTable.columns.status'),
       sortKey: 'status',
-      cell: (type) => <StatusPill status={type.status} />,
+      cell: (type) => (
+        <StatusPill status={type.status} label={t(STATUS_TONES[type.status].labelKey)} />
+      ),
     },
     ...(canWrite
       ? [
@@ -219,7 +237,7 @@ export function ClassTypesTable({
 
       <div {...stylex.props(styles.pagerRow)}>
         <span {...stylex.props(styles.pagerCount)}>
-          {from}-{to} of {total}
+          {t('pager.range', { from: nf.format(from), to: nf.format(to), total: nf.format(total) })}
         </span>
         <div {...stylex.props(styles.pagerBtns)}>
           <Button
@@ -229,7 +247,7 @@ export function ClassTypesTable({
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
             disabled={!hasPrev}
-            label="Previous"
+            label={t('pager.previous')}
           />
           <Button
             variant="secondary"
@@ -238,7 +256,7 @@ export function ClassTypesTable({
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
             disabled={!hasNext}
-            label="Next"
+            label={t('pager.next')}
           />
         </div>
       </div>

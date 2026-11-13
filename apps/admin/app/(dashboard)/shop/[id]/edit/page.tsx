@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -9,9 +10,12 @@ import { ApiError, fetchProduct, fetchProductCategories } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { ProductForm } from '../../product-form';
 
-export const metadata: Metadata = {
-  title: 'Edit product',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.shop.meta');
+  return {
+    title: t('editProductTitle'),
+  };
+}
 
 // Reflects the staff session and writes live product state — never cached.
 export const dynamic = 'force-dynamic';
@@ -93,6 +97,11 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     redirect('/403');
   }
 
+  const [t, tErrors] = await Promise.all([
+    getTranslations('admin.shop.edit'),
+    getTranslations('admin.shop.errors'),
+  ]);
+
   let product;
   let categories: ListAdminProductCategoriesResponse = { data: [] };
   try {
@@ -108,13 +117,13 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this product (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? tErrors('loadProductFailed', { status: error.status, message: error.message })
+        : tErrors('apiUnreachable');
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/shop" {...stylex.props(styles.backLink)}>
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-          Back to products
+          {t('backToProducts')}
         </Link>
         <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -128,14 +137,12 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     <div {...stylex.props(styles.page)}>
       <Link href={`/shop/${id}`} {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-        Back to product
+        {t('backToProduct')}
       </Link>
 
       <header {...stylex.props(styles.header)}>
-        <h1 {...stylex.props(styles.title)}>Edit product</h1>
-        <p {...stylex.props(styles.subtitle)}>
-          Update {product.name}’s details, price, images, and variants.
-        </p>
+        <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{t('subtitle', { name: product.name })}</p>
       </header>
 
       <ProductForm

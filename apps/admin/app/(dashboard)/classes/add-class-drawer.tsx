@@ -2,11 +2,13 @@
 
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
-import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
+import { Dialog } from '@astryxdesign/core/Dialog';
+import { DialogHeader } from '@/components/ui/dialog-header';
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout';
 import type { AdminClassTypeOption } from '@fit/types';
 import { Icon } from '@/components/ui';
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSlideDrawer } from '@/hooks/use-slide-drawer';
 import { ClassTemplateForm, type ClassFormSeed, type RelationOption } from './class-template-form';
 
@@ -52,7 +54,7 @@ export function AddClassDrawer({
   locations,
   plans,
   classTypes,
-  triggerLabel = 'New class',
+  triggerLabel,
   seed,
   openToken = 0,
 }: {
@@ -74,6 +76,7 @@ export function AddClassDrawer({
   /** Label for the button that opens the drawer (e.g. "Add Class" on the schedule). */
   triggerLabel?: string;
 }) {
+  const t = useTranslations('admin.classes.addClassDrawer');
   const drawer = useSlideDrawer();
 
   // `openToken` starts at 0 and only ever climbs, so this fires on a real request
@@ -92,7 +95,7 @@ export function AddClassDrawer({
       <Button
         variant="primary"
         size="lg"
-        label={triggerLabel}
+        label={triggerLabel ?? t('defaultTrigger')}
         icon={<Icon name="plus" sw={2} {...stylex.props(styles.icon)} />}
         onClick={drawer.open}
       />
@@ -103,7 +106,7 @@ export function AddClassDrawer({
         purpose="info"
         // `Dialog` renders a bare <dialog> and never wires its header to one, so
         // without this the drawer is announced unnamed.
-        aria-label="New class"
+        aria-label={t('dialogAria')}
         width="44rem"
         maxHeight="100dvh"
         position={{ top: '0.75rem', right: '0.75rem', bottom: '0.75rem' }}
@@ -114,7 +117,7 @@ export function AddClassDrawer({
           height="fill"
           header={
             <DialogHeader
-              title="New class"
+              title={t('dialogTitle')}
               hasDivider={false}
               onOpenChange={drawer.handleOpenChange}
               xstyle={styles.header}

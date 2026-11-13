@@ -12,6 +12,7 @@
 // renders once and caches the document to R2.
 
 import { NextResponse } from 'next/server';
+import { getTranslations } from 'next-intl/server';
 import { Permission, roleHasPermission } from '@fit/types';
 import { fetchInvoicePdf } from '@/lib/api';
 import { getServerSession } from '@/lib/session';
@@ -38,11 +39,12 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ invoiceId: string }> },
 ): Promise<Response> {
+  const t = await getTranslations('admin.invoicesHub.errors');
   // Defence in depth: the middleware gates the route to staff, but re-assert the
   // billing-read capability here. The API re-checks again behind its own guards.
   const session = await getServerSession();
   if (!session || !roleHasPermission(session.role, Permission.BillingRead)) {
-    return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+    return NextResponse.json({ error: t('notAuthorized') }, { status: 403 });
   }
 
   const { invoiceId } = await params;
@@ -51,7 +53,7 @@ export async function GET(
   const upstream = await fetchInvoicePdf(invoiceId);
   if (!upstream.ok || !upstream.body) {
     return NextResponse.json(
-      { error: `Download failed (${upstream.status})` },
+      { error: t('downloadFailed', { status: upstream.status }) },
       { status: upstream.status === 0 ? 502 : upstream.status },
     );
   }

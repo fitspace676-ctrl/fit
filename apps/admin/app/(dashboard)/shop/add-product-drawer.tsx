@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
@@ -46,6 +47,7 @@ const styles = stylex.create({
  * is presentation only — `createProductAction` and the API both re-check.
  */
 export function AddProductDrawer({ categories }: { categories: AdminProductCategory[] }) {
+  const t = useTranslations('admin.shop.addDrawer');
   const drawer = useSlideDrawer();
 
   return (
@@ -53,7 +55,7 @@ export function AddProductDrawer({ categories }: { categories: AdminProductCateg
       <Button
         variant="primary"
         size="lg"
-        label="New product"
+        label={t('button')}
         icon={<Icon name="plus" sw={2} {...stylex.props(styles.icon)} />}
         onClick={drawer.open}
       />
@@ -64,7 +66,7 @@ export function AddProductDrawer({ categories }: { categories: AdminProductCateg
         purpose="info"
         // `Dialog` renders a bare <dialog> and never wires its header to one, so
         // without this the drawer is announced unnamed.
-        aria-label="New product"
+        aria-label={t('dialogLabel')}
         width="40rem"
         maxHeight="100dvh"
         position={{ top: '0.75rem', right: '0.75rem', bottom: '0.75rem' }}
@@ -75,7 +77,7 @@ export function AddProductDrawer({ categories }: { categories: AdminProductCateg
           height="fill"
           header={
             <DialogHeader
-              title="New product"
+              title={t('title')}
               hasDivider={false}
               onOpenChange={drawer.handleOpenChange}
               xstyle={styles.header}

@@ -22,7 +22,7 @@ import { ButtonLink } from '@/components/ui/button-link';
 import * as stylex from '@stylexjs/stylex';
 import { DEFAULT_CURRENCY } from '@fit/types';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { AdminSubscriptionPlanRow } from '@fit/types';
 import { Badge, Card, Switch, type BadgeTone } from '@fit/ui-kit';
 import { Icon, useToast, type IconName } from '@/components/ui';
@@ -30,7 +30,7 @@ import { setSubscriptionPlanActiveAction } from './actions';
 import { formatPrice, intervalSuffix } from './format';
 import { NewPlanDrawer } from './new-plan-drawer';
 import type { PlanClassTypeOption } from './subscription-plan-form';
-import { createNumberFormat, defaultLocale } from '@fit/i18n';
+import { createNumberFormat } from '@fit/i18n';
 
 type Segment = 'active' | 'archived';
 
@@ -101,6 +101,7 @@ export function BillingPlansView({
   canWrite: boolean;
 }) {
   const t = useTranslations('admin.billingPlans');
+  const locale = useLocale();
   const router = useRouter();
   const { toast } = useToast();
   const [view, setView] = useState<Segment>('active');
@@ -127,15 +128,19 @@ export function BillingPlansView({
     {
       key: 'activePlans',
       icon: 'ticket',
-      value: createNumberFormat(defaultLocale).format(activePlans.length),
+      value: createNumberFormat(locale).format(activePlans.length),
     },
     {
       key: 'subscribers',
       icon: 'users',
-      value: createNumberFormat(defaultLocale).format(totalSubscribers),
+      value: createNumberFormat(locale).format(totalSubscribers),
     },
-    { key: 'mrr', icon: 'card', value: formatPrice(Math.round(totalMrrMinor), currency) },
-    { key: 'avgPerMember', icon: 'chart', value: formatPrice(avgPerMemberMinor, currency) },
+    { key: 'mrr', icon: 'card', value: formatPrice(Math.round(totalMrrMinor), currency, locale) },
+    {
+      key: 'avgPerMember',
+      icon: 'chart',
+      value: formatPrice(avgPerMemberMinor, currency, locale),
+    },
   ];
 
   function toggleActive(plan: AdminSubscriptionPlanRow): void {
@@ -192,7 +197,9 @@ export function BillingPlansView({
             >
               {t(`segment.${segment}`)}
               <span className="font-mono text-[11px] tabular-nums text-ink-400">
-                {segment === 'active' ? activePlans.length : archivedPlans.length}
+                {createNumberFormat(locale).format(
+                  segment === 'active' ? activePlans.length : archivedPlans.length,
+                )}
               </span>
             </button>
           ))}
@@ -230,6 +237,7 @@ export function BillingPlansView({
               busy={busyId === plan.id}
               onToggle={() => toggleActive(plan)}
               t={t}
+              locale={locale}
             />
           ))}
         </div>
@@ -245,16 +253,19 @@ function PlanCard({
   busy,
   onToggle,
   t,
+  locale,
 }: {
   plan: AdminSubscriptionPlanRow;
   canWrite: boolean;
   busy: boolean;
   onToggle: () => void;
   t: ReturnType<typeof useTranslations>;
+  locale: string;
 }) {
   const isActive = plan.status === 'ACTIVE';
   const tone = toneFor(isActive);
   const features = plan.features;
+  const nf = createNumberFormat(locale);
 
   return (
     <Card padding="lg" xstyle={isActive ? undefined : cardStyles.archived}>
@@ -265,7 +276,13 @@ function PlanCard({
           <h3 className="font-display text-lg font-bold tracking-tight text-ink-900 dark:text-white">
             {plan.name}
           </h3>
-          {plan.popular ? <Badge tone="neutral" icon="star" label={t('popular')} /> : null}
+          {plan.popular ? (
+            <Badge
+              tone="neutral"
+              icon={<Icon name="star" className="h-3 w-3" />}
+              label={t('popular')}
+            />
+          ) : null}
         </div>
         {canWrite ? (
           <ButtonLink
@@ -280,10 +297,10 @@ function PlanCard({
       {/* price */}
       <div className="mt-3 flex items-end gap-1">
         <span className="font-display text-3xl font-black tabular-nums tracking-tight text-ink-900 dark:text-white">
-          {formatPrice(plan.priceAmount, plan.currency)}
+          {formatPrice(plan.priceAmount, plan.currency, locale)}
         </span>
         <span className="mb-1 text-sm font-semibold text-ink-500 dark:text-ink-400">
-          {intervalSuffix(plan.interval)}
+          {intervalSuffix(plan.interval, t)}
         </span>
       </div>
 
@@ -293,19 +310,19 @@ function PlanCard({
           {plan.trialDays > 0 ? (
             <span className="inline-flex h-6 items-center gap-1 rounded-pill bg-brand-500/10 px-2 text-[11px] font-semibold text-brand-700 ring-1 ring-inset ring-brand-500/20 dark:text-brand-300">
               <Icon name="spark" className="h-3 w-3" sw={2} />
-              {t('trial', { days: plan.trialDays })}
+              {t('trial', { days: nf.format(plan.trialDays) })}
             </span>
           ) : null}
           {plan.includedCredits > 0 ? (
             <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
               <Icon name="ticket" className="h-3 w-3" sw={2} />
-              {t('credits', { count: plan.includedCredits })}
+              {t('credits', { count: nf.format(plan.includedCredits) })}
             </span>
           ) : null}
           {plan.freezeDaysPerPeriod > 0 ? (
             <span className="inline-flex h-6 items-center gap-1 rounded-pill px-2 text-[11px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200 dark:text-ink-300 dark:ring-white/10">
               <Icon name="clock" className="h-3 w-3" sw={2} />
-              {t('freeze', { days: plan.freezeDaysPerPeriod })}
+              {t('freeze', { days: nf.format(plan.freezeDaysPerPeriod) })}
             </span>
           ) : null}
         </div>
@@ -336,7 +353,7 @@ function PlanCard({
       <div className="mt-4 flex items-center gap-3 border-t border-ink-200 pt-4 dark:border-white/10">
         <div>
           <div className="font-display text-base font-extrabold tabular-nums text-ink-900 dark:text-white">
-            {createNumberFormat(defaultLocale).format(plan.subscriberCount)}
+            {nf.format(plan.subscriberCount)}
           </div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
             {t('subscribersLabel')}
@@ -344,7 +361,7 @@ function PlanCard({
         </div>
         <div className="border-l border-ink-200 pl-3 dark:border-white/10">
           <div className="font-display text-base font-extrabold tabular-nums text-ink-900 dark:text-white">
-            {formatPrice(Math.round(planMonthlyRevenue(plan)), plan.currency)}
+            {formatPrice(Math.round(planMonthlyRevenue(plan)), plan.currency, locale)}
           </div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-500 dark:text-ink-400">
             {t('monthlyLabel')}

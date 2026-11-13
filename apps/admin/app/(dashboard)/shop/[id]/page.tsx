@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getLocale, getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission, type StockMovementRow } from '@fit/types';
 import { getServerSession } from '@/lib/session';
@@ -11,20 +12,26 @@ import { Icon } from '@/components/ui';
 import { formatPrice } from '../format-price';
 import { ProductActions } from './product-actions';
 import { StockPanel } from './stock-panel';
-import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
+import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 
-export const metadata: Metadata = {
-  title: 'Product',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.shop.meta');
+  return {
+    title: t('productTitle'),
+  };
+}
 
 // The detail reflects live product state and the staff session token, so it must
 // never be statically rendered or cached.
 export const dynamic = 'force-dynamic';
 
 /** Visual treatment per status, matching the roster table's pills. */
-const STATUS_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
-  ACTIVE: { label: 'Active', tone: 'positive' },
-  INACTIVE: { label: 'Inactive', tone: 'neutral' },
+const STATUS_STYLES: Record<
+  string,
+  { labelKey: 'statusActive' | 'statusInactive'; tone: BadgeTone }
+> = {
+  ACTIVE: { labelKey: 'statusActive', tone: 'positive' },
+  INACTIVE: { labelKey: 'statusInactive', tone: 'neutral' },
 };
 
 const styles = stylex.create({
@@ -197,13 +204,13 @@ const styles = stylex.create({
   },
 });
 
-/** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null): string {
+/** Render an ISO instant as a short local date, or `-` when absent. */
+function formatDate(iso: string | null, locale: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(defaultLocale, {
+    : createDateTimeFormat(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -237,10 +244,14 @@ export default async function ProductDetailPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const [locationId, locations] = await Promise.all([
+  const [locationId, locations, t, tErrors, locale] = await Promise.all([
     getActiveLocationId(searchParams),
     fetchActiveLocations(),
+    getTranslations('admin.shop.detail'),
+    getTranslations('admin.shop.errors'),
+    getLocale(),
   ]);
+  const nf = createNumberFormat(locale);
   const branchName = locationId
     ? (locations.find((location) => location.id === locationId)?.name ?? locationId)
     : null;
@@ -254,13 +265,13 @@ export default async function ProductDetailPage({
     }
     const message =
       error instanceof ApiError
-        ? `Could not load this product (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? tErrors('loadProductFailed', { status: error.status, message: error.message })
+        : tErrors('apiUnreachable');
     return (
       <div {...stylex.props(styles.errorPage)}>
         <Link href="/shop" {...stylex.props(styles.backLink)}>
           <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-          Back to products
+          {t('backToProducts')}
         </Link>
         <Card role="alert" padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -270,10 +281,9 @@ export default async function ProductDetailPage({
     );
   }
 
-  const status = STATUS_LABELS[product.status] ?? {
-    label: product.status,
-    tone: 'ink' as BadgeTone,
-  };
+  const statusStyle = STATUS_STYLES[product.status];
+  const statusLabel = statusStyle ? t(statusStyle.labelKey) : product.status;
+  const statusTone: BadgeTone = statusStyle ? statusStyle.tone : 'neutral';
 
   // Write controls (edit + deactivate) are a `ProductWrite` capability; moving
   // stock is `InventoryAdjust` and reading the ledger `StockMovementRead` — a
@@ -301,17 +311,17 @@ export default async function ProductDetailPage({
     <div {...stylex.props(styles.page)}>
       <Link href="/shop" {...stylex.props(styles.backLink)}>
         <Icon name="arrowLeft" sw={2} {...stylex.props(styles.backIcon)} />
-        Back to products
+        {t('backToProducts')}
       </Link>
 
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headText)}>
           <div {...stylex.props(styles.titleRow)}>
             <h1 {...stylex.props(styles.title)}>{product.name}</h1>
-            <Badge tone={status.tone} label={status.label} />
+            <Badge tone={statusTone} label={statusLabel} />
           </div>
           <p {...stylex.props(styles.price)}>
-            {formatPrice(product.priceAmount, product.currency)}
+            {formatPrice(product.priceAmount, product.currency, locale)}
           </p>
         </div>
         {canWrite ? <ProductActions productId={product.id} status={product.status} /> : null}
@@ -323,7 +333,7 @@ export default async function ProductDetailPage({
             <img
               key={url}
               src={url}
-              alt={`${product.name} image ${index + 1}`}
+              alt={t('imageAlt', { name: product.name, index: nf.format(index + 1) })}
               {...stylex.props(styles.galleryImg)}
             />
           ))}
@@ -332,7 +342,7 @@ export default async function ProductDetailPage({
 
       {product.description ? (
         <section {...stylex.props(styles.section)}>
-          <h2 {...stylex.props(styles.sectionHeading)}>Description</h2>
+          <h2 {...stylex.props(styles.sectionHeading)}>{t('descriptionHeading')}</h2>
           <p {...stylex.props(styles.description)}>{product.description}</p>
         </section>
       ) : null}
@@ -346,18 +356,18 @@ export default async function ProductDetailPage({
       />
 
       <section {...stylex.props(styles.section)}>
-        <h2 {...stylex.props(styles.sectionHeading)}>Variants</h2>
+        <h2 {...stylex.props(styles.sectionHeading)}>{t('variantsHeading')}</h2>
         {product.variants.length > 0 ? (
           <Card padding="none" xstyle={styles.tableCard}>
             <table {...stylex.props(styles.table)}>
               <thead>
                 <tr {...stylex.props(styles.headRow)}>
-                  <th {...stylex.props(styles.head)}>Name</th>
-                  <th {...stylex.props(styles.head)}>SKU</th>
-                  <th {...stylex.props(styles.head)}>Price</th>
+                  <th {...stylex.props(styles.head)}>{t('variantsColName')}</th>
+                  <th {...stylex.props(styles.head)}>{t('variantsColSku')}</th>
+                  <th {...stylex.props(styles.head)}>{t('variantsColPrice')}</th>
                   {/* The catalogue record carries the roll-up, never one branch's
                       shelf — see this page's header comment. */}
-                  <th {...stylex.props(styles.head)}>Stock (all branches)</th>
+                  <th {...stylex.props(styles.head)}>{t('variantsColStock')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -367,21 +377,23 @@ export default async function ProductDetailPage({
                     <td {...stylex.props(styles.skuCell)}>{variant.sku || '-'}</td>
                     <td {...stylex.props(styles.numCell)}>
                       {variant.priceAmount === null
-                        ? formatPrice(product.priceAmount, product.currency)
-                        : formatPrice(variant.priceAmount, product.currency)}
+                        ? formatPrice(product.priceAmount, product.currency, locale)
+                        : formatPrice(variant.priceAmount, product.currency, locale)}
                     </td>
-                    <td {...stylex.props(styles.numCell)}>{variant.stock}</td>
+                    <td {...stylex.props(styles.numCell)}>{nf.format(variant.stock)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </Card>
         ) : (
-          <p {...stylex.props(styles.emptyText)}>No variants.</p>
+          <p {...stylex.props(styles.emptyText)}>{t('noVariants')}</p>
         )}
       </section>
 
-      <p {...stylex.props(styles.footnote)}>Added {formatDate(product.createdAt)}.</p>
+      <p {...stylex.props(styles.footnote)}>
+        {t('addedOn', { date: formatDate(product.createdAt, locale) })}
+      </p>
     </div>
   );
 }

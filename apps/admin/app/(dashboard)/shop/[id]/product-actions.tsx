@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { ProductStatus } from '@fit/types';
 import { Button } from '@fit/ui-kit';
@@ -74,6 +75,7 @@ export function ProductActions({
   productId: string;
   status: ProductStatus;
 }) {
+  const t = useTranslations('admin.shop.detail.actions');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -96,14 +98,14 @@ export function ProductActions({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.row)}>
         <Link href={`/shop/${productId}/edit`} {...stylex.props(styles.editLink)}>
-          Edit
+          {t('edit')}
         </Link>
         <Button
           variant={isInactive ? 'primary' : 'secondary'}
           size="inline"
           onClick={toggle}
           disabled={pending}
-          label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+          label={pending ? t('saving') : isInactive ? t('reactivate') : t('deactivate')}
         />
       </div>
       {error ? (

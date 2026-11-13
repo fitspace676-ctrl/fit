@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { ClassTemplateStatus } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
@@ -94,6 +95,7 @@ export function TemplateActions({
   templateId: string;
   status: ClassTemplateStatus;
 }) {
+  const t = useTranslations('admin.classes.templateActions');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -134,14 +136,14 @@ export function TemplateActions({
       <div {...stylex.props(styles.row)}>
         <Link href={`/classes/${templateId}/edit`} {...stylex.props(styles.editLink)}>
           <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
-          Edit
+          {t('edit')}
         </Link>
         <Button
           variant="secondary"
           size="inline"
           onClick={toggle}
           disabled={pending}
-          label={pending ? 'Saving…' : isPaused ? 'Resume' : 'Pause'}
+          label={pending ? t('saving') : isPaused ? t('resume') : t('pause')}
         />
         {confirming ? (
           <>
@@ -151,14 +153,14 @@ export function TemplateActions({
               onClick={remove}
               disabled={pending}
               icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
-              label={pending ? 'Deleting…' : 'Delete for good'}
+              label={pending ? t('deleting') : t('deleteConfirm')}
             />
             <Button
               variant="secondary"
               size="inline"
               onClick={() => setConfirming(false)}
               disabled={pending}
-              label="Keep"
+              label={t('keep')}
             />
           </>
         ) : (
@@ -167,16 +169,11 @@ export function TemplateActions({
             size="inline"
             onClick={() => setConfirming(true)}
             icon={<Icon name="trash" {...stylex.props(styles.kitGlyph)} />}
-            label="Delete"
+            label={t('delete')}
           />
         )}
       </div>
-      {confirming ? (
-        <p {...stylex.props(styles.confirmHint)}>
-          Deleting stops this class running. Sessions that already happened, and upcoming ones a
-          member has booked, are kept on the calendar.
-        </p>
-      ) : null}
+      {confirming ? <p {...stylex.props(styles.confirmHint)}>{t('confirmHint')}</p> : null}
       {error ? (
         <Card padding="none" xstyle={styles.errorCard}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />

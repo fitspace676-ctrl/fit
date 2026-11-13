@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import type { AdminProductCategory, AdminProductRow, ProductStatus } from '@fit/types';
 import { Badge, Button, Card, type BadgeTone } from '@fit/ui-kit';
@@ -13,9 +15,12 @@ import { formatPrice, marginPercent } from './format-price';
 import { StockBadge, stockLevel } from './stock-badge';
 
 /** Visual treatment per product status — success active, ink inactive. */
-const STATUS_STYLES: Record<ProductStatus, { label: string; tone: BadgeTone }> = {
-  ACTIVE: { label: 'Active', tone: 'positive' },
-  INACTIVE: { label: 'Inactive', tone: 'neutral' },
+const STATUS_STYLES: Record<
+  ProductStatus,
+  { labelKey: 'statusActive' | 'statusInactive'; tone: BadgeTone }
+> = {
+  ACTIVE: { labelKey: 'statusActive', tone: 'positive' },
+  INACTIVE: { labelKey: 'statusInactive', tone: 'neutral' },
 };
 
 const styles = stylex.create({
@@ -262,6 +267,9 @@ export function ProductsGrid({
   /** Whether the viewer may file products — the picker is a `ProductWrite` action. */
   canWrite: boolean;
 }) {
+  const t = useTranslations('admin.shop.grid');
+  const locale = useLocale();
+  const nf = createNumberFormat(locale);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -297,7 +305,7 @@ export function ProductsGrid({
   if (products.length === 0) {
     return (
       <Card padding="none" xstyle={styles.emptyCard}>
-        No products match your filters yet.
+        {t('empty')}
       </Card>
     );
   }
@@ -312,6 +320,7 @@ export function ProductsGrid({
           const cardStyle =
             level === 'out' ? styles.cardOut : level === 'low' ? styles.cardLow : styles.card;
           const status = STATUS_STYLES[product.status];
+          const margin = marginPercent(product.priceAmount, product.costAmount);
           return (
             <li key={product.id}>
               <Card padding="none" xstyle={cardStyle}>
@@ -325,7 +334,7 @@ export function ProductsGrid({
                       </span>
                     )}
                     <span {...stylex.props(styles.statusBadge)}>
-                      <Badge tone={status.tone} label={status.label} />
+                      <Badge tone={status.tone} label={t(status.labelKey)} />
                     </span>
                   </div>
 
@@ -333,17 +342,18 @@ export function ProductsGrid({
                     <h3 {...stylex.props(styles.name)}>{product.name}</h3>
                     <div {...stylex.props(styles.priceRow)}>
                       <span {...stylex.props(styles.price)}>
-                        {formatPrice(product.priceAmount, product.currency)}
+                        {formatPrice(product.priceAmount, product.currency, locale)}
                       </span>
                       <span {...stylex.props(styles.variantCount)}>
-                        {product.variantCount > 0
-                          ? `${product.variantCount} ${product.variantCount === 1 ? 'variant' : 'variants'}`
-                          : 'No variants'}
+                        {t('variants', {
+                          count: product.variantCount,
+                          formattedCount: nf.format(product.variantCount),
+                        })}
                       </span>
                     </div>
-                    {marginPercent(product.priceAmount, product.costAmount) !== null ? (
+                    {margin !== null ? (
                       <span {...stylex.props(styles.variantCount)}>
-                        {marginPercent(product.priceAmount, product.costAmount)}% margin
+                        {t('margin', { percent: nf.format(margin) })}
                       </span>
                     ) : null}
                     {/* Read-only viewers keep the plain chip; everyone else gets the
@@ -369,7 +379,7 @@ export function ProductsGrid({
       {/* Pager. */}
       <div {...stylex.props(styles.pagerRow)}>
         <span {...stylex.props(styles.pagerCount)}>
-          {from}-{to} of {total}
+          {t('pagerRange', { from: nf.format(from), to: nf.format(to), total: nf.format(total) })}
         </span>
         <div {...stylex.props(styles.pagerBtns)}>
           <Button
@@ -379,7 +389,7 @@ export function ProductsGrid({
               startTransition(() => router.replace(hrefWith({ page: String(page - 1) })))
             }
             disabled={!hasPrev}
-            label="Previous"
+            label={t('previous')}
           />
           <Button
             variant="secondary"
@@ -388,7 +398,7 @@ export function ProductsGrid({
               startTransition(() => router.replace(hrefWith({ page: String(page + 1) })))
             }
             disabled={!hasNext}
-            label="Next"
+            label={t('next')}
           />
         </div>
       </div>
@@ -415,6 +425,7 @@ function CategoryPicker({
   product: AdminProductRow;
   categories: AdminProductCategory[];
 }) {
+  const t = useTranslations('admin.shop.grid');
   const router = useRouter();
   const [value, setValue] = useState(product.category?.id ?? '');
   const [saving, setSaving] = useState(false);
@@ -440,7 +451,7 @@ function CategoryPicker({
   return (
     <div {...stylex.props(styles.pickerRow)}>
       <label htmlFor={`product-category-${product.id}`} {...stylex.props(styles.srOnly)}>
-        Category for {product.name}
+        {t('categoryPickerLabel', { name: product.name })}
       </label>
       <select
         id={`product-category-${product.id}`}
@@ -449,7 +460,7 @@ function CategoryPicker({
         onChange={(event) => void assign(event.target.value)}
         {...stylex.props(styles.pickerSelect)}
       >
-        <option value="">No category</option>
+        <option value="">{t('noCategory')}</option>
         {categories.map((category) => (
           <option key={category.id} value={category.id}>
             {category.name}

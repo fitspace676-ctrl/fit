@@ -2,14 +2,18 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { ProductStatus } from '@fit/types';
 import { FilterChips, type FilterChip } from '@fit/ui-kit';
 
 /** The tabs, in roster-priority order. `''` is the "All" tab that clears the filter. */
-const TABS: ReadonlyArray<{ value: ProductStatus | ''; label: string }> = [
-  { value: '', label: 'All' },
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
+const TAB_KEYS: ReadonlyArray<{
+  value: ProductStatus | '';
+  labelKey: 'all' | 'active' | 'inactive';
+}> = [
+  { value: '', labelKey: 'all' },
+  { value: 'ACTIVE', labelKey: 'active' },
+  { value: 'INACTIVE', labelKey: 'inactive' },
 ];
 
 /**
@@ -21,6 +25,7 @@ const TABS: ReadonlyArray<{ value: ProductStatus | ''; label: string }> = [
  * rosters read the same.
  */
 export function ProductsStatusTabs({ status }: { status: string }) {
+  const t = useTranslations('admin.shop.tabs');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -38,14 +43,9 @@ export function ProductsStatusTabs({ status }: { status: string }) {
     startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname));
   }
 
-  const chips: FilterChip[] = TABS.map((tab) => ({ label: tab.label, value: tab.value }));
+  const chips: FilterChip[] = TAB_KEYS.map((tab) => ({ label: t(tab.labelKey), value: tab.value }));
 
   return (
-    <FilterChips
-      chips={chips}
-      active={status}
-      onSelect={select}
-      label="Filter products by status"
-    />
+    <FilterChips chips={chips} active={status} onSelect={select} label={t('filterAriaLabel')} />
   );
 }

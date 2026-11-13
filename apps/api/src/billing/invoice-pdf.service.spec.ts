@@ -187,14 +187,35 @@ describe('InvoicePdfService', () => {
     // blind and the "no status" check would pass vacuously.
     const text = visibleText(await service.render(BASE));
 
-    expect(text).toContain('INVOICE');
+    expect(text).toContain('ინვოისი');
     expect(text).toContain('2026-0001');
-    expect(text).toContain('BILLED TO');
+    expect(text).toContain('გადამხდელი');
     expect(text).toContain('Nino Beridze');
     expect(text).toContain('nino@example.com');
-    expect(text).toContain('TOTAL');
+    expect(text).toContain('სულ');
     expect(text).toContain('49.99 GEL');
-    expect(text).toContain('Premium — monthly renewal');
+    // BASE carries a pre-Georgian description; it is printed in Georgian.
+    expect(text).toContain('Premium - ყოველთვიური განახლება');
+  });
+
+  it('is entirely in Georgian — no English labels or month names', async () => {
+    const text = visibleText(await service.render(BASE));
+
+    for (const english of [
+      'INVOICE',
+      'BILLED TO',
+      'ISSUED BY',
+      'DESCRIPTION',
+      'AMOUNT',
+      'TOTAL',
+      'Issued',
+      'monthly',
+    ]) {
+      expect(text).not.toContain(english);
+    }
+    for (const georgian of ['გამცემი', 'აღწერა', 'თანხა', 'გაცემულია']) {
+      expect(text).toContain(georgian);
+    }
   });
 
   it('prints the issuing gym’s contact details in the "Issued by" tile', async () => {
@@ -221,8 +242,8 @@ describe('InvoicePdfService', () => {
     const text = visibleText(await service.render(BASE));
 
     expect(text).toContain('Iron Yard');
-    expect(text).toContain('ISSUED BY');
-    expect(text).toContain('BILLED TO');
+    expect(text).toContain('გამცემი');
+    expect(text).toContain('გადამხდელი');
   });
 
   it('renders Georgian text — the embedded typeface covers both scripts', async () => {
@@ -332,7 +353,7 @@ describe('InvoicePdfService', () => {
       const buffer = await service.render({ ...BASE, logo: corrupt });
 
       expect(isFallbackWordmark(buffer)).toBe(true);
-      expect(visibleText(buffer)).toContain('TOTAL');
+      expect(visibleText(buffer)).toContain('სულ');
     });
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { ButtonLink } from '@/components/ui/button-link';
 import { useRouter } from 'next/navigation';
 import type { SubscriptionPlanStatus } from '@fit/types';
@@ -22,6 +23,7 @@ export function PlanActions({
   planId: string;
   status: SubscriptionPlanStatus;
 }) {
+  const t = useTranslations('admin.billingPlans.planActions');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -47,14 +49,14 @@ export function PlanActions({
           href={`/payments/${planId}/edit`}
           variant="secondary"
           size="inline"
-          label="Edit"
+          label={t('edit')}
         />
         <Button
           variant={isInactive ? 'primary' : 'secondary'}
           size="inline"
           onClick={toggle}
           disabled={pending}
-          label={pending ? 'Saving…' : isInactive ? 'Reactivate' : 'Deactivate'}
+          label={pending ? t('saving') : isInactive ? t('reactivate') : t('deactivate')}
         />
       </div>
       {error ? (

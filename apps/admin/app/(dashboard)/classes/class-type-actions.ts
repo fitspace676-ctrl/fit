@@ -1,5 +1,6 @@
 'use server';
 
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   createClassTypeSchema,
@@ -26,15 +27,17 @@ async function requireClassWrite(): Promise<boolean> {
   return session !== null && roleHasPermission(session.role, Permission.ClassWrite);
 }
 
+type ErrorT = Awaited<ReturnType<typeof getTranslations>>;
+
 /** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+function toMessage(error: unknown, t: ErrorT): string {
   if (error instanceof ApiError) {
     if (error.message === 'CLASS_TYPE_NOT_FOUND') {
-      return 'That class type no longer exists.';
+      return t('classTypeNotFound');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('unexpected');
 }
 
 /**
@@ -44,8 +47,9 @@ function toMessage(error: unknown): string {
  * omits) into the form's initial values.
  */
 export async function getClassTypeAction(id: string): Promise<ActionResult<ClassTypeInitial>> {
+  const t = await getTranslations('admin.classes.errors');
   if (!(await requireClassWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     const type = await fetchClassType(id);
@@ -66,7 +70,7 @@ export async function getClassTypeAction(id: string): Promise<ActionResult<Class
       },
     };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -77,18 +81,19 @@ export async function getClassTypeAction(id: string): Promise<ActionResult<Class
 export async function createClassTypeAction(
   input: CreateClassTypeInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.classes.errors');
   if (!(await requireClassWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = createClassTypeSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid class-type details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalidClassTypeDetails') };
   }
   try {
     const type = await createClassType(parsed.data);
     return { ok: true, data: { id: type.id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -97,18 +102,19 @@ export async function updateClassTypeAction(
   id: string,
   input: UpdateClassTypeInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.classes.errors');
   if (!(await requireClassWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = updateClassTypeSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid class-type details' };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalidClassTypeDetails') };
   }
   try {
     await updateClassType(id, parsed.data);
     return { ok: true, data: { id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -117,13 +123,14 @@ export async function setClassTypeActiveAction(
   id: string,
   active: boolean,
 ): Promise<ActionResult<{ id: string }>> {
+  const t = await getTranslations('admin.classes.errors');
   if (!(await requireClassWrite())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     await (active ? activateClassType(id) : deactivateClassType(id));
     return { ok: true, data: { id } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }

@@ -186,7 +186,7 @@ describe('Subscription lifecycle (integration)', () => {
     });
     expect(invoices).toHaveLength(2);
     expect(invoices[1]).toMatchObject({ gymId, memberId, amount: 12000, currency: 'GEL' });
-    expect(invoices[1]!.description.toLowerCase()).toContain('renewal');
+    expect(invoices[1]!.description.toLowerCase()).toContain('განახლება');
   });
 
   it('converts a free trial to ACTIVE at trial end, starting the first paid period and minting its first invoice', async () => {

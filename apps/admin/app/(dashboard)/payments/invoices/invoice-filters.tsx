@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Icon } from '@/components/ui';
 import { useActiveLocation } from '@/components/active-location';
 import { LOCATION_PARAM } from '@/lib/active-location';
@@ -34,6 +35,7 @@ export function InvoiceFilters({
   issuedFrom: string;
   issuedTo: string;
 }) {
+  const t = useTranslations('admin.invoicesHub');
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -104,8 +106,8 @@ export function InvoiceFilters({
           type="search"
           value={draftSearch}
           onChange={(event) => setDraftSearch(event.target.value)}
-          placeholder="Search invoice #, description or member…"
-          aria-label="Search invoices"
+          placeholder={t('filters.searchPlaceholder')}
+          aria-label={t('filters.searchAria')}
           className={`${CONTROL_CLASS} w-full pl-9`}
         />
       </div>
@@ -113,13 +115,13 @@ export function InvoiceFilters({
       <select
         value={type}
         onChange={(event) => apply({ type: event.target.value })}
-        aria-label="Filter by type"
+        aria-label={t('filters.typeAria')}
         className={CONTROL_CLASS}
       >
-        <option value="">All types</option>
+        <option value="">{t('filters.allTypes')}</option>
         {INVOICE_TYPES.map((option) => (
           <option key={option.value} value={option.value}>
-            {option.label}
+            {t(option.labelKey)}
           </option>
         ))}
       </select>
@@ -131,10 +133,10 @@ export function InvoiceFilters({
           // `showBranchFilter`.
           value=""
           onChange={(event) => apply({ [LOCATION_PARAM]: event.target.value })}
-          aria-label="Filter by branch"
+          aria-label={t('filters.branchAria')}
           className={CONTROL_CLASS}
         >
-          <option value="">All branches</option>
+          <option value="">{t('filters.allBranches')}</option>
           {locations.map((location) => (
             <option key={location.id} value={location.id}>
               {location.name}
@@ -147,14 +149,14 @@ export function InvoiceFilters({
         type="date"
         value={issuedFrom}
         onChange={(event) => apply({ issuedFrom: event.target.value })}
-        aria-label="Issued from"
+        aria-label={t('filters.issuedFromAria')}
         className={CONTROL_CLASS}
       />
       <input
         type="date"
         value={issuedTo}
         onChange={(event) => apply({ issuedTo: event.target.value })}
-        aria-label="Issued to"
+        aria-label={t('filters.issuedToAria')}
         className={CONTROL_CLASS}
       />
 
@@ -164,7 +166,7 @@ export function InvoiceFilters({
           onClick={() => apply({ search: '', type: '', issuedFrom: '', issuedTo: '' })}
           className="text-sm font-medium text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200"
         >
-          Clear
+          {t('filters.clear')}
         </button>
       ) : null}
     </div>

@@ -22,7 +22,7 @@ import {
   searchMembersForBookingAction,
   type MemberSearchResult,
 } from './actions';
-import { createDateTimeFormat } from '@fit/i18n';
+import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 import { zonedClock, zonedIsoDate } from './week';
 
 type T = ReturnType<typeof useTranslations>;
@@ -667,7 +667,7 @@ export function ClassDrawer({
                   />
                 ) : null}
                 {head.category ? <DetailRow icon="tag" text={head.category} /> : null}
-                <DetailRow icon="tag" text={pricingLabel(t, head)} />
+                <DetailRow icon="tag" text={pricingLabel(t, head, locale)} />
               </dl>
 
               {/* The template's blurb, when it has one. */}
@@ -742,9 +742,14 @@ export function ClassDrawer({
 function pricingLabel(
   t: ReturnType<typeof useTranslations>,
   head: { pricingRule: string; priceMinor: number | null },
+  locale: string,
 ): string {
   if (head.pricingRule === 'PAID' && head.priceMinor !== null) {
-    return `${t('details.paid')} · ${(head.priceMinor / 100).toFixed(2)}`;
+    const amount = createNumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(head.priceMinor / 100);
+    return `${t('details.paid')} · ${amount}`;
   }
   if (head.pricingRule === 'INCLUDED') return t('details.included');
   return t('details.free');

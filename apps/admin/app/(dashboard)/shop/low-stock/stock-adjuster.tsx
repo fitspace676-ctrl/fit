@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { MANUAL_STOCK_REASONS, type ManualStockReason } from '@fit/types';
 import { Badge, Button, Dialog, SelectField } from '@fit/ui-kit';
@@ -9,16 +11,11 @@ import { Icon, useToast } from '@/components/ui';
 import { useActiveLocation } from '@/components/active-location';
 import { adjustStockAction } from '../actions';
 
-/**
- * What each reason means on the shelf. The wording is the staffer's, not the
- * schema's: they are recording an event that happened, and the label should match
- * how they would describe it out loud.
- */
-const REASON_LABELS: Record<ManualStockReason, string> = {
-  RECEIVE: 'Delivery',
-  ADJUSTMENT: 'Correction',
-  RECOUNT: 'Recount',
-  WRITE_OFF: 'Write-off',
+const REASON_KEYS: Record<ManualStockReason, ManualStockReason> = {
+  RECEIVE: 'RECEIVE',
+  ADJUSTMENT: 'ADJUSTMENT',
+  RECOUNT: 'RECOUNT',
+  WRITE_OFF: 'WRITE_OFF',
 };
 
 /** The most a single quick step nudges the on-hand target — a small restock cushion. */
@@ -283,6 +280,8 @@ export function StockAdjuster({
   stock,
   stockLocationId,
 }: StockAdjusterProps) {
+  const t = useTranslations('admin.shop.adjuster');
+  const nf = createNumberFormat(useLocale());
   const router = useRouter();
   const { toast } = useToast();
   const { locationId: activeLocationId, locations } = useActiveLocation();
@@ -343,10 +342,17 @@ export function StockAdjuster({
         note,
       });
       if (result.ok) {
-        toast(`${variantName} at ${branchName} set to ${result.data.stock}`, {
-          tone: 'success',
-          icon: 'check',
-        });
+        toast(
+          t('toastUpdated', {
+            variant: variantName,
+            branch: branchName,
+            count: nf.format(result.data.stock),
+          }),
+          {
+            tone: 'success',
+            icon: 'check',
+          },
+        );
         setOpen(false);
         router.refresh();
       } else {
@@ -366,13 +372,13 @@ export function StockAdjuster({
           setOpen(true);
         }}
         icon={<Icon name="settings" {...stylex.props(styles.kitGlyph)} />}
-        label="Adjust"
+        label={t('button')}
       />
 
       <Dialog
         open={open}
         onClose={close}
-        title="Adjust stock"
+        title={t('dialogTitle')}
         description={
           <>
             {productName} · <span {...stylex.props(styles.descVariant)}>{variantName}</span>
@@ -386,7 +392,7 @@ export function StockAdjuster({
               size="inline"
               onClick={close}
               disabled={saving}
-              label="Cancel"
+              label={t('cancel')}
             />
             <Button
               variant="primary"
@@ -394,7 +400,7 @@ export function StockAdjuster({
               onClick={apply}
               disabled={unchanged || branchMissing || saving}
               icon={<Icon name="check" {...stylex.props(styles.kitGlyph)} />}
-              label={saving ? 'Saving…' : 'Apply adjustment'}
+              label={saving ? t('saving') : t('apply')}
             />
           </>
         }
@@ -403,36 +409,30 @@ export function StockAdjuster({
           {/* The branch is stated when the surface already owns it, and chosen
               otherwise. It is never absent: the API requires it. */}
           <div {...stylex.props(styles.field)}>
-            <span {...stylex.props(styles.fieldLabel)}>Branch</span>
+            <span {...stylex.props(styles.fieldLabel)}>{t('branchLabel')}</span>
             {absolute ? (
               <span {...stylex.props(styles.branchFixed)}>{branchName}</span>
             ) : locations.length === 0 ? (
               <p role="alert" {...stylex.props(styles.error)}>
                 <Icon name="info" {...stylex.props(styles.errorIcon)} />
-                <span>
-                  No branches are available to record this against. Add a location before adjusting
-                  stock.
-                </span>
+                <span>{t('noBranches')}</span>
               </p>
             ) : (
               <>
                 <SelectField
-                  label="Branch"
+                  label={t('branchLabel')}
                   labelHidden
                   size="chrome"
                   value={chosenBranch}
                   disabled={saving}
                   onChange={(event) => setChosenBranch(event.target.value)}
                   options={[
-                    { value: '', label: 'Choose a branch…' },
+                    { value: '', label: t('chooseBranch') },
                     ...locations.map((location) => ({ value: location.id, label: location.name })),
                   ]}
                 />
                 {branchMissing ? (
-                  <p {...stylex.props(styles.hint)}>
-                    A count is a claim about one shelf, so this adjustment has to name the branch it
-                    changed.
-                  </p>
+                  <p {...stylex.props(styles.hint)}>{t('branchRequiredHint')}</p>
                 ) : null}
               </>
             )}
@@ -440,14 +440,14 @@ export function StockAdjuster({
 
           <div {...stylex.props(styles.onHandRow)}>
             <span {...stylex.props(styles.onHandLabel)}>
-              {absolute ? `On hand at ${branchName}` : 'On hand, all branches'}
+              {absolute ? t('onHandAtBranch', { branch: branchName }) : t('onHandAllBranches')}
             </span>
             {stock === null ? (
-              <Badge tone="neutral" label="Nothing recorded" />
+              <Badge tone="neutral" label={t('nothingRecorded')} />
             ) : (
               <Badge
                 tone={stock === 0 ? 'danger' : 'pending'}
-                label={stock === 0 ? 'Out of stock' : `${stock} left`}
+                label={stock === 0 ? t('outOfStock') : t('leftCount', { count: nf.format(stock) })}
               />
             )}
           </div>
@@ -460,7 +460,7 @@ export function StockAdjuster({
               onClick={() => setAmount((value) => clamp(value - STEP))}
               disabled={(absolute && amount <= 0) || saving}
               icon={<Icon name="minus" {...stylex.props(styles.kitGlyph)} />}
-              label="Decrease"
+              label={t('decrease')}
             />
             <input
               type="number"
@@ -469,7 +469,7 @@ export function StockAdjuster({
               step={1}
               value={amount}
               disabled={saving}
-              aria-label={absolute ? 'New on-hand count' : 'Change in units'}
+              aria-label={absolute ? t('newCountLabel') : t('deltaCountLabel')}
               onChange={(event) => setAmount(clamp(event.target.valueAsNumber))}
               {...stylex.props(styles.countInput)}
             />
@@ -480,7 +480,7 @@ export function StockAdjuster({
               onClick={() => setAmount((value) => clamp(value + STEP))}
               disabled={saving}
               icon={<Icon name="plus" {...stylex.props(styles.kitGlyph)} />}
-              label="Increase"
+              label={t('increase')}
             />
           </div>
 
@@ -493,14 +493,14 @@ export function StockAdjuster({
                 onClick={() => setAmount((value) => clamp(value + add))}
                 {...stylex.props(styles.quickAdd)}
               >
-                +{add}
+                +{nf.format(add)}
               </button>
             ))}
           </div>
 
           <div {...stylex.props(styles.field)}>
-            <span {...stylex.props(styles.fieldLabel)}>Reason</span>
-            <div {...stylex.props(styles.reasonRow)} role="group" aria-label="Reason">
+            <span {...stylex.props(styles.fieldLabel)}>{t('reasonLabel')}</span>
+            <div {...stylex.props(styles.reasonRow)} role="group" aria-label={t('reasonLabel')}>
               {MANUAL_STOCK_REASONS.map((option) => (
                 <button
                   key={option}
@@ -510,7 +510,7 @@ export function StockAdjuster({
                   onClick={() => setReason(option)}
                   {...stylex.props(styles.reasonChip, reason === option && styles.reasonChipOn)}
                 >
-                  {REASON_LABELS[option]}
+                  {t(`reasons.${REASON_KEYS[option]}`)}
                 </button>
               ))}
             </div>
@@ -518,7 +518,7 @@ export function StockAdjuster({
 
           <div {...stylex.props(styles.field)}>
             <label htmlFor="stock-note" {...stylex.props(styles.fieldLabel)}>
-              Note (optional)
+              {t('noteLabel')}
             </label>
             <input
               id="stock-note"
@@ -526,7 +526,7 @@ export function StockAdjuster({
               value={note}
               disabled={saving}
               maxLength={280}
-              placeholder="Supplier, damage, count sheet…"
+              placeholder={t('notePlaceholder')}
               onChange={(event) => setNote(event.target.value)}
               {...stylex.props(styles.noteInput)}
             />
@@ -539,31 +539,42 @@ export function StockAdjuster({
             <Icon name="arrow" sw={2} {...stylex.props(styles.previewIcon)} />
             {absolute ? (
               <span>
-                <span {...stylex.props(styles.previewTarget)}>{amount}</span> units at {branchName}
+                {t.rich('previewAbsolute', {
+                  amount,
+                  formattedAmount: nf.format(amount),
+                  branch: branchName,
+                  target: (chunks) => <span {...stylex.props(styles.previewTarget)}>{chunks}</span>,
+                })}
                 {unchanged ? null : (
                   <span
                     {...stylex.props(styles.delta, delta > 0 ? styles.deltaUp : styles.deltaDown)}
                   >
-                    ({delta > 0 ? '+' : ''}
-                    {delta})
+                    ({delta > 0 ? `+${nf.format(delta)}` : nf.format(delta)})
                   </span>
                 )}
               </span>
             ) : (
               <span>
-                <span
-                  {...stylex.props(
-                    styles.previewTarget,
-                    delta > 0 ? styles.deltaUp : delta < 0 ? styles.deltaDown : undefined,
-                  )}
-                >
-                  {delta > 0 ? '+' : ''}
-                  {delta}
-                </span>{' '}
-                units at {branchMissing ? 'the branch you choose' : branchName}
+                {t.rich('previewDeltaBranch', {
+                  signedDelta: delta > 0 ? `+${nf.format(delta)}` : nf.format(delta),
+                  target: branchMissing ? t('chosenBranchFallback') : branchName,
+                  delta: (chunks) => (
+                    <span
+                      {...stylex.props(
+                        styles.previewTarget,
+                        delta > 0 ? styles.deltaUp : delta < 0 ? styles.deltaDown : undefined,
+                      )}
+                    >
+                      {chunks}
+                    </span>
+                  ),
+                })}
                 {stock === null ? null : (
                   <span {...stylex.props(styles.delta)}>
-                    (all branches: {stock} → {stock + delta})
+                    {t('allBranchesPreview', {
+                      from: nf.format(stock),
+                      to: nf.format(stock + delta),
+                    })}
                   </span>
                 )}
               </span>

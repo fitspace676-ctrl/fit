@@ -26,9 +26,12 @@ const COLOR_SWATCHES = [
 ] as const;
 
 /** Selectable statuses when creating / editing a type. */
-const STATUSES: ReadonlyArray<{ value: ClassTypeStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'INACTIVE', label: 'Inactive' },
+const STATUSES: ReadonlyArray<{
+  value: ClassTypeStatus;
+  labelKey: `status.${ClassTypeStatus}`;
+}> = [
+  { value: 'ACTIVE', labelKey: 'status.ACTIVE' },
+  { value: 'INACTIVE', labelKey: 'status.INACTIVE' },
 ];
 
 const styles = stylex.create({
@@ -262,6 +265,7 @@ export function ClassTypeForm(props: Props) {
         locationId: null,
       };
 
+  const t = useTranslations('admin.classes');
   const tCommon = useTranslations('admin.common');
   const branch = useBranchExclusivity(props.mode, initial.locationId);
   const [name, setName] = useState(initial.name);
@@ -317,13 +321,13 @@ export function ClassTypeForm(props: Props) {
     <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="ct-name" {...stylex.props(styles.label)}>
-          Name
+          {t('typeForm.nameLabel')}
         </label>
         <input
           id="ct-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Boxing"
+          placeholder={t('typeForm.namePlaceholder')}
           required
           {...stylex.props(styles.field)}
         />
@@ -331,13 +335,14 @@ export function ClassTypeForm(props: Props) {
 
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="ct-description" {...stylex.props(styles.label)}>
-          Description <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+          {t('typeForm.descriptionLabel')}{' '}
+          <span {...stylex.props(styles.labelOptional)}>{t('typeForm.optional')}</span>
         </label>
         <textarea
           id="ct-description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe the class…"
+          placeholder={t('typeForm.descriptionPlaceholder')}
           {...stylex.props(styles.textarea)}
         />
       </div>
@@ -345,7 +350,7 @@ export function ClassTypeForm(props: Props) {
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="ct-duration" {...stylex.props(styles.label)}>
-            Duration (minutes)
+            {t('typeForm.durationLabel')}
           </label>
           <input
             id="ct-duration"
@@ -360,7 +365,7 @@ export function ClassTypeForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="ct-capacity" {...stylex.props(styles.label)}>
-            Max capacity
+            {t('typeForm.capacityLabel')}
           </label>
           <input
             id="ct-capacity"
@@ -375,7 +380,8 @@ export function ClassTypeForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="ct-min" {...stylex.props(styles.label)}>
-            Min attendance <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+            {t('typeForm.minAttendanceLabel')}{' '}
+            <span {...stylex.props(styles.labelOptional)}>{t('typeForm.optional')}</span>
           </label>
           <input
             id="ct-min"
@@ -384,20 +390,20 @@ export function ClassTypeForm(props: Props) {
             inputMode="numeric"
             value={minAttendance}
             onChange={(e) => setMinAttendance(e.target.value)}
-            placeholder="e.g. 5"
+            placeholder={t('typeForm.minAttendancePlaceholder')}
             {...stylex.props(styles.field)}
           />
         </div>
       </div>
 
       <div {...stylex.props(styles.fieldGroup)}>
-        <span {...stylex.props(styles.label)}>Color</span>
+        <span {...stylex.props(styles.label)}>{t('typeForm.colorLabel')}</span>
         <div {...stylex.props(styles.swatches)}>
           {COLOR_SWATCHES.map((swatch) => (
             <button
               key={swatch}
               type="button"
-              aria-label={`Colour ${swatch}`}
+              aria-label={t('typeForm.colorSwatchAria', { color: swatch })}
               aria-pressed={color === swatch}
               onClick={() => setColor(swatch)}
               {...stylex.props(styles.swatch, color === swatch && styles.swatchActive)}
@@ -410,7 +416,7 @@ export function ClassTypeForm(props: Props) {
       <div {...stylex.props(styles.pricingBox)}>
         <div {...stylex.props(styles.fieldGroup)}>
           <label htmlFor="ct-pricing" {...stylex.props(styles.label)}>
-            Pricing rule
+            {t('typeForm.pricingRuleLabel')}
           </label>
           <select
             id="ct-pricing"
@@ -418,16 +424,16 @@ export function ClassTypeForm(props: Props) {
             onChange={(e) => setPricingRule(e.target.value as ClassPricingRule)}
             {...stylex.props(styles.field)}
           >
-            <option value="FREE">Free, included in all memberships</option>
-            <option value="INCLUDED">Included in selected plans</option>
-            <option value="PAID">Paid per session</option>
+            <option value="FREE">{t('typeForm.pricingFree')}</option>
+            <option value="INCLUDED">{t('typeForm.pricingIncluded')}</option>
+            <option value="PAID">{t('typeForm.pricingPaid')}</option>
           </select>
         </div>
 
         {pricingRule === 'PAID' ? (
           <div {...stylex.props(styles.fieldGroup)}>
             <label htmlFor="ct-price" {...stylex.props(styles.label)}>
-              Price per session
+              {t('typeForm.priceLabel')}
             </label>
             <input
               id="ct-price"
@@ -437,7 +443,7 @@ export function ClassTypeForm(props: Props) {
               inputMode="decimal"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="e.g. 15.00"
+              placeholder={t('typeForm.pricePlaceholder')}
               {...stylex.props(styles.field)}
             />
           </div>
@@ -445,9 +451,9 @@ export function ClassTypeForm(props: Props) {
 
         {pricingRule === 'INCLUDED' ? (
           <div {...stylex.props(styles.fieldGroup)}>
-            <span {...stylex.props(styles.label)}>Included in plans</span>
+            <span {...stylex.props(styles.label)}>{t('typeForm.includedPlansLabel')}</span>
             {props.plans.length === 0 ? (
-              <p {...stylex.props(styles.hint)}>No membership plans yet. Create one first.</p>
+              <p {...stylex.props(styles.hint)}>{t('typeForm.noPlans')}</p>
             ) : (
               <div {...stylex.props(styles.planList)}>
                 {props.plans.map((plan) => {
@@ -500,7 +506,7 @@ export function ClassTypeForm(props: Props) {
 
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="ct-status" {...stylex.props(styles.label)}>
-          Status
+          {t('typeForm.statusLabel')}
         </label>
         <select
           id="ct-status"
@@ -510,7 +516,7 @@ export function ClassTypeForm(props: Props) {
         >
           {STATUSES.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {t(option.labelKey)}
             </option>
           ))}
         </select>
@@ -531,11 +537,17 @@ export function ClassTypeForm(props: Props) {
           size="card"
           type="submit"
           disabled={pending}
-          label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Add class type'}
+          label={
+            pending
+              ? t('typeForm.saving')
+              : isEdit
+                ? t('typeForm.submitSave')
+                : t('typeForm.submitCreate')
+          }
         />
         {props.onCancel ? (
           <button type="button" onClick={props.onCancel} {...stylex.props(styles.cancelButton)}>
-            Cancel
+            {t('typeForm.cancel')}
           </button>
         ) : null}
       </div>

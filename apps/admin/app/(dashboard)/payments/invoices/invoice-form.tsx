@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { InvoiceType } from '@fit/types';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
@@ -49,6 +50,7 @@ export function InvoiceForm({
   onSuccess?: (summary: { number: string }) => void;
   onCancel?: () => void;
 }) {
+  const t = useTranslations('admin.invoicesHub');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function InvoiceForm({
     setError(null);
 
     if (!member) {
-      setError('Pick the member this invoice is for.');
+      setError(t('form.memberRequired'));
       return;
     }
 
@@ -126,7 +128,7 @@ export function InvoiceForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
       {/* Who + what */}
       <Card>
-        <h3 className={CARD_HEADING_CLASS}>Member</h3>
+        <h3 className={CARD_HEADING_CLASS}>{t('form.memberHeading')}</h3>
 
         {member ? (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-field border border-ink-200 px-3.5 py-2.5 dark:border-white/10">
@@ -140,7 +142,7 @@ export function InvoiceForm({
                 </div>
               ) : (
                 <div className="text-xs text-warning-600 dark:text-warning-400">
-                  No email address. This invoice can be downloaded but not sent.
+                  {t('form.noEmailWarning')}
                 </div>
               )}
             </div>
@@ -149,25 +151,25 @@ export function InvoiceForm({
               size="inline"
               type="button"
               onClick={() => setMember(null)}
-              label="Change"
+              label={t('form.changeMember')}
             />
           </div>
         ) : (
           <div className="mt-3 flex flex-col gap-1">
             <label htmlFor="invoice-member" className={LABEL_CLASS}>
-              Search by name or email
+              {t('form.memberSearchLabel')}
             </label>
             <input
               id="invoice-member"
               type="text"
               value={memberQuery}
               onChange={(event) => setMemberQuery(event.target.value)}
-              placeholder="Start typing a member's name…"
+              placeholder={t('form.memberSearchPlaceholder')}
               autoComplete="off"
               className={FIELD_CLASS}
             />
             {searching ? (
-              <p className="text-xs text-ink-400">Searching…</p>
+              <p className="text-xs text-ink-400">{t('form.searching')}</p>
             ) : matches.length > 0 ? (
               <ul className="mt-1 flex flex-col overflow-hidden rounded-field border border-ink-200 dark:border-white/10">
                 {matches.map((match) => (
@@ -190,7 +192,7 @@ export function InvoiceForm({
                 ))}
               </ul>
             ) : memberQuery.trim() ? (
-              <p className="text-xs text-ink-400">No members match that.</p>
+              <p className="text-xs text-ink-400">{t('form.noMatches')}</p>
             ) : null}
           </div>
         )}
@@ -198,11 +200,11 @@ export function InvoiceForm({
 
       {/* What is being billed */}
       <Card>
-        <h3 className={CARD_HEADING_CLASS}>Details</h3>
+        <h3 className={CARD_HEADING_CLASS}>{t('form.detailsHeading')}</h3>
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label htmlFor="invoice-type" className={LABEL_CLASS}>
-              Type
+              {t('form.typeLabel')}
             </label>
             <select
               id="invoice-type"
@@ -212,7 +214,7 @@ export function InvoiceForm({
             >
               {INVOICE_TYPES.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </option>
               ))}
             </select>
@@ -220,7 +222,7 @@ export function InvoiceForm({
 
           <div className="flex flex-col gap-1">
             <label htmlFor="invoice-description" className={LABEL_CLASS}>
-              Description
+              {t('form.descriptionLabel')}
             </label>
             <textarea
               id="invoice-description"
@@ -228,16 +230,16 @@ export function InvoiceForm({
               required
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="e.g. Personal session block (10 sessions)"
+              placeholder={t('form.descriptionPlaceholder')}
               className={FIELD_CLASS}
             />
-            <p className="text-xs text-ink-400">This is the line the member sees on the PDF.</p>
+            <p className="text-xs text-ink-400">{t('form.descriptionHint')}</p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label htmlFor="invoice-amount" className={LABEL_CLASS}>
-                Amount
+                {t('form.amountLabel')}
               </label>
               <div className="relative">
                 <input
@@ -259,7 +261,7 @@ export function InvoiceForm({
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="invoice-issued" className={LABEL_CLASS}>
-                Issue date
+                {t('form.issueDateLabel')}
               </label>
               <input
                 id="invoice-issued"
@@ -273,7 +275,8 @@ export function InvoiceForm({
 
             <div className="flex flex-col gap-1">
               <label htmlFor="invoice-due" className={LABEL_CLASS}>
-                Due date <span className="font-normal text-ink-400">(optional)</span>
+                {t('form.dueDateLabel')}{' '}
+                <span className="font-normal text-ink-400">{t('form.optional')}</span>
               </label>
               <input
                 id="invoice-due"
@@ -282,7 +285,7 @@ export function InvoiceForm({
                 onChange={(event) => setDueDate(event.target.value)}
                 className={FIELD_CLASS}
               />
-              <p className="text-xs text-ink-400">Leave blank if the invoice states no deadline.</p>
+              <p className="text-xs text-ink-400">{t('form.dueDateHint')}</p>
             </div>
           </div>
         </div>
@@ -306,7 +309,7 @@ export function InvoiceForm({
           size="card"
           type="submit"
           disabled={pending}
-          label={pending ? 'Creating…' : 'Create invoice'}
+          label={pending ? t('form.creating') : t('form.submit')}
         />
         {onCancel ? (
           <Button
@@ -315,12 +318,12 @@ export function InvoiceForm({
             type="button"
             onClick={onCancel}
             disabled={pending}
-            label="Cancel"
+            label={t('form.cancel')}
           />
         ) : null}
         <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-ink-400">
           <Icon name="info" className="h-3.5 w-3.5" sw={2} />
-          Numbered automatically
+          {t('form.autoNumbered')}
         </span>
       </div>
     </form>

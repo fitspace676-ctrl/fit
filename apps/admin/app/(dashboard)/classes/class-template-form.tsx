@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import {
   buildRRule,
@@ -30,9 +31,12 @@ export interface RelationOption {
 }
 
 /** Selectable initial statuses when creating (lifecycle change is a separate action). */
-const CREATE_STATUSES: ReadonlyArray<{ value: ClassTemplateStatus; label: string }> = [
-  { value: 'ACTIVE', label: 'Active' },
-  { value: 'PAUSED', label: 'Paused' },
+const CREATE_STATUSES: ReadonlyArray<{
+  value: ClassTemplateStatus;
+  labelKey: `status.${ClassTemplateStatus}`;
+}> = [
+  { value: 'ACTIVE', labelKey: 'status.ACTIVE' },
+  { value: 'PAUSED', labelKey: 'status.PAUSED' },
 ];
 
 const styles = stylex.create({
@@ -298,6 +302,7 @@ function todayIso(): string {
  * Action boundary.
  */
 export function ClassTemplateForm(props: Props) {
+  const t = useTranslations('admin.classes');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -359,10 +364,13 @@ export function ClassTemplateForm(props: Props) {
   /**
    * Picking a class type stores the type's name (kept in `category` for grouping)
    * and, on create, seeds the reusable defaults the type carries — capacity,
-   * duration, colour, and the title when still blank. Clearing it leaves the
+   * duration, colour, the title when still blank, and the description when it is
+   * blank or still the previous type's text (so switching types swaps it, but a
+   * description the operator wrote is never overwritten). Clearing it leaves the
    * already-entered values untouched.
    */
   function onClassTypeChange(typeId: string): void {
+    const previous = props.classTypes.find((type) => type.id === selectedClassTypeId);
     const picked = props.classTypes.find((type) => type.id === typeId);
     setCategory(picked?.name ?? '');
     if (isEdit || !picked) return;
@@ -370,6 +378,9 @@ export function ClassTemplateForm(props: Props) {
     setDurationMinutes(String(picked.durationMinutes));
     setColor(picked.color);
     if (title.trim() === '') setTitle(picked.name);
+    if (description.trim() === '' || description === previous?.description) {
+      setDescription(picked.description);
+    }
   }
 
   // Reflect the stored type name back to its id so the select shows the right row.
@@ -386,11 +397,11 @@ export function ClassTemplateForm(props: Props) {
     setUploadError(null);
 
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setUploadError('Choose a JPEG, PNG, WebP, or GIF image.');
+      setUploadError(t('templateForm.uploadErrors.invalidType'));
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setUploadError('The image is larger than 5 MB. Choose a smaller file.');
+      setUploadError(t('templateForm.uploadErrors.tooLarge'));
       return;
     }
 
@@ -411,16 +422,16 @@ export function ClassTemplateForm(props: Props) {
         body: file,
       });
       if (!put.ok) {
-        setUploadError(`Upload failed (${put.status}). Please try again.`);
+        setUploadError(t('templateForm.uploadErrors.putFailed', { status: put.status }));
         return;
       }
       if (!signed.data.publicUrl) {
-        setUploadError('Uploaded, but no public URL is configured for storage.');
+        setUploadError(t('templateForm.uploadErrors.noPublicUrl'));
         return;
       }
       setImageUrl(signed.data.publicUrl);
     } catch {
-      setUploadError('Could not upload the image. Check your connection and try again.');
+      setUploadError(t('templateForm.uploadErrors.network'));
     } finally {
       setUploading(false);
       // Allow re-selecting the same file after an error.
@@ -438,7 +449,7 @@ export function ClassTemplateForm(props: Props) {
     // The recurrence must be valid before we can derive an rrule for the wire.
     const parsedRecurrence = recurrenceSchema.safeParse(recurrence);
     if (!parsedRecurrence.success) {
-      setError(parsedRecurrence.error.issues[0]?.message ?? 'Finish the recurrence');
+      setError(parsedRecurrence.error.issues[0]?.message ?? t('templateForm.finishRecurrence'));
       return;
     }
 
@@ -500,7 +511,7 @@ export function ClassTemplateForm(props: Props) {
     <form onSubmit={onSubmit} {...stylex.props(styles.form)}>
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="class-title" {...stylex.props(styles.label)}>
-          Title
+          {t('templateForm.titleLabel')}
         </label>
         <input
           id="class-title"
@@ -510,7 +521,7 @@ export function ClassTemplateForm(props: Props) {
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           autoComplete="off"
-          placeholder="e.g. Morning HIIT"
+          placeholder={t('templateForm.titlePlaceholder')}
           {...stylex.props(styles.field)}
         />
       </div>
@@ -518,7 +529,7 @@ export function ClassTemplateForm(props: Props) {
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-type" {...stylex.props(styles.label)}>
-            Class type
+            {t('templateForm.classTypeLabel')}
           </label>
           <select
             id="class-type"
@@ -532,7 +543,9 @@ export function ClassTemplateForm(props: Props) {
                 without one would have no answer to copy. Kept selectable-but-empty
                 so a template saved before this rule still renders. */}
             <option value="" disabled>
-              {props.classTypes.length === 0 ? 'No class types yet' : 'Select a class type…'}
+              {props.classTypes.length === 0
+                ? t('templateForm.noClassTypes')
+                : t('templateForm.selectClassType')}
             </option>
             {props.classTypes.map((type) => (
               <option key={type.id} value={type.id}>
@@ -543,7 +556,7 @@ export function ClassTemplateForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colColor)}>
           <label htmlFor="class-color" {...stylex.props(styles.label)}>
-            Color
+            {t('templateForm.colorLabel')}
           </label>
           <input
             id="class-color"
@@ -558,7 +571,8 @@ export function ClassTemplateForm(props: Props) {
 
       <div {...stylex.props(styles.fieldGroup)}>
         <label htmlFor="class-description" {...stylex.props(styles.label)}>
-          Description <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+          {t('templateForm.descriptionLabel')}{' '}
+          <span {...stylex.props(styles.labelOptional)}>{t('templateForm.optional')}</span>
         </label>
         <textarea
           id="class-description"
@@ -566,25 +580,30 @@ export function ClassTemplateForm(props: Props) {
           rows={3}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="A short description of the class."
+          placeholder={t('templateForm.descriptionPlaceholder')}
           {...stylex.props(styles.textarea)}
         />
       </div>
 
       <div {...stylex.props(styles.fieldGroup)}>
         <span {...stylex.props(styles.label)}>
-          Cover image <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+          {t('templateForm.coverLabel')}{' '}
+          <span {...stylex.props(styles.labelOptional)}>{t('templateForm.optional')}</span>
         </span>
         {imageUrl ? (
           <div {...stylex.props(styles.coverPreviewWrap)}>
-            <img src={imageUrl} alt="Class cover" {...stylex.props(styles.coverPreview)} />
+            <img
+              src={imageUrl}
+              alt={t('templateForm.coverAlt')}
+              {...stylex.props(styles.coverPreview)}
+            />
             <div {...stylex.props(styles.coverActions)}>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                label={uploading ? 'Uploading…' : 'Replace'}
+                label={uploading ? t('templateForm.uploading') : t('templateForm.replaceCover')}
               />
               <Button
                 type="button"
@@ -594,7 +613,7 @@ export function ClassTemplateForm(props: Props) {
                   setUploadError(null);
                 }}
                 disabled={uploading}
-                label="Remove"
+                label={t('templateForm.removeCover')}
               />
             </div>
           </div>
@@ -605,7 +624,7 @@ export function ClassTemplateForm(props: Props) {
               variant="secondary"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              label={uploading ? 'Uploading…' : 'Upload cover image'}
+              label={uploading ? t('templateForm.uploading') : t('templateForm.uploadCover')}
             />
           </div>
         )}
@@ -616,16 +635,14 @@ export function ClassTemplateForm(props: Props) {
           onChange={(event) => void onCoverChange(event)}
           {...stylex.props(styles.coverInput)}
         />
-        <p {...stylex.props(styles.coverHint)}>
-          Shown when the class is opened. JPEG, PNG, WebP, or GIF, up to 5 MB.
-        </p>
+        <p {...stylex.props(styles.coverHint)}>{t('templateForm.coverHint')}</p>
         {uploadError ? <p {...stylex.props(styles.coverError)}>{uploadError}</p> : null}
       </div>
 
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-capacity" {...stylex.props(styles.label)}>
-            Capacity
+            {t('templateForm.capacityLabel')}
           </label>
           <input
             id="class-capacity"
@@ -643,7 +660,7 @@ export function ClassTemplateForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-duration" {...stylex.props(styles.label)}>
-            Duration (minutes)
+            {t('templateForm.durationLabel')}
           </label>
           <input
             id="class-duration"
@@ -662,7 +679,7 @@ export function ClassTemplateForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-start-time" {...stylex.props(styles.label)}>
-            Starts at
+            {t('templateForm.startsAtLabel')}
           </label>
           <input
             id="class-start-time"
@@ -688,7 +705,7 @@ export function ClassTemplateForm(props: Props) {
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-valid-from" {...stylex.props(styles.label)}>
-            {isOneOff ? 'Date' : 'Starts'}
+            {isOneOff ? t('templateForm.dateLabel') : t('templateForm.startsLabel')}
           </label>
           <input
             id="class-valid-from"
@@ -707,7 +724,7 @@ export function ClassTemplateForm(props: Props) {
         ) : (
           <div {...stylex.props(styles.colFlex)}>
             <label htmlFor="class-valid-until" {...stylex.props(styles.label)}>
-              Ends
+              {t('templateForm.endsLabel')}
             </label>
             <input
               id="class-valid-until"
@@ -726,7 +743,8 @@ export function ClassTemplateForm(props: Props) {
       <div {...stylex.props(styles.row)}>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-trainer" {...stylex.props(styles.label)}>
-            Trainer <span {...stylex.props(styles.labelOptional)}>(optional)</span>
+            {t('templateForm.trainerLabel')}{' '}
+            <span {...stylex.props(styles.labelOptional)}>{t('templateForm.optional')}</span>
           </label>
           <select
             id="class-trainer"
@@ -735,7 +753,7 @@ export function ClassTemplateForm(props: Props) {
             onChange={(event) => setTrainerId(event.target.value)}
             {...stylex.props(styles.field)}
           >
-            <option value="">No default trainer</option>
+            <option value="">{t('templateForm.noDefaultTrainer')}</option>
             {props.trainers.map((trainer) => (
               <option key={trainer.id} value={trainer.id}>
                 {trainer.name}
@@ -745,7 +763,7 @@ export function ClassTemplateForm(props: Props) {
         </div>
         <div {...stylex.props(styles.colFlex)}>
           <label htmlFor="class-location" {...stylex.props(styles.label)}>
-            Location
+            {t('templateForm.locationLabel')}
           </label>
           <select
             id="class-location"
@@ -760,7 +778,7 @@ export function ClassTemplateForm(props: Props) {
                 still has to render, so the placeholder exists and simply cannot
                 be submitted. */}
             <option value="" disabled>
-              Select a location
+              {t('templateForm.selectLocation')}
             </option>
             {props.locations.map((location) => (
               <option key={location.id} value={location.id}>
@@ -774,7 +792,7 @@ export function ClassTemplateForm(props: Props) {
       {!isEdit ? (
         <div {...stylex.props(styles.fieldGroup)}>
           <label htmlFor="class-status" {...stylex.props(styles.label)}>
-            Status
+            {t('templateForm.statusLabel')}
           </label>
           <select
             id="class-status"
@@ -785,7 +803,7 @@ export function ClassTemplateForm(props: Props) {
           >
             {CREATE_STATUSES.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.labelKey)}
               </option>
             ))}
           </select>
@@ -807,7 +825,13 @@ export function ClassTemplateForm(props: Props) {
           size="card"
           type="submit"
           disabled={pending}
-          label={pending ? 'Saving…' : isEdit ? 'Save changes' : 'Create class'}
+          label={
+            pending
+              ? t('templateForm.saving')
+              : isEdit
+                ? t('templateForm.submitSave')
+                : t('templateForm.submitCreate')
+          }
         />
         {props.onCancel ? (
           <button
@@ -815,11 +839,11 @@ export function ClassTemplateForm(props: Props) {
             onClick={props.onCancel}
             {...stylex.props(styles.cancelButton, styles.cancelLink)}
           >
-            Cancel
+            {t('templateForm.cancel')}
           </button>
         ) : (
           <Link href={cancelHref} {...stylex.props(styles.cancelLink)}>
-            Cancel
+            {t('templateForm.cancel')}
           </Link>
         )}
       </div>

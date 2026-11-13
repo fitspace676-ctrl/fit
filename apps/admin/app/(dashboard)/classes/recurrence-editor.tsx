@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { FieldGroup, SelectField } from '@fit/ui-kit';
 import type { Recurrence, RecurrenceFreq, RecurrenceWeekday } from '@fit/types';
@@ -24,7 +25,8 @@ const styles = stylex.create({
     color: 'var(--color-text-primary)',
   },
   freqField: {
-    width: '10rem',
+    width: '14rem',
+    maxWidth: '100%',
   },
   weekdayRow: {
     display: 'flex',
@@ -89,6 +91,7 @@ export function RecurrenceEditor({
   value: Recurrence;
   onChange: (next: Recurrence) => void;
 }) {
+  const t = useTranslations('admin.classes');
   // A weekly recurrence needs at least one weekday — surface it inline.
   const weeklyNeedsDay = value.freq === 'WEEKLY' && value.weekdays.length === 0;
 
@@ -104,15 +107,15 @@ export function RecurrenceEditor({
 
   return (
     <fieldset {...stylex.props(styles.fieldset)}>
-      <legend {...stylex.props(styles.legend)}>Repeats</legend>
+      <legend {...stylex.props(styles.legend)}>{t('recurrence.legend')}</legend>
 
       <div {...stylex.props(styles.freqField)}>
         <SelectField
-          label="Frequency"
+          label={t('recurrence.frequencyLabel')}
           value={value.freq}
           onChange={(event) => setFreq(event.target.value as RecurrenceFreq)}
           options={[
-            ...FREQ_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+            ...FREQ_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
           ]}
         />
       </div>
@@ -123,16 +126,14 @@ export function RecurrenceEditor({
         reads as a form that failed to render its controls.
       */}
       {value.freq === 'ONCE' ? (
-        <p {...stylex.props(styles.hint)}>
-          Runs once, on the start date below. There is no end date.
-        </p>
+        <p {...stylex.props(styles.hint)}>{t('recurrence.onceHint')}</p>
       ) : null}
 
       {/* Weekday toggles, only for a weekly recurrence. */}
       {value.freq === 'WEEKLY' ? (
         <FieldGroup
-          label="On these days"
-          error={weeklyNeedsDay ? 'Pick at least one weekday.' : undefined}
+          label={t('recurrence.weekdaysLabel')}
+          error={weeklyNeedsDay ? t('recurrence.weekdaysRequired') : undefined}
         >
           <div {...stylex.props(styles.weekdayRow)}>
             {WEEKDAY_OPTIONS.map((day) => {
@@ -148,7 +149,7 @@ export function RecurrenceEditor({
                     active ? styles.weekdayActive : styles.weekdayInactive,
                   )}
                 >
-                  {day.label}
+                  {t(day.labelKey)}
                 </button>
               );
             })}

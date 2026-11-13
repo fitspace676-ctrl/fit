@@ -1,8 +1,9 @@
 import * as stylex from '@stylexjs/stylex';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { Card } from '@fit/ui-kit';
 import type { ProductRosterSummary } from '@fit/types';
 import { Icon, type IconName } from '@/components/ui';
-import { createNumberFormat, defaultLocale } from '@fit/i18n';
+import { createNumberFormat } from '@fit/i18n';
 
 const styles = stylex.create({
   grid: {
@@ -75,37 +76,39 @@ type Tile = {
  * Server-rendered from the `GET /admin/products` response `summary`, so the tiles
  * always agree with the grid below.
  */
-export function ProductsSummary({ summary }: { summary: ProductRosterSummary }) {
+export async function ProductsSummary({ summary }: { summary: ProductRosterSummary }) {
+  const [t, locale] = await Promise.all([getTranslations('admin.shop.summary'), getLocale()]);
+  const nf = createNumberFormat(locale);
   const { productCount, activeCount, lowStockCount, outOfStockCount } = summary;
 
   const tiles: Tile[] = [
     {
       key: 'products',
-      label: 'Products',
+      label: t('products'),
       icon: 'bag',
       tone: styles.toneBrand,
-      value: createNumberFormat(defaultLocale).format(productCount),
+      value: nf.format(productCount),
     },
     {
       key: 'active',
-      label: 'Active',
+      label: t('active'),
       icon: 'check',
       tone: styles.toneSuccess,
-      value: createNumberFormat(defaultLocale).format(activeCount),
+      value: nf.format(activeCount),
     },
     {
       key: 'low',
-      label: 'Low stock',
+      label: t('lowStock'),
       icon: 'flame',
       tone: styles.toneWarning,
-      value: createNumberFormat(defaultLocale).format(lowStockCount),
+      value: nf.format(lowStockCount),
     },
     {
       key: 'out',
-      label: 'Out of stock',
+      label: t('outOfStock'),
       icon: 'info',
       tone: styles.toneDanger,
-      value: createNumberFormat(defaultLocale).format(outOfStockCount),
+      value: nf.format(outOfStockCount),
     },
   ];
 

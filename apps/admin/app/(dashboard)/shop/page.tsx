@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
@@ -19,11 +20,13 @@ import { ProductsGrid } from './products-grid';
 import { AddProductDrawer } from './add-product-drawer';
 import { CategoriesDrawer } from './categories-drawer';
 
-export const metadata: Metadata = {
-  title: 'Shop',
-  description:
-    'The gym’s retail catalog: a product grid with stock badges and low-stock surfacing. Search, filter by status, sort, open a product, or add one with an image gallery and variants.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.shop.meta');
+  return {
+    title: t('title'),
+    description: t('description'),
+  };
+}
 
 // The catalog reflects live tenant state and the staff session token, so it must
 // never be statically rendered or cached.
@@ -192,6 +195,11 @@ export default async function ProductsPage({
     .then((result) => result.data)
     .catch(() => []);
 
+  const [t, tErrors] = await Promise.all([
+    getTranslations('admin.shop.catalog'),
+    getTranslations('admin.shop.errors'),
+  ]);
+
   let summary = null;
   let content;
   try {
@@ -210,8 +218,8 @@ export default async function ProductsPage({
   } catch (error) {
     const message =
       error instanceof ApiError
-        ? `Could not load products (${error.status}): ${error.message}`
-        : 'Could not reach the FormaCore API. Check NEXT_PUBLIC_API_URL and that the API is running.';
+        ? tErrors('loadProductsFailed', { status: error.status, message: error.message })
+        : tErrors('apiUnreachable');
     content = (
       <Card role="alert" padding="none" xstyle={styles.errorCard}>
         <Icon name="info" {...stylex.props(styles.errorIcon)} />
@@ -224,32 +232,31 @@ export default async function ProductsPage({
     <div {...stylex.props(styles.page)}>
       <header {...stylex.props(styles.header)}>
         <div {...stylex.props(styles.headTitles)}>
-          <h1 {...stylex.props(styles.title)}>Shop</h1>
-          <p {...stylex.props(styles.subtitle)}>
-            Your gym’s retail catalog. Search by name or description, filter by status, sort, and
-            watch stock at a glance. Open a product to edit its gallery and variants, or add a new
-            one.
-          </p>
+          <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+          <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
           {branchName === null ? null : (
             <p {...stylex.props(styles.scope)}>
-              <span {...stylex.props(styles.scopeLabel)}>Location</span>
+              <span {...stylex.props(styles.scopeLabel)}>{t('scopeLabel')}</span>
               <span {...stylex.props(styles.scopeValue)}>{branchName}</span>
               <span {...stylex.props(styles.scopeCaveat)}>
-                The catalogue is gym-wide, and so are the stock figures on it -{' '}
-                <Link href="/shop/inventory" {...stylex.props(styles.scopeLink)}>
-                  Inventory
-                </Link>{' '}
-                has {branchName}’s shelves
+                {t.rich('scopeCaveat', {
+                  branch: branchName,
+                  inventory: (chunks) => (
+                    <Link href="/shop/inventory" {...stylex.props(styles.scopeLink)}>
+                      {chunks}
+                    </Link>
+                  ),
+                })}
               </span>
             </p>
           )}
         </div>
         <div {...stylex.props(styles.headActions)}>
           <Link href="/shop/inventory" {...stylex.props(styles.outlineLink)}>
-            Inventory
+            {t('inventoryLink')}
           </Link>
           <Link href="/shop/low-stock" {...stylex.props(styles.outlineLink)}>
-            Low stock
+            {t('lowStockLink')}
           </Link>
           {canWrite ? <CategoriesDrawer categories={categories} /> : null}
           {canWrite ? <AddProductDrawer categories={categories} /> : null}

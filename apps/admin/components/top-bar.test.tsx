@@ -13,6 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { ThemeProvider } from '@/components/theme/theme-provider';
+import { ToastProvider } from '@/components/ui';
 import { TopBar } from './top-bar';
 
 // Hoisted so the module factories below can close over them: vitest lifts
@@ -69,7 +70,9 @@ function renderBar(locations = LOCATIONS) {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <ThemeProvider initial="dark">
-        <TopBar locations={locations} />
+        <ToastProvider>
+          <TopBar locations={locations} />
+        </ToastProvider>
       </ThemeProvider>
     </NextIntlClientProvider>,
   );

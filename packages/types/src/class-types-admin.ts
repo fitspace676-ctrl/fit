@@ -226,6 +226,11 @@ export interface ListAdminClassTypesResponse {
 export interface AdminClassTypeOption {
   id: string;
   name: string;
+  /**
+   * The type's description. The schedule's class form copies it into a new
+   * class's description when the type is picked, so it is written once, on the type.
+   */
+  description: string;
   durationMinutes: number;
   capacity: number;
   color: string;

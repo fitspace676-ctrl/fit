@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { getTranslations } from 'next-intl/server';
 import {
   Permission,
   createInvoiceSchema,
@@ -40,24 +41,52 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 
 const requireBillingManage = () => sessionHas(Permission.BillingManage);
 
+type ErrorT = Awaited<ReturnType<typeof getTranslations>>;
+
 /** Map a thrown API error to a short, staff-facing message. */
-function toMessage(error: unknown): string {
+function toMessage(error: unknown, t: ErrorT): string {
   if (error instanceof ApiError) {
     if (error.message === 'EMAIL_NOT_CONFIGURED') {
-      return 'Outbound email is not set up for this gym yet, so the invoice could not be sent.';
+      return t('emailNotConfigured');
     }
     if (error.message === 'INVOICE_HAS_NO_RECIPIENT') {
-      return 'This invoice has no member with an email address, so there is nobody to send it to.';
+      return t('noRecipient');
     }
     if (error.message === 'INVOICE_NOT_FOUND') {
-      return 'That invoice no longer exists.';
+      return t('invoiceNotFound');
     }
     if (error.message === 'MEMBER_NOT_FOUND') {
-      return 'That member no longer exists.';
+      return t('memberNotFound');
     }
-    return `Request failed (${error.status}): ${error.message}`;
+    return t('requestFailed', { status: error.status, message: error.message });
   }
-  return error instanceof Error ? error.message : 'Unexpected error';
+  return error instanceof Error ? error.message : t('unexpected');
+}
+
+/** Map the first Zod validation issue to a localized message. */
+function validationMessage(
+  issues: ReadonlyArray<{ path: PropertyKey[]; code: string }>,
+  t: ErrorT,
+): string {
+  const issue = issues[0];
+  const field = issue?.path[0];
+  if (field === 'memberId') {
+    return t('validation.memberRequired');
+  }
+  if (field === 'description') {
+    return issue?.code === 'too_big'
+      ? t('validation.descriptionTooLong')
+      : t('validation.descriptionRequired');
+  }
+  if (field === 'amount') {
+    if (issue?.code === 'too_small') return t('validation.amountPositive');
+    if (issue?.code === 'too_big') return t('validation.amountTooLarge');
+    return t('validation.amountInvalid');
+  }
+  if (field === 'dueDate' || field === 'issuedAt') {
+    return t('validation.dateInvalid');
+  }
+  return t('invalidInvoiceDetails');
 }
 
 /**
@@ -68,8 +97,9 @@ function toMessage(error: unknown): string {
 export async function searchMembersForInvoiceAction(
   query: string,
 ): Promise<ActionResult<InvoiceMemberMatch[]>> {
+  const t = await getTranslations('admin.invoicesHub.errors');
   if (!(await requireBillingManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const search = query.trim();
   if (!search) {
@@ -82,7 +112,7 @@ export async function searchMembersForInvoiceAction(
       data: data.map((member) => ({ id: member.id, name: member.name, email: member.email })),
     };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -94,19 +124,20 @@ export async function searchMembersForInvoiceAction(
 export async function createInvoiceAction(
   input: CreateInvoiceInput,
 ): Promise<ActionResult<AdminInvoiceRow>> {
+  const t = await getTranslations('admin.invoicesHub.errors');
   if (!(await requireBillingManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   const parsed = createInvoiceSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid invoice details' };
+    return { ok: false, error: validationMessage(parsed.error.issues, t) };
   }
   try {
     const invoice = await createAdminInvoice(parsed.data);
     revalidatePath('/payments/invoices');
     return { ok: true, data: invoice };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
 
@@ -117,13 +148,14 @@ export async function createInvoiceAction(
  * staffer can fix from this screen.
  */
 export async function emailInvoiceAction(id: string): Promise<ActionResult<{ to: string }>> {
+  const t = await getTranslations('admin.invoicesHub.errors');
   if (!(await requireBillingManage())) {
-    return { ok: false, error: 'Not authorized' };
+    return { ok: false, error: t('notAuthorized') };
   }
   try {
     const result = await emailAdminInvoice(id);
     return { ok: true, data: { to: result.to } };
   } catch (error) {
-    return { ok: false, error: toMessage(error) };
+    return { ok: false, error: toMessage(error, t) };
   }
 }
