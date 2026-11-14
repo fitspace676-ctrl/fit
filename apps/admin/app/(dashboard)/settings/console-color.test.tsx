@@ -83,7 +83,7 @@ describe('the console colour on Settings > General', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use a different colour' }));
     fireEvent.change(hexBox(), { target: { value: 'red' } });
     save();
-    expect(await screen.findByText('Enter a hex colour like #1a7fd6.')).toBeInTheDocument();
+    expect(await screen.findByText('Enter a hex colour like #265f83.')).toBeInTheDocument();
     expect(updateGymSettingsAction).not.toHaveBeenCalled();
   });
 

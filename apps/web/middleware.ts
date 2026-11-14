@@ -69,6 +69,8 @@ const PUBLIC_PATHS = [
   // Purchase wizard — location/package selection is browsable signed-out; the
   // auth gate is the final payment step (T3.10), not the browse.
   '/member/checkout',
+  // The gym's member terms: the join wizard links here before any account exists.
+  '/member/terms',
 ];
 
 /** Split `/en/member/login` into its locale (`en`) and locale-less path (`/member/login`). */

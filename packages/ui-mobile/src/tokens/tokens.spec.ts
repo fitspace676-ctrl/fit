@@ -122,7 +122,7 @@ describe('3 — the shared Tailwind base config carries the design brand', () =>
   // in both places.
   it('brand-500 is the sky blue block colour', () => {
     expect(hex(palette.brand[500])).toBe(hex(designColors['brand']?.['500'] as string));
-    expect(hex(palette.brand[500])).toBe('#1A7FD6');
+    expect(hex(palette.brand[500])).toBe('#265F83');
   });
 });
 

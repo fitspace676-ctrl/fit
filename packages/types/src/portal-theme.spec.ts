@@ -146,7 +146,7 @@ describe('portalThemeVars', () => {
     // The sky blue is ~4.25:1 against white and ~4.36:1 against the ink; a
     // bare "higher contrast wins" put near-black labels on the console's blue
     // buttons. White clears 3:1 there and is the colour the brand is drawn in.
-    expect(varsFor('#1A7FD6')['--color-on-accent']).toBe('#FFFFFF');
+    expect(varsFor('#265F83')['--color-on-accent']).toBe('#FFFFFF');
     // A light brand where the ink clears AA keeps the ink.
     expect(varsFor('#E4F26A')['--color-on-accent']).toBe('#131312');
   });

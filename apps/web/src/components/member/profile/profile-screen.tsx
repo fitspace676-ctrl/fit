@@ -39,7 +39,7 @@ export interface ProfileScreenProps {
 
 const FIELDS = ['firstName', 'lastName', 'email', 'phone', 'emergency', 'address'] as const;
 const NOTIFS = ['reminders', 'bookings', 'billing', 'promotions'] as const;
-type Section = 'personal' | 'preferences' | 'notifications' | 'security';
+type Section = 'personal' | 'preferences' | 'notifications' | 'security' | 'documents';
 
 const styles = stylex.create({
   root: {
@@ -164,6 +164,9 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '1.25rem',
+    // A grid item's min-width defaults to its content, so the tab row (wider than
+    // the column) stretched the whole page sideways. At 0 it scrolls in place.
+    minWidth: 0,
   },
   panel: {
     padding: '1.5rem',
@@ -240,6 +243,7 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
+  docText: { display: 'flex', flex: 1, flexDirection: 'column', gap: '0.125rem' },
   secLink: {
     marginTop: '1rem',
     display: 'flex',
@@ -457,6 +461,11 @@ export function ProfileScreen({
                 label: t('security'),
                 icon: <Icon name="shield" {...stylex.props(styles.glyph)} />,
               },
+              {
+                value: 'documents',
+                label: t('documents'),
+                icon: <Icon name="file" {...stylex.props(styles.glyph)} />,
+              },
             ]}
           >
             {section === 'personal' && (
@@ -598,6 +607,29 @@ export function ProfileScreen({
                   </div>
                 </Card>
               </>
+            )}
+
+            {section === 'documents' && (
+              <Card padding="none">
+                <div {...stylex.props(styles.panel)}>
+                  <h2 {...stylex.props(styles.sectionTitle)}>{t('documents')}</h2>
+                  {/* The gym's own terms: what the member agreed to when joining.
+                      A new tab, so the portal stays where the member left it. */}
+                  <Link
+                    href="/member/terms"
+                    target="_blank"
+                    rel="noopener"
+                    {...stylex.props(styles.secLink)}
+                  >
+                    <Icon name="file" {...stylex.props(styles.glyph)} />
+                    <span {...stylex.props(styles.docText)}>
+                      <span>{t('terms')}</span>
+                      <span {...stylex.props(styles.toggleDesc)}>{t('termsDesc')}</span>
+                    </span>
+                    <Icon name="external" {...stylex.props(styles.glyph)} />
+                  </Link>
+                </div>
+              </Card>
             )}
           </Tabs>
         </div>

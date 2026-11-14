@@ -4,6 +4,7 @@ import {
   DEFAULT_TIMEZONE,
   gymJoinCardSettingsSchema,
   type GymJoinCardSettings,
+  type GymMemberTermsResponse,
   type GymPortalTheme,
   type GymPublicBrand,
   type GymPublicContact,
@@ -391,6 +392,37 @@ export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
       faviconUrl,
       themeColor: chosen && HEX_COLOR.test(chosen) ? chosen : null,
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The active gym's own member terms, per language, from the public
+ * `GET /gyms/by-subdomain/:slug/terms` lookup, or `null` when there is no tenant
+ * in scope or the lookup fails. Its own request rather than part of the tenant
+ * lookup above, because only the terms page needs the (possibly long) text.
+ * Uncached for the same reason that lookup is: an edit in the console should
+ * show on the next visit. Never throws.
+ */
+export async function getActiveGymMemberTerms(): Promise<GymMemberTermsResponse | null> {
+  const slug = await getActiveGymSlug();
+  if (!slug) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/gyms/by-subdomain/${encodeURIComponent(slug)}/terms`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as Partial<GymMemberTermsResponse>;
+    const text = (value: unknown): string | null =>
+      typeof value === 'string' && value.trim().length > 0 ? value : null;
+    return { ka: text(body.ka), en: text(body.en) };
   } catch {
     return null;
   }

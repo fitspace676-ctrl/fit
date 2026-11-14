@@ -24,7 +24,7 @@ const SAMPLES = [
   '#FFFFFF',
   '#000000',
   '#E548C8', // pink
-  '#1A7FD6', // the shipped sky blue
+  '#265F83', // the shipped brand blue
   '#808080', // mid grey
   '#7A7A7A',
   '#0F766E', // teal

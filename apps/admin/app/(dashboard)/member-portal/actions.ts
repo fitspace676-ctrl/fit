@@ -74,7 +74,8 @@ async function notAuthorized(): Promise<{ ok: false; error: string }> {
 }
 
 /**
- * Save the member portal's own look — `PATCH /gyms/settings` under `memberPortal`.
+ * Save the member portal's own look — `PATCH /gyms/settings` under `memberPortal`
+ * (and, when given, the gym's `memberTerms`).
  *
  * Re-validated with the same Zod schema the API parses the body with, so a colour
  * this console would accept and the server would not cannot exist. Returns the full
@@ -86,11 +87,17 @@ async function notAuthorized(): Promise<{ ok: false; error: string }> {
  */
 export async function updateMemberPortalAction(
   input: NonNullable<UpdateGymSettingsInput['memberPortal']>,
+  memberTerms?: UpdateGymSettingsInput['memberTerms'],
 ): Promise<ActionResult<GymSettings>> {
   if (!(await requireGymManage())) {
     return notAuthorized();
   }
-  const parsed = updateGymSettingsSchema.safeParse({ memberPortal: input });
+  // The gym's member terms are edited on this screen too, and saved in the same
+  // PATCH so one Save never half-applies.
+  const parsed = updateGymSettingsSchema.safeParse({
+    memberPortal: input,
+    ...(memberTerms ? { memberTerms } : {}),
+  });
   if (!parsed.success) {
     const t = await getTranslations('admin.memberPortal.errors');
     return { ok: false, error: parsed.error.issues[0]?.message ?? t('invalid') };

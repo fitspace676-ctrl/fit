@@ -56,14 +56,14 @@ const ink = {
  * text and icons on the dark canvas; `700` is it deepened for text on light.
  */
 const brand = {
-  100: '#DCEEFF',
-  200: '#B8DDFF',
-  300: '#7CC4FF',
-  400: '#3D95E0',
-  500: '#1A7FD6',
-  700: '#0B67A8',
-  800: '#0B5590',
-  950: '#0E2A42',
+  100: '#E4F3FE',
+  200: '#C7E2F6',
+  300: '#92C1E3',
+  400: '#3D7BA4',
+  500: '#265F83',
+  700: '#1D4C6A',
+  800: '#153E58',
+  950: '#0C2332',
 } as const;
 
 /**

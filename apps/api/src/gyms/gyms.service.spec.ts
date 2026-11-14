@@ -253,3 +253,45 @@ describe('GymsService.resolveBySubdomain', () => {
     expect((error as NotFoundException).getResponse()).toMatchObject({ code: 'GYM_NOT_FOUND' });
   });
 });
+
+describe('GymsService.memberTermsBySubdomain', () => {
+  it('returns the gym’s own terms per language, blank ones as null', async () => {
+    const { service } = setupBySubdomain({
+      id: 'gym_1',
+      name: 'Downtown',
+      status: GymStatus.ACTIVE,
+      settings: { memberTerms: { ka: '  წესები  ', en: '' } },
+    });
+
+    await expect(service.memberTermsBySubdomain('downtown')).resolves.toEqual({
+      ka: 'წესები',
+      en: null,
+    });
+  });
+
+  it('returns both languages null for a gym that never wrote terms', async () => {
+    const { service } = setupBySubdomain({
+      id: 'gym_1',
+      name: 'Downtown',
+      status: GymStatus.ACTIVE,
+      settings: null,
+    });
+
+    await expect(service.memberTermsBySubdomain('downtown')).resolves.toEqual({
+      ka: null,
+      en: null,
+    });
+  });
+
+  it('throws 404 GYM_NOT_FOUND for a suspended gym', async () => {
+    const { service } = setupBySubdomain({
+      id: 'gym_1',
+      name: 'Downtown',
+      status: GymStatus.SUSPENDED,
+    });
+
+    await expect(service.memberTermsBySubdomain('downtown')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});

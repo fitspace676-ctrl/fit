@@ -36,7 +36,7 @@ export const MOBILE_APP_FEATURES = Object.keys(DEFAULT_MOBILE_APP_FEATURES) as M
 /** `null` clears the app's own colour, so it follows the portal's again. */
 export const mobileAppPrimaryColorSchema = z
   .string()
-  .regex(HEX_COLOR_PATTERN, 'Color must be a hex value like #1a7fd6')
+  .regex(HEX_COLOR_PATTERN, 'Color must be a hex value like #265f83')
   .nullable();
 /** Either half may be saved on its own: the console saves each card separately. */
 export const updateMobileAppSettingsSchema = z

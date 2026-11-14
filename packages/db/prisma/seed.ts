@@ -365,7 +365,7 @@ async function main() {
       durationMinutes: 45,
       capacity: 24,
       minAttendance: 6,
-      color: '#1a7fd6',
+      color: '#265f83',
     },
     {
       name: 'Pilates',
@@ -1169,7 +1169,7 @@ const DEMO_TODAY_CLASSES = [
     hour: 18,
     capacity: 24,
     booked: 20,
-    color: '#1A7FD6',
+    color: '#265F83',
     trainer: 'Sandro K.',
     branch: 0,
   },

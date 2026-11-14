@@ -503,6 +503,36 @@ export const gymFreeAccountSettingsSchema = z.object({
 /** The gym's free-account offer — {@link gymFreeAccountSettingsSchema}. */
 export type GymFreeAccountSettings = z.infer<typeof gymFreeAccountSettingsSchema>;
 
+/** Longest member-terms text a gym can store, per language. */
+export const MEMBER_TERMS_MAX_LENGTH = 20_000;
+
+/** One language's terms: trimmed text, or `null` when the gym has written none. */
+const memberTermsText = z
+  .string()
+  .trim()
+  .max(MEMBER_TERMS_MAX_LENGTH)
+  .transform((value) => (value === '' ? null : value))
+  .nullable()
+  .default(null);
+
+/**
+ * The gym's own terms and conditions for members: cancellation, refunds,
+ * freezes, house rules. The join wizard's "I agree" box links to them and the
+ * member portal shows them at `/member/terms`.
+ *
+ * The GYM's text, not FormaCore's: the member contracts with the gym, and the
+ * platform's own terms are a separate B2B document. Per language like the join
+ * card, so Georgian text is not shown to an English visitor. Plain text; blank
+ * lines separate paragraphs.
+ */
+export const gymMemberTermsSettingsSchema = z.object({
+  ka: memberTermsText,
+  en: memberTermsText,
+});
+
+/** The gym's member terms — {@link gymMemberTermsSettingsSchema}. */
+export type GymMemberTermsSettings = z.infer<typeof gymMemberTermsSettingsSchema>;
+
 /**
  * Which inputs the member-create form asks for — the admin-console Add-Member drawer
  * and the POS till's, which are the same form reading this same config.
@@ -960,6 +990,7 @@ export const gymSettingsStoredSchema = z.object({
   guestPass: gymGuestPassSettingsSchema.default({}),
   trial: gymTrialSettingsSchema.default({}),
   freeAccount: gymFreeAccountSettingsSchema.default({}),
+  memberTerms: gymMemberTermsSettingsSchema.default({}),
   memberIntake: gymMemberIntakeSettingsSchema.default({}),
   startDatePolicy: gymStartDatePolicySchema.default({}),
   memberPortal: gymMemberPortalSettingsSchema.default({}),
@@ -996,6 +1027,7 @@ export interface GymSettings {
   guestPass: GymGuestPassSettings;
   trial: GymTrialSettings;
   freeAccount: GymFreeAccountSettings;
+  memberTerms: GymMemberTermsSettings;
   memberIntake: GymMemberIntakeSettings;
   startDatePolicy: GymStartDatePolicy;
   memberPortal: GymMemberPortalSettings;
@@ -1049,6 +1081,7 @@ export const updateGymSettingsSchema = z
     guestPass: gymGuestPassSettingsSchema.partial().strict().optional(),
     trial: gymTrialSettingsSchema.partial().strict().optional(),
     freeAccount: gymFreeAccountSettingsSchema.partial().strict().optional(),
+    memberTerms: gymMemberTermsSettingsSchema.partial().strict().optional(),
     memberIntake: gymMemberIntakeSettingsSchema.partial().strict().optional(),
     startDatePolicy: gymStartDatePolicySchema.partial().strict().optional(),
     memberPortal: gymMemberPortalSettingsSchema.partial().strict().optional(),
@@ -1144,6 +1177,19 @@ export function gymPublicTimezone(rawSettings: unknown): string {
 export function gymPublicFreeAccount(rawSettings: unknown): GymFreeAccountSettings {
   return gymSettingsStoredSchema.parse(rawSettings ?? {}).freeAccount;
 }
+
+/**
+ * Project a gym's raw stored settings to its {@link GymMemberTermsSettings}.
+ *
+ * Public on purpose: a visitor agrees to these before they have an account, so
+ * they must be readable signed out.
+ */
+export function gymPublicMemberTerms(rawSettings: unknown): GymMemberTermsSettings {
+  return gymSettingsStoredSchema.parse(rawSettings ?? {}).memberTerms;
+}
+
+/** Successful `GET /gyms/by-subdomain/:slug/terms` response. */
+export type GymMemberTermsResponse = GymMemberTermsSettings;
 
 /**
  * Project a gym's raw stored settings to its {@link GymMemberIntakeSettings}.

@@ -31,12 +31,12 @@ export function AiMark({
       className={className}
       style={style}
     >
-      <rect width="32" height="32" rx="9" fill="#1A7FD6" />
+      <rect width="32" height="32" rx="9" fill="#265F83" />
       <path
         d="M16 7.5c.62 4.62 2.88 6.88 7.5 7.5-4.62.62-6.88 2.88-7.5 7.5-.62-4.62-2.88-6.88-7.5-7.5 4.62-.62 6.88-2.88 7.5-7.5Z"
         fill="#FFFFFF"
       />
-      <circle cx="23" cy="9" r="1.5" fill="#DCEEFF" />
+      <circle cx="23" cy="9" r="1.5" fill="#E4F3FE" />
     </svg>
   );
 }

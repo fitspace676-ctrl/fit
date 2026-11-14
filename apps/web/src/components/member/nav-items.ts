@@ -13,11 +13,11 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { key: 'home', href: '/member/home', icon: 'home' },
   { key: 'classes', href: '/member/classes', icon: 'calendar' },
-  { key: 'bookings', href: '/member/account/bookings', icon: 'clock' },
-  { key: 'trainer', href: '/member/trainers', icon: 'dumbbell' },
-  { key: 'services', href: '/member/services', icon: 'spark' },
+  { key: 'bookings', href: '/member/account/bookings', icon: 'ticket' },
+  { key: 'trainer', href: '/member/trainers', icon: 'users' },
+  { key: 'services', href: '/member/services', icon: 'briefcase' },
   { key: 'shop', href: '/member/shop', icon: 'bag' },
-  { key: 'membership', href: '/member/account/membership', icon: 'ticket' },
+  { key: 'membership', href: '/member/account/membership', icon: 'card' },
 ];
 
 /**

@@ -19,7 +19,7 @@ import {
 
 describe('EMAIL_BRAND', () => {
   it('carries the sky blue palette, not the retired violet', () => {
-    expect(EMAIL_BRAND.brand).toBe('#1A7FD6');
+    expect(EMAIL_BRAND.brand).toBe('#265F83');
     expect(EMAIL_BRAND.ink).toBe('#131312');
     expect(EMAIL_BRAND.muted).toBe('#6C6C68');
     expect(EMAIL_BRAND.border).toBe('#DCDCDA');
@@ -39,12 +39,12 @@ describe('renderBrandedEmail', () => {
   it('renders the blue block mark with the sender initial beside the wordmark on the charcoal band', () => {
     expect(html).toContain('Downtown Gym');
     expect(html).toContain(`background:${EMAIL_BRAND.ink}`);
-    expect(html).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>D</);
+    expect(html).toMatch(/background:#265F83;color:#FFFFFF;[^>]*>D</);
   });
 
   it('falls back to the FormaCore "F" when the sender name has no letter', () => {
     const bare = renderBrandedEmail({ senderName: '&amp;', heading: 'Hi', contentHtml: 'x' });
-    expect(bare).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>F</);
+    expect(bare).toMatch(/background:#265F83;color:#FFFFFF;[^>]*>F</);
   });
 
   it('renders the tracked uppercase eyebrow only when given', () => {
@@ -131,7 +131,7 @@ describe('renderBrandedEmail as a document', () => {
     expect(html).toContain('@media (prefers-color-scheme:dark)');
     expect(html).toContain('.em-card{background:#1B1B19 !important;');
     expect(html).toContain(
-      '.em-button,.em-button a{background:#1A7FD6 !important;color:#FFFFFF !important;}',
+      '.em-button,.em-button a{background:#265F83 !important;color:#FFFFFF !important;}',
     );
     expect(html.endsWith('</body></html>')).toBe(true);
   });
@@ -139,7 +139,7 @@ describe('renderBrandedEmail as a document', () => {
   it('draws the mark in CSS when no web URL is configured', () => {
     const html = renderBrandedEmail({ senderName: 'Gym', heading: 'Hi', contentHtml: 'x' });
     expect(html).not.toContain('<img');
-    expect(html).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>G</);
+    expect(html).toMatch(/background:#265F83;color:#FFFFFF;[^>]*>G</);
   });
 
   it('serves the mark as a hosted PNG the Gmail app cannot recolour when WEB_URL is set', () => {
@@ -188,7 +188,7 @@ describe('renderBrandedEmail as a document', () => {
   it('falls back to the mark and name for the platform without a web URL', () => {
     const html = renderBrandedEmail({ senderName: 'FormaCore', heading: 'Hi', contentHtml: 'x' });
     expect(html).not.toContain('logodark.png');
-    expect(html).toMatch(/background:#1A7FD6;color:#FFFFFF;[^>]*>F</);
+    expect(html).toMatch(/background:#265F83;color:#FFFFFF;[^>]*>F</);
   });
 
   it('falls back to the FormaCore F image for an initial outside the glyph set', () => {

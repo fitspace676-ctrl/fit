@@ -4,8 +4,10 @@ import {
   gymPortalTheme,
   gymPublicBrand,
   gymPublicContact,
+  gymPublicMemberTerms,
   gymPublicTimezone,
   type GymBySubdomainResponse,
+  type GymMemberTermsResponse,
   type GymSummary,
   type ListGymsResponse,
 } from '@fit/types';
@@ -51,6 +53,23 @@ export class GymsService {
     }));
 
     return { gyms };
+  }
+
+  /**
+   * The gym's own member terms (`GET /gyms/by-subdomain/:slug/terms`): what a
+   * visitor agrees to in the join wizard. Its own route rather than a field on
+   * the tenant lookup, because that lookup runs on every page and the terms can
+   * be long. Same `ACTIVE`-only rule and `404` as {@link resolveBySubdomain}.
+   */
+  async memberTermsBySubdomain(slug: string): Promise<GymMemberTermsResponse> {
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { slug },
+      select: { status: true, settings: true },
+    });
+    if (!gym || gym.status !== GymStatus.ACTIVE) {
+      throw new NotFoundException({ message: 'Gym not found', code: 'GYM_NOT_FOUND' });
+    }
+    return gymPublicMemberTerms(gym.settings);
   }
 
   /**
