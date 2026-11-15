@@ -7,7 +7,12 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
-import { gymSlugSchema, type GymBySubdomainResponse, type ListGymsResponse } from '@fit/types';
+import {
+  gymSlugSchema,
+  type GymBySubdomainResponse,
+  type GymMemberTermsResponse,
+  type ListGymsResponse,
+} from '@fit/types';
 import { AllowCrossTenant } from '../common/decorators/allow-cross-tenant.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -58,5 +63,20 @@ export class GymsController {
       throw new NotFoundException({ message: 'Gym not found', code: 'GYM_NOT_FOUND' });
     }
     return this.gyms.resolveBySubdomain(parsed.data);
+  }
+
+  /**
+   * `GET /gyms/by-subdomain/:slug/terms` — the gym's own member terms, per
+   * language. Public: the join wizard links to them before any account exists.
+   */
+  @Get('by-subdomain/:slug/terms')
+  @HttpCode(HttpStatus.OK)
+  @Public()
+  async memberTerms(@Param('slug') slug: string): Promise<GymMemberTermsResponse> {
+    const parsed = gymSlugSchema.safeParse(slug);
+    if (!parsed.success) {
+      throw new NotFoundException({ message: 'Gym not found', code: 'GYM_NOT_FOUND' });
+    }
+    return this.gyms.memberTermsBySubdomain(parsed.data);
   }
 }

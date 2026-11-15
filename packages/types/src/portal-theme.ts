@@ -65,7 +65,7 @@ import type { GymPortalTheme, GymPublicBrand } from './gym-settings';
  * formacore theme's block colour (`brand[500]` in `formacoreTheme.ts`). Named here
  * so the console can show it as the default instead of the brand colour.
  */
-export const DEFAULT_PORTAL_ACCENT = '#1A7FD6';
+export const DEFAULT_PORTAL_ACCENT = '#265F83';
 
 export type PortalThemeVars = Record<`--${string}`, string>;
 

@@ -24,7 +24,7 @@ const styles = stylex.create({
   module: { fill: '#1E1E1C' },
   // The three finder squares take the brand's dark accent ink, the one place the
   // brand appears inside the code without hurting its contrast on the white plate.
-  finder: { fill: '#0B67A8' },
+  finder: { fill: '#1D4C6A' },
 });
 
 export interface QRCodeProps {

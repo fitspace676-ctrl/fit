@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { en } from '@fit/i18n';
 import { gymSettingsStoredSchema, type GymSettings, type JoinCardDefaults } from '@fit/types';
@@ -74,13 +74,18 @@ function save() {
 
 beforeEach(() => vi.mocked(updateMemberPortalAction).mockReset());
 
+/** The join card's language switch; the terms card below has its own. */
+function joinLanguages() {
+  return within(screen.getByRole('radiogroup', { name: 'Language' }));
+}
+
 describe('the join card on the member portal screen', () => {
   // Leaving a field empty must visibly mean "keep the built-in text", in the
   // language being edited, not the console's.
   it('shows the built-in copy of the chosen language as placeholders', () => {
     renderForm();
     expect(field('Heading')).toHaveAttribute('placeholder', 'ჯერ არ ხარ {gym}-ში?');
-    fireEvent.click(screen.getByRole('radio', { name: 'English' }));
+    fireEvent.click(joinLanguages().getByRole('radio', { name: 'English' }));
     expect(field('Heading')).toHaveAttribute('placeholder', 'Not at {gym} yet?');
     expect(field('Button text')).toHaveAttribute('placeholder', 'Become a member');
   });
@@ -95,11 +100,11 @@ describe('the join card on the member portal screen', () => {
   it('saves each language separately, empty lines as empty', async () => {
     renderForm();
     fireEvent.change(field('Heading'), { target: { value: 'მოდი' } });
-    fireEvent.click(screen.getByRole('radio', { name: 'English' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'ქართული' }));
+    fireEvent.click(joinLanguages().getByRole('radio', { name: 'English' }));
+    fireEvent.click(joinLanguages().getByRole('radio', { name: 'ქართული' }));
     // Leaving a tab and coming back keeps what was typed in it.
     expect(field('Heading')).toHaveValue('მოდი');
-    fireEvent.click(screen.getByRole('radio', { name: 'English' }));
+    fireEvent.click(joinLanguages().getByRole('radio', { name: 'English' }));
     fireEvent.change(field('Button text'), { target: { value: 'Join now' } });
     save();
     await waitFor(() => expect(updateMemberPortalAction).toHaveBeenCalled());
@@ -139,7 +144,7 @@ describe('the join card on the member portal screen', () => {
   it('loads what the gym saved before', () => {
     renderForm(settings({ joinCard: { en: { cta: 'Join' }, ka: { benefits: [] } } }));
     expect(screen.getByText('No benefits: the block shows without a list.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('radio', { name: 'English' }));
+    fireEvent.click(joinLanguages().getByRole('radio', { name: 'English' }));
     expect(field('Button text')).toHaveValue('Join');
   });
 });

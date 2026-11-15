@@ -346,7 +346,7 @@ describe('account email builders', () => {
     const { subject, html, text } = buildVerificationEmail(URL, 'Sam');
     expect(subject).toBe('Verify your email');
     expect(html).toContain('Hi Sam,');
-    expect(html).toContain('#1A7FD6');
+    expect(html).toContain('#265F83');
     expect(html).toContain(`href="${URL}"`);
     expect(html).toContain('Verify my email');
     expect(html).toContain('Or copy this link');
@@ -752,7 +752,7 @@ describe('buildReceiptEmail', () => {
   it('wraps the receipt in the branded shell — brand wordmark + heading', () => {
     const { html } = buildReceiptEmail(cashReceipt, 'Downtown');
     // Formacore brand violet + the seller wordmark and the receipt heading.
-    expect(html).toContain('#1A7FD6');
+    expect(html).toContain('#265F83');
     expect(html).toContain('Downtown');
     expect(html).toContain('Your receipt');
   });
@@ -808,7 +808,7 @@ describe('buildReportDigestEmail', () => {
 
   it('wraps the digest in the branded shell and escapes the gym name', () => {
     const { html } = buildReportDigestEmail({ ...weeklyDigest, gymName: '<b>Gym</b>' });
-    expect(html).toContain('#1A7FD6');
+    expect(html).toContain('#265F83');
     expect(html).not.toContain('<b>Gym</b>');
     expect(html).toContain('&lt;b&gt;Gym&lt;/b&gt;');
   });
@@ -936,7 +936,7 @@ describe('buildLowStockDigestEmail', () => {
       gymName: '<b>Gym</b>',
       products: [{ name: '<i>Bar</i>', variants: [{ label: 'x', stock: 0 }], lowestStock: 0 }],
     });
-    expect(html).toContain('#1A7FD6');
+    expect(html).toContain('#265F83');
     expect(html).not.toContain('<b>Gym</b>');
     expect(html).toContain('&lt;i&gt;Bar&lt;/i&gt;');
   });
@@ -970,7 +970,7 @@ describe('buildDailySummaryEmail', () => {
 
   it('wraps the summary in the branded shell and escapes the gym name', () => {
     const { html } = buildDailySummaryEmail({ ...dailySummary, gymName: '<b>Gym</b>' });
-    expect(html).toContain('#1A7FD6');
+    expect(html).toContain('#265F83');
     expect(html).not.toContain('<b>Gym</b>');
     expect(html).toContain('&lt;b&gt;Gym&lt;/b&gt;');
   });

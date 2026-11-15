@@ -490,6 +490,23 @@ const styles = stylex.create({
     lineHeight: 1.6,
     color: 'var(--color-text-secondary)',
   },
+  termsLink: {
+    display: 'inline-flex',
+    alignItems: 'flex-start',
+    alignSelf: 'flex-start',
+    gap: '0.375rem',
+    marginTop: '0.5rem',
+    // Under the label text, past the 1.25rem box and its 0.75rem gap.
+    marginInlineStart: '2rem',
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    fontWeight: 600,
+    color: 'var(--color-accent)',
+    textDecoration: 'underline',
+    textUnderlineOffset: '0.2em',
+  },
+  // Before the text, so a label that wraps never leaves the icon on a line alone.
+  termsLinkIcon: { flexShrink: 0, marginTop: '0.1875rem', height: '0.875rem', width: '0.875rem' },
   notice: {
     margin: 0,
     marginTop: '1rem',
@@ -1363,6 +1380,17 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
                 </span>
                 <span {...stylex.props(styles.termsText)}>{t('payment.terms')}</span>
               </button>
+              {/* Outside the switch: a link inside a <button> is invalid and would
+                  toggle the box. A new tab, so the wizard keeps what was typed. */}
+              <Link
+                href="/member/terms"
+                target="_blank"
+                rel="noopener"
+                {...stylex.props(styles.termsLink)}
+              >
+                <Icon name="external" sw={2} {...stylex.props(styles.termsLinkIcon)} />
+                <span>{t('payment.termsLink')}</span>
+              </Link>
 
               <p {...stylex.props(styles.notice)}>
                 <Icon name="info" sw={2} {...stylex.props(styles.noticeIcon)} />

@@ -28,9 +28,9 @@ import { emailStrings } from './email-strings';
  * so the shell renders consistently.
  */
 export const EMAIL_BRAND = {
-  brand: '#1A7FD6',
+  brand: '#265F83',
   onBrand: '#FFFFFF',
-  link: '#0B67A8',
+  link: '#1D4C6A',
   ink: '#131312',
   body: '#3E3E3B',
   muted: '#6C6C68',
@@ -156,9 +156,9 @@ const DARK_MODE_CSS =
   `.em-ink,.em-ink *{color:#F2F2EF !important;}` +
   `.em-body{color:#CFCFC9 !important;}` +
   `.em-muted{color:#9C9C96 !important;}` +
-  `.em-link{color:#7CC4FF !important;}` +
+  `.em-link{color:#92C1E3 !important;}` +
   `.em-panel{background:#131312 !important;border-color:#2E2E2A !important;color:#CFCFC9 !important;}` +
-  `.em-button,.em-button a{background:#1A7FD6 !important;color:#FFFFFF !important;}` +
+  `.em-button,.em-button a{background:#265F83 !important;color:#FFFFFF !important;}` +
   `td,th{border-color:#2E2E2A !important;}` +
   `}` +
   `[data-ogsc] .em-ink,[data-ogsc] .em-ink *{color:#F2F2EF !important;}` +
@@ -166,7 +166,7 @@ const DARK_MODE_CSS =
   `[data-ogsc] .em-muted{color:#9C9C96 !important;}` +
   `[data-ogsb] .em-canvas{background:#0D0D0C !important;}` +
   `[data-ogsb] .em-card{background:#1B1B19 !important;}` +
-  `[data-ogsb] .em-button,[data-ogsb] .em-button a{background:#1A7FD6 !important;color:#FFFFFF !important;}`;
+  `[data-ogsb] .em-button,[data-ogsb] .em-button a{background:#265F83 !important;color:#FFFFFF !important;}`;
 
 /**
  * Wrap an email body in the shared branded shell (the formacore sky blue

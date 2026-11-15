@@ -526,7 +526,7 @@ export function OnboardingWizard({ token }: { token: string }) {
                 <div className={css.presets} role="group" aria-label={t('color.label')}>
                   {[
                     '#2F7896',
-                    '#1A7FD6',
+                    '#265F83',
                     '#16213E',
                     '#0F8A6A',
                     '#D9480F',

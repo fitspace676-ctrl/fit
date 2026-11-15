@@ -9,6 +9,7 @@ import {
   DEFAULT_PORTAL_ACCENT,
   HEX_COLOR_PATTERN,
   JOIN_CARD_LIMITS,
+  MEMBER_TERMS_MAX_LENGTH,
   PORTAL_LOGO_SIZES,
   gymJoinCardSettingsSchema,
   portalLogoSizeSchema,
@@ -40,6 +41,7 @@ import {
   type JoinCardLocale,
   type JoinCardValues,
 } from './join-card-field';
+import { MemberTermsField, type MemberTermsValues } from './member-terms-field';
 
 /**
  * This app's basePath behind the tenant proxy. Next prefixes navigation and
@@ -459,9 +461,9 @@ const styles = stylex.create({
   // The member site's three presets over the photograph (`PortalLogo`'s
   // `photoSm`/`photoMd`/`photoLg`), at the mock's scale of roughly 0.7 so the
   // steps between them read the same as at the door.
-  previewLogoSm: { maxHeight: '1.375rem', maxWidth: '6.5rem' },
-  previewLogoMd: { maxHeight: '2.375rem', maxWidth: '10rem' },
-  previewLogoLg: { maxHeight: '3.125rem', maxWidth: '13rem' },
+  previewLogoSm: { maxHeight: '1.75rem', maxWidth: '7rem' },
+  previewLogoMd: { maxHeight: '2.75rem', maxWidth: '10.5rem' },
+  previewLogoLg: { maxHeight: '3.875rem', maxWidth: 'min(14rem, 100%)' },
   previewJoin: {
     position: 'relative',
     borderRadius: 'var(--radius-container)',
@@ -652,6 +654,8 @@ interface MemberPortalFormValues {
   primaryColor: string | null;
   /** The sign-in join card, as `JoinCardField` edits it. */
   joinCard: JoinCardValues;
+  /** The gym's member terms per language, as `MemberTermsField` edits them. */
+  memberTerms: MemberTermsValues;
 }
 
 /**
@@ -699,6 +703,11 @@ function toFormValues(settings: GymSettings): MemberPortalFormValues {
       hidden: joinCard.hidden,
       ka: toCopyValues(joinCard.ka),
       en: toCopyValues(joinCard.en),
+    },
+    // Settings saved before the field existed have no `memberTerms`.
+    memberTerms: {
+      ka: settings.memberTerms?.ka ?? '',
+      en: settings.memberTerms?.en ?? '',
     },
   };
 }
@@ -760,6 +769,11 @@ export function MemberPortalForm({
     cta: line(JOIN_CARD_LIMITS.cta),
   });
 
+  const termsSchema = z
+    .string()
+    .trim()
+    .max(MEMBER_TERMS_MAX_LENGTH, t('joinCard.tooLong', { max: MEMBER_TERMS_MAX_LENGTH }));
+
   // Built with a translated message so the inline hex error reads in the active
   // locale; the pattern itself is the contract's, so the form rejects exactly
   // what the API would.
@@ -770,19 +784,24 @@ export function MemberPortalForm({
     faviconUrl: z.string().url().nullable(),
     primaryColor: z.string().regex(HEX_COLOR_PATTERN, t('colors.invalid')).nullable(),
     joinCard: z.object({ hidden: z.boolean(), ka: joinCopySchema, en: joinCopySchema }),
+    memberTerms: z.object({ ka: termsSchema, en: termsSchema }),
   });
 
   const form = useZodForm(schema, { defaultValues: toFormValues(initial) });
 
   async function handleSubmit(values: MemberPortalFormValues): Promise<void> {
-    const result = await updateMemberPortalAction({
-      ...values,
-      joinCard: {
-        hidden: values.joinCard.hidden,
-        ka: withoutBlankBenefits(values.joinCard.ka),
-        en: withoutBlankBenefits(values.joinCard.en),
+    const { memberTerms, ...portal } = values;
+    const result = await updateMemberPortalAction(
+      {
+        ...portal,
+        joinCard: {
+          hidden: values.joinCard.hidden,
+          ka: withoutBlankBenefits(values.joinCard.ka),
+          en: withoutBlankBenefits(values.joinCard.en),
+        },
       },
-    });
+      memberTerms,
+    );
     if (result.ok) {
       // Resync to the server's normalised truth, which also clears the dirty state.
       form.reset(toFormValues(result.data));
@@ -854,6 +873,12 @@ export function MemberPortalForm({
               onLocaleChange={setJoinLocale}
               defaults={joinDefaults}
             />
+          </Card>
+
+          <Card padding="none" xstyle={styles.card}>
+            <h2 {...stylex.props(styles.cardTitle)}>{t('terms.title')}</h2>
+            <p {...stylex.props(styles.cardDesc)}>{t('terms.subtitle')}</p>
+            <MemberTermsField />
           </Card>
         </div>
 

@@ -32,8 +32,8 @@ const BUILT_IN: Record<
   'light' | 'dark',
   Pick<MobileAccentRoles, 'accent' | 'onAccent' | 'textAccent'>
 > = {
-  light: { accent: '#1A7FD6', onAccent: '#FFFFFF', textAccent: '#0B67A8' },
-  dark: { accent: '#1A7FD6', onAccent: '#FFFFFF', textAccent: '#7CC4FF' },
+  light: { accent: '#265F83', onAccent: '#FFFFFF', textAccent: '#1D4C6A' },
+  dark: { accent: '#265F83', onAccent: '#FFFFFF', textAccent: '#92C1E3' },
 };
 
 /** The app's own two canvases, from the same token file. */

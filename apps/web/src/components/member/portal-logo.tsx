@@ -86,37 +86,40 @@ const styles = stylex.create({
     objectFit: 'contain',
   },
   // ── the presets on the themed headers (join, sign-in on a phone, signed in) ──
-  // Each height leaves the 5rem bar at least 1.75rem of air. Below 640px the
-  // width is also capped by the viewport: the theme and language switches take
-  // about 16rem of a phone-width bar with its padding, so on a 390px screen a
-  // wide wordmark gets what is left rather than pushing the switches off the
-  // edge (which even the original 9.25rem did). A compact mark is bounded by
-  // its height first, so the three presets still differ there.
+  // Heights step 2 / 2.75 / 3.5rem so the three choices are visibly different
+  // for a compact badge too (a square mark is bounded by its height first); the
+  // largest still leaves the 5rem bar 1.5rem of air. Below 640px the width is
+  // also capped by the viewport: the theme and language switches take about
+  // 16rem of a phone-width bar with its padding, so on a 390px screen a wide
+  // wordmark gets what is left rather than pushing the switches off the edge.
   headerSm: {
-    maxHeight: '2.25rem',
+    maxHeight: '2rem',
     maxWidth: {
-      default: 'min(9.25rem, calc(100vw - 16rem))',
-      '@media (min-width: 640px)': '9.25rem',
+      default: 'min(8.5rem, calc(100vw - 16rem))',
+      '@media (min-width: 640px)': '8.5rem',
     },
   },
   headerMd: {
     maxHeight: '2.75rem',
     maxWidth: {
       default: 'min(10rem, calc(100vw - 16rem))',
-      '@media (min-width: 640px)': '11.25rem',
+      '@media (min-width: 640px)': '11.5rem',
     },
   },
   headerLg: {
-    maxHeight: '3.25rem',
+    maxHeight: '3.5rem',
     maxWidth: {
       default: 'min(11rem, calc(100vw - 16rem))',
-      '@media (min-width: 640px)': '13.5rem',
+      '@media (min-width: 640px)': '14.5rem',
     },
   },
   // ── the presets over the sign-in photograph (from `lg`, where it is a column) ──
-  photoSm: { maxHeight: '2.25rem', maxWidth: '9.25rem' },
-  photoMd: { maxHeight: '3.5rem', maxWidth: '14.5rem' },
-  photoLg: { maxHeight: '4.5rem', maxWidth: '18.5rem' },
+  // The photograph has room, so the steps are wider apart. `maxWidth: 100%`
+  // lets the mark give way to the theme switch beside it instead of pushing it
+  // past the panel's edge.
+  photoSm: { maxHeight: '2.5rem', maxWidth: 'min(10rem, 100%)' },
+  photoMd: { maxHeight: '4rem', maxWidth: 'min(15rem, 100%)' },
+  photoLg: { maxHeight: '5.5rem', maxWidth: 'min(20rem, 100%)' },
 });
 
 const HEADER_SIZES = { sm: styles.headerSm, md: styles.headerMd, lg: styles.headerLg } as const;

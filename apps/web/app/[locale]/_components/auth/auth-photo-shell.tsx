@@ -143,8 +143,12 @@ const styles = stylex.create({
   brand: {
     display: 'flex',
     alignItems: 'center',
+    // May shrink, so a large mark gives way to the theme switch beside it.
+    minWidth: 0,
     textDecoration: 'none',
   },
+  // The theme switch keeps its size whatever the logo beside it does.
+  topRowSwitch: { flexShrink: 0 },
   /* ------------------------------- join strip -------------------------------
      On the photo, so it carries its own dark surface rather than the theme's —
      a themed panel would go white here in light mode and punch a hole in the
@@ -475,7 +479,9 @@ export async function AuthPhotoShell({ title, subtitle, children, footer }: Auth
 
           <div {...stylex.props(styles.topRow)}>
             <Brand label={tShell('brand')} onPhoto logoUrl={logoUrl} logoSize={logoSize} />
-            <ThemeToggle />
+            <div {...stylex.props(styles.topRowSwitch)}>
+              <ThemeToggle />
+            </div>
           </div>
 
           {join ? (

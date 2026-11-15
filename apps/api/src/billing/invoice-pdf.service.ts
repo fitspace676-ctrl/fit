@@ -59,7 +59,7 @@ const INK_SECONDARY = '#53534F'; // ink-600 — labels, secondary text
 const INK_MUTED = '#8F8F8B'; // ink-400 — footer
 const HAIRLINE = '#DCDCDA'; // ink-200 — dividers, tile borders
 const TILE = '#F7F7F6'; // ink-50 — the inset tile
-const BRAND = '#1A7FD6'; // brand-500, the one block colour
+const BRAND = '#265F83'; // brand-500, the one block colour
 const ON_BRAND = '#FFFFFF'; // type on the blue block
 
 /** The tile / block silhouette — the theme's "card" step of the radius ladder. */

@@ -59,7 +59,7 @@
  * the original method; the values above supersede that spec's palette.
  */
 :root {
-  --chart-series-1: light-dark(#0b67a8, #5fb4ff);
+  --chart-series-1: light-dark(#1d4c6a, #5fb4ff);
   --chart-series-2: light-dark(#0074e2, #5b9bff);
   /* The glow under series 1. The same pair, carried by opacity rather than a
      second colour, so it can never drift from the stroke it sits behind. */

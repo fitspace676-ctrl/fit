@@ -131,7 +131,7 @@
         "customise": "Use a different colour",
         "reset": "Stop using a custom colour",
         "useBrand": "Use the brand colour ({color})",
-        "invalid": "Enter a hex colour like #1a7fd6.",
+        "invalid": "Enter a hex colour like #265f83.",
         "previewLight": "LIGHT MODE",
         "previewDark": "DARK MODE",
         "previewTabActive": "Classes",
@@ -2325,7 +2325,7 @@
           "useBrand": "Use the brand colour ({color})",
           "customise": "Use a different colour",
           "reset": "Back to the default colour",
-          "invalid": "Enter a hex colour like #1a7fd6.",
+          "invalid": "Enter a hex colour like #265f83.",
           "syncLabel": "Use this colour on the member portal too"
         },
         "primaryColor": "Primary color",
@@ -2654,7 +2654,7 @@
         "useBrand": "Use the brand colour ({color})",
         "customise": "Use a different colour",
         "reset": "Back to the default colour",
-        "invalid": "Enter a hex colour like #1a7fd6."
+        "invalid": "Enter a hex colour like #265f83."
       },
       "logo": {
         "title": "Portal logo",
@@ -2671,7 +2671,7 @@
         "inheritedNone": "You have not uploaded a logo yet, so members see the built-in FormaCore mark.",
         "resetToBrand": "Follow the brand logo",
         "resetToBuiltIn": "Use the built-in logo",
-        "hint": "JPEG, PNG or WebP, up to 2 MB. Best size: a wide logo about 800 × 200 px (4:1). In the portal’s headers it is shown at up to 148 × 36 px (Small), 180 × 44 px (Medium) or 216 × 52 px (Large), and larger over the sign-in photograph. It is shown exactly as uploaded, with nothing behind it, over the photograph and on the light and dark pages, so a transparent PNG that reads on both light and dark works best.",
+        "hint": "JPEG, PNG or WebP, up to 2 MB. Best size: a wide logo about 800 × 200 px (4:1). In the portal’s headers it is shown at up to 136 × 32 px (Small), 184 × 44 px (Medium) or 232 × 56 px (Large), and larger over the sign-in photograph. It is shown exactly as uploaded, with nothing behind it, over the photograph and on the light and dark pages, so a transparent PNG that reads on both light and dark works best.",
         "sizeLabel": "Logo size",
         "sizes": {
           "sm": "Small",
@@ -2781,6 +2781,14 @@
         "requestFailed": "Request failed ({status}): {message}",
         "invalid": "Invalid member-portal settings.",
         "unexpected": "Unexpected error."
+      },
+      "terms": {
+        "title": "Terms and conditions",
+        "subtitle": "Your gym's terms for members: cancellation, refunds, freezes, house rules. Members agree to this text when they join and can reopen it at any time.",
+        "label": "Terms text",
+        "placeholder": "e.g. A membership can be cancelled…",
+        "hint": "Separate paragraphs with a blank line. Left empty, members see a note that no terms have been published yet.",
+        "languageLabel": "Terms language"
       }
     },
     "automation": {
@@ -5135,7 +5143,8 @@
         "subtitle": "Please go back and choose another package."
       },
       "freeNotice": "A free account needs no payment. Your account is created right away and you can add a plan at any time.",
-      "createFree": "Create account"
+      "createFree": "Create account",
+      "termsLink": "Read the terms and conditions"
     },
     "success": {
       "title": "You're all set!",
@@ -5626,7 +5635,8 @@
         "perYear": "/ yr",
         "errAlreadySubscribed": "You already have a live membership. Cancel it first, or ask at the front desk to switch.",
         "errUnavailable": "That plan is no longer on sale."
-      }
+      },
+      "termsLink": "Terms and conditions"
     },
     "profile": {
       "mobile": {
@@ -5787,7 +5797,10 @@
       "deleteToast": "Contact the front desk to delete your account",
       "saving": "Saving…",
       "saveAuth": "Please sign in",
-      "saveError": "Couldn't save, try again"
+      "saveError": "Couldn't save, try again",
+      "documents": "Documents",
+      "terms": "Terms and conditions",
+      "termsDesc": "The gym's rules and its cancellation, refund and freeze terms"
     },
     "cart": {
       "title": "Your cart",
@@ -5996,6 +6009,10 @@
           "subtitle": "We couldn’t find that order. It may have been removed."
         }
       }
+    },
+    "terms": {
+      "title": "Terms and conditions",
+      "empty": "This gym has not published its terms yet. Contact the gym for details."
     }
   },
   "notifications": {

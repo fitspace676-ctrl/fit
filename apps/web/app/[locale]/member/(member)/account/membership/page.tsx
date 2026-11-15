@@ -13,6 +13,7 @@ import {
 import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
 import { Icon } from '@/src/components/ui';
+import { Link } from '@/src/i18n/navigation';
 import { FreezeCard } from './freeze-card';
 import { ChangePlanButton } from './change-plan-modal';
 import { BuyCreditsCard } from './buy-credits-card';
@@ -56,6 +57,18 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 };
 
 const styles = stylex.create({
+  termsLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: '0.375rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--color-text-secondary)',
+    textDecoration: 'underline',
+    textUnderlineOffset: '0.2em',
+  },
+  termsLinkIcon: { height: '0.875rem', width: '0.875rem' },
   root: {
     display: 'flex',
     flexDirection: 'column',
@@ -562,6 +575,12 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           </Card>
         )}
       </section>
+
+      {/* What the member agreed to when joining: the gym's own terms. */}
+      <Link href="/member/terms" target="_blank" rel="noopener" {...stylex.props(styles.termsLink)}>
+        {t('termsLink')}
+        <Icon name="external" sw={2} {...stylex.props(styles.termsLinkIcon)} />
+      </Link>
     </div>
   );
 }
