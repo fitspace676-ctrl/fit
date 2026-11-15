@@ -12,7 +12,8 @@ import { disconnect, prisma, resetDb } from '../test/integration-db';
  *
  * The reference itself is composed from the gym's Settings → Invoicing, so a gym that
  * has never opened that screen (these fixtures) gets the schema defaults: the `INV`
- * prefix, the `prefix-year-number` shape, and a sequence starting at 1000. The two
+ * prefix, the year-less `prefix-number` shape, and a sequence starting at 1, printed
+ * with at least two digits (`INV-01`). The two
  * SQL-level consequences of those settings — the starting number *flooring* the
  * allocation, and the year-less shape drawing from one gym-wide bucket — are only
  * observable against a real counter, so they are covered here rather than in the unit
@@ -57,21 +58,20 @@ describe('InvoiceService (integration)', () => {
     const second = await issue(charge(gymAId));
     const third = await issue(charge(gymAId));
 
-    expect([first.number, second.number, third.number]).toEqual([
-      'INV-2026-1000',
-      'INV-2026-1001',
-      'INV-2026-1002',
-    ]);
-    expect([first.seq, second.seq, third.seq]).toEqual([1000, 1001, 1002]);
+    expect([first.number, second.number, third.number]).toEqual(['INV-01', 'INV-02', 'INV-03']);
+    expect([first.seq, second.seq, third.seq]).toEqual([1, 2, 3]);
+    // The row still records the fiscal year, even though the default reference omits it.
     expect(first.year).toBe(2026);
   });
 
+  // Only a shape that prints the year restarts in January; the default does not.
   it('restarts the sequence at the gym’s starting number for a new fiscal year', async () => {
+    await setInvoiceSettings(gymAId, { format: 'prefix-year-number' });
     const y2026 = await issue(charge(gymAId, { issuedAt: new Date('2026-12-31T23:00:00.000Z') }));
     const y2027 = await issue(charge(gymAId, { issuedAt: new Date('2027-01-01T00:00:00.000Z') }));
 
-    expect(y2026.number).toBe('INV-2026-1000');
-    expect(y2027.number).toBe('INV-2027-1000');
+    expect(y2026.number).toBe('INV-2026-01');
+    expect(y2027.number).toBe('INV-2027-01');
   });
 
   it('keeps each gym’s sequence independent (isolation)', async () => {
@@ -79,9 +79,9 @@ describe('InvoiceService (integration)', () => {
     const b1 = await issue(charge(gymBId));
     const a2 = await issue(charge(gymAId));
 
-    expect(a1.number).toBe('INV-2026-1000');
-    expect(b1.number).toBe('INV-2026-1000');
-    expect(a2.number).toBe('INV-2026-1001');
+    expect(a1.number).toBe('INV-01');
+    expect(b1.number).toBe('INV-01');
+    expect(a2.number).toBe('INV-02');
   });
 
   it('hands out distinct, gap-free numbers under concurrent charges for one gym-year', async () => {
@@ -89,7 +89,7 @@ describe('InvoiceService (integration)', () => {
     const results = await Promise.all(Array.from({ length: count }, () => issue(charge(gymAId))));
 
     const seqs = results.map((r) => r.seq).sort((a, b) => a - b);
-    expect(seqs).toEqual(Array.from({ length: count }, (_, i) => 1000 + i));
+    expect(seqs).toEqual(Array.from({ length: count }, (_, i) => 1 + i));
 
     // Every persisted number is unique — the DB's `@@unique([gymId, number])` would
     // reject a collision, so a full set proves the counter serialised correctly.
@@ -115,9 +115,9 @@ describe('InvoiceService (integration)', () => {
       currency: 'GEL',
       status: 'PAID',
       description: 'Premium — monthly subscription',
-      number: 'INV-2026-1000',
+      number: 'INV-01',
       year: 2026,
-      seq: 1000,
+      seq: 1,
     });
   });
 
@@ -136,7 +136,7 @@ describe('InvoiceService (integration)', () => {
     const second = await issue(charge(gymAId));
 
     // `year-number` prints no prefix, whatever the gym typed into the field.
-    expect([first.number, second.number]).toEqual(['2026-0001', '2026-0002']);
+    expect([first.number, second.number]).toEqual(['2026-01', '2026-02']);
   });
 
   // GREATEST, not a plain seed: a gym that raises its starting number mid-year sees
@@ -144,15 +144,15 @@ describe('InvoiceService (integration)', () => {
   // walks back over numbers it has already handed out.
   it('floors the running counter at a raised starting number, and ignores a lowered one', async () => {
     const first = await issue(charge(gymAId));
-    expect(first.seq).toBe(1000);
+    expect(first.seq).toBe(1);
 
     await setInvoiceSettings(gymAId, { startNumber: 5000 });
     const raised = await issue(charge(gymAId));
-    expect(raised.number).toBe('INV-2026-5000');
+    expect(raised.number).toBe('INV-5000');
 
     await setInvoiceSettings(gymAId, { startNumber: 10 });
     const lowered = await issue(charge(gymAId));
-    expect(lowered.number).toBe('INV-2026-5001');
+    expect(lowered.number).toBe('INV-5001');
   });
 
   // `INV-1000` carries no year, so a per-year counter would hand the same reference
