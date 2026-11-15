@@ -54,6 +54,8 @@ export interface MemberSubscription {
 
 export interface MemberInvoice {
   id: string;
+  /** The gym's reference (e.g. `INV-01`); the id when an older API sends none. */
+  number: string;
   date: string;
   amount: number;
   currency: string;
@@ -127,6 +129,7 @@ function parseInvoices(raw: unknown): MemberInvoice[] {
       }
       return {
         id,
+        number: str(r.number) ?? id,
         date,
         amount: num(r.amount),
         currency: str(r.currency) ?? 'GEL',

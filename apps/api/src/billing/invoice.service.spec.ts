@@ -7,7 +7,7 @@ import { InvoiceService, type InvoiceTxClient } from './invoice.service';
 /**
  * A transaction stub: the counter bump returns `seq`, and the gym row carries
  * whatever Settings → Invoicing block the case is about (`undefined` = a gym that
- * never opened the settings screen, which defaults to `INV` / 1000 / prefix-year).
+ * never opened the settings screen, which defaults to `INV` / 1 / prefix-number).
  */
 function makeTx(seq = 1, invoice?: Record<string, unknown>, memberBranch: string | null = 'loc-1') {
   const create = vi
@@ -46,7 +46,10 @@ describe('InvoiceService', () => {
   const service = new InvoiceService();
 
   it('allocates the next sequence and stamps the gym’s configured reference', async () => {
-    const { tx, create, queryRawUnsafe, gymFindFirst } = makeTx(42);
+    const { tx, create, queryRawUnsafe, gymFindFirst } = makeTx(42, {
+      format: 'prefix-year-number',
+      startNumber: 1000,
+    });
 
     const result = await service.issue(tx, {
       gymId: 'gym-1',
@@ -65,8 +68,8 @@ describe('InvoiceService', () => {
     // The gymId + bucket + starting number are passed explicitly to the raw counter
     // bump so it is correct on the unscoped billing-job client too.
     expect(queryRawUnsafe.mock.calls[0]?.slice(1)).toEqual(['gym-1', 2026, 1000]);
-    // Defaults: prefix `INV`, prefix-year-number.
-    const expected = 'INV-2026-0042';
+    // Prefix `INV` (the default), the year-bearing shape the gym chose.
+    const expected = 'INV-2026-42';
     expect(create.mock.calls[0]?.[0].data).toMatchObject({ seq: 42, year: 2026, number: expected });
     expect(result).toEqual({ id: 'inv-1', number: expected, seq: 42, year: 2026 });
   });
@@ -83,11 +86,14 @@ describe('InvoiceService', () => {
     });
 
     // `year-number` prints no prefix, whatever the gym typed into the field.
-    expect(create.mock.calls[0]?.[0].data).toMatchObject({ number: '2026-0007' });
+    expect(create.mock.calls[0]?.[0].data).toMatchObject({ number: '2026-07' });
   });
 
   it('passes the gym’s starting number to the counter, which floors the allocation', async () => {
-    const { tx, queryRawUnsafe } = makeTx(5000, { startNumber: 5000 });
+    const { tx, queryRawUnsafe } = makeTx(5000, {
+      format: 'prefix-year-number',
+      startNumber: 5000,
+    });
 
     await service.issue(tx, {
       gymId: 'gym-1',
@@ -106,7 +112,10 @@ describe('InvoiceService', () => {
   // `INV-1000` carries no year, so a per-year counter would hand the same reference
   // out again next January. That shape draws from one continuous gym-wide bucket.
   it('draws a year-less reference from the gym-wide counter bucket', async () => {
-    const { tx, create, queryRawUnsafe } = makeTx(1000, { format: 'prefix-number' });
+    const { tx, create, queryRawUnsafe } = makeTx(1000, {
+      format: 'prefix-number',
+      startNumber: 1000,
+    });
 
     await service.issue(tx, {
       gymId: 'gym-1',
@@ -121,8 +130,9 @@ describe('InvoiceService', () => {
     expect(create.mock.calls[0]?.[0].data).toMatchObject({ number: 'INV-1000', year: 2026 });
   });
 
+  // The default policy: a short gym-wide count from 1, INV-01 … INV-99, INV-100.
   it('still mints for a gym that has never opened the settings screen', async () => {
-    const { tx, create, gymFindFirst } = makeTx(3);
+    const { tx, create, queryRawUnsafe, gymFindFirst } = makeTx(3);
     gymFindFirst.mockResolvedValue(null);
 
     await service.issue(tx, {
@@ -133,7 +143,8 @@ describe('InvoiceService', () => {
       issuedAt: new Date('2026-03-15T10:00:00.000Z'),
     });
 
-    expect(create.mock.calls[0]?.[0].data).toMatchObject({ number: 'INV-2026-0003' });
+    expect(queryRawUnsafe.mock.calls[0]?.slice(1)).toEqual(['gym-1', 0, 1]);
+    expect(create.mock.calls[0]?.[0].data).toMatchObject({ number: 'INV-03' });
   });
 
   it('defaults status to PAID and description/relations to their empty forms', async () => {
@@ -179,7 +190,7 @@ describe('InvoiceService', () => {
   });
 
   it('derives the sequence year from issuedAt in UTC', async () => {
-    const { tx, create } = makeTx(7);
+    const { tx, create } = makeTx(7, { format: 'prefix-year-number' });
 
     // 2025-12-31T23:30 UTC → fiscal year 2025, never rolled forward by local tz.
     await service.issue(tx, {

@@ -2585,7 +2585,7 @@ async function ensureInvoices(gymId: string, memberIds: readonly string[]): Prom
   // Fully defaulted, exactly as `InvoiceService.invoiceSettings` does it: a gym
   // that has never opened the settings screen has `settings: null`, and the schema
   // fills every default from that. The seed never writes this blob, so on a fresh
-  // database this is `INV` / `prefix-year-number` / `1000` — but a dev who has
+  // database this is `INV` / `prefix-number` / `1` (`INV-01`) — but a dev who has
   // changed it in the console gets numbers in THEIR shape, not a stale guess.
   const gym = await prisma.gym.findUnique({ where: { id: gymId }, select: { settings: true } });
   const settings = gymSettingsStoredSchema.parse(gym?.settings ?? {}).invoice;

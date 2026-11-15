@@ -10,6 +10,7 @@ const INVOICE_HISTORY_LIMIT = 50;
 /** The columns projected off an {@link Invoice} for the member's billing-history row. */
 const ME_INVOICE_SELECT = {
   id: true,
+  number: true,
   issuedAt: true,
   amount: true,
   currency: true,
@@ -119,6 +120,7 @@ export class MeSubscriptionService {
 function toMeInvoice(row: MeInvoiceRecord): MeInvoice {
   return {
     id: row.id,
+    number: row.number,
     date: row.issuedAt.toISOString(),
     amount: row.amount,
     currency: row.currency,

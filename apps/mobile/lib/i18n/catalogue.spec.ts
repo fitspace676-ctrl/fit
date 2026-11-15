@@ -113,8 +113,14 @@ describe('the member slice', () => {
     // (`checkout.payment.termsLink`) and the membership page
     // (`member.membership.termsLink`), and the profile's Documents tab
     // (`member.profile.documents` / `.terms` / `.termsDesc`).
-    expect(enKeys).toHaveLength(1119);
-    expect(kaKeys).toHaveLength(1119);
+    //
+    // 2026-11-15, the trainer in the class modal is a link: 1119 → 1120. Its
+    // accessible name is `classes.modal.trainerProfile`.
+    //
+    // 2026-11-15, the shop's variant picker: 1120 → 1121. The chips a member
+    // picks a size or flavour from are labelled `shop.browse.chooseVariant`.
+    expect(enKeys).toHaveLength(1121);
+    expect(kaKeys).toHaveLength(1121);
   });
 });
 

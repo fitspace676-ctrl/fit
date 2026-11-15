@@ -108,7 +108,16 @@ function creditPack(overrides: Partial<CreditPackCatalogueEntry> = {}): CreditPa
 function membership(sub: MeSubscription | null): GetMeSubscriptionResponse {
   return {
     subscription: sub,
-    invoices: [{ id: 'inv_1', date: '2026-08-01', amount: 5000, currency: 'GEL', status: 'PAID' }],
+    invoices: [
+      {
+        id: 'inv_1',
+        number: 'INV-01',
+        date: '2026-08-01',
+        amount: 5000,
+        currency: 'GEL',
+        status: 'PAID',
+      },
+    ],
   };
 }
 
