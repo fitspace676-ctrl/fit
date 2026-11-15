@@ -52,6 +52,8 @@ export type MeSubscription = z.infer<typeof meSubscriptionSchema>;
 /** One invoice / payment row in the member's billing history. */
 export const meInvoiceSchema = z.object({
   id: z.string().min(1),
+  /** The gym's reference for the invoice (e.g. `INV-01`), as printed on its PDF. */
+  number: z.string().min(1),
   date: z.string(),
   amount: z.number().int().nonnegative(),
   currency: z.string(),

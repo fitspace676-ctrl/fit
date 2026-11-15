@@ -899,18 +899,23 @@ export type InvoiceNumberFormat = z.infer<typeof invoiceNumberFormatSchema>;
 /**
  * Invoice numbering: the `prefix`, the first sequence `startNumber`, and the
  * composed `format`.
+ *
+ * The default is the short, readable run `INV-01`, `INV-02` … `INV-99`,
+ * `INV-100`: one gym-wide sequence from 1 that never restarts, so a member's
+ * invoices read as a plain count. A gym that wants the year in its references
+ * (or another start) picks that under Settings → Invoicing.
  */
 export const gymInvoiceSettingsSchema = z.object({
   prefix: z.string().trim().max(10).default('INV'),
-  startNumber: z.number().int().min(1).max(1_000_000_000).default(1000),
-  format: invoiceNumberFormatSchema.default('prefix-year-number'),
+  startNumber: z.number().int().min(1).max(1_000_000_000).default(1),
+  format: invoiceNumberFormatSchema.default('prefix-number'),
 });
 
 /** The gym's invoice settings — {@link gymInvoiceSettingsSchema}. */
 export type GymInvoiceSettings = z.infer<typeof gymInvoiceSettingsSchema>;
 
-/** Digits the sequence number is zero-padded to (`0001`, `0042`, `1234`). */
-export const INVOICE_SEQ_PAD_WIDTH = 4;
+/** Digits the sequence number is zero-padded to (`01`, `42`, `99`, then `100`). */
+export const INVOICE_SEQ_PAD_WIDTH = 2;
 
 /** The composition an invoice reference is built from — prefix + shape. */
 export type InvoiceNumbering = Pick<GymInvoiceSettings, 'prefix' | 'format'>;
@@ -920,7 +925,7 @@ const DEFAULT_NUMBERING: InvoiceNumbering = { prefix: '', format: 'year-number' 
 
 /**
  * Compose an invoice reference from its fiscal `year`, its sequence number `seq`, and
- * the gym's chosen shape: `"INV-2026-1000"`, `"INV-1000"`, or `"2026-0001"`.
+ * the gym's chosen shape: `"INV-01"`, `"INV-2026-01"`, or `"2026-01"`.
  *
  * The single statement of the numbering rule: the settings screen previews the next
  * reference with it and the API stamps the minted invoice with it, so the sample a
@@ -928,7 +933,7 @@ const DEFAULT_NUMBERING: InvoiceNumbering = { prefix: '', format: 'year-number' 
  * database concern and stays in the API's `InvoiceService`; this half is pure.)
  *
  * `seq` is 1-based and zero-padded to {@link INVOICE_SEQ_PAD_WIDTH} digits; a `seq`
- * that outgrows the pad width (≥ 10 000) renders at its natural width rather than
+ * that outgrows the pad width (≥ 100) renders at its natural width rather than
  * truncating, so the reference stays unique and monotonic. A blank prefix contributes
  * no segment at all rather than a leading dash.
  *

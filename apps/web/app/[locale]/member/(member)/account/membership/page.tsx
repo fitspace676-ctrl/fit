@@ -312,6 +312,8 @@ const styles = stylex.create({
   },
   tdMono: {
     fontFamily: 'var(--font-family-code)',
+    // An invoice reference reads as one token; never break it at its hyphens.
+    whiteSpace: 'nowrap',
     color: 'var(--color-text-primary)',
   },
   tdAmount: {
@@ -532,7 +534,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
               <tbody>
                 {invoices.map((inv) => (
                   <tr key={inv.id}>
-                    <td {...stylex.props(styles.td, styles.tdMono)}>{inv.id}</td>
+                    <td {...stylex.props(styles.td, styles.tdMono)}>{inv.number}</td>
                     <td {...stylex.props(styles.td)}>
                       {createDateTimeFormat(activeLocale, {
                         day: 'numeric',

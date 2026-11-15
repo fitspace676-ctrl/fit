@@ -321,7 +321,9 @@ describe('GymSettingsService', () => {
     it('allows a year-shaped prefix on the shapes that also print the year', async () => {
       const { service, update } = setup({ gym: { name: 'Iron Gym', settings: null } });
 
-      const result = await service.updateSettings({ invoice: { prefix: '2026' } });
+      const result = await service.updateSettings({
+        invoice: { prefix: '2026', format: 'prefix-year-number' },
+      });
 
       expect(update).toHaveBeenCalled();
       expect(result.invoice).toMatchObject({ prefix: '2026', format: 'prefix-year-number' });

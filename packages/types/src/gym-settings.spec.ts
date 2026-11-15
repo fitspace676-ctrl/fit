@@ -231,9 +231,16 @@ describe('formatInvoiceNumber', () => {
     gymInvoiceSettingsSchema.parse(over);
 
   it('keeps the bare year-and-sequence shape when no composition is given', () => {
-    expect(formatInvoiceNumber(2026, 1)).toBe('2026-0001');
-    expect(formatInvoiceNumber(2026, 42)).toBe('2026-0042');
+    expect(formatInvoiceNumber(2026, 1)).toBe('2026-01');
+    expect(formatInvoiceNumber(2026, 42)).toBe('2026-42');
     expect(formatInvoiceNumber(2026, 1234)).toBe('2026-1234');
+  });
+
+  // The default a gym gets without touching Settings: a short gym-wide count.
+  it('numbers a default gym INV-01 … INV-99, then INV-100', () => {
+    expect(formatInvoiceNumber(2026, 1, numbering())).toBe('INV-01');
+    expect(formatInvoiceNumber(2026, 99, numbering())).toBe('INV-99');
+    expect(formatInvoiceNumber(2026, 100, numbering())).toBe('INV-100');
   });
 
   it('builds each of the three shapes a gym can choose', () => {
@@ -247,7 +254,7 @@ describe('formatInvoiceNumber', () => {
   });
 
   it('honours the gym’s own prefix, trimming the padding it types around it', () => {
-    expect(formatInvoiceNumber(2026, 7, numbering({ prefix: '  FC  ' }))).toBe('FC-2026-0007');
+    expect(formatInvoiceNumber(2026, 7, numbering({ prefix: '  FC  ' }))).toBe('FC-07');
   });
 
   // A gym that clears the field should not be stamped with a leading dash, and the
@@ -255,15 +262,15 @@ describe('formatInvoiceNumber', () => {
   it('drops the prefix segment entirely when the prefix is blank', () => {
     expect(
       formatInvoiceNumber(2026, 7, numbering({ prefix: '', format: 'prefix-year-number' })),
-    ).toBe('2026-0007');
+    ).toBe('2026-07');
     expect(
       formatInvoiceNumber(2026, 7, numbering({ prefix: '   ', format: 'prefix-number' })),
-    ).toBe('0007');
+    ).toBe('07');
   });
 
   it('renders a sequence that outgrows the pad width at its natural width (no truncation)', () => {
-    expect(INVOICE_SEQ_PAD_WIDTH).toBe(4);
-    expect(formatInvoiceNumber(2026, 10_000)).toBe('2026-10000');
+    expect(INVOICE_SEQ_PAD_WIDTH).toBe(2);
+    expect(formatInvoiceNumber(2026, 100)).toBe('2026-100');
     expect(formatInvoiceNumber(2026, 123_456)).toBe('2026-123456');
   });
 

@@ -6,7 +6,7 @@ import { Badge, Banner, Button, ButtonLink, Card, Dialog } from '@/src/component
 import { useLocale, useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import type { BookClassInstanceResult, ClassInstanceCard } from '@fit/types';
-import { usePathname, useRouter } from '@/src/i18n/navigation';
+import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
 import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/src/components/ui';
 import { bookClassAction } from '@/app/actions/bookings';
@@ -145,6 +145,53 @@ const styles = stylex.create({
     width: '0.875rem',
     flexShrink: 0,
   },
+  // The trainer, as a pill on the accent block: its own ground and edge so it
+  // reads as something to press, unlike the plain facts around it.
+  trainerLink: {
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    marginBlock: '0.125rem',
+    paddingBlock: '0.25rem',
+    paddingInlineStart: '0.25rem',
+    paddingInlineEnd: '0.625rem',
+    borderRadius: 'var(--radius-full)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'color-mix(in srgb, var(--color-on-accent) 40%, transparent)',
+    backgroundColor: {
+      default: 'color-mix(in srgb, var(--color-on-accent) 16%, transparent)',
+      ':hover': 'color-mix(in srgb, var(--color-on-accent) 28%, transparent)',
+    },
+    color: 'var(--color-on-accent)',
+    fontWeight: 600,
+    textDecoration: 'none',
+    transitionProperty: 'background-color',
+    transitionDuration: '150ms',
+    outline: { default: 'none', ':focus-visible': '2px solid var(--color-on-accent)' },
+    outlineOffset: '2px',
+  },
+  trainerAvatar: {
+    height: '1.5rem',
+    width: '1.5rem',
+    flexShrink: 0,
+    borderRadius: 'var(--radius-full)',
+    objectFit: 'cover',
+  },
+  trainerAvatarIcon: {
+    display: 'grid',
+    placeItems: 'center',
+    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 22%, transparent)',
+  },
+  trainerName: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  trainerChevron: { height: '0.875rem', width: '0.875rem', flexShrink: 0 },
   // The class in the template's own words. `pre-line` keeps the paragraphs a
   // staffer typed; the size and colour match the detail page's description so
   // the modal and the page read as one.
@@ -312,7 +359,25 @@ export function ClassBookingModal({ instance, onClose, timeZone }: ClassBookingM
             month: 'long',
           })}
         </span>
-        {instance.trainerName ? (
+        {instance.trainerName && instance.trainerId ? (
+          // A button, not a line of text: the member can open the trainer to see
+          // who is teaching before booking.
+          <Link
+            href={`/member/trainers/${instance.trainerId}`}
+            aria-label={t('modal.trainerProfile', { name: instance.trainerName })}
+            {...stylex.props(styles.trainerLink)}
+          >
+            {instance.trainerAvatarUrl ? (
+              <img src={instance.trainerAvatarUrl} alt="" {...stylex.props(styles.trainerAvatar)} />
+            ) : (
+              <span aria-hidden {...stylex.props(styles.trainerAvatar, styles.trainerAvatarIcon)}>
+                <Icon name="user" {...stylex.props(styles.heroFactIcon)} sw={2.2} />
+              </span>
+            )}
+            <span {...stylex.props(styles.trainerName)}>{instance.trainerName}</span>
+            <Icon name="chevronRight" {...stylex.props(styles.trainerChevron)} sw={2.4} />
+          </Link>
+        ) : instance.trainerName ? (
           <span {...stylex.props(styles.heroFact)}>
             <Icon name="user" {...stylex.props(styles.heroFactIcon)} sw={2.2} />
             {instance.trainerName}

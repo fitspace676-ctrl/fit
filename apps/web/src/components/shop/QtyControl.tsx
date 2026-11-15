@@ -3,12 +3,7 @@
 import { useTransition } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
-import {
-  encodeVariantRef,
-  MAX_CART_LINE_QUANTITY,
-  type CartView,
-  type ProductSummary,
-} from '@fit/types';
+import { MAX_CART_LINE_QUANTITY, type CartView } from '@fit/types';
 import { Icon, useToast } from '@/src/components/ui';
 import { addToCartAction, removeCartItemAction, updateCartItemAction } from '@/app/actions/cart';
 
@@ -95,29 +90,27 @@ const styles = stylex.create({
 });
 
 export interface QtyControlProps {
-  product: ProductSummary;
-  /** Units of this product currently in the cart. */
+  /** The cart line this control adds to: the chosen variant, or the base purchase. */
+  variantRef: string;
+  /** Units of that line currently in the cart. */
   qty: number;
   onCart: (cart: CartView) => void;
 }
 
 /**
  * Add-to-cart for a catalogue row: a lime plus while the product is not in the
- * cart, a quantity stepper once it is. Adds the first variant (or the base
- * purchase when the product has none) and hands the fresh cart the server action
+ * cart, a quantity stepper once it is. Adds the variant the row has selected (or
+ * the base purchase when the product has none) and hands the fresh cart the server action
  * returns straight up, so the panel and this count move together without a
  * round-trip through the router.
  */
-export function QtyControl({ product, qty, onCart }: QtyControlProps) {
+export function QtyControl({ variantRef, qty, onCart }: QtyControlProps) {
   const t = useTranslations('member.cart');
   const tc = useTranslations('shop.cart');
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
 
-  const variantId =
-    product.variants.length > 0
-      ? encodeVariantRef(product.id, 0)
-      : encodeVariantRef(product.id, null);
+  const variantId = variantRef;
 
   /** Run a cart mutation, surfacing the fresh cart or a tagged failure. */
   function run(mutate: () => Promise<Awaited<ReturnType<typeof addToCartAction>>>, fail: string) {

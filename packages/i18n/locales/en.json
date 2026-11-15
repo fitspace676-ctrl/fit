@@ -5271,7 +5271,8 @@
     "modal": {
       "close": "Close",
       "capacity": "Capacity",
-      "signInToBook": "Sign in to book"
+      "signInToBook": "Sign in to book",
+      "trainerProfile": "Trainer profile: {name}"
     }
   },
   "common": {
@@ -6136,7 +6137,8 @@
         "subtitle": "This gym hasn’t added any products yet. Check back soon."
       },
       "variantCount": "{count} variants",
-      "oneVariant": "One variant"
+      "oneVariant": "One variant",
+      "chooseVariant": "Choose an option"
     },
     "detail": {
       "back": "Shop",
