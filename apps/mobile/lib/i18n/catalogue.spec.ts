@@ -107,8 +107,14 @@ describe('the member slice', () => {
     // is refused at the field (`auth.register.errors.nameRequired`); the email
     // and password reuse the sign-in's sentences and the password hint.
     // Retiring the member target editor removes its 16 messages.
-    expect(enKeys).toHaveLength(1112);
-    expect(kaKeys).toHaveLength(1112);
+    //
+    // 2026-11-14, the gym's own member terms: 1112 → 1119. The terms page
+    // (`member.terms.title` / `.empty`), its links from checkout
+    // (`checkout.payment.termsLink`) and the membership page
+    // (`member.membership.termsLink`), and the profile's Documents tab
+    // (`member.profile.documents` / `.terms` / `.termsDesc`).
+    expect(enKeys).toHaveLength(1119);
+    expect(kaKeys).toHaveLength(1119);
   });
 });
 
