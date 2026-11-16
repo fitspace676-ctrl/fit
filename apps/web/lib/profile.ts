@@ -11,6 +11,7 @@ import { tenantHeaders } from './tenant-headers';
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 export interface MemberProfile {
+  photoUrl?: string | null;
   userId: string;
   name: string | null;
   email: string;
@@ -48,6 +49,7 @@ export async function fetchMyProfile({
       return null;
     }
     return {
+      photoUrl: typeof r.photoUrl === 'string' ? r.photoUrl : null,
       userId: r.userId,
       name: typeof r.name === 'string' ? r.name : null,
       email: r.email,

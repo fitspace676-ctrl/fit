@@ -75,8 +75,9 @@ export interface GetMeSubscriptionResponse {
 /*  GET / PATCH /me/profile                                                    */
 /* -------------------------------------------------------------------------- */
 
-/** The caller's editable profile (a User attribute set, gym-independent). */
+/** The caller's profile; photo and contact overrides belong to the current gym. */
 export const meProfileSchema = z.object({
+  photoUrl: z.string().nullable().optional(),
   userId: z.string().min(1),
   name: z.string().nullable(),
   email: z.string(),

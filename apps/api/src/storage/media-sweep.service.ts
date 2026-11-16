@@ -164,6 +164,7 @@ export class MediaSweepService {
     };
 
     const [
+      members,
       products,
       trainers,
       locations,
@@ -174,6 +175,10 @@ export class MediaSweepService {
       blogPosts,
       blogAuthors,
     ] = await Promise.all([
+      this.prisma.client.gymMember.findMany({
+        where: { photoUrl: { not: null } },
+        select: { photoUrl: true },
+      }),
       this.prisma.client.product.findMany({ select: { images: true } }),
       this.prisma.client.trainer.findMany({
         where: { photoUrl: { not: null } },
@@ -211,6 +216,7 @@ export class MediaSweepService {
       }),
     ]);
 
+    for (const member of members) add(member.photoUrl);
     for (const product of products) for (const image of product.images) add(image);
     for (const trainer of trainers) add(trainer.photoUrl);
     for (const location of locations) add(location.photoUrl);

@@ -149,6 +149,7 @@ function memberDisplayFields(row: {
 
 const MEMBER_SELECT = (gymId: string) =>
   ({
+    photoUrl: true,
     id: true,
     status: true,
     joinedAt: true,
@@ -1216,6 +1217,7 @@ export class MembersService {
     const display = memberDisplayFields(row);
     return {
       id: row.id,
+      photoUrl: row.photoUrl ?? null,
       name: display.name ?? row.user.email,
       email: row.user.email,
       phone: display.phone,

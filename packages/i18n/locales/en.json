@@ -5704,6 +5704,15 @@
       "termsLink": "Terms and conditions"
     },
     "profile": {
+      "photo": {
+        "upload": "Upload photo",
+        "change": "Change photo",
+        "remove": "Remove photo",
+        "saving": "Saving…",
+        "invalidType": "Choose a JPEG, PNG or WebP image.",
+        "error": "The photo could not be saved. Try a smaller image or try again.",
+        "alt": "Profile photo of {name}"
+      },
       "mobile": {
         "title": "Profile",
         "notificationsA11y": "Notifications",

@@ -160,6 +160,8 @@ export type MemberBillingState = 'due' | 'paused' | 'overdue' | 'none';
  * local zone.
  */
 export interface MemberRow {
+  /** Photo on this gym membership only; absent on older API versions. */
+  photoUrl?: string | null;
   id: string;
   name: string;
   email: string;

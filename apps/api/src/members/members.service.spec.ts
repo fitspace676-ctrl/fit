@@ -17,6 +17,7 @@ import type { MailerService } from '../mail/mailer.service';
  * joins for the "formacore" plan / next-billing / last-visit cells.
  */
 interface MemberRecord {
+  photoUrl?: string | null;
   id: string;
   userId: string;
   status: GymMemberStatus;
@@ -1629,5 +1630,14 @@ describe('MembersService — home branch', () => {
     } as never);
 
     expect(findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('locationId');
+  });
+});
+
+describe('member photo projections', () => {
+  it('includes the gym membership photo in both roster and detail', async () => {
+    const photoUrl = 'https://images.example/gym-1/memberphotos/ana.jpg';
+    const { service } = setup({ findMany: [row({ photoUrl })], findFirst: row({ photoUrl }) });
+    expect((await service.listMembers(query())).data[0]?.photoUrl).toBe(photoUrl);
+    expect((await service.getMember('gm-1')).photoUrl).toBe(photoUrl);
   });
 });

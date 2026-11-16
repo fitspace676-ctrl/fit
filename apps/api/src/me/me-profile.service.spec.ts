@@ -11,6 +11,7 @@ function setup(
     userId?: string | null;
     user?: typeof ROW | null;
     gymId?: string | null;
+    photoUrl?: string | null;
     credential?: { name: string | null; phone: string | null } | null;
   } = {},
 ) {
@@ -20,8 +21,10 @@ function setup(
   const update = vi.fn<(args: unknown) => Promise<unknown>>().mockResolvedValue(ROW);
   const credentialFindUnique = vi.fn().mockResolvedValue(opts.credential ?? null);
   const credentialUpsert = vi.fn().mockResolvedValue({});
+  const memberFindFirst = vi.fn().mockResolvedValue({ photoUrl: opts.photoUrl ?? null });
   const prisma = {
     client: {
+      gymMember: { findFirst: memberFindFirst },
       user: { findUnique, update },
       gymCredential: { findUnique: credentialFindUnique, upsert: credentialUpsert },
     },
@@ -34,6 +37,7 @@ function setup(
     update,
     credentialFindUnique,
     credentialUpsert,
+    memberFindFirst,
   };
 }
 
@@ -45,6 +49,7 @@ describe('MeProfileService', () => {
   ])('reads gym values with User fallback (%j)', async (credential, name, phone) => {
     const { service, credentialFindUnique } = setup({ gymId: 'gym-1', credential });
     expect((await service.getMyProfile()).profile).toEqual({
+      photoUrl: null,
       userId: ROW.id,
       email: ROW.email,
       name,
@@ -86,6 +91,7 @@ describe('MeProfileService', () => {
       expect((findUnique.mock.calls[0]?.[0] as { where: unknown }).where).toEqual({ id: 'user-7' });
       expect(result).toEqual({
         profile: {
+          photoUrl: null,
           userId: 'user-7',
           name: 'Ana',
           email: 'ana@example.com',
@@ -130,12 +136,25 @@ describe('MeProfileService', () => {
       const { service } = setup();
       await expect(service.updateMyProfile({ name: 'Ana' })).resolves.toEqual({
         profile: {
+          photoUrl: null,
           userId: 'user-1',
           name: 'Ana',
           email: 'ana@example.com',
           phone: '+995500000000',
         },
       });
+    });
+  });
+});
+
+describe('gym-specific profile photo', () => {
+  it('reads the photo from only the caller membership in this gym', async () => {
+    const photoUrl = 'https://images.example/gym-1/memberphotos/ana.jpg';
+    const { service, memberFindFirst } = setup({ gymId: 'gym-1', photoUrl });
+    expect((await service.getMyProfile()).profile.photoUrl).toBe(photoUrl);
+    expect(memberFindFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', gymId: 'gym-1', deletedAt: null },
+      select: { photoUrl: true },
     });
   });
 });

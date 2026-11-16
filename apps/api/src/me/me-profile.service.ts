@@ -52,8 +52,15 @@ export class MeProfileService {
           select: { name: true, phone: true },
         })
       : null;
+    const member = gymId
+      ? await this.prisma.client.gymMember.findFirst({
+          where: { userId: id, gymId, deletedAt: null },
+          select: { photoUrl: true },
+        })
+      : null;
     return {
       profile: {
+        photoUrl: member?.photoUrl ?? null,
         userId: user.id,
         name: credential?.name ?? user.name,
         email: user.email,
@@ -86,6 +93,14 @@ export class MeProfileService {
       data,
       select: PROFILE_SELECT,
     });
-    return { profile: { userId: user.id, name: user.name, email: user.email, phone: user.phone } };
+    return {
+      profile: {
+        photoUrl: null,
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      },
+    };
   }
 }

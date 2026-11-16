@@ -142,6 +142,7 @@ const styles = stylex.create({
     alignItems: 'flex-start',
     gap: '1rem',
   },
+  photo: { objectFit: 'cover' },
   identityAvatar: {
     display: 'flex',
     height: '4rem',
@@ -500,7 +501,15 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       {/* Identity header card. */}
       <Card padding="none" xstyle={styles.identityCard}>
         <div {...stylex.props(styles.identityLeft)}>
-          <span {...stylex.props(styles.identityAvatar)}>{initialsOf(member.name)}</span>
+          {member.photoUrl ? (
+            <img
+              src={member.photoUrl}
+              alt=""
+              {...stylex.props(styles.identityAvatar, styles.photo)}
+            />
+          ) : (
+            <span {...stylex.props(styles.identityAvatar)}>{initialsOf(member.name)}</span>
+          )}
           <div {...stylex.props(styles.identityCol)}>
             <div {...stylex.props(styles.titleRow)}>
               <h1 {...stylex.props(styles.name)}>{member.name}</h1>

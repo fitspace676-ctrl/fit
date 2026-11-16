@@ -35,6 +35,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
 
   return (
     <ProfileScreen
+      photoUrl={profile?.photoUrl ?? null}
       name={profile?.name ?? t('namePlaceholder')}
       email={profile?.email ?? t('emailPlaceholder')}
       phone={profile?.phone ?? ''}
