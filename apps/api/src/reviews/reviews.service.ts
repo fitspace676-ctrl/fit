@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { BookingStatus, Prisma, ReviewStatus } from '@fit/db';
 import type {
   AdminReview,
@@ -390,7 +391,7 @@ export class ReviewsService {
  * (a member with no display name is still identifiable); the class title is
  * `null` when the occurrence has since been deleted (the FK is `SetNull`). */
 function toAdminReview(row: AdminReviewRecord): AdminReview {
-  const email = row.member.user.email;
+  const email = contactEmail(row.member.user.email);
   return {
     id: row.id,
     rating: row.rating,

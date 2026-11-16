@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import {
   BookingStatus,
   InstanceStatus,
@@ -3106,7 +3107,7 @@ export class ReportsService {
           group: (s.values.retentionGroups[group] ?? group).replace('{days}', String(AT_RISK_DAYS)),
           member: name,
           phone: member.user.phone ?? '',
-          email: member.user.email,
+          email: contactEmail(member.user.email),
           plan: view.current?.plan?.name ?? s.values.noPlan,
           status: s.values.membershipStatuses[view.status] ?? view.status,
           lastVisit: last ? isoDate(last, win.zone) : null,
@@ -3166,7 +3167,7 @@ export class ReportsService {
       expiresOn: isoDate(sub.currentPeriodEnd, win.zone),
       daysLeft: Math.max(0, Math.ceil((sub.currentPeriodEnd.getTime() - now.getTime()) / DAY_MS)),
       phone: sub.member?.user.phone ?? '',
-      email: sub.member?.user.email ?? '',
+      email: contactEmail(sub.member?.user.email ?? ''),
     }));
   }
 
@@ -3201,7 +3202,7 @@ export class ReportsService {
       return {
         member: memberName(member, s.values.unknownMember),
         phone: member.user.phone ?? '',
-        email: member.user.email,
+        email: contactEmail(member.user.email),
         status: s.values.membershipStatuses[view.status] ?? view.status,
         plan: view.current?.plan?.name ?? s.values.noPlan,
         joined: isoDate(member.joinedAt, win.zone),

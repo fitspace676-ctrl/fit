@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { BookingStatus, OrderStatus, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import {
   AUDIENCE_PREVIEW_SAMPLE_SIZE,
@@ -967,8 +968,8 @@ function toMemberSample(member: {
 }): AudienceMemberSample {
   return {
     id: member.id,
-    name: member.user.name ?? member.user.email,
-    email: member.user.email,
+    name: member.user.name ?? contactEmail(member.user.email),
+    email: contactEmail(member.user.email),
   };
 }
 

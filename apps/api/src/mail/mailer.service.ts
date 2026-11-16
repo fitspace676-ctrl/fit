@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isPlaceholderEmail } from '../common/directory-identity';
 import { env } from '../config/env';
 
 /** Resend's transactional-email endpoint. */
@@ -74,6 +75,11 @@ export class MailerService {
    * a non-2xx response.
    */
   async send(message: MailMessage): Promise<MailSendResult> {
+    // A login-less person's synthetic address is not a mailbox: never hand it to Resend.
+    if (isPlaceholderEmail(message.to)) {
+      this.logger.debug(`Not sending "${message.subject}" — recipient has no real email address`);
+      return { sent: false, id: null };
+    }
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — not sending "${message.subject}" to ${message.to}`,

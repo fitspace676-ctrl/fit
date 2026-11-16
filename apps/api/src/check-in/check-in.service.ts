@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { AutomationTriggerType, CheckInMethod, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import type {
   ActivityEvent,
@@ -313,8 +314,8 @@ export class CheckInService {
   private async buildEligibility(member: MemberIdentity): Promise<MemberEligibility> {
     const base = {
       gymMemberId: member.id,
-      name: member.user.name ?? member.user.email,
-      email: member.user.email,
+      name: member.user.name ?? contactEmail(member.user.email),
+      email: contactEmail(member.user.email),
     };
 
     if (member.status !== 'ACTIVE') {

@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { InvoiceStatus, Prisma } from '@fit/db';
 import type {
   AdminInvoiceRow,
@@ -52,7 +53,7 @@ function toRow(row: InvoiceRecord): AdminInvoiceRow {
     number: row.number,
     memberId: row.memberId,
     memberName: row.member?.user.name ?? null,
-    memberEmail: row.member?.user.email ?? null,
+    memberEmail: row.member ? contactEmail(row.member.user.email) || null : null,
     type: row.type,
     description: row.description,
     amount: row.amount,

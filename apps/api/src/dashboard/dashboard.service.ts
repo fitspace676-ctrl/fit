@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import {
   BookingStatus,
   GymMemberStatus,
@@ -957,8 +958,8 @@ export class DashboardService {
 
     return rows.map((m) => ({
       id: m.id,
-      name: m.user.name ?? m.user.email,
-      email: m.user.email,
+      name: m.user.name ?? contactEmail(m.user.email),
+      email: contactEmail(m.user.email),
       planName: m.subscriptions[0]?.plan?.name ?? null,
       status: m.status,
       joinedAt: m.joinedAt.toISOString(),

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { gymPublicBrand, gymPublicContact } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { toObjectKey } from '../storage/media-key';
@@ -97,7 +98,7 @@ export class InvoiceDocumentService {
       gymContact: gymPublicContact(invoice.gym.settings),
       logo: await this.loadLogo(invoice.gym.settings),
       memberName: invoice.member?.user.name ?? null,
-      memberEmail: invoice.member?.user.email ?? null,
+      memberEmail: invoice.member ? contactEmail(invoice.member.user.email) || null : null,
     });
 
     // Best-effort persist so the document lives in object storage and the next

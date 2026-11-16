@@ -36,6 +36,14 @@ describe('MailerService', () => {
     vi.restoreAllMocks();
   });
 
+  it('never sends to a login-less placeholder address, even when configured', async () => {
+    configure({ RESEND_API_KEY: 're_test' });
+    const mailer = new MailerService();
+    const result = await mailer.send({ ...MESSAGE, to: 'staff-1@no-login.fit.local' });
+    expect(result).toEqual({ sent: false, id: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('is unconfigured and no-ops (resolving { sent: false }) without a RESEND_API_KEY', async () => {
     const mailer = new MailerService();
     expect(mailer.isConfigured).toBe(false);

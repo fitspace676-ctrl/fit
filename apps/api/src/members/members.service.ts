@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { randomUUID } from 'node:crypto';
 import {
   AutomationTriggerType,
@@ -1168,8 +1169,8 @@ export class MembersService {
     const display = memberDisplayFields(row);
     return {
       id: row.id,
-      name: display.name ?? row.user.email,
-      email: row.user.email,
+      name: display.name ?? contactEmail(row.user.email),
+      email: contactEmail(row.user.email),
       phone: display.phone,
       status: row.status,
       kind: resolveMemberKind({
