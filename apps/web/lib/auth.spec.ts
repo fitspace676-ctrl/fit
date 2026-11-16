@@ -231,3 +231,13 @@ describe('a sign-in the API needs a gym for', () => {
     expect((error as SignInError).gyms).toEqual([]);
   });
 });
+
+describe('portal session persistence', () => {
+  it('rejects a staff pair refused by the portal instead of navigating to admin', async () => {
+    fetchMock.mockResolvedValueOnce(reply({ accessToken: 'staff', refreshToken: 'staff-rt' }));
+    fetchMock.mockResolvedValueOnce(reply({ code: 'NOT_A_MEMBER' }, 401));
+    await expect(loginWithCredentials('same@example.com', 'staff-password')).rejects.toMatchObject({
+      code: 'NOT_A_MEMBER',
+    });
+  });
+});

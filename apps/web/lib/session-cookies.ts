@@ -1,27 +1,15 @@
 // @fit/web — the session cookies' attributes, in one place (edge-safe).
 //
-// Written by `app/api/session` (sign-in / sign-out) and by the middleware
-// (silent refresh, wrong-gym purge), which used to restate the options each.
-//
-// HOST-ONLY. These cookies used to be set on the parent domain
-// (`COOKIE_DOMAIN=.formacore.io`) so one sign-in covered every gym's subdomain.
-// That is exactly what made a session from one gym walk into another: sign in on
-// `riverside.formacore.io`, open `downtown.formacore.io`, and the browser sent
-// riverside's token there too. Nothing needs the sharing — the staff console is
-// served on the same host under `/admin`, the platform signup issues no session,
-// and the operator console keeps its own cookies — so each host now holds its
-// own session.
-//
-// `COOKIE_DOMAIN` / `NEXT_PUBLIC_COOKIE_DOMAIN` survive only to CLEAR: while set,
-// every clear (and every fresh write) also expires the old parent-domain cookie,
-// so sessions browsers still hold from before this change are removed rather
-// than lingering beside the new host-only ones.
+// Host-only, surface-specific cookies: admin and member sessions coexist on
+// the same tenant host. Old shared accessToken/refreshToken cookies are never
+// read or cleared here: neither surface may overwrite the other's session.
+// Domain cleanup is restricted to this surface's names as well.
 
 import type { NextResponse } from 'next/server';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 
 /** Cookie holding the rotating refresh token (httpOnly; never exposed to JS). */
-export const REFRESH_TOKEN_COOKIE = 'refreshToken';
+export const REFRESH_TOKEN_COOKIE = 'memberRefreshToken';
 
 /** Both session cookies, for the paths that write or clear them together. */
 export const SESSION_COOKIES = [ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE] as const;

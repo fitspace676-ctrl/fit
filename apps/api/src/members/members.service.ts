@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Inject,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -65,7 +67,11 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import { GymMemberIntakeService } from '../gyms/gym-member-intake.service';
 import { findDefaultLocationId } from '../locations/default-location';
 import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
-import { MailerService } from '../mail/mailer.service';
+import { env } from '../config/env';
+import { RedisService } from '../redis/redis.service';
+import { buildPasswordResetUrl } from '../auth/email.service';
+import { buildMemberWelcomeEmail } from '../mail/member-welcome';
+import { emailFrom, MailerService } from '../mail/mailer.service';
 import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { emailStrings } from '../mail/email-strings';
@@ -269,6 +275,9 @@ function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
 
 @Injectable()
 export class MembersService {
+  private readonly logger = new Logger(MembersService.name);
+  @Inject(RedisService) private readonly redis!: RedisService;
+
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
@@ -447,8 +456,41 @@ export class MembersService {
         });
       }
 
-      return member;
+      return { ...member, userId };
     });
+
+    // Account creation is durable even when the welcome message fails.
+    try {
+      const gym = await this.prisma.client.gym.findUnique({
+        where: { id: this.tenant.gymId },
+        select: { name: true, slug: true, settings: true },
+      });
+      const locale = resolveEmailLocale(
+        gymSettingsStoredSchema.parse(gym?.settings ?? {}).locale.language,
+      );
+      const token = randomUUID();
+      // Same tenant-bound, single-use subject consumed by AuthService.resetPassword.
+      await this.redis.client.set(
+        `password-reset:${token}`,
+        JSON.stringify({ userId: created.userId, gymId: this.tenant.gymId }),
+        'EX',
+        env.PASSWORD_RESET_TTL,
+      );
+      const gymName = gym?.name ?? 'FormaCore';
+      const result = await this.mailer.send({
+        to: email,
+        from: emailFrom(gymName),
+        ...buildMemberWelcomeEmail(buildPasswordResetUrl(token, gym?.slug), gymName, locale),
+      });
+      if (!result.sent)
+        this.logger.warn(
+          `Welcome email to ${email} was not sent: email delivery is not configured`,
+        );
+    } catch (error) {
+      this.logger.error(
+        `Welcome email to ${email} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     // Fire the `member_joined` automation trigger (T12.5) — best-effort and
     // out-of-band: automation must never block or fail member creation, so the
@@ -824,7 +866,13 @@ export class MembersService {
       footerNote: escapeHtml(emailStrings(locale).shell.sentBy(gymName)),
     });
 
-    const { sent } = await this.mailer.send({ to: member.user.email, subject, html, text: body });
+    const { sent } = await this.mailer.send({
+      to: member.user.email,
+      from: emailFrom(gymName),
+      subject,
+      html,
+      text: body,
+    });
     if (!sent) {
       throw new ServiceUnavailableException({
         message: 'The email could not be sent. Please try again.',

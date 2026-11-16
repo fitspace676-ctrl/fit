@@ -727,7 +727,7 @@ describe('CartService member shop discount', () => {
         expect.objectContaining({ amount: 2700, scope: 'products', memberId: 'member-1' }),
       );
       const data = (
-        mocks.orderCreate.mock.calls[0]![0] as {
+        mocks.orderCreate.mock.calls[0]![0] as unknown as {
           data: {
             total: number;
             memberDiscountPercent: number;

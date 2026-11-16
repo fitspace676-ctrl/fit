@@ -8,7 +8,7 @@ const { refreshTokens, verifyAccessToken } = vi.hoisted(() => ({
 }));
 
 vi.mock('next/headers', () => ({
-  cookies: () => Promise.resolve(new Map([['refreshToken', { value: 'rt-old' }]])),
+  cookies: () => Promise.resolve(new Map([['adminRefreshToken', { value: 'rt-old' }]])),
   headers: () =>
     Promise.resolve(
       new Headers({ host: 'fit-admin.vercel.app', 'x-forwarded-host': 'downtown.formacore.io' }),
@@ -44,9 +44,9 @@ describe('GET /api/session — renewing in place', () => {
     expect(refreshTokens).toHaveBeenCalledWith('rt-old', 'downtown.formacore.io');
     const cookies = res.headers.getSetCookie();
     // The renewed pair is host-only …
-    expect(cookies.some((c) => c.startsWith('refreshToken=rt-new') && !/Domain=/i.test(c))).toBe(
-      true,
-    );
+    expect(
+      cookies.some((c) => c.startsWith('adminRefreshToken=rt-new') && !/Domain=/i.test(c)),
+    ).toBe(true);
     // … and the parent-domain copies are expired after it, not dropped by it.
     expect(cookies.filter((c) => /Domain=\.formacore\.io/.test(c))).toHaveLength(2);
     expect(await res.json()).toMatchObject({ user: { gymSlug: 'downtown' }, recoverable: false });

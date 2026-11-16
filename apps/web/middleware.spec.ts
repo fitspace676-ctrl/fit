@@ -49,35 +49,37 @@ afterEach(() => {
 describe('web middleware — wrong-gym sessions', () => {
   it('lets a session through on its own gym’s host', async () => {
     const token = await accessToken({ sub: 'u1', role: 'MEMBER', gymSlug: 'downtown' });
-    const res = await middleware(request('/ka/member/home', `accessToken=${token}`));
+    const res = await middleware(request('/ka/member/home', `memberAccessToken=${token}`));
     expect(res.headers.get('location')).toBeNull();
-    expect(res.headers.getSetCookie().some((c) => c.startsWith('accessToken='))).toBe(false);
+    expect(res.headers.getSetCookie().some((c) => c.startsWith('memberAccessToken='))).toBe(false);
   });
 
   it('sends another gym’s session to this host’s sign-in, clearing it', async () => {
     const token = await accessToken({ sub: 'u1', role: 'MEMBER', gymSlug: 'riverside' });
     const res = await middleware(
-      request('/ka/member/home', `accessToken=${token}; refreshToken=rt`),
+      request('/ka/member/home', `memberAccessToken=${token}; memberRefreshToken=rt`),
     );
     const location = new URL(res.headers.get('location') ?? '');
     expect(location.pathname).toBe('/ka/member/login');
     const cookies = res.headers.getSetCookie();
-    expect(cookies.filter((c) => /^accessToken=;/.test(c))).toHaveLength(2);
-    expect(cookies.filter((c) => /^refreshToken=;/.test(c))).toHaveLength(2);
+    expect(cookies.filter((c) => /^memberAccessToken=;/.test(c))).toHaveLength(2);
+    expect(cookies.filter((c) => /^memberRefreshToken=;/.test(c))).toHaveLength(2);
     expect(cookies.some((c) => /Domain=\.formacore\.io/.test(c))).toBe(true);
   });
 
   it('clears it on the sign-in page without redirecting (no loop)', async () => {
     const token = await accessToken({ sub: 'u1', role: 'MEMBER', gymSlug: 'riverside' });
-    const res = await middleware(request('/ka/member/login', `accessToken=${token}`));
+    const res = await middleware(request('/ka/member/login', `memberAccessToken=${token}`));
     expect(res.headers.get('location')).toBeNull();
-    expect(res.headers.getSetCookie().filter((c) => /^accessToken=;/.test(c))).toHaveLength(2);
+    expect(res.headers.getSetCookie().filter((c) => /^memberAccessToken=;/.test(c))).toHaveLength(
+      2,
+    );
   });
 
   it('compares nothing on a host that names no gym', async () => {
     const token = await accessToken({ sub: 'u1', role: 'MEMBER', gymSlug: 'riverside' });
     const res = await middleware(
-      request('/ka/member/home', `accessToken=${token}`, {
+      request('/ka/member/home', `memberAccessToken=${token}`, {
         'x-forwarded-host': 'app.formacore.io',
       }),
     );
@@ -86,7 +88,7 @@ describe('web middleware — wrong-gym sessions', () => {
 
   it('compares nothing for a token without the claim', async () => {
     const token = await accessToken({ sub: 'u1', role: 'MEMBER', gymId: 'g-riverside' });
-    const res = await middleware(request('/ka/member/home', `accessToken=${token}`));
+    const res = await middleware(request('/ka/member/home', `memberAccessToken=${token}`));
     expect(res.headers.get('location')).toBeNull();
   });
 
@@ -98,12 +100,54 @@ describe('web middleware — wrong-gym sessions', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await middleware(
-      request('/ka/member/home', 'refreshToken=rt', { 'sec-fetch-dest': 'document' }),
+      request('/ka/member/home', 'memberRefreshToken=rt', { 'sec-fetch-dest': 'document' }),
     );
 
     const init = fetchMock.mock.calls[0]?.[1];
     expect(new Headers(init?.headers).get('x-tenant-host')).toBe('downtown.formacore.io');
     expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/ka/member/login');
-    expect(res.headers.getSetCookie().some((c) => c.startsWith('refreshToken=rt2'))).toBe(false);
+    expect(res.headers.getSetCookie().some((c) => c.startsWith('memberRefreshToken=rt2'))).toBe(
+      false,
+    );
+  });
+});
+
+describe('web session isolation', () => {
+  it('uses its own identity when both surface sessions coexist', async () => {
+    const own = await accessToken({ sub: 'own-user', role: 'MEMBER', gymSlug: 'downtown' });
+    const other = await accessToken({ sub: 'other-user', role: 'OWNER', gymSlug: 'downtown' });
+    const res = await middleware(
+      request('/ka/member/home', `adminAccessToken=${other}; memberAccessToken=${own}`),
+    );
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('ignores the other surface and the legacy shared jar without spending their refresh tokens', async () => {
+    const token = await accessToken({ sub: 'same-email-user', role: 'OWNER', gymSlug: 'downtown' });
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await middleware(
+      request(
+        '/ka/member/home',
+        `adminAccessToken=${token}; adminRefreshToken=other-rt; accessToken=${token}; refreshToken=legacy-rt`,
+        { 'sec-fetch-dest': 'document' },
+      ),
+    );
+    expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/ka/member/login');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  it('rejects the wrong role even when copied into this surface cookie', async () => {
+    const token = await accessToken({ sub: 'same-email-user', role: 'OWNER', gymSlug: 'downtown' });
+    const res = await middleware(request('/ka/member/home', `memberAccessToken=${token}`));
+    expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/ka/member/login');
+  });
+
+  it('renders login with legacy cookies without a redirect loop', async () => {
+    const res = await middleware(
+      request('/ka/member/login', 'accessToken=legacy; refreshToken=legacy-rt'),
+    );
+    expect(res.headers.get('location')).toBeNull();
   });
 });

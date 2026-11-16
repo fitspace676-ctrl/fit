@@ -14,7 +14,9 @@
 // fallback for a token that happens to omit the `role` claim.
 
 /** The cookie the access token is persisted under (readable by middleware). */
-export const ACCESS_TOKEN_COOKIE = 'accessToken';
+// Surface-specific: the portal and console share one host and cookie jar.
+// Legacy shared cookies are deliberately ignored, requiring a clean sign-in.
+export const ACCESS_TOKEN_COOKIE = 'memberAccessToken';
 
 /** The roles the platform recognises, mirroring the Prisma `Role` enum. */
 export const ROLES = [
@@ -173,5 +175,6 @@ export async function verifyAccessToken(token: string, secret: string): Promise<
   }
 
   const claims = parseClaims(encodedPayload);
-  return claims ? sessionFromClaims(claims) : null;
+  if (!claims || claims.role !== 'MEMBER') return null;
+  return sessionFromClaims(claims);
 }

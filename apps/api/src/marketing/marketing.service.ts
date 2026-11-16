@@ -1,6 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { BookingStatus, OrderStatus, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import {
+  gymSettingsStoredSchema,
+  interpolateMergeFields,
   AUDIENCE_PREVIEW_SAMPLE_SIZE,
   MARKETING_CHANNEL_CATALOG,
   MARKETING_MERGE_FIELD_DEFS,
@@ -42,6 +52,10 @@ import {
   type UpdatePromoCodeInput,
   type ValidatePromoCodeInput,
 } from '@fit/types';
+import { emailFrom, MailerService } from '../mail/mailer.service';
+import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
+import { resolveEmailLocale } from '../mail/email-locale';
+import { buildMemberMergeValues } from '../members/member-merge-values';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { availableAtLocation } from '../common/location-filter.util';
@@ -94,6 +108,8 @@ const PROMO_BRANCH_INCLUDE = { location: { select: { name: true } } } as const;
 
 @Injectable()
 export class MarketingService {
+  private readonly logger = new Logger(MarketingService.name);
+  @Inject(MailerService) private readonly mailer!: MailerService;
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
@@ -533,31 +549,143 @@ export class MarketingService {
     await this.prisma.client.campaign.delete({ where: { id } });
   }
 
-  /**
-   * Send a campaign now (stubbed delivery): resolve its audience, snapshot the
-   * match count into `audienceSize`, mark it `sent` with `sentCount` = the count
-   * and `sentAt` = now. An already-sent campaign is a `409`.
-   */
+  /** Send to the resolved audience and count provider-accepted messages only. */
   async sendCampaign(id: string): Promise<GetCampaignResponse> {
     const existing = await this.requireCampaign(id);
-    if (existing.status === 'sent') {
+    if (existing.status === 'sent' || existing.status === 'active') {
       throw new ConflictException({
-        message: 'Campaign has already been sent',
+        message: 'Campaign has already been sent or is sending',
         code: 'CAMPAIGN_ALREADY_SENT',
       });
     }
-    const audienceSize = await this.resolveCampaignAudienceSize(existing);
+    if (existing.channel !== 'email') {
+      throw new BadRequestException({
+        message: 'This channel does not support campaign delivery yet',
+        code: 'CAMPAIGN_CHANNEL_UNSUPPORTED',
+      });
+    }
+    if (!this.mailer.isConfigured) {
+      throw new ServiceUnavailableException({
+        message: 'Email delivery is not configured',
+        code: 'EMAIL_NOT_CONFIGURED',
+      });
+    }
+    const where = await this.buildMemberWhere(await this.campaignCriteria(existing));
+    const members = await this.prisma.client.gymMember.findMany({
+      where: { AND: [where, { deletedAt: null }] },
+      include: {
+        user: true,
+        location: true,
+        checkIns: { orderBy: { checkedInAt: 'desc' }, take: 1 },
+        subscriptions: {
+          where: {
+            status: {
+              in: [
+                SubscriptionStatus.ACTIVE,
+                SubscriptionStatus.TRIAL,
+                SubscriptionStatus.PAST_DUE,
+                SubscriptionStatus.FROZEN,
+              ],
+            },
+          },
+          orderBy: { currentPeriodEnd: 'desc' },
+          take: 1,
+          include: { plan: true },
+        },
+        _count: { select: { checkIns: true } },
+      },
+    });
+    if (!members.length) {
+      throw new BadRequestException({
+        message: 'No recipients match this campaign',
+        code: 'CAMPAIGN_NO_RECIPIENTS',
+      });
+    }
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { id: this.tenant.gymId },
+      select: { name: true, settings: true },
+    });
+    const settings = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    const gymName = gym?.name ?? 'FormaCore';
+    const locale = resolveEmailLocale(settings.locale.language);
+    // An atomic claim prevents two clicks from mailing the same campaign twice.
+    // A process crash leaves it active for operator review, never auto-resending.
+    const claim = await this.prisma.client.campaign.updateMany({
+      where: { id, status: existing.status, updatedAt: existing.updatedAt },
+      data: { status: 'active', audienceSize: members.length, sentCount: 0 },
+    });
+    if (!claim.count)
+      throw new ConflictException({
+        message: 'Campaign changed; refresh before sending',
+        code: 'CAMPAIGN_ALREADY_SENT',
+      });
+    let sentCount = 0;
+    let failedCount = 0;
+    for (const member of members) {
+      try {
+        const points = await this.prisma.client.loyaltyLedgerEntry.findFirst({
+          where: { gymId: this.tenant.gymId, memberId: member.id },
+          orderBy: { createdAt: 'desc' },
+          select: { balanceAfter: true },
+        });
+        const values = buildMemberMergeValues({
+          member,
+          gymName,
+          language: settings.locale.language,
+          business: {
+            phone: settings.business.phone ?? '',
+            email: settings.business.email ?? '',
+            address: settings.business.address ?? '',
+            website: settings.business.website ?? '',
+          },
+          pointsBalance: points?.balanceAfter ?? 0,
+          today: new Date(),
+        });
+        const subject = interpolateMergeFields(existing.subject ?? existing.name, values);
+        const body = interpolateMergeFields(existing.body, values);
+        const result = await this.mailer.send({
+          to: member.user.email,
+          from: emailFrom(gymName),
+          subject,
+          text: body,
+          html: renderBrandedEmail({
+            locale,
+            senderName: escapeHtml(gymName),
+            heading: escapeHtml(subject),
+            contentHtml: renderEmailParagraphs(body),
+          }),
+        });
+        if (result.sent) sentCount += 1;
+        else failedCount += 1;
+      } catch (error) {
+        this.logger.error(
+          `Campaign ${id} email to ${member.user.email} failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        // The transport logs recipient + provider reason; retain accurate totals.
+        failedCount += 1;
+      }
+    }
     const updated = await this.prisma.client.campaign.update({
       where: { id },
       data: {
-        status: 'sent',
+        // A partly delivered campaign cannot be blindly retried: that would
+        // duplicate mail for recipients already accepted by the provider.
+        status: sentCount > 0 ? 'sent' : existing.status,
         scheduleType: 'now',
-        audienceSize,
-        sentCount: audienceSize,
-        sentAt: new Date(),
+        audienceSize: members.length,
+        sentCount,
+        sentAt: sentCount > 0 ? new Date() : null,
       },
       select: CAMPAIGN_SELECT,
     });
+    if (failedCount) {
+      throw new ServiceUnavailableException({
+        message: `Campaign delivery incomplete: ${sentCount} accepted, ${failedCount} failed`,
+        code: 'EMAIL_SEND_FAILED',
+        sentCount,
+        failedCount,
+      });
+    }
     return this.toCampaignRow(updated);
   }
 

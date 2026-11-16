@@ -308,12 +308,15 @@ export async function resetPassword(
  */
 export async function storeTokens(tokens: TokenPair): Promise<void> {
   if (typeof window === 'undefined') return;
-  await fetch(SESSION_ENDPOINT, {
+  const response = await fetch(SESSION_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(tokens),
     credentials: 'same-origin',
   });
+  if (!response.ok) {
+    throw await signInError(response, 'Sign-in failed');
+  }
 }
 
 /**

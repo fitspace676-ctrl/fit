@@ -2192,6 +2192,7 @@
         "lastOwner": "You can’t change or remove the gym’s only owner. Add another owner first.",
         "staffNotFound": "That staff member no longer exists.",
         "inviteNotFound": "That invitation no longer exists.",
+        "emailSendFailed": "The invitation email could not be sent. Please try again or contact support.",
         "requestFailed": "Request failed ({status}): {message}",
         "invalidDetails": "Invalid invitation details",
         "invalidRole": "Invalid role",
