@@ -65,7 +65,13 @@ describe('AgentChatController', () => {
 
     await ctx.controller.chat(
       'Bearer tok',
-      { messages: [{ role: 'user', content: 'hi' }], locationId: 'loc-a', locale: 'ka', approvals },
+      {
+        currentSessionId: 'current-session',
+        messages: [{ role: 'user', content: 'hi' }],
+        locationId: 'loc-a',
+        locale: 'ka',
+        approvals,
+      },
       ctx.res,
     );
 
@@ -75,7 +81,7 @@ describe('AgentChatController', () => {
       'tok',
       expect.objectContaining({ modelId: 'claude-x' }),
       expect.any(Function),
-      expect.objectContaining({ context: CONTEXT, approvals }),
+      expect.objectContaining({ context: CONTEXT, approvals, currentSessionId: 'current-session' }),
     );
   });
 

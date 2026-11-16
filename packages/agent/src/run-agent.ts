@@ -63,6 +63,7 @@ interface ChatTurn {
 
 /** Everything beyond the conversation itself; all optional. */
 export interface RunAgentOptions {
+  currentSessionId?: string;
   /** Gym, branches, operator and date — shapes the system prompt. */
   context?: AgentContext;
   /** The operator's decisions on the writes the previous turn paused on. */
@@ -192,7 +193,7 @@ export async function runAgent(
   options: RunAgentOptions = {},
 ): Promise<void> {
   // Link an MCP client to the in-process Fit server over an in-memory transport.
-  const server = createFitMcpServer(token);
+  const server = createFitMcpServer(token, { currentSessionId: options.currentSessionId });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'fit-admin-agent', version: '0.1.0' });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);

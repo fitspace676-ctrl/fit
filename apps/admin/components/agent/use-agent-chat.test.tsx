@@ -37,7 +37,7 @@ describe('useAgentChat', () => {
         ),
       );
     vi.stubGlobal('fetch', fetchMock);
-    const { result } = renderHook(() => useAgentChat());
+    const { result } = renderHook(() => useAgentChat(() => 'current-session'));
     act(() => result.current.send('Change'));
     await waitFor(() => expect(result.current.isStreaming).toBe(false));
     const first = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string) as Record<
@@ -45,6 +45,7 @@ describe('useAgentChat', () => {
       unknown
     >;
     expect(first).toMatchObject({
+      currentSessionId: 'current-session',
       locale: 'ka',
       locationId: 'branch-1',
       messages: [{ role: 'user', content: 'Change' }],
@@ -61,6 +62,7 @@ describe('useAgentChat', () => {
       unknown
     >;
     // The reply so far comes back as the assistant turn the calls belong to.
+    expect(second.currentSessionId).toBe('current-session');
     expect(second.messages).toEqual([
       ...(first.messages as unknown[]),
       { role: 'assistant', content: 'Before tools. ' },

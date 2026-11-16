@@ -23,6 +23,7 @@ interface Turn {
   body: {
     messages: { role: 'user' | 'assistant'; content: string }[];
     model?: string;
+    currentSessionId?: string;
     attachments?: ChatAttachment[];
     locale: 'ka' | 'en';
     locationId?: string;
@@ -30,7 +31,7 @@ interface Turn {
   };
 }
 
-export function useAgentChat() {
+export function useAgentChat(getSessionId?: () => string) {
   const locale = useLocale();
   const t = useTranslations('admin.agent');
   const { locationId } = useActiveLocation();
@@ -154,6 +155,7 @@ export function useAgentChat() {
         base,
         body: {
           messages: base,
+          currentSessionId: getSessionId?.(),
           model,
           attachments,
           locationId,
@@ -161,7 +163,7 @@ export function useAgentChat() {
         },
       });
     },
-    [messages, pendingApprovals.length, run, locationId, locale],
+    [messages, pendingApprovals.length, run, locationId, locale, getSessionId],
   );
 
   const decide = useCallback(
