@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { postLoginPath, resetPassword } from '@/lib/auth';
 import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
@@ -34,8 +35,20 @@ export function ResetPasswordForm() {
 
   // A malformed or expired link (no token) can never succeed — surface the
   // recoverable message instead of an unusable form.
+  // Where a dead link sends the person: the form that mails a fresh one.
+  const requestNew = (
+    <Link href={`/${locale}/member/forgot-password`} style={{ fontWeight: 600 }}>
+      {t('reset.requestNew')}
+    </Link>
+  );
+
   if (!token) {
-    return <Banner tone="error">{t('reset.missingToken')}</Banner>;
+    return (
+      <>
+        <Banner tone="error">{t('reset.missingToken')}</Banner>
+        {requestNew}
+      </>
+    );
   }
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -59,7 +72,12 @@ export function ResetPasswordForm() {
 
   return (
     <Form onSubmit={onSubmit}>
-      {error ? <Banner tone="error">{error}</Banner> : null}
+      {error ? (
+        <>
+          <Banner tone="error">{error}</Banner>
+          {requestNew}
+        </>
+      ) : null}
 
       <Field
         label={t('fields.password')}

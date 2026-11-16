@@ -4990,6 +4990,7 @@
       "submit": "Update password",
       "submitting": "Updating…",
       "missingToken": "This reset link is invalid or has expired. Request a new one.",
+      "requestNew": "Request a new link",
       "backToLogin": "Back to sign in",
       "done": "Your password has been updated. Sign in with your new password."
     },
