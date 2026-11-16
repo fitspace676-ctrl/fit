@@ -10,6 +10,7 @@ import {
   type ListMembersQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveGymBrand } from '@/lib/active-gym';
 import { memberIntakeConfig } from '@/lib/member-intake';
 import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchGymSettings, fetchMembers } from '@/lib/api';
@@ -119,6 +120,7 @@ export default async function MembersPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const gymBrand = getActiveGymBrand();
   const t = await getTranslations('admin.members');
   const raw = await searchParams;
   // The same schema the API validates with — coerces page/limit, applies defaults,
@@ -203,7 +205,7 @@ export default async function MembersPage({
         separator={<Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />}
       >
         <BreadcrumbItem as={Link} href="/">
-          Iron Gym
+          {(await gymBrand)?.name}
         </BreadcrumbItem>
         <BreadcrumbItem isCurrent>{t('breadcrumb.members')}</BreadcrumbItem>
       </Breadcrumbs>

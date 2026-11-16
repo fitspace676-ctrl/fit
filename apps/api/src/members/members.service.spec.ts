@@ -214,7 +214,16 @@ function setup(overrides?: {
   const client: Record<string, unknown> = {
     user: { findUnique: userFindUnique, create: userCreate, update: userUpdate },
     gymCredential: { upsert: credentialUpsert },
-    gym: { findFirst: gymFindFirst },
+    gym: {
+      findFirst: gymFindFirst,
+      findUnique: vi.fn(() =>
+        Promise.resolve({
+          name: 'ჩვენი დარბაზი',
+          slug: 'our-gym',
+          settings: { locale: { language: 'ka' } },
+        }),
+      ),
+    },
     location: { findFirst: locationFindFirst },
     gymMember: {
       findMany,
@@ -280,8 +289,12 @@ function setup(overrides?: {
     get: vi.fn(() => Promise.resolve({ ...allOff, ...overrides?.intake })),
   } as unknown as GymMemberIntakeService;
 
+  const service = new MembersService(prisma, tenant, automation, loyalty, mailer, intake);
+  const redisSet = vi.fn(() => Promise.resolve('OK'));
+  Object.assign(service, { redis: { client: { set: redisSet } } });
   return {
-    service: new MembersService(prisma, tenant, automation, loyalty, mailer, intake),
+    service,
+    redisSet,
     automationDispatch,
     loyaltyAward,
     mailerSend,
@@ -648,6 +661,34 @@ describe('MembersService', () => {
   });
 
   describe('createMember', () => {
+    it('sends a Georgian welcome with a tenant-bound password setup token', async () => {
+      const { service, mailerSend, redisSet } = setup({
+        userFindUnique: null,
+        userCreate: { id: 'u-new' },
+        findFirst: row(),
+      });
+      await service.createMember(createInput());
+      expect(redisSet).toHaveBeenCalledWith(
+        expect.stringMatching(/^password-reset:/),
+        JSON.stringify({ userId: 'u-new', gymId: 'gym-1' }),
+        'EX',
+        expect.any(Number),
+      );
+      expect(mailerSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: 'მოგესალმებათ ჩვენი დარბაზი',
+          from: expect.stringContaining('ჩვენი დარბაზი') as string,
+          text: expect.stringContaining('/member/reset-password?token=') as string,
+        }),
+      );
+    });
+
+    it('preserves the created member when welcome delivery fails', async () => {
+      const { service, mailerSend } = setup({ userFindUnique: null, findFirst: row() });
+      mailerSend.mockRejectedValueOnce(new Error('Provider unavailable'));
+      await expect(service.createMember(createInput())).resolves.toMatchObject({ id: 'gm-1' });
+    });
+
     it('mints a new user + MEMBER membership when the email is unknown', async () => {
       const { service, userFindUnique, userCreate, gymMemberCreate } = setup({
         userFindUnique: null,

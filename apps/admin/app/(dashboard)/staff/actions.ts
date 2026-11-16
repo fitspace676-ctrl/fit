@@ -51,6 +51,9 @@ async function sessionHas(permission: Permission): Promise<boolean> {
 /** Map a thrown API error to a short, translated, staff-facing message. */
 function toMessage(error: unknown, t: Translator): string {
   if (error instanceof ApiError) {
+    if (error.message === 'EMAIL_SEND_FAILED') {
+      return t('errors.emailSendFailed');
+    }
     if (error.message === 'ALREADY_STAFF') {
       return t('errors.alreadyStaff');
     }

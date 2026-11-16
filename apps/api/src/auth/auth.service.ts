@@ -43,7 +43,7 @@ import type {
   TokenPair,
 } from '@fit/types';
 import { env } from '../config/env';
-import { buildMemberUrl } from '../common/console-url';
+import { buildConsoleUrl, buildMemberUrl } from '../common/console-url';
 import { assertStartDateWithinPolicy } from '../gyms/start-date-policy.util';
 import { findDefaultLocationId } from '../locations/default-location';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1758,49 +1758,74 @@ export class AuthService {
     await this.tokens.revokeRefreshToken(input.refreshToken);
   }
 
-  /**
-   * Resolve a staff-invite token (T4.7) to the client URL the invitee should be
-   * sent to (`GET /auth/accept-invite`). A live invite routes to the web
-   * register flow for a brand-new address, or the login flow when the address
-   * already has an account — both carrying the token so completing the flow
-   * redeems it. An unknown / expired / already-used token routes to login with an
-   * `inviteError` flag so the client can show a clear "this invitation is no
-   * longer valid" message rather than an error page. The token is never spent
-   * here — only redirected — so following the link is always safe to retry.
-   *
-   * Every redirect lands on the inviting gym's own host, where the staff session
-   * the flow ends in belongs; only an unknown token, which names no gym, falls
-   * back to `WEB_URL`.
-   *
-   * "Has an account" means a credential **for the inviting gym** (T1.25): an
-   * address known only from another gym has no password here yet, so it is sent
-   * to register — where the password it types becomes this gym's — rather than
-   * to a sign-in it cannot complete.
-   */
+  /** Resolve without consuming: email scanners must never redeem invitations. */
   async acceptInvite(token: string): Promise<{ url: string }> {
     const invite = await this.prisma.client.staffInvite.findUnique({
       where: { token },
-      select: {
-        email: true,
-        usedAt: true,
-        expiresAt: true,
-        gymId: true,
-        gym: { select: { slug: true } },
-      },
+      select: { usedAt: true, expiresAt: true, gym: { select: { slug: true } } },
     });
+    const invalid = !invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now();
+    return {
+      url: buildInviteRedirectUrl(
+        'accept-invite',
+        invalid ? { inviteError: 'invalid' } : { token },
+        invite?.gym.slug,
+      ),
+    };
+  }
 
+  /** A gym credential without a password is still waiting for setup. */
+  async inspectStaffInvite(token: string, tenantSlug?: string | null) {
+    const invite = await this.prisma.client.staffInvite.findUnique({
+      where: { token },
+      include: { gym: { select: { slug: true, name: true } } },
+    });
     if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
-      return {
-        url: buildInviteRedirectUrl('member/login', { inviteError: 'invalid' }, invite?.gym.slug),
-      };
+      throw tokenInvalid('Activation');
     }
-
-    const existing = await this.prisma.client.gymCredential.findFirst({
+    if (tenantSlug && tenantSlug !== invite.gym.slug) {
+      throw new BadRequestException({ code: 'TENANT_MISMATCH', message: 'Wrong gym' });
+    }
+    const credential = await this.prisma.client.gymCredential.findFirst({
       where: { gymId: invite.gymId, user: { email: invite.email } },
+      select: { passwordHash: true },
+    });
+    return { invite, needsPassword: !credential?.passwordHash };
+  }
+
+  /** Inbox possession confirms an existing credential; setup never overwrites it. */
+  async completeStaffInvite(
+    input: { token: string; password?: string },
+    tenantSlug?: string | null,
+  ): Promise<TokenPair> {
+    const { invite, needsPassword } = await this.inspectStaffInvite(input.token, tenantSlug);
+    if (needsPassword && !input.password) {
+      throw new BadRequestException({ code: 'PASSWORD_REQUIRED', message: 'Choose a password' });
+    }
+    let user = await this.prisma.client.user.findUnique({
+      where: { email: invite.email },
       select: { id: true },
     });
-    const path = existing ? 'member/login' : 'member/register';
-    return { url: buildInviteRedirectUrl(path, { inviteToken: token }, invite.gym.slug) };
+    if (!user) {
+      user = await this.prisma.client.user.create({
+        data: { email: invite.email },
+        select: { id: true },
+      });
+    }
+    await this.assertGymAccessNotSuspended(user.id, invite.gym.slug);
+    const credential =
+      needsPassword && input.password
+        ? { passwordHash: await argon2.hash(input.password, { type: argon2.argon2id }) }
+        : undefined;
+    const redeemed = await this.redeemStaffInvite(user.id, invite.email, input.token, credential);
+    if (!redeemed) throw tokenInvalid('Activation');
+    return this.tokens.issueTokenPair(
+      user.id,
+      await this.resolveSessionScope(user.id, invite.gym.slug, {
+        pinned: true,
+        gymCredential: true,
+      }),
+    );
   }
 
   /**
@@ -1856,7 +1881,7 @@ export class AuthService {
       const redeemed = await this.prisma.client.$transaction(async (tx) => {
         // Single-use guard: the loser of a race sees zero rows updated and stops.
         const claimed = await tx.staffInvite.updateMany({
-          where: { id: invite.id, usedAt: null },
+          where: { id: invite.id, usedAt: null, expiresAt: { gt: new Date() } },
           data: { usedAt: new Date() },
         });
         if (claimed.count === 0) {
@@ -1960,21 +1985,15 @@ function resetTarget(
   return { gymId: null, gymSlug: null, gymName: null, name: null };
 }
 
-/**
- * Build a web-client deep link for the staff-invite accept flow (T4.7): the member
- * site's `path` with the given query params — e.g. `member/register?inviteToken=…`
- * — addressed by {@link buildMemberUrl}, so on the inviting gym's own host when
- * `gymSlug` is known and on `WEB_URL` (then the dev default) otherwise. The path
- * carries the member portal's `/member` base but no locale prefix; the web app's
- * i18n middleware adds the default locale on redirect, preserving the query string.
- */
+/** Staff invitations always land in the public console acceptance flow. */
 function buildInviteRedirectUrl(
   path: string,
   params: Record<string, string>,
   gymSlug?: string | null,
 ): string {
   const qs = new URLSearchParams(params).toString();
-  return `${buildMemberUrl(path, gymSlug)}?${qs}`;
+  const url = buildConsoleUrl(path, gymSlug) ?? buildMemberUrl(`admin/${path}`, gymSlug);
+  return `${url}?${qs}`;
 }
 
 /**

@@ -119,8 +119,10 @@ describe('the member slice', () => {
     //
     // 2026-11-15, the shop's variant picker: 1120 → 1121. The chips a member
     // picks a size or flavour from are labelled `shop.browse.chooseVariant`.
-    expect(enKeys).toHaveLength(1121);
-    expect(kaKeys).toHaveLength(1121);
+    // 2026-11-16, tester feedback: member shop discount strings, the app's
+    // notification/shop additions and the reset page's "request a new link": → 1143.
+    expect(enKeys).toHaveLength(1143);
+    expect(kaKeys).toHaveLength(1143);
   });
 });
 

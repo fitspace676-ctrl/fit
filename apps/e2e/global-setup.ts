@@ -16,7 +16,7 @@ const STORAGE_STATE = resolve(dirname(fileURLToPath(import.meta.url)), '.auth/st
 
 /**
  * The admin console has no sign-in page — the web app owns login and drops an
- * `accessToken` cookie the admin middleware reads. We reproduce that here: mint
+ * `adminAccessToken` cookie the admin middleware reads. We reproduce that here: mint
  * a real gym-scoped OWNER token via the API's `POST /auth/login`, then write a
  * Playwright storage state carrying that cookie (plus `NEXT_LOCALE=en` so the
  * UI renders the English strings the tests assert on). Cookies are host-only on
@@ -53,7 +53,7 @@ async function globalSetup(_config: FullConfig): Promise<void> {
 
   const storageState = {
     cookies: [
-      { name: 'accessToken', value: accessToken, httpOnly: true, ...cookieBase },
+      { name: 'adminAccessToken', value: accessToken, httpOnly: true, ...cookieBase },
       { name: 'NEXT_LOCALE', value: 'en', httpOnly: false, ...cookieBase },
     ],
     origins: [],

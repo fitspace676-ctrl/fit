@@ -2,7 +2,7 @@ import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { isTenantMismatch } from '@fit/utils/tenant-host-edge';
-import { ACCESS_TOKEN_COOKIE, verifyAccessToken, type Session } from '@/lib/auth-session';
+import { ACCESS_TOKEN_COOKIE, verifyAccessToken } from '@/lib/auth-session';
 import { clearSessionCookies } from '@/lib/session-cookies';
 import {
   REFRESH_TOKEN_COOKIE,
@@ -88,9 +88,9 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-/** Where a signed-in session belongs: staff → the admin console, members → the portal home. */
-function dashboardPath(session: Session, locale: Locale): string {
-  return session.role !== 'MEMBER' ? '/admin' : `/${locale}${MEMBER_BASE_PATH}/home`;
+/** Signed-in member destination; staff sessions are rejected by verification. */
+function dashboardPath(locale: Locale): string {
+  return `/${locale}${MEMBER_BASE_PATH}/home`;
 }
 
 /** The portal's sign-in page for `locale` — the single place the auth gate sends people. */
@@ -171,7 +171,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   if (rest === '/' || rest === MEMBER_BASE_PATH) {
     const target = req.nextUrl.clone();
     target.search = '';
-    target.pathname = session ? dashboardPath(session, locale) : loginPath(locale);
+    target.pathname = session ? dashboardPath(locale) : loginPath(locale);
     return finish(NextResponse.redirect(target), outcome);
   }
 

@@ -101,6 +101,10 @@ const listeners = new Set<() => void>();
 /** The request currently in flight, so concurrent callers join it rather than race. */
 let inFlight: Promise<void> | null = null;
 
+// Preserving the sidebar on a transient failure must not authorize an RSC poll.
+let lastCheckSucceeded = false;
+let accessExpiresAt: number | null = null;
+
 /** Pending retry after a transient failure, cancelled when a fetch succeeds. */
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -120,9 +124,16 @@ function resolveSession(): Promise<void> {
 
   inFlight = (async () => {
     try {
-      const res = await fetch(SESSION_URL, { credentials: 'same-origin' });
+      const res = await fetch(SESSION_URL, { credentials: 'same-origin', cache: 'no-store' });
       if (!res.ok) throw new Error(`session request failed (${res.status})`);
-      const data = (await res.json()) as { user: Session | null; recoverable?: boolean };
+      const data = (await res.json()) as {
+        user: Session | null;
+        recoverable?: boolean;
+        /** Verified access JWT expiry, in Unix milliseconds. */
+        accessExpiresAt?: number;
+      };
+      lastCheckSucceeded = data.user !== null && !data.recoverable;
+      accessExpiresAt = data.accessExpiresAt ?? null;
       if (retryTimer) {
         clearTimeout(retryTimer);
         retryTimer = undefined;
@@ -134,11 +145,8 @@ function resolveSession(): Promise<void> {
           recoverable: data.recoverable,
         }),
       );
-      // Flag the renewal exactly once per episode. Only the hook can act on it:
-      // renewing needs a *document* request, the one shape the middleware still
-      // refreshes on, and rotation has to stay single-owner or the API's reuse
-      // detector turns a renewal into a real sign-out.
     } catch {
+      lastCheckSucceeded = false;
       // Transient — preserve the last-known session so the nav never collapses, and
       // retry only while we have nothing to show yet (initial load failed).
       const next = nextSessionState(sessionState, { ok: false });
@@ -235,13 +243,12 @@ export function ensureSessionChecked(): Promise<void> {
  * renewal lands.
  */
 export function isSessionUsable(): boolean {
-  // False while a check is open. On tab return the poll and the session check
-  // fire in the same tick, and without this the poll would send its RSC refresh
-  // before the answer arrives - landing a redirect to the sign-in page in exactly
-  // the window the check exists to detect. Once the check has answered, the
-  // route has renewed whatever needed renewing, so there is no longer an
-  // "expired, waiting for a navigation" state to hold for.
-  return inFlight === null;
+  return (
+    inFlight === null &&
+    lastCheckSucceeded &&
+    sessionState.user !== null &&
+    (accessExpiresAt === null || accessExpiresAt > Date.now())
+  );
 }
 
 /** Subscribe a component to session changes; returns its unsubscribe. */

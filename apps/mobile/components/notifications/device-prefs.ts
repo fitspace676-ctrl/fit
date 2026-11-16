@@ -1,115 +1,130 @@
-// @fit/mobile — notification preferences that are HONESTLY device-local.
-//
-// ===========================================================================
-// READ THIS BEFORE ADDING PERSISTENCE. THE ABSENCE OF IT IS THE POINT.
-//
-// **There is no notification-preferences endpoint on this API.** The whole
-// notification surface is three routes — `GET /notifications`,
-// `GET /notifications/unread-count`, `POST /notifications/mark-read` — plus the
-// push-token pair. Nothing accepts a preference. Plan §7 records it as one of
-// the four product constraints the API imposes, and it names the failure it
-// produced last time:
-//
-//   > The deleted app shipped a settings screen that called nothing and stored
-//   > toggles in AsyncStorage. Do not rebuild that illusion: either drop the
-//   > screen or make it plainly device-local.
-//
-// AsyncStorage is what made it an illusion. A toggle that survives a relaunch
-// is indistinguishable, to the member, from a setting that has been SAVED — and
-// nothing was being saved anywhere that could act on it. So this store is
-// deliberately **in-memory for the life of the app process**: the choice lasts
-// as long as the session that made it and no longer, which is exactly as long
-// as it means anything.
-//
-// The screen states this in words as well (`notifications.subtitle` already
-// admits "Delivery is enabled in a later update"), because a user should not
-// have to infer a product limitation from a reset toggle.
-//
-// ---------------------------------------------------------------------------
-// WHEN THIS FILE SHOULD CHANGE.
-//
-// When delivery lands (C6 wires `expo-notifications` and the push-token
-// routes), the MASTER toggle becomes real — it maps onto `POST /notifications/
-// push-token` and `DELETE /notifications/push-token/:deviceId`, which do exist —
-// and at that point persisting it is honest, because a real registration is
-// what survives. The CATEGORY toggles stay fiction until a preferences
-// controller exists. Splitting them here, rather than treating "notifications"
-// as one setting, is what makes that migration a small diff.
-//
-// `useSyncExternalStore` rather than React state in the screen: the master
-// toggle gates the categories, and a store keeps that relationship in one
-// testable place instead of in a component's `useEffect`.
-
+// Persist only the master preference: it controls a real API device registration.
+// No category switches until the API can enforce category preferences.
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 import { useSyncExternalStore } from 'react';
+import { Linking, Platform } from 'react-native';
+import { registerPushToken, unregisterPushToken } from '../../lib/api/notifications';
+import { hydrateDeviceId } from '../../lib/auth/device-id';
+import { getSessionState } from '../../lib/auth/session';
 
-/** The categories the artboard and `notifications.*` name. */
-export type NotificationCategoryKey = 'classReminders' | 'bookingUpdates' | 'promotions';
-
-/** Every category, in the order the screen draws them. */
-export const CATEGORY_KEYS: readonly NotificationCategoryKey[] = [
-  'classReminders',
-  'bookingUpdates',
-  'promotions',
-];
-
-/** What the screen renders. */
-export interface DevicePrefs {
-  /** The master switch. Gates every category below it. */
-  readonly push: boolean;
-  readonly categories: Readonly<Record<NotificationCategoryKey, boolean>>;
+type Permission = 'unknown' | 'granted' | 'denied' | 'undetermined' | 'unsupported';
+interface DevicePrefs {
+  userId: string | null;
+  push: boolean;
+  permission: Permission;
+  busy: boolean;
+  error: boolean;
 }
-
-/**
- * The defaults a fresh process starts from.
- *
- * `push: false` deliberately. Claiming a member is opted in to a delivery
- * channel that does not exist yet would be the same lie in the other direction.
- */
-const DEFAULTS: DevicePrefs = {
+let current: DevicePrefs = {
+  userId: null,
   push: false,
-  categories: { classReminders: true, bookingUpdates: true, promotions: false },
+  permission: 'unknown',
+  busy: false,
+  error: false,
 };
-
-let current: DevicePrefs = DEFAULTS;
 const listeners = new Set<() => void>();
-
-function emit(): void {
-  for (const listener of listeners) listener();
+function update(patch: Partial<DevicePrefs>) {
+  current = { ...current, ...patch };
+  listeners.forEach((listener) => listener());
 }
-
-function subscribe(listener: () => void): () => void {
+function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
-
-/** The live preferences. Reference-stable between changes. */
-export function getDevicePrefs(): DevicePrefs {
-  return current;
+export function useDevicePrefs() {
+  return useSyncExternalStore(
+    subscribe,
+    () => current,
+    () => current,
+  );
+}
+const key = (userId: string) => `notifications.push.${userId}`;
+const isCurrentUser = (userId: string) => {
+  const session = getSessionState();
+  return session.status === 'signed-in' && session.userId === userId;
+};
+function allowed(permission: Notifications.NotificationPermissionsStatus) {
+  return (
+    permission.granted ||
+    permission.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+  );
 }
 
-/** Flip the master switch. */
-export function setPushEnabled(enabled: boolean): void {
-  if (current.push === enabled) return;
-  current = { ...current, push: enabled };
-  emit();
+// Serialize foreground refresh, token rotation and switch actions.
+let pending: Promise<void> = Promise.resolve();
+let settingsOptIn: string | null = null;
+export function syncPushPreference(userId: string, enabled?: boolean): Promise<void> {
+  const run = async () => {
+    if (!isCurrentUser(userId)) return;
+    update({
+      busy: true,
+      error: false,
+      ...(current.userId !== userId ? { userId, push: false, permission: 'unknown' as const } : {}),
+    });
+    const updateUser = (patch: Partial<DevicePrefs>) => {
+      if (isCurrentUser(userId) && current.userId === userId) update(patch);
+    };
+    try {
+      if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+        updateUser({ permission: 'unsupported', push: false });
+        return;
+      }
+      const saved = (await AsyncStorage.getItem(key(userId))) === 'true';
+      if (enabled === false) settingsOptIn = null;
+      const wantsPush = enabled ?? (settingsOptIn === userId || saved);
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'FormaCore',
+          importance: Notifications.AndroidImportance.HIGH,
+        });
+      }
+      let permission = await Notifications.getPermissionsAsync();
+      if (enabled === true && !allowed(permission)) {
+        if (!permission.canAskAgain) {
+          settingsOptIn = userId;
+          updateUser({ permission: 'denied', push: false });
+          await Linking.openSettings();
+          return;
+        }
+        permission = await Notifications.requestPermissionsAsync();
+      }
+      const granted = allowed(permission);
+      updateUser({ permission: granted ? 'granted' : permission.status });
+      const deviceId = await hydrateDeviceId();
+      if (!isCurrentUser(userId)) return;
+      if (wantsPush && granted) {
+        const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined;
+        const eas = Constants.easConfig as { projectId?: string } | null | undefined;
+        const projectId: string | undefined = eas?.projectId ?? extra?.eas?.projectId;
+        if (!projectId) throw new Error('Missing EAS project id');
+        const token = await Notifications.getExpoPushTokenAsync({ projectId });
+        if (!isCurrentUser(userId)) return;
+        await registerPushToken({ deviceId, token: token.data, platform: Platform.OS });
+        settingsOptIn = null;
+        updateUser({ push: true });
+        await AsyncStorage.setItem(key(userId), 'true');
+      } else {
+        await unregisterPushToken({ deviceId });
+        // Preserve a previously enabled choice if OS permission was revoked;
+        // restoring OS permission can then re-register on foreground.
+        updateUser({ push: false });
+        if (enabled === false) await AsyncStorage.setItem(key(userId), 'false');
+      }
+    } catch {
+      updateUser({ error: true });
+    } finally {
+      updateUser({ busy: false });
+    }
+  };
+  pending = pending.then(run, run);
+  return pending;
 }
 
-/** Flip one category. */
-export function setCategoryEnabled(key: NotificationCategoryKey, enabled: boolean): void {
-  if (current.categories[key] === enabled) return;
-  current = { ...current, categories: { ...current.categories, [key]: enabled } };
-  emit();
-}
-
-/** Back to `DEFAULTS`. For tests — nothing in the app resets these. */
-export function resetDevicePrefs(): void {
-  current = DEFAULTS;
-  emit();
-}
-
-/** The store, as a hook. */
-export function useDevicePrefs(): DevicePrefs {
-  return useSyncExternalStore(subscribe, getDevicePrefs, getDevicePrefs);
+export function clearPushSnapshot() {
+  settingsOptIn = null;
+  update({ userId: null, push: false, permission: 'unknown', error: false, busy: false });
 }

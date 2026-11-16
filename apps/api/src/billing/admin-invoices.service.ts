@@ -17,7 +17,7 @@ import { gymSettingsStoredSchema } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { atLocation } from '../common/location-filter.util';
 import { TenantContext } from '../common/tenant/tenant.context';
-import { MailerService } from '../mail/mailer.service';
+import { emailFrom, MailerService } from '../mail/mailer.service';
 import { InvoiceDocumentService } from './invoice-document.service';
 import { InvoiceService } from './invoice.service';
 import { escapeHtml, renderBrandedEmail, renderEmailParagraphs } from '../mail/branded-email';
@@ -243,6 +243,7 @@ export class AdminInvoicesService {
     });
 
     await this.mailer.send({
+      from: emailFrom(gymName),
       to,
       subject,
       text: body,

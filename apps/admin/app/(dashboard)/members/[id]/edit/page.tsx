@@ -6,6 +6,7 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveGymBrand } from '@/lib/active-gym';
 import { ApiError, fetchMember } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { MemberForm } from '../../member-form';
@@ -107,6 +108,7 @@ const styles = stylex.create({
  * shown read-only as the immutable auth identity.
  */
 export default async function EditMemberPage({ params }: { params: Promise<{ id: string }> }) {
+  const gymBrand = getActiveGymBrand();
   const { id } = await params;
 
   const session = await getServerSession();
@@ -146,7 +148,7 @@ export default async function EditMemberPage({ params }: { params: Promise<{ id:
   return (
     <div {...stylex.props(styles.page)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{(await gymBrand)?.name}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <Link href="/members" {...stylex.props(styles.crumbLink)}>
           {t('breadcrumb.members')}

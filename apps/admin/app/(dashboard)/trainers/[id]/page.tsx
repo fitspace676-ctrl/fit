@@ -11,6 +11,7 @@ import {
   type AdminTrainerDetail,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveGymBrand } from '@/lib/active-gym';
 import { ApiError, fetchTrainer, fetchTrainerAvailability, fetchTrainerClients } from '@/lib/api';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Button, Card } from '@fit/ui-kit';
@@ -333,6 +334,7 @@ function DetailKpi({
  * `notFound()`; any other failure surfaces inline.
  */
 export default async function TrainerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const gymBrand = getActiveGymBrand();
   const { id } = await params;
   const t = await getTranslations('admin.trainers');
   const locale = await getLocale();
@@ -399,7 +401,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.topRow)}>
         <nav aria-label={t('list.breadcrumbAria')} {...stylex.props(styles.breadcrumb)}>
-          <span>Iron Gym</span>
+          <span>{(await gymBrand)?.name}</span>
           <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
           <Link href="/trainers" {...stylex.props(styles.crumbLink)}>
             {t('list.breadcrumb')}

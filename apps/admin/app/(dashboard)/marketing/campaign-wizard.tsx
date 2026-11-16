@@ -368,10 +368,15 @@ const styles = stylex.create({
   },
   footerNav: {
     display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    minWidth: 0,
+    maxWidth: '100%',
     gap: '0.5rem',
   },
   footerRow: {
     display: 'flex',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.625rem',
@@ -996,7 +1001,10 @@ export function CampaignWizard({
                         onClick={() => insertToken(field.token)}
                         {...stylex.props(styles.mergeChip)}
                       >
-                        + {field.label}
+                        +{' '}
+                        {t.has(`mergeFields.${field.token.replace(/[{}]/g, '')}`)
+                          ? t(`mergeFields.${field.token.replace(/[{}]/g, '')}`)
+                          : field.token}
                       </button>
                     ))}
                   </div>

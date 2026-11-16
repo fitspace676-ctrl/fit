@@ -7,6 +7,8 @@ const { mockEnv, argonHash } = vi.hoisted(() => {
   const mockEnv: Record<string, unknown> = {
     EMAIL_VERIFICATION_TTL: 86_400,
     WEB_URL: 'https://app.example.com',
+    ADMIN_URL: 'https://app.example.com',
+    ADMIN_BASE_PATH: '/admin',
   };
   const argonHash = vi.fn(() => Promise.resolve('argon2-hash'));
   return { mockEnv, argonHash };
@@ -41,6 +43,7 @@ function setup(opts?: {
   invite?: Invite | null;
   userExists?: boolean;
   credentialExists?: boolean;
+  passwordHash?: string | null;
   inviteUpdateCount?: number;
 }) {
   const staffInviteFindUnique = vi.fn(() => Promise.resolve(opts?.invite ?? null));
@@ -70,7 +73,14 @@ function setup(opts?: {
   // that already signs in to THIS gym; `userExists` alone is an account known
   // only from elsewhere.
   const credentialFindFirst = vi.fn((_args: unknown) =>
-    Promise.resolve(opts?.credentialExists ? { id: 'cred-1' } : null),
+    Promise.resolve(
+      opts?.credentialExists
+        ? {
+            id: 'cred-1',
+            passwordHash: opts.passwordHash === undefined ? 'old-hash' : opts.passwordHash,
+          }
+        : null,
+    ),
   );
   const credentialFindUnique = vi.fn((_args: unknown) =>
     Promise.resolve(
@@ -145,41 +155,42 @@ describe('AuthService — staff invites (T4.7)', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('acceptInvite', () => {
-    it('routes a brand-new address to the web register flow with the token', async () => {
+    it('routes a brand-new address to console acceptance with the token', async () => {
       const { service } = setup({ invite: liveInvite(), userExists: false });
       const { url } = await service.acceptInvite('tok-123');
-      expect(url).toBe('https://app.example.com/member/register?inviteToken=tok-123');
+      expect(url).toBe('https://app.example.com/admin/accept-invite?token=tok-123');
     });
 
-    it('routes an address that already signs in to this gym to the login flow with the token', async () => {
+    it('routes an existing account to the same console acceptance page', async () => {
       const { service, credentialFindFirst } = setup({
         invite: liveInvite(),
         userExists: true,
         credentialExists: true,
       });
       const { url } = await service.acceptInvite('tok-123');
-      expect(url).toBe('https://app.example.com/member/login?inviteToken=tok-123');
+      expect(url).toBe('https://app.example.com/admin/accept-invite?token=tok-123');
+      await service.inspectStaffInvite('tok-123');
       // "Has an account" is asked of the INVITING gym's credential, not of the address.
       expect(credentialFindFirst).toHaveBeenCalledWith({
         where: { gymId: 'gym-1', user: { email: 'invitee@example.com' } },
-        select: { id: true },
+        select: { passwordHash: true },
       });
     });
 
-    it('routes an address known only from another gym to register — it has no password here yet', async () => {
+    it('keeps an address known only from another gym on console acceptance', async () => {
       const { service } = setup({
         invite: liveInvite(),
         userExists: true,
         credentialExists: false,
       });
       const { url } = await service.acceptInvite('tok-123');
-      expect(url).toBe('https://app.example.com/member/register?inviteToken=tok-123');
+      expect(url).toBe('https://app.example.com/admin/accept-invite?token=tok-123');
     });
 
-    it('routes an unknown token to login with an inviteError flag', async () => {
+    it('routes an unknown token to console acceptance with an inviteError flag', async () => {
       const { service } = setup({ invite: null });
       const { url } = await service.acceptInvite('nope');
-      expect(url).toBe('https://app.example.com/member/login?inviteError=invalid');
+      expect(url).toBe('https://app.example.com/admin/accept-invite?inviteError=invalid');
     });
 
     it('treats an expired invite as invalid', async () => {
@@ -205,23 +216,62 @@ describe('AuthService — staff invites (T4.7)', () => {
         mockEnv.PLATFORM_ROOT_DOMAIN = 'formacore.io';
         const { service } = setup({ invite: liveInvite(), userExists: false });
         const { url } = await service.acceptInvite('tok-123');
-        expect(url).toBe('https://downtown.formacore.io/member/register?inviteToken=tok-123');
+        expect(url).toBe('https://downtown.formacore.io/admin/accept-invite?token=tok-123');
       });
 
-      it("sends a spent invite to that gym's login", async () => {
+      it("sends a spent invite to that gym's acceptance error", async () => {
         mockEnv.PLATFORM_ROOT_DOMAIN = 'formacore.io';
         const { service } = setup({ invite: liveInvite({ usedAt: new Date() }) });
         const { url } = await service.acceptInvite('tok-123');
-        expect(url).toBe('https://downtown.formacore.io/member/login?inviteError=invalid');
+        expect(url).toBe('https://downtown.formacore.io/admin/accept-invite?inviteError=invalid');
       });
 
       it('falls back to WEB_URL for an unknown token, which names no gym', async () => {
         mockEnv.PLATFORM_ROOT_DOMAIN = 'formacore.io';
         const { service } = setup({ invite: null });
         const { url } = await service.acceptInvite('nope');
-        expect(url).toBe('https://app.example.com/member/login?inviteError=invalid');
+        expect(url).toBe('https://app.example.com/admin/accept-invite?inviteError=invalid');
       });
     });
+  });
+
+  describe('staff invitation setup', () => {
+    it('requires setup for a credential row without a password', async () => {
+      const { service } = setup({
+        invite: liveInvite(),
+        credentialExists: true,
+        passwordHash: null,
+      });
+      expect((await service.inspectStaffInvite('tok-123')).needsPassword).toBe(true);
+      await expect(service.completeStaffInvite({ token: 'tok-123' })).rejects.toThrow(
+        'Choose a password',
+      );
+    });
+
+    it('only asks for confirmation when this gym already has a password', async () => {
+      const { service } = setup({ invite: liveInvite(), credentialExists: true });
+      expect((await service.inspectStaffInvite('tok-123')).needsPassword).toBe(false);
+    });
+
+    it('rejects a token on another gym before it can be spent', async () => {
+      const { service, staffInviteUpdateMany } = setup({ invite: liveInvite() });
+      await expect(
+        service.completeStaffInvite({ token: 'tok-123', password: 'password123' }, 'uptown'),
+      ).rejects.toThrow('Wrong gym');
+      expect(staffInviteUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it.each([null, liveInvite({ usedAt: new Date() }), liveInvite({ expiresAt: new Date(0) })])(
+      'refuses invalid, used and expired invitations',
+      async (invite) => {
+        const { service, userCreate, staffInviteUpdateMany } = setup({ invite });
+        await expect(
+          service.completeStaffInvite({ token: 'tok-123', password: 'password123' }),
+        ).rejects.toThrow();
+        expect(userCreate).not.toHaveBeenCalled();
+        expect(staffInviteUpdateMany).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('redeemStaffInvite (via register)', () => {
@@ -239,7 +289,9 @@ describe('AuthService — staff invites (T4.7)', () => {
 
       // The invite is claimed single-use (guarded on usedAt: null)…
       expect(staffInviteUpdateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'inv-1', usedAt: null } }),
+        expect.objectContaining({
+          where: { id: 'inv-1', usedAt: null, expiresAt: { gt: expect.any(Date) as Date } },
+        }) as object,
       );
       // …and the gym-staff membership is upserted with the invited role.
       expect(gymMemberUpsert.mock.calls[0]?.[0]).toMatchObject({

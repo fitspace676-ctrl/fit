@@ -292,7 +292,7 @@ export function BannerFormDrawer({
     const schema = mode === 'create' ? createBannerSchema : updateBannerSchema;
     const parsed = schema.safeParse(payload);
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? t('invalid'));
+      setError(t('invalid'));
       return;
     }
 

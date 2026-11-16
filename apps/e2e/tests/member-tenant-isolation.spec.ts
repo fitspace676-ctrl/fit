@@ -63,8 +63,8 @@ const RIVERSIDE = webOrigin('riverside');
 /** The label no gym owns, for the unknown-tenant cases. */
 const UNKNOWN_LABEL = 'nonexistent-xyz123';
 
-const ACCESS_COOKIE = 'accessToken';
-const REFRESH_COOKIE = 'refreshToken';
+const ACCESS_COOKIE = 'memberAccessToken';
+const REFRESH_COOKIE = 'memberRefreshToken';
 
 /**
  * Belongs to `downtown` first (its primary gym) and `riverside` second, so a

@@ -518,7 +518,14 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
                       onClick={() => setQty(item.variantId, item.qty + 1)}
                     />
                   </div>
-                  <p {...stylex.props(styles.lineTotal)}>{money(item.lineTotal)}</p>
+                  <p {...stylex.props(styles.lineTotal)}>
+                    {(item.originalUnitPrice ?? item.unitPrice) > item.unitPrice && (
+                      <>
+                        <s>{money(item.originalUnitPrice! * item.qty)}</s>{' '}
+                      </>
+                    )}
+                    {money(item.lineTotal)}
+                  </p>
                 </div>
               </div>
             </Card>

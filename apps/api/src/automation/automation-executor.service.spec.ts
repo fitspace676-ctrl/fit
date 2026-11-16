@@ -398,6 +398,7 @@ describe('AutomationExecutorService — email delivery', () => {
 
     expect(mailSend).toHaveBeenCalledTimes(1);
     expect(mailSend.mock.calls[0]?.[0]).toMatchObject({
+      from: expect.stringContaining('"Iron Gym" <') as string,
       to: 'nino@example.com',
       subject: 'Hi Nino',
       text: 'Welcome!',

@@ -1,6 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { env } from '../config/env';
 
+/** Keep the verified mailbox, changing only its display name. */
+export function emailFrom(senderName = 'FormaCore'): string {
+  const address = env.EMAIL_FROM.match(/<([^<>]+)>/)?.[1] ?? env.EMAIL_FROM.trim();
+  const name = senderName.replace(/[\r\n<>"\\]/g, ' ').trim() || 'FormaCore';
+  return `"${name}" <${address}>`;
+}
+
 /** Resend's transactional-email endpoint. */
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
@@ -81,37 +88,45 @@ export class MailerService {
       return { sent: false, id: null };
     }
 
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: message.from ?? env.EMAIL_FROM,
-        to: [message.to],
-        subject: message.subject,
-        html: message.html,
-        text: message.text,
-        ...(message.replyTo ? { reply_to: message.replyTo } : {}),
-        ...(message.attachments?.length
-          ? {
-              attachments: message.attachments.map((file) => ({
-                filename: file.filename,
-                content: file.content.toString('base64'),
-              })),
-            }
-          : {}),
-      }),
-    });
+    try {
+      const response = await fetch(RESEND_ENDPOINT, {
+        method: 'POST',
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          Authorization: `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: message.from ?? emailFrom(),
+          to: [message.to],
+          subject: message.subject,
+          html: message.html,
+          text: message.text,
+          ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+          ...(message.attachments?.length
+            ? {
+                attachments: message.attachments.map((file) => ({
+                  filename: file.filename,
+                  content: file.content.toString('base64'),
+                })),
+              }
+            : {}),
+        }),
+      });
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
+      }
+
+      const payload = (await response.json().catch(() => null)) as { id?: string } | null;
+      this.logger.debug(`Mail dispatched to ${message.to}: ${message.subject}`);
+      return { sent: true, id: payload?.id ?? null };
+    } catch (error) {
+      this.logger.error(
+        `Email to ${message.to} failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
     }
-
-    const payload = (await response.json().catch(() => null)) as { id?: string } | null;
-    this.logger.debug(`Mail dispatched to ${message.to}: ${message.subject}`);
-    return { sent: true, id: payload?.id ?? null };
   }
 }

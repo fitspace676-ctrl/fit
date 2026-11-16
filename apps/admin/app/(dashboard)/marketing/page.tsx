@@ -31,11 +31,10 @@ import { TemplatesView } from './templates-view';
 import { PromoCodesView } from './promo-codes-view';
 import { AudienceView } from './audience-view';
 
-export const metadata: Metadata = {
-  title: 'Marketing',
-  description:
-    'Reach members with campaigns, promo codes, audience segments, and message templates.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.marketing.shell');
+  return { title: t('title'), description: t('subtitle') };
+}
 
 // Campaigns/templates reflect live tenant state and the staff session token, so
 // this must never be statically rendered or cached.
