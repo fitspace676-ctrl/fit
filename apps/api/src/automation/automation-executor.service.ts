@@ -31,7 +31,7 @@ import {
 import { automationTriggerConfigSchema } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { MailerService } from '../mail/mailer.service';
+import { emailFrom, MailerService } from '../mail/mailer.service';
 import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { emailStrings } from '../mail/email-strings';
@@ -624,6 +624,7 @@ export class AutomationExecutorService {
     });
 
     const { sent } = await this.mailer.send({
+      from: emailFrom(brand.name),
       to: target.recipient,
       subject,
       html,

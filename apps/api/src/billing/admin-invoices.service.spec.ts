@@ -224,10 +224,12 @@ describe('AdminInvoicesService.emailInvoice', () => {
     expect(result).toEqual({ sent: true, to: 'nino@example.com' });
     expect(getPdf).toHaveBeenCalledWith('inv-1');
     const message = send.mock.calls[0]![0] as {
+      from: string;
       to: string;
       subject: string;
       attachments: { filename: string; content: Buffer }[];
     };
+    expect(message.from).toContain('"Downtown" <');
     expect(message.to).toBe('nino@example.com');
     expect(message.subject).toBe('Invoice 2026-0001 from Downtown');
     expect(message.attachments[0]!.filename).toBe('invoice-2026-0001.pdf');

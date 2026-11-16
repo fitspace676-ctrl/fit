@@ -185,6 +185,21 @@
       "title": "Sign in to the console",
       "invitation": "Staff accounts are created by invitation from the console. Ask your gym's administrator for access."
     },
+    "invite": {
+      "title": "Accept your invitation",
+      "subtitle": "Join your gym’s staff console.",
+      "footer": "Your invitation is personal and can only be used once.",
+      "invalid": "This invitation is expired, already used, or no longer valid.",
+      "requestNew": "Ask the gym administrator to resend your invitation from Staff → Invite. Use the newest email.",
+      "error": "We could not finish this request. Please try again or reload the page.",
+      "loading": "Loading your invitation…",
+      "password": "Choose a password",
+      "confirm": "Confirm password",
+      "mismatch": "The passwords do not match.",
+      "confirmExisting": "Confirm your invitation to enter the console. Your existing password stays the same.",
+      "submit": "Accept invitation",
+      "submitting": "Accepting…"
+    },
     "activate": {
       "title": "Set your password",
       "subtitle": "Choose a password and your gym is yours to run.",
