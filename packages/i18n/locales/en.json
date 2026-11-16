@@ -3194,6 +3194,21 @@
       }
     },
     "marketing": {
+      "messageTools": {
+        "noMembers": "Add a member before previewing with member data.",
+        "title": "Write with AI",
+        "instruction": "What should the message say?",
+        "write": "Write with AI",
+        "improve": "Improve text",
+        "apply": "Use this text",
+        "discard": "Discard",
+        "undo": "Undo AI changes",
+        "preview": "Preview with member data",
+        "sample": "Example for {recipient} — no message sent",
+        "working": "Preparing…",
+        "failed": "Could not prepare the message. Try again.",
+        "invalid": "The draft exceeds this channel’s limits or uses unsupported variables. Try a shorter instruction."
+      },
       "breadcrumb": {
         "label": "Breadcrumb",
         "home": "FormaCore",

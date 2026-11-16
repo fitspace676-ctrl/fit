@@ -52,6 +52,8 @@ export type AutomationAssistTurn = z.infer<typeof automationAssistTurnSchema>;
  */
 export const automationAssistRequestSchema = z.object({
   message: z.string().trim().min(1).max(2000),
+  purpose: z.literal('marketing').optional(),
+  marketingCopy: z.object({ subject: z.string().max(200), body: z.string().max(10000) }).optional(),
   locale: z.enum(['ka', 'en']).default('ka'),
   draft: automationDraftSchema.optional(),
   history: z.array(automationAssistTurnSchema).max(20).default([]),

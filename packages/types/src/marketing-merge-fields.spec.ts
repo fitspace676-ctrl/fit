@@ -5,9 +5,20 @@ import {
   MARKETING_MERGE_TOKEN_NAMES,
   RETIRED_MARKETING_TOKENS,
 } from './marketing-merge-fields';
+import { AUTOMATION_MERGE_FIELDS } from './automation-merge-fields';
 import { interpolateMergeFields } from './marketing';
 
 describe('MARKETING_MERGE_FIELD_DEFS', () => {
+  it('offers exactly the shared member, membership and business variables', () => {
+    expect(MARKETING_MERGE_FIELD_DEFS.map((field) => field.token)).toEqual(
+      AUTOMATION_MERGE_FIELDS.filter(
+        (field) =>
+          field.contexts.includes('member') &&
+          ['member', 'membership', 'business'].includes(field.group),
+      ).map((field) => field.token),
+    );
+  });
+
   it('has unique keys and unique tokens', () => {
     const keys = MARKETING_MERGE_FIELD_DEFS.map((f) => f.key);
     const tokens = MARKETING_MERGE_FIELD_DEFS.map((f) => f.token);
@@ -45,7 +56,7 @@ describe('MARKETING_MERGE_FIELD_DEFS', () => {
   // already filled. Re-spelling any of them silently breaks every saved
   // campaign and template body that uses it.
   it('preserves the spelling of every token that already shipped', () => {
-    const offered = MARKETING_MERGE_FIELD_DEFS.map((f) => f.token);
+    const accepted = MARKETING_MERGE_TOKEN_NAMES.map((name) => `{{${name}}}`);
     for (const token of [
       '{{first_name}}',
       '{{last_name}}',
@@ -55,7 +66,7 @@ describe('MARKETING_MERGE_FIELD_DEFS', () => {
       '{{expiry_date}}',
       '{{business_name}}',
     ]) {
-      expect(offered).toContain(token);
+      expect(accepted).toContain(token);
     }
   });
 

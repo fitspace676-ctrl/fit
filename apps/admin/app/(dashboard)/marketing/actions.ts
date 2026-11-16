@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,
+  automationAssistRequestSchema,
+  automationAssistResponseSchema,
+  type AutomationAssistRequest,
+  type AutomationAssistResponse,
   createAudienceSegmentSchema,
   createCampaignSchema,
   createMessageTemplateSchema,
@@ -31,6 +35,7 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  assistMarketingMessage,
   createCampaign,
   createMarketingSegment,
   createMessageTemplate,
@@ -40,6 +45,7 @@ import {
   deleteMessageTemplate,
   deletePromoCode,
   previewMarketingCriteria,
+  previewMarketingMessage,
   previewMarketingSegment,
   saveCampaignAsTemplate,
   scheduleCampaign,
@@ -455,5 +461,43 @@ export async function deleteCampaignAction(id: string): Promise<ActionResult<{ i
     return { ok: true, data: { id } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+export async function previewMessageAction(input: {
+  subject: string;
+  body: string;
+}): Promise<ActionResult<{ recipient: string; subject: string; body: string }>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) return { ok: false, error: t('errors.notAuthorized') };
+  try {
+    return { ok: true, data: await previewMarketingMessage(input) };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof ApiError && error.message === 'CAMPAIGN_NO_RECIPIENTS'
+          ? t('messageTools.noMembers')
+          : t('messageTools.failed'),
+    };
+  }
+}
+
+export async function assistMessageAction(
+  input: AutomationAssistRequest,
+): Promise<ActionResult<AutomationAssistResponse>> {
+  const t = await getTranslations('admin.marketing');
+  if (!(await requireManage())) return { ok: false, error: t('errors.notAuthorized') };
+  const parsed = automationAssistRequestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: t('errors.invalidDetails') };
+  try {
+    const response = automationAssistResponseSchema.safeParse(
+      await assistMarketingMessage(parsed.data),
+    );
+    return response.success
+      ? { ok: true, data: response.data }
+      : { ok: false, error: t('messageTools.failed') };
+  } catch {
+    return { ok: false, error: t('messageTools.failed') };
   }
 }
