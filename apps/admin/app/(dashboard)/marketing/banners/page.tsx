@@ -15,10 +15,10 @@ import { Icon } from '@/components/ui';
 import { MarketingTabs } from '../marketing-tabs';
 import { BannersView } from './banners-view';
 
-export const metadata: Metadata = {
-  title: 'Banners',
-  description: 'Author the promotional carousel on the member app’s home screen.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('admin.marketing.banners');
+  return { title: t('heading'), description: t('subheading') };
+}
 
 // The reel reflects live tenant state and the staff session token, so this must
 // never be statically rendered or cached.

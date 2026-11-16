@@ -1,3 +1,4 @@
+import { ProductRow } from './product-row';
 // @fit/mobile — one line of the cart.
 //
 // `ProductRow layout="line"`: no shell, a 56×56 monogram plate, and the unit
@@ -25,7 +26,7 @@
 // it visible "so the buyer sees it" and removes it at checkout. Hiding it here
 // would make the total drop with no explanation.
 
-import { IconButton, ProductRow, QtyStepper, spacing } from '@fit/ui-mobile';
+import { IconButton, QtyStepper, spacing } from '@fit/ui-mobile';
 import { MAX_CART_LINE_QUANTITY, type CartItemDetail } from '@fit/types';
 import { View } from 'react-native';
 
@@ -53,6 +54,7 @@ export function CartLine({ item, onQty, onRemove, busy = false, testID }: CartLi
 
   return (
     <ProductRow
+      imageUrl={item.imageUrl}
       testID={testID}
       layout="line"
       name={item.productName}

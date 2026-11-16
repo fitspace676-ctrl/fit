@@ -1,3 +1,6 @@
+import { ProductRow } from '../shop/product-row';
+import { hasPriceRange, lowestPrice } from '../shop/catalogue';
+import { memberShopPrice } from '@fit/types';
 // @fit/mobile — the rows Home draws under its four list sections.
 //
 // Thin adapters, one per section: a wire shape in, a `@fit/ui-mobile`
@@ -15,7 +18,7 @@
 // `accessibilityLabel` as well, or a screen-reader user never hears it. Every
 // row below spells its whole sentence out for that reason, not for verbosity.
 
-import { ListRow, PersonRow, Pill, ProductRow } from '@fit/ui-mobile';
+import { ListRow, PersonRow, Pill } from '@fit/ui-mobile';
 import type {
   MemberBookingHistoryEntry,
   MemberServiceSession,
@@ -150,24 +153,38 @@ export const SHOP_CARD_WIDTH = 240;
 
 export function ShopRailRow({
   product,
+  memberDiscountPercent = 0,
   onPress,
   testID,
 }: {
   product: ProductSummary;
+  memberDiscountPercent?: number;
   onPress: () => void;
   testID: string;
 }) {
-  const { locale } = useI18n();
-  const price = formatMoney(product.priceAmount, product.currency, locale);
+  const { locale, t } = useI18n();
+  const amount = lowestPrice(product);
+  const discounted = memberShopPrice(amount, memberDiscountPercent);
+  const quote = (value: number) => {
+    const formatted = formatMoney(value, product.currency, locale);
+    return hasPriceRange(product) ? t('member.shop.from', { price: formatted }) : formatted;
+  };
+  const price = quote(discounted);
+  const original = discounted < amount ? quote(amount) : undefined;
 
   return (
     <ProductRow
+      imageUrl={product.imageUrl}
       testID={testID}
       // A fixed width because the rail is a horizontal `ScrollView`: its
       // content container lays children out in a row, where a card with no
       // width of its own collapses to its text and the cards come out ragged.
       style={{ width: SHOP_CARD_WIDTH }}
       name={product.name}
+      originalPrice={original}
+      originalPriceAccessibilityLabel={
+        original ? `${t('shopDiscount.original')}: ${original}` : undefined
+      }
       price={price}
       priceAccessibilityLabel={price}
       onPress={onPress}

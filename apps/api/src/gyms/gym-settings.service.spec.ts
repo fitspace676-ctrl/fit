@@ -561,3 +561,22 @@ describe('GymSettingsService', () => {
     });
   });
 });
+
+describe('member shop settings', () => {
+  it('defaults the shop benefit off and preserves it during unrelated settings updates', async () => {
+    const fresh = setup({ gym: { name: 'Gym', settings: null } });
+    expect((await fresh.service.getSettings()).shop).toEqual({ memberDiscountPercent: 0 });
+    const configured = setup({
+      gym: { name: 'Gym', settings: { shop: { memberDiscountPercent: 15 } } },
+    });
+    const result = await configured.service.updateSettings({ brand: { name: 'Renamed' } });
+    expect(result.shop).toEqual({ memberDiscountPercent: 15 });
+  });
+
+  it('accepts a member discount setting through the existing gym settings writer', async () => {
+    const { service } = setup({ gym: { name: 'Gym', settings: null } });
+    expect((await service.updateSettings({ shop: { memberDiscountPercent: 90 } })).shop).toEqual({
+      memberDiscountPercent: 90,
+    });
+  });
+});

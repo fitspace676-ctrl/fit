@@ -175,3 +175,18 @@ describe('GymSettingsController', () => {
     });
   });
 });
+
+describe('member discount validation', () => {
+  it.each([-1, 91, 10.5, '10', null])('rejects invalid percent %s', async (value) => {
+    const { controller, updateSettings } = setup();
+    await expect(
+      controller.update({ shop: { memberDiscountPercent: value } }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateSettings).not.toHaveBeenCalled();
+  });
+  it.each([0, 10, 90])('accepts whole percent %i', async (memberDiscountPercent) => {
+    const { controller, updateSettings } = setup();
+    await controller.update({ shop: { memberDiscountPercent } });
+    expect(updateSettings).toHaveBeenCalledWith({ shop: { memberDiscountPercent } });
+  });
+});

@@ -1,3 +1,4 @@
+import { ProductImage } from '../../../../components/shop/product-image';
 // Product detail — the variant chooser, and the only place a 2+ variant
 // product can be added to the cart.
 //
@@ -33,7 +34,6 @@ import {
   IconButton,
   InlineNote,
   Money,
-  Mono,
   Pill,
   QtyStepper,
   Screen,
@@ -56,7 +56,6 @@ import {
   isSoldOut,
   listCurrency,
   lowestPrice,
-  productInitial,
   variantRef,
 } from '../../../../components/shop/catalogue';
 import { useMoney } from '../../../../components/shop/money';
@@ -453,29 +452,7 @@ function ProductBody({
           ================================================================
         */}
         <Surface tone="card" radius="container" padding={5} style={{ gap: spacing[5] }}>
-          {/* Never a photo — a monogram plate, exactly as in the list. The
-              direction does not carry supplier photography. */}
-          <Surface
-            tone="quiet"
-            radius={26}
-            side={HERO_THUMB}
-            accessible={false}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={{
-              width: HERO_THUMB,
-              height: HERO_THUMB,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {/* A MONOGRAM, never a photo, and never a `Heading` — a heading
-                role here would put a header on the screen for a single
-                decorative letter. */}
-            <Mono variant="monoDisplay" color="onQuiet" style={{ opacity: 0.8 }}>
-              {productInitial(product.name) ?? ''}
-            </Mono>
-          </Surface>
+          <ProductImage imageUrl={product.imageUrl} name={product.name} size={HERO_THUMB} />
 
           <View style={{ gap: spacing[3] }}>
             {/*
@@ -541,6 +518,7 @@ function ProductBody({
                   key={variant.id}
                   label={variant.name}
                   selected={variant.id === variantId}
+                  selectedFill="accent"
                   disabled={!variant.available}
                   // An unavailable option is still LISTED (the API projects it
                   // that way on purpose, "so the buyer sees what exists"), so

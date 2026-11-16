@@ -116,6 +116,8 @@ function branchStockStore(products: unknown[]) {
  */
 function setup(config: {
   gymId?: string;
+  memberDiscountPercent?: number;
+  activeMember?: boolean;
   userId?: string | null;
   products?: ProductRow[];
   userCart?: CartRow | null;
@@ -173,11 +175,20 @@ function setup(config: {
     ledger.push(...args.data);
     return Promise.resolve({ count: args.data.length });
   });
-  const gymMemberFindFirst = vi.fn(() => Promise.resolve(null));
+  const gymMemberFindFirst = vi.fn(() =>
+    Promise.resolve(config.activeMember ? { id: 'member-1' } : null),
+  );
   const dispatchForGym = vi.fn((..._args: unknown[]) => Promise.resolve(0));
   const automation = { dispatchForGym } as unknown as AutomationExecutorService;
 
   const client = {
+    gym: {
+      findUnique: vi.fn(() =>
+        Promise.resolve({
+          settings: { shop: { memberDiscountPercent: config.memberDiscountPercent ?? 0 } },
+        }),
+      ),
+    },
     product: { findMany, update: productUpdate },
     cart: {
       findUnique: cartFindUnique,
@@ -217,15 +228,12 @@ function setup(config: {
     get: () => Promise.resolve({ language: 'en', currency: 'GEL', timezone: 'Asia/Tbilisi' }),
   } as unknown as GymLocaleService;
 
+  const promos = new PromoRedemptionService(prisma);
   return {
-    service: new CartService(
-      prisma,
-      tenant,
-      new PromoRedemptionService(prisma),
-      locale,
-      automation,
-    ),
+    promos,
+    service: new CartService(prisma, tenant, promos, locale, automation),
     mocks: {
+      gymMemberFindFirst,
       dispatchForGym,
       findMany,
       cartCreate,
@@ -606,4 +614,139 @@ describe('CartService.getCart (anon → user merge)', () => {
     expect(result.session.clear).toBe(true);
     expect(result.view.items[0]!.qty).toBe(3);
   });
+});
+
+describe('CartService member shop discount', () => {
+  const basket = (unitPrice: number): CartRow => ({
+    id: 'cart-member',
+    gymId: 'gym1',
+    userId: 'u1',
+    sessionId: null,
+    items: [{ id: 'line-1', productVariantId: VARIANT, qty: 3, unitPrice }],
+  });
+
+  it('prices each unit in minor units and exposes the original price and effective percent', async () => {
+    const { service, mocks } = setup({
+      userId: 'u1',
+      activeMember: true,
+      memberDiscountPercent: 10,
+      products: [product({ priceAmount: 999 })],
+      userCart: basket(900),
+    });
+    const { view } = await service.getCart(undefined);
+    expect(view).toMatchObject({
+      memberDiscountPercent: 10,
+      subtotal: 2997,
+      discount: 297,
+      total: 2700,
+    });
+    expect(view.items[0]).toMatchObject({
+      originalUnitPrice: 999,
+      unitPrice: 900,
+      lineTotal: 2700,
+    });
+    expect(mocks.gymMemberFindFirst).toHaveBeenCalledWith({
+      where: { gymId: 'gym1', userId: 'u1', status: 'ACTIVE', deletedAt: null },
+      select: { id: true },
+    });
+  });
+
+  it.each([0, 90])(
+    'exposes the configured %i percent even before a cart exists',
+    async (percent) => {
+      const { service } = setup({
+        userId: 'u1',
+        activeMember: true,
+        memberDiscountPercent: percent,
+      });
+      expect((await service.getCart(undefined)).view).toMatchObject({
+        memberDiscountPercent: percent,
+        total: 0,
+      });
+    },
+  );
+
+  it('does not discount a caller without an active membership', async () => {
+    const { service } = setup({
+      userId: 'u1',
+      memberDiscountPercent: 90,
+      activeMember: false,
+      products: [product()],
+      userCart: basket(1000),
+    });
+    expect((await service.getCart(undefined)).view).toMatchObject({
+      memberDiscountPercent: 0,
+      discount: 0,
+      total: 3000,
+    });
+  });
+
+  it('does not grant the benefit to a guest', async () => {
+    const { service, mocks } = setup({ memberDiscountPercent: 90 });
+    expect((await service.getCart(undefined)).view.memberDiscountPercent).toBe(0);
+    expect(mocks.gymMemberFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('requires reconfirmation when eligibility is lost after adding a discounted item', async () => {
+    const { service, mocks } = setup({
+      userId: 'u1',
+      activeMember: false,
+      memberDiscountPercent: 10,
+      products: [product()],
+      userCart: basket(900),
+    });
+    expect(
+      await service.checkout(undefined, { fulfillment: 'DELIVERY', deliveryAddress: 'Test' }),
+    ).toEqual({ kind: 'price_changed', newPrices: [{ variantId: VARIANT, priceAmount: 1000 }] });
+    expect(mocks.orderCreate).not.toHaveBeenCalled();
+  });
+
+  it.each([270, 2700])(
+    'applies a promo of %i only to the remainder and preserves the order breakdown',
+    async (promoDiscount) => {
+      const { service, mocks, promos } = setup({
+        userId: 'u1',
+        activeMember: true,
+        memberDiscountPercent: 10,
+        products: [product()],
+        userCart: basket(900),
+      });
+      vi.spyOn(promos, 'resolve').mockResolvedValue({
+        promoId: 'promo-1',
+        discount: promoDiscount,
+        usageLimit: null,
+      });
+      vi.spyOn(promos, 'consume').mockResolvedValue(undefined);
+      await service.checkout(undefined, {
+        fulfillment: 'DELIVERY',
+        deliveryAddress: 'Test',
+        promoCode: 'TEST',
+      });
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(promos.resolve).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 2700, scope: 'products', memberId: 'member-1' }),
+      );
+      const data = (
+        mocks.orderCreate.mock.calls[0]![0] as {
+          data: {
+            total: number;
+            memberDiscountPercent: number;
+            memberDiscountAmount: number;
+            items: { create: { amount: number }[] };
+          };
+        }
+      ).data;
+      expect(data).toMatchObject({
+        memberDiscountPercent: 10,
+        memberDiscountAmount: 300,
+        total: 2700 - promoDiscount,
+      });
+      expect(data.items.create.reduce((sum, line) => sum + line.amount, 0)).toBe(data.total);
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(promos.consume).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ discount: promoDiscount, orderId: 'order-1' }),
+      );
+    },
+  );
 });

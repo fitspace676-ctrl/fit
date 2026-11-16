@@ -50,6 +50,7 @@ export const memberNamespaces = [
   'services',
   'settings',
   'shop',
+  'shopDiscount',
   'trainers',
   'training',
 ] as const;

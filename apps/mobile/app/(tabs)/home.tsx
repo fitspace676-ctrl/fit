@@ -150,6 +150,7 @@ import { useCreditPacks, useMembership } from '../../hooks/queries/useMembership
 import { useMyProfile } from '../../hooks/queries/useAccount';
 import { useUnreadCount } from '../../hooks/queries/useNotifications';
 import { useMyServiceSessions, useServices } from '../../hooks/queries/useServices';
+import { useCart } from '../../hooks/queries/useCart';
 import { useProducts } from '../../hooks/queries/useShop';
 import { useTrainers } from '../../hooks/queries/useTrainers';
 import { useGymId } from '../../hooks/useActiveGym';
@@ -177,6 +178,8 @@ export default function HomeScreen() {
   const sessions = useMyServiceSessions();
   const trainers = useTrainers();
   const products = useProducts();
+  const shopCart = useCart(products.data?.products[0]?.currency ?? 'GEL');
+  const memberDiscountPercent = shopCart.data?.memberDiscountPercent ?? 0;
   const unread = useUnreadCount();
   const banners = useBanners();
 
@@ -561,14 +564,13 @@ export default function HomeScreen() {
             }}
           >
             <View style={{ gap: spacing[3] }}>
-              {/* The artboard's lime "−10%" chip. Copy, not a computed discount:
-                `member.home.membersGet` is a fixed marketing string and no
-                endpoint returns a member discount rate. */}
-              <View style={{ flexDirection: 'row' }}>
-                <Pill tone="accent" size="sm">
-                  {t('member.home.membersGet')}
-                </Pill>
-              </View>
+              {memberDiscountPercent > 0 && (
+                <View style={{ flexDirection: 'row' }}>
+                  <Pill tone="accent" size="sm">
+                    {t('shopDiscount.chip', { percent: memberDiscountPercent })}
+                  </Pill>
+                </View>
+              )}
 
               {(products.data?.products ?? []).length === 0 ? (
                 <EmptyState
@@ -587,6 +589,7 @@ export default function HomeScreen() {
                     <ShopRailRow
                       key={product.id}
                       product={product}
+                      memberDiscountPercent={memberDiscountPercent}
                       onPress={() => {
                         router.push(`/shop/product/${product.id}`);
                       }}

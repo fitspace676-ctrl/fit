@@ -1,4 +1,16 @@
 {
+  "shopDiscount": {
+    "title": "Shop settings",
+    "label": "Member shop discount (%)",
+    "hint": "Active members receive this discount online and in the app. Use 0 to turn it off. Promo codes apply afterwards. Staff POS sales are unchanged.",
+    "save": "Save",
+    "saved": "Saved",
+    "invalid": "Enter a whole number from 0 to 90.",
+    "error": "Could not save shop settings. Try again.",
+    "chip": "Members −{percent}%",
+    "discount": "Member discount",
+    "original": "Original price"
+  },
   "account": {
     "bookings": {
       "title": "My bookings",
@@ -3553,6 +3565,26 @@
         "promoNotFound": "That promo code no longer exists.",
         "promoTaken": "A promo code with that code already exists.",
         "bannerNotFound": "That banner no longer exists."
+      },
+      "mergeFields": {
+        "first_name": "First name",
+        "last_name": "Last name",
+        "full_name": "Full name",
+        "email": "Email",
+        "phone": "Phone",
+        "join_date": "Join date",
+        "birthday": "Birthday",
+        "member_status": "Member status",
+        "plan_name": "Plan name",
+        "expiry_date": "Expiry date",
+        "days_until_expiry": "Days until expiry",
+        "payment_amount": "Payment amount",
+        "renewal_date": "Renewal date",
+        "business_name": "Gym name",
+        "business_phone": "Gym phone",
+        "business_email": "Gym email",
+        "business_address": "Gym address",
+        "business_website": "Gym website"
       }
     },
     "loyalty": {
@@ -6017,6 +6049,21 @@
     }
   },
   "notifications": {
+    "mobile": {
+      "push": "Push notifications",
+      "pushHint": "Allow FormaCore to send notifications to this device.",
+      "subtitle": "Manage notifications on this device. Your choice is saved for this account.",
+      "signIn": "Sign in to enable notifications.",
+      "openSettings": "Open system settings",
+      "error": "Could not update notification delivery. Check your connection and try again.",
+      "permission": {
+        "unknown": "Checking system permission…",
+        "granted": "System permission: allowed",
+        "denied": "System permission: blocked. You can allow notifications in system settings.",
+        "undetermined": "System permission: not requested yet",
+        "unsupported": "Push notifications require the iOS or Android app."
+      }
+    },
     "title": "Notifications",
     "subtitle": "Choose what you'd like to hear about. Delivery is enabled in a later update.",
     "push": "Push notifications",

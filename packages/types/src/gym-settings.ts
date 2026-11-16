@@ -984,7 +984,12 @@ export type GymReceiptSettings = z.infer<typeof gymReceiptSettingsSchema>;
  * sensible default — the API always reads and returns a complete object so the
  * form never has to guess at missing fields.
  */
+export const gymShopSettingsSchema = z.object({
+  memberDiscountPercent: z.number().int().min(0).max(90).default(0),
+});
+
 export const gymSettingsStoredSchema = z.object({
+  shop: gymShopSettingsSchema.default({}),
   brand: gymBrandSettingsSchema.default({}),
   business: gymBusinessSettingsSchema.default({}),
   locale: gymLocaleSchema.default({}),
@@ -1022,6 +1027,7 @@ export interface GymBrand extends GymBrandSettings {
  * brand/locale/hours/policies, with the gym's `name` folded into `brand`.
  */
 export interface GymSettings {
+  shop?: z.infer<typeof gymShopSettingsSchema>;
   brand: GymBrand;
   business: GymBusinessSettings;
   locale: GymLocale;
@@ -1058,6 +1064,7 @@ export type GetGymSettingsResponse = GymSettings;
  */
 export const updateGymSettingsSchema = z
   .object({
+    shop: gymShopSettingsSchema.partial().strict().optional(),
     brand: z
       .object({
         name: z.string().trim().min(1).max(100).optional(),

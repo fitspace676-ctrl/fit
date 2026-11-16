@@ -283,7 +283,10 @@ export function TemplateFormDialog({
                     onClick={() => insertToken(field.token)}
                     {...stylex.props(styles.mergeChip)}
                   >
-                    + {field.label}
+                    +{' '}
+                    {t.has(`mergeFields.${field.token.replace(/[{}]/g, '')}`)
+                      ? t(`mergeFields.${field.token.replace(/[{}]/g, '')}`)
+                      : field.token}
                   </button>
                 ))}
               </div>

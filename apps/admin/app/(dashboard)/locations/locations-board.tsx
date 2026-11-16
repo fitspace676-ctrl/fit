@@ -504,10 +504,12 @@ interface OpenState {
  */
 export function LocationsBoard({
   locations,
+  gymName = null,
   canWrite,
   canManage,
 }: {
   locations: AdminLocationRow[];
+  gymName?: string | null;
   /** `LocationWrite` — the row menu's edit link. */
   canWrite: boolean;
   /** `LocationManage` — the add link and the activate / deactivate action. */
@@ -639,7 +641,7 @@ export function LocationsBoard({
   return (
     <div {...stylex.props(styles.page)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{gymName}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <span {...stylex.props(styles.crumbCurrent)}>{t('breadcrumb.locations')}</span>
       </nav>

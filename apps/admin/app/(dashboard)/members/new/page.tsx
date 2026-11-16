@@ -5,6 +5,7 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveGymBrand } from '@/lib/active-gym';
 import { memberIntakeConfig } from '@/lib/member-intake';
 import { fetchGymSettings } from '@/lib/api';
 import { Icon } from '@/components/ui';
@@ -84,6 +85,7 @@ const styles = stylex.create({
  * the Server Action it calls both re-check, and the API enforces it again.
  */
 export default async function NewMemberPage() {
+  const gymBrand = getActiveGymBrand();
   const session = await getServerSession();
   if (!session || !roleHasPermission(session.role, Permission.MemberWrite)) {
     redirect('/403');
@@ -101,7 +103,7 @@ export default async function NewMemberPage() {
   return (
     <div {...stylex.props(styles.page)}>
       <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{(await gymBrand)?.name}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <Link href="/members" {...stylex.props(styles.crumbLink)}>
           {t('breadcrumb.members')}

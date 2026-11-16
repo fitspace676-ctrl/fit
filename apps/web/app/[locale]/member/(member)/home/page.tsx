@@ -1,3 +1,5 @@
+import { fetchCart } from '@/lib/cart';
+import { memberShopPrice } from '@fit/types';
 import type { Metadata } from 'next';
 import { Avatar, Badge, ButtonLink, Card, CountUp, Meter } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
@@ -602,6 +604,8 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
 
   const trainer = trainers[0] ?? null;
   const topProducts = products.slice(0, 4);
+  const memberDiscountPercent = (await fetchCart()).memberDiscountPercent ?? 0;
+  const tDiscount = await getTranslations('shopDiscount');
   const topServices = services.slice(0, 3);
   const nextSession =
     mySessions
@@ -912,7 +916,12 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
         <Card padding="none" xstyle={styles.cardLg}>
           <div {...stylex.props(styles.rowBetween)}>
             <p {...stylex.props(styles.cardLabel)}>{t('forTraining')}</p>
-            <Badge tone="positive" label={t('membersGet')} />
+            {memberDiscountPercent > 0 && (
+              <Badge
+                tone="positive"
+                label={tDiscount('chip', { percent: memberDiscountPercent })}
+              />
+            )}
           </div>
           {topProducts.length > 0 ? (
             <div {...stylex.props(styles.productGrid)}>
@@ -929,7 +938,16 @@ export default async function MemberHomePage({ params }: { params: Promise<{ loc
                   </div>
                   <p {...stylex.props(styles.productName)}>{p.name}</p>
                   <p {...stylex.props(styles.productPrice)}>
-                    {formatMoney(p.priceAmount, p.currency, activeLocale)}
+                    {memberDiscountPercent > 0 && (
+                      <>
+                        <s>{formatMoney(p.priceAmount, p.currency, activeLocale)}</s>{' '}
+                      </>
+                    )}
+                    {formatMoney(
+                      memberShopPrice(p.priceAmount, memberDiscountPercent),
+                      p.currency,
+                      activeLocale,
+                    )}
                   </p>
                 </Link>
               ))}
