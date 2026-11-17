@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isPlaceholderEmail } from '../common/directory-identity';
 import {
   REPORT_DEFINITIONS,
   type GymBusinessSettings,
@@ -361,6 +362,11 @@ export class EmailService {
     context: string,
     senderName?: string | null,
   ): Promise<boolean> {
+    // A login-less person's synthetic address is not a mailbox: never hand it to Resend.
+    if (isPlaceholderEmail(to)) {
+      this.logger.debug(`${context}: recipient has no real email address — not sent`);
+      return false;
+    }
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — ${context} for ${to} not sent`,

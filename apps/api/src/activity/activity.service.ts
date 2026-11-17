@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { PaymentStatus, Prisma, Role } from '@fit/db';
 import {
   ACTIVITY_EVENT_TYPES,
@@ -182,9 +183,9 @@ export class ActivityService {
       id: `signup:${row.id}`,
       type: 'signup',
       title: 'New member',
-      detail: row.user.email,
+      detail: contactEmail(row.user.email),
       memberId: row.id,
-      memberName: row.user.name ?? row.user.email,
+      memberName: row.user.name ?? contactEmail(row.user.email),
       amount: null,
       currency: null,
       at: row.joinedAt.toISOString(),

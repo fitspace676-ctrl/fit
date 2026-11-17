@@ -7,6 +7,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { BookingStatus, OrderStatus, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import {
   gymSettingsStoredSchema,
@@ -191,7 +192,7 @@ export class MarketingService {
       today: new Date(),
     });
     return {
-      recipient: member.user.email,
+      recipient: contactEmail(member.user.email),
       subject: interpolateMarketingMessage(input.subject, values),
       body: interpolateMarketingMessage(input.body, values),
     };
@@ -1133,8 +1134,8 @@ function toMemberSample(member: {
 }): AudienceMemberSample {
   return {
     id: member.id,
-    name: member.user.name ?? member.user.email,
-    email: member.user.email,
+    name: member.user.name ?? contactEmail(member.user.email),
+    email: contactEmail(member.user.email),
   };
 }
 

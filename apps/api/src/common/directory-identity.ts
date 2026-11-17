@@ -29,6 +29,17 @@ export function isPlaceholderEmail(email: string): boolean {
 }
 
 /**
+ * The address to show (or export) for a person: a synthetic placeholder is not a
+ * contact, so it reads as `''` — the same blanking the staff directory does. Every
+ * projection that puts a member's email on the wire goes through this, so a
+ * login-less member (an imported roster, a walk-in typed in by reception) never
+ * surfaces `…@no-login.fit.local` in the console.
+ */
+export function contactEmail(email: string): string {
+  return isPlaceholderEmail(email) ? '' : email;
+}
+
+/**
  * Split a display name into the First/Last pair the staff roster renders. A
  * single-word name has no surname (`null`), never a copy of the first name.
  */
