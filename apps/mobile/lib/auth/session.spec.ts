@@ -20,6 +20,7 @@ import {
 import {
   SIGN_OUT_TIMEOUT_MS,
   configureSession,
+  deleteAccount,
   ensureFreshSession,
   getActiveGymSnapshot,
   getLastGymSlug,
@@ -824,5 +825,35 @@ describe('the §5 test boundary', () => {
     expect(source).not.toMatch(/from\s+'react-native/);
     expect(source).not.toMatch(/from\s+'expo-/);
     expect(source).not.toMatch(/from\s+'@sentry/);
+  });
+});
+
+describe('deleteAccount', () => {
+  it('deletes on the server before clearing tokens and cached data', async () => {
+    configureSession({ authApi: fakeAuthApi() });
+    await hydrateAuth();
+    await saveTokens(pair(FRESH_EXP));
+    const fetchMock = vi.fn(async () => {
+      expect(getSessionSnapshot()).not.toBeNull();
+      return new Response(null, { status: 204 });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    await deleteAccount();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.example.test/me/account', expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(getSessionSnapshot()).toBeNull();
+    expect(getSessionState().status).toBe('signed-out');
+  });
+
+  it('keeps the session when the API refuses deletion', async () => {
+    configureSession({ authApi: fakeAuthApi() });
+    await hydrateAuth();
+    await saveTokens(pair(FRESH_EXP));
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      code: 'ACCOUNT_DELETION_STAFF', message: 'Contact your gym administrator',
+    }), { status: 409 })) as unknown as typeof fetch;
+    await expect(deleteAccount()).rejects.toMatchObject({ code: 'ACCOUNT_DELETION_STAFF' });
+    expect(getSessionSnapshot()).not.toBeNull();
   });
 });

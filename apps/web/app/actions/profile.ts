@@ -8,6 +8,7 @@
 
 import { cookies } from 'next/headers';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { SESSION_COOKIES, sessionCookieOptions } from '@/lib/session-cookies';
 import { tenantHeaders } from '@/lib/tenant-headers';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -59,4 +60,28 @@ export async function updateProfileAction(input: {
   } catch {
     return { ok: false, error: 'Network error' };
   }
+}
+
+/** Delete the identity before expiring this portal's session cookies. */
+export async function deleteAccountAction(): Promise<UpdateProfileResult> {
+  const jar = await cookies();
+  const token = jar.get(ACCESS_TOKEN_COOKIE)?.value;
+  if (!token) return { ok: false, error: 'Not signed in', code: 'UNAUTHENTICATED' };
+  try {
+    const response = await fetch(`${API_URL}/me/account`, {
+      method: 'DELETE',
+      headers: { ...(await tenantHeaders()), Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { message?: string; code?: string } | null;
+      return { ok: false, error: body?.message ?? 'Could not delete account', code: body?.code };
+    }
+  } catch {
+    return { ok: false, error: 'Network error' };
+  }
+  for (const name of SESSION_COOKIES) {
+    jar.set(name, '', sessionCookieOptions(0));
+  }
+  return { ok: true };
 }

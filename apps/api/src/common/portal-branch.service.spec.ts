@@ -147,7 +147,7 @@ describe('PortalBranchService', () => {
     const verifyAccessToken = vi.fn(verify);
     const service = new PortalBranchService(
       { client: c } as unknown as PrismaService,
-      { verifyAccessToken } as unknown as TokenService,
+      { verifyAccessToken, assertSessionActive: vi.fn().mockResolvedValue(undefined) } as unknown as TokenService,
     );
     return { service, verifyAccessToken, memberFindFirst };
   }

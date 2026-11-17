@@ -18,7 +18,7 @@ import type { Locale } from '@fit/i18n';
 import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
 import { Icon, useToast } from '@/src/components/ui';
 import { useTheme } from '@/src/components/theme/theme-provider';
-import { updateProfileAction } from '@/app/actions/profile';
+import { deleteAccountAction, updateProfileAction } from '@/app/actions/profile';
 
 // Astryx migration (T11), now on the portal kit: the member profile is rebuilt on the portal kit design
 // system over the FormaCore theme. The identity card, the tabbed sections
@@ -344,6 +344,18 @@ export function ProfileScreen({
     router.replace(pathname, { locale: loc });
   }
 
+  function deleteAccount(): void {
+    if (saving || !window.confirm(`${t('deleteTitle')}?\n\n${t('deleteDesc')}`)) return;
+    startSaving(async () => {
+      const result = await deleteAccountAction();
+      if (result.ok) {
+        window.location.assign(`/${activeLocale}/member/login`);
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'x' });
+      }
+    });
+  }
+
   function save(): void {
     // Name + phone persist via PATCH /me/profile; the remaining preferences that
     // work client-side (language, theme) have already been applied on change.
@@ -582,7 +594,8 @@ export function ProfileScreen({
                       size="inline"
                       icon={<Icon name="trash" {...stylex.props(styles.glyph)} />}
                       label={t('delete')}
-                      onClick={() => toast(t('deleteToast'), { tone: 'danger', icon: 'info' })}
+                      onClick={deleteAccount}
+                      disabled={saving}
                     />
                   </div>
                 </Card>

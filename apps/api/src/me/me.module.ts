@@ -1,3 +1,5 @@
+import { MeAccountController } from './me-account.controller';
+import { MeAccountService } from './me-account.service';
 import { Module } from '@nestjs/common';
 import { MePhotoController } from './me-photo.controller';
 import { MePhotoService } from './me-photo.service';
@@ -36,6 +38,7 @@ import { MeOrdersService } from './me-orders.service';
 @Module({
   imports: [BillingModule],
   controllers: [
+    MeAccountController,
     MePhotoController,
     MeSubscriptionController,
     MeInvoicesController,
@@ -45,6 +48,7 @@ import { MeOrdersService } from './me-orders.service';
     MePermissionsController,
   ],
   providers: [
+    MeAccountService,
     MePhotoService,
     MeSubscriptionService,
     MeInvoicesService,

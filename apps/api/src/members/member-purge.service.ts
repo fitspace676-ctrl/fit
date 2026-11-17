@@ -87,7 +87,11 @@ export class MemberPurgeService {
   async purgeExpired(now: Date): Promise<number> {
     const cutoff = new Date(now.getTime() - MEMBER_TRASH_RETENTION_DAYS * DAY_MS);
     const { count } = await this.prisma.client.gymMember.deleteMany({
-      where: { role: Role.MEMBER, deletedAt: { lt: cutoff } },
+      // Self-deleted identities retain check-ins and accounting relationships.
+      where: {
+        role: Role.MEMBER, deletedAt: { lt: cutoff },
+        user: { email: { not: { endsWith: '@deleted.fit.local' } } },
+      },
     });
     return count;
   }

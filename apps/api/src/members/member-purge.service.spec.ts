@@ -30,6 +30,7 @@ describe('MemberPurgeService.purgeExpired', () => {
       deletedAt: { lt: Date };
     };
     expect(where.role).toBe(Role.MEMBER);
+    expect(where).toMatchObject({ user: { email: { not: { endsWith: '@deleted.fit.local' } } } });
     // Cutoff is exactly `now − retention days`; members trashed after it are kept.
     expect(where.deletedAt.lt).toEqual(
       new Date(now.getTime() - MEMBER_TRASH_RETENTION_DAYS * DAY_MS),

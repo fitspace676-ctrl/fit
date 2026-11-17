@@ -127,6 +127,17 @@ export interface VerifiedAccessClaims {
 export class TokenService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Check persisted revocation on every authenticated request, without caching. */
+  async assertSessionActive(claims: VerifiedAccessClaims): Promise<void> {
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: claims.sub }, select: { tokenVersion: true, email: true },
+    });
+    if (!user || user.email === `deleted+${claims.sub}@deleted.fit.local` ||
+      user.tokenVersion !== (claims.tokenVersion ?? 0)) {
+      throw invalidAccessToken();
+    }
+  }
+
   /** True when a signing secret is configured and tokens can be issued. */
   get isConfigured(): boolean {
     return Boolean(env.JWT_SECRET);

@@ -108,6 +108,7 @@ import { creditBalance } from '../../../components/membership/derive';
 import { FreezeSheet } from '../../../components/membership/freeze-sheet';
 import { ProfileMembershipCard } from '../../../components/membership/membership-card';
 import { ProfilePtStrip } from '../../../components/profile/stats';
+import { DeleteAccountSection } from '../../../components/settings/delete-account-section';
 import { SignOutSection } from '../../../components/settings/sign-out-section';
 import { trainerInitials } from '../../../components/trainers/trainer-filters';
 import { useCreditPacks, useMembership } from '../../../hooks/queries/useMembership';
@@ -117,7 +118,7 @@ import { useUnreadCount } from '../../../hooks/queries/useNotifications';
 import { useUnfreezeSubscription } from '../../../hooks/mutations/useSubscriptionMutations';
 import { useGymId } from '../../../hooks/useActiveGym';
 import { useSession } from '../../../hooks/useSession';
-import { resolveGymSlug, signOut } from '../../../lib/auth/session';
+import { resolveGymSlug, signOut, deleteAccount } from '../../../lib/auth/session';
 import { queryKeys } from '../../../lib/query-keys';
 import type { ThemePreference } from '../../../lib/theme-preference';
 import { useI18n } from '../../../providers/I18nProvider';
@@ -593,6 +594,7 @@ export default function ProfileScreen() {
               }}
               testID="profile-sign-out"
             />
+            <DeleteAccountSection onDelete={deleteAccount} onDeleted={() => router.replace('/')} />
           </Surface>
 
           {/* The last line on the screen, and the smallest. It is not a row:
