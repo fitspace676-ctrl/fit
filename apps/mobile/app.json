@@ -72,6 +72,12 @@
         "projectId": "d425affe-3cbe-46fc-82f6-6cf3beed154a"
       }
     },
-    "owner": "formacore"
+    "owner": "formacore",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d425affe-3cbe-46fc-82f6-6cf3beed154a"
+    }
   }
 }
