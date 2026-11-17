@@ -748,6 +748,8 @@ export function AgentChat() {
   const t = useTranslations('admin.agent');
   const locale = useLocale();
   const [open, setOpen] = useState(false);
+  const sessionIdRef = useRef<string | null>(null);
+  const getSessionId = useCallback(() => (sessionIdRef.current ??= newSessionId()), []);
   const {
     messages,
     isStreaming,
@@ -760,11 +762,10 @@ export function AgentChat() {
     pendingApprovals,
     decide,
     retry,
-  } = useAgentChat();
+  } = useAgentChat(getSessionId);
   const { sessions, save: saveSession, remove: removeSession, load: loadSession } = useSessions();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const sessionIdRef = useRef<string | null>(null);
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [attachWarn, setAttachWarn] = useState<string>('');

@@ -82,6 +82,62 @@ export class AgentSessionsService {
     };
   }
 
+  /** Scan one bounded page of the caller's history; continue even after an empty match page. */
+  async searchHistory(input: { query?: string; offset: number; currentSessionId?: string }) {
+    const rows = await this.prisma.client.agentChatSession.findMany({
+      where: {
+        gymId: this.tenant.gymId,
+        userId: this.requireUserId(),
+        ...(input.currentSessionId ? { id: { not: input.currentSessionId } } : {}),
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+      skip: input.offset,
+      take: 11,
+      select: { ...SUMMARY_SELECT, messages: true },
+    });
+    const query = (input.query ?? '').trim().toLowerCase();
+    const sessions = rows.slice(0, 10).flatMap((row) => {
+      const text = historyText(row.messages);
+      const match = text.toLowerCase().indexOf(query);
+      if (query && match < 0 && !row.title.toLowerCase().includes(query)) return [];
+      return [
+        {
+          ...toSummary(row),
+          title: row.title.slice(0, 200),
+          excerpt: text.slice(Math.max(0, match - 100), Math.max(0, match - 100) + 500),
+        },
+      ];
+    });
+    return { sessions, nextOffset: rows.length > 10 ? input.offset + 10 : null };
+  }
+
+  /** Only conversational text is exposed, never attachments or tool payloads. */
+  async readHistory(id: string, input: { offset: number; currentSessionId?: string }) {
+    const row = await this.prisma.client.agentChatSession.findFirst({
+      where: {
+        gymId: this.tenant.gymId,
+        userId: this.requireUserId(),
+        id,
+        ...(input.currentSessionId ? { NOT: { id: input.currentSessionId } } : {}),
+      },
+      select: { ...SUMMARY_SELECT, messages: true },
+    });
+    if (!row) {
+      throw new NotFoundException({
+        message: 'Session not found',
+        code: 'AGENT_SESSION_NOT_FOUND',
+      });
+    }
+    const text = historyText(row.messages);
+    const end = input.offset + 12000;
+    return {
+      ...toSummary(row),
+      title: row.title.slice(0, 200),
+      text: text.slice(input.offset, end),
+      nextOffset: end < text.length ? end : null,
+    };
+  }
+
   /**
    * Upsert a session by its client-generated `id`: creates it (owned by the
    * caller's gym + user) if unknown, else overwrites its title + transcript.
@@ -143,4 +199,18 @@ export class AgentSessionsService {
 /** Project a queried session row to the wire {@link AgentSessionSummary}. */
 function toSummary(row: SummaryRecord): AgentSessionSummary {
   return { id: row.id, title: row.title, updatedAt: row.updatedAt.toISOString() };
+}
+
+/** Saved transcripts are untrusted JSON; ignore malformed turns and non-text fields. */
+function historyText(messages: unknown): string {
+  if (!Array.isArray(messages)) return '';
+  return messages
+    .flatMap((message: unknown) => {
+      if (!message || typeof message !== 'object') return [];
+      const turn = message as { role?: unknown; content?: unknown };
+      if ((turn.role !== 'user' && turn.role !== 'assistant') || typeof turn.content !== 'string')
+        return [];
+      return [`${turn.role}: ${turn.content}`];
+    })
+    .join('\n\n');
 }

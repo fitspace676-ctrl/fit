@@ -447,7 +447,8 @@ describe('MarketingService.sendCampaign', () => {
               status: 'ACTIVE',
               joinedAt: new Date(),
               dateOfBirth: null,
-              user: { name: 'Nino', email: `nino${i}@example.com`, phone: null },
+              user: { name: i === 0 ? 'Nino' : 'Ana', email: `nino${i}@example.com`, phone: null },
+              loyaltyLedger: [{ balanceAfter: i * 10 }],
               subscriptions: [],
               _count: { checkIns: 0 },
             })),
@@ -470,6 +471,74 @@ describe('MarketingService.sendCampaign', () => {
     );
     expect(result).toMatchObject({ status: 'sent', audienceSize: 2, sentCount: 2 });
   });
+
+  it('fills subject and body per recipient, blanks missing and unknown fields without N+1', async () => {
+    const { service, client, mailer } = deliverySetup({
+      subject: 'Hi {{firstName}} {{unknown}}',
+      body: '{{member_first_name}}/{{membership_plan}}/{{phone}}/{{member_points_balance}}/{{typo}}',
+    });
+    await service.sendCampaign('camp-1');
+    expect(mailer.send).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        subject: 'Hi Nino ',
+        text: 'Nino///0/',
+      }),
+    );
+    expect(mailer.send).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        subject: 'Hi Ana ',
+        text: 'Ana///10/',
+      }),
+    );
+    expect(client.loyaltyLedgerEntry.findFirst).not.toHaveBeenCalled();
+    expect(client.gymMember.findMany).toHaveBeenCalledTimes(1);
+    expect(client.gymMember.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          loyaltyLedger: expect.objectContaining({
+            where: { gymId: 'gym-1' },
+            take: 1,
+          }) as unknown,
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('previews filled member values without sending, scoped to the current gym', async () => {
+    const { service, client, mailer } = deliverySetup();
+    client.gymMember.findFirst.mockResolvedValueOnce({
+      id: 'm-1',
+      status: 'ACTIVE',
+      joinedAt: new Date(),
+      dateOfBirth: null,
+      user: { name: 'Nino', email: 'nino@example.com', phone: null },
+      subscriptions: [],
+      loyaltyLedger: [],
+      _count: { checkIns: 0 },
+    });
+    expect(
+      await service.previewMessage({ subject: '{{firstName}}', body: '{{phone}}/{{bad}}' }),
+    ).toEqual({ recipient: 'nino@example.com', subject: 'Nino', body: '/' });
+    expect(client.gymMember.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { gymId: 'gym-1', deletedAt: null },
+      }),
+    );
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it.each(['sms', 'push'])(
+    'does not pretend unsupported %s campaigns are delivered',
+    async (channel) => {
+      const { service, mailer } = deliverySetup({ channel });
+      await expect(service.sendCampaign('camp-1')).rejects.toMatchObject({
+        response: { code: 'CAMPAIGN_CHANNEL_UNSUPPORTED' },
+      });
+      expect(mailer.send).not.toHaveBeenCalled();
+    },
+  );
 
   it('records partial delivery and surfaces the failure', async () => {
     const { service, client, mailer } = deliverySetup();
@@ -518,7 +587,10 @@ describe('MarketingService.sendCampaign', () => {
     expect(client.gymMember.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          AND: [expect.objectContaining({ status: { in: ['ACTIVE'] } }), { deletedAt: null }],
+          AND: [
+            expect.objectContaining({ status: { in: ['ACTIVE'] } }),
+            { gymId: 'gym-1', deletedAt: null },
+          ],
         },
       }),
     );

@@ -10,7 +10,7 @@ import {
 import { BookingStatus, OrderStatus, Prisma, Role, SubscriptionStatus } from '@fit/db';
 import {
   gymSettingsStoredSchema,
-  interpolateMergeFields,
+  interpolateMarketingMessage,
   AUDIENCE_PREVIEW_SAMPLE_SIZE,
   MARKETING_CHANNEL_CATALOG,
   MARKETING_MERGE_FIELD_DEFS,
@@ -106,6 +106,36 @@ type CampaignRecord = Prisma.CampaignGetPayload<{ select: typeof CAMPAIGN_SELECT
  */
 const PROMO_BRANCH_INCLUDE = { location: { select: { name: true } } } as const;
 
+function marketingMemberInclude(gymId: string) {
+  return {
+    user: true,
+    location: true,
+    loyaltyLedger: {
+      where: { gymId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 1,
+      select: { balanceAfter: true },
+    },
+    checkIns: { orderBy: { checkedInAt: 'desc' }, take: 1 },
+    subscriptions: {
+      where: {
+        status: {
+          in: [
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.TRIAL,
+            SubscriptionStatus.PAST_DUE,
+            SubscriptionStatus.FROZEN,
+          ],
+        },
+      },
+      orderBy: { currentPeriodEnd: 'desc' },
+      take: 1,
+      include: { plan: true },
+    },
+    _count: { select: { checkIns: true } },
+  } satisfies Prisma.GymMemberInclude;
+}
+
 @Injectable()
 export class MarketingService {
   private readonly logger = new Logger(MarketingService.name);
@@ -132,6 +162,39 @@ export class MarketingService {
     // Still a promise: it used to read the gym's settings row, the controller
     // awaits it, and the shape of the call is not what changed here.
     return Promise.resolve({ channels: MARKETING_CHANNEL_CATALOG, mergeFields: builtIns });
+  }
+
+  /** Preview uses the same scoped facts and interpolation as delivery; sends nothing. */
+  async previewMessage(input: { subject: string; body: string }) {
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { gymId: this.tenant.gymId, deletedAt: null },
+      orderBy: { id: 'asc' },
+      include: marketingMemberInclude(this.tenant.gymId),
+    });
+    if (!member) throw new BadRequestException({ code: 'CAMPAIGN_NO_RECIPIENTS' });
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { id: this.tenant.gymId },
+      select: { name: true, settings: true },
+    });
+    const settings = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+    const values = buildMemberMergeValues({
+      member,
+      gymName: gym?.name ?? 'FormaCore',
+      language: settings.locale.language,
+      business: {
+        phone: settings.business.phone ?? '',
+        email: settings.business.email ?? '',
+        address: settings.business.address ?? '',
+        website: settings.business.website ?? '',
+      },
+      pointsBalance: member.loyaltyLedger[0]?.balanceAfter ?? 0,
+      today: new Date(),
+    });
+    return {
+      recipient: member.user.email,
+      subject: interpolateMarketingMessage(input.subject, values),
+      body: interpolateMarketingMessage(input.body, values),
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -572,28 +635,8 @@ export class MarketingService {
     }
     const where = await this.buildMemberWhere(await this.campaignCriteria(existing));
     const members = await this.prisma.client.gymMember.findMany({
-      where: { AND: [where, { deletedAt: null }] },
-      include: {
-        user: true,
-        location: true,
-        checkIns: { orderBy: { checkedInAt: 'desc' }, take: 1 },
-        subscriptions: {
-          where: {
-            status: {
-              in: [
-                SubscriptionStatus.ACTIVE,
-                SubscriptionStatus.TRIAL,
-                SubscriptionStatus.PAST_DUE,
-                SubscriptionStatus.FROZEN,
-              ],
-            },
-          },
-          orderBy: { currentPeriodEnd: 'desc' },
-          take: 1,
-          include: { plan: true },
-        },
-        _count: { select: { checkIns: true } },
-      },
+      where: { AND: [where, { gymId: this.tenant.gymId, deletedAt: null }] },
+      include: marketingMemberInclude(this.tenant.gymId),
     });
     if (!members.length) {
       throw new BadRequestException({
@@ -623,11 +666,6 @@ export class MarketingService {
     let failedCount = 0;
     for (const member of members) {
       try {
-        const points = await this.prisma.client.loyaltyLedgerEntry.findFirst({
-          where: { gymId: this.tenant.gymId, memberId: member.id },
-          orderBy: { createdAt: 'desc' },
-          select: { balanceAfter: true },
-        });
         const values = buildMemberMergeValues({
           member,
           gymName,
@@ -638,11 +676,11 @@ export class MarketingService {
             address: settings.business.address ?? '',
             website: settings.business.website ?? '',
           },
-          pointsBalance: points?.balanceAfter ?? 0,
+          pointsBalance: member.loyaltyLedger[0]?.balanceAfter ?? 0,
           today: new Date(),
         });
-        const subject = interpolateMergeFields(existing.subject ?? existing.name, values);
-        const body = interpolateMergeFields(existing.body, values);
+        const subject = interpolateMarketingMessage(existing.subject ?? existing.name, values);
+        const body = interpolateMarketingMessage(existing.body, values);
         const result = await this.mailer.send({
           to: member.user.email,
           from: emailFrom(gymName),

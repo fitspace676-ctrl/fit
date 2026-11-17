@@ -318,3 +318,54 @@ describe('buildAutomationAssistPrompt', () => {
     expect(prompt).toContain('Never show');
   });
 });
+
+describe('marketing copy through automation assist', () => {
+  it('drafts copy without requiring an automation trigger and uses only marketing fields', async () => {
+    const driver = scripted([
+      propose({
+        actionConfig: { subject: 'Hello {{first_name}}', body: 'Welcome to {{business_name}}' },
+        explanation: 'Draft ready.',
+      }),
+    ]);
+    const result = await draftAutomationRule(
+      request({
+        purpose: 'marketing',
+        message: 'Write a welcome email',
+        marketingCopy: { subject: '', body: '' },
+      }),
+      OPTIONS,
+      CONTEXT,
+      GEMINI,
+      { createDriver: driver.createDriver },
+    );
+    expect(result.kind).toBe('draft');
+    expect(result).toMatchObject({
+      draft: { actionConfig: { body: 'Welcome to {{business_name}}' } },
+    });
+    expect(driver.systems[0]).toContain('Language: ka');
+    expect(driver.systems[0]).not.toContain('{{class_name}}');
+    expect(driver.histories[0]?.at(-1)).toMatchObject({
+      role: 'user',
+      text: expect.stringContaining('Current message (JSON)') as unknown,
+    });
+  });
+
+  it('repairs context-only variables rather than offering an unfillable marketing draft', async () => {
+    const driver = scripted([
+      propose({ actionConfig: { body: 'Join {{class_name}}' }, explanation: 'Draft' }),
+      propose({ actionConfig: { body: 'Join {{business_name}}' }, explanation: 'Draft' }),
+    ]);
+    const result = await draftAutomationRule(
+      request({ purpose: 'marketing', message: 'Welcome' }),
+      OPTIONS,
+      CONTEXT,
+      GEMINI,
+      { createDriver: driver.createDriver },
+    );
+    expect(driver.runTurn).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      kind: 'draft',
+      draft: { actionConfig: { body: 'Join {{business_name}}' } },
+    });
+  });
+});

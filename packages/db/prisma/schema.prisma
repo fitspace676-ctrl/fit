@@ -697,6 +697,8 @@ model NotificationPreference {
 /// that gym. The composite unique on (userId, gymId) enforces one membership
 /// per user per gym while still allowing N gyms per user.
 model GymMember {
+  /// Member-managed photo, isolated to this gym (never shared through User).
+  photoUrl String?
   id       String          @id @default(cuid())
   userId   String
   gymId    String

@@ -3489,3 +3489,31 @@ export async function clearMobileAppLoginImage(): Promise<MobileAppSettings> {
   });
   return unwrap<MobileAppSettings>(res);
 }
+
+/** Marketing permission boundary for the shared automation drafting service. */
+export async function assistMarketingMessage(
+  input: AutomationAssistRequest,
+): Promise<AutomationAssistResponse> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/assist`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<AutomationAssistResponse>(res);
+}
+
+/** Render current copy for a sample member of the authenticated gym; never sends. */
+export async function previewMarketingMessage(input: { subject: string; body: string }): Promise<{
+  recipient: string;
+  subject: string;
+  body: string;
+}> {
+  const res = await fetch(`${apiBaseUrl()}/marketing/preview-message`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap(res);
+}

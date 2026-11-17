@@ -264,3 +264,15 @@ describe('validateAutomationDraft merge aliases', () => {
     expect(member.issues[0]).toMatch(/Unknown merge token: \{\{session_trainer_name\}\}/);
   });
 });
+
+describe('marketing assist input', () => {
+  it('accepts an empty message editor independently of a valid automation draft', () => {
+    expect(
+      automationAssistRequestSchema.parse({
+        purpose: 'marketing',
+        message: 'Write welcome copy',
+        marketingCopy: { subject: '', body: '' },
+      }).marketingCopy,
+    ).toEqual({ subject: '', body: '' });
+  });
+});
