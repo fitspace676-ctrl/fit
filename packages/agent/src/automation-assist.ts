@@ -297,6 +297,17 @@ function toNumber(value: unknown): unknown {
 }
 
 /**
+ * Models sometimes escape a line break twice, so the text arrives holding the
+ * two characters `\\n` instead of a newline and the operator sees them in the
+ * message. Turn those back into `breakAs`; anything that is not a string is
+ * left for the validator.
+ */
+function unescapeBreaks(value: unknown, breakAs: string): unknown {
+  if (typeof value !== 'string') return value;
+  return value.replace(/\\r\\n|\\n|\\r/g, breakAs).replace(/\\t/g, ' ');
+}
+
+/**
  * Drop the placeholders models fill optional fields with (`null`, `""`, `{}`,
  * `days: 0`) and coerce numeric strings, so a sensible draft is not rejected
  * for its packaging. Anything still wrong is left for the validator to report.
@@ -334,8 +345,9 @@ function cleanDraftInput(input: Record<string, unknown>): Record<string, unknown
 
   if (isRecord(out.actionConfig)) {
     const config: Record<string, unknown> = {};
-    if (!blank(out.actionConfig.subject)) config.subject = out.actionConfig.subject;
-    if (!blank(out.actionConfig.body)) config.body = out.actionConfig.body;
+    if (!blank(out.actionConfig.subject))
+      config.subject = unescapeBreaks(out.actionConfig.subject, ' ');
+    if (!blank(out.actionConfig.body)) config.body = unescapeBreaks(out.actionConfig.body, '\n');
     if (Object.keys(config).length === 0) delete out.actionConfig;
     else out.actionConfig = config;
   }
