@@ -8,13 +8,14 @@ vi.mock('../config/env', () => ({ env: { PLATFORM_ROOT_DOMAIN: 'fit.ge' } }));
 
 describe('CartIdentityMiddleware revocation', () => {
   it('still allows anonymous shopping', async () => {
-    const tokens = { verifyAccessToken: vi.fn() } as unknown as TokenService;
+    const verifyAccessToken = vi.fn();
+    const tokens = { verifyAccessToken } as unknown as TokenService;
     const next = vi.fn();
     await new CartIdentityMiddleware(tokens).use(
       { headers: {} } as RequestWithUser, {} as never, next,
     );
     expect(next).toHaveBeenCalledOnce();
-    expect(tokens.verifyAccessToken).not.toHaveBeenCalled();
+    expect(verifyAccessToken).not.toHaveBeenCalled();
   });
 
   it('rejects an old access token after account deletion', async () => {

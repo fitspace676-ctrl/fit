@@ -823,6 +823,6 @@ async function bestEffort(task: () => Promise<unknown>, scope: string): Promise<
 
 /** Clear the local session only after the server has deleted the account. */
 export async function deleteAccount(): Promise<void> {
-  await apiFetch<void>('/me/account', { method: 'DELETE' });
+  await apiFetch('/me/account', { method: 'DELETE' });
   await endSession();
 }

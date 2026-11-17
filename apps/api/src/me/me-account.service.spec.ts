@@ -4,7 +4,11 @@ import type { PrismaService } from '../prisma/prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 import { MeAccountService } from './me-account.service';
 
-function setup({ superAdmin = false, staff = false, userId = 'u1' as string | null } = {}) {
+function setup({
+  superAdmin = false,
+  staff = false,
+  userId = 'u1',
+}: { superAdmin?: boolean; staff?: boolean; userId?: string | null } = {}) {
   const tx = {
     user: { findUnique: vi.fn().mockResolvedValue({ isSuperAdmin: superAdmin }), update: vi.fn() },
     gymMember: { findFirst: vi.fn().mockResolvedValue(staff ? { id: 'staff-other-gym' } : null), updateMany: vi.fn() },
@@ -33,7 +37,7 @@ describe('MeAccountService', () => {
       expect(model.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u1' } });
     }
     expect(tx.gymMember.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'u1' }, data: expect.objectContaining({ deletedAt: expect.any(Date), personalId: null }),
+      where: { userId: 'u1' }, data: expect.objectContaining({ deletedAt: expect.any(Date) as unknown, personalId: null }) as unknown,
     });
     expect(tx.subscription.updateMany).toHaveBeenCalledWith({
       where: { member: { userId: 'u1' }, status: { in: ['ACTIVE', 'TRIAL', 'PAST_DUE', 'FROZEN'] } },
