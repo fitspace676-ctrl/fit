@@ -350,6 +350,37 @@ describe('marketing copy through automation assist', () => {
     });
   });
 
+  it('turns line breaks the model escaped twice back into real ones', async () => {
+    const driver = scripted([
+      propose({
+        actionConfig: {
+          subject: 'Hello\\n{{first_name}}',
+          body: 'Hi {{first_name}},\\n\\nSee you at {{business_name}}.\\r\\nBye',
+        },
+        explanation: 'Draft ready.',
+      }),
+    ]);
+    const result = await draftAutomationRule(
+      request({
+        purpose: 'marketing',
+        message: 'Write a welcome email',
+        marketingCopy: { subject: '', body: '' },
+      }),
+      OPTIONS,
+      CONTEXT,
+      GEMINI,
+      { createDriver: driver.createDriver },
+    );
+    expect(result).toMatchObject({
+      draft: {
+        actionConfig: {
+          subject: 'Hello {{first_name}}',
+          body: 'Hi {{first_name}},\n\nSee you at {{business_name}}.\nBye',
+        },
+      },
+    });
+  });
+
   it('repairs context-only variables rather than offering an unfillable marketing draft', async () => {
     const driver = scripted([
       propose({ actionConfig: { body: 'Join {{class_name}}' }, explanation: 'Draft' }),
