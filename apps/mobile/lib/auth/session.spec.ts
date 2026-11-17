@@ -833,11 +833,11 @@ describe('deleteAccount', () => {
     configureSession({ authApi: fakeAuthApi() });
     await hydrateAuth();
     await saveTokens(pair(FRESH_EXP));
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(() => {
       expect(getSessionSnapshot()).not.toBeNull();
-      return new Response(null, { status: 204 });
+      return Promise.resolve(new Response(null, { status: 204 }));
     });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock;
     await deleteAccount();
     expect(fetchMock).toHaveBeenCalledWith(
       'https://api.example.test/me/account', expect.objectContaining({ method: 'DELETE' }),
@@ -850,9 +850,9 @@ describe('deleteAccount', () => {
     configureSession({ authApi: fakeAuthApi() });
     await hydrateAuth();
     await saveTokens(pair(FRESH_EXP));
-    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+    globalThis.fetch = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
       code: 'ACCOUNT_DELETION_STAFF', message: 'Contact your gym administrator',
-    }), { status: 409 })) as unknown as typeof fetch;
+    }), { status: 409 })));
     await expect(deleteAccount()).rejects.toMatchObject({ code: 'ACCOUNT_DELETION_STAFF' });
     expect(getSessionSnapshot()).not.toBeNull();
   });
