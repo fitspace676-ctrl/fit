@@ -14,17 +14,15 @@
 // fallback for a token that happens to omit the `role` claim.
 
 /** The cookie the access token is persisted under (readable by middleware). */
-export const ACCESS_TOKEN_COOKIE = 'accessToken';
+// Surface-specific: the portal and console share one host and cookie jar.
+// Legacy shared cookies are deliberately ignored, requiring a clean sign-in.
+export const ACCESS_TOKEN_COOKIE = 'adminAccessToken';
 
 /**
  * The cookie a SUPER_ADMIN's impersonated session is persisted under.
  *
- * A SEPARATE NAME, written host-only by `/impersonation/start`, rather than
- * reusing `accessToken`. `accessToken` is set on the parent domain
- * (`COOKIE_DOMAIN=.<root>`) so one sign-in covers a gym's portal and its console
- * — which means writing an impersonated session into it would replace whatever
- * session the operator already had, on every tenant host at once. The operator
- * would lose their own console the moment they entered someone else's.
+ * Separate from the ordinary admin session, host-only on the gym being
+ * impersonated. It must never replace the operator's ordinary session.
  *
  * Kept distinct, the two coexist: this cookie wins where it exists (see
  * {@link pickSessionToken}), it is scoped to the one gym's host, and leaving the
@@ -234,5 +232,8 @@ export async function verifyAccessToken(token: string, secret: string): Promise<
   }
 
   const claims = parseClaims(encodedPayload);
-  return claims ? sessionFromClaims(claims) : null;
+  if (!claims) return null;
+  const role = parseRole(claims.role);
+  if (!role || !isStaff(role)) return null;
+  return sessionFromClaims(claims);
 }

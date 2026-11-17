@@ -210,6 +210,7 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: '0.75rem',
   },
+  photo: { objectFit: 'cover' },
   avatar: {
     display: 'grid',
     height: '2.25rem',
@@ -723,7 +724,11 @@ export function MembersTable({
       sortKey: 'name',
       cell: (member) => (
         <div {...stylex.props(styles.nameCell)}>
-          <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+          {member.photoUrl ? (
+            <img src={member.photoUrl} alt="" {...stylex.props(styles.avatar, styles.photo)} />
+          ) : (
+            <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+          )}
           <div {...stylex.props(styles.nameCol)}>
             <Link href={`/members/${member.id}`} {...stylex.props(styles.nameLink)}>
               {member.name}

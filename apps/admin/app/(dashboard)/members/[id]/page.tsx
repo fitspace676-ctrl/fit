@@ -13,6 +13,7 @@ import {
   type MergeValues,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveGymBrand } from '@/lib/active-gym';
 import { ApiError, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
 import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
@@ -141,6 +142,7 @@ const styles = stylex.create({
     alignItems: 'flex-start',
     gap: '1rem',
   },
+  photo: { objectFit: 'cover' },
   identityAvatar: {
     display: 'flex',
     height: '4rem',
@@ -378,6 +380,7 @@ function DetailKpi({
  * any other failure surfaces inline so the staff member sees why.
  */
 export default async function MemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const gymBrand = getActiveGymBrand();
   const { id } = await params;
   const t = await getTranslations('admin.members');
   const locale = await getLocale();
@@ -461,7 +464,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.topRow)}>
         <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-          <span>Iron Gym</span>
+          <span>{(await gymBrand)?.name}</span>
           <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
           <Link href="/members" {...stylex.props(styles.crumbLink)}>
             {t('breadcrumb.members')}
@@ -498,7 +501,15 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       {/* Identity header card. */}
       <Card padding="none" xstyle={styles.identityCard}>
         <div {...stylex.props(styles.identityLeft)}>
-          <span {...stylex.props(styles.identityAvatar)}>{initialsOf(member.name)}</span>
+          {member.photoUrl ? (
+            <img
+              src={member.photoUrl}
+              alt=""
+              {...stylex.props(styles.identityAvatar, styles.photo)}
+            />
+          ) : (
+            <span {...stylex.props(styles.identityAvatar)}>{initialsOf(member.name)}</span>
+          )}
           <div {...stylex.props(styles.identityCol)}>
             <div {...stylex.props(styles.titleRow)}>
               <h1 {...stylex.props(styles.name)}>{member.name}</h1>

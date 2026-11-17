@@ -10,6 +10,7 @@ import {
   type ReportDigestSection,
 } from '@fit/types';
 import { tenantOrigin } from '@fit/utils';
+import { emailFrom, MailerService } from '../mail/mailer.service';
 import { env } from '../config/env';
 import { buildConsoleUrl, buildMemberUrl } from '../common/console-url';
 import {
@@ -30,9 +31,6 @@ import {
   type EmailLocale,
 } from '../mail/email-locale';
 import { emailStrings } from '../mail/email-strings';
-
-/** Resend's transactional-email endpoint. */
-const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
 /** One low-variant of a product on the low-stock digest (T8.8): a human label
  *  (the variant name, or its SKU / index when unnamed) and the on-hand count that
@@ -94,6 +92,7 @@ export interface DailySummary {
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
+  private readonly mailer = new MailerService();
 
   /** True when a Resend API key is configured and mail will actually be sent. */
   get isConfigured(): boolean {
@@ -125,7 +124,12 @@ export class EmailService {
       );
       return;
     }
-    await this.deliver(to, buildVerificationEmail(url, name, locale, gymName), 'verification');
+    await this.deliver(
+      to,
+      buildVerificationEmail(url, name, locale, gymName),
+      'verification',
+      gymName,
+    );
   }
 
   /**
@@ -153,7 +157,12 @@ export class EmailService {
       );
       return;
     }
-    await this.deliver(to, buildPasswordResetEmail(url, name, locale, gymName), 'password-reset');
+    await this.deliver(
+      to,
+      buildPasswordResetEmail(url, name, locale, gymName),
+      'password-reset',
+      gymName,
+    );
   }
 
   /**
@@ -250,9 +259,8 @@ export class EmailService {
    * Send the staff-invitation email (T4.7) containing the single-use accept link.
    * The link points at the API's `GET /auth/accept-invite` route, which verifies
    * the token and 302-redirects the invitee to the web register / login flow that
-   * redeems it. Resolves once the mail is accepted by Resend (or immediately,
-   * having logged the link, when Resend is unconfigured); rejects when Resend
-   * returns an error. The copy names the gym and the role so the invitee knows
+   * redeems it. Resolves once the mail is accepted by Resend; rejects when
+   * delivery is unconfigured or the provider returns an error. The copy names the gym and the role so the invitee knows
    * what they're accepting.
    */
   async sendStaffInviteEmail(
@@ -263,13 +271,13 @@ export class EmailService {
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
   ): Promise<void> {
     const url = buildInviteAcceptUrl(token);
-    if (!this.isConfigured) {
-      this.logger.warn(
-        `Resend not configured (RESEND_API_KEY unset) — staff invite link for ${to}: ${url}`,
-      );
-      return;
-    }
-    await this.deliver(to, buildStaffInviteEmail(url, gymName, role, locale), 'staff invite');
+    const sent = await this.deliver(
+      to,
+      buildStaffInviteEmail(url, gymName, role, locale),
+      'staff invite',
+      gymName,
+    );
+    if (!sent) throw new Error('Email delivery is not configured (RESEND_API_KEY unset)');
   }
 
   /**
@@ -289,7 +297,7 @@ export class EmailService {
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
   ): Promise<boolean> {
     const message = buildReceiptEmail(receipt, gymName, gymContact, locale);
-    return this.deliver(to, message, 'receipt');
+    return this.deliver(to, message, 'receipt', gymName);
   }
 
   /**
@@ -307,7 +315,7 @@ export class EmailService {
     options?: { reportsUrl?: string; locale?: EmailLocale },
   ): Promise<boolean> {
     const message = buildReportDigestEmail(digest, options);
-    return this.deliver(to, message, `${digest.cadence} report digest`);
+    return this.deliver(to, message, `${digest.cadence} report digest`, digest.gymName);
   }
 
   /**
@@ -323,6 +331,7 @@ export class EmailService {
       to,
       buildLowStockDigestEmail(digest),
       `low-stock digest for ${digest.gymName}`,
+      digest.gymName,
     );
   }
 
@@ -337,6 +346,7 @@ export class EmailService {
       to,
       buildDailySummaryEmail(summary),
       `daily summary for ${summary.gymName}`,
+      summary.gymName,
     );
   }
 
@@ -350,6 +360,7 @@ export class EmailService {
     to: string,
     message: { subject: string; html: string; text: string },
     context: string,
+    senderName?: string | null,
   ): Promise<boolean> {
     // A login-less person's synthetic address is not a mailbox: never hand it to Resend.
     if (isPlaceholderEmail(to)) {
@@ -363,28 +374,12 @@ export class EmailService {
       return false;
     }
 
-    const response = await fetch(RESEND_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: env.EMAIL_FROM,
-        to: [to],
-        subject: message.subject,
-        html: message.html,
-        text: message.text,
-      }),
+    const result = await this.mailer.send({
+      to,
+      ...message,
+      from: emailFrom(senderName ?? 'FormaCore'),
     });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw new Error(`Resend responded ${response.status}: ${detail.slice(0, 300)}`);
-    }
-
-    this.logger.debug(`${context} email dispatched to ${to}`);
-    return true;
+    return result.sent;
   }
 }
 

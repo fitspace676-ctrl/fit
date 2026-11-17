@@ -23,6 +23,7 @@ const FRESH = new Date('2026-08-17T03:00:00.000Z');
 const PUBLIC_BASE = 'https://pub-test.r2.dev';
 
 interface Rows {
+  members?: { photoUrl: string | null }[];
   products?: { images: string[] }[];
   trainers?: { photoUrl: string | null }[];
   locations?: { photoUrl: string | null }[];
@@ -51,6 +52,7 @@ function setup(objects: StoredObject[], rows: Rows = {}) {
 
   const prisma = {
     client: {
+      gymMember: { findMany: vi.fn().mockResolvedValue(rows.members ?? []) },
       product: { findMany: vi.fn(() => Promise.resolve(rows.products ?? [])) },
       trainer: { findMany: vi.fn(() => Promise.resolve(rows.trainers ?? [])) },
       location: { findMany: vi.fn(() => Promise.resolve(rows.locations ?? [])) },
@@ -298,5 +300,23 @@ describe('MediaSweepService.sweep', () => {
 
     expect(summary.referenced).toBe(0);
     expect(deleteObjects).toHaveBeenCalledWith(['gym-1/products/orphan.png']);
+  });
+});
+
+describe('member photo sweep', () => {
+  it('keeps referenced member photos and collects abandoned uploads', async () => {
+    mockEnv.MEDIA_SWEEP_DRY_RUN = false;
+    mockEnv.MEDIA_SWEEP_GRACE_HOURS = 24;
+    const kept = 'gym-1/memberphotos/kept.png';
+    const orphan = 'gym-1/memberphotos/orphan.png';
+    const { service, deleteObjects } = setup(
+      [
+        { key: kept, lastModified: OLD, size: 100 },
+        { key: orphan, lastModified: OLD, size: 100 },
+      ],
+      { members: [{ photoUrl: `${PUBLIC_BASE}/${kept}` }] },
+    );
+    await service.sweep(NOW);
+    expect(deleteObjects).toHaveBeenCalledWith([orphan]);
   });
 });

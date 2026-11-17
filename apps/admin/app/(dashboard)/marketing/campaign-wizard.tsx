@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { MessageTools } from './message-tools';
+import { MARKETING_MERGE_FIELD_DEFS } from '@fit/types';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -368,10 +370,15 @@ const styles = stylex.create({
   },
   footerNav: {
     display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    minWidth: 0,
+    maxWidth: '100%',
     gap: '0.5rem',
   },
   footerRow: {
     display: 'flex',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.625rem',
@@ -460,6 +467,8 @@ export function CampaignWizard({
   onClose: () => void;
 }) {
   const t = useTranslations('admin.marketing');
+  const mergeT = useTranslations('admin.automation.mergeVars');
+  const [tokenTarget, setTokenTarget] = useState<'subject' | 'body'>('body');
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -534,10 +543,10 @@ export function CampaignWizard({
   function insertToken(token: string): void {
     setForm((prev) => ({
       ...prev,
-      body:
-        prev.body.length > 0 && !prev.body.endsWith(' ')
-          ? `${prev.body} ${token}`
-          : prev.body + token,
+      [tokenTarget]:
+        prev[tokenTarget] +
+        (prev[tokenTarget].endsWith(' ') || !prev[tokenTarget] ? '' : ' ') +
+        token,
     }));
   }
 
@@ -955,6 +964,7 @@ export function CampaignWizard({
 
             <Field
               label={t('content.subjectLabel')}
+              onFocus={() => setTokenTarget('subject')}
               value={form.subject}
               maxLength={subjectLimit}
               onChange={(e) => patch('subject', e.target.value)}
@@ -972,6 +982,7 @@ export function CampaignWizard({
               </div>
               <TextareaField
                 label={t('content.bodyPlaceholder')}
+                onFocus={() => setTokenTarget('body')}
                 labelHidden
                 rows={6}
                 value={form.body}
@@ -981,6 +992,12 @@ export function CampaignWizard({
               />
             </div>
 
+            <MessageTools
+              subject={form.subject}
+              body={form.body}
+              channel={form.channel}
+              onApply={(copy) => setForm((prev) => ({ ...prev, ...copy }))}
+            />
             <div {...stylex.props(styles.mergeWrap)}>
               {catalog.mergeFields.length === 0 ? (
                 <p {...stylex.props(styles.mergeHint)}>{t('content.mergeEmpty')}</p>
@@ -996,7 +1013,11 @@ export function CampaignWizard({
                         onClick={() => insertToken(field.token)}
                         {...stylex.props(styles.mergeChip)}
                       >
-                        + {field.label}
+                        +{' '}
+                        {mergeT(
+                          MARKETING_MERGE_FIELD_DEFS.find((entry) => entry.token === field.token)
+                            ?.key ?? field.label,
+                        )}
                       </button>
                     ))}
                   </div>

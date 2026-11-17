@@ -9,6 +9,7 @@ const OTHER = `${BASE}/gym-1/products/b.png`;
 
 /** Counts each reference query returns; every source defaults to "not referenced". */
 interface Counts {
+  members?: number;
   products?: number;
   trainers?: number;
   locations?: number;
@@ -35,6 +36,7 @@ function setup(counts: Counts = {}) {
 
   const prisma = {
     client: {
+      gymMember: { count: vi.fn().mockResolvedValue(counts.members ?? 0) },
       product: { count: vi.fn(() => Promise.resolve(counts.products ?? 0)) },
       trainer: { count: vi.fn(() => Promise.resolve(counts.trainers ?? 0)) },
       location: { count: vi.fn(() => Promise.resolve(counts.locations ?? 0)) },
@@ -172,5 +174,18 @@ describe('MediaCleanupService.discardUnreferenced', () => {
     await service.discardUnreferenced('gym-1', [IMAGE, IMAGE], []);
 
     expect(deleteObjects).toHaveBeenCalledWith(['gym-1/products/a.png']);
+  });
+});
+
+describe('member photo references', () => {
+  it('keeps a member photo while a membership references it', async () => {
+    const { service, deleteObjects } = setup({ members: 1 });
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/memberphotos/a.png`], []);
+    expect(deleteObjects).toHaveBeenCalledWith([]);
+  });
+  it('deletes an unreferenced member photo', async () => {
+    const { service, deleteObjects } = setup();
+    await service.discardUnreferenced('gym-1', [`${BASE}/gym-1/memberphotos/a.png`], []);
+    expect(deleteObjects).toHaveBeenCalledWith(['gym-1/memberphotos/a.png']);
   });
 });

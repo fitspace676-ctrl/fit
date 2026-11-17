@@ -11,6 +11,7 @@
 
 import {
   AUTOMATION_ACTION_CATALOG,
+  MARKETING_MERGE_FIELD_DEFS,
   AUTOMATION_CONDITION_FIELDS,
   AUTOMATION_MERGE_FIELDS,
   AUTOMATION_TRIGGER_CATALOG,
@@ -296,6 +297,17 @@ function toNumber(value: unknown): unknown {
 }
 
 /**
+ * Models sometimes escape a line break twice, so the text arrives holding the
+ * two characters `\\n` instead of a newline and the operator sees them in the
+ * message. Turn those back into `breakAs`; anything that is not a string is
+ * left for the validator.
+ */
+function unescapeBreaks(value: unknown, breakAs: string): unknown {
+  if (typeof value !== 'string') return value;
+  return value.replace(/\\r\\n|\\n|\\r/g, breakAs).replace(/\\t/g, ' ');
+}
+
+/**
  * Drop the placeholders models fill optional fields with (`null`, `""`, `{}`,
  * `days: 0`) and coerce numeric strings, so a sensible draft is not rejected
  * for its packaging. Anything still wrong is left for the validator to report.
@@ -333,8 +345,9 @@ function cleanDraftInput(input: Record<string, unknown>): Record<string, unknown
 
   if (isRecord(out.actionConfig)) {
     const config: Record<string, unknown> = {};
-    if (!blank(out.actionConfig.subject)) config.subject = out.actionConfig.subject;
-    if (!blank(out.actionConfig.body)) config.body = out.actionConfig.body;
+    if (!blank(out.actionConfig.subject))
+      config.subject = unescapeBreaks(out.actionConfig.subject, ' ');
+    if (!blank(out.actionConfig.body)) config.body = unescapeBreaks(out.actionConfig.body, '\n');
     if (Object.keys(config).length === 0) delete out.actionConfig;
     else out.actionConfig = config;
   }
@@ -378,9 +391,12 @@ function buildHistory(request: AutomationAssistRequest): AgentHistoryMessage[] {
     );
   }
   const draft = request.draft && Object.keys(request.draft).length > 0 ? request.draft : undefined;
-  const text = draft
-    ? `${request.message}\n\nCurrent form (JSON): ${JSON.stringify(draft)}`
-    : request.message;
+  const text =
+    request.purpose === 'marketing' && request.marketingCopy
+      ? `${request.message}\n\nCurrent message (JSON): ${JSON.stringify(request.marketingCopy)}`
+      : draft
+        ? `${request.message}\n\nCurrent form (JSON): ${JSON.stringify(draft)}`
+        : request.message;
   history.push({ role: 'user', text });
   return history;
 }
@@ -406,7 +422,15 @@ export async function draftAutomationRule(
   extra: DraftAutomationRuleExtra = {},
 ): Promise<AutomationAssistResponse> {
   const make = extra.createDriver ?? createDriver;
-  const system = buildAutomationAssistPrompt(options, context);
+  const system =
+    request.purpose === 'marketing'
+      ? `Write marketing message copy for ${context.gym.name}. Language: ${context.locale}.
+Use propose_rule with ONLY actionConfig.subject, actionConfig.body and explanation.
+This is a message editor, not an automation: do not ask about triggers, timing or conditions.
+Follow the requested channel and its length limits. Improve existing copy when requested.
+Use only these merge variables: ${MARKETING_MERGE_FIELD_DEFS.map((field) => field.token).join(', ')}.
+Do not invent offers, dates, prices or member details. Ask one question if essential facts are missing.`
+      : buildAutomationAssistPrompt(options, context);
   const history = buildHistory(request);
   const spares = fallbackModels(model);
   let active = model;
@@ -462,6 +486,17 @@ export async function draftAutomationRule(
     if (call.name === PROPOSE_RULE) {
       const { explanation, ...fields } = call.input;
       const result = validateAutomationDraft(cleanDraftInput(fields), options);
+      if (request.purpose === 'marketing') {
+        const allowed = new Set(MARKETING_MERGE_FIELD_DEFS.map((field) => field.token));
+        const copy = result.draft.actionConfig;
+        if (!copy?.body?.trim()) result.issues.push('Provide actionConfig.body.');
+        for (const match of `${copy?.subject ?? ''} ${copy?.body ?? ''}`.matchAll(
+          /\{\{[^{}]*\}\}/g,
+        )) {
+          if (!allowed.has(match[0]))
+            result.issues.push(`Unsupported marketing variable: ${match[0]}`);
+        }
+      }
       if (result.issues.length === 0) {
         return {
           kind: 'draft',

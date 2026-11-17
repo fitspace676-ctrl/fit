@@ -1,3 +1,4 @@
+import { ProductRow } from './product-row';
 // @fit/mobile — one product in the shop list.
 //
 // ===========================================================================
@@ -30,7 +31,7 @@
 // renders money that is a guess for 200ms, and a wrong number that corrects
 // itself is worse than a spinner, because the buyer read it.
 
-import { IconButton, ProductRow, QtyStepper, Spinner, spacing } from '@fit/ui-mobile';
+import { IconButton, QtyStepper, Spinner, spacing } from '@fit/ui-mobile';
 import { MAX_CART_LINE_QUANTITY, type ProductSummary } from '@fit/types';
 import { View } from 'react-native';
 
@@ -84,6 +85,7 @@ export function CatalogueRow({
 
   return (
     <ProductRow
+      imageUrl={product.imageUrl}
       testID={testID}
       layout="catalogue"
       name={product.name}

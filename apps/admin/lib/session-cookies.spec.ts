@@ -33,13 +33,16 @@ describe('DELETE /api/session', () => {
   it('clears the impersonation, the session, and the legacy parent-domain session', () => {
     vi.stubEnv('COOKIE_DOMAIN', '.formacore.io');
     const cookies = DELETE().headers.getSetCookie();
-    const names = cookies.map((c) => c.split('=')[0]);
+    const names = cookies.map((c) => c.split('=')[0] ?? '');
+    expect(
+      names.every((name) => name.startsWith('admin') || name.startsWith('impersonation')),
+    ).toBe(true);
     expect(names).toEqual(
       expect.arrayContaining([
         'impersonationToken',
         'impersonationMeta',
-        'accessToken',
-        'refreshToken',
+        'adminAccessToken',
+        'adminRefreshToken',
       ]),
     );
     // The legacy clears are raw headers; a `cookies.set` after them would have

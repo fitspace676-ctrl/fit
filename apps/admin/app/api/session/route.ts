@@ -101,7 +101,13 @@ export async function GET(): Promise<NextResponse> {
     verify: (token) => (secret ? verifyAccessToken(token, secret) : Promise.resolve(null)),
   });
 
-  const res = NextResponse.json({ user, recoverable });
+  // The client hook's own expiry check: when the access token it is riding on
+  // (the renewed one, if this call renewed) stops being valid, in Unix ms.
+  const activeAccess = refreshed?.accessToken ?? cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
+  const accessExpiresAt =
+    user && activeAccess ? Date.now() + accessTokenMaxAge(activeAccess) * 1000 : undefined;
+
+  const res = NextResponse.json({ user, recoverable, accessExpiresAt });
   if (refreshed) {
     for (const cookie of sessionCookies(refreshed)) {
       res.cookies.set(cookie.name, cookie.value, cookie.options);

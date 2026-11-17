@@ -75,6 +75,7 @@ export class GymSettingsService {
     // `name` is not stored in the JSON — split it out and route it to Gym.name.
     const { name: brandName, ...brandPatch } = input.brand ?? {};
     const next: GymSettingsStored = {
+      shop: { ...current.shop, ...input.shop },
       brand: { ...current.brand, ...brandPatch },
       business: { ...current.business, ...input.business },
       locale: { ...current.locale, ...input.locale },
@@ -387,6 +388,7 @@ export class GymSettingsService {
   private toResponse(name: string, raw: Prisma.JsonValue | null): GymSettings {
     const stored = gymSettingsStoredSchema.parse(raw ?? {});
     return {
+      shop: stored.shop,
       brand: { name, ...stored.brand },
       business: stored.business,
       locale: stored.locale,

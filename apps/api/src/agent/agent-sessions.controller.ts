@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Param,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -45,6 +46,18 @@ export class AgentSessionsController {
   @RequirePermissions(Permission.ProfileManage)
   async list(): Promise<ListAgentSessionsResponse> {
     return this.sessions.list();
+  }
+
+  @Get('history/search')
+  @RequirePermissions(Permission.ProfileManage)
+  async searchHistory(@Query() query: unknown) {
+    return this.sessions.searchHistory(parse(historyQuerySchema, query));
+  }
+
+  @Get('history/:id')
+  @RequirePermissions(Permission.ProfileManage)
+  async readHistory(@Param('id') id: string, @Query() query: unknown) {
+    return this.sessions.readHistory(id, parse(historyQuerySchema, query));
   }
 
   /** `GET /agent/sessions/:id` — one session with its full transcript. */
@@ -91,3 +104,9 @@ function parse<TSchema extends z.ZodTypeAny>(schema: TSchema, data: unknown): z.
   }
   return result.data as z.infer<TSchema>;
 }
+
+const historyQuerySchema = z.object({
+  query: z.string().max(200).optional(),
+  offset: z.coerce.number().int().min(0).max(10000000).default(0),
+  currentSessionId: z.string().min(1).max(128).optional(),
+});

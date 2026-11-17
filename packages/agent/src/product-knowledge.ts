@@ -1,5 +1,5 @@
 // Operator vocabulary and routes, checked against the admin pages and @fit/types.
-// Query destinations are tabs: 48 destinations cover 47 physical page.tsx files.
+// Query destinations are tabs: 49 destinations cover 48 physical page.tsx files.
 export interface ConsolePage {
   path: string;
   title: { en: string; ka: string };
@@ -105,6 +105,13 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     'Low stock',
     'დაბალი მარაგი',
     'Find items needing restocking.',
+    'products',
+  ),
+  page(
+    '/shop/settings',
+    'Shop settings',
+    'მაღაზიის პარამეტრები',
+    'Set the member discount percent.',
     'products',
   ),
   page(

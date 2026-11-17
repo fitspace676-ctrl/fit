@@ -7,8 +7,8 @@ import { createFitMcpServer } from './mcp-server';
 import { CORE_TOOLS, TOOL_DOMAINS, TOOL_TITLES } from '../index';
 import manifest from './tool-manifest.json';
 
-async function connect() {
-  const server = createFitMcpServer('operator-token');
+async function connect(currentSessionId?: string) {
+  const server = createFitMcpServer('operator-token', { currentSessionId });
   const client = new Client({ name: 'contract-test', version: '1.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
@@ -75,6 +75,45 @@ function inspectSchema(value: unknown, visit: (name: string, field: Schema) => v
 afterEach(() => vi.unstubAllGlobals());
 
 describe('MCP admin contracts', () => {
+  it('binds history exclusion to runtime context and never exposes owner ids as tool inputs', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response('{}')));
+    vi.stubGlobal('fetch', fetchMock);
+    const session = await connect('current-session');
+    try {
+      const { tools } = await session.client.listTools();
+      for (const name of ['search_past_conversations', 'read_past_conversation']) {
+        const tool = tools.find((t) => t.name === name)!;
+        expect(CORE_TOOLS).toContain(name);
+        expect(tool.annotations?.readOnlyHint).toBe(true);
+        for (const field of ['userId', 'gymId', 'currentSessionId']) {
+          expect(tool.inputSchema.properties).not.toHaveProperty(field);
+        }
+        const result = await session.client.callTool({
+          name,
+          arguments:
+            name === 'read_past_conversation'
+              ? { id: 'past', offset: 12000 }
+              : { query: 'campaign' },
+        });
+        expect(result.isError).not.toBe(true);
+        const [url, init] = fetchMock.mock.calls.at(-1) as unknown as [string, RequestInit];
+        expect(new URL(url).searchParams.get('currentSessionId')).toBe('current-session');
+        expect(init.headers).toEqual({ authorization: 'Bearer operator-token' });
+      }
+      await session.client.callTool({
+        name: 'search_past_conversations',
+        arguments: { userId: 'victim', currentSessionId: 'forged' },
+      });
+      for (const call of fetchMock.mock.calls) {
+        const url = new URL((call as unknown as [string])[0]);
+        expect(url.searchParams.has('userId')).toBe(false);
+        expect(url.searchParams.get('currentSessionId')).toBe('current-session');
+      }
+    } finally {
+      await session.close();
+    }
+  });
+
   it('publishes described, tenant-safe tools with explicit approval annotations', async () => {
     const session = await connect();
     try {

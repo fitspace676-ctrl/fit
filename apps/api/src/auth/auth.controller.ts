@@ -160,18 +160,37 @@ export class AuthController {
     return this.auth.activateAccount(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
-  /**
-   * `GET /auth/accept-invite?token=…` — resolve a staff invitation (T4.7) and
-   * 302-redirect the invitee to the web register (new address) or login (existing
-   * address) flow carrying the token, so completing it redeems the invite. An
-   * unknown / expired / used token redirects to login with an `inviteError` flag
-   * rather than erroring, so the invitee always lands on a clear page.
-   */
+  /** Email entry point; only redirects, never consumes the token. */
   @Get('accept-invite')
   @Redirect()
   async acceptInvite(@Query() query: unknown): Promise<{ url: string }> {
     const { token } = parse(acceptInviteSchema, query);
     return this.auth.acceptInvite(token);
+  }
+
+  @Get('staff-invite')
+  async inspectStaffInvite(@Query() query: unknown, @Headers() headers: TenantHeaders = {}) {
+    const { token } = parse(acceptInviteSchema, query);
+    const { invite, needsPassword } = await this.auth.inspectStaffInvite(
+      token,
+      resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN),
+    );
+    return { email: invite.email, gymName: invite.gym.name, needsPassword };
+  }
+
+  @Post('accept-invite')
+  @RateLimit(RATE_LIMITS.authStrict)
+  async completeStaffInvite(@Body() body: unknown, @Headers() headers: TenantHeaders = {}) {
+    const input = parse(
+      acceptInviteSchema.extend({
+        password: activateAccountSchema.shape.password.optional(),
+      }),
+      body,
+    );
+    return this.auth.completeStaffInvite(
+      input,
+      resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN),
+    );
   }
 
   /**

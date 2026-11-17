@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { MePhotoController } from './me-photo.controller';
+import { MePhotoService } from './me-photo.service';
 import { BillingModule } from '../billing/billing.module';
 import { MeSubscriptionController } from './me-subscription.controller';
 import { MeSubscriptionService } from './me-subscription.service';
@@ -34,6 +36,7 @@ import { MeOrdersService } from './me-orders.service';
 @Module({
   imports: [BillingModule],
   controllers: [
+    MePhotoController,
     MeSubscriptionController,
     MeInvoicesController,
     MeProfileController,
@@ -42,6 +45,7 @@ import { MeOrdersService } from './me-orders.service';
     MePermissionsController,
   ],
   providers: [
+    MePhotoService,
     MeSubscriptionService,
     MeInvoicesService,
     MeProfileService,

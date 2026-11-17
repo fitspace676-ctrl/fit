@@ -8,6 +8,8 @@ import {
 import { OrderStatus, ProductStatus, StockMovementReason, type Prisma } from '@fit/db';
 import {
   decodeVariantRef,
+  gymShopSettingsSchema,
+  memberShopPrice,
   productVariantsSchema,
   MAX_CART_LINE_QUANTITY,
   type AddCartItemInput,
@@ -130,6 +132,24 @@ export class CartService {
     return { gymId: this.tenant.gymId, userId: this.tenant.userId ?? null };
   }
 
+  /** Resolve eligibility from current tenant data, never from a client claim. */
+  private async memberDiscountPercent(): Promise<number> {
+    const { gymId, userId } = this.identity();
+    if (!userId) return 0;
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { gymId, userId, status: 'ACTIVE', deletedAt: null },
+      select: { id: true },
+    });
+    if (!member) return 0;
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { id: gymId },
+      select: { settings: true },
+    });
+    const settings = gym?.settings as { shop?: unknown } | null;
+    const parsed = gymShopSettingsSchema.safeParse(settings?.shop ?? {});
+    return parsed.success ? parsed.data.memberDiscountPercent : 0;
+  }
+
   /** `GET /cart` — the cart view, re-priced live; no cart is created on a read. */
   async getCart(sessionId: string | undefined): Promise<CartResult> {
     const { cart, session } = await this.resolveCart(sessionId, { create: false });
@@ -158,15 +178,16 @@ export class CartService {
       });
     }
 
+    const unitPrice = memberShopPrice(info.unitPrice, await this.memberDiscountPercent());
     await this.prisma.client.cartItem.upsert({
       where: { cartId_productVariantId: { cartId: cart!.id, productVariantId: input.variantId } },
       create: {
         cartId: cart!.id,
         productVariantId: input.variantId,
         qty: nextQty,
-        unitPrice: info.unitPrice,
+        unitPrice,
       },
-      update: { qty: nextQty, unitPrice: info.unitPrice },
+      update: { qty: nextQty, unitPrice },
     });
 
     return { view: await this.buildView(await this.reload(cart!.id)), session };
@@ -198,7 +219,7 @@ export class CartService {
 
     await this.prisma.client.cartItem.update({
       where: { id: existing.id },
-      data: { qty, unitPrice: info.unitPrice },
+      data: { qty, unitPrice: memberShopPrice(info.unitPrice, await this.memberDiscountPercent()) },
     });
 
     return { view: await this.buildView(await this.reload(cart.id)), session };
@@ -231,8 +252,8 @@ export class CartService {
    *   last-agreed price has its stored price refreshed and the checkout rejected
    *   for re-confirmation; an immediate retry then succeeds.
    *
-   * A promo code is applied with the subscription flow's validation (T8.7); until
-   * that service lands the discount is `0` (see {@link resolvePromoDiscount}).
+   * Member discounts apply per unit first; promos apply to the remaining basket.
+   * Both are stored as negative order lines, preserving the accounting breakdown.
    */
   async checkout(
     sessionId: string | undefined,
@@ -246,6 +267,7 @@ export class CartService {
 
     const refs = cart.items.map((item) => item.productVariantId);
     const info = await this.loadVariantInfo(refs);
+    const memberDiscountPercent = await this.memberDiscountPercent();
 
     // 1) Out-of-stock: lines that vanished or can't supply the requested quantity.
     const removedItems = cart.items
@@ -265,8 +287,9 @@ export class CartService {
     const newPrices: CartPriceChange[] = [];
     for (const item of cart.items) {
       const current = info.get(item.productVariantId)!;
-      if (current.unitPrice !== item.unitPrice) {
-        newPrices.push({ variantId: item.productVariantId, priceAmount: current.unitPrice });
+      const payablePrice = memberShopPrice(current.unitPrice, memberDiscountPercent);
+      if (payablePrice !== item.unitPrice) {
+        newPrices.push({ variantId: item.productVariantId, priceAmount: payablePrice });
       }
     }
     if (newPrices.length > 0) {
@@ -290,12 +313,17 @@ export class CartService {
     const subtotal = cart.items.reduce((sum, item) => {
       return sum + info.get(item.productVariantId)!.unitPrice * item.qty;
     }, 0);
+    const memberDiscountAmount = cart.items.reduce((sum, item) => {
+      const price = info.get(item.productVariantId)!.unitPrice;
+      return sum + (price - memberShopPrice(price, memberDiscountPercent)) * item.qty;
+    }, 0);
+    const afterMemberDiscount = subtotal - memberDiscountAmount;
     const currency =
       info.get(cart.items[0]!.productVariantId)?.currency ?? (await this.gymCurrency());
 
     const member = userId
       ? await this.prisma.client.gymMember.findFirst({
-          where: { userId, gymId },
+          where: { userId, gymId, deletedAt: null },
           select: { id: true },
         })
       : null;
@@ -306,7 +334,7 @@ export class CartService {
     const promo = await this.promos.resolve({
       gymId,
       code: input.promoCode,
-      amount: subtotal,
+      amount: afterMemberDiscount,
       scope: 'products',
       memberId: member?.id ?? null,
       // No `locationId`: an online basket happens at no branch. A gym-wide code —
@@ -314,8 +342,8 @@ export class CartService {
       // unaffected; a branch-exclusive one is refused, because nothing here can
       // confirm the buyer is at that branch.
     });
-    const discount = promo?.discount ?? 0;
-    const total = subtotal - discount;
+    const discount = Math.min(afterMemberDiscount, Math.max(0, promo?.discount ?? 0));
+    const total = Math.max(0, afterMemberDiscount - discount);
 
     const lines: Prisma.OrderItemCreateWithoutOrderInput[] = cart.items.map((item) => {
       const current = info.get(item.productVariantId)!;
@@ -331,6 +359,16 @@ export class CartService {
         qty: item.qty,
       };
     });
+    if (memberDiscountAmount > 0) {
+      const language = (await this.locale.get()).language;
+      lines.push({
+        label:
+          language === 'ka'
+            ? `წევრის ფასდაკლება −${memberDiscountPercent}%`
+            : `Member discount −${memberDiscountPercent}%`,
+        amount: -memberDiscountAmount,
+      });
+    }
     if (discount > 0) {
       lines.push({ label: `Promo ${input.promoCode}`, amount: -discount });
     }
@@ -340,6 +378,8 @@ export class CartService {
         data: {
           gymId,
           total,
+          memberDiscountPercent,
+          memberDiscountAmount,
           currency,
           status: OrderStatus.PENDING,
           // Persist the buyer's fulfilment choice (T7.10): a PICKUP names the branch
@@ -373,6 +413,7 @@ export class CartService {
       if (promo) {
         await this.promos.consume(tx, {
           ...promo,
+          discount,
           gymId,
           memberId: member?.id ?? null,
           orderId: order.id,
@@ -531,9 +572,11 @@ export class CartService {
    * dropped, so the buyer still sees it (checkout is where it is removed).
    */
   private async buildView(cart: CartWithItems | null): Promise<CartView> {
+    const memberDiscountPercent = await this.memberDiscountPercent();
     if (!cart || cart.items.length === 0) {
       return {
         items: [],
+        memberDiscountPercent,
         subtotal: 0,
         discount: 0,
         total: 0,
@@ -545,7 +588,10 @@ export class CartService {
     const gymCurrency = await this.gymCurrency();
     const items: CartItemDetail[] = cart.items.map((item) => {
       const current = info.get(item.productVariantId);
-      const unitPrice = current?.exists ? current.unitPrice : item.unitPrice;
+      const originalUnitPrice = current?.exists ? current.unitPrice : item.unitPrice;
+      const unitPrice = current?.exists
+        ? memberShopPrice(originalUnitPrice, memberDiscountPercent)
+        : item.unitPrice;
       return {
         variantId: item.productVariantId,
         productId: current?.productId ?? decodeVariantRef(item.productVariantId)?.productId ?? '',
@@ -553,6 +599,7 @@ export class CartService {
         variantName: current?.variantName ?? null,
         imageUrl: current?.imageUrl ?? null,
         unitPrice,
+        originalUnitPrice,
         qty: item.qty,
         lineTotal: unitPrice * item.qty,
         currency: current?.currency ?? gymCurrency,
@@ -560,9 +607,10 @@ export class CartService {
       };
     });
 
-    const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+    const subtotal = items.reduce((sum, item) => sum + item.originalUnitPrice! * item.qty, 0);
+    const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
     const currency = items.find((item) => item.available)?.currency ?? items[0]!.currency;
-    return { items, subtotal, discount: 0, total: subtotal, currency };
+    return { items, memberDiscountPercent, subtotal, discount: subtotal - total, total, currency };
   }
 
   /**

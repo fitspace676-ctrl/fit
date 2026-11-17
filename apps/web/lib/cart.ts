@@ -31,6 +31,8 @@ export function parseCartView(raw: unknown): CartView {
             productName: typeof e.productName === 'string' ? e.productName : '',
             variantName: typeof e.variantName === 'string' ? e.variantName : null,
             imageUrl: typeof e.imageUrl === 'string' ? e.imageUrl : null,
+            originalUnitPrice:
+              typeof e.originalUnitPrice === 'number' ? e.originalUnitPrice : undefined,
             unitPrice: typeof e.unitPrice === 'number' ? e.unitPrice : 0,
             qty: typeof e.qty === 'number' ? e.qty : 1,
             lineTotal: typeof e.lineTotal === 'number' ? e.lineTotal : 0,
@@ -43,6 +45,7 @@ export function parseCartView(raw: unknown): CartView {
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   return {
     items,
+    memberDiscountPercent: num(r.memberDiscountPercent),
     subtotal: num(r.subtotal),
     discount: num(r.discount),
     total: num(r.total),

@@ -7,7 +7,7 @@ vi.mock('next/headers', () => ({
   cookies: () =>
     Promise.resolve({
       get: (name: string) =>
-        name === 'accessToken' && session.token ? { name, value: session.token } : undefined,
+        name === 'memberAccessToken' && session.token ? { name, value: session.token } : undefined,
     }),
 }));
 

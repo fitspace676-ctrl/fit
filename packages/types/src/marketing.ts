@@ -92,6 +92,24 @@ export function interpolateMergeFields(
   });
 }
 
+/** Delivery/preview safety: unlike the editable automation preview, no raw tokens escape.
+ * Legacy camelCase placeholders from saved marketing copy remain usable.
+ */
+export function interpolateMarketingMessage(text: string, values: MergeValues): string {
+  const aliases: Record<string, string> = {
+    firstname: 'first_name',
+    lastname: 'last_name',
+    fullname: 'full_name',
+    businessname: 'business_name',
+    planname: 'membership_plan',
+  };
+  return text.replace(/\{\{\s*([^{}]*?)\s*\}\}/g, (_match, raw: string) => {
+    const key = raw.trim().toLowerCase();
+    const resolved = Object.prototype.hasOwnProperty.call(aliases, key) ? aliases[key]! : key;
+    return Object.prototype.hasOwnProperty.call(values, resolved) ? values[resolved]! : '';
+  });
+}
+
 /**
  * Response of `GET /marketing/catalog` — the channel and merge-field catalogs the
  * campaign composer and template editor render their pickers from, served from

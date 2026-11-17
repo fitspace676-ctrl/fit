@@ -155,7 +155,7 @@ describe('EmailService', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_123');
 
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
-    expect(body.from).toBe('FormaCore <no-reply@fit.app>');
+    expect(body.from).toBe('"FormaCore" <no-reply@fit.app>');
     expect(body.to).toEqual(['user@example.com']);
     expect(body.subject).toBe('Verify your email');
     expect(String(body.html)).toContain('https://app.fit/member/verify?token=tok123');
@@ -1083,5 +1083,14 @@ describe('onboarding request emails', () => {
       text: expect.stringContaining('012345') as string,
     });
     expect(bodies[1]?.text).toContain('https://gym.formacore.io/admin/login');
+  });
+});
+
+describe('staff invite delivery configuration', () => {
+  it('rejects rather than claiming success when email is not configured', async () => {
+    configure({ API_PUBLIC_URL: 'https://api.formacore.io' });
+    await expect(
+      new EmailService().sendStaffInviteEmail('staff@example.com', 'token', 'Gym', 'TRAINER'),
+    ).rejects.toThrow('not configured');
   });
 });

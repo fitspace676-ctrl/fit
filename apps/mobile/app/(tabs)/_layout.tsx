@@ -1,3 +1,4 @@
+import { usePushRegistration } from '../../components/notifications/use-push-registration';
 // The app shell: four tabs.
 //
 // ===========================================================================
@@ -225,6 +226,7 @@ export function AppTabBar({ state, navigation }: BottomTabBarProps) {
  * correct both before and after that lands.
  */
 export default function TabsLayout() {
+  usePushRegistration();
   return (
     <Tabs
       screenOptions={{ headerShown: false }}

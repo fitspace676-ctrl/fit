@@ -1,3 +1,4 @@
+import { AutomationModule } from '../automation/automation.module';
 import { Module } from '@nestjs/common';
 import { MarketingController } from './marketing.controller';
 import { MarketingService } from './marketing.service';
@@ -14,6 +15,7 @@ import { PromoRedemptionService } from './promo-redemption.service';
  * `TenantMiddleware` with no `AppModule` exclusion.
  */
 @Module({
+  imports: [AutomationModule],
   controllers: [MarketingController],
   providers: [MarketingService, PromoRedemptionService],
   exports: [PromoRedemptionService],

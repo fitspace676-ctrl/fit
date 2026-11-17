@@ -4,8 +4,23 @@ import { ALL_ENDPOINTS } from './catalog';
 import { registerEndpoint } from './tools/shared';
 
 /** Build the admin MCP surface bound exclusively to the operator's token. */
-export function createFitMcpServer(token: string): McpServer {
-  const api = createFitApiClient(token);
+export function createFitMcpServer(
+  token: string,
+  options: { currentSessionId?: string } = {},
+): McpServer {
+  const baseApi = createFitApiClient(token);
+  const api = {
+    ...baseApi,
+    get(path: string) {
+      // Runtime-owned exclusion: never let a model argument choose the current session.
+      if (options.currentSessionId && path.startsWith('/agent/sessions/history/')) {
+        const url = new URL(path, 'http://local');
+        url.searchParams.set('currentSessionId', options.currentSessionId);
+        return baseApi.get(`${url.pathname}${url.search}`);
+      }
+      return baseApi.get(path);
+    },
+  };
   const server = new McpServer(
     { name: 'fit-admin', version: '0.2.0' },
     {

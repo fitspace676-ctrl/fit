@@ -1,5 +1,19 @@
 [
   {
+    "name": "search_past_conversations",
+    "method": "get",
+    "path": "/agent/sessions/history/search",
+    "activePath": null,
+    "controller": "agent/agent-sessions.controller.ts"
+  },
+  {
+    "name": "read_past_conversation",
+    "method": "get",
+    "path": "/agent/sessions/history/:id",
+    "activePath": null,
+    "controller": "agent/agent-sessions.controller.ts"
+  },
+  {
     "name": "list_members",
     "method": "get",
     "path": "/members",

@@ -36,6 +36,6 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
     AutomationExecutorService,
     AutomationMergeService,
   ],
-  exports: [AutomationExecutorService],
+  exports: [AutomationExecutorService, AutomationAssistService],
 })
 export class AutomationModule {}

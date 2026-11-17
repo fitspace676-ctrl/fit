@@ -69,7 +69,9 @@ const member = {
   password: 'NewGymMember1!',
 };
 
-const ACCESS_COOKIE = 'accessToken';
+/** The console and the portal keep separate sessions, each under its own cookie. */
+const ADMIN_ACCESS_COOKIE = 'adminAccessToken';
+const MEMBER_ACCESS_COOKIE = 'memberAccessToken';
 
 /** The claims of a JWT, decoded without verification (the API signed it). */
 function jwtClaims(token: string): Record<string, unknown> {
@@ -247,7 +249,7 @@ test.describe('A new gym, from provisioning to its first member', () => {
     await page.waitForURL((url) => !url.pathname.startsWith('/admin/login'), { timeout: 60_000 });
     await expect(page).toHaveURL(new RegExp(`^${escapeRegExp(NEW_GYM)}/admin/dashboard/?(\\?|$)`));
 
-    const access = await cookieFor(ownerContext, NEW_GYM, ACCESS_COOKIE);
+    const access = await cookieFor(ownerContext, NEW_GYM, ADMIN_ACCESS_COOKIE);
     expect(access, 'the console sign-in left a session on the gym host').toBeDefined();
     expect(access!.domain, 'the session cookie is host-only').toBe(tenantHost(SLUG));
     expect(jwtClaims(access!.value).gymSlug).toBe(SLUG);
@@ -323,7 +325,7 @@ test.describe('A new gym, from provisioning to its first member', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     await page.waitForURL((url) => !url.pathname.endsWith('/member/login'), { timeout: 60_000 });
 
-    const access = await cookieFor(memberContext, NEW_GYM, ACCESS_COOKIE);
+    const access = await cookieFor(memberContext, NEW_GYM, MEMBER_ACCESS_COOKIE);
     expect(access, 'the portal sign-in left a session on the gym host').toBeDefined();
     expect(jwtClaims(access!.value).gymSlug).toBe(SLUG);
 
@@ -336,7 +338,7 @@ test.describe('A new gym, from provisioning to its first member', () => {
   test('nothing crosses between the new gym and downtown', async ({ request }) => {
     // The owner's console session, carried to downtown's console by hand (a host-only
     // cookie never goes there on its own): no session there, and it is cleared.
-    const access = await cookieFor(ownerContext, NEW_GYM, ACCESS_COOKIE);
+    const access = await cookieFor(ownerContext, NEW_GYM, ADMIN_ACCESS_COOKIE);
     expect(access).toBeDefined();
     await ownerContext.addCookies([
       {
@@ -351,7 +353,9 @@ test.describe('A new gym, from provisioning to its first member', () => {
     await page.goto(`${DOWNTOWN}/admin`);
     await expect(page).toHaveURL(new RegExp(`^${escapeRegExp(DOWNTOWN)}/admin/login(\\?|$)`));
     await expect
-      .poll(async () => (await cookieFor(ownerContext, DOWNTOWN, ACCESS_COOKIE))?.value || null)
+      .poll(
+        async () => (await cookieFor(ownerContext, DOWNTOWN, ADMIN_ACCESS_COOKIE))?.value || null,
+      )
       .toBeNull();
     await page.close();
 

@@ -697,6 +697,8 @@ model NotificationPreference {
 /// that gym. The composite unique on (userId, gymId) enforces one membership
 /// per user per gym while still allowing N gyms per user.
 model GymMember {
+  /// Member-managed photo, isolated to this gym (never shared through User).
+  photoUrl String?
   id       String          @id @default(cuid())
   userId   String
   gymId    String
@@ -2346,6 +2348,9 @@ model StaffInvite {
 /// the confirmation renders without re-aggregating. `status` tracks the lifecycle
 /// (see {@link OrderStatus}); payment is captured via the related {@link Payment}.
 model Order {
+  /// Snapshot of the online member benefit; POS orders retain zero.
+  memberDiscountPercent Int @default(0)
+  memberDiscountAmount Int @default(0)
   id              String      @id @default(cuid())
   gymId           String
   packageId       String?

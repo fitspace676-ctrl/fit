@@ -62,6 +62,75 @@ describe('CartService (integration)', () => {
     variantRef = encodeVariantRef(productId, 0);
   });
 
+  it('records the member benefit before a real promo, with an exact accounting sum', async () => {
+    await prisma.gym.update({
+      where: { id: gymId },
+      data: { settings: { shop: { memberDiscountPercent: 10 } } },
+    });
+    await prisma.gymMember.create({ data: { gymId, userId, status: 'ACTIVE' } });
+    await prisma.promoCode.create({
+      data: {
+        gymId,
+        code: 'MEMBER10',
+        discountType: 'percentage',
+        discountValue: 10,
+        appliesTo: 'products',
+      },
+    });
+    const cart = await asTenant(member(gymId, userId), () =>
+      service.addItem(undefined, { variantId: variantRef, qty: 2 }),
+    );
+    expect(cart.view).toMatchObject({
+      memberDiscountPercent: 10,
+      subtotal: 1000,
+      discount: 100,
+      total: 900,
+    });
+    const result = await asTenant(member(gymId, userId), () =>
+      service.checkout(undefined, {
+        fulfillment: 'DELIVERY',
+        deliveryAddress: 'Test address',
+        promoCode: 'MEMBER10',
+      }),
+    );
+    expect(result.kind).toBe('created');
+    const order = await prisma.order.findFirstOrThrow({
+      where: { gymId },
+      include: { items: true },
+    });
+    expect(order).toMatchObject({
+      total: 810,
+      memberDiscountPercent: 10,
+      memberDiscountAmount: 100,
+    });
+    expect(order.items.reduce((sum, line) => sum + line.amount, 0)).toBe(810);
+    expect(await prisma.promoRedemption.findFirst({ where: { orderId: order.id } })).toMatchObject({
+      discountAmount: 90,
+    });
+  });
+
+  it('does not borrow another gym membership and excludes suspended or deleted members', async () => {
+    await prisma.gym.update({
+      where: { id: gymId },
+      data: { settings: { shop: { memberDiscountPercent: 90 } } },
+    });
+    const otherGym = await prisma.gym.create({
+      data: { name: 'Other', slug: 'other-discount-gym' },
+    });
+    await prisma.gymMember.create({ data: { gymId: otherGym.id, userId, status: 'ACTIVE' } });
+    const view = () => asTenant(member(gymId, userId), () => service.getCart(undefined));
+    expect((await view()).view.memberDiscountPercent).toBe(0);
+    const local = await prisma.gymMember.create({ data: { gymId, userId, status: 'SUSPENDED' } });
+    expect((await view()).view.memberDiscountPercent).toBe(0);
+    await prisma.gymMember.update({
+      where: { id: local.id },
+      data: { status: 'ACTIVE', deletedAt: new Date() },
+    });
+    expect((await view()).view.memberDiscountPercent).toBe(0);
+    await prisma.gymMember.update({ where: { id: local.id }, data: { deletedAt: null } });
+    expect((await view()).view.memberDiscountPercent).toBe(90);
+  });
+
   afterAll(disconnect);
 
   it('adds an anon line and reads it back, re-pricing live', async () => {

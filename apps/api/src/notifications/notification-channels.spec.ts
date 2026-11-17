@@ -70,11 +70,13 @@ describe('EmailNotificationChannel', () => {
     expect(result).toEqual({ channel: NotificationChannel.EMAIL, ref: 'msg-9' });
     expect(send).toHaveBeenCalledTimes(1);
     const message = send.mock.calls[0]![0] as {
+      from: string;
       to: string;
       subject: string;
       html: string;
       text: string;
     };
+    expect(message.from).toContain('"Downtown" <');
     expect(message.to).toBe('sam@example.com');
     expect(message.subject).toBe('Booking confirmed');
     expect(message.html).toContain('Hi Sam,');

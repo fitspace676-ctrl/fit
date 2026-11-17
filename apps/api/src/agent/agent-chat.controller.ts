@@ -60,6 +60,7 @@ export interface AgentRuntime {
     emit: (event: StreamEvent) => void,
     options?: {
       context?: AgentChatContext;
+      currentSessionId?: string;
       approvals?: Approval[];
       attachments?: Attachment[];
       onFallback?: (from: AgentModelRef, to: AgentModelRef, reason: string) => void;
@@ -79,6 +80,7 @@ function agentRuntime(): AgentRuntime {
 
 /** The turn's extras; `messages`/`attachments`/`model` stay leniently read as before. */
 const chatExtrasSchema = z.object({
+  currentSessionId: z.string().min(1).max(128).optional(),
   locationId: z.string().min(1).max(64).optional().catch(undefined),
   locale: z.enum(['ka', 'en']).optional().catch(undefined),
   approvals: z
@@ -111,6 +113,7 @@ export function readMessages(raw: unknown): ChatTurn[] {
 }
 
 interface ChatBody {
+  currentSessionId?: unknown;
   messages?: unknown;
   attachments?: Attachment[];
   model?: string;
@@ -186,6 +189,7 @@ export class AgentChatController {
     @Res() res: Response,
   ): Promise<void> {
     const extras = chatExtrasSchema.safeParse({
+      currentSessionId: body.currentSessionId,
       locationId: body.locationId,
       locale: body.locale,
       approvals: body.approvals,
@@ -261,6 +265,7 @@ export class AgentChatController {
       };
       await agent.runAgent(messages, token, model, emit, {
         context,
+        currentSessionId: extras.data.currentSessionId,
         approvals: extras.data.approvals,
         attachments,
         onFallback,

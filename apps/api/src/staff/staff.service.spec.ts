@@ -579,13 +579,13 @@ describe('StaffService', () => {
       );
     });
 
-    it('still succeeds when the invite email fails to send', async () => {
+    it('surfaces an error when the invite email fails to send', async () => {
       const { service, sendStaffInviteEmail } = setup({ staffFindFirst: null });
       sendStaffInviteEmail.mockRejectedValueOnce(new Error('resend down'));
 
       await expect(
         service.inviteStaff({ email: 'new@example.com', role: 'TRAINER' }),
-      ).resolves.toEqual({ inviteId: 'inv-1' });
+      ).rejects.toMatchObject({ response: { code: 'EMAIL_SEND_FAILED' } });
     });
   });
 

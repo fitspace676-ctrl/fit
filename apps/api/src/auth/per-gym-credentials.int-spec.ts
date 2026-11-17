@@ -626,7 +626,7 @@ describe('per-gym credentials (integration)', () => {
       ).resolves.toBeDefined();
     });
 
-    it("a staff invite for an existing address sends it to register, and register sets the new gym's password", async () => {
+    it('a staff invitation sets the new gym password and confirms existing credentials', async () => {
       const uptown = await prisma.gym.create({ data: { name: 'Uptown', slug: 'uptown' } });
       const invite = await prisma.staffInvite.create({
         data: {
@@ -639,14 +639,14 @@ describe('per-gym credentials (integration)', () => {
       });
 
       const { url } = await h.auth.acceptInvite(invite.token);
-      expect(url).toContain('/member/register');
+      expect(url).toContain('/admin/accept-invite');
+      expect((await h.auth.inspectStaffInvite(invite.token)).needsPassword).toBe(true);
 
-      await h.auth.register({
-        name: 'Sam T.',
-        email: EMAIL,
-        password: 'uptown-trainer-1',
-        inviteToken: invite.token,
-      });
+      await h.auth.completeStaffInvite(
+        { token: invite.token, password: 'uptown-trainer-1' },
+        'uptown',
+      );
+      await expect(h.auth.completeStaffInvite({ token: invite.token })).rejects.toThrow();
 
       await expect(
         h.auth.login({ email: EMAIL, password: 'uptown-trainer-1' }, 'uptown'),
@@ -656,7 +656,7 @@ describe('per-gym credentials (integration)', () => {
       });
       expect(membership.role).toBe(Role.TRAINER);
 
-      // And the address, now holding a credential there, is sent to login next time.
+      // An existing password requires confirmation only and must stay unchanged.
       const again = await prisma.staffInvite.create({
         data: {
           gymId: uptown.id,
@@ -666,7 +666,11 @@ describe('per-gym credentials (integration)', () => {
           expiresAt: new Date(Date.now() + 60_000),
         },
       });
-      expect((await h.auth.acceptInvite(again.token)).url).toContain('/member/login');
+      expect((await h.auth.inspectStaffInvite(again.token)).needsPassword).toBe(false);
+      await h.auth.completeStaffInvite({ token: again.token }, 'uptown');
+      await expect(
+        h.auth.login({ email: EMAIL, password: 'uptown-trainer-1' }, 'uptown'),
+      ).resolves.toBeDefined();
     });
   });
 });

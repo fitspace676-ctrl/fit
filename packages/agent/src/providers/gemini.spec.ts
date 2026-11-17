@@ -116,13 +116,13 @@ describe('Gemini request compatibility', () => {
         description: tool.description ?? '',
         parameters: tool.inputSchema,
       }));
-      expect(all).toHaveLength(214);
+      expect(all).toHaveLength(216);
       const toolbox = createToolbox(all, defaultToolCatalog(), () => undefined);
       const core = toolbox.visible();
       toolbox.open({ domains: ['marketing'] });
       const marketing = toolbox.visible();
-      expect(core).toHaveLength(16);
-      expect(marketing).toHaveLength(76);
+      expect(core).toHaveLength(18);
+      expect(marketing).toHaveLength(78);
       const before = JSON.stringify(all);
       const driver = createGeminiDriver('gemini-flash-lite-latest');
       for (const tools of [core, marketing, all]) {
