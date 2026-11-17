@@ -127,13 +127,19 @@ export interface VerifiedAccessClaims {
 export class TokenService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Check persisted revocation on every authenticated request, without caching. */
+  /**
+   * Check persisted revocation on every authenticated request, without caching.
+   * Only session tokens carry `tokenVersion`; scoped tokens (SuperAdmin owner
+   * impersonation, the `fit` CLI's test tokens) omit it, are short-lived, and
+   * are not sessions to revoke, so they pass through as before.
+   */
   async assertSessionActive(claims: VerifiedAccessClaims): Promise<void> {
+    if (claims.tokenVersion === undefined) return;
     const user = await this.prisma.client.user.findUnique({
       where: { id: claims.sub }, select: { tokenVersion: true, email: true },
     });
     if (!user || user.email === `deleted+${claims.sub}@deleted.fit.local` ||
-      user.tokenVersion !== (claims.tokenVersion ?? 0)) {
+      user.tokenVersion !== claims.tokenVersion) {
       throw invalidAccessToken();
     }
   }

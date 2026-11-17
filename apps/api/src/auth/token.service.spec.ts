@@ -611,8 +611,14 @@ describe('persisted access-token revocation', () => {
     await expect(new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 0 }))
       .rejects.toBeInstanceOf(UnauthorizedException);
   });
-  it('allows the current version, including legacy version-zero tokens', async () => {
-    const prisma = { client: { user: { findUnique: vi.fn().mockResolvedValue({ tokenVersion: 0 }) } } } as unknown as PrismaService;
+  it('allows the current version', async () => {
+    const prisma = { client: { user: { findUnique: vi.fn().mockResolvedValue({ tokenVersion: 2 }) } } } as unknown as PrismaService;
+    await expect(new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 2 })).resolves.toBeUndefined();
+  });
+  it('lets a scoped token without tokenVersion through, whatever the user version', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ tokenVersion: 3 });
+    const prisma = { client: { user: { findUnique } } } as unknown as PrismaService;
     await expect(new TokenService(prisma).assertSessionActive({ sub: 'u1' })).resolves.toBeUndefined();
+    expect(findUnique).not.toHaveBeenCalled();
   });
 });
