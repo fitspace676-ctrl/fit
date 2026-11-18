@@ -61,7 +61,8 @@
           "url": "https://de.sentry.io/"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "./plugins/with-optional-hardware"
     ],
     "experiments": {
       "typedRoutes": true
