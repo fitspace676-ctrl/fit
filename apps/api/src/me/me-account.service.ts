@@ -62,6 +62,8 @@ export class MeAccountService {
           where: { userId },
           data: {
             deletedAt: new Date(),
+            firstName: null,
+            lastName: null,
             photoUrl: null,
             dateOfBirth: null,
             gender: null,

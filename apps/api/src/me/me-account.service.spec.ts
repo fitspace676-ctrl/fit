@@ -61,6 +61,8 @@ describe('MeAccountService', () => {
       where: { userId: 'u1' },
       data: expect.objectContaining({
         deletedAt: expect.any(Date) as unknown,
+        firstName: null,
+        lastName: null,
         personalId: null,
       }) as unknown,
     });
