@@ -57,7 +57,12 @@ function allowed(permission: Notifications.NotificationPermissionsStatus) {
 // Serialize foreground refresh, token rotation and switch actions.
 let pending: Promise<void> = Promise.resolve();
 let settingsOptIn: string | null = null;
-export function syncPushPreference(userId: string, enabled?: boolean): Promise<void> {
+let lastRegistration: { userId: string; deviceId: string; token: string } | null = null;
+export function syncPushPreference(
+  userId: string,
+  enabled?: boolean,
+  devicePushToken?: Notifications.DevicePushToken,
+): Promise<void> {
   const run = async () => {
     if (!isCurrentUser(userId)) return;
     update({
@@ -101,13 +106,25 @@ export function syncPushPreference(userId: string, enabled?: boolean): Promise<v
         const eas = Constants.easConfig as { projectId?: string } | null | undefined;
         const projectId: string | undefined = eas?.projectId ?? extra?.eas?.projectId;
         if (!projectId) throw new Error('Missing EAS project id');
-        const token = await Notifications.getExpoPushTokenAsync({ projectId });
+        const token = await Notifications.getExpoPushTokenAsync({ projectId, devicePushToken });
         if (!isCurrentUser(userId)) return;
-        await registerPushToken({ deviceId, token: token.data, platform: Platform.OS });
+        // Queued foreground/rotation events may resolve to the same Expo token.
+        // Remember only successful API writes; a failed write must remain retryable.
+        if (
+          lastRegistration?.userId !== userId ||
+          lastRegistration.deviceId !== deviceId ||
+          lastRegistration.token !== token.data
+        ) {
+          await registerPushToken({ deviceId, token: token.data, platform: Platform.OS });
+          if (isCurrentUser(userId)) lastRegistration = { userId, deviceId, token: token.data };
+        }
         settingsOptIn = null;
         updateUser({ push: true });
         await AsyncStorage.setItem(key(userId), 'true');
       } else {
+        // Opt-out or revoked permission invalidates the registration, even if
+        // DELETE fails: a later enable must establish it again.
+        lastRegistration = null;
         await unregisterPushToken({ deviceId });
         // Preserve a previously enabled choice if OS permission was revoked;
         // restoring OS permission can then re-register on foreground.
@@ -125,6 +142,7 @@ export function syncPushPreference(userId: string, enabled?: boolean): Promise<v
 }
 
 export function clearPushSnapshot() {
+  lastRegistration = null;
   settingsOptIn = null;
   update({ userId: null, push: false, permission: 'unknown', error: false, busy: false });
 }
