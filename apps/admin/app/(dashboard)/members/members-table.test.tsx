@@ -175,3 +175,16 @@ describe('MembersTable — the branch filter', () => {
     expect(screen.getByLabelText('Status')).toBeDefined();
   });
 });
+
+describe('MembersTable — member photos', () => {
+  it('renders the membership photo', () => {
+    const url = 'https://images.example/gym-1/memberphotos/ana.jpg';
+    const { container } = renderRoster([memberRow({ photoUrl: url })]);
+    expect(container.querySelector(`img[src="${url}"]`)).not.toBeNull();
+    expect(screen.queryByText('AB')).toBeNull();
+  });
+  it('falls back to initials without a photo', () => {
+    renderRoster([memberRow({ photoUrl: null })]);
+    expect(screen.getByText('AB')).toBeDefined();
+  });
+});

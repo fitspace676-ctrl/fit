@@ -91,7 +91,12 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     booking: make(models?.booking),
     order: make(models?.order),
     promoRedemption: make(models?.promoRedemption),
-    gym: make({ findFirst: vi.fn(() => Promise.resolve(gymRow)), ...models?.gym }),
+    gym: make({
+      findFirst: vi.fn(() => Promise.resolve(gymRow)),
+      findUnique: vi.fn(() => Promise.resolve(gymRow)),
+      ...models?.gym,
+    }),
+    loyaltyLedgerEntry: make(),
     // Redemption writes the ledger row and bumps the counter together, so the
     // transaction runs its callback against this same mock client.
     $transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(client)),
@@ -99,7 +104,13 @@ function setup(models?: Record<string, Record<string, unknown>>) {
 
   const prisma = { client } as unknown as TenantPrismaService;
   const tenant = { gymId: 'gym-1', userId: 'u-1' } as unknown as TenantContext;
-  return { service: new MarketingService(prisma, tenant), client };
+  const service = new MarketingService(prisma, tenant);
+  const mailer = {
+    isConfigured: true,
+    send: vi.fn(() => Promise.resolve({ sent: true, id: 'msg-1' })),
+  };
+  Object.assign(service, { mailer });
+  return { service, client, mailer };
 }
 
 beforeEach(() => {
@@ -422,51 +433,167 @@ describe('MarketingService.buildMemberWhere (via previewCriteria)', () => {
 });
 
 describe('MarketingService.sendCampaign', () => {
-  it('resolves the audience, marks sent, and snapshots sentCount', async () => {
-    const findFirst = vi.fn(() => Promise.resolve(campaignRecord()));
-    const update = vi.fn((a: AnyArgs) => Promise.resolve(campaignRecord(a.data)));
-    const memberCount = vi.fn((_a: AnyArgs) => Promise.resolve(42));
-    const { service } = setup({
-      campaign: { findFirst, update },
-      gymMember: { count: memberCount },
-    });
-    const res = await service.sendCampaign('camp-1');
-    expect(res.status).toBe('sent');
-    expect(res.audienceSize).toBe(42);
-    expect(res.sentCount).toBe(42);
-    expect(res.sentAt).not.toBeNull();
-  });
-
-  it('rejects sending an already-sent campaign', async () => {
-    const findFirst = vi.fn(() => Promise.resolve(campaignRecord({ status: 'sent' })));
-    const { service } = setup({ campaign: { findFirst } });
-    await expect(service.sendCampaign('camp-1')).rejects.toBeInstanceOf(ConflictException);
-  });
-
-  it('resolves a segment-targeted campaign via the segment criteria', async () => {
-    const findFirst = vi.fn(() => Promise.resolve(campaignRecord({ audienceSegmentId: 'seg-1' })));
-    const segFindFirst = vi.fn(() =>
-      Promise.resolve({
-        id: 'seg-1',
-        name: 'VIP',
-        criteria: { status: ['ACTIVE'] },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
-    );
-    const memberCount = vi.fn((_a: AnyArgs) => Promise.resolve(7));
-    const { service } = setup({
+  function deliverySetup(over: Record<string, unknown> = {}, members = 2) {
+    return setup({
       campaign: {
-        findFirst,
+        findFirst: vi.fn(() => Promise.resolve(campaignRecord(over))),
         update: vi.fn((a: AnyArgs) => Promise.resolve(campaignRecord(a.data))),
       },
-      audienceSegment: { findFirst: segFindFirst },
-      gymMember: { count: memberCount },
+      gymMember: {
+        findMany: vi.fn(() =>
+          Promise.resolve(
+            Array.from({ length: members }, (_, i) => ({
+              id: `m-${i}`,
+              status: 'ACTIVE',
+              joinedAt: new Date(),
+              dateOfBirth: null,
+              user: { name: i === 0 ? 'Nino' : 'Ana', email: `nino${i}@example.com`, phone: null },
+              loyaltyLedger: [{ balanceAfter: i * 10 }],
+              subscriptions: [],
+              _count: { checkIns: 0 },
+            })),
+          ),
+        ),
+      },
     });
-    const res = await service.sendCampaign('camp-1');
-    expect(res.sentCount).toBe(7);
-    const where = memberCount.mock.calls[0]?.[0].where as Record<string, unknown>;
-    expect(where.status).toEqual({ in: ['ACTIVE'] });
+  }
+
+  it('sends personalized mail to each recipient and counts provider acceptances', async () => {
+    const { service, mailer } = deliverySetup({ subject: 'Hi {{first_name}}' });
+    const result = await service.sendCampaign('camp-1');
+    expect(mailer.send).toHaveBeenCalledTimes(2);
+    expect(mailer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'nino0@example.com',
+        subject: 'Hi Nino',
+        from: expect.stringContaining('FitSpace') as string,
+      }),
+    );
+    expect(result).toMatchObject({ status: 'sent', audienceSize: 2, sentCount: 2 });
+  });
+
+  it('fills subject and body per recipient, blanks missing and unknown fields without N+1', async () => {
+    const { service, client, mailer } = deliverySetup({
+      subject: 'Hi {{firstName}} {{unknown}}',
+      body: '{{member_first_name}}/{{membership_plan}}/{{phone}}/{{member_points_balance}}/{{typo}}',
+    });
+    await service.sendCampaign('camp-1');
+    expect(mailer.send).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        subject: 'Hi Nino ',
+        text: 'Nino///0/',
+      }),
+    );
+    expect(mailer.send).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        subject: 'Hi Ana ',
+        text: 'Ana///10/',
+      }),
+    );
+    expect(client.loyaltyLedgerEntry.findFirst).not.toHaveBeenCalled();
+    expect(client.gymMember.findMany).toHaveBeenCalledTimes(1);
+    expect(client.gymMember.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          loyaltyLedger: expect.objectContaining({
+            where: { gymId: 'gym-1' },
+            take: 1,
+          }) as unknown,
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('previews filled member values without sending, scoped to the current gym', async () => {
+    const { service, client, mailer } = deliverySetup();
+    client.gymMember.findFirst.mockResolvedValueOnce({
+      id: 'm-1',
+      status: 'ACTIVE',
+      joinedAt: new Date(),
+      dateOfBirth: null,
+      user: { name: 'Nino', email: 'nino@example.com', phone: null },
+      subscriptions: [],
+      loyaltyLedger: [],
+      _count: { checkIns: 0 },
+    });
+    expect(
+      await service.previewMessage({ subject: '{{firstName}}', body: '{{phone}}/{{bad}}' }),
+    ).toEqual({ recipient: 'nino@example.com', subject: 'Nino', body: '/' });
+    expect(client.gymMember.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { gymId: 'gym-1', deletedAt: null },
+      }),
+    );
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it.each(['sms', 'push'])(
+    'does not pretend unsupported %s campaigns are delivered',
+    async (channel) => {
+      const { service, mailer } = deliverySetup({ channel });
+      await expect(service.sendCampaign('camp-1')).rejects.toMatchObject({
+        response: { code: 'CAMPAIGN_CHANNEL_UNSUPPORTED' },
+      });
+      expect(mailer.send).not.toHaveBeenCalled();
+    },
+  );
+
+  it('records partial delivery and surfaces the failure', async () => {
+    const { service, client, mailer } = deliverySetup();
+    mailer.send.mockRejectedValueOnce(new Error('Provider rejected recipient'));
+    await expect(service.sendCampaign('camp-1')).rejects.toMatchObject({
+      response: { code: 'EMAIL_SEND_FAILED', sentCount: 1, failedCount: 1 },
+    });
+    expect(client.campaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'sent', sentCount: 1 }) as object,
+      }),
+    );
+  });
+
+  it('never reports missing configuration or an empty audience as sent', async () => {
+    const empty = deliverySetup({}, 0);
+    await expect(empty.service.sendCampaign('camp-1')).rejects.toMatchObject({
+      response: { code: 'CAMPAIGN_NO_RECIPIENTS' },
+    });
+    expect(empty.client.campaign.update).not.toHaveBeenCalled();
+    const disabled = deliverySetup();
+    disabled.mailer.isConfigured = false;
+    await expect(disabled.service.sendCampaign('camp-1')).rejects.toMatchObject({
+      response: { code: 'EMAIL_NOT_CONFIGURED' },
+    });
+    expect(disabled.mailer.send).not.toHaveBeenCalled();
+  });
+
+  it.each(['sent', 'active'])('rejects duplicate delivery for %s campaigns', async (status) => {
+    const { service, mailer } = deliverySetup({ status });
+    await expect(service.sendCampaign('camp-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it('does not send if another request wins the atomic claim', async () => {
+    const { service, client, mailer } = deliverySetup();
+    client.campaign.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.sendCampaign('camp-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it('applies saved segment criteria and excludes trashed members', async () => {
+    const { service, client } = deliverySetup({ audienceSegmentId: 'seg-1' });
+    client.audienceSegment.findFirst.mockResolvedValueOnce({ criteria: { status: ['ACTIVE'] } });
+    await service.sendCampaign('camp-1');
+    expect(client.gymMember.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [
+            expect.objectContaining({ status: { in: ['ACTIVE'] } }),
+            { gymId: 'gym-1', deletedAt: null },
+          ],
+        },
+      }),
+    );
   });
 });
 

@@ -55,12 +55,14 @@ let mockSession = {
 jest.mock('../../../hooks/useSession', () => ({ useSession: () => mockSession }));
 
 let mockGymSlug: string | undefined = 'downtown-strength';
+const mockDeleteAccount = jest.fn(() => Promise.resolve());
 const mockSignOut = jest.fn(() => Promise.resolve({ revoked: true }));
 // Only the two functions the screen imports. `useSession` is mocked above, so
 // nothing in this tree reaches for the store the real module maintains.
 jest.mock('../../../lib/auth/session', () => ({
   resolveGymSlug: () => mockGymSlug,
   signOut: () => mockSignOut(),
+  deleteAccount: () => mockDeleteAccount(),
 }));
 
 const mockGetGymBySubdomain = jest.fn();
@@ -189,6 +191,7 @@ beforeEach(() => {
   mockPush.mockClear();
   mockReplace.mockClear();
   mockSignOut.mockClear();
+  mockDeleteAccount.mockClear();
   mockGymSlug = 'downtown-strength';
   mockSession = {
     status: 'signed-in',
@@ -758,4 +761,17 @@ describe('localisation', () => {
       (await ka.findByTestId('profile-row-payments', {}, WAIT)).props.accessibilityLabel,
     ).not.toBe('Payment history');
   });
+});
+
+it('offers account deletion at the bottom of the profile and navigates after confirmation', async () => {
+  const screen = renderApp(<ProfileScreen />);
+  fireEvent.press(screen.getByTestId('profile-delete-account'));
+  expect(mockDeleteAccount).not.toHaveBeenCalled();
+  await waitFor(
+    () => expect(screen.getByTestId('profile-delete-account-confirm-confirm')).toBeTruthy(),
+    WAIT,
+  );
+  fireEvent.press(screen.getByTestId('profile-delete-account-confirm-confirm'));
+  await waitFor(() => expect(mockDeleteAccount).toHaveBeenCalledTimes(1), WAIT);
+  expect(mockReplace).toHaveBeenCalledWith('/');
 });

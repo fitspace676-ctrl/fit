@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import { Role } from '@fit/db';
-import { TokenService, type SessionClaims } from './token.service';
+import { TokenService, hashRefreshToken, type SessionClaims } from './token.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { prisma, resetDb, disconnect } from '../test/integration-db';
 
@@ -39,11 +39,43 @@ describe('TokenService rotation (integration)', () => {
     expect(live).toHaveLength(1);
   });
 
+  it('lets both concurrent renewals succeed and keeps both successors usable', async () => {
+    const first = await tokens.issueTokenPair(userId, SCOPE);
+    const [a, b] = await Promise.all([
+      tokens.rotateRefreshToken(first.refreshToken, SCOPE),
+      tokens.rotateRefreshToken(first.refreshToken, SCOPE),
+    ]);
+    expect(a.refreshToken).not.toBe(b.refreshToken);
+    expect(tokens.verifyAccessToken(a.accessToken).sub).toBe(userId);
+    expect(tokens.verifyAccessToken(b.accessToken).sub).toBe(userId);
+    const rows = await prisma.refreshToken.findMany({ where: { userId } });
+    expect(new Set(rows.map((row) => row.familyId)).size).toBe(1);
+    expect(rows.filter((row) => row.revokedAt === null)).toHaveLength(2);
+    await expect(tokens.rotateRefreshToken(a.refreshToken, SCOPE)).resolves.toBeDefined();
+    await expect(tokens.rotateRefreshToken(b.refreshToken, SCOPE)).resolves.toBeDefined();
+  });
+
+  it('does not resurrect a recently rotated ancestor after logout', async () => {
+    const first = await tokens.issueTokenPair(userId, SCOPE);
+    const second = await tokens.rotateRefreshToken(first.refreshToken, SCOPE);
+    await tokens.revokeRefreshToken(second.refreshToken);
+    await expect(tokens.rotateRefreshToken(first.refreshToken, SCOPE)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(tokens.rotateRefreshToken(second.refreshToken, SCOPE)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
   it('detects reuse of a spent token and revokes the entire family', async () => {
     const first = await tokens.issueTokenPair(userId, SCOPE);
     await tokens.rotateRefreshToken(first.refreshToken, SCOPE); // spends `first`
 
-    // Replaying the already-spent original is the signature of a stolen token.
+    await prisma.refreshToken.update({
+      where: { tokenHash: hashRefreshToken(first.refreshToken) },
+      data: { revokedAt: new Date(Date.now() - 20_001) },
+    });
+    // Reuse outside grace is still the signature of a stolen token.
     await expect(tokens.rotateRefreshToken(first.refreshToken, SCOPE)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
@@ -56,6 +88,10 @@ describe('TokenService rotation (integration)', () => {
   it('rejects the (previously live) successor too once the family is revoked', async () => {
     const first = await tokens.issueTokenPair(userId, SCOPE);
     const second = await tokens.rotateRefreshToken(first.refreshToken, SCOPE);
+    await prisma.refreshToken.update({
+      where: { tokenHash: hashRefreshToken(first.refreshToken) },
+      data: { revokedAt: new Date(Date.now() - 20_001) },
+    });
     await tokens.rotateRefreshToken(first.refreshToken, SCOPE).catch(() => undefined); // trips reuse
 
     await expect(tokens.rotateRefreshToken(second.refreshToken, SCOPE)).rejects.toBeInstanceOf(

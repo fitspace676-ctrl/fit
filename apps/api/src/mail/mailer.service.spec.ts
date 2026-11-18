@@ -6,7 +6,7 @@ const { mockEnv } = vi.hoisted(() => {
 });
 vi.mock('../config/env', () => ({ env: mockEnv }));
 
-import { MailerService } from './mailer.service';
+import { emailFrom, MailerService } from './mailer.service';
 
 function configure(overrides: Record<string, unknown> = {}): void {
   for (const key of Object.keys(mockEnv)) delete mockEnv[key];
@@ -36,6 +36,14 @@ describe('MailerService', () => {
     vi.restoreAllMocks();
   });
 
+  it('never sends to a login-less placeholder address, even when configured', async () => {
+    configure({ RESEND_API_KEY: 're_test' });
+    const mailer = new MailerService();
+    const result = await mailer.send({ ...MESSAGE, to: 'staff-1@no-login.fit.local' });
+    expect(result).toEqual({ sent: false, id: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('is unconfigured and no-ops (resolving { sent: false }) without a RESEND_API_KEY', async () => {
     const mailer = new MailerService();
     expect(mailer.isConfigured).toBe(false);
@@ -59,7 +67,7 @@ describe('MailerService', () => {
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_123');
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
-    expect(body.from).toBe('FormaCore <no-reply@fit.app>');
+    expect(body.from).toBe('"FormaCore" <no-reply@fit.app>');
     expect(body.to).toEqual(['user@example.com']);
     expect(body.subject).toBe('Hello');
     expect(body.reply_to).toBeUndefined();
@@ -128,5 +136,18 @@ describe('MailerService', () => {
 
     const result = await mailer.send(MESSAGE);
     expect(result).toEqual({ sent: true, id: null });
+  });
+});
+
+describe('emailFrom', () => {
+  it('preserves the verified address while replacing legacy display names', () => {
+    configure({ EMAIL_FROM: 'fit <verified@example.com>' });
+    expect(emailFrom()).toBe('"FormaCore" <verified@example.com>');
+    expect(emailFrom('დარბაზი')).toBe('"დარბაზი" <verified@example.com>');
+  });
+  it('strips header separators from gym names', () => {
+    configure({ EMAIL_FROM: 'verified@example.com' });
+    expect(emailFrom('Gym\r\nBcc: <other@example.com>')).not.toMatch(/[\r\n]/);
+    expect(emailFrom('Gym')).toBe('"Gym" <verified@example.com>');
   });
 });

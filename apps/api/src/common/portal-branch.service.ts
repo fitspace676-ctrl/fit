@@ -81,26 +81,30 @@ export class PortalBranchService {
     private readonly tokens: TokenService,
   ) {}
 
-  resolve(input: {
+  async resolve(input: {
     gymId: string;
     authorization?: string;
     locationId?: string;
   }): Promise<string | undefined> {
     return resolvePortalBranch(this.prisma.client, {
       gymId: input.gymId,
-      userId: this.sessionUserId(input.gymId, input.authorization),
+      userId: await this.sessionUserId(input.gymId, input.authorization),
       locationId: input.locationId,
     });
   }
 
   /** The caller's user id when the bearer token verifies for `gymId`, else `null`. */
-  private sessionUserId(gymId: string, authorization: string | undefined): string | null {
+  private async sessionUserId(
+    gymId: string,
+    authorization: string | undefined,
+  ): Promise<string | null> {
     const token = extractBearerToken(authorization);
     if (!token) {
       return null;
     }
     try {
       const claims = this.tokens.verifyAccessToken(token);
+      await this.tokens.assertSessionActive(claims);
       return claims.gymId === gymId ? claims.sub : null;
     } catch {
       return null;

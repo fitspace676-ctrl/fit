@@ -55,7 +55,7 @@ export class MediaCleanupService {
     try {
       const orphaned: string[] = [];
       for (const reference of dropped) {
-        if (await this.isStillReferenced(reference)) continue;
+        if (await this.isStillReferenced(reference, gymId)) continue;
         // Non-null by `isDeletable`, which already resolved the key.
         orphaned.push(toObjectKey(reference)!);
       }
@@ -79,8 +79,9 @@ export class MediaCleanupService {
    * pointing at the same image holds a byte-identical URL. (The sweep needs the
    * looser rule because it compares a *bucket key* against a stored URL.)
    */
-  private async isStillReferenced(reference: string): Promise<boolean> {
+  private async isStillReferenced(reference: string, gymId: string): Promise<boolean> {
     const [
+      members,
       products,
       trainers,
       locations,
@@ -90,6 +91,7 @@ export class MediaCleanupService {
       portalFavicons,
       appLoginImages,
     ] = await Promise.all([
+      this.prisma.client.gymMember.count({ where: { gymId, photoUrl: reference } }),
       this.prisma.client.product.count({ where: { images: { has: reference } } }),
       this.prisma.client.trainer.count({ where: { photoUrl: reference } }),
       this.prisma.client.location.count({ where: { photoUrl: reference } }),
@@ -120,6 +122,7 @@ export class MediaCleanupService {
     ]);
 
     return (
+      members > 0 ||
       products > 0 ||
       trainers > 0 ||
       locations > 0 ||

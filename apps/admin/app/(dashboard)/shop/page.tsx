@@ -186,6 +186,8 @@ export default async function ProductsPage({
   // "New product" and category management are `ProductWrite` capabilities — shown
   // only to staff who hold them.
   const session = await getServerSession();
+  const tDiscount = await getTranslations('shopDiscount');
+  const canManage = session !== null && roleHasPermission(session.role, Permission.GymManage);
   const canWrite = session !== null && roleHasPermission(session.role, Permission.ProductWrite);
 
   // The shelves feed three things: the filter, the "New product" picker, and the
@@ -258,6 +260,11 @@ export default async function ProductsPage({
           <Link href="/shop/low-stock" {...stylex.props(styles.outlineLink)}>
             {t('lowStockLink')}
           </Link>
+          {canManage && (
+            <Link href="/shop/settings" {...stylex.props(styles.outlineLink)}>
+              {tDiscount('title')}
+            </Link>
+          )}
           {canWrite ? <CategoriesDrawer categories={categories} /> : null}
           {canWrite ? <AddProductDrawer categories={categories} /> : null}
         </div>

@@ -20,6 +20,7 @@
  * column to `MediaSweepService.collectReferencedKeys`.
  */
 export const SWEEPABLE_ENTITIES: ReadonlySet<string> = new Set([
+  'memberphotos',
   'products',
   'trainers',
   'locations',

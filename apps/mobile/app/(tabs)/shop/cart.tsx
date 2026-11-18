@@ -11,16 +11,8 @@
 // ===========================================================================
 //
 // ---------------------------------------------------------------------------
-// `discount` IS ALWAYS 0 IN THE CART, AND SAYING SO IS NOT OPTIONAL.
-//
-// `packages/types/src/cart.ts`: `discount` is "always `0` until a code is
-// applied at checkout — the cart stores none". The promo code travels in the
-// `POST /cart/checkout` BODY, not in cart state. So this screen must not show a
-// discounted total; if it did, the number would change under the member at the
-// last step, on the screen where the number is the entire point. It says the
-// discount is applied at checkout instead.
-//
-// TODO(i18n) — that sentence has no key. See `components/shop/pending-copy.ts`.
+// Member discounts are included in the server cart total. Promo codes travel
+// in the checkout body and apply afterwards to that remainder.
 //
 // ---------------------------------------------------------------------------
 // THE TWO CHECKOUT FAILURES THAT ARE NOT ERRORS.
@@ -635,11 +627,6 @@ export default function CartScreen() {
             maxLength={64}
             testID="cart-promo"
           />
-          {/*
-            TODO(i18n) `member.shop.cart.promoAtCheckout`. The sentence is not
-            decoration: `CartView.discount` is always 0, so without it the total
-            below silently disagrees with what the member is about to be charged.
-          */}
           <InlineNote testID="cart-promo-note" icon="info">
             {SHOP_PENDING_COPY.promoAtCheckout}
           </InlineNote>
@@ -655,6 +642,14 @@ export default function CartScreen() {
               value={money.format(subtotal, currency)}
               valueLabel={money.spoken(subtotal, currency)}
             />
+            {cart.discount > 0 && (
+              <SummaryRow
+                testID="cart-member-discount"
+                label={t('shopDiscount.discount')}
+                value={`−${money.format(cart.discount, currency)}`}
+                valueLabel={`−${money.spoken(cart.discount, currency)}`}
+              />
+            )}
             <SummaryRow
               testID="cart-pickup"
               label={t('member.shop.cart.summary.pickup')}
@@ -666,8 +661,8 @@ export default function CartScreen() {
               testID="cart-total"
               emphasis
               label={t('member.shop.cart.summary.total')}
-              value={money.format(subtotal, currency)}
-              valueLabel={money.spoken(subtotal, currency)}
+              value={money.format(cart.total, currency)}
+              valueLabel={money.spoken(cart.total, currency)}
             />
             <Eyebrow size="micro" color="textSecondary">
               {t('member.shop.miniCart.items', { count })}

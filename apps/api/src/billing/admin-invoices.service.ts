@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { InvoiceStatus, Prisma } from '@fit/db';
 import type {
   AdminInvoiceRow,
@@ -17,7 +18,7 @@ import { gymSettingsStoredSchema } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { atLocation } from '../common/location-filter.util';
 import { TenantContext } from '../common/tenant/tenant.context';
-import { MailerService } from '../mail/mailer.service';
+import { emailFrom, MailerService } from '../mail/mailer.service';
 import { InvoiceDocumentService } from './invoice-document.service';
 import { InvoiceService } from './invoice.service';
 import { escapeHtml, renderBrandedEmail, renderEmailParagraphs } from '../mail/branded-email';
@@ -52,7 +53,7 @@ function toRow(row: InvoiceRecord): AdminInvoiceRow {
     number: row.number,
     memberId: row.memberId,
     memberName: row.member?.user.name ?? null,
-    memberEmail: row.member?.user.email ?? null,
+    memberEmail: row.member ? contactEmail(row.member.user.email) || null : null,
     type: row.type,
     description: row.description,
     amount: row.amount,
@@ -243,6 +244,7 @@ export class AdminInvoicesService {
     });
 
     await this.mailer.send({
+      from: emailFrom(gymName),
       to,
       subject,
       text: body,

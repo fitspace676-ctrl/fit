@@ -79,7 +79,12 @@ export function ProductList({ products, cart, onCart }: ProductListProps) {
       <ul aria-label={t('grid.label')} {...stylex.props(styles.list)}>
         {products.map((product) => (
           <li key={product.id}>
-            <ProductRow product={product} unitsOf={unitsOf} onCart={onCart} />
+            <ProductRow
+              product={product}
+              unitsOf={unitsOf}
+              onCart={onCart}
+              memberDiscountPercent={cart.memberDiscountPercent}
+            />
           </li>
         ))}
       </ul>

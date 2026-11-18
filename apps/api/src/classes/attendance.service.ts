@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { AutomationTriggerType, BookingStatus, InstanceStatus, Prisma } from '@fit/db';
 import type { AttendanceRoster, AttendanceRosterEntry, MarkAttendanceData } from '@fit/types';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
@@ -262,7 +263,7 @@ export class AttendanceService {
       bookingId: booking.id,
       memberId: booking.memberId,
       memberName: booking.member.user.name,
-      memberEmail: booking.member.user.email,
+      memberEmail: contactEmail(booking.member.user.email),
       status: booking.status as AttendanceRosterEntry['status'],
       bookedAt: booking.createdAt.toISOString(),
     }));

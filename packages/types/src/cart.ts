@@ -134,13 +134,19 @@ export type CartCheckoutInput = z.infer<typeof cartCheckoutSchema>;
  * {@link encodeVariantRef} reference the client passes back to update / remove
  * the line. `productName` / `variantName` label it (the latter `null` for a base
  * purchase); `imageUrl` is the product's primary image or `null`. `unitPrice` is
- * the **current** per-unit price (re-priced live from the product, never the
- * cached value), `lineTotal` is `unitPrice × qty`, and `available` is whether the
+ * the **current payable** per-unit price after the member benefit;
+ * `originalUnitPrice` retains the catalogue price before the member discount, `lineTotal` is `unitPrice × qty`, and `available` is whether the
  * line is currently in stock — an out-of-stock line is still shown (so the buyer
  * sees it) but flagged, and is removed at checkout. All money is in `currency`'s
  * MINOR units.
  */
+/** Round the discount per unit in minor currency units, consistently in every view. */
+export function memberShopPrice(amount: number, percent: number): number {
+  return amount - Math.floor((amount * percent) / 100);
+}
+
 export const cartItemDetailSchema = z.object({
+  originalUnitPrice: z.number().int().nonnegative().optional(),
   variantId: z.string().min(1),
   productId: z.string().min(1),
   productName: z.string(),
@@ -159,13 +165,16 @@ export type CartItemDetail = z.infer<typeof cartItemDetailSchema>;
 /**
  * The cart view returned by `GET /cart` and by every mutation (so the client
  * always gets the fresh cart back). `items` are the lines in stable insertion
- * order; `subtotal` is the sum of every line total at current prices; `discount`
- * is any applied promo discount (always `0` until a code is applied at checkout —
- * the cart stores none); `total` is `subtotal − discount`. `currency` is the
+ * order; `subtotal` is the original catalogue total; `discount` is the member
+ * benefit; `total` is `subtotal − discount` and equals the sum of line totals.
+ * Promo codes apply to this remainder at checkout (the cart stores none).
+ * `memberDiscountPercent` is the current caller's effective rate, including on
+ * an empty cart, and zero for guests or callers without an ACTIVE membership. `currency` is the
  * shop's currency (the gym sells in one currency). An empty cart is a normal
  * result the storefront renders as its empty state.
  */
 export const cartViewSchema = z.object({
+  memberDiscountPercent: z.number().int().min(0).max(90).optional(),
   items: z.array(cartItemDetailSchema),
   subtotal: z.number().int().nonnegative(),
   discount: z.number().int().nonnegative(),

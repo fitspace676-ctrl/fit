@@ -53,20 +53,20 @@ afterEach(() => {
 describe('admin middleware — wrong-gym sessions', () => {
   it('lets staff through on their own gym’s host', async () => {
     const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'downtown' });
-    const res = await middleware(request('/members', `accessToken=${token}`));
+    const res = await middleware(request('/members', `adminAccessToken=${token}`));
     expect(res.headers.get('location')).toBeNull();
   });
 
   it('sends another gym’s session to this host’s sign-in, clearing it everywhere', async () => {
     const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'riverside' });
-    const res = await middleware(request('/members?page=2', `accessToken=${token}`));
+    const res = await middleware(request('/members?page=2', `adminAccessToken=${token}`));
     const location = new URL(res.headers.get('location') ?? '');
     expect(location.origin).toBe('https://downtown.formacore.io');
     expect(location.pathname).toBe('/admin/login');
     expect(location.searchParams.get('from')).toBe('/admin/members?page=2');
     // Host-only and legacy parent-domain copies of both cookies.
-    expect(cleared(res, 'accessToken')).toHaveLength(2);
-    expect(cleared(res, 'refreshToken')).toHaveLength(2);
+    expect(cleared(res, 'adminAccessToken')).toHaveLength(2);
+    expect(cleared(res, 'adminRefreshToken')).toHaveLength(2);
   });
 
   it('drops only the impersonation when that is what names another gym', async () => {
@@ -74,31 +74,31 @@ describe('admin middleware — wrong-gym sessions', () => {
     const res = await middleware(request('/members', `impersonationToken=${token}`));
     expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/admin/login');
     expect(cleared(res, 'impersonationToken')).toHaveLength(1);
-    expect(cleared(res, 'accessToken')).toHaveLength(0);
+    expect(cleared(res, 'adminAccessToken')).toHaveLength(0);
   });
 
   it('compares nothing on a host that names no gym, or for a token without the claim', async () => {
     const other = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'riverside' });
     const onApp = await middleware(
-      request('/members', `accessToken=${other}`, { 'x-forwarded-host': 'app.formacore.io' }),
+      request('/members', `adminAccessToken=${other}`, { 'x-forwarded-host': 'app.formacore.io' }),
     );
     expect(onApp.headers.get('location')).toBeNull();
 
     const legacy = await accessToken({ sub: 'u1', role: 'OWNER', gymId: 'g-riverside' });
-    const noClaim = await middleware(request('/members', `accessToken=${legacy}`));
+    const noClaim = await middleware(request('/members', `adminAccessToken=${legacy}`));
     expect(noClaim.headers.get('location')).toBeNull();
   });
 
   it('clears the session on the sign-in page when the API refused it', async () => {
-    const res = await middleware(request('/login?reason=tenant', 'accessToken=whatever'));
+    const res = await middleware(request('/login?reason=tenant', 'adminAccessToken=whatever'));
     expect(res.headers.get('location')).toBeNull();
-    expect(cleared(res, 'accessToken')).toHaveLength(2);
+    expect(cleared(res, 'adminAccessToken')).toHaveLength(2);
     expect(cleared(res, 'impersonationToken')).toHaveLength(1);
   });
 
   it('leaves an ordinary visit to the sign-in page alone', async () => {
     const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'downtown' });
-    const res = await middleware(request('/login', `accessToken=${token}`));
+    const res = await middleware(request('/login', `adminAccessToken=${token}`));
     expect(res.headers.getSetCookie()).toEqual([]);
   });
 
@@ -110,13 +110,15 @@ describe('admin middleware — wrong-gym sessions', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await middleware(
-      request('/members', 'refreshToken=rt', { 'sec-fetch-dest': 'document' }),
+      request('/members', 'adminRefreshToken=rt', { 'sec-fetch-dest': 'document' }),
     );
 
     const init = fetchMock.mock.calls[0]?.[1];
     expect(new Headers(init?.headers).get('x-tenant-host')).toBe('downtown.formacore.io');
     expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/admin/login');
-    expect(res.headers.getSetCookie().some((c) => c.startsWith('refreshToken=rt2'))).toBe(false);
+    expect(res.headers.getSetCookie().some((c) => c.startsWith('adminRefreshToken=rt2'))).toBe(
+      false,
+    );
   });
 
   it('writes a matching refreshed pair host-only and expires the legacy copy', async () => {
@@ -129,20 +131,20 @@ describe('admin middleware — wrong-gym sessions', () => {
     );
 
     const res = await middleware(
-      request('/members', 'refreshToken=rt', { 'sec-fetch-dest': 'document' }),
+      request('/members', 'adminRefreshToken=rt', { 'sec-fetch-dest': 'document' }),
     );
 
     const cookies = res.headers.getSetCookie();
     expect(res.headers.get('location')).toBeNull();
-    expect(cookies.find((c) => c.startsWith('refreshToken=rt2'))).not.toMatch(/Domain=/i);
-    expect(cleared(res, 'refreshToken')).toHaveLength(1);
+    expect(cookies.find((c) => c.startsWith('adminRefreshToken=rt2'))).not.toMatch(/Domain=/i);
+    expect(cleared(res, 'adminRefreshToken')).toHaveLength(1);
   });
 });
 
 describe('admin middleware — the basePath root', () => {
   it('sends staff on to /dashboard, keeping the query', async () => {
     const token = await accessToken({ sub: 'u1', role: 'OWNER', gymSlug: 'downtown' });
-    const res = await middleware(request('/?period=week', `accessToken=${token}`));
+    const res = await middleware(request('/?period=week', `adminAccessToken=${token}`));
     const location = new URL(res.headers.get('location') ?? 'about:blank');
     expect(location.origin).toBe('https://downtown.formacore.io');
     expect(location.pathname).toMatch(/\/dashboard$/);
@@ -151,12 +153,58 @@ describe('admin middleware — the basePath root', () => {
 
   it('lets /dashboard itself through', async () => {
     const token = await accessToken({ sub: 'u1', role: 'RECEPTIONIST', gymSlug: 'downtown' });
-    const res = await middleware(request('/dashboard', `accessToken=${token}`));
+    const res = await middleware(request('/dashboard', `adminAccessToken=${token}`));
     expect(res.headers.get('location')).toBeNull();
   });
 
   it('still sends a signed-out visit to the root to the sign-in', async () => {
     const res = await middleware(request('/', ''));
     expect(res.headers.get('location')).toContain('/login');
+  });
+});
+
+describe('admin session isolation', () => {
+  it('uses its own identity when both surface sessions coexist', async () => {
+    const own = await accessToken({ sub: 'own-user', role: 'OWNER', gymSlug: 'downtown' });
+    const other = await accessToken({ sub: 'other-user', role: 'MEMBER', gymSlug: 'downtown' });
+    const res = await middleware(
+      request('/dashboard', `memberAccessToken=${other}; adminAccessToken=${own}`),
+    );
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('ignores the other surface and the legacy shared jar without spending their refresh tokens', async () => {
+    const token = await accessToken({
+      sub: 'same-email-user',
+      role: 'MEMBER',
+      gymSlug: 'downtown',
+    });
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await middleware(
+      request(
+        '/dashboard',
+        `memberAccessToken=${token}; memberRefreshToken=other-rt; accessToken=${token}; refreshToken=legacy-rt`,
+        { 'sec-fetch-dest': 'document' },
+      ),
+    );
+    expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/admin/login');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  it('rejects the wrong role even when copied into this surface cookie', async () => {
+    const token = await accessToken({
+      sub: 'same-email-user',
+      role: 'MEMBER',
+      gymSlug: 'downtown',
+    });
+    const res = await middleware(request('/dashboard', `adminAccessToken=${token}`));
+    expect(new URL(res.headers.get('location') ?? '').pathname).toBe('/admin/login');
+  });
+
+  it('renders login with legacy cookies without a redirect loop', async () => {
+    const res = await middleware(request('/login', 'accessToken=legacy; refreshToken=legacy-rt'));
+    expect(res.headers.get('location')).toBeNull();
   });
 });

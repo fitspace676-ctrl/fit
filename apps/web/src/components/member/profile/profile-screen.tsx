@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { ProfilePhoto } from './profile-photo';
 import {
   Badge,
   Button,
@@ -17,7 +18,7 @@ import type { Locale } from '@fit/i18n';
 import { Link, usePathname, useRouter } from '@/src/i18n/navigation';
 import { Icon, useToast } from '@/src/components/ui';
 import { useTheme } from '@/src/components/theme/theme-provider';
-import { updateProfileAction } from '@/app/actions/profile';
+import { deleteAccountAction, updateProfileAction } from '@/app/actions/profile';
 
 // Astryx migration (T11), now on the portal kit: the member profile is rebuilt on the portal kit design
 // system over the FormaCore theme. The identity card, the tabbed sections
@@ -27,6 +28,7 @@ import { updateProfileAction } from '@/app/actions/profile';
 // utilities. The save action, locale-cookie and theme wiring are unchanged.
 
 export interface ProfileScreenProps {
+  photoUrl?: string | null;
   /** Member display name (from GET /me/profile, or a placeholder). */
   name: string;
   email: string;
@@ -92,25 +94,6 @@ const styles = stylex.create({
     flexDirection: 'column',
     alignItems: 'center',
     textAlign: 'center',
-  },
-  avatar: {
-    position: 'relative',
-  },
-  // A flat lime disc with ink on it — the same "one lime, no gradients" rule as
-  // the membership block, at avatar scale. `--color-on-accent` is ink-950 in the
-  // FormaCore theme, so the glyph stays legible without a literal.
-  avatarDisc: {
-    display: 'grid',
-    placeItems: 'center',
-    height: '6rem',
-    width: '6rem',
-    borderRadius: 'var(--radius-full)',
-    backgroundColor: 'var(--color-accent)',
-    color: 'var(--color-on-accent)',
-  },
-  avatarIcon: {
-    height: '2.5rem',
-    width: '2.5rem',
   },
   name: {
     margin: 0,
@@ -322,6 +305,7 @@ const styles = stylex.create({
  * graceful action; the language and theme controls take effect immediately.
  */
 export function ProfileScreen({
+  photoUrl,
   name,
   email,
   phone,
@@ -358,6 +342,18 @@ export function ProfileScreen({
   function switchLocale(loc: Locale): void {
     document.cookie = `NEXT_LOCALE=${loc};path=/;max-age=${60 * 60 * 24 * 365};samesite=lax`;
     router.replace(pathname, { locale: loc });
+  }
+
+  function deleteAccount(): void {
+    if (saving || !window.confirm(`${t('deleteTitle')}?\n\n${t('deleteDesc')}`)) return;
+    startSaving(async () => {
+      const result = await deleteAccountAction();
+      if (result.ok) {
+        window.location.assign(`/${activeLocale}/member/login`);
+      } else {
+        toast(result.error, { tone: 'danger', icon: 'x' });
+      }
+    });
   }
 
   function save(): void {
@@ -403,11 +399,7 @@ export function ProfileScreen({
         <div {...stylex.props(styles.identity)}>
           <Card padding="none">
             <div {...stylex.props(styles.identityInner)}>
-              <span {...stylex.props(styles.avatar)}>
-                <span {...stylex.props(styles.avatarDisc)}>
-                  <Icon name="user" sw={2} {...stylex.props(styles.avatarIcon)} />
-                </span>
-              </span>
+              <ProfilePhoto name={name} photoUrl={photoUrl} />
               <p {...stylex.props(styles.name)}>{name}</p>
               <p {...stylex.props(styles.email)}>{email}</p>
               <span {...stylex.props(styles.badgeWrap)}>
@@ -602,7 +594,8 @@ export function ProfileScreen({
                       size="inline"
                       icon={<Icon name="trash" {...stylex.props(styles.glyph)} />}
                       label={t('delete')}
-                      onClick={() => toast(t('deleteToast'), { tone: 'danger', icon: 'info' })}
+                      onClick={deleteAccount}
+                      disabled={saving}
                     />
                   </div>
                 </Card>

@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { contactEmail } from '../common/directory-identity';
 import { randomUUID } from 'node:crypto';
 import {
   AutomationTriggerType,
@@ -717,7 +718,7 @@ function toInstanceDetail(row: ScheduleRow, bookings: RosterRow[]): AdminClassIn
       bookingId: booking.id,
       memberId: booking.memberId,
       memberName: booking.member.user.name,
-      memberEmail: booking.member.user.email,
+      memberEmail: contactEmail(booking.member.user.email),
       status: booking.status as AdminRosterBookingStatus,
       waitlistPosition: booking.waitlistPosition,
       bookedAt: booking.createdAt.toISOString(),

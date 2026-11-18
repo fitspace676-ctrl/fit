@@ -1,4 +1,5 @@
 import type { DomainId, Endpoint, ToolModule } from './tools/shared';
+import { agentHistoryTools } from './tools/agent-history';
 import { membersTools } from './tools/members';
 import { checkInTools } from './tools/check-in';
 import { adminClassTemplatesTools } from './tools/admin-class-templates';
@@ -44,6 +45,7 @@ export interface ToolDomain {
 
 /** Every tools module, in registration order. */
 export const TOOL_MODULES: ToolModule[] = [
+  agentHistoryTools,
   membersTools,
   checkInTools,
   adminClassTemplatesTools,

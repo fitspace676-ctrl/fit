@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Permission } from '@fit/types';
+import { PERMISSIONS_KEY } from '../common/decorators/require-permissions.decorator';
 import { BadRequestException } from '@nestjs/common';
 import { MarketingController } from './marketing.controller';
 import type { MarketingService } from './marketing.service';
@@ -122,5 +124,26 @@ describe('MarketingController', () => {
     await controller.scheduleCampaign('c-1', { scheduledAt: '2026-08-01T09:00:00.000Z' });
     expect(fns.sendCampaign).toHaveBeenCalledWith('c-1');
     expect(fns.scheduleCampaign).toHaveBeenCalledOnce();
+  });
+});
+
+describe('marketing message tools', () => {
+  it('uses marketing permissions for assist and preview', () => {
+    const proto = MarketingController.prototype as unknown as Record<string, object>;
+    for (const method of ['assist', 'previewMessage']) {
+      expect(Reflect.getMetadata(PERMISSIONS_KEY, proto[method]!), method).toEqual([
+        Permission.MarketingManage,
+      ]);
+    }
+  });
+
+  it('forces the shared assistant into marketing mode', async () => {
+    const { controller } = setup();
+    const assist = vi
+      .fn()
+      .mockResolvedValue({ kind: 'question', question: 'What date?', model: 'm' });
+    Object.assign(controller, { assistant: { assist } });
+    await controller.assist({ message: 'Welcome', locale: 'en' });
+    expect(assist).toHaveBeenCalledWith(expect.objectContaining({ purpose: 'marketing' }));
   });
 });

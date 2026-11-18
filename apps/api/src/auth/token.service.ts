@@ -1,9 +1,18 @@
 import { createHmac, randomBytes, createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
-import type { Role } from '@fit/db';
+import type { Prisma, Role } from '@fit/db';
 import type { TokenPair } from '@fit/types';
 import { env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
+
+/** Permit overlapping browser renewals without treating them as token theft. */
+const REFRESH_ROTATION_GRACE_MS = 20_000;
+
+function isRecentRotation(token: { revokedAt: Date | null }): boolean {
+  if (!token.revokedAt) return false;
+  const age = Date.now() - token.revokedAt.getTime();
+  return age >= 0 && age < REFRESH_ROTATION_GRACE_MS;
+}
 
 /** Base64url-encode a buffer or string (no padding) per RFC 7515. */
 function base64url(input: Buffer | string): string {
@@ -117,6 +126,27 @@ export interface VerifiedAccessClaims {
 @Injectable()
 export class TokenService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Check persisted revocation on every authenticated request, without caching.
+   * Only session tokens carry `tokenVersion`; scoped tokens (SuperAdmin owner
+   * impersonation, the `fit` CLI's test tokens) omit it, are short-lived, and
+   * are not sessions to revoke, so they pass through as before.
+   */
+  async assertSessionActive(claims: VerifiedAccessClaims): Promise<void> {
+    if (claims.tokenVersion === undefined) return;
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: claims.sub },
+      select: { tokenVersion: true, email: true },
+    });
+    if (
+      !user ||
+      user.email === `deleted+${claims.sub}@deleted.fit.local` ||
+      user.tokenVersion !== claims.tokenVersion
+    ) {
+      throw invalidAccessToken();
+    }
+  }
 
   /** True when a signing secret is configured and tokens can be issued. */
   get isConfigured(): boolean {
@@ -267,14 +297,10 @@ export class TokenService {
    * Rotate a refresh token: spend the presented one and return a brand-new
    * {@link TokenPair} whose refresh token continues the same `familyId`.
    *
-   * The presented token is matched by hash and must be live (unrevoked and
-   * unexpired). Each refresh revokes the token it consumed, so a refresh token
-   * is single-use; presenting one twice is the signature of a stolen token
-   * being replayed (the legitimate client already rotated it). On that reuse —
-   * or on losing the rotate race to a concurrent request — the **entire family
-   * is revoked**, logging out the attacker and the victim alike and forcing a
-   * fresh login. Unknown / expired / already-revoked tokens all surface as a
-   * `401` so the endpoint never reveals which condition held.
+   * A rotation leaves a 20-second grace period for overlapping renewals. Each
+   * accepted request issues its own successor in the same family. Grace also
+   * requires a live successor, so a revoked family cannot be resurrected.
+   * Reuse after the window still revokes the entire family.
    */
   async rotateRefreshToken(
     presentedToken: string,
@@ -291,43 +317,61 @@ export class TokenService {
       throw invalidRefreshToken();
     }
 
-    // A token presented after it was already spent means the lineage leaked.
-    if (existing.revokedAt) {
-      await this.revokeFamily(existing.familyId);
-      throw invalidRefreshToken();
-    }
+    // Commit the spend and successor together: a concurrent request must never
+    // see a spent parent before its live successor exists.
+    const pair = await this.prisma.client.$transaction(async (tx) => {
+      if (!existing.revokedAt && existing.expiresAt.getTime() <= Date.now()) {
+        throw invalidRefreshToken();
+      }
 
-    if (existing.expiresAt.getTime() <= Date.now()) {
-      throw invalidRefreshToken();
-    }
+      let reused = existing.revokedAt !== null;
+      if (!reused) {
+        const spent = await tx.refreshToken.updateMany({
+          where: { id: existing.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        reused = spent.count === 0;
+      }
+      if (reused) {
+        // The conditional update waits for the winning transaction to commit.
+        const winner = await tx.refreshToken.findUnique({ where: { id: existing.id } });
+        if (!winner || !(await this.canRetryRotation(tx, winner))) return null;
+      }
 
-    // Spend the presented token, guarding on it still being unrevoked so two
-    // concurrent refreshes can't both mint a successor. The loser sees zero
-    // rows updated and is treated as a reuse (revoke the whole family).
-    const spent = await this.prisma.client.refreshToken.updateMany({
-      where: { id: existing.id, revokedAt: null },
-      data: { revokedAt: new Date() },
+      if (existing.expiresAt.getTime() <= Date.now()) throw invalidRefreshToken();
+      const accessToken = this.signAccessToken(existing.userId, claims);
+      const refreshToken = await this.persistRefreshToken(
+        existing.userId,
+        existing.familyId,
+        claims.gymId,
+        deviceFingerprint ?? existing.deviceFingerprint ?? undefined,
+        tx,
+      );
+      return { accessToken, refreshToken };
     });
-    if (spent.count === 0) {
-      await this.revokeFamily(existing.familyId);
-      throw invalidRefreshToken();
-    }
+    if (pair) return pair;
+    // Outside the transaction so throwing the 401 cannot roll back revocation.
+    await this.revokeFamily(existing.familyId);
+    throw invalidRefreshToken();
+  }
 
-    const accessToken = this.signAccessToken(existing.userId, claims);
-    // The successor is pinned to the gym the new access token is scoped to — the
-    // same gym as its predecessor whenever the refresh honoured the pin.
-    const refreshToken = await this.persistRefreshToken(
-      existing.userId,
-      existing.familyId,
-      claims.gymId,
-      deviceFingerprint ?? existing.deviceFingerprint ?? undefined,
-    );
-    return { accessToken, refreshToken };
+  private async canRetryRotation(
+    client: Pick<Prisma.TransactionClient, 'refreshToken'>,
+    token: { revokedAt: Date | null; familyId: string },
+  ): Promise<boolean> {
+    if (!isRecentRotation(token)) return false;
+    // revokedAt is also used for logout. A committed live successor distinguishes
+    // a rotated parent from a revoked family without adding a schema column.
+    const successor = await client.refreshToken.findFirst({
+      where: { familyId: token.familyId, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true },
+    });
+    return successor !== null;
   }
 
   /**
-   * Resolve who a (still-live) refresh token belongs to and which gym it is
-   * pinned to, without spending it — `null` for an unknown, revoked, or expired
+   * Resolve the owner and gym pin of a live or recently rotated refresh token
+   * without spending it — `null` for an unknown, revoked, or expired
    * token. Lets a caller make pre-rotation decisions (T2.12's gym-suspension
    * gate, re-scoping to the pinned gym) before {@link rotateRefreshToken}
    * mutates anything; the single-use rotation rules still apply when the token
@@ -336,9 +380,13 @@ export class TokenService {
   async sessionForRefreshToken(presentedToken: string): Promise<RefreshTokenSession | null> {
     const existing = await this.prisma.client.refreshToken.findUnique({
       where: { tokenHash: hashRefreshToken(presentedToken) },
-      select: { userId: true, gymId: true, revokedAt: true, expiresAt: true },
+      select: { userId: true, gymId: true, familyId: true, revokedAt: true, expiresAt: true },
     });
-    if (!existing || existing.revokedAt || existing.expiresAt.getTime() <= Date.now()) {
+    if (
+      !existing ||
+      (existing.revokedAt && !(await this.canRetryRotation(this.prisma.client, existing))) ||
+      existing.expiresAt.getTime() <= Date.now()
+    ) {
       return null;
     }
     return { userId: existing.userId, gymId: existing.gymId ?? null };
@@ -391,9 +439,10 @@ export class TokenService {
     familyId: string,
     gymId: string | null,
     deviceFingerprint?: string,
+    client: Pick<Prisma.TransactionClient, 'refreshToken'> = this.prisma.client,
   ): Promise<string> {
     const refreshToken = base64url(randomBytes(32));
-    await this.prisma.client.refreshToken.create({
+    await client.refreshToken.create({
       data: {
         userId,
         gymId,

@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
 import { Permission, roleHasPermission } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveGymBrand } from '@/lib/active-gym';
 import { ApiError, fetchLocations } from '@/lib/api';
 import { Icon } from '@/components/ui';
 import { LocationsBoard } from './locations-board';
@@ -94,6 +95,7 @@ export const dynamic = 'force-dynamic';
  * itself; `LocationWrite` gates the write affordances.
  */
 export default async function LocationsPage() {
+  const gymBrand = getActiveGymBrand();
   const t = await getTranslations('admin.locations');
   const session = await getServerSession();
   // Editing a branch's details is `LocationWrite`; adding one or switching it
@@ -103,7 +105,14 @@ export default async function LocationsPage() {
 
   try {
     const { data } = await fetchLocations({ limit: 100 });
-    return <LocationsBoard locations={data} canWrite={canWrite} canManage={canManage} />;
+    return (
+      <LocationsBoard
+        locations={data}
+        gymName={(await gymBrand)?.name ?? null}
+        canWrite={canWrite}
+        canManage={canManage}
+      />
+    );
   } catch (error) {
     const message =
       error instanceof ApiError
@@ -112,7 +121,7 @@ export default async function LocationsPage() {
     return (
       <div {...stylex.props(styles.page)}>
         <nav aria-label={t('breadcrumb.label')} {...stylex.props(styles.breadcrumb)}>
-          <span>Iron Gym</span>
+          <span>{(await gymBrand)?.name}</span>
           <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
           <span {...stylex.props(styles.crumbCurrent)}>{t('breadcrumb.locations')}</span>
         </nav>

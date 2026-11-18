@@ -74,11 +74,20 @@ function setup() {
     findUnique: vi.fn<(args: unknown) => Promise<StoredRefreshToken | null>>(() =>
       Promise.resolve(null),
     ),
+    findFirst: vi.fn<() => Promise<{ id: string } | null>>(() =>
+      Promise.resolve({ id: 'successor' }),
+    ),
     updateMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(() =>
       Promise.resolve({ count: 1 }),
     ),
   };
-  const prisma = { client: { refreshToken } } as unknown as PrismaService;
+  const client = { refreshToken };
+  const prisma = {
+    client: {
+      ...client,
+      $transaction: <T>(run: (tx: typeof client) => Promise<T>): Promise<T> => run(client),
+    },
+  } as unknown as PrismaService;
   return { service: new TokenService(prisma), refreshToken };
 }
 
@@ -296,9 +305,11 @@ describe('TokenService', () => {
       expect(claims).toMatchObject({ sub: 'user-1', role: 'MANAGER', gymId: 'gym-1' });
     });
 
-    it('rejects (and revokes the whole family) when an already-spent token is replayed', async () => {
+    it('rejects (and revokes the whole family) when an old spent token is replayed', async () => {
       const { service, refreshToken } = setup();
-      refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: new Date() }));
+      refreshToken.findUnique.mockResolvedValue(
+        storedToken({ revokedAt: new Date(Date.now() - 30_000) }),
+      );
 
       const error = await service
         .rotateRefreshToken('reused-secret', SCOPE)
@@ -314,19 +325,54 @@ describe('TokenService', () => {
       expect(refreshToken.create).not.toHaveBeenCalled();
     });
 
-    it('revokes the family when it loses the rotate race (zero rows spent)', async () => {
+    it('accepts the loser of a concurrent rotation without revoking the family', async () => {
       const { service, refreshToken } = setup();
-      refreshToken.findUnique.mockResolvedValue(storedToken());
+      const rotatedAt = new Date();
+      refreshToken.findUnique
+        .mockResolvedValueOnce(storedToken())
+        .mockResolvedValueOnce(storedToken({ revokedAt: rotatedAt }));
       refreshToken.updateMany.mockResolvedValueOnce({ count: 0 });
 
-      const error = await service
-        .rotateRefreshToken('raced-secret', SCOPE)
-        .catch((e: unknown) => e);
+      const pair = await service.rotateRefreshToken('raced-secret', SCOPE);
 
-      expect(error).toBeInstanceOf(UnauthorizedException);
-      // First updateMany was the spend attempt; second is the family revoke.
-      const familyRevoke = refreshToken.updateMany.mock.calls[1]![0] as { where: unknown };
-      expect(familyRevoke.where).toEqual({ familyId: 'fam-1', revokedAt: null });
+      expect(pair.refreshToken).toBeTruthy();
+      expect(refreshToken.updateMany).toHaveBeenCalledTimes(1);
+      expect(refreshToken.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('accepts an already rotated token within grace without extending its window', async () => {
+      const { service, refreshToken } = setup();
+      const rotatedAt = new Date(Date.now() - 19_000);
+      refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: rotatedAt }));
+      await service.rotateRefreshToken('recent', SCOPE);
+      expect(refreshToken.updateMany).not.toHaveBeenCalled();
+      expect(refreshToken.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('revokes the family at the grace boundary', async () => {
+      const { service, refreshToken } = setup();
+      const rotatedAt = new Date(Date.now() - 20_000);
+      refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: rotatedAt }));
+      await expect(service.rotateRefreshToken('old', SCOPE)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { familyId: 'fam-1', revokedAt: null },
+        data: { revokedAt: expect.any(Date) as Date },
+      });
+      expect(refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('does not grant grace when the race was lost to logout', async () => {
+      const { service, refreshToken } = setup();
+      refreshToken.findFirst.mockResolvedValue(null);
+      refreshToken.findUnique
+        .mockResolvedValueOnce(storedToken())
+        .mockResolvedValueOnce(storedToken({ revokedAt: new Date() }));
+      refreshToken.updateMany.mockResolvedValueOnce({ count: 0 });
+      await expect(service.rotateRefreshToken('logout', SCOPE)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
       expect(refreshToken.create).not.toHaveBeenCalled();
     });
 
@@ -509,6 +555,16 @@ describe('TokenService', () => {
       );
     });
 
+    it('preserves scope lookup during grace so AuthService does not issue placeholder claims', async () => {
+      const { service, refreshToken } = setup();
+      const rotatedAt = new Date();
+      refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: rotatedAt }));
+      await expect(service.sessionForRefreshToken('raced')).resolves.toEqual({
+        userId: 'user-1',
+        gymId: 'gym-1',
+      });
+    });
+
     it('returns a null pin for a legacy / platform row', async () => {
       const { service, refreshToken } = setup();
       refreshToken.findUnique.mockResolvedValue(storedToken({ gymId: null }));
@@ -524,8 +580,9 @@ describe('TokenService', () => {
       await expect(service.sessionForRefreshToken('nope')).resolves.toBeNull();
     });
 
-    it('returns null for a revoked token', async () => {
+    it('returns null for a recently revoked family without a live successor', async () => {
       const { service, refreshToken } = setup();
+      refreshToken.findFirst.mockResolvedValue(null);
       refreshToken.findUnique.mockResolvedValue(storedToken({ revokedAt: new Date() }));
       await expect(service.sessionForRefreshToken('rt-secret')).resolves.toBeNull();
     });
@@ -545,5 +602,35 @@ describe('TokenService', () => {
       expect(refreshToken.updateMany).not.toHaveBeenCalled();
       expect(refreshToken.create).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('persisted access-token revocation', () => {
+  it.each([null, { tokenVersion: 1 }, { tokenVersion: 0, email: 'deleted+u1@deleted.fit.local' }])(
+    'rejects a deleted or version-bumped identity (%j)',
+    async (user) => {
+      const prisma = {
+        client: { user: { findUnique: vi.fn().mockResolvedValue(user) } },
+      } as unknown as PrismaService;
+      await expect(
+        new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 0 }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    },
+  );
+  it('allows the current version', async () => {
+    const prisma = {
+      client: { user: { findUnique: vi.fn().mockResolvedValue({ tokenVersion: 2 }) } },
+    } as unknown as PrismaService;
+    await expect(
+      new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 2 }),
+    ).resolves.toBeUndefined();
+  });
+  it('lets a scoped token without tokenVersion through, whatever the user version', async () => {
+    const findUnique = vi.fn().mockResolvedValue({ tokenVersion: 3 });
+    const prisma = { client: { user: { findUnique } } } as unknown as PrismaService;
+    await expect(
+      new TokenService(prisma).assertSessionActive({ sub: 'u1' }),
+    ).resolves.toBeUndefined();
+    expect(findUnique).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   Patch,
   Post,
@@ -15,6 +16,7 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  automationAssistRequestSchema,
   createAudienceSegmentSchema,
   createCampaignSchema,
   createMessageTemplateSchema,
@@ -46,6 +48,7 @@ import {
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
+import { AutomationAssistService } from '../automation/automation-assist.service';
 import { MarketingService } from './marketing.service';
 
 /**
@@ -62,6 +65,7 @@ import { MarketingService } from './marketing.service';
 @Controller('marketing')
 @UseGuards(TenantGuard, PermissionsGuard)
 export class MarketingController {
+  @Inject(AutomationAssistService) private readonly assistant!: AutomationAssistService;
   constructor(private readonly marketing: MarketingService) {}
 
   /** `GET /marketing/catalog` — the channel + merge-field catalogs the composer renders. */
@@ -70,6 +74,30 @@ export class MarketingController {
   @RequirePermissions(Permission.MarketingRead)
   catalog(): Promise<MarketingCatalogResponse> {
     return this.marketing.catalog();
+  }
+
+  /** Reuse automation's drafting pipeline, authorized as a marketing operation. */
+  @Post('assist')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MarketingManage)
+  assist(@Body() body: unknown) {
+    const request = parse(automationAssistRequestSchema, body);
+    return this.assistant.assist({ ...request, purpose: 'marketing' });
+  }
+
+  @Post('preview-message')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.MarketingManage)
+  previewMessage(@Body() body: unknown) {
+    return this.marketing.previewMessage(
+      parse(
+        z.object({
+          subject: z.string().max(200),
+          body: z.string().max(10000),
+        }),
+        body,
+      ),
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -271,7 +299,7 @@ export class MarketingController {
     return this.marketing.updateCampaign(id, parse(updateCampaignSchema, body));
   }
 
-  /** `POST /marketing/campaigns/:id/send` — send now (stubbed). Sets status/sentCount. */
+  /** `POST /marketing/campaigns/:id/send` — deliver personalized email now; count provider acceptances. */
   @Post('campaigns/:id/send')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.MarketingManage)

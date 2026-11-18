@@ -303,6 +303,11 @@ export function CartPanel({ cart, onCart }: CartPanelProps) {
                       it is dropped at checkout, not silently here. */}
                   {item.available ? (
                     <p {...stylex.props(styles.lineUnit)}>
+                      {(item.originalUnitPrice ?? item.unitPrice) > item.unitPrice && (
+                        <>
+                          <s>{formatMoney(item.originalUnitPrice!, item.currency, locale)}</s>{' '}
+                        </>
+                      )}
                       {t('eachPrice', {
                         price: formatMoney(item.unitPrice, item.currency, locale),
                       })}

@@ -37,7 +37,7 @@ function parseRole(value: unknown): Role | undefined {
 export class CartIdentityMiddleware implements NestMiddleware {
   constructor(private readonly tokens: TokenService) {}
 
-  use(req: RequestWithUser, _res: Response, next: NextFunction): void {
+  async use(req: RequestWithUser, _res: Response, next: NextFunction): Promise<void> {
     const token = extractBearerToken(req.headers.authorization);
     if (!token) {
       // Anonymous: the subdomain middleware already scoped (or left no) tenant.
@@ -47,6 +47,7 @@ export class CartIdentityMiddleware implements NestMiddleware {
 
     // Throws a 401 on any verification failure — propagated to the exception filter.
     const claims = this.tokens.verifyAccessToken(token);
+    await this.tokens.assertSessionActive(claims);
     // Same host check as the mandatory JWT middleware: another gym's session is a 403.
     assertSessionMatchesTenantHost(req.headers, claims);
     const role = parseRole(claims.role) ?? Role.MEMBER;

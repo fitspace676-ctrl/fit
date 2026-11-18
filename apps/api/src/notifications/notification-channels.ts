@@ -5,7 +5,7 @@ import { tenantOrigin } from '@fit/utils';
 import { env } from '../config/env';
 import { buildMemberUrl } from '../common/console-url';
 import { PrismaService } from '../prisma/prisma.service';
-import { MailerService } from '../mail/mailer.service';
+import { emailFrom, MailerService } from '../mail/mailer.service';
 import { NotificationDispatchService } from './notification-dispatch.service';
 import type { DispatchNotificationInput } from './notification-dispatch.service';
 import { buildNotificationEmail, resolveEmailLocale } from './notification-email';
@@ -148,6 +148,7 @@ export class EmailNotificationChannel implements NotificationChannelAdapter {
     );
 
     const { id } = await this.mailer.send({
+      from: emailFrom(senderName),
       to: user.email,
       subject: email.subject,
       html: email.html,

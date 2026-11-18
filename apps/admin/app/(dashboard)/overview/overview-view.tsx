@@ -35,7 +35,6 @@ import { useLocale } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import type { DashboardOverviewResponse, DashboardRange } from '@fit/types';
-import { LIVE_REFRESH_MS, useLiveRefresh } from '@/hooks/use-live-refresh';
 import { InGymNow } from './in-gym-now';
 import { MetricStrip } from './metric-strip';
 import { RevenueCard } from './revenue-card';
@@ -106,11 +105,6 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const locale = useLocale();
-
-  // Keep the control-room overview live: re-run the server component on an
-  // interval so KPIs, occupancy, today's schedule and the check-ins feed refresh
-  // without a navigation. The `?range=` param is preserved across refreshes.
-  useLiveRefresh(LIVE_REFRESH_MS.dashboard);
 
   const money = useMemo(
     () =>

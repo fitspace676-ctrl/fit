@@ -34,8 +34,8 @@ describe('legacySessionClearHeaders', () => {
     vi.stubEnv('NEXT_PUBLIC_COOKIE_DOMAIN', '.formacore.io');
     const headers = legacySessionClearHeaders();
     expect(headers).toHaveLength(2);
-    expect(headers[0]).toMatch(/^accessToken=; Domain=\.formacore\.io; Path=\/; Max-Age=0/);
-    expect(headers[1]).toMatch(/^refreshToken=; Domain=\.formacore\.io; Path=\/; Max-Age=0/);
+    expect(headers[0]).toMatch(/^memberAccessToken=; Domain=\.formacore\.io; Path=\/; Max-Age=0/);
+    expect(headers[1]).toMatch(/^memberRefreshToken=; Domain=\.formacore\.io; Path=\/; Max-Age=0/);
   });
 });
 
@@ -46,8 +46,12 @@ describe('clearSessionCookies', () => {
     clearSessionCookies(res);
     const cookies = setCookies(res);
     expect(cookies).toHaveLength(4);
+    expect(cookies.every((cookie) => cookie.startsWith('member'))).toBe(true);
     const hostOnly = cookies.filter((c) => !/Domain=/i.test(c));
-    expect(hostOnly.map((c) => c.split('=')[0])).toEqual(['accessToken', 'refreshToken']);
+    expect(hostOnly.map((c) => c.split('=')[0])).toEqual([
+      'memberAccessToken',
+      'memberRefreshToken',
+    ]);
     expect(hostOnly.every((c) => /Max-Age=0/.test(c))).toBe(true);
     expect(cookies.filter((c) => /Domain=\.formacore\.io/.test(c))).toHaveLength(2);
   });
@@ -60,7 +64,10 @@ describe('setSessionCookies', () => {
     setSessionCookies(res, { accessToken: 'a.b.c', refreshToken: 'rt' });
     const cookies = setCookies(res);
     const written = cookies.filter((c) => !/Domain=/i.test(c));
-    expect(written.map((c) => c.split(';')[0])).toEqual(['accessToken=a.b.c', 'refreshToken=rt']);
+    expect(written.map((c) => c.split(';')[0])).toEqual([
+      'memberAccessToken=a.b.c',
+      'memberRefreshToken=rt',
+    ]);
     expect(
       cookies.filter((c) => /Domain=\.formacore\.io; Path=\/; Max-Age=0/.test(c)),
     ).toHaveLength(2);

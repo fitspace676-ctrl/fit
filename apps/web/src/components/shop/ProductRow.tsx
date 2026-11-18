@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
-import { encodeVariantRef, type CartView, type ProductSummary } from '@fit/types';
+import { memberShopPrice, encodeVariantRef, type CartView, type ProductSummary } from '@fit/types';
 import { formatMoney } from '@/lib/shop';
 import { QtyControl } from './QtyControl';
 
@@ -163,6 +163,7 @@ const styles = stylex.create({
 
 export interface ProductRowProps {
   product: ProductSummary;
+  memberDiscountPercent?: number;
   /** Units of one cart line (an {@link encodeVariantRef} reference) already in the cart. */
   unitsOf: (variantRef: string) => number;
   /** Hand the fresh cart up after an add / step, so the panel re-renders. */
@@ -177,7 +178,12 @@ export interface ProductRowProps {
  * whose every variant is out of stock is still listed, flagged and without an
  * add control, so the buyer sees what exists rather than a shorter catalogue.
  */
-export function ProductRow({ product, unitsOf, onCart }: ProductRowProps) {
+export function ProductRow({
+  product,
+  unitsOf,
+  onCart,
+  memberDiscountPercent = 0,
+}: ProductRowProps) {
   const t = useTranslations('shop');
   const locale = useLocale();
   const { variants } = product;
@@ -188,8 +194,9 @@ export function ProductRow({ product, unitsOf, onCart }: ProductRowProps) {
   const chosen = variants[selected];
 
   const variantRef = encodeVariantRef(product.id, variants.length > 0 ? selected : null);
+  const original = chosen ? chosen.priceAmount : product.priceAmount;
   const price = formatMoney(
-    chosen ? chosen.priceAmount : product.priceAmount,
+    memberShopPrice(original, memberDiscountPercent),
     product.currency,
     locale,
   );
@@ -242,7 +249,14 @@ export function ProductRow({ product, unitsOf, onCart }: ProductRowProps) {
         {soldOut ? (
           <p {...stylex.props(styles.soldOut)}>{t('detail.outOfStock')}</p>
         ) : (
-          <p {...stylex.props(styles.price)}>{price}</p>
+          <p {...stylex.props(styles.price)}>
+            {memberDiscountPercent > 0 && (
+              <>
+                <s>{formatMoney(original, product.currency, locale)}</s>{' '}
+              </>
+            )}
+            {price}
+          </p>
         )}
       </div>
 

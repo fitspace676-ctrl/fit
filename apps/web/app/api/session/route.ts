@@ -13,7 +13,7 @@
 // legacy parent-domain copy every write and clear here also expires.
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
+import { ACCESS_TOKEN_COOKIE, verifyAccessToken } from '@/lib/auth-session';
 import { getServerSession } from '@/lib/session';
 import {
   REFRESH_TOKEN_COOKIE,
@@ -60,6 +60,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const refreshToken = typeof body?.refreshToken === 'string' ? body.refreshToken : null;
   if (!accessToken || !refreshToken) {
     return NextResponse.json({ error: 'INVALID_BODY' }, { status: 400 });
+  }
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret || !(await verifyAccessToken(accessToken, secret))) {
+    return NextResponse.json({ code: 'NOT_A_MEMBER' }, { status: 401 });
   }
 
   const res = new NextResponse(null, { status: 204 });

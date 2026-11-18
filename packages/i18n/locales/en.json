@@ -1,4 +1,16 @@
 {
+  "shopDiscount": {
+    "title": "Shop settings",
+    "label": "Member shop discount (%)",
+    "hint": "Active members receive this discount online and in the app. Use 0 to turn it off. Promo codes apply afterwards. Staff POS sales are unchanged.",
+    "save": "Save",
+    "saved": "Saved",
+    "invalid": "Enter a whole number from 0 to 90.",
+    "error": "Could not save shop settings. Try again.",
+    "chip": "Members −{percent}%",
+    "discount": "Member discount",
+    "original": "Original price"
+  },
   "account": {
     "bookings": {
       "title": "My bookings",
@@ -172,6 +184,21 @@
     "login": {
       "title": "Sign in to the console",
       "invitation": "Staff accounts are created by invitation from the console. Ask your gym's administrator for access."
+    },
+    "invite": {
+      "title": "Accept your invitation",
+      "subtitle": "Join your gym’s staff console.",
+      "footer": "Your invitation is personal and can only be used once.",
+      "invalid": "This invitation is expired, already used, or no longer valid.",
+      "requestNew": "Ask the gym administrator to resend your invitation from Staff → Invite. Use the newest email.",
+      "error": "We could not finish this request. Please try again or reload the page.",
+      "loading": "Loading your invitation…",
+      "password": "Choose a password",
+      "confirm": "Confirm password",
+      "mismatch": "The passwords do not match.",
+      "confirmExisting": "Confirm your invitation to enter the console. Your existing password stays the same.",
+      "submit": "Accept invitation",
+      "submitting": "Accepting…"
     },
     "activate": {
       "title": "Set your password",
@@ -2180,6 +2207,7 @@
         "lastOwner": "You can’t change or remove the gym’s only owner. Add another owner first.",
         "staffNotFound": "That staff member no longer exists.",
         "inviteNotFound": "That invitation no longer exists.",
+        "emailSendFailed": "The invitation email could not be sent. Please try again or contact support.",
         "requestFailed": "Request failed ({status}): {message}",
         "invalidDetails": "Invalid invitation details",
         "invalidRole": "Invalid role",
@@ -3166,6 +3194,21 @@
       }
     },
     "marketing": {
+      "messageTools": {
+        "noMembers": "Add a member before previewing with member data.",
+        "title": "Write with AI",
+        "instruction": "What should the message say?",
+        "write": "Write with AI",
+        "improve": "Improve text",
+        "apply": "Use this text",
+        "discard": "Discard",
+        "undo": "Undo AI changes",
+        "preview": "Preview with member data",
+        "sample": "Example for {recipient} — no message sent",
+        "working": "Preparing…",
+        "failed": "Could not prepare the message. Try again.",
+        "invalid": "The draft exceeds this channel’s limits or uses unsupported variables. Try a shorter instruction."
+      },
       "breadcrumb": {
         "label": "Breadcrumb",
         "home": "FormaCore",
@@ -3553,6 +3596,26 @@
         "promoNotFound": "That promo code no longer exists.",
         "promoTaken": "A promo code with that code already exists.",
         "bannerNotFound": "That banner no longer exists."
+      },
+      "mergeFields": {
+        "first_name": "First name",
+        "last_name": "Last name",
+        "full_name": "Full name",
+        "email": "Email",
+        "phone": "Phone",
+        "join_date": "Join date",
+        "birthday": "Birthday",
+        "member_status": "Member status",
+        "plan_name": "Plan name",
+        "expiry_date": "Expiry date",
+        "days_until_expiry": "Days until expiry",
+        "payment_amount": "Payment amount",
+        "renewal_date": "Renewal date",
+        "business_name": "Gym name",
+        "business_phone": "Gym phone",
+        "business_email": "Gym email",
+        "business_address": "Gym address",
+        "business_website": "Gym website"
       }
     },
     "loyalty": {
@@ -4942,6 +5005,7 @@
       "submit": "Update password",
       "submitting": "Updating…",
       "missingToken": "This reset link is invalid or has expired. Request a new one.",
+      "requestNew": "Request a new link",
       "backToLogin": "Back to sign in",
       "done": "Your password has been updated. Sign in with your new password."
     },
@@ -5640,6 +5704,15 @@
       "termsLink": "Terms and conditions"
     },
     "profile": {
+      "photo": {
+        "upload": "Upload photo",
+        "change": "Change photo",
+        "remove": "Remove photo",
+        "saving": "Saving…",
+        "invalidType": "Choose a JPEG, PNG or WebP image.",
+        "error": "The photo could not be saved. Try a smaller image or try again.",
+        "alt": "Profile photo of {name}"
+      },
       "mobile": {
         "title": "Profile",
         "notificationsA11y": "Notifications",
@@ -5793,15 +5866,15 @@
       "twoFaOn": "Enabled",
       "twoFaOff": "Add an extra layer of security",
       "deleteTitle": "Delete account",
-      "deleteDesc": "Permanently remove your account and data.",
+      "deleteDesc": "Your profile and sign-in details will be removed and subscriptions will stop renewing. Payment and visit records stay with the gym.",
       "delete": "Delete",
-      "deleteToast": "Contact the front desk to delete your account",
       "saving": "Saving…",
       "saveAuth": "Please sign in",
       "saveError": "Couldn't save, try again",
       "documents": "Documents",
       "terms": "Terms and conditions",
-      "termsDesc": "The gym's rules and its cancellation, refund and freeze terms"
+      "termsDesc": "The gym's rules and its cancellation, refund and freeze terms",
+      "deleteError": "Could not delete your account. Please try again."
     },
     "cart": {
       "title": "Your cart",
@@ -6017,6 +6090,21 @@
     }
   },
   "notifications": {
+    "mobile": {
+      "push": "Push notifications",
+      "pushHint": "Allow FormaCore to send notifications to this device.",
+      "subtitle": "Manage notifications on this device. Your choice is saved for this account.",
+      "signIn": "Sign in to enable notifications.",
+      "openSettings": "Open system settings",
+      "error": "Could not update notification delivery. Check your connection and try again.",
+      "permission": {
+        "unknown": "Checking system permission…",
+        "granted": "System permission: allowed",
+        "denied": "System permission: blocked. You can allow notifications in system settings.",
+        "undetermined": "System permission: not requested yet",
+        "unsupported": "Push notifications require the iOS or Android app."
+      }
+    },
     "title": "Notifications",
     "subtitle": "Choose what you'd like to hear about. Delivery is enabled in a later update.",
     "push": "Push notifications",

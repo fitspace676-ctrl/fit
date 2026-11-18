@@ -9,6 +9,7 @@ import {
   type ListAdminTrainersQuery,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
+import { getActiveGymBrand } from '@/lib/active-gym';
 import { ApiError, fetchTrainers } from '@/lib/api';
 import { getActiveLocationId } from '@/lib/active-location-server';
 import { gymCalendarContext } from '@/lib/gym-time';
@@ -130,6 +131,7 @@ export default async function TrainersPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const gymBrand = getActiveGymBrand();
   const t = await getTranslations('admin.trainers');
   const raw = await searchParams;
   const parsed = listAdminTrainersQuerySchema.safeParse(raw);
@@ -202,7 +204,7 @@ export default async function TrainersPage({
   return (
     <div {...stylex.props(styles.page)}>
       <nav aria-label={t('list.breadcrumbAria')} {...stylex.props(styles.breadcrumb)}>
-        <span>Iron Gym</span>
+        <span>{(await gymBrand)?.name}</span>
         <Icon name="chevronRight" {...stylex.props(styles.crumbIcon)} />
         <span {...stylex.props(styles.breadcrumbCurrent)}>{t('list.breadcrumb')}</span>
       </nav>

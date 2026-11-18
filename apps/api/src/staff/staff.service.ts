@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   UnprocessableEntityException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { GymMemberStatus, Prisma, Role, TrainerStatus } from '@fit/db';
 import type {
@@ -390,7 +391,7 @@ export class StaffService {
    * instead). Any earlier *pending* invite for the same address is replaced, so a
    * re-invite is a clean "resend" rather than a pile-up of duplicates. Mints a
    * single-use token (expiring in `STAFF_INVITE_TTL`), stores the invite, and
-   * sends the invite email best-effort. Returns the new invite's id.
+   * awaits provider acceptance of the invite email. Returns the new invite's id.
    */
   async inviteStaff(input: InviteStaffInput): Promise<InviteStaffResponse> {
     const { email, role } = input;
@@ -425,10 +426,7 @@ export class StaffService {
       select: { id: true },
     });
 
-    // Best-effort delivery: the invite already exists, so a transient mail
-    // failure must not fail the request (staff can resend). The gym name is for
-    // the email copy only; `Gym` is unscoped (keyed by id), so this is a plain
-    // lookup by the request's own tenant id.
+    // Keep the pending invite for a resend, but never report delivery failure as success.
     try {
       const gym = await this.prisma.client.gym.findUnique({
         where: { id: this.tenant.gymId },
@@ -448,6 +446,10 @@ export class StaffService {
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      throw new ServiceUnavailableException({
+        message: 'The invitation email could not be sent. Please try again.',
+        code: 'EMAIL_SEND_FAILED',
+      });
     }
 
     return { inviteId: invite.id };

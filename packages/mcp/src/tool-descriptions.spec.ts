@@ -100,7 +100,8 @@ describe('mobile app settings tools', () => {
   it('expose no uploads, exports, PDFs or agent routes', () => {
     for (const route of manifest) {
       expect(route.path, route.name).not.toMatch(/^\/gyms\/app-settings\/login-image/);
-      expect(route.path, route.name).not.toMatch(/^\/agent(\/|$)/);
+      // The assistant's own read-only history is the one agent route a tool may reach.
+      expect(route.path, route.name).not.toMatch(/^\/agent(?!\/sessions\/history\/)(\/|$)/);
       expect(route.path, route.name).not.toContain('/export');
       expect(route.path, route.name).not.toContain('/pdf');
     }
