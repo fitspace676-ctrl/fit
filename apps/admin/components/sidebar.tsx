@@ -25,6 +25,7 @@
 // already has the right width. Scroll-affordance buttons fade in at the
 // top/bottom edges when the nav overflows.
 
+import { ConsoleLogo } from '@/components/console-brand';
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import NextLink from 'next/link';
@@ -299,7 +300,7 @@ export interface SidebarProps {
   initialSession?: Session | null;
 }
 
-export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
+export function Sidebar({ gymSlug, system, defaultCollapsed = false }: SidebarProps) {
   const permissions = useConsolePermissions();
   const pathname = usePathname();
   const t = useTranslations('admin');
@@ -397,13 +398,13 @@ export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
             {/* Plain <img> (not next/image): with the app's basePath the image
                 optimizer drops the `/admin` prefix and 404s, so reference the
                 public asset directly under BASE_PATH. */}
-            <img
-              src={`${BASE_PATH}/logodark.png`}
+            <ConsoleLogo
+              mode="dark" slug={gymSlug}
               alt={t('common.brand')}
               className="admin-logo admin-logo-dark"
             />
-            <img
-              src={`${BASE_PATH}/logolight.png`}
+            <ConsoleLogo
+              mode="light" slug={gymSlug}
               alt={t('common.brand')}
               className="admin-logo admin-logo-light"
             />

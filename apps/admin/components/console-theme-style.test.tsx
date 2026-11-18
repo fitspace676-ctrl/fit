@@ -18,6 +18,11 @@ beforeEach(() => {
 });
 
 describe('ConsoleThemeStyle', () => {
+  it('skins the host gym before sign-in without a chosen colour', async () => {
+    const { container } = await renderStyle('synergy');
+    expect(container.querySelector('style')?.innerHTML).toContain('--color-background-body:light-dark(#F3EDE3, #1C1C1E);');
+  });
+
   // The sign-in page has no session, so the gym comes from the host: the
   // owner's console colour then paints the sign-in screen too.
   it("writes the gym's console colour for the host's gym", async () => {

@@ -1,3 +1,4 @@
+import { ConsoleLogo } from '@/components/console-brand';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
@@ -193,8 +194,8 @@ export function DoorFrame({ title, subtitle, children, footer }: DoorFrameProps)
 
           <div {...stylex.props(styles.topRow)}>
             <Link href="/" {...stylex.props(styles.brand)}>
-              <img
-                src={`${BASE_PATH}/logodark.png`}
+              <ConsoleLogo
+                mode="dark"
                 alt="FormaCore"
                 {...stylex.props(styles.brandLogo)}
               />

@@ -31,6 +31,7 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/i;
  * itself: the name in the tab, the favicon, the browser-chrome tint.
  */
 export interface ActiveGymBrand {
+  skinSlug?: string | null;
   name: string;
   /** `brand.logoUrl ?? memberPortal.logoUrl`, or `null` for the bundled FormaCore icon. */
   logoUrl: string | null;
@@ -80,6 +81,7 @@ export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
           : null;
     const primary = brand?.primaryColor;
     return {
+      skinSlug: slug,
       name,
       logoUrl,
       themeColor: typeof primary === 'string' && HEX_COLOR.test(primary) ? primary : null,

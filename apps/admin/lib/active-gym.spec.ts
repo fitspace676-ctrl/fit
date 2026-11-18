@@ -45,6 +45,7 @@ describe('getActiveGymBrand', () => {
       gym({ logoUrl: 'https://media.test/logo.png', primaryColor: '#111111' }),
     );
     await expect(getActiveGymBrand()).resolves.toEqual({
+      skinSlug: 'downtown',
       name: 'Downtown Strength',
       logoUrl: 'https://media.test/logo.png',
       themeColor: '#111111',
@@ -55,6 +56,7 @@ describe('getActiveGymBrand', () => {
   it('falls back to the portal logo, and drops a colour that is not a hex', async () => {
     fetchMock.mockResolvedValue(gym({ logoUrl: null, primaryColor: 'red;}' }));
     await expect(getActiveGymBrand()).resolves.toEqual({
+      skinSlug: 'downtown',
       name: 'Downtown Strength',
       logoUrl: 'https://media.test/portal.png',
       themeColor: null,
