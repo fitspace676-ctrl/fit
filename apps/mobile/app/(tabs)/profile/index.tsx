@@ -9,7 +9,7 @@
 // know that Profile → Settings was a step rather than a destination. It is one
 // screen now, read top to bottom:
 //
-//   1  IDENTITY          the block IS "Personal information" → `/profile/edit`
+//   1  IDENTITY          avatar manages photo; name opens `/profile/edit`
 //   2  MEMBERSHIP        the live card; its own button → `/profile/membership`
 //   3  PT CREDITS        the live strip; "Buy" → `/profile/billing`
 //   4  PAYMENT HISTORY   → `/profile/billing`
@@ -24,8 +24,8 @@
 // ONE DOOR PER DESTINATION, WHICH IS WHY THERE IS NO "PERSONAL INFORMATION"
 // ROW AND NO "MEMBERSHIP" ROW.
 //
-// The identity block already shows the member's face, name and plan and opens
-// the editor; the membership card already carries "Manage plan". A menu row
+// The identity block shows the member's face, name and plan; the name opens
+// the editor and the avatar opens the photo menu; the membership card already carries "Manage plan". A menu row
 // repeating either — directly under the block it repeats — is the nine-row
 // screen this one was cut down from on 2026-09-05.
 //
@@ -81,7 +81,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   AppBar,
-  Avatar,
   Button,
   Icon,
   IconButton,
@@ -110,7 +109,7 @@ import { ProfileMembershipCard } from '../../../components/membership/membership
 import { ProfilePtStrip } from '../../../components/profile/stats';
 import { DeleteAccountSection } from '../../../components/settings/delete-account-section';
 import { SignOutSection } from '../../../components/settings/sign-out-section';
-import { trainerInitials } from '../../../components/trainers/trainer-filters';
+import { ProfilePhoto } from '../../../components/profile/profile-photo';
 import { useCreditPacks, useMembership } from '../../../hooks/queries/useMembership';
 import { useGymBySlug } from '../../../hooks/queries/useGym';
 import { useMyProfile } from '../../../hooks/queries/useAccount';
@@ -257,85 +256,62 @@ export default function ProfileScreen() {
           }}
           skeleton={<Skeleton height={72} radius="page" />}
         >
-          {/* ====================================================================
-              THE IDENTITY BLOCK IS THE "PERSONAL INFORMATION" ROW.
-
-              A menu row titled "Personal information", sitting under a block
-              that already shows the member's face, their name and their plan,
-              is a second door onto the same room. Tapping your own name to edit
-              it is the platform convention (iOS Settings, every app that copied
-              it), and it buys back a whole row.
-
-              A `Pressable` rather than a `ListRow`: the row component draws a
-              40pt plate, and what belongs here is the 72pt avatar. The chevron
-              is imported so the affordance is not lost — a tappable area with
-              no mark on it is a tappable area nobody taps.
-
-              `DECORATIVE` is not exported from the kit, so the children are
-              taken out of the tree with `accessible={false}` on the wrapper's
-              content and the ROW carries the spoken name — the same contract
-              `ListRow` has, spelled out here.
-              ==================================================================== */}
-          <Pressable
-            testID="profile-row-edit"
-            accessibilityRole="button"
-            accessibilityLabel={memberName === '' ? t('member.profile.mobile.member') : memberName}
-            accessibilityHint={t('member.profile.mobile.menu.profile')}
-            onPress={() => {
-              router.push('/profile/edit');
-            }}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <View
-              accessible={false}
-              importantForAccessibility="no-hide-descendants"
-              style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[4] }}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[4] }}>
+            <ProfilePhoto name={memberName} photoUrl={profile.data?.profile.photoUrl} />
+            <Pressable
+              testID="profile-row-edit"
+              accessibilityRole="button"
+              accessibilityLabel={
+                memberName === '' ? t('member.profile.mobile.member') : memberName
+              }
+              accessibilityHint={t('member.profile.mobile.menu.profile')}
+              onPress={() => {
+                router.push('/profile/edit');
+              }}
+              style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.6 : 1 })}
             >
-              <Avatar
-                size={72}
-                ring="accent"
-                initials={memberName === '' ? '' : trainerInitials(memberName)}
-                accessibilityLabel={
-                  memberName === '' ? t('member.profile.mobile.member') : memberName
-                }
-                testID="profile-avatar"
-              />
-              <View style={{ flex: 1, minWidth: 0, gap: spacing[2] }}>
-                {/* The member's own name is IDENTITY, not a landmark: `Heading`
+              <View
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[4] }}
+              >
+                <View style={{ flex: 1, minWidth: 0, gap: spacing[2] }}>
+                  {/* The member's own name is IDENTITY, not a landmark: `Heading`
                     would emit a second `role="header"` competing with the screen
                     title for the same rank, and RN has no `accessibilityLevel` to
                     tell them apart. See §6 item 7 as amended. */}
-                <Text variant="heading" testID="profile-name">
-                  {memberName === '' ? t('member.profile.mobile.member') : memberName}
-                </Text>
-                {/* `memberSince` is `"{tier} · since {year}"` and BOTH halves are
+                  <Text variant="heading" testID="profile-name">
+                    {memberName === '' ? t('member.profile.mobile.member') : memberName}
+                  </Text>
+                  {/* `memberSince` is `"{tier} · since {year}"` and BOTH halves are
                     real: the tier is the plan's own name (or the status label for
                     a bespoke plan) and the year is `GymMember.joinedAt`, which
                     rides on `GET /me/subscription`. A member with no subscription
                     has no `memberSince` on the wire, so the line is omitted
                     rather than filled with the current year. */}
-                {subscription === null ? null : (
-                  <Text variant="bodySmall" color="textSecondary" testID="profile-member-since">
-                    {t('member.profile.mobile.memberSince', {
-                      tier:
-                        subscription.planName ??
-                        t(`member.membership.status.${subscription.status}`),
-                      year: new Date(subscription.memberSince).getUTCFullYear(),
-                    })}
-                  </Text>
-                )}
-              </View>
-              {/* `iconDisabled` at 16pt — the same chevron `ListRow` draws, and
+                  {subscription === null ? null : (
+                    <Text variant="bodySmall" color="textSecondary" testID="profile-member-since">
+                      {t('member.profile.mobile.memberSince', {
+                        tier:
+                          subscription.planName ??
+                          t(`member.membership.status.${subscription.status}`),
+                        year: new Date(subscription.memberSince).getUTCFullYear(),
+                      })}
+                    </Text>
+                  )}
+                </View>
+                {/* `iconDisabled` at 16pt — the same chevron `ListRow` draws, and
                   named the same way, so the identity row and the rows under it
                   cannot end up with two different affordances. */}
-              <Icon
-                name="chevronRight"
-                size={16}
-                color="iconDisabled"
-                testID="profile-edit-chevron"
-              />
-            </View>
-          </Pressable>
+                <Icon
+                  name="chevronRight"
+                  size={16}
+                  color="iconDisabled"
+                  testID="profile-edit-chevron"
+                />
+              </View>
+            </Pressable>
+          </View>
         </HomeSection>
 
         {/* ── 2 · Membership ─────────────────────────────────────────────── */}

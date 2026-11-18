@@ -5705,6 +5705,9 @@
     },
     "profile": {
       "photo": {
+        "choose": "Choose photo",
+        "manage": "Profile photo",
+        "cancel": "Cancel",
         "upload": "Upload photo",
         "change": "Change photo",
         "remove": "Remove photo",

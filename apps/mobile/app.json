@@ -61,7 +61,15 @@
           "url": "https://de.sentry.io/"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": false,
+          "microphonePermission": false,
+          "photosPermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
