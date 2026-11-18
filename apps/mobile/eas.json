@@ -74,6 +74,16 @@
         "track": "internal",
         "releaseStatus": "draft"
       }
+    },
+    "synergy-production": {
+      "ios": {
+        "ascAppId": "6836265443",
+        "appleTeamId": "M49DJ3634D"
+      },
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
     }
   }
 }
