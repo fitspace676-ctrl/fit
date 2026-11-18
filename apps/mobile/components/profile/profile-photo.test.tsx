@@ -12,7 +12,7 @@ const request = jest.mocked(apiJson);
 const picker = jest.mocked(ImagePicker.launchImageLibraryAsync);
 const originalFetch = global.fetch;
 const fetchMock = jest.fn();
-let menu: jest.SpyInstance;
+let menu: jest.SpiedFunction<typeof Alert.alert>;
 
 beforeEach(() => {
   jest.clearAllMocks();

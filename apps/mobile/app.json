@@ -65,9 +65,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": false,
           "microphonePermission": false,
-          "photosPermission": false
+          "photosPermission": "Lets you choose a profile photo from your library."
         }
       ]
     ],
