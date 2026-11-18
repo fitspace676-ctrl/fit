@@ -209,3 +209,17 @@ describe('getActiveGymBrand', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('registered tenant skin', () => {
+  it('carries the Synergy slug to metadata without pretending the bundled logo is an upload', async () => {
+    host.value = 'synergy.formacore.io';
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ name: 'Synergy' })));
+    await expect(getActiveGymBrand()).resolves.toEqual({
+      name: 'Synergy',
+      logoUrl: null,
+      faviconUrl: null,
+      themeColor: null,
+      skinSlug: 'synergy',
+    });
+  });
+});

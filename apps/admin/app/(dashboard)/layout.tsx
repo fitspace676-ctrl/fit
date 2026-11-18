@@ -144,7 +144,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     ),
     gymSlug ? Promise.resolve(null) : getGymConsoleColor(session?.gymSlug ?? null),
   ]);
-  const themeCss = consoleThemeCss(consoleColor);
+  const themeCss = gymSlug ? null : consoleThemeCss(consoleColor, session?.gymSlug);
 
   // The top-bar branch switcher is populated from the gym's active locations,
   // NARROWED to the ones this operator may use. A role scoped to its assigned
@@ -180,7 +180,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <GymCurrencyProvider currency={currency}>
         <ActiveLocationProvider initial={activeLocation} locations={locations} access={access}>
           <AdminShell
-            gymSlug={gymSlug}
+            gymSlug={gymSlug ?? session?.gymSlug ?? null}
             system={system}
             locations={locations}
             sidebarCollapsed={sidebarCollapsed}

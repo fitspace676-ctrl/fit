@@ -10,8 +10,14 @@ import { routing } from '@/src/i18n/routing';
 import { ThemeProvider } from '@/src/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/src/lib/theme';
 import { AstryxProvider } from '@/src/components/theme/astryx-provider';
+import { getBrandSkin } from '@/lib/brand-skins';
 import { PortalThemeScope } from '@/src/components/theme/portal-theme-scope';
-import { getActiveGymBrand, getActiveGymPortalSkin, getActiveGymPresence } from '@/lib/active-gym';
+import {
+  getActiveGymBrand,
+  getActiveGymPortalSkin,
+  getActiveGymPresence,
+  getActiveGymSlug,
+} from '@/lib/active-gym';
 import { gymMetadata, gymViewport } from '@/lib/gym-metadata';
 import { SentryInit } from '../sentry-init';
 import { GymNotFound } from './_components/gym-not-found';
@@ -96,11 +102,12 @@ export default async function LocaleLayout({
   // that does not (`typo.<root>`) renders "gym not found" in place of every page
   // — here, because this is the one layout every route on the host shares. A
   // lookup that merely failed renders the page as before.
-  const [messages, cookieStore, portal, presence] = await Promise.all([
+  const [messages, cookieStore, portal, presence, slug] = await Promise.all([
     getMessages(),
     cookies(),
     getActiveGymPortalSkin(),
     getActiveGymPresence(),
+    getActiveGymSlug(),
   ]);
 
   // Seed the theme from the cookie so the painted `<html>` class matches the
@@ -111,6 +118,7 @@ export default async function LocaleLayout({
   return (
     <html
       lang={locale}
+      data-theme={getBrandSkin(slug) ? theme : undefined}
       className={`${notoGeorgian.variable} ${jetbrains.variable} ${theme === 'dark' ? 'dark' : ''}`}
       suppressHydrationWarning
     >
@@ -125,7 +133,7 @@ export default async function LocaleLayout({
               {/* Inside `AstryxProvider`, never outside it: the compiled theme
                   declares its tokens on that wrapper, so an override above it
                   would be shadowed by the palette it is replacing. */}
-              <PortalThemeScope colors={portal}>
+              <PortalThemeScope colors={portal} slug={presence === 'not-found' ? null : slug}>
                 {presence === 'not-found' ? <GymNotFound /> : children}
               </PortalThemeScope>
             </AstryxProvider>

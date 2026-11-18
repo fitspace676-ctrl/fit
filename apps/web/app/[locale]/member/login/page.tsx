@@ -1,3 +1,5 @@
+import { getActiveGymSlug } from '@/lib/active-gym';
+import { getBrandSkin } from '@/lib/brand-skins';
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
@@ -84,11 +86,15 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('auth');
+  const [t, slug] = await Promise.all([getTranslations('auth'), getActiveGymSlug()]);
+  // A gym with its own brand skin signs its members in to the gym, not to the
+  // platform — the same substitution the gym-branded mobile build makes.
+  const skin = getBrandSkin(slug);
+  const title = skin ? t('login.title').replaceAll('FormaCore', skin.name) : t('login.title');
 
   return (
     <AuthPhotoShell
-      title={t('login.title')}
+      title={title}
       footer={
         <p {...stylex.props(styles.terms)}>
           {t.rich('termsRich', {

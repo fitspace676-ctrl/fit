@@ -1,5 +1,8 @@
+'use client';
+
 import * as stylex from '@stylexjs/stylex';
 import type { PortalLogoSize } from '@fit/types';
+import { useBrandLogo } from '../theme/brand-skin-provider';
 
 /**
  * The mark in the member portal's chrome — the tenant's own, or the bundled
@@ -148,9 +151,28 @@ export interface PortalLogoProps {
  * would read the brand twice.
  */
 export function PortalLogo({ logoUrl, onPhoto = false, size = 'md' }: PortalLogoProps) {
+  const skinLogo = useBrandLogo();
   if (logoUrl) {
     const bounds = (onPhoto ? PHOTO_SIZES : HEADER_SIZES)[size];
     return <img src={logoUrl} alt="" {...stylex.props(styles.tenantMark, bounds)} />;
+  }
+
+  if (skinLogo) {
+    const bounds = (onPhoto ? PHOTO_SIZES : HEADER_SIZES)[size];
+    // Swap a wrapper rather than overriding StyleX's tenantMark display rule.
+    if (onPhoto) {
+      return <img src={skinLogo.onDark} alt="" {...stylex.props(styles.tenantMark, bounds)} />;
+    }
+    return (
+      <>
+        <span className="member-logo-dark">
+          <img src={skinLogo.onDark} alt="" {...stylex.props(styles.tenantMark, bounds)} />
+        </span>
+        <span className="member-logo-light">
+          <img src={skinLogo.onLight} alt="" {...stylex.props(styles.tenantMark, bounds)} />
+        </span>
+      </>
+    );
   }
 
   if (onPhoto) {
