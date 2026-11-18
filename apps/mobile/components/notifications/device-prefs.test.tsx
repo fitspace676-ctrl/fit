@@ -8,6 +8,7 @@ const mockRegister = jest.fn();
 const mockUnregister = jest.fn();
 const mockSettings = jest.fn();
 let mockUserId = 'member';
+let mockDeviceId = 'device';
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: (key: string) => Promise.resolve(mockValues.get(key) ?? null),
   setItem: (key: string, value: string) => {
@@ -28,7 +29,7 @@ jest.mock('react-native', () => ({
     openSettings: () => mockSettings() as unknown,
   },
 }));
-jest.mock('../../lib/auth/device-id', () => ({ hydrateDeviceId: () => Promise.resolve('device') }));
+jest.mock('../../lib/auth/device-id', () => ({ hydrateDeviceId: () => Promise.resolve(mockDeviceId) }));
 jest.mock('../../lib/auth/session', () => ({
   getSessionState: () => ({ status: 'signed-in', userId: mockUserId }),
 }));
@@ -42,6 +43,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockValues.clear();
   mockUserId = 'member';
+  mockDeviceId = 'device';
   mockGetPermissions.mockResolvedValue({
     granted: false,
     status: 'undetermined',
@@ -69,7 +71,7 @@ it('registers a permitted device and restores its saved choice without another p
   mockGetPermissions.mockResolvedValue(granted);
   await syncPushPreference('member');
   expect(mockRequestPermissions).toHaveBeenCalledTimes(1);
-  expect(mockRegister).toHaveBeenCalledTimes(2);
+  expect(mockRegister).toHaveBeenCalledTimes(1);
 });
 it('opens system settings for a permanent denial without registering', async () => {
   mockGetPermissions.mockResolvedValue({ granted: false, status: 'denied', canAskAgain: false });
@@ -95,4 +97,60 @@ it('does not transfer another account’s saved opt-in', async () => {
   mockGetPermissions.mockResolvedValue(granted);
   await syncPushPreference('member');
   expect(mockRegister).not.toHaveBeenCalled();
+});
+
+it('registers a rotated Expo token once', async () => {
+  mockGetPermissions.mockResolvedValue(granted);
+  await syncPushPreference('member', true);
+  mockToken.mockResolvedValue({ data: 'ExponentPushToken[rotated]' });
+  await syncPushPreference('member');
+  await syncPushPreference('member');
+  expect(mockRegister).toHaveBeenCalledTimes(2);
+  expect(mockRegister).toHaveBeenLastCalledWith({
+    deviceId: 'device',
+    platform: 'ios',
+    token: 'ExponentPushToken[rotated]',
+  });
+});
+it('registers again after disabling and re-enabling', async () => {
+  mockGetPermissions.mockResolvedValue(granted);
+  await syncPushPreference('member', true);
+  await syncPushPreference('member', false);
+  await syncPushPreference('member', true);
+  await syncPushPreference('member');
+  expect(mockRegister).toHaveBeenCalledTimes(2);
+});
+it('registers the same device and token for a different user', async () => {
+  mockGetPermissions.mockResolvedValue(granted);
+  await syncPushPreference('member', true);
+  mockUserId = 'other';
+  await syncPushPreference('other', true);
+  expect(mockRegister).toHaveBeenCalledTimes(2);
+});
+it('retries a failed registration', async () => {
+  mockGetPermissions.mockResolvedValue(granted);
+  mockRegister.mockRejectedValueOnce(new Error('offline'));
+  await syncPushPreference('member', true);
+  await syncPushPreference('member', true);
+  await syncPushPreference('member');
+  expect(mockRegister).toHaveBeenCalledTimes(2);
+});
+it('registers again after clearing the signed-out snapshot', async () => {
+  mockGetPermissions.mockResolvedValue(granted);
+  await syncPushPreference('member', true);
+  clearPushSnapshot();
+  await syncPushPreference('member');
+  expect(mockRegister).toHaveBeenCalledTimes(2);
+});
+it('registers again if the device identity changes', async () => {
+  mockGetPermissions.mockResolvedValue(granted);
+  await syncPushPreference('member', true);
+  mockDeviceId = 'new-device';
+  await syncPushPreference('member');
+  expect(mockRegister).toHaveBeenCalledTimes(2);
+  expect(mockRegister).toHaveBeenLastCalledWith({
+    deviceId: 'new-device',
+    platform: 'ios',
+    token: 'ExponentPushToken[test]',
+  });
 });
