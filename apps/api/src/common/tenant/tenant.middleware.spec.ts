@@ -9,7 +9,10 @@ import { tenantStorage, type TenantState } from './tenant.context';
 import type { TokenService, VerifiedAccessClaims } from '../../auth/token.service';
 
 function makeMiddleware(verify: (token: string) => VerifiedAccessClaims): TenantMiddleware {
-  const tokens = { verifyAccessToken: vi.fn(verify), assertSessionActive: vi.fn().mockResolvedValue(undefined) } as unknown as TokenService;
+  const tokens = {
+    verifyAccessToken: vi.fn(verify),
+    assertSessionActive: vi.fn().mockResolvedValue(undefined),
+  } as unknown as TokenService;
   return new TenantMiddleware(tokens);
 }
 
@@ -114,9 +117,9 @@ describe('TenantMiddleware', () => {
     const middleware = makeMiddleware(() => {
       throw new UnauthorizedException();
     });
-    await expect(middleware.use(request('Bearer bad'), {} as never, () => undefined)).rejects.toThrow(
-      UnauthorizedException,
-    );
+    await expect(
+      middleware.use(request('Bearer bad'), {} as never, () => undefined),
+    ).rejects.toThrow(UnauthorizedException);
   });
 });
 
@@ -127,8 +130,9 @@ it('does not establish an identity when the persisted session has been revoked',
   } as unknown as TokenService;
   const next = vi.fn();
   const req = request('Bearer old');
-  await expect(new TenantMiddleware(tokens).use(req, {} as never, next))
-    .rejects.toBeInstanceOf(UnauthorizedException);
+  await expect(new TenantMiddleware(tokens).use(req, {} as never, next)).rejects.toBeInstanceOf(
+    UnauthorizedException,
+  );
   expect(req.user).toBeUndefined();
   expect(next).not.toHaveBeenCalled();
 });

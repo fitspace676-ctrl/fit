@@ -767,7 +767,10 @@ it('offers account deletion at the bottom of the profile and navigates after con
   const screen = renderApp(<ProfileScreen />);
   fireEvent.press(screen.getByTestId('profile-delete-account'));
   expect(mockDeleteAccount).not.toHaveBeenCalled();
-  await waitFor(() => expect(screen.getByTestId('profile-delete-account-confirm-confirm')).toBeTruthy(), WAIT);
+  await waitFor(
+    () => expect(screen.getByTestId('profile-delete-account-confirm-confirm')).toBeTruthy(),
+    WAIT,
+  );
   fireEvent.press(screen.getByTestId('profile-delete-account-confirm-confirm'));
   await waitFor(() => expect(mockDeleteAccount).toHaveBeenCalledTimes(1), WAIT);
   expect(mockReplace).toHaveBeenCalledWith('/');

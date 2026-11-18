@@ -136,10 +136,14 @@ export class TokenService {
   async assertSessionActive(claims: VerifiedAccessClaims): Promise<void> {
     if (claims.tokenVersion === undefined) return;
     const user = await this.prisma.client.user.findUnique({
-      where: { id: claims.sub }, select: { tokenVersion: true, email: true },
+      where: { id: claims.sub },
+      select: { tokenVersion: true, email: true },
     });
-    if (!user || user.email === `deleted+${claims.sub}@deleted.fit.local` ||
-      user.tokenVersion !== claims.tokenVersion) {
+    if (
+      !user ||
+      user.email === `deleted+${claims.sub}@deleted.fit.local` ||
+      user.tokenVersion !== claims.tokenVersion
+    ) {
       throw invalidAccessToken();
     }
   }

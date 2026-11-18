@@ -12,7 +12,9 @@ describe('CartIdentityMiddleware revocation', () => {
     const tokens = { verifyAccessToken } as unknown as TokenService;
     const next = vi.fn();
     await new CartIdentityMiddleware(tokens).use(
-      { headers: {} } as RequestWithUser, {} as never, next,
+      { headers: {} } as RequestWithUser,
+      {} as never,
+      next,
     );
     expect(next).toHaveBeenCalledOnce();
     expect(verifyAccessToken).not.toHaveBeenCalled();
@@ -25,8 +27,9 @@ describe('CartIdentityMiddleware revocation', () => {
     } as unknown as TokenService;
     const req = { headers: { authorization: 'Bearer old' } } as RequestWithUser;
     const next = vi.fn();
-    await expect(new CartIdentityMiddleware(tokens).use(req, {} as never, next))
-      .rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      new CartIdentityMiddleware(tokens).use(req, {} as never, next),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(req.user).toBeUndefined();
     expect(next).not.toHaveBeenCalled();
   });

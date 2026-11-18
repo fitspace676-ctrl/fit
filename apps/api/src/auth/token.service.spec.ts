@@ -606,19 +606,31 @@ describe('TokenService', () => {
 });
 
 describe('persisted access-token revocation', () => {
-  it.each([null, { tokenVersion: 1 }, { tokenVersion: 0, email: 'deleted+u1@deleted.fit.local' }])('rejects a deleted or version-bumped identity (%j)', async (user) => {
-    const prisma = { client: { user: { findUnique: vi.fn().mockResolvedValue(user) } } } as unknown as PrismaService;
-    await expect(new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 0 }))
-      .rejects.toBeInstanceOf(UnauthorizedException);
-  });
+  it.each([null, { tokenVersion: 1 }, { tokenVersion: 0, email: 'deleted+u1@deleted.fit.local' }])(
+    'rejects a deleted or version-bumped identity (%j)',
+    async (user) => {
+      const prisma = {
+        client: { user: { findUnique: vi.fn().mockResolvedValue(user) } },
+      } as unknown as PrismaService;
+      await expect(
+        new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 0 }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    },
+  );
   it('allows the current version', async () => {
-    const prisma = { client: { user: { findUnique: vi.fn().mockResolvedValue({ tokenVersion: 2 }) } } } as unknown as PrismaService;
-    await expect(new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 2 })).resolves.toBeUndefined();
+    const prisma = {
+      client: { user: { findUnique: vi.fn().mockResolvedValue({ tokenVersion: 2 }) } },
+    } as unknown as PrismaService;
+    await expect(
+      new TokenService(prisma).assertSessionActive({ sub: 'u1', tokenVersion: 2 }),
+    ).resolves.toBeUndefined();
   });
   it('lets a scoped token without tokenVersion through, whatever the user version', async () => {
     const findUnique = vi.fn().mockResolvedValue({ tokenVersion: 3 });
     const prisma = { client: { user: { findUnique } } } as unknown as PrismaService;
-    await expect(new TokenService(prisma).assertSessionActive({ sub: 'u1' })).resolves.toBeUndefined();
+    await expect(
+      new TokenService(prisma).assertSessionActive({ sub: 'u1' }),
+    ).resolves.toBeUndefined();
     expect(findUnique).not.toHaveBeenCalled();
   });
 });

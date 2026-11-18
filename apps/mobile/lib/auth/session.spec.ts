@@ -840,7 +840,8 @@ describe('deleteAccount', () => {
     globalThis.fetch = fetchMock;
     await deleteAccount();
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.example.test/me/account', expect.objectContaining({ method: 'DELETE' }),
+      'https://api.example.test/me/account',
+      expect.objectContaining({ method: 'DELETE' }),
     );
     expect(getSessionSnapshot()).toBeNull();
     expect(getSessionState().status).toBe('signed-out');
@@ -850,9 +851,17 @@ describe('deleteAccount', () => {
     configureSession({ authApi: fakeAuthApi() });
     await hydrateAuth();
     await saveTokens(pair(FRESH_EXP));
-    globalThis.fetch = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
-      code: 'ACCOUNT_DELETION_STAFF', message: 'Contact your gym administrator',
-    }), { status: 409 })));
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            code: 'ACCOUNT_DELETION_STAFF',
+            message: 'Contact your gym administrator',
+          }),
+          { status: 409 },
+        ),
+      ),
+    );
     await expect(deleteAccount()).rejects.toMatchObject({ code: 'ACCOUNT_DELETION_STAFF' });
     expect(getSessionSnapshot()).not.toBeNull();
   });

@@ -2,7 +2,10 @@ import { useRef, useState } from 'react';
 import { ConfirmSheet, ListRow, Text } from '@fit/ui-mobile';
 import { useI18n } from '../../providers/I18nProvider';
 
-export function DeleteAccountSection({ onDelete, onDeleted }: {
+export function DeleteAccountSection({
+  onDelete,
+  onDeleted,
+}: {
   onDelete: () => Promise<void>;
   onDeleted: () => void;
 }) {
@@ -30,15 +33,34 @@ export function DeleteAccountSection({ onDelete, onDeleted }: {
   }
   return (
     <>
-      <ListRow icon="trash" title={t('member.profile.deleteTitle')} danger
-        onPress={() => { setError(null); setOpen(true); }} testID="profile-delete-account" />
+      <ListRow
+        icon="trash"
+        title={t('member.profile.deleteTitle')}
+        danger
+        onPress={() => {
+          setError(null);
+          setOpen(true);
+        }}
+        testID="profile-delete-account"
+      />
       {error ? <Text accessibilityRole="alert">{error}</Text> : null}
-      <ConfirmSheet open={open} onClose={() => { if (!busy) setOpen(false); }}
-        onConfirm={() => { void confirm(); }} title={t('member.profile.deleteTitle')}
-        note={t('member.profile.deleteDesc')} confirmLabel={t('member.profile.deleteTitle')}
+      <ConfirmSheet
+        open={open}
+        onClose={() => {
+          if (!busy) setOpen(false);
+        }}
+        onConfirm={() => {
+          void confirm();
+        }}
+        title={t('member.profile.deleteTitle')}
+        note={t('member.profile.deleteDesc')}
+        confirmLabel={t('member.profile.deleteTitle')}
         cancelLabel={t('settings.about.signOutCancel')}
-        closeAccessibilityLabel={t('classes.modal.close')} destructive busy={busy}
-        testID="profile-delete-account-confirm" />
+        closeAccessibilityLabel={t('classes.modal.close')}
+        destructive
+        busy={busy}
+        testID="profile-delete-account-confirm"
+      />
     </>
   );
 }

@@ -74,7 +74,10 @@ export async function deleteAccountAction(): Promise<UpdateProfileResult> {
       cache: 'no-store',
     });
     if (!response.ok) {
-      const body = await response.json().catch(() => null) as { message?: string; code?: string } | null;
+      const body = (await response.json().catch(() => null)) as {
+        message?: string;
+        code?: string;
+      } | null;
       return { ok: false, error: body?.message ?? 'Could not delete account', code: body?.code };
     }
   } catch {

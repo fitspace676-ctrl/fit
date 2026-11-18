@@ -30,12 +30,16 @@ it('cancel leaves the account alone', async () => {
 });
 
 it('shows a refusal and keeps the session', async () => {
-  const onDelete = jest.fn(() => Promise.reject(new Error('Staff accounts must be removed by the gym')));
+  const onDelete = jest.fn(() =>
+    Promise.reject(new Error('Staff accounts must be removed by the gym')),
+  );
   const onDeleted = jest.fn();
   const screen = renderScreen(<DeleteAccountSection onDelete={onDelete} onDeleted={onDeleted} />);
   fireEvent.press(screen.getByTestId(ROW));
   await waitFor(() => expect(screen.getByTestId(CONFIRM)).toBeTruthy());
   fireEvent.press(screen.getByTestId(CONFIRM));
-  await waitFor(() => expect(screen.getByText('Staff accounts must be removed by the gym')).toBeTruthy());
+  await waitFor(() =>
+    expect(screen.getByText('Staff accounts must be removed by the gym')).toBeTruthy(),
+  );
   expect(onDeleted).not.toHaveBeenCalled();
 });

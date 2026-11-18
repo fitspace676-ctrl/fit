@@ -89,7 +89,8 @@ export class MemberPurgeService {
     const { count } = await this.prisma.client.gymMember.deleteMany({
       // Self-deleted identities retain check-ins and accounting relationships.
       where: {
-        role: Role.MEMBER, deletedAt: { lt: cutoff },
+        role: Role.MEMBER,
+        deletedAt: { lt: cutoff },
         user: { email: { not: { endsWith: '@deleted.fit.local' } } },
       },
     });

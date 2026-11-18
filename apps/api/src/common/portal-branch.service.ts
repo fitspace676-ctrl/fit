@@ -94,7 +94,10 @@ export class PortalBranchService {
   }
 
   /** The caller's user id when the bearer token verifies for `gymId`, else `null`. */
-  private async sessionUserId(gymId: string, authorization: string | undefined): Promise<string | null> {
+  private async sessionUserId(
+    gymId: string,
+    authorization: string | undefined,
+  ): Promise<string | null> {
     const token = extractBearerToken(authorization);
     if (!token) {
       return null;
