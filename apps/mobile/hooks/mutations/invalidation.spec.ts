@@ -31,6 +31,11 @@ import {
   unregisterPushTokenMutationOptions,
 } from './useNotificationMutations';
 
+import {
+  uploadProfilePhotoMutationOptions,
+  removeProfilePhotoMutationOptions,
+} from './useProfilePhotoMutations';
+
 const GYM = 'gym_a';
 
 /** The callbacks the harness drives, with the generics erased. */
@@ -129,6 +134,8 @@ const CASES: readonly Case[] = [
     build: updateMyProfileMutationOptions,
     result: { profile: { userId: 'u_1', name: 'A', email: 'a@b.test', phone: null } },
   },
+  { name: 'uploadProfilePhoto', build: uploadProfilePhotoMutationOptions },
+  { name: 'removeProfilePhoto', build: removeProfilePhotoMutationOptions },
   { name: 'createReview', build: createReviewMutationOptions },
   { name: 'bookServiceSession', build: bookServiceSessionMutationOptions },
   { name: 'markNotificationsRead', build: markNotificationsReadMutationOptions },

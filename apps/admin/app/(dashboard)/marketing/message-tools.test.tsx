@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import messages from '@fit/i18n/locales/en.json';
 import { MessageTools } from './message-tools';
@@ -40,6 +40,10 @@ describe('MessageTools', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Write with AI' }));
     const accept = await screen.findByRole('button', { name: 'Use this text' });
     expect(onApply).not.toHaveBeenCalled();
+    // The button renders while the transition that produced the draft is still
+    // pending, and it is disabled until that settles. Clicking before then is a
+    // no-op, which made this test fail intermittently.
+    await waitFor(() => expect(accept).toBeEnabled());
     fireEvent.click(accept);
     expect(onApply).toHaveBeenCalledWith({ subject: 'Welcome', body: 'Hi {{first_name}}' });
     expect(assistMessageAction).toHaveBeenCalledWith(

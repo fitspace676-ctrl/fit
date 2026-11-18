@@ -15,6 +15,8 @@ checkoutCart: cart, products, myOrders
 checkoutCartPriceChanged: cart
 checkoutCartOutOfStock: cart, products
 updateMyProfile: profile
+uploadProfilePhoto: profile
+removeProfilePhoto: profile
 createReview: trainers
 bookServiceSession: myServiceSessions, serviceSlots, membership
 markNotificationsRead: notifications

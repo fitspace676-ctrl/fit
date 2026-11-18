@@ -62,7 +62,14 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "./plugins/with-optional-hardware"
+      "./plugins/with-optional-hardware",
+      [
+        "expo-image-picker",
+        {
+          "microphonePermission": false,
+          "photosPermission": "Lets you choose a profile photo from your library."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

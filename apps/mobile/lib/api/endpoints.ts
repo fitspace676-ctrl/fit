@@ -123,6 +123,21 @@ export const ENDPOINTS = {
   /** `GET /me/profile`. */
   getMyProfile: { method: 'GET', path: '/me/profile', permission: [Permission.ProfileManage] },
   /** `PATCH /me/profile` — partial; `phone: null` clears. */
+  createProfilePhotoUpload: {
+    method: 'POST',
+    path: '/me/profile/photo/upload',
+    permission: [Permission.ProfileManage],
+  },
+  saveProfilePhoto: {
+    method: 'PATCH',
+    path: '/me/profile/photo',
+    permission: [Permission.ProfileManage],
+  },
+  removeProfilePhoto: {
+    method: 'DELETE',
+    path: '/me/profile/photo',
+    permission: [Permission.ProfileManage],
+  },
   updateMyProfile: { method: 'PATCH', path: '/me/profile', permission: [Permission.ProfileManage] },
   /** `GET /me/subscription` — the membership **and** its invoice history. */
   getMySubscription: {

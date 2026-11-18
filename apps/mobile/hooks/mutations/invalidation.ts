@@ -184,6 +184,9 @@ export const INVALIDATION_MATRIX = {
   checkoutCartOutOfStock: ['cart', 'products'],
   /** Name / phone changed. Nothing else reads them. */
   updateMyProfile: ['profile'],
+  // Photo writes change the identity shown by GET /me/profile.
+  uploadProfilePhoto: ['profile'],
+  removeProfilePhoto: ['profile'],
   /**
    * A review is posted against a *class occurrence*, but its effect is on the
    * **trainer**: `ReviewsService` recomputes the trainer's denormalised

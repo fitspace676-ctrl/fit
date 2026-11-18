@@ -82,3 +82,8 @@ jest.mock('expo-splash-screen', () => ({
   hideAsync: jest.fn(() => Promise.resolve(true)),
   setOptions: jest.fn(),
 }));
+
+// Profile photo picking never requests runtime library/camera permissions.
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn(() => Promise.resolve({ canceled: true, assets: null })),
+}));
