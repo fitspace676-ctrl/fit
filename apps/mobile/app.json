@@ -62,6 +62,7 @@
         }
       ],
       "@react-native-community/datetimepicker",
+      "./plugins/with-optional-hardware",
       [
         "expo-image-picker",
         {
