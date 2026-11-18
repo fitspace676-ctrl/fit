@@ -50,6 +50,8 @@ module.exports = ({ config }) => {
             ...options,
             image: `${variant.assets}/splash.png`,
             backgroundColor: variant.background,
+            // The wordmark with its line, wider than the FormaCore mark.
+            imageWidth: 240,
           },
         ];
       }
