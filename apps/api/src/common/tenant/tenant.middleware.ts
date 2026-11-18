@@ -42,7 +42,7 @@ function parseRole(value: unknown): Role | undefined {
 export class TenantMiddleware implements NestMiddleware {
   constructor(private readonly tokens: TokenService) {}
 
-  use(req: RequestWithUser, _res: Response, next: NextFunction): void {
+  async use(req: RequestWithUser, _res: Response, next: NextFunction): Promise<void> {
     const token = extractBearerToken(req.headers.authorization);
     if (!token) {
       throw new UnauthorizedException({
@@ -53,6 +53,7 @@ export class TenantMiddleware implements NestMiddleware {
 
     // Throws a 401 on any verification failure — propagated to the exception filter.
     const claims = this.tokens.verifyAccessToken(token);
+    await this.tokens.assertSessionActive(claims);
     // A session minted for one gym is refused on another gym's host (403).
     assertSessionMatchesTenantHost(req.headers, claims);
 

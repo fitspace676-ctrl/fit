@@ -5866,15 +5866,15 @@
       "twoFaOn": "Enabled",
       "twoFaOff": "Add an extra layer of security",
       "deleteTitle": "Delete account",
-      "deleteDesc": "Permanently remove your account and data.",
+      "deleteDesc": "Your profile and sign-in details will be removed and subscriptions will stop renewing. Payment and visit records stay with the gym.",
       "delete": "Delete",
-      "deleteToast": "Contact the front desk to delete your account",
       "saving": "Saving…",
       "saveAuth": "Please sign in",
       "saveError": "Couldn't save, try again",
       "documents": "Documents",
       "terms": "Terms and conditions",
-      "termsDesc": "The gym's rules and its cancellation, refund and freeze terms"
+      "termsDesc": "The gym's rules and its cancellation, refund and freeze terms",
+      "deleteError": "Could not delete your account. Please try again."
     },
     "cart": {
       "title": "Your cart",

@@ -9,7 +9,10 @@ import { tenantStorage, type TenantState } from './tenant.context';
 import type { TokenService, VerifiedAccessClaims } from '../../auth/token.service';
 
 function makeMiddleware(verify: (token: string) => VerifiedAccessClaims): TenantMiddleware {
-  const tokens = { verifyAccessToken: vi.fn(verify) } as unknown as TokenService;
+  const tokens = {
+    verifyAccessToken: vi.fn(verify),
+    assertSessionActive: vi.fn().mockResolvedValue(undefined),
+  } as unknown as TokenService;
   return new TenantMiddleware(tokens);
 }
 
@@ -32,21 +35,21 @@ describe('extractBearerToken', () => {
 });
 
 describe('TenantMiddleware', () => {
-  it('rejects a request with no bearer token (401) without verifying', () => {
+  it('rejects a request with no bearer token (401) without verifying', async () => {
     const verify = vi.fn();
     const middleware = makeMiddleware(verify);
-    expect(() => middleware.use(request(), {} as never, () => undefined)).toThrow(
+    await expect(middleware.use(request(), {} as never, () => undefined)).rejects.toThrow(
       UnauthorizedException,
     );
     expect(verify).not.toHaveBeenCalled();
   });
 
-  it('establishes the tenant from gymId + role claims and runs next inside the ALS store', () => {
+  it('establishes the tenant from gymId + role claims and runs next inside the ALS store', async () => {
     const middleware = makeMiddleware(() => ({ sub: 'u-1', role: 'MANAGER', gymId: 'gym-a' }));
     const req = request('Bearer t');
     let observed: TenantState | undefined;
 
-    middleware.use(req, {} as never, () => {
+    await middleware.use(req, {} as never, () => {
       observed = tenantStorage.getStore();
     });
 
@@ -59,18 +62,18 @@ describe('TenantMiddleware', () => {
     });
   });
 
-  it('accepts the CLI `gym` slug claim as the tenant id', () => {
+  it('accepts the CLI `gym` slug claim as the tenant id', async () => {
     const middleware = makeMiddleware(() => ({ sub: 'u-1', role: 'MEMBER', gym: 'gym-slug' }));
     const req = request('Bearer t');
-    middleware.use(req, {} as never, () => undefined);
+    await middleware.use(req, {} as never, () => undefined);
     expect(req.user?.gymId).toBe('gym-slug');
   });
 
-  it('defaults the role to MEMBER and the gym to null when claims are absent', () => {
+  it('defaults the role to MEMBER and the gym to null when claims are absent', async () => {
     const middleware = makeMiddleware(() => ({ sub: 'u-1' }));
     const req = request('Bearer t');
     let observed: TenantState | undefined;
-    middleware.use(req, {} as never, () => {
+    await middleware.use(req, {} as never, () => {
       observed = tenantStorage.getStore();
     });
     expect(observed).toEqual({
@@ -81,7 +84,7 @@ describe('TenantMiddleware', () => {
     });
   });
 
-  it('403s TENANT_MISMATCH (without opening a store) when the host names another gym', () => {
+  it('403s TENANT_MISMATCH (without opening a store) when the host names another gym', async () => {
     const middleware = makeMiddleware(() => ({
       sub: 'u-1',
       role: 'MEMBER',
@@ -93,29 +96,43 @@ describe('TenantMiddleware', () => {
     } as unknown as RequestWithUser;
     const next = vi.fn();
 
-    expect(() => middleware.use(req, {} as never, next)).toThrow(ForbiddenException);
+    await expect(middleware.use(req, {} as never, next)).rejects.toThrow(ForbiddenException);
     expect(next).not.toHaveBeenCalled();
     expect(req.user).toBeUndefined();
   });
 
-  it('lets the session through on its own gym’s host', () => {
+  it('lets the session through on its own gym’s host', async () => {
     const middleware = makeMiddleware(() => ({ sub: 'u-1', gymId: 'gym-a', gymSlug: 'downtown' }));
     const req = {
       headers: { authorization: 'Bearer t', host: 'downtown.fit.ge' },
     } as unknown as RequestWithUser;
     const next = vi.fn();
 
-    middleware.use(req, {} as never, next);
+    await middleware.use(req, {} as never, next);
 
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('propagates a verification failure (401)', () => {
+  it('propagates a verification failure (401)', async () => {
     const middleware = makeMiddleware(() => {
       throw new UnauthorizedException();
     });
-    expect(() => middleware.use(request('Bearer bad'), {} as never, () => undefined)).toThrow(
-      UnauthorizedException,
-    );
+    await expect(
+      middleware.use(request('Bearer bad'), {} as never, () => undefined),
+    ).rejects.toThrow(UnauthorizedException);
   });
+});
+
+it('does not establish an identity when the persisted session has been revoked', async () => {
+  const tokens = {
+    verifyAccessToken: vi.fn().mockReturnValue({ sub: 'u1', tokenVersion: 0 }),
+    assertSessionActive: vi.fn().mockRejectedValue(new UnauthorizedException()),
+  } as unknown as TokenService;
+  const next = vi.fn();
+  const req = request('Bearer old');
+  await expect(new TenantMiddleware(tokens).use(req, {} as never, next)).rejects.toBeInstanceOf(
+    UnauthorizedException,
+  );
+  expect(req.user).toBeUndefined();
+  expect(next).not.toHaveBeenCalled();
 });
