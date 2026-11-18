@@ -9,10 +9,14 @@ const downtown = {
 
 describe('gymMetadata', () => {
   it('uses the skin icon unless the gym uploaded a logo', () => {
-    expect(gymMetadata({ ...downtown, skinSlug: 'synergy', logoUrl: null }).icons)
-      .toEqual({ icon: '/brands/synergy/icon.png', apple: '/brands/synergy/icon.png' });
-    expect(gymMetadata({ ...downtown, skinSlug: 'synergy' }).icons)
-      .toEqual({ icon: downtown.logoUrl, apple: downtown.logoUrl });
+    expect(gymMetadata({ ...downtown, skinSlug: 'synergy', logoUrl: null }).icons).toEqual({
+      icon: '/brands/synergy/icon.png',
+      apple: '/brands/synergy/icon.png',
+    });
+    expect(gymMetadata({ ...downtown, skinSlug: 'synergy' }).icons).toEqual({
+      icon: downtown.logoUrl,
+      apple: downtown.logoUrl,
+    });
   });
 
   it('titles and icons the console as the gym it manages', () => {

@@ -106,7 +106,6 @@ export const BRAND_SKINS: Readonly<Record<string, BrandSkin>> = {
       '--fc-focus-ring': '0 0 0 3px rgba(82, 110, 170, 0.40)',
       '--fc-tile-border': 'transparent',
     },
-
   },
 };
 

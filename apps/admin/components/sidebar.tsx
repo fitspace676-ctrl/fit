@@ -399,12 +399,14 @@ export function Sidebar({ gymSlug, system, defaultCollapsed = false }: SidebarPr
                 optimizer drops the `/admin` prefix and 404s, so reference the
                 public asset directly under BASE_PATH. */}
             <ConsoleLogo
-              mode="dark" slug={gymSlug}
+              mode="dark"
+              slug={gymSlug}
               alt={t('common.brand')}
               className="admin-logo admin-logo-dark"
             />
             <ConsoleLogo
-              mode="light" slug={gymSlug}
+              mode="light"
+              slug={gymSlug}
               alt={t('common.brand')}
               className="admin-logo admin-logo-light"
             />

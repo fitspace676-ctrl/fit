@@ -194,11 +194,7 @@ export function DoorFrame({ title, subtitle, children, footer }: DoorFrameProps)
 
           <div {...stylex.props(styles.topRow)}>
             <Link href="/" {...stylex.props(styles.brand)}>
-              <ConsoleLogo
-                mode="dark"
-                alt="FormaCore"
-                {...stylex.props(styles.brandLogo)}
-              />
+              <ConsoleLogo mode="dark" alt="FormaCore" {...stylex.props(styles.brandLogo)} />
             </Link>
             <DoorThemeToggle />
           </div>

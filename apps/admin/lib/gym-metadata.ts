@@ -20,7 +20,8 @@ export function gymMetadata(brand: ActiveGymBrand | null): Metadata {
   const description = `${name} staff console.`;
   // `public/icon.png`. A metadata URL is not given the basePath by Next, unlike
   // the file-based `app/icon.png` it replaces, so it is prefixed here.
-  const icon = brand?.logoUrl ?? consoleBrandAssets(brand?.skinSlug)?.icon ?? adminPath('/icon.png?v=2');
+  const icon =
+    brand?.logoUrl ?? consoleBrandAssets(brand?.skinSlug)?.icon ?? adminPath('/icon.png?v=2');
 
   return {
     title: { default: title, template: `%s · ${name}` },

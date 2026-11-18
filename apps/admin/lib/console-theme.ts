@@ -20,8 +20,9 @@ export function consoleThemeCss(primaryColor: string | null, slug?: string | nul
   const vars = brandedPortalThemeVars(slug, { primaryColor });
   // Staff status meanings keep the shipped success/warning/error palette.
   // Membership is portal-only and has no console token definition.
-  const entries = Object.entries(vars).filter(([name]) =>
-    name !== '--fc-membership' && !/--color-(?:on-)?(?:success|warning|error)(?:-|$)/.test(name),
+  const entries = Object.entries(vars).filter(
+    ([name]) =>
+      name !== '--fc-membership' && !/--color-(?:on-)?(?:success|warning|error)(?:-|$)/.test(name),
   );
   if (entries.length === 0) {
     return null;
