@@ -14,6 +14,7 @@ import {
   type PortalLogoSize,
 } from '@fit/types';
 import { env } from './env';
+import { getBrandSkin } from './brand-skins';
 
 /**
  * The active tenant's portal skin as this app consumes it — the sign-in
@@ -332,6 +333,8 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/i;
  * the browser chrome is tinted with.
  */
 export interface ActiveGymBrand {
+  /** Present only for a registered code-defined brand skin. */
+  skinSlug?: string;
   name: string;
   /** `memberPortal.logoUrl ?? brand.logoUrl`, or `null` for the bundled FormaCore icon. */
   logoUrl: string | null;
@@ -391,6 +394,7 @@ export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
       logoUrl,
       faviconUrl,
       themeColor: chosen && HEX_COLOR.test(chosen) ? chosen : null,
+      ...(getBrandSkin(slug) ? { skinSlug: slug } : {}),
     };
   } catch {
     return null;

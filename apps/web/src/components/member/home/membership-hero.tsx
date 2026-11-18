@@ -1,4 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
+import type { CSSProperties } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/src/i18n/navigation';
 import { Icon } from '@/src/components/ui';
@@ -221,42 +222,56 @@ export function MembershipHero({
   const pct = daysTotal > 0 ? Math.round((daysUsed / daysTotal) * 100) : 0;
 
   return (
-    <div {...stylex.props(styles.card)}>
-      <div {...stylex.props(styles.header)}>
-        <span {...stylex.props(styles.eyebrow)}>{t('membership')}</span>
-        <span {...stylex.props(styles.status)}>
-          <Icon name={active ? 'check' : 'clock'} sw={2.4} {...stylex.props(styles.statusIcon)} />
-          {active ? t('active') : t('noPlan')}
-        </span>
-      </div>
+    // Resolve the default against the OUTER accent before rebinding the inner
+    // accent, avoiding a custom-property cycle. Mirrors mobile MembershipScope.
+    <div
+      style={
+        {
+          display: 'contents',
+          '--_membership-fill': 'var(--fc-membership, var(--color-accent))',
+        } as CSSProperties
+      }
+    >
+      <div
+        {...stylex.props(styles.card)}
+        style={{ '--color-accent': 'var(--_membership-fill)' } as CSSProperties}
+      >
+        <div {...stylex.props(styles.header)}>
+          <span {...stylex.props(styles.eyebrow)}>{t('membership')}</span>
+          <span {...stylex.props(styles.status)}>
+            <Icon name={active ? 'check' : 'clock'} sw={2.4} {...stylex.props(styles.statusIcon)} />
+            {active ? t('active') : t('noPlan')}
+          </span>
+        </div>
 
-      <div {...stylex.props(styles.planBlock)}>
-        <p {...stylex.props(styles.planName)}>{planName ?? t('noPlan')}</p>
-        <p {...stylex.props(styles.planMeta)}>
-          {memberName} · <span {...stylex.props(styles.planMetaId)}>{memberId}</span>
-        </p>
-      </div>
+        <div {...stylex.props(styles.planBlock)}>
+          <p {...stylex.props(styles.planName)}>{planName ?? t('noPlan')}</p>
+          <p {...stylex.props(styles.planMeta)}>
+            {memberName} · <span {...stylex.props(styles.planMetaId)}>{memberId}</span>
+          </p>
+        </div>
 
-      <div {...stylex.props(styles.progressBlock)}>
-        {daysTotal > 0 ? (
-          <>
-            <div {...stylex.props(styles.progressHead)}>
-              <span>{t('daysLeft', { used: daysUsed, total: daysTotal })}</span>
-              <span {...stylex.props(styles.progressPct)}>{pct}%</span>
-            </div>
-            <div {...stylex.props(styles.track)}>
-              <div {...stylex.props(styles.fill)} style={{ width: `${Math.min(100, pct)}%` }} />
-            </div>
-          </>
-        ) : null}
+        <div {...stylex.props(styles.progressBlock)}>
+          {daysTotal > 0 ? (
+            <>
+              <div {...stylex.props(styles.progressHead)}>
+                <span>{t('daysLeft', { used: daysUsed, total: daysTotal })}</span>
+                <span {...stylex.props(styles.progressPct)}>{pct}%</span>
+              </div>
+              <div {...stylex.props(styles.track)}>
+                <div {...stylex.props(styles.fill)} style={{ width: `${Math.min(100, pct)}%` }} />
+              </div>
+            </>
+          ) : null}
 
-        <div {...stylex.props(styles.actions)}>
-          <Link href="/member/account/membership" {...stylex.props(styles.actionPrimary)}>
-            {t('managePlan')}
-          </Link>
-          <Link href="/member/account/bookings" {...stylex.props(styles.actionSecondary)}>
-            {t('myBookings')}
-          </Link>
+          <div {...stylex.props(styles.actions)}>
+            <Link href="/member/account/membership" {...stylex.props(styles.actionPrimary)}>
+              {t('managePlan')}
+            </Link>
+            <Link href="/member/account/bookings" {...stylex.props(styles.actionSecondary)}>
+              {t('myBookings')}
+            </Link>
+          </div>
         </div>
       </div>
     </div>

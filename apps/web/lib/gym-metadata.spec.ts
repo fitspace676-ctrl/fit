@@ -53,3 +53,42 @@ describe('gymViewport', () => {
     expect(gymViewport(null)).toEqual({});
   });
 });
+
+describe('Synergy metadata', () => {
+  const synergy = {
+    name: 'Synergy',
+    skinSlug: 'synergy',
+    logoUrl: null,
+    faviconUrl: null,
+    themeColor: null,
+  };
+  it('falls back to the brand icon for tab, apple and share images', () => {
+    const metadata = gymMetadata(synergy);
+    expect(metadata.icons).toEqual({
+      icon: '/brands/synergy/icon.png',
+      apple: '/brands/synergy/icon.png',
+    });
+    expect(metadata.openGraph).toMatchObject({ images: ['/brands/synergy/icon.png'] });
+  });
+  it('keeps uploaded assets ahead of the skin', () => {
+    const metadata = gymMetadata({
+      ...synergy,
+      logoUrl: '/uploaded.png',
+      faviconUrl: '/favicon.png',
+    });
+    expect(metadata.icons).toEqual({ icon: '/favicon.png', apple: '/favicon.png' });
+    expect(metadata.openGraph).toMatchObject({ images: ['/uploaded.png'] });
+    expect(gymMetadata({ ...synergy, logoUrl: '/uploaded.png' }).icons).toEqual({
+      icon: '/uploaded.png',
+      apple: '/uploaded.png',
+    });
+  });
+  it('uses the page backgrounds for browser chrome, independent of action accent', () => {
+    expect(gymViewport({ ...synergy, themeColor: '#ff5500' })).toEqual({
+      themeColor: [
+        { media: '(prefers-color-scheme: light)', color: '#F3EDE3' },
+        { media: '(prefers-color-scheme: dark)', color: '#1C1C1E' },
+      ],
+    });
+  });
+});
