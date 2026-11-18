@@ -57,10 +57,12 @@ it('registers once per enable despite native token and foreground events during 
   mockGranted = false;
   mockRegister.mockResolvedValue({ id: 'registration' });
   let foreground: (state: AppStateStatus) => void = () => undefined;
-  const foregroundSpy = jest.spyOn(AppState, 'addEventListener').mockImplementation((_, listener) => {
-    foreground = listener;
-    return { remove: jest.fn() };
-  });
+  const foregroundSpy = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockImplementation((_, listener) => {
+      foreground = listener;
+      return { remove: jest.fn() };
+    });
   mockRequestPermissions.mockImplementation(() => {
     mockGranted = true;
     // The iOS permission dialog returns the app to active during opt-in.

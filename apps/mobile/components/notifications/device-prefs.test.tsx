@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import { clearPushSnapshot, syncPushPreference } from './device-prefs';
 
 const mockValues = new Map<string, string>();
@@ -23,13 +24,9 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: () => mockRequestPermissions() as unknown,
   getExpoPushTokenAsync: () => mockToken() as unknown,
 }));
-jest.mock('react-native', () => ({
-  Platform: { OS: 'ios' },
-  Linking: {
-    openSettings: () => mockSettings() as unknown,
-  },
+jest.mock('../../lib/auth/device-id', () => ({
+  hydrateDeviceId: () => Promise.resolve(mockDeviceId),
 }));
-jest.mock('../../lib/auth/device-id', () => ({ hydrateDeviceId: () => Promise.resolve(mockDeviceId) }));
 jest.mock('../../lib/auth/session', () => ({
   getSessionState: () => ({ status: 'signed-in', userId: mockUserId }),
 }));
@@ -41,6 +38,9 @@ const granted = { granted: true, status: 'granted', canAskAgain: true };
 beforeEach(() => {
   clearPushSnapshot();
   jest.clearAllMocks();
+  // Spy rather than mock all of react-native: a partial module mock breaks the
+  // dependencies that read `Appearance` while they load, and the suite never runs.
+  jest.spyOn(Linking, 'openSettings').mockImplementation(() => mockSettings() as Promise<void>);
   mockValues.clear();
   mockUserId = 'member';
   mockDeviceId = 'device';
