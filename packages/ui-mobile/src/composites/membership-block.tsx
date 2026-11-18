@@ -13,7 +13,7 @@ import { Surface } from '../primitives/surface';
 import { clampRadiusTo } from '../internal/clamp-radius';
 import { ink } from '../palette';
 import { spacing } from '../tokens/spacing';
-import { useThemeColors } from '../tokens/theme';
+import { MembershipScope, useThemeColors } from '../tokens/theme';
 
 // ===========================================================================
 // THE LIME BLOCK. The one element of the direction the member recognises the
@@ -293,7 +293,7 @@ export function MembershipBlock({
           overflow: 'hidden',
           // The band sits on the block's own lime, so a photograph with
           // transparency (a PNG mark) lands on the brand rather than on nothing.
-          backgroundColor: colors.accent,
+          backgroundColor: colors.membership,
         }}
       >
         <Image
@@ -466,21 +466,23 @@ export function MembershipBlock({
   );
 
   return (
-    <Surface
-      testID={testID}
-      tone="accent"
-      radius="page"
-      /*
-        WITHOUT a cover the padding is the Surface's, exactly as it has always
-        been. WITH one it moves to a wrapper inside, so the band is flush to
-        three of the block's edges rather than inset by 20pt on each.
-      */
-      padding={cover === null ? PAD : undefined}
-      style={[cover === null ? null : { overflow: 'hidden' }, style]}
-      className={className}
-    >
-      {coverBand}
-      {cover === null ? body : <View style={{ padding: spacing[PAD] }}>{body}</View>}
-    </Surface>
+    <MembershipScope>
+      <Surface
+        testID={testID}
+        tone="accent"
+        radius="page"
+        /*
+          WITHOUT a cover the padding is the Surface's, exactly as it has always
+          been. WITH one it moves to a wrapper inside, so the band is flush to
+          three of the block's edges rather than inset by 20pt on each.
+        */
+        padding={cover === null ? PAD : undefined}
+        style={[cover === null ? null : { overflow: 'hidden' }, style]}
+        className={className}
+      >
+        {coverBand}
+        {cover === null ? body : <View style={{ padding: spacing[PAD] }}>{body}</View>}
+      </Surface>
+    </MembershipScope>
   );
 }

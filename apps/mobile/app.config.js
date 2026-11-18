@@ -7,13 +7,14 @@
 // the in-app logo follows `EXPO_PUBLIC_APP_VARIANT` (see components/auth/auth-screen.tsx).
 // Both are set next to `APP_VARIANT` in the variant's `eas.json` profile.
 
-/** @type {Record<string, { name: string; id: string; assets: string; iconBackground: string }>} */
+/** @type {Record<string, { name: string; id: string; assets: string; iconBackground: string; background: string }>} */
 const VARIANTS = {
   synergy: {
     name: 'Synergy',
     id: 'io.formacore.synergy',
     assets: './assets/brands/synergy',
     iconBackground: '#000000',
+    background: '#1C1C1E',
   },
 };
 
@@ -29,6 +30,7 @@ module.exports = ({ config }) => {
     ...config,
     name: variant.name,
     icon: `${variant.assets}/icon.png`,
+    backgroundColor: variant.background,
     ios: { ...config.ios, bundleIdentifier: variant.id },
     android: {
       ...config.android,
@@ -42,7 +44,14 @@ module.exports = ({ config }) => {
       if (!Array.isArray(plugin)) return plugin;
       const [name, options] = plugin;
       if (name === 'expo-splash-screen') {
-        return [name, { ...options, image: `${variant.assets}/splash.png` }];
+        return [
+          name,
+          {
+            ...options,
+            image: `${variant.assets}/splash.png`,
+            backgroundColor: variant.background,
+          },
+        ];
       }
       if (name === 'expo-camera') {
         return [

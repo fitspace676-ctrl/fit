@@ -131,6 +131,21 @@ export function ThemeProvider({ children, scheme = 'dark', accent = null }: Them
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }
 
+/**
+ * Inside the membership block the accent IS the block's fill: every accent-toned
+ * part (the surface, the cover band, the disc) reads `accent`, so the block's
+ * own colour is handed down as the accent of this scope.
+ */
+export function MembershipScope({ children }: { children: ReactNode }) {
+  const theme = useContext(ThemeContext);
+  const scoped = useMemo<Theme>(() => {
+    const { membership, accent } = theme.colors;
+    if (membership === accent) return theme;
+    return { ...theme, colors: { ...theme.colors, accent: membership, accentHover: membership } };
+  }, [theme]);
+  return <ThemeContext.Provider value={scoped}>{children}</ThemeContext.Provider>;
+}
+
 /** The active theme. Stable between mode changes, so safe to destructure. */
 export function useTheme(): Theme {
   return useContext(ThemeContext);
