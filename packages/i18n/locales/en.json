@@ -1929,6 +1929,22 @@
         "requestFailed": "Request failed ({status}): {message}",
         "unexpected": "Unexpected error",
         "invalidAvailability": "Invalid availability"
+      },
+      "reports": {
+        "count": "Reports: {count}",
+        "hide": "Hide review",
+        "unhide": "Restore review",
+        "load": "Load reviews",
+        "next": "Next",
+        "previous": "Previous",
+        "error": "Could not load or update reviews. Please try again.",
+        "empty": "No reviews to moderate.",
+        "reasons": {
+          "OFFENSIVE": "Offensive content",
+          "SPAM": "Spam",
+          "HARASSMENT": "Harassment",
+          "OTHER": "Other"
+        }
       }
     },
     "staff": {
@@ -5935,7 +5951,22 @@
       "already": "You’ve already reviewed this class.",
       "attendedOnly": "Only classes you attended can be reviewed.",
       "errNotAttended": "You aren’t marked as attended for this class.",
-      "errNotFound": "This class is no longer available."
+      "errNotFound": "This class is no longer available.",
+      "report": {
+        "action": "Report",
+        "title": "Report review",
+        "submit": "Send report",
+        "submitting": "Sending…",
+        "note": "Note (optional, up to 500 characters)",
+        "sent": "Report sent. Your club will review it. This review is now hidden from you.",
+        "error": "Could not send the report. Please try again.",
+        "reasons": {
+          "OFFENSIVE": "Offensive content",
+          "SPAM": "Spam",
+          "HARASSMENT": "Harassment",
+          "OTHER": "Other"
+        }
+      }
     },
     "trainers": {
       "eyebrow": "Meet the team",

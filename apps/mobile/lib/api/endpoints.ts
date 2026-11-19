@@ -309,8 +309,17 @@ export const ENDPOINTS = {
   // ── reviews/{reviews,trainer-reviews}.controller.ts ──────────────────────
   /** `POST /reviews` — rate a class the caller attended. `201`. */
   createReview: { method: 'POST', path: '/reviews', permission: [Permission.ReviewWrite] },
-  /** `GET /trainers/:id/reviews?gymId&page&limit` — public, paginated + aggregate. */
-  listTrainerReviews: { method: 'GET', path: '/trainers/:id/reviews', permission: 'public' },
+  /** `GET /reviews/trainers/:id?page&limit` — member, excludes reported reviews. */
+  listTrainerReviews: {
+    method: 'GET',
+    path: '/reviews/trainers/:id',
+    permission: [Permission.ReviewWrite],
+  },
+  reportReview: {
+    method: 'POST',
+    path: '/reviews/:id/report',
+    permission: [Permission.ReviewWrite],
+  },
 
   // ── notifications/{notification-inbox,push-token}.controller.ts ──────────
   /** `GET /notifications?page&limit&unreadOnly?`. */

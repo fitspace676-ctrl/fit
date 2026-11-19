@@ -9,6 +9,20 @@
 
 import { z } from 'zod';
 
+export const reviewReportReasonSchema = z.enum(['OFFENSIVE', 'SPAM', 'HARASSMENT', 'OTHER']);
+export const reportReviewSchema = z.object({
+  reason: reviewReportReasonSchema,
+  note: z.string().trim().max(500).optional(),
+});
+export type ReportReviewData = z.infer<typeof reportReviewSchema>;
+export interface ReportReviewResponse {
+  reported: true;
+}
+export const memberTrainerReviewsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
 /** A star rating — an integer 1–5. Mirrored by the DB `reviews_rating_range` CHECK. */
 export const reviewRatingSchema = z.coerce.number().int().min(1).max(5);
 
@@ -55,6 +69,7 @@ export const publicReviewSchema = z.object({
   rating: z.number().int().min(1).max(5),
   comment: z.string().nullable(),
   authorName: z.string(),
+  isOwn: z.boolean().optional(),
   createdAt: z.string().datetime(),
 });
 
@@ -100,6 +115,8 @@ export interface ListTrainerReviewsResponse {
  */
 export const adminReviewSchema = publicReviewSchema.extend({
   status: reviewStatusSchema,
+  reportCount: z.number().int().nonnegative().optional(),
+  reports: z.array(reportReviewSchema).optional(),
   authorEmail: z.string(),
   classInstanceId: z.string().nullable(),
   classTitle: z.string().nullable(),

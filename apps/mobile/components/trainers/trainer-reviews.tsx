@@ -24,10 +24,14 @@
 // unusable.
 // ===========================================================================
 
+import { useState } from 'react';
+import { ReportReviewSheet } from '../reviews/report-review-sheet';
+import { useI18n } from '../../providers/I18nProvider';
 import { View } from 'react-native';
 import type { Locale } from '@fit/i18n';
 import type { ListTrainerReviewsResponse, PublicReview } from '@fit/types';
 import {
+  Button,
   EmptyState,
   Icon,
   SectionHeader,
@@ -79,9 +83,20 @@ export function TrainerReviewsSection({
   onRetry,
   copy,
 }: TrainerReviewsSectionProps) {
+  const { t } = useI18n();
+  const [target, setTarget] = useState<string | null>(null);
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   return (
     <View style={{ gap: spacing[3] }} testID="trainer-reviews">
       <SectionHeader title={copy.title} />
+      {target !== null ? (
+        <ReportReviewSheet
+          key={target}
+          reviewId={target}
+          onClose={() => setTarget(null)}
+          onReported={(id) => setHidden((current) => new Set([...current, id]))}
+        />
+      ) : null}
 
       {isOffline ? (
         // A paused query never resolves, so this skeleton was permanent.
@@ -135,14 +150,18 @@ export function TrainerReviewsSection({
             </Text>
           </View>
 
-          {data.reviews.map((review) => (
-            <ReviewRow
-              key={review.id}
-              review={review}
-              locale={locale}
-              ratingLabel={copy.ratingLabel(review.rating)}
-            />
-          ))}
+          {data.reviews
+            .filter((review) => !hidden.has(review.id))
+            .map((review) => (
+              <ReviewRow
+                key={review.id}
+                review={review}
+                reportLabel={t('member.reviews.report.action')}
+                onReport={() => setTarget(review.id)}
+                locale={locale}
+                ratingLabel={copy.ratingLabel(review.rating)}
+              />
+            ))}
         </View>
       ) : null}
     </View>
@@ -150,12 +169,14 @@ export function TrainerReviewsSection({
 }
 
 interface ReviewRowProps {
+  reportLabel: string;
+  onReport: () => void;
   review: PublicReview;
   locale: Locale;
   ratingLabel: string;
 }
 
-function ReviewRow({ review, locale, ratingLabel }: ReviewRowProps) {
+function ReviewRow({ review, locale, ratingLabel, reportLabel, onReport }: ReviewRowProps) {
   return (
     <View style={{ gap: spacing[1] }} testID={`trainer-review-${review.id}`}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[2] }}>
@@ -172,6 +193,15 @@ function ReviewRow({ review, locale, ratingLabel }: ReviewRowProps) {
       <Text variant="caption" color="textSecondary">
         {review.authorName}
       </Text>
+      {review.isOwn === false ? (
+        <Button
+          testID={`report-review-${review.id}`}
+          label={reportLabel}
+          variant="ghost"
+          size="sm"
+          onPress={onReport}
+        />
+      ) : null}
     </View>
   );
 }

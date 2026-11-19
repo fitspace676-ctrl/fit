@@ -183,3 +183,27 @@ export async function requestTrainerPhotoUploadAction(input: {
     return { ok: false, error: toMessage(error, t) };
   }
 }
+
+export async function loadReviewQueueAction(trainerId: string, page: number) {
+  const t = await getTranslations('admin.trainers');
+  if (!(await sessionHas(Permission.ReviewModerate)))
+    return { ok: false as const, error: t('errors.notAuthorized') };
+  try {
+    const { listTrainerReviewsForModeration } = await import('@/lib/api');
+    return { ok: true as const, data: await listTrainerReviewsForModeration(trainerId, page) };
+  } catch {
+    return { ok: false as const, error: t('reports.error') };
+  }
+}
+
+export async function moderateReviewAction(id: string, hidden: boolean) {
+  const t = await getTranslations('admin.trainers');
+  if (!(await sessionHas(Permission.ReviewModerate)))
+    return { ok: false as const, error: t('errors.notAuthorized') };
+  try {
+    const { moderateReview } = await import('@/lib/api');
+    return { ok: true as const, data: await moderateReview(id, hidden) };
+  } catch {
+    return { ok: false as const, error: t('reports.error') };
+  }
+}

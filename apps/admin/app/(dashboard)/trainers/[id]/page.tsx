@@ -491,6 +491,9 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
         availability={availability}
         clients={clients}
         canEditAvailability={canEditAvailability}
+        canModerateReviews={
+          session !== null && roleHasPermission(session.role, Permission.ReviewModerate)
+        }
         timeZone={timeZone}
       />
 

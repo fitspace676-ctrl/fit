@@ -5,10 +5,19 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Get,
+  Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Permission, createReviewSchema, type CreateReviewResponse } from '@fit/types';
+import {
+  Permission,
+  reportReviewSchema,
+  memberTrainerReviewsQuerySchema,
+  createReviewSchema,
+  type CreateReviewResponse,
+} from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -30,6 +39,19 @@ import { ReviewsService } from './reviews.service';
 @UseGuards(TenantGuard, PermissionsGuard)
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
+
+  @Post(':id/report')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ReviewWrite)
+  async report(@Param('id') id: string, @Body() body: unknown) {
+    return this.reviews.report(id, parse(reportReviewSchema, body));
+  }
+
+  @Get('trainers/:id')
+  @RequirePermissions(Permission.ReviewWrite)
+  async listForMember(@Param('id') id: string, @Query() query: unknown) {
+    return this.reviews.listForMember(id, parse(memberTrainerReviewsQuerySchema, query));
+  }
 
   /**
    * `POST /reviews` — post the calling member's review of a class they attended.

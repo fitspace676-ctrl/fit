@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
@@ -9,6 +9,8 @@ import type { AdminTrainerDetail, TrainerClientRow, WeeklyAvailability } from '@
 import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
 import { formatClassDateTime } from '../format';
+import { loadReviewQueueAction, moderateReviewAction } from '../actions';
+import type { ListAdminTrainerReviewsResponse } from '@fit/types';
 import { TrainerAvailabilityEditor } from './availability-editor';
 
 type T = ReturnType<typeof useTranslations>;
@@ -356,6 +358,7 @@ export function TrainerTabs({
   availability,
   clients,
   canEditAvailability,
+  canModerateReviews,
   timeZone,
 }: {
   trainer: AdminTrainerDetail;
@@ -364,6 +367,7 @@ export function TrainerTabs({
   clients: TrainerClientRow[];
   /** Whether the staff session holds `TrainerScheduleManage` (the Availability tab edits). */
   canEditAvailability: boolean;
+  canModerateReviews: boolean;
   /** The gym's IANA zone — the next-class time is read on it. */
   timeZone: string;
 }) {
@@ -404,7 +408,12 @@ export function TrainerTabs({
         {active === 'Clients' && (
           <ClientsPanel clients={clients} t={t} locale={locale} timeZone={timeZone} />
         )}
-        {active === 'Reviews' && <ReviewsPanel trainer={trainer} t={t} />}
+        {active === 'Reviews' && (
+          <>
+            <ReviewsPanel trainer={trainer} t={t} />
+            {canModerateReviews && <ReviewQueue trainerId={trainer.id} />}
+          </>
+        )}
         {active === 'Availability' && (
           <AvailabilityPanel
             trainer={trainer}
@@ -627,5 +636,114 @@ function AvailabilityPanel({
 }) {
   return (
     <TrainerAvailabilityEditor trainerId={trainer.id} initial={availability} canWrite={canWrite} />
+  );
+}
+
+/** Existing moderation endpoints, inline in the trainer's Reviews tab. */
+export function ReviewQueue({ trainerId }: { trainerId: string }) {
+  const t = useTranslations('admin.trainers.reports');
+  const [page, setPage] = useState(1);
+  const [revision, setRevision] = useState(0);
+  const [data, setData] = useState<ListAdminTrainerReviewsResponse | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setBusy(true);
+    setError(null);
+    void loadReviewQueueAction(trainerId, page)
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setData(result.data);
+        else {
+          setData(null);
+          setError(result.error);
+        }
+        setBusy(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setData(null);
+        setError(t('error'));
+        setBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [trainerId, page, revision, t]);
+  async function moderate(id: string, hidden: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await moderateReviewAction(id, hidden);
+      if (!result.ok) {
+        setError(result.error);
+        setBusy(false);
+      } else setRevision((value) => value + 1);
+    } catch {
+      setError(t('error'));
+      setBusy(false);
+    }
+  }
+  return (
+    <Card {...stylex.props(styles.panelCard)} aria-busy={busy}>
+      {error && <p role="alert">{error}</p>}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => setRevision((value) => value + 1)}
+        {...stylex.props(styles.tag)}
+      >
+        {t('load')}
+      </button>
+      {data?.data.length === 0 && <p {...stylex.props(styles.mutedText)}>{t('empty')}</p>}
+      {data?.data.map((review) => (
+        <article key={review.id} {...stylex.props(styles.block)}>
+          <strong>
+            {review.authorName} · {review.rating}/5
+          </strong>
+          <p {...stylex.props(styles.bioText)}>{review.comment}</p>
+          {(review.reportCount ?? 0) > 0 && (
+            <span {...stylex.props(styles.tag)}>
+              {t('count', { count: review.reportCount ?? 0 })}
+            </span>
+          )}
+          <ul>
+            {review.reports?.map((report, index) => (
+              <li key={index}>
+                {t(`reasons.${report.reason}`)}
+                {report.note ? ` — ${report.note}` : ''}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            disabled={busy}
+            {...stylex.props(styles.tag)}
+            onClick={() => {
+              void moderate(review.id, review.status === 'VISIBLE');
+            }}
+          >
+            {t(review.status === 'VISIBLE' ? 'hide' : 'unhide')}
+          </button>
+        </article>
+      ))}
+      <div {...stylex.props(styles.tagRow)}>
+        <button
+          type="button"
+          disabled={busy || page === 1}
+          onClick={() => setPage((value) => value - 1)}
+        >
+          {t('previous')}
+        </button>
+        <button
+          type="button"
+          disabled={busy || !data || page * data.limit >= data.total}
+          onClick={() => setPage((value) => value + 1)}
+        >
+          {t('next')}
+        </button>
+      </div>
+    </Card>
   );
 }
