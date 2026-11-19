@@ -59,7 +59,7 @@ export interface TrainerReviewsPage {
   limit?: number;
 }
 
-/** Options for `GET /trainers/:id/reviews`. */
+/** Options for `GET /reviews/trainers/:id`. */
 export function trainerReviewsQueryOptions(
   gymId: string | null,
   trainerId: string | null | undefined,
@@ -81,7 +81,7 @@ export function trainerReviewsQueryOptions(
 }
 
 /**
- * A trainer's visible reviews plus the live aggregate.
+ * A trainer's visible, unreported reviews plus the member's live aggregate.
  *
  * `avgRating` and `total` span every visible review, not just this page, so
  * "4.8 (23 reviews)" renders above a list of ten without a second request.

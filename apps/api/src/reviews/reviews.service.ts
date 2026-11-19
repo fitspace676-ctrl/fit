@@ -9,6 +9,9 @@ import { contactEmail } from '../common/directory-identity';
 import { BookingStatus, Prisma, ReviewStatus } from '@fit/db';
 import type {
   AdminReview,
+  ReportReviewData,
+  ReportReviewResponse,
+  ListTrainerReviewsResponse,
   CreateReviewData,
   CreateReviewResponse,
   ListAdminTrainerReviewsQuery,
@@ -29,6 +32,7 @@ const ADMIN_REVIEW_SELECT = {
   comment: true,
   status: true,
   classInstanceId: true,
+  reports: { select: { reason: true, note: true } },
   createdAt: true,
   member: { select: { user: { select: { name: true, email: true } } } },
   classInstance: {
@@ -81,6 +85,95 @@ export class ReviewsService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
   ) {}
+
+  /** Persist a member report and audit only the first successful insertion. */
+  async report(reviewId: string, data: ReportReviewData): Promise<ReportReviewResponse> {
+    const memberId = await this.requireCallerMembership();
+    return this.prisma.client.$transaction(async (tx) => {
+      const review = await tx.review.findFirst({
+        where: { id: reviewId },
+        select: { memberId: true },
+      });
+      if (!review)
+        throw new NotFoundException({ message: 'Review not found', code: 'REVIEW_NOT_FOUND' });
+      if (review.memberId === memberId) {
+        throw new ForbiddenException({
+          message: 'You cannot report your own review',
+          code: 'OWN_REVIEW',
+        });
+      }
+      // ON CONFLICT DO NOTHING makes concurrent retries successful without
+      // aborting the transaction or creating duplicate audit events.
+      const inserted = await tx.reviewReport.createMany({
+        data: [
+          {
+            gymId: this.tenant.gymId,
+            reviewId,
+            memberId,
+            reason: data.reason,
+            note: data.note || null,
+          },
+        ],
+        skipDuplicates: true,
+      });
+      if (inserted.count > 0) {
+        await tx.auditLog.create({
+          data: {
+            action: 'review.report',
+            actorId: this.tenant.userId!,
+            targetId: reviewId,
+            metadata: { reason: data.reason },
+          },
+        });
+      }
+      return { reported: true };
+    });
+  }
+
+  /** Authenticated read: ownership never exposes member IDs on the public API. */
+  async listForMember(
+    trainerId: string,
+    query: { page: number; limit: number },
+  ): Promise<ListTrainerReviewsResponse> {
+    const memberId = await this.requireCallerMembership();
+    const where: Prisma.ReviewWhereInput = {
+      trainerId,
+      status: ReviewStatus.VISIBLE,
+      reports: { none: { memberId } },
+    };
+    const [rows, total, aggregate] = await Promise.all([
+      this.prisma.client.review.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        select: {
+          id: true,
+          memberId: true,
+          rating: true,
+          comment: true,
+          createdAt: true,
+          member: { select: { user: { select: { name: true } } } },
+        },
+      }),
+      this.prisma.client.review.count({ where }),
+      this.prisma.client.review.aggregate({ where, _avg: { rating: true } }),
+    ]);
+    return {
+      reviews: rows.map((row) => ({
+        id: row.id,
+        rating: row.rating,
+        comment: row.comment,
+        authorName: row.member.user.name ?? 'Member',
+        createdAt: row.createdAt.toISOString(),
+        isOwn: row.memberId === memberId,
+      })),
+      total,
+      avgRating: Math.round((aggregate._avg.rating ?? 0) * 10) / 10,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
 
   /**
    * Post the calling member's review of a class occurrence they attended (T5.12).
@@ -194,7 +287,7 @@ export class ReviewsService {
       this.prisma.client.review.findMany({
         where,
         select: ADMIN_REVIEW_SELECT,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ reports: { _count: 'desc' } }, { createdAt: 'desc' }],
         skip,
         take: query.limit,
       }),
@@ -399,6 +492,11 @@ function toAdminReview(row: AdminReviewRecord): AdminReview {
     status: row.status,
     authorName: row.member.user.name ?? email.split('@')[0] ?? email,
     authorEmail: email,
+    reportCount: row.reports.length,
+    reports: row.reports.map((report) => ({
+      reason: report.reason,
+      ...(report.note ? { note: report.note } : {}),
+    })),
     classInstanceId: row.classInstanceId,
     classTitle: row.classInstance?.template?.title ?? row.classInstance?.classType?.name ?? null,
     createdAt: row.createdAt.toISOString(),

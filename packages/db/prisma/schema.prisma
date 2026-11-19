@@ -455,6 +455,7 @@ model Gym {
   classInstances          ClassInstance[]
   ptSessions              PtSession[]
   bookings                Booking[]
+  reviewReports           ReviewReport[]
   reviews                 Review[]
   orders                  Order[]
   payments                Payment[]
@@ -869,6 +870,7 @@ model GymMember {
   /// The member's home branch — see {@link GymMember.locationId}.
   location                Location?            @relation(fields: [locationId], references: [id], onDelete: SetNull)
   bookings                Booking[]
+  reviewReports           ReviewReport[]
   reviews                 Review[]
   /// Orders this person BOUGHT. Named because {@link Order} now points at
   /// `GymMember` twice — once for the buyer, once for the staff member who rang
@@ -2256,7 +2258,34 @@ model Booking {
 /// soft-moderation flag a manager flips to `HIDDEN`; only `VISIBLE` rows feed the
 /// trainer's aggregate `rating`. `gymId` is the isolating tenant key the scoped
 /// Prisma client constrains every query to.
+enum ReviewReportReason {
+  OFFENSIVE
+  SPAM
+  HARASSMENT
+  OTHER
+}
+
+model ReviewReport {
+  id        String @id @default(cuid())
+  gymId     String
+  reviewId  String
+  memberId  String
+  reason    ReviewReportReason
+  note      String? @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  gym    Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  review Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  member GymMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, memberId])
+  @@index([gymId])
+  @@index([memberId])
+  @@map("review_reports")
+}
+
 model Review {
+  reports ReviewReport[]
   id              String       @id @default(cuid())
   gymId           String
   memberId        String

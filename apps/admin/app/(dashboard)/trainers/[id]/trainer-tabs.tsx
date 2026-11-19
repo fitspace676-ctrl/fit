@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Card } from '@fit/ui-kit';
+import { useEffect, useState } from 'react';
+import { Badge, Button, Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -9,6 +9,8 @@ import type { AdminTrainerDetail, TrainerClientRow, WeeklyAvailability } from '@
 import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
 import { formatClassDateTime } from '../format';
+import { loadReviewQueueAction, moderateReviewAction } from '../actions';
+import type { ListAdminTrainerReviewsResponse } from '@fit/types';
 import { TrainerAvailabilityEditor } from './availability-editor';
 
 type T = ReturnType<typeof useTranslations>;
@@ -121,6 +123,29 @@ const styles = stylex.create({
   secondaryText: {
     margin: 0,
     fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  queueHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
+  },
+  queueItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.625rem',
+    paddingTop: '1rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+  reasonList: {
+    margin: 0,
+    paddingInlineStart: '1.125rem',
+    fontSize: '0.8125rem',
+    lineHeight: 1.6,
     color: 'var(--color-text-secondary)',
   },
   tagRow: {
@@ -356,6 +381,7 @@ export function TrainerTabs({
   availability,
   clients,
   canEditAvailability,
+  canModerateReviews,
   timeZone,
 }: {
   trainer: AdminTrainerDetail;
@@ -364,6 +390,7 @@ export function TrainerTabs({
   clients: TrainerClientRow[];
   /** Whether the staff session holds `TrainerScheduleManage` (the Availability tab edits). */
   canEditAvailability: boolean;
+  canModerateReviews: boolean;
   /** The gym's IANA zone — the next-class time is read on it. */
   timeZone: string;
 }) {
@@ -404,7 +431,12 @@ export function TrainerTabs({
         {active === 'Clients' && (
           <ClientsPanel clients={clients} t={t} locale={locale} timeZone={timeZone} />
         )}
-        {active === 'Reviews' && <ReviewsPanel trainer={trainer} t={t} />}
+        {active === 'Reviews' && (
+          <div {...stylex.props(styles.stack)}>
+            <ReviewsPanel trainer={trainer} t={t} />
+            {canModerateReviews && <ReviewQueue trainerId={trainer.id} />}
+          </div>
+        )}
         {active === 'Availability' && (
           <AvailabilityPanel
             trainer={trainer}
@@ -627,5 +659,132 @@ function AvailabilityPanel({
 }) {
   return (
     <TrainerAvailabilityEditor trainerId={trainer.id} initial={availability} canWrite={canWrite} />
+  );
+}
+
+/** Existing moderation endpoints, inline in the trainer's Reviews tab. */
+export function ReviewQueue({ trainerId }: { trainerId: string }) {
+  const t = useTranslations('admin.trainers.reports');
+  const [page, setPage] = useState(1);
+  const [revision, setRevision] = useState(0);
+  const [data, setData] = useState<ListAdminTrainerReviewsResponse | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setBusy(true);
+    setError(null);
+    void loadReviewQueueAction(trainerId, page)
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setData(result.data);
+        else {
+          setData(null);
+          setError(result.error);
+        }
+        setBusy(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setData(null);
+        setError(t('error'));
+        setBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [trainerId, page, revision, t]);
+  async function moderate(id: string, hidden: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await moderateReviewAction(id, hidden);
+      if (!result.ok) {
+        setError(result.error);
+        setBusy(false);
+      } else setRevision((value) => value + 1);
+    } catch {
+      setError(t('error'));
+      setBusy(false);
+    }
+  }
+  return (
+    <Card {...stylex.props(styles.panelCard)} aria-busy={busy}>
+      <div {...stylex.props(styles.queueHead)}>
+        <p {...stylex.props(styles.sectionLabel)}>{t('title')}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="inline"
+          disabled={busy}
+          onClick={() => setRevision((value) => value + 1)}
+          label={t('load')}
+        />
+      </div>
+      {error && (
+        <p role="alert" {...stylex.props(styles.mutedText)}>
+          {error}
+        </p>
+      )}
+      {data?.data.length === 0 && <p {...stylex.props(styles.mutedText)}>{t('empty')}</p>}
+      {data?.data.map((review) => (
+        <article key={review.id} {...stylex.props(styles.queueItem)}>
+          <div {...stylex.props(styles.queueHead)}>
+            <strong {...stylex.props(styles.bioText)}>
+              {review.authorName} · {review.rating}/5
+            </strong>
+            <span {...stylex.props(styles.tagRow)}>
+              {(review.reportCount ?? 0) > 0 && (
+                <Badge tone="pending" label={t('count', { count: review.reportCount ?? 0 })} />
+              )}
+              {review.status !== 'VISIBLE' && <Badge tone="neutral" label={t('hidden')} />}
+            </span>
+          </div>
+          {review.comment && <p {...stylex.props(styles.bioText)}>{review.comment}</p>}
+          {(review.reports?.length ?? 0) > 0 && (
+            <ul {...stylex.props(styles.reasonList)}>
+              {review.reports?.map((report, index) => (
+                <li key={index}>
+                  {t(`reasons.${report.reason}`)}
+                  {report.note ? ` — ${report.note}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="inline"
+              disabled={busy}
+              onClick={() => {
+                void moderate(review.id, review.status === 'VISIBLE');
+              }}
+              label={t(review.status === 'VISIBLE' ? 'hide' : 'unhide')}
+            />
+          </div>
+        </article>
+      ))}
+      {data && data.total > data.limit && (
+        <div {...stylex.props(styles.tagRow)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="inline"
+            disabled={busy || page === 1}
+            onClick={() => setPage((value) => value - 1)}
+            label={t('previous')}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="inline"
+            disabled={busy || page * data.limit >= data.total}
+            onClick={() => setPage((value) => value + 1)}
+            label={t('next')}
+          />
+        </div>
+      )}
+    </Card>
   );
 }

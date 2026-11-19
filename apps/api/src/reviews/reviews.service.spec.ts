@@ -24,6 +24,7 @@ const adminRow = (over?: Record<string, unknown>) => ({
   rating: 5,
   comment: 'Great class',
   status: ReviewStatus.VISIBLE,
+  reports: [],
   classInstanceId: INSTANCE_ID,
   createdAt: new Date('2026-01-02T10:00:00.000Z'),
   member: { user: { name: 'Ada Lovelace', email: 'ada@example.com' } },
@@ -416,10 +417,35 @@ describe('ReviewsService', () => {
         status: ReviewStatus.VISIBLE,
         authorName: 'Ada Lovelace',
         authorEmail: 'ada@example.com',
+        reportCount: 0,
+        reports: [],
         classInstanceId: INSTANCE_ID,
         classTitle: 'Spin',
         createdAt: '2026-01-02T10:00:00.000Z',
       });
+    });
+
+    it('includes report details and puts reported reviews first', async () => {
+      ctx.trainer.findFirst.mockResolvedValueOnce({ id: TRAINER_ID });
+      ctx.review.findMany.mockResolvedValueOnce([
+        adminRow({
+          reports: [
+            { reason: 'SPAM', note: 'Ad' },
+            { reason: 'OTHER', note: null },
+          ],
+        }),
+      ]);
+      ctx.review.count.mockResolvedValueOnce(1);
+      const result = await ctx.service.listForModeration(TRAINER_ID, { page: 1, limit: 20 });
+      expect(result.data[0]).toMatchObject({
+        reportCount: 2,
+        reports: [{ reason: 'SPAM', note: 'Ad' }, { reason: 'OTHER' }],
+      });
+      expect(ctx.review.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ reports: { _count: 'desc' } }, { createdAt: 'desc' }],
+        }),
+      );
     });
 
     it('narrows by status when one is supplied', async () => {
