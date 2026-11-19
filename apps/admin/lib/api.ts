@@ -266,6 +266,8 @@ import type {
   UpdateLoyaltyRewardInput,
   ListRedemptionsQuery,
   ListRedemptionsResponse,
+  ListAdminTrainerReviewsResponse,
+  SetReviewVisibilityResponse,
 } from '@fit/types';
 import { TENANT_MISMATCH_CODE, reportQueryParams } from '@fit/types';
 import { redirect } from 'next/navigation';
@@ -3520,7 +3522,7 @@ export async function previewMarketingMessage(input: { subject: string; body: st
 
 /** Staff moderation uses the same tenant-bound token as the rest of the console. */
 export async function listTrainerReviewsForModeration(trainerId: string, page: number) {
-  return unwrap<import('@fit/types').ListAdminTrainerReviewsResponse>(
+  return unwrap<ListAdminTrainerReviewsResponse>(
     await fetch(
       `${apiBaseUrl()}/admin/trainers/${encodeURIComponent(trainerId)}/reviews?page=${page}&limit=20`,
       { headers: await authHeaders(), cache: 'no-store' },
@@ -3528,7 +3530,7 @@ export async function listTrainerReviewsForModeration(trainerId: string, page: n
   );
 }
 export async function moderateReview(id: string, hidden: boolean) {
-  return unwrap<import('@fit/types').SetReviewVisibilityResponse>(
+  return unwrap<SetReviewVisibilityResponse>(
     await fetch(
       `${apiBaseUrl()}/admin/reviews/${encodeURIComponent(id)}/${hidden ? 'hide' : 'unhide'}`,
       { method: 'POST', headers: await authHeaders(), cache: 'no-store' },

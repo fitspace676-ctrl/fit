@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card } from '@fit/ui-kit';
+import { Badge, Button, Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -123,6 +123,29 @@ const styles = stylex.create({
   secondaryText: {
     margin: 0,
     fontSize: '0.875rem',
+    color: 'var(--color-text-secondary)',
+  },
+  queueHead: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+    flexWrap: 'wrap',
+  },
+  queueItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.625rem',
+    paddingTop: '1rem',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'var(--color-border)',
+  },
+  reasonList: {
+    margin: 0,
+    paddingInlineStart: '1.125rem',
+    fontSize: '0.8125rem',
+    lineHeight: 1.6,
     color: 'var(--color-text-secondary)',
   },
   tagRow: {
@@ -409,10 +432,10 @@ export function TrainerTabs({
           <ClientsPanel clients={clients} t={t} locale={locale} timeZone={timeZone} />
         )}
         {active === 'Reviews' && (
-          <>
+          <div {...stylex.props(styles.stack)}>
             <ReviewsPanel trainer={trainer} t={t} />
             {canModerateReviews && <ReviewQueue trainerId={trainer.id} />}
-          </>
+          </div>
         )}
         {active === 'Availability' && (
           <AvailabilityPanel
@@ -687,63 +710,81 @@ export function ReviewQueue({ trainerId }: { trainerId: string }) {
   }
   return (
     <Card {...stylex.props(styles.panelCard)} aria-busy={busy}>
-      {error && <p role="alert">{error}</p>}
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => setRevision((value) => value + 1)}
-        {...stylex.props(styles.tag)}
-      >
-        {t('load')}
-      </button>
+      <div {...stylex.props(styles.queueHead)}>
+        <p {...stylex.props(styles.sectionLabel)}>{t('title')}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="inline"
+          disabled={busy}
+          onClick={() => setRevision((value) => value + 1)}
+          label={t('load')}
+        />
+      </div>
+      {error && (
+        <p role="alert" {...stylex.props(styles.mutedText)}>
+          {error}
+        </p>
+      )}
       {data?.data.length === 0 && <p {...stylex.props(styles.mutedText)}>{t('empty')}</p>}
       {data?.data.map((review) => (
-        <article key={review.id} {...stylex.props(styles.block)}>
-          <strong>
-            {review.authorName} · {review.rating}/5
-          </strong>
-          <p {...stylex.props(styles.bioText)}>{review.comment}</p>
-          {(review.reportCount ?? 0) > 0 && (
-            <span {...stylex.props(styles.tag)}>
-              {t('count', { count: review.reportCount ?? 0 })}
+        <article key={review.id} {...stylex.props(styles.queueItem)}>
+          <div {...stylex.props(styles.queueHead)}>
+            <strong {...stylex.props(styles.bioText)}>
+              {review.authorName} · {review.rating}/5
+            </strong>
+            <span {...stylex.props(styles.tagRow)}>
+              {(review.reportCount ?? 0) > 0 && (
+                <Badge tone="pending" label={t('count', { count: review.reportCount ?? 0 })} />
+              )}
+              {review.status !== 'VISIBLE' && <Badge tone="neutral" label={t('hidden')} />}
             </span>
+          </div>
+          {review.comment && <p {...stylex.props(styles.bioText)}>{review.comment}</p>}
+          {(review.reports?.length ?? 0) > 0 && (
+            <ul {...stylex.props(styles.reasonList)}>
+              {review.reports?.map((report, index) => (
+                <li key={index}>
+                  {t(`reasons.${report.reason}`)}
+                  {report.note ? ` — ${report.note}` : ''}
+                </li>
+              ))}
+            </ul>
           )}
-          <ul>
-            {review.reports?.map((report, index) => (
-              <li key={index}>
-                {t(`reasons.${report.reason}`)}
-                {report.note ? ` — ${report.note}` : ''}
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            disabled={busy}
-            {...stylex.props(styles.tag)}
-            onClick={() => {
-              void moderate(review.id, review.status === 'VISIBLE');
-            }}
-          >
-            {t(review.status === 'VISIBLE' ? 'hide' : 'unhide')}
-          </button>
+          <div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="inline"
+              disabled={busy}
+              onClick={() => {
+                void moderate(review.id, review.status === 'VISIBLE');
+              }}
+              label={t(review.status === 'VISIBLE' ? 'hide' : 'unhide')}
+            />
+          </div>
         </article>
       ))}
-      <div {...stylex.props(styles.tagRow)}>
-        <button
-          type="button"
-          disabled={busy || page === 1}
-          onClick={() => setPage((value) => value - 1)}
-        >
-          {t('previous')}
-        </button>
-        <button
-          type="button"
-          disabled={busy || !data || page * data.limit >= data.total}
-          onClick={() => setPage((value) => value + 1)}
-        >
-          {t('next')}
-        </button>
-      </div>
+      {data && data.total > data.limit && (
+        <div {...stylex.props(styles.tagRow)}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="inline"
+            disabled={busy || page === 1}
+            onClick={() => setPage((value) => value - 1)}
+            label={t('previous')}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="inline"
+            disabled={busy || page * data.limit >= data.total}
+            onClick={() => setPage((value) => value + 1)}
+            label={t('next')}
+          />
+        </div>
+      )}
     </Card>
   );
 }

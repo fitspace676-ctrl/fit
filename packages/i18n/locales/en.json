@@ -1934,7 +1934,7 @@
         "count": "Reports: {count}",
         "hide": "Hide review",
         "unhide": "Restore review",
-        "load": "Load reviews",
+        "load": "Refresh",
         "next": "Next",
         "previous": "Previous",
         "error": "Could not load or update reviews. Please try again.",
@@ -1944,7 +1944,9 @@
           "SPAM": "Spam",
           "HARASSMENT": "Harassment",
           "OTHER": "Other"
-        }
+        },
+        "title": "Review moderation",
+        "hidden": "Hidden"
       }
     },
     "staff": {
