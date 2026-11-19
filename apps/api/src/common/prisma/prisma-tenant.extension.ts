@@ -137,6 +137,7 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'PtSession',
   'Booking',
   'Review',
+  'ReviewReport',
   'Order',
   'Payment',
   // The shopper's basket. Reached signed-in or anonymously and served today off

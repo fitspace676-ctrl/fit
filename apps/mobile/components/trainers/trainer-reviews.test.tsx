@@ -71,3 +71,31 @@ describe('the four branches', () => {
     expect(view.queryByTestId('trainer-reviews-error')).toBeNull();
   });
 });
+
+it('offers reporting only for reviews explicitly known to belong to another member', () => {
+  const row = {
+    rating: 4,
+    comment: 'Class',
+    authorName: 'Member',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+  const view = renderScreen(
+    section({
+      isPending: false,
+      data: {
+        reviews: [
+          { ...row, id: 'own', isOwn: true },
+          { ...row, id: 'other', isOwn: false },
+          { ...row, id: 'legacy' },
+        ],
+        avgRating: 4,
+        total: 3,
+        page: 1,
+        limit: 10,
+      },
+    }),
+  );
+  expect(view.queryByTestId('report-review-own')).toBeNull();
+  expect(view.queryByTestId('report-review-legacy')).toBeNull();
+  expect(view.getByTestId('report-review-other')).toBeTruthy();
+});

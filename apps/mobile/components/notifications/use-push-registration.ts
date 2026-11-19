@@ -26,8 +26,10 @@ export function usePushRegistration() {
     const foreground = AppState.addEventListener('change', (state) => {
       if (state === 'active') void syncPushPreference(userId);
     });
-    const rotation = Notifications.addPushTokenListener(() => {
-      void syncPushPreference(userId);
+    const rotation = Notifications.addPushTokenListener((token) => {
+      // Fetching a native token on iOS emits this listener again. Reuse the
+      // supplied native token when resolving its Expo token to break that loop.
+      void syncPushPreference(userId, undefined, token);
     });
     return () => {
       foreground.remove();

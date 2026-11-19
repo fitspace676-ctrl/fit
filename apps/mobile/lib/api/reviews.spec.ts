@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../env';
-import { createReview, listTrainerReviews } from './reviews';
+import { createReview, listTrainerReviews, reportReview } from './reviews';
 
 interface Call {
   url: string;
@@ -61,19 +61,30 @@ describe('createReview', () => {
 });
 
 describe('listTrainerReviews', () => {
-  it('GETs the public, paginated listing', async () => {
+  it('GETs the member-scoped, paginated listing', async () => {
     const calls = stubFetch({ reviews: [], avgRating: 0, total: 0, page: 1, limit: 10 });
 
     await listTrainerReviews({ trainerId: 't_1', gymId: 'gym_a', page: 2, limit: 5 });
 
-    expect((calls[0] as Call).url).toBe(
-      `${env.apiUrl}/trainers/t_1/reviews?gymId=gym_a&page=2&limit=5`,
-    );
+    expect((calls[0] as Call).url).toBe(`${env.apiUrl}/reviews/trainers/t_1?page=2&limit=5`);
   });
 
   it('omits page and limit when unset, letting the server default them', async () => {
     const calls = stubFetch({ reviews: [], avgRating: 0, total: 0, page: 1, limit: 10 });
     await listTrainerReviews({ trainerId: 't_1', gymId: 'gym_a' });
-    expect((calls[0] as Call).url).toBe(`${env.apiUrl}/trainers/t_1/reviews?gymId=gym_a`);
+    expect((calls[0] as Call).url).toBe(`${env.apiUrl}/reviews/trainers/t_1`);
+  });
+});
+
+it('reports a review using the member endpoint', async () => {
+  const calls = stubFetch({ reported: true });
+  await expect(reportReview('r_1', { reason: 'SPAM', note: 'Advertising' })).resolves.toEqual({
+    reported: true,
+  });
+  expect(calls[0]?.url).toBe(`${env.apiUrl}/reviews/r_1/report`);
+  expect(calls[0]?.init.method).toBe('POST');
+  expect(JSON.parse(calls[0]?.init.body as string)).toEqual({
+    reason: 'SPAM',
+    note: 'Advertising',
   });
 });

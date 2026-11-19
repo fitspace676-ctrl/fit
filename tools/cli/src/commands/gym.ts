@@ -3,11 +3,12 @@ import { stringFlag } from '../args';
 import { CommandError, type CommandResult } from '../output';
 import { loadInfraEnv } from '../env-source';
 import { runOnboard } from './onboard';
+import { runImportSmartCrm } from './import-smartcrm';
 
 const USAGE =
   'usage: fit gym <create --name <name> --slug <slug> [--owner-email <email>] | ' +
   'onboard --name <name> --slug <slug> --owner-email <email> [--members <n>] [--roster <file>] [--dry-run] | ' +
-  'list>';
+  'import-smartcrm --data <file> --slug <slug> --name <name> [--owner-email <email>] [--dry-run] [--only <sections>] | list>';
 
 /**
  * Tenant provisioning helpers. `create` / `list` wrap the API's gym endpoints so
@@ -20,6 +21,7 @@ export async function run(args: ParsedArgs): Promise<CommandResult> {
 
   // `onboard` talks to the database, not the API — dispatch it before we resolve
   // the API base so it never depends on a reachable API URL.
+  if (sub === 'import-smartcrm') return runImportSmartCrm(args);
   if (sub === 'onboard') {
     return runOnboard(args);
   }

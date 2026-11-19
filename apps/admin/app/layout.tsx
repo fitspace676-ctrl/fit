@@ -17,6 +17,7 @@ import { ThemeProvider } from '@/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/lib/theme';
 import { AstryxProvider } from '@/components/theme/astryx-provider';
 import { getActiveGymBrand, getActiveGymSlug } from '@/lib/active-gym';
+import { ConsoleBrandProvider } from '@/components/console-brand';
 import { ConsoleThemeStyle } from '@/components/console-theme-style';
 import { gymMetadata, gymViewport } from '@/lib/gym-metadata';
 
@@ -71,6 +72,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const locale = await getLocale();
   const messages = await getMessages();
 
+  const [slug, brand] = await Promise.all([getActiveGymSlug(), getActiveGymBrand()]);
+
   return (
     <html
       lang={locale}
@@ -80,12 +83,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="min-h-screen font-sans antialiased">
         {/* The owner's console colour, on every page the host names a gym for,
             the sign-in page included. */}
-        <ConsoleThemeStyle slug={await getActiveGymSlug()} />
+        <ConsoleThemeStyle slug={slug} />
         <SentryInit />
         <TopLoader />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider initial={theme}>
-            <AstryxProvider>{children}</AstryxProvider>
+            <AstryxProvider>
+              <ConsoleBrandProvider brand={{ slug, name: brand?.name, logoUrl: brand?.logoUrl }}>
+                {children}
+              </ConsoleBrandProvider>
+            </AstryxProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

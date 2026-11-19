@@ -21,6 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/privacy',
     '/terms',
     '/dpa',
+    '/delete-account',
     ...FEATURE_SLUGS.map((slug) => `/features/${slug}`),
     ...BUILT_FOR_SLUGS.map((slug) => `/built-for/${slug}`),
   ];

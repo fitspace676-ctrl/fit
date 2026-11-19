@@ -1,25 +1,13 @@
 // @fit/mobile — reviews: posting one, and reading a trainer's.
 //
-// Two controllers with deliberately asymmetric authorization:
-//
-//   - `POST /reviews` — `ReviewWrite`, member self-service. Accepted only when
-//     the caller has an **`ATTENDED`** booking for that occurrence (`403
-//     NOT_ATTENDED`), and only once per `(member, classInstance)` — a second is
-//     `409 ALREADY_REVIEWED`, enforced by a unique constraint as well as a
-//     pre-check, so a double-submit race still gets the same 409.
-//   - `GET /trainers/:id/reviews` — `@Public()`, because the gym's site shows it
-//     to visitors.
-//
-// A review is written against a **class occurrence**, but its visible effect is
-// on the **trainer**: `ReviewsService` recomputes the trainer's denormalised
-// `rating` / `reviewCount` over VISIBLE reviews in the same transaction. The
-// client is never told which trainer led the class, so `createReview`
-// invalidates the whole `queryKeys.trainers(gymId)` subtree — the reviews key is
-// nested under the trainer detail precisely so one invalidation covers both, and
-// the profile's average can never disagree with the list under it.
+// Member reads use GET /reviews/trainers/:id: the server derives the gym and
+// membership from authentication, marks own reviews, and excludes reports.
+// POST /reviews/:id/report persists an idempotent report for moderation.
 
 import type {
   CreateReviewData,
+  ReportReviewData,
+  ReportReviewResponse,
   CreateReviewResponse,
   ListTrainerReviewsQuery,
   ListTrainerReviewsResponse,
@@ -45,10 +33,10 @@ export async function createReview(
 }
 
 /**
- * `GET /trainers/:id/reviews?gymId&page&limit` — one page of a trainer's VISIBLE
+ * `GET /reviews/trainers/:id?page&limit` — one page of a trainer's VISIBLE
  * reviews plus the live aggregate.
  *
- * `avgRating` and `total` span *every* visible review, not just this page, so
+ * `avgRating` and `total` span *every* visible, unreported review, not just this page, so
  * "4.8 (23 reviews)" can be rendered above a list of ten. No reviews yet is a
  * normal `200` with `avgRating: 0`.
  */
@@ -61,8 +49,18 @@ export async function listTrainerReviews(
     endpointPath(ENDPOINTS.listTrainerReviews, { id: params.trainerId }),
     {
       method: ENDPOINTS.listTrainerReviews.method,
-      query: { gymId: params.gymId, page: params.page, limit: params.limit },
+      query: { page: params.page, limit: params.limit },
       signal: options.signal,
     },
   );
+}
+
+export async function reportReview(
+  id: string,
+  input: ReportReviewData,
+): Promise<ReportReviewResponse> {
+  return apiJson<ReportReviewResponse>(endpointPath(ENDPOINTS.reportReview, { id }), {
+    method: ENDPOINTS.reportReview.method,
+    json: input,
+  });
 }

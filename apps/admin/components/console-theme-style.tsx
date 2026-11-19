@@ -12,6 +12,6 @@ import { consoleThemeCss } from '@/lib/console-theme';
  * dev) from the session's slug.
  */
 export async function ConsoleThemeStyle({ slug }: { slug: string | null }) {
-  const css = consoleThemeCss(await getGymConsoleColor(slug));
+  const css = consoleThemeCss(await getGymConsoleColor(slug), slug);
   return css ? <style dangerouslySetInnerHTML={{ __html: css }} /> : null;
 }

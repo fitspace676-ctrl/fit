@@ -152,7 +152,7 @@ describe('endpointPath', () => {
     expect(endpointPath(ENDPOINTS.getMyInvoicePdf, { invoiceId: 'inv_1' })).toBe(
       '/me/invoices/inv_1/pdf',
     );
-    expect(endpointPath(ENDPOINTS.listTrainerReviews, { id: 't_1' })).toBe('/trainers/t_1/reviews');
+    expect(endpointPath(ENDPOINTS.listTrainerReviews, { id: 't_1' })).toBe('/reviews/trainers/t_1');
   });
 });
 

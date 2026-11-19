@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import { portalThemeVars, type PortalColorChoice } from '@fit/types';
+import type { PortalColorChoice } from '@fit/types';
+import { brandedPortalThemeVars, getBrandSkin } from '@/lib/brand-skins';
+import { BrandSkinProvider } from './brand-skin-provider';
 
 /**
  * The tenant's colours, painted onto the member portal before anything renders.
@@ -18,12 +20,13 @@ import { portalThemeVars, type PortalColorChoice } from '@fit/types';
  * is already per-request (it reads the theme cookie), so resolving the tenant
  * there costs nothing that was not already being paid.
  *
- * `display: contents` because this element must not exist as far as layout is
+ * Unbranded scopes use `display: contents` because this element must not exist as far as layout is
  * concerned: it sits between Astryx's own wrapper (which uses the same trick) and
  * screens that measure themselves against the viewport, and a stray block box
  * here would break every `min-height: 100vh` beneath it. Custom properties
  * inherit through it regardless — inheritance follows the element tree, not the
- * box tree.
+ * box tree. A registered skin needs a canvas box as well: body is outside
+ * this token scope, so its old background cannot paint the branded page.
  *
  * INSIDE the Astryx `<Theme>` wrapper, never on `<html>`. The compiled theme
  * declares its tokens on that wrapper (`@scope ([data-astryx-theme])`), so a
@@ -33,21 +36,40 @@ import { portalThemeVars, type PortalColorChoice } from '@fit/types';
  * own toggle is showing.
  *
  * Renders its children untouched when there is no tenant in scope (the apex
- * domain, a preview URL), when the API sent no skin, and — the common case —
- * when the gym has simply never chosen a portal colour. The shipped Lime Block
+ * domain, a preview URL), or when there is neither a registered brand skin
+ * nor a chosen portal colour. The shipped Lime Block
  * palette is the right default for a page that belongs to no gym, and equally
  * for one whose gym has not asked for anything else.
  */
 export function PortalThemeScope({
   colors,
+  slug,
   children,
 }: {
   colors: PortalColorChoice | null;
+  slug?: string | null;
   children: ReactNode;
 }) {
-  const vars = colors ? portalThemeVars(colors) : {};
+  const skin = getBrandSkin(slug);
+  const vars = brandedPortalThemeVars(slug, colors);
   if (Object.keys(vars).length === 0) {
     return <>{children}</>;
   }
-  return <div style={{ display: 'contents', ...vars }}>{children}</div>;
+  return (
+    <div
+      data-portal-skin={skin ? slug : undefined}
+      style={
+        skin
+          ? {
+              ...vars,
+              minHeight: '100vh',
+              backgroundColor: 'var(--color-background-body)',
+              color: 'var(--color-text-primary)',
+            }
+          : { display: 'contents', ...vars }
+      }
+    >
+      {skin ? <BrandSkinProvider logo={skin.logo}>{children}</BrandSkinProvider> : children}
+    </div>
+  );
 }

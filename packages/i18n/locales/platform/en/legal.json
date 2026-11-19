@@ -28,5 +28,13 @@
       "title": "Data Processing Agreement for Fitness Businesses | FormaCore",
       "description": "Understand how FormaCore processes member data on behalf of your business, including security and responsibilities. Read the Data Processing Agreement today."
     }
+  },
+  "deleteAccount": {
+    "heading": "Delete your account",
+    "updated": "Last Updated: 18.11.2026",
+    "meta": {
+      "title": "Delete Your Account and Data | FormaCore",
+      "description": "How to delete your account in the Synergy and FormaCore Gym mobile apps and member portals, which data is erased and which records the gym keeps."
+    }
   }
 }

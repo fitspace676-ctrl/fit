@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ActiveGymBrand } from './active-gym';
+import { getBrandSkin } from './brand-skins';
 
 /** What a page is called where no gym is in scope — apex, `app.<root>`, a preview URL, an unknown slug. */
 export const PLATFORM_NAME = 'FormaCore';
@@ -18,13 +19,16 @@ const DEFAULT_ICON = '/icon.png?v=2';
  * and there is no gym name to guess.
  */
 export function gymMetadata(brand: ActiveGymBrand | null): Metadata {
+  const skin = getBrandSkin(brand?.skinSlug);
   const name = brand?.name ?? PLATFORM_NAME;
   const description = brand
     ? `Classes, bookings and membership at ${brand.name}.`
     : 'FormaCore web application.';
   // The tab icon the gym uploaded, else its logo, else the bundled mark. The
   // share card keeps the logo: it is drawn large, where a wordmark reads fine.
-  const icon = brand?.faviconUrl ?? brand?.logoUrl ?? DEFAULT_ICON;
+  const icon = brand?.faviconUrl ?? brand?.logoUrl ?? skin?.icon ?? DEFAULT_ICON;
+
+  const shareImage = brand?.logoUrl ?? skin?.icon;
 
   return {
     title: { default: name, template: `%s · ${name}` },
@@ -36,12 +40,21 @@ export function gymMetadata(brand: ActiveGymBrand | null): Metadata {
       title: name,
       siteName: name,
       description,
-      ...(brand?.logoUrl ? { images: [brand.logoUrl] } : {}),
+      ...(shareImage ? { images: [shareImage] } : {}),
     },
   };
 }
 
-/** The browser-chrome tint — only a colour the gym chose; otherwise the browser's own. */
+/** Registered skins use their page backgrounds; other tenants keep their chosen tint. */
 export function gymViewport(brand: ActiveGymBrand | null): Viewport {
+  const skin = getBrandSkin(brand?.skinSlug);
+  if (skin) {
+    return {
+      themeColor: [
+        { media: '(prefers-color-scheme: light)', color: skin.light['--color-background-body']! },
+        { media: '(prefers-color-scheme: dark)', color: skin.dark['--color-background-body']! },
+      ],
+    };
+  }
   return brand?.themeColor ? { themeColor: brand.themeColor } : {};
 }

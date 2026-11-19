@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
 import { PortalLogo } from './portal-logo';
+import { PortalThemeScope } from '../theme/portal-theme-scope';
 
 /**
  * The portal's mark, and the one decision in it worth a test: a gym uploads ONE
@@ -92,5 +93,39 @@ describe('PortalLogo', () => {
 
       expect(container.querySelector('img')?.getAttribute('alt')).toBe('');
     });
+  });
+});
+
+describe('skin logo fallback', () => {
+  it('uses the skin pair with the existing theme swap', () => {
+    const { container } = render(
+      <PortalThemeScope slug="synergy" colors={null}>
+        <PortalLogo logoUrl={null} />
+      </PortalThemeScope>,
+    );
+    expect(container.querySelector('.member-logo-dark img')?.getAttribute('src')).toBe(
+      '/brands/synergy/logo-dark.png',
+    );
+    expect(container.querySelector('.member-logo-light img')?.getAttribute('src')).toBe(
+      '/brands/synergy/logo-light.png',
+    );
+  });
+  it('uses only the white-inked skin logo over the photograph', () => {
+    const { container } = render(
+      <PortalThemeScope slug="synergy" colors={null}>
+        <PortalLogo logoUrl={null} onPhoto />
+      </PortalThemeScope>,
+    );
+    expect(marks(container).map(({ src }) => src)).toEqual(['/brands/synergy/logo-dark.png']);
+  });
+  it('prefers an uploaded logo on both grounds', () => {
+    for (const onPhoto of [false, true]) {
+      const { container } = render(
+        <PortalThemeScope slug="synergy" colors={null}>
+          <PortalLogo logoUrl="/uploaded.png" onPhoto={onPhoto} />
+        </PortalThemeScope>,
+      );
+      expect(marks(container).map(({ src }) => src)).toEqual(['/uploaded.png']);
+    }
   });
 });

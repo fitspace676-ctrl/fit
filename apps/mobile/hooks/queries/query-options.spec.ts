@@ -108,7 +108,7 @@ const CASES: readonly Case[] = [
   {
     name: 'trainer reviews',
     build: (gymId) => trainerReviewsQueryOptions(gymId, 't_1'),
-    url: `/trainers/t_1/reviews?gymId=${GYM}`,
+    url: '/reviews/trainers/t_1',
   },
   { name: 'services', build: servicesQueryOptions, url: `/services?gymId=${GYM}` },
   {
