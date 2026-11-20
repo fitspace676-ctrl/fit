@@ -225,8 +225,10 @@ export class SubscriptionEnrollmentService {
     if (existingLive) throw this.alreadySubscribed();
 
     const payments = this.payments!;
-    const open = await payments.findOpenOrder(gymId, memberId, (fulfilment) =>
-      fulfilment.kind === 'subscription_start' && fulfilment.planId === plan.id,
+    const open = await payments.findOpenOrder(
+      gymId,
+      memberId,
+      (fulfilment) => fulfilment.kind === 'subscription_start' && fulfilment.planId === plan.id,
     );
     if (open) {
       const payment = await payments.retry({ gymId, orderId: open, memberId, returnTo });

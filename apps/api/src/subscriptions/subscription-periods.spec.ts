@@ -17,8 +17,8 @@ const NOW = new Date('2026-06-10T00:00:00.000Z');
 const ISSUED = { id: 'inv-1', number: '2026-0001', seq: 1, year: 2026 };
 
 function invoices() {
-  const issue = vi.fn<(tx: unknown, input: Record<string, unknown>) => Promise<typeof ISSUED>>(
-    () => Promise.resolve(ISSUED),
+  const issue = vi.fn<(tx: unknown, input: Record<string, unknown>) => Promise<typeof ISSUED>>(() =>
+    Promise.resolve(ISSUED),
   );
   return { issue, service: { issue } as unknown as Pick<InvoiceService, 'issue'> };
 }
@@ -183,14 +183,17 @@ describe('startSubscription', () => {
       currentPeriodStart: input.now,
       currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
     });
-    expect(issue.mock.calls[0]![1]).toMatchObject({ subscriptionId: 'sub-new', orderId: 'order-1' });
+    expect(issue.mock.calls[0]![1]).toMatchObject({
+      subscriptionId: 'sub-new',
+      orderId: 'order-1',
+    });
   });
 
   it('refuses a member who already holds a live subscription, and maps the race backstop', async () => {
     const { issue, service } = invoices();
-    await expect(startSubscription(client({ live: true }).tx, service, input)).rejects.toBeInstanceOf(
-      AlreadySubscribedError,
-    );
+    await expect(
+      startSubscription(client({ live: true }).tx, service, input),
+    ).rejects.toBeInstanceOf(AlreadySubscribedError);
     const p2002 = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
       code: 'P2002',
       clientVersion: 'test',

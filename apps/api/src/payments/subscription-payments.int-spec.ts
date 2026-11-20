@@ -460,9 +460,10 @@ describe('Subscriptions paid through Flitt (integration)', () => {
       const sub = await makeSubscription({ periodEnd });
 
       await billing.runBillingCycle({ now: new Date(periodEnd.getTime() + 60_000) });
-      expect(await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject(
-        { status: SubscriptionStatus.PAST_DUE, paymentRetries: 0 },
-      );
+      expect(await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject({
+        status: SubscriptionStatus.PAST_DUE,
+        paymentRetries: 0,
+      });
       expect(notifications.chargeFailed).toHaveBeenCalledWith(
         expect.objectContaining({ id: sub.id }),
         { rung: 0, periodEnd, manual: true },
@@ -479,9 +480,10 @@ describe('Subscriptions paid through Flitt (integration)', () => {
         now: new Date(periodEnd.getTime() + 8 * DAY_MS),
       });
       expect(final.expired).toBe(1);
-      expect(await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject(
-        { status: SubscriptionStatus.EXPIRED, currentPeriodEnd: periodEnd },
-      );
+      expect(await prisma.subscription.findUniqueOrThrow({ where: { id: sub.id } })).toMatchObject({
+        status: SubscriptionStatus.EXPIRED,
+        currentPeriodEnd: periodEnd,
+      });
 
       expect(chargeRenewal).not.toHaveBeenCalled();
       expect(await prisma.invoice.count({ where: { subscriptionId: sub.id } })).toBe(0);
