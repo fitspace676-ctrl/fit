@@ -20,7 +20,7 @@ export class FlittReturnController {
 
   @All('return/:attemptId')
   @Public()
-  async return(@Param('attemptId') attemptId: string, @Res() res: Response): Promise<void> {
+  async handle(@Param('attemptId') attemptId: string, @Res() res: Response): Promise<void> {
     const target = await this.payments.handleReturn(attemptId);
     if (!target) throw new NotFoundException({ message: 'Not found', code: 'NOT_FOUND' });
     res.redirect(303, target);
