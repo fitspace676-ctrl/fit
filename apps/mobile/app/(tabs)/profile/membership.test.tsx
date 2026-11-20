@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/require-await -- jest mocks */
 jest.mock('../../../hooks/useOnlinePayments', () => ({
   useOnlinePayments: () => ({ enabled: true }),
 }));
