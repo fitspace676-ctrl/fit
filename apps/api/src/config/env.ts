@@ -382,6 +382,7 @@ export const envSchema = z.object({
   MEDIA_SWEEP_GRACE_HOURS: z.coerce.number().int().positive().default(24),
 
   // Per-gym payment credentials. Optional so deployments without integrations boot.
+  SENDER_API_URL: z.string().url().default('https://sender.ge/api'),
   FLITT_API_URL: z.string().url().default('https://pay.flitt.com'),
   INTEGRATIONS_ENCRYPTION_KEY: z.string().optional(),
   // Whether a gym with NO active payment integration may still "sell" packages and

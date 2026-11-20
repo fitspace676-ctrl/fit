@@ -1,3 +1,4 @@
+import { SmsService } from '../sms/sms.service';
 import {
   BadRequestException,
   ConflictException,
@@ -140,6 +141,7 @@ function marketingMemberInclude(gymId: string) {
 @Injectable()
 export class MarketingService {
   private readonly logger = new Logger(MarketingService.name);
+  @Inject(SmsService) private readonly sms!: SmsService;
   @Inject(MailerService) private readonly mailer!: MailerService;
   constructor(
     private readonly prisma: TenantPrismaService,
@@ -622,13 +624,19 @@ export class MarketingService {
         code: 'CAMPAIGN_ALREADY_SENT',
       });
     }
-    if (existing.channel !== 'email') {
+    if (existing.channel !== 'email' && existing.channel !== 'sms') {
       throw new BadRequestException({
         message: 'This channel does not support campaign delivery yet',
         code: 'CAMPAIGN_CHANNEL_UNSUPPORTED',
       });
     }
-    if (!this.mailer.isConfigured) {
+    if (existing.channel === 'sms' && !(await this.sms.isEnabled(this.tenant.gymId))) {
+      throw new ServiceUnavailableException({
+        message: 'SMS delivery is not configured',
+        code: 'SMS_NOT_CONFIGURED',
+      });
+    }
+    if (existing.channel === 'email' && !this.mailer.isConfigured) {
       throw new ServiceUnavailableException({
         message: 'Email delivery is not configured',
         code: 'EMAIL_NOT_CONFIGURED',
@@ -665,6 +673,9 @@ export class MarketingService {
       });
     let sentCount = 0;
     let failedCount = 0;
+    // SMS only: members with no usable mobile number are outside the audience,
+    // not failed deliveries.
+    let skippedCount = 0;
     for (const member of members) {
       try {
         const values = buildMemberMergeValues({
@@ -682,6 +693,19 @@ export class MarketingService {
         });
         const subject = interpolateMarketingMessage(existing.subject ?? existing.name, values);
         const body = interpolateMarketingMessage(existing.body, values);
+        if (existing.channel === 'sms') {
+          const result = await this.sms.send(this.tenant.gymId, {
+            to: member.user.phone,
+            content: body,
+            kind: 'advertising',
+          });
+          if (result.status === 'sent') sentCount += 1;
+          else if (result.status === 'skipped' && result.reason === 'invalid_phone')
+            skippedCount += 1;
+          // Includes the integration being switched off mid-send.
+          else failedCount += 1;
+          continue;
+        }
         const result = await this.mailer.send({
           to: member.user.email,
           from: emailFrom(gymName),
@@ -697,9 +721,11 @@ export class MarketingService {
         if (result.sent) sentCount += 1;
         else failedCount += 1;
       } catch (error) {
-        this.logger.error(
-          `Campaign ${id} email to ${member.user.email} failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        if (existing.channel === 'sms') this.logger.error(`Campaign ${id} SMS delivery failed`);
+        else
+          this.logger.error(
+            `Campaign ${id} email to ${member.user.email} failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
         // The transport logs recipient + provider reason; retain accurate totals.
         failedCount += 1;
       }
@@ -711,16 +737,22 @@ export class MarketingService {
         // duplicate mail for recipients already accepted by the provider.
         status: sentCount > 0 ? 'sent' : existing.status,
         scheduleType: 'now',
-        audienceSize: members.length,
+        audienceSize: members.length - skippedCount,
         sentCount,
         sentAt: sentCount > 0 ? new Date() : null,
       },
       select: CAMPAIGN_SELECT,
     });
+    if (existing.channel === 'sms' && !sentCount && !failedCount) {
+      throw new BadRequestException({
+        message: 'No recipients have a valid mobile number',
+        code: 'CAMPAIGN_NO_RECIPIENTS',
+      });
+    }
     if (failedCount) {
       throw new ServiceUnavailableException({
         message: `Campaign delivery incomplete: ${sentCount} accepted, ${failedCount} failed`,
-        code: 'EMAIL_SEND_FAILED',
+        code: existing.channel === 'sms' ? 'SMS_SEND_FAILED' : 'EMAIL_SEND_FAILED',
         sentCount,
         failedCount,
       });

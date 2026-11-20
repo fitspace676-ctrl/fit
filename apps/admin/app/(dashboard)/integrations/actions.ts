@@ -3,12 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import {
   connectFlittSchema,
+  connectSenderSchema,
+  sendTestSmsSchema,
+  type SendTestSmsResponse,
   setIntegrationEnabledSchema,
   type GymIntegration,
   type TestIntegrationResponse,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
-import { ApiError, fetchIntegrations, mutateFlitt } from '@/lib/api';
+import { ApiError, fetchIntegrations, mutateFlitt, mutateSender } from '@/lib/api';
 
 export type IntegrationError =
   | 'bad_key'
@@ -74,6 +77,78 @@ export async function changeFlitt(command: IntegrationCommand): Promise<Integrat
       if (
         error.message === 'FLITT_VERIFICATION_FAILED' &&
         (reason === 'bad_key' || reason === 'unknown_merchant' || reason === 'unreachable')
+      )
+        return { ok: false, error: reason };
+    }
+    return { ok: false, error: 'unreachable' };
+  }
+}
+
+export type SenderCommand =
+  | { kind: 'connect'; apiKey: string }
+  | { kind: 'enable'; enabled: boolean }
+  | { kind: 'test' }
+  | { kind: 'testMessage'; phone: string }
+  | { kind: 'disconnect' };
+export type SenderError = IntegrationError | 'credentialsChanged' | 'invalid_phone' | 'rejected';
+export type SenderResult =
+  | { ok: true; data?: GymIntegration; tested?: boolean; balance?: string }
+  | { ok: false; error: SenderError; data?: GymIntegration };
+
+export async function changeSender(command: SenderCommand): Promise<SenderResult> {
+  if ((await getServerSession())?.role !== 'OWNER') return { ok: false, error: 'forbidden' };
+  try {
+    let data: GymIntegration;
+    switch (command.kind) {
+      case 'connect': {
+        const parsed = connectSenderSchema.safeParse(command);
+        if (!parsed.success) return { ok: false, error: 'invalid' };
+        data = await mutateSender('PUT', parsed.data);
+        break;
+      }
+      case 'enable': {
+        const parsed = setIntegrationEnabledSchema.safeParse(command);
+        if (!parsed.success) return { ok: false, error: 'invalid' };
+        data = await mutateSender('PATCH', parsed.data);
+        break;
+      }
+      case 'disconnect':
+        data = await mutateSender('DELETE');
+        break;
+      case 'testMessage': {
+        const parsed = sendTestSmsSchema.safeParse(command);
+        if (!parsed.success) return { ok: false, error: 'invalid_phone' };
+        const result = await mutateSender<SendTestSmsResponse>('POST', parsed.data, 'test-message');
+        revalidatePath('/integrations');
+        return result.ok ? { ok: true } : { ok: false, error: result.reason ?? 'unreachable' };
+      }
+      case 'test': {
+        const result = await mutateSender<TestIntegrationResponse>('POST');
+        const refreshed = (await fetchIntegrations()).find((item) => item.provider === 'sender');
+        revalidatePath('/integrations');
+        if (!refreshed) return { ok: false, error: 'unexpected' };
+        return result.ok
+          ? { ok: true, data: refreshed, tested: true, balance: result.balance }
+          : { ok: false, error: result.reason ?? 'unreachable', data: refreshed };
+      }
+      default:
+        return { ok: false, error: 'invalid' };
+    }
+    revalidatePath('/integrations');
+    return { ok: true, data };
+  } catch (error) {
+    // Return only known codes, never provider content or credentials.
+    if (error instanceof ApiError) {
+      if (error.status === 403) return { ok: false, error: 'forbidden' };
+      if (error.message === 'INTEGRATIONS_NOT_CONFIGURED')
+        return { ok: false, error: 'notConfigured' };
+      if (error.message === 'SENDER_NOT_VERIFIED') return { ok: false, error: 'notVerified' };
+      if (error.message === 'SENDER_CREDENTIALS_CHANGED')
+        return { ok: false, error: 'credentialsChanged' };
+      const reason = (error.data as { reason?: unknown } | undefined)?.reason;
+      if (
+        error.message === 'SENDER_VERIFICATION_FAILED' &&
+        (reason === 'bad_key' || reason === 'unreachable')
       )
         return { ok: false, error: reason };
     }

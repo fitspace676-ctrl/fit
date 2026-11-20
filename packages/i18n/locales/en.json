@@ -3615,7 +3615,8 @@
         "segmentNotFound": "That audience segment no longer exists.",
         "promoNotFound": "That promo code no longer exists.",
         "promoTaken": "A promo code with that code already exists.",
-        "bannerNotFound": "That banner no longer exists."
+        "bannerNotFound": "That banner no longer exists.",
+        "smsNotConfigured": "Connect and enable an SMS provider under Integrations before sending SMS campaigns."
       },
       "mergeFields": {
         "first_name": "First name",
@@ -5032,6 +5033,38 @@
         "forbidden": "Only the gym owner can manage this integration.",
         "invalid": "Check your Merchant ID and payment secret key.",
         "unexpected": "Could not read the integration status. Please reload and try again."
+      },
+      "sender": {
+        "title": "SMS · Sender.ge",
+        "description": "Connect your gym’s Sender.ge account to send SMS.",
+        "apiKey": "API key",
+        "enable": "Enable SMS",
+        "onConsequence": "Automation SMS actions and SMS campaigns use this account and are charged to your gym’s Sender.ge balance. When disabled, no SMS is sent.",
+        "offConsequence": "No SMS is sent while disabled. Enable to send automation SMS actions and SMS campaigns through this account, charged to your gym’s Sender.ge balance.",
+        "balance": "Balance: {balance}",
+        "phone": "Test phone number",
+        "testMessage": "Send a test SMS",
+        "testMessageHint": "Enter your own Georgian mobile number. The test SMS is charged to this Sender.ge account.",
+        "testMessageOff": "Turn SMS on to send a test message.",
+        "sent": "Test SMS accepted for sending.",
+        "helpTitle": "Where do I find the key?",
+        "help": "Sign in to Sender.ge and copy the API key from your account’s API section.",
+        "portal": "Open Sender.ge",
+        "disconnectTitle": "Disconnect Sender.ge?",
+        "disconnectMessage": "The saved API key will be removed. SMS campaigns and automation SMS will stop until you connect and enable an account again.",
+        "errors": {
+          "bad_key": "Sender.ge rejected this API key. Check it in your account’s API section.",
+          "unknown_merchant": "Sender.ge could not verify this account.",
+          "unreachable": "Could not reach Sender.ge. Try again later.",
+          "notConfigured": "Integrations are not configured on the server. Contact support.",
+          "notVerified": "Test the connection successfully before enabling SMS.",
+          "credentialsChanged": "The API key changed during verification. Test the connection again.",
+          "forbidden": "Only the gym owner can manage integrations.",
+          "invalid": "Enter an API key between 1 and 200 characters.",
+          "unexpected": "Something went wrong. Try again.",
+          "invalid_phone": "Enter a valid Georgian mobile number, such as +995599123456.",
+          "rejected": "Sender.ge rejected the test SMS. Check your balance and account settings."
+        }
       }
     }
   },

@@ -1,3 +1,4 @@
+import type { SenderClient } from './sender/sender-client';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Role } from '@fit/db';
 const { mockEnv } = vi.hoisted(() => ({
@@ -12,12 +13,14 @@ import type { FlittClient } from './flitt/flitt-client';
 import { IntegrationsService } from './integrations.service';
 
 const verifyCredentials = vi.fn();
+const getBalance = vi.fn().mockResolvedValue({ ok: true, balance: '12.34' });
 const service = new IntegrationsService(
   { client: tenantPrisma },
   new TenantContext(),
   { verifyCredentials } as unknown as FlittClient,
   new SecretBox(),
   { client: prisma } as unknown as PrismaService,
+  { getBalance } as unknown as SenderClient,
 );
 let state: TenantState;
 let gymId: string;
@@ -72,6 +75,24 @@ describe('IntegrationsService (Postgres)', () => {
       expect(audit).toHaveLength(3);
       expect(JSON.stringify(audit)).not.toContain(input.secretKey);
       expect(JSON.stringify(audit)).not.toContain(stored.secretCiphertext!);
+    });
+  });
+  it('keeps Sender isolated from Flitt and stores an encrypted per-gym key', async () => {
+    await asTenant(state, async () => {
+      await service.connect(input);
+      await service.connectSender({ apiKey: 'sender-private-key' });
+      expect((await service.list()).map((entry) => entry.provider)).toEqual(['flitt', 'sender']);
+      expect(await service.getActiveSenderKey(gymId)).toBeNull();
+      await service.setEnabled(true, 'sender');
+      expect(await service.getActiveSenderKey(gymId)).toBe('sender-private-key');
+      const stored = await prisma.gymIntegration.findUniqueOrThrow({
+        where: { gymId_provider: { gymId, provider: 'sender' } },
+      });
+      expect(stored.secretCiphertext).toMatch(/^v1:/);
+      expect(stored.merchantId).toBeNull();
+      await service.disconnect('sender');
+      expect(await service.getActiveSenderKey(gymId)).toBeNull();
+      expect((await service.list())[0]?.connected).toBe(true);
     });
   });
   it('requires verification and clears it on a failed retest', async () => {

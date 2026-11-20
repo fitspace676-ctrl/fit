@@ -84,6 +84,8 @@ async function requireRead(): Promise<boolean> {
 function toMessage(error: unknown, t: Translator): string {
   if (error instanceof ApiError) {
     switch (error.message) {
+      case 'SMS_NOT_CONFIGURED':
+        return t('errors.smsNotConfigured');
       case 'CAMPAIGN_NOT_FOUND':
         return t('errors.campaignNotFound');
       case 'CAMPAIGN_ALREADY_SENT':

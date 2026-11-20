@@ -11,7 +11,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { Permission, connectFlittSchema, setIntegrationEnabledSchema } from '@fit/types';
+import {
+  Permission,
+  connectSenderSchema,
+  sendTestSmsSchema,
+  connectFlittSchema,
+  setIntegrationEnabledSchema,
+} from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
@@ -26,6 +32,33 @@ export class IntegrationsController {
   @Get()
   list() {
     return this.integrations.list();
+  }
+
+  @Put('sender')
+  connectSender(@Body() body: unknown) {
+    return this.integrations.connectSender(parse(connectSenderSchema, body));
+  }
+
+  @Post('sender/test')
+  @HttpCode(200)
+  testSender() {
+    return this.integrations.testSender();
+  }
+
+  @Patch('sender')
+  setSenderEnabled(@Body() body: unknown) {
+    return this.integrations.setEnabled(parse(setIntegrationEnabledSchema, body).enabled, 'sender');
+  }
+
+  @Delete('sender')
+  disconnectSender() {
+    return this.integrations.disconnect('sender');
+  }
+
+  @Post('sender/test-message')
+  @HttpCode(200)
+  sendTestSms(@Body() body: unknown) {
+    return this.integrations.sendTestSms(parse(sendTestSmsSchema, body).phone);
   }
 
   @Put('flitt')

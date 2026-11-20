@@ -778,7 +778,7 @@ describe('AutomationMergeService trainer recipient', () => {
   const staff = {
     firstName: 'Gio',
     lastName: 'Coach',
-    user: { id: 'user-staff', name: 'Gio Coach', email: 'gio@irongym.ge' },
+    user: { id: 'user-staff', name: 'Gio Coach', email: 'gio@irongym.ge', phone: '599888777' },
   };
   const entities = {
     booking: { memberId: 'gm-1', classInstanceId: 'class-1', waitlistPosition: null },
@@ -828,6 +828,7 @@ describe('AutomationMergeService trainer recipient', () => {
     );
     expect(target).toMatchObject({
       recipient: 'gio@irongym.ge',
+      phone: '599888777',
       userId: 'user-staff',
       memberId: 'gm-1',
       values: {
@@ -854,6 +855,7 @@ describe('AutomationMergeService trainer recipient', () => {
     );
     expect(target).toMatchObject({
       recipient: 'gio@irongym.ge',
+      phone: '599888777',
       userId: 'user-staff',
       values: { recipient_name: 'Gio Coach', related_member_name: 'Nino Beridze' },
     });
