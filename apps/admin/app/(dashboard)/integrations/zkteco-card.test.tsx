@@ -81,6 +81,7 @@ const status: ZktecoSyncStatus = {
 };
 function mock(initial = disconnected, available = resources) {
   vi.mocked(changeZkteco).mockImplementation(async (command) => {
+    await Promise.resolve();
     if (command.kind === 'load') return { ok: true, data: initial };
     if (command.kind === 'resources')
       return { ok: true, resources: available, locations: [{ id: 'loc1', name: 'Gym branch' }] };
