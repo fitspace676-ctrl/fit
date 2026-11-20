@@ -76,6 +76,7 @@ export type NavIcon =
   | 'activity'
   | 'audit'
   | 'memberPortal'
+  | 'integrations'
   | 'appSettings'
   | 'settings';
 
@@ -192,7 +193,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     labelKey: 'integrations.title',
     href: '/integrations',
-    icon: 'settings',
+    icon: 'integrations',
     permission: Permission.GymManage,
     minRole: 'OWNER',
     ownerOnly: true,
