@@ -1,4 +1,5 @@
 import { IntegrationsModule } from './integrations/integrations.module';
+import { PaymentsModule } from './payments/payments.module';
 import { GymOnboardingModule } from './gym-onboarding/gym-onboarding.module';
 import { Module, type MiddlewareConsumer, type NestModule, RequestMethod } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -170,6 +171,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     AuthModule,
     GymOnboardingModule,
     IntegrationsModule,
+    PaymentsModule,
     ClassesModule,
     TrainersModule,
     LocationsModule,
@@ -284,6 +286,9 @@ export class AppModule implements NestModule {
         { path: 'cart/(.*)', method: RequestMethod.ALL },
         { path: 'gyms/by-subdomain/(.*)', method: RequestMethod.ALL },
         { path: 'webhooks/(.*)', method: RequestMethod.ALL },
+        // Flitt's browser return (`response_url`): the buyer's browser carries no
+        // session, and the route reads nothing from it but the attempt id.
+        { path: 'payments/flitt/(.*)', method: RequestMethod.ALL },
         { path: 'platform/(.*)', method: RequestMethod.ALL },
       )
       .forRoutes('*');

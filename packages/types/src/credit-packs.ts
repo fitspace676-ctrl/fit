@@ -15,6 +15,7 @@
 // session, never off the wire — so the only input is the catalogue `packId`.
 
 import { z } from 'zod';
+import { paymentReturnTargetSchema, type PaymentAction } from './online-payments';
 
 /**
  * `422` code returned when a credit pack can't be purchased — the referenced
@@ -46,6 +47,8 @@ export const purchaseCreditPackSchema = z.object({
    * packages" means by it.
    */
   promoCode: z.string().trim().min(1).max(64).optional(),
+  /** Where the payment provider returns the buyer (`web` default) — online-paying gyms only. */
+  returnTo: paymentReturnTargetSchema.optional(),
 });
 
 /** Validated `POST /credit-packs/purchase` body — {@link purchaseCreditPackSchema}. */
@@ -67,6 +70,21 @@ export interface PurchaseCreditPackResponse {
    * bought. Callers that only need the pack can ignore it.
    */
   orderId: string;
+}
+
+/**
+ * The member's own `POST /credit-packs/purchase` response. Identical to
+ * {@link PurchaseCreditPackResponse} on the stub path; when the gym takes payment
+ * online, `payment` is present, the order is still pending and `creditPackId` is
+ * `null` — the pack is minted once the provider confirms the payment. (The staff
+ * grant keeps {@link PurchaseCreditPackResponse}: it is always minted at once.)
+ */
+export interface MemberPurchaseCreditPackResponse extends Omit<
+  PurchaseCreditPackResponse,
+  'creditPackId'
+> {
+  creditPackId: string | null;
+  payment?: PaymentAction;
 }
 
 /**

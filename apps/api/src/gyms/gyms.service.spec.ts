@@ -38,7 +38,10 @@ function setupBySubdomain(row: SubdomainRow | null) {
   const findUnique = vi.fn<(args: unknown) => Promise<SubdomainRow | null>>(() =>
     Promise.resolve(row),
   );
-  const prisma = { client: { gym: { findUnique } } } as unknown as PrismaService;
+  // No payment integration connected — the online-payments flag then follows the
+  // stub default (on outside production, which is where the specs run).
+  const gymIntegration = { count: vi.fn(() => Promise.resolve(0)) };
+  const prisma = { client: { gym: { findUnique }, gymIntegration } } as unknown as PrismaService;
   return { service: new GymsService(prisma), findUnique };
 }
 
@@ -145,6 +148,8 @@ describe('GymsService.resolveBySubdomain', () => {
         joinCard: gymJoinCardSettingsSchema.parse({}),
         consolePrimaryColor: null,
       },
+      // No provider connected: the stub stands in outside production.
+      onlinePayments: { enabled: true, provider: 'stub' },
     });
     expect(findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { slug: 'downtown' } }),

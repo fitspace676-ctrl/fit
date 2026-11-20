@@ -6,6 +6,7 @@ import { CreditPacksController } from './credit-packs.controller';
 import { CreditPacksService } from './credit-packs.service';
 import { InvoiceDocumentService } from './invoice-document.service';
 import { MarketingModule } from '../marketing/marketing.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { InvoiceModule } from './invoice.module';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { InvoicesController } from './invoices.controller';
@@ -39,7 +40,8 @@ import { MemberCreditPacksController } from './member-credit-packs.controller';
  * document, and the globally-provided `MailerService` for delivery.
  */
 @Module({
-  imports: [InvoiceModule, MarketingModule],
+  // `PaymentsModule` for the online (Flitt) purchase; it imports nothing back.
+  imports: [InvoiceModule, MarketingModule, PaymentsModule],
   controllers: [
     CreditPacksController,
     MemberCreditPacksController,

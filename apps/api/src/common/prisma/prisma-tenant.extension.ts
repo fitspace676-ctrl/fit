@@ -161,6 +161,11 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   // A line is reached through its already-scoped `Order`.
   'Refund',
   'PromoRedemption',
+  // Online payment attempts / provider reversals (Flitt). The payments services
+  // run on the unscoped client with an explicit `gymId` (the webhook, browser
+  // return and sweep have no tenant); listed so a scoped read stays in its gym.
+  'PaymentAttempt',
+  'PaymentReversal',
   'SubscriptionPlan',
   'Subscription',
   'Invoice',

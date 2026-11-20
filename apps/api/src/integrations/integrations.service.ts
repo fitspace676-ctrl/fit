@@ -157,6 +157,22 @@ export class IntegrationsService {
     return { merchantId: row.merchantId, secretKey: this.secrets.decrypt(row.secretCiphertext) };
   }
 
+  /**
+   * Internal only: the gym's stored Flitt credentials whether or not selling is
+   * currently enabled. Settling (status reads) and refunding (reversals) payments
+   * that were ALREADY taken must keep working after an owner switches online
+   * sales off; starting a new payment must use {@link getActiveFlittCredentials}.
+   */
+  async getFlittCredentialsForSettlement(gymId: string): Promise<FlittCredentials | null> {
+    this.assertInternalGym(gymId);
+    const row = await this.internalPrisma.client.gymIntegration.findFirst({
+      where: { gymId, provider: 'flitt' },
+      select: { merchantId: true, secretCiphertext: true },
+    });
+    if (!row?.merchantId || !row.secretCiphertext) return null;
+    return { merchantId: row.merchantId, secretKey: this.secrets.decrypt(row.secretCiphertext) };
+  }
+
   async isOnlinePaymentEnabled(gymId: string): Promise<boolean> {
     this.assertInternalGym(gymId);
     return (

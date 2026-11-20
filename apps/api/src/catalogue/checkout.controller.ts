@@ -14,10 +14,12 @@ import { z } from 'zod';
 import {
   Permission,
   createCheckoutSchema,
+  retryOrderPaymentSchema,
   roleHasPermission,
   type CheckoutProductType,
   type CreateCheckoutResponse,
   type GetOrderResponse,
+  type RetryOrderPaymentResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -148,6 +150,53 @@ export class CheckoutController {
   @RequirePermissions(Permission.ProfileManage)
   async read(@Param('orderId') orderId: string): Promise<GetOrderResponse> {
     return this.checkout.readOrder(orderId);
+  }
+
+  /**
+   * `POST /checkout/:orderId/payment/sync` — check the caller's own order with
+   * the payment provider now, settling any open attempt, and return the same
+   * body as `GET /checkout/:orderId`. The result screen calls this on arrival and
+   * while `order.payment.status` is `pending` / `requires_action`. Same gate and
+   * `404` as the read.
+   */
+  @Post(':orderId/payment/sync')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProfileManage)
+  async syncPayment(@Param('orderId') orderId: string): Promise<GetOrderResponse> {
+    return this.checkout.syncPayment(orderId);
+  }
+
+  /**
+   * `POST /checkout/:orderId/payment/retry` — `201 { payment }` with a checkout
+   * for one of the caller's own unpaid online orders (the still-open one if there
+   * is one). `409 ORDER_NOT_PAYABLE` when the order is no longer awaiting
+   * payment, `409 PAYMENT_IN_PROGRESS` while the provider has not settled the
+   * previous attempt, `409 ONLINE_PAYMENTS_UNAVAILABLE` when the gym switched
+   * online payments off, `503 PAYMENT_PROVIDER_UNAVAILABLE` when Flitt cannot open
+   * a checkout.
+   */
+  @Post(':orderId/payment/retry')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(Permission.ProfileManage)
+  async retryPayment(
+    @Param('orderId') orderId: string,
+    @Body() body: unknown,
+  ): Promise<RetryOrderPaymentResponse> {
+    const input = parse(retryOrderPaymentSchema, body ?? {});
+    return { payment: await this.checkout.retryPayment(orderId, input.returnTo ?? 'web') };
+  }
+
+  /**
+   * `POST /checkout/:orderId/payment/cancel` — give up one of the caller's own
+   * unpaid online orders: it is cancelled and any reserved stock / promo code is
+   * returned. Returns the `GET /checkout/:orderId` body. `409 PAYMENT_IN_PROGRESS`
+   * while a checkout may still be paid; `409 ORDER_NOT_PAYABLE` otherwise.
+   */
+  @Post(':orderId/payment/cancel')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ProfileManage)
+  async cancelPayment(@Param('orderId') orderId: string): Promise<GetOrderResponse> {
+    return this.checkout.cancelPayment(orderId);
   }
 }
 

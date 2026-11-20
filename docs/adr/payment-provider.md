@@ -89,3 +89,62 @@ subscription cancelled upstream):
 
 No change is needed to `SubscriptionBillingService`, the enrolment flow, the invoice
 generation, or the webhook controller — that is the point of the seam.
+
+## Per-gym Flitt flow (one-off purchases)
+
+The seam above binds ONE provider for the whole deployment and was built for
+subscription renewals. One-off online purchases are different: every gym connects
+its **own** Flitt merchant (`GymIntegration`, owner-managed), so credentials belong
+to the call, not to a singleton. That flow lives in `apps/api/src/payments/` and
+leaves the renewal seam and job untouched (subscriptions still enrol as before).
+
+- **Policy.** Packages and credit packs (`POST /checkout`, `POST /credit-packs/purchase`)
+  go through Flitt when the gym has an active, verified integration. Without one they
+  are refused with `409 ONLINE_PAYMENTS_UNAVAILABLE`, unless `ONLINE_PAYMENTS_STUB` is
+  on — then the old instant stub (order `PAID`, payment `CAPTURED`, provider `stub`)
+  runs unchanged. The flag defaults to on outside production and off in production.
+  The shop basket without Flitt keeps pay-at-pickup (never stamped paid). The public
+  gym lookup exposes `onlinePayments: { enabled, provider }` so clients hide buttons.
+- **Attempts.** A purchase creates the order `PENDING`, its single `Payment`
+  `PENDING` (provider `flitt`) and a `PaymentAttempt`; nothing is granted. Flitt's
+  `order_id` must be unique per try and a member may retry, so each try is its own
+  attempt — its id is the `order_id`. The attempt snapshots the amount, currency,
+  merchant id and the grant (`fulfilment` JSON). Promo codes are consumed (reserved)
+  with the order and released if it is abandoned, so the usage cap is decided before
+  anyone is charged; shop stock is drawn down at checkout as before. If Flitt cannot
+  open the checkout the order is abandoned at once and the purchase fails with
+  `503 PAYMENT_PROVIDER_UNAVAILABLE`.
+- **Settle authority.** `OnlinePaymentsService.settleAttempt` is the only place state
+  changes. It re-reads the status from Flitt with the gym's credentials (never trusts
+  a caller), checks order id, merchant, amount and currency, and applies it: approved
+  → attempt + payment `CAPTURED`, order `PAID` + status event, fulfilment (credit-pack
+  mint — the same `mintCreditPack` the stub path calls) and, after commit, the sale
+  automations; declined / expired → attempt `FAILED` / `EXPIRED`, payment `FAILED`,
+  order stays `PENDING` for a retry; anything that does not match, or money for an
+  order that is no longer pending, → `NEEDS_REVIEW` (nothing granted, logged). The
+  state change is guarded by a conditional `PENDING → …` update on the attempt row
+  (see `atomic-counters.md`): concurrent settlers block on the row lock and the losers
+  match nothing, so the product is granted exactly once.
+- **Callers.** `POST /webhooks/flitt` (signature verified with the owning gym's
+  secret; `200` for anything authentic, `400` bad signature, `404` unknown order),
+  the browser return `GET|POST /payments/flitt/return/:attemptId` (`response_url`;
+  reads nothing from the browser, settles, then `303` to
+  `https://<slug>.<PLATFORM_ROOT_DOMAIN>/checkout/result?orderId=…` or
+  `<MOBILE_APP_SCHEME>://checkout/result?orderId=…`), the member's
+  `POST /checkout/:orderId/payment/sync` (what makes local development work, where
+  Flitt's callback cannot reach the API) and a five-minute sweep.
+- **Sweep.** `PaymentSweepService` (Redis-locked like the booking reminders) settles
+  attempts past their lifetime, abandons unpaid online orders with no open attempt
+  after an hour (order `CANCELLED`, stock back through `applyOrderStockMovements`
+  with `REFUND_RESTOCK`, promo released) and re-sends refunds whose outcome is unknown.
+- **Refund ordering.** For a Flitt payment `refundOrder` delegates to
+  `ProviderRefundService`: (1) one transaction claims the headroom on
+  `Payment.refundedAmount` (the same bounded increment) and records a
+  `PaymentReversal` `PENDING`; (2) Flitt's reverse is called with the reversal id as
+  the idempotent `reverse_id`; (3) approved → the `Refund` is written once
+  (conditional `PENDING → SUCCEEDED`), with the full-refund status flips and restock;
+  refused → reversal `FAILED` and the claim released in one transaction, no refund,
+  `502 PROVIDER_REFUND_FAILED`; unknown (timeout, crash) → the claim stays held and the
+  sweep re-sends the SAME `reverse_id` until Flitt answers (`502
+  PROVIDER_REFUND_PENDING` to the caller). A failed reversal therefore never keeps
+  the claim, and a succeeded one is never lost.

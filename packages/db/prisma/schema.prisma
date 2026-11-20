@@ -409,6 +409,8 @@ enum ServiceSessionStatus {
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
   integrations GymIntegration[]
+  paymentAttempts  PaymentAttempt[]
+  paymentReversals PaymentReversal[]
   onboarding GymOnboarding?
   id              String    @id @default(cuid())
   name            String
@@ -2440,6 +2442,9 @@ model Order {
   /// when it is refunded. Was a relation-less `StockMovement.orderId` scalar until
   /// Stage 4 of multi-branch.
   stockMovements StockMovement[]
+  /// Online (Flitt) payment attempts for this order — one per hosted-checkout try.
+  paymentAttempts  PaymentAttempt[]
+  paymentReversals PaymentReversal[]
 
   @@index([gymId])
   @@index([memberId])
@@ -2662,6 +2667,8 @@ model Payment {
   /// took. Same stance as every other `location` relation in this schema.
   location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   refunds  Refund[]
+  attempts  PaymentAttempt[]
+  reversals PaymentReversal[]
 
   @@index([gymId])
   /// Backs the end-of-day reconciliation (T7.5): a tenant's captured payments
@@ -4327,4 +4334,118 @@ model GymIntegration {
 
   @@unique([gymId, provider])
   @@map("gym_integrations")
+}
+
+/// Lifecycle of one hosted-checkout attempt (see `docs/adr/payment-provider.md`,
+/// "Per-gym Flitt flow"). Only `settleAttempt` moves an attempt out of `PENDING`.
+enum PaymentAttemptStatus {
+  /// Checkout opened (or being opened); the provider has not reported a final state.
+  PENDING
+  /// The provider approved it and the order was paid + fulfilled in the same transaction.
+  CAPTURED
+  /// Declined (or reversed before we saw the approval) — the order may be retried.
+  FAILED
+  /// The provider's lifetime ran out unpaid — the order may be retried.
+  EXPIRED
+  /// Never reached the provider (create-checkout failed) or the order was abandoned.
+  CANCELLED
+  /// The provider reports money taken that this order could not accept — an
+  /// amount/currency/merchant mismatch, or an order already paid / cancelled.
+  /// Nothing was granted; staff must reconcile (refund in the provider's dashboard).
+  NEEDS_REVIEW
+}
+
+/// One try at paying an order through a gym's own payment provider (Flitt).
+///
+/// The provider's `order_id` must be unique per try and a member may retry a
+/// failed or expired payment for the same order, so the order's single
+/// {@link Payment} has many attempts. `providerOrderId` is what Flitt knows the
+/// attempt by; `merchantId` pins the merchant it was opened against so a gym that
+/// reconnects a different merchant cannot settle an old attempt against it.
+/// Holds no card data and no personal data — `providerStatus` is the bare status
+/// word and `failureCode` a short machine reason.
+model PaymentAttempt {
+  id                String               @id
+  gymId             String
+  orderId           String
+  paymentId         String
+  provider          String               @default("flitt")
+  merchantId        String
+  providerOrderId   String               @unique
+  providerPaymentId String?
+  /// MINOR units, fixed when the attempt opens; the provider must report the same.
+  amount            Int
+  currency          String
+  status            PaymentAttemptStatus @default(PENDING)
+  /// What paying grants — `package`, `credit_pack` or `shop`.
+  purpose           String
+  /// The grant snapshot fulfilment replays on approval (e.g. a credit pack's
+  /// credits + validity), frozen at purchase so a later catalogue edit does not
+  /// change what was bought.
+  fulfilment        Json?
+  /// Where the browser goes afterwards: `web` (the gym's portal) or `app` (deep link).
+  returnTo          String               @default("web")
+  checkoutUrl       String?
+  /// When the hosted checkout stops accepting payment (the lifetime sent to Flitt).
+  expiresAt         DateTime
+  /// The provider's last reported `order_status`, verbatim (no payload).
+  providerStatus    String?
+  failureCode       String?
+  lastCheckedAt     DateTime?
+  settledAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  gym     Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@index([orderId, createdAt])
+  /// Backs the sweep: open attempts past their expiry.
+  @@index([status, expiresAt])
+  @@map("payment_attempts")
+}
+
+enum PaymentReversalStatus {
+  /// Headroom claimed on `Payment.refundedAmount`; the provider call is in flight
+  /// or its outcome is unknown. The sweep re-sends it with the same `reverseId`.
+  PENDING
+  /// The provider confirmed it; `refundId` names the {@link Refund} written for it.
+  SUCCEEDED
+  /// The provider refused it; the claimed headroom was released, no refund exists.
+  FAILED
+}
+
+/// A refund of a provider-captured payment, recorded BEFORE the provider is asked
+/// so a reversal that succeeds can never be lost (see the refund-ordering section
+/// of `docs/adr/payment-provider.md`). Its `id` is the idempotent `reverse_id`
+/// sent to Flitt, so a retry of the same reversal can never reverse twice.
+model PaymentReversal {
+  id            String                @id
+  gymId         String
+  orderId       String
+  paymentId     String
+  provider      String
+  amount        Int
+  currency      String
+  reason        String
+  restockItems  Boolean               @default(true)
+  processedById String?
+  /// The staff user id who asked, for the order's status event.
+  actor         String?
+  status        PaymentReversalStatus @default(PENDING)
+  refundId      String?               @unique
+  failureCode   String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  gym     Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([gymId])
+  @@index([paymentId])
+  @@index([status, createdAt])
+  @@map("payment_reversals")
 }

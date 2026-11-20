@@ -26,9 +26,17 @@ import { CheckoutService } from './checkout.service';
  * written here — see {@link CheckoutService}.
  */
 import { MarketingModule } from '../marketing/marketing.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
-  imports: [MarketingModule, LocationsModule, BillingModule, SubscriptionsModule, AutomationModule],
+  imports: [
+    MarketingModule,
+    LocationsModule,
+    BillingModule,
+    SubscriptionsModule,
+    AutomationModule,
+    PaymentsModule,
+  ],
   controllers: [CatalogueController, CheckoutController],
   providers: [CatalogueService, CheckoutService],
 })

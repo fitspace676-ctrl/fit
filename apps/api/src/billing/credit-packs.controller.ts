@@ -13,7 +13,7 @@ import {
   Permission,
   purchaseCreditPackSchema,
   type ListCreditPackCatalogueResponse,
-  type PurchaseCreditPackResponse,
+  type MemberPurchaseCreditPackResponse,
 } from '@fit/types';
 import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
@@ -42,11 +42,16 @@ export class CreditPacksController {
    * `201 { creditPackId }` with the freshly minted pack. A plan that isn't a
    * purchasable pack (missing, not `ACTIVE`, or granting no finite credit count)
    * is a `422 { code: 'PACK_UNAVAILABLE' }`.
+   *
+   * When the gym takes payment online the response also carries `payment`
+   * (`creditPackId: null` until the provider confirms); a gym with no active
+   * provider is `409 ONLINE_PAYMENTS_UNAVAILABLE` unless `ONLINE_PAYMENTS_STUB`
+   * is on, and an unreachable provider is `503 PAYMENT_PROVIDER_UNAVAILABLE`.
    */
   @Post('purchase')
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions(Permission.CreditPackManage)
-  async purchase(@Body() body: unknown): Promise<PurchaseCreditPackResponse> {
+  async purchase(@Body() body: unknown): Promise<MemberPurchaseCreditPackResponse> {
     return this.creditPacks.purchasePack(parse(purchaseCreditPackSchema, body));
   }
 

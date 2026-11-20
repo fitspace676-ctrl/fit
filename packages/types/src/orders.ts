@@ -14,6 +14,7 @@
 // units (cents/tetri) so no float rounding crosses the wire.
 
 import { z } from 'zod';
+import { orderPaymentStateSchema } from './online-payments';
 
 /**
  * Where an order is in its lifecycle. `pending` is the freshly-created,
@@ -126,6 +127,11 @@ export const orderSummarySchema = z.object({
   total: z.number().int().nonnegative(),
   currency: z.string().length(3),
   items: z.array(orderItemSchema),
+  /**
+   * The order's payment state for the member's result / order screens. Always
+   * set by the API since online payments; optional so older payloads still parse.
+   */
+  payment: orderPaymentStateSchema.optional(),
 });
 
 /** A single order confirmation summary — {@link orderSummarySchema}. */

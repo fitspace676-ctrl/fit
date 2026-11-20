@@ -384,6 +384,20 @@ export const envSchema = z.object({
   // Per-gym payment credentials. Optional so deployments without integrations boot.
   FLITT_API_URL: z.string().url().default('https://pay.flitt.com'),
   INTEGRATIONS_ENCRYPTION_KEY: z.string().optional(),
+  // Whether a gym with NO active payment integration may still "sell" packages and
+  // credit packs online through the instant stub (an order stamped PAID with no
+  // money taken). Unset → on outside production (so dev, CI and the unit /
+  // integration / e2e suites keep the stub they were written against) and OFF in
+  // production, where such a gym gets `409 ONLINE_PAYMENTS_UNAVAILABLE` instead.
+  // Read it through `onlinePaymentsStubEnabled()`, never the raw field.
+  ONLINE_PAYMENTS_STUB: z.enum(['true', 'false']).optional(),
+  // The member app's URL scheme (`apps/mobile/app.json` → `expo.scheme`), used to
+  // send the buyer back into the app after a hosted payment
+  // (`<scheme>://checkout/result?orderId=…`).
+  MOBILE_APP_SCHEME: z
+    .string()
+    .regex(/^[a-z][a-z0-9+.-]*$/)
+    .default('fit'),
 
   // ── Logging ──
   LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
@@ -399,3 +413,15 @@ export type ApiEnv = z.infer<typeof envSchema>;
 
 /** Validated, typed view of `process.env`, resolved once at module load. */
 export const env: ApiEnv = validateEnv(envSchema);
+
+/**
+ * Whether the instant stub may stand in for online payment when a gym has no
+ * active payment integration — `ONLINE_PAYMENTS_STUB`, defaulting to on outside
+ * production and off in production.
+ */
+export function onlinePaymentsStubEnabled(
+  source: Pick<ApiEnv, 'NODE_ENV' | 'ONLINE_PAYMENTS_STUB'> = env,
+): boolean {
+  if (source.ONLINE_PAYMENTS_STUB !== undefined) return source.ONLINE_PAYMENTS_STUB === 'true';
+  return source.NODE_ENV !== 'production';
+}
