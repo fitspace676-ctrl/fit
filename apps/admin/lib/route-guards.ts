@@ -52,6 +52,8 @@ export interface RouteGuard {
    * sits behind one is a checkbox that does not fully work.
    */
   minRole?: Role;
+  /** Exact OWNER match: a platform role must impersonate the gym owner first. */
+  ownerOnly?: boolean;
 }
 
 /**
@@ -114,6 +116,7 @@ export const ROUTE_PERMISSIONS: readonly RouteGuard[] = [
   // rather than OWNER is what keeps the route and the API in step: `/settings`
   // read `minRole: MANAGER` until recently and let a manager onto a page that
   // answered every read and every save with a 403.
+  { prefix: '/integrations', permission: Permission.GymManage, minRole: 'OWNER', ownerOnly: true },
   { prefix: '/settings', permission: Permission.GymManage },
   { prefix: '/app-settings', permission: Permission.GymManage },
   { prefix: '/member-portal', permission: Permission.GymManage },

@@ -4989,6 +4989,50 @@
       "requiredTogether": "Enter a value greater than 0, or set all three no-show values to 0.",
       "attendanceNote": "A booking is automatically marked as a no-show 30 minutes after the class ends unless attendance was recorded. A door check-in counts as attended.",
       "description": "Cancellation and no-show rules for group classes. PT sessions are not affected."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect the services your gym uses.",
+      "description": "Online card payments for your members.",
+      "state": {
+        "disconnected": "Not connected",
+        "off": "Connected but off",
+        "active": "Active"
+      },
+      "testMode": "Test mode",
+      "merchantId": "Merchant ID",
+      "secretKey": "Payment secret key",
+      "verifiedAt": "Last verified",
+      "neverVerified": "Not verified yet",
+      "lastError": "Last connection error",
+      "enable": "Enable payments",
+      "onConsequence": "Members pay online by card through Flitt.",
+      "offConsequence": "Online purchase is unavailable to members while payments are off or Flitt is not connected.",
+      "test": "Check connection",
+      "replace": "Replace key",
+      "disconnect": "Disconnect",
+      "connect": "Connect",
+      "save": "Save credentials",
+      "cancel": "Cancel",
+      "testSuccess": "Connection verified successfully.",
+      "saved": "Integration updated.",
+      "merchantInvalid": "Enter a Merchant ID containing 1–12 digits.",
+      "secretInvalid": "Enter a payment secret key containing 1–200 characters.",
+      "helpTitle": "Where to find your credentials",
+      "help": "Open the Flitt merchant portal → Technical settings to find your Merchant ID and payment secret key.",
+      "portal": "Open Flitt merchant portal (new tab)",
+      "disconnectTitle": "Disconnect Flitt?",
+      "disconnectMessage": "The saved credentials will be removed and online purchase will be unavailable to members.",
+      "errors": {
+        "bad_key": "The payment secret key is incorrect. Check it in the Flitt portal and try again.",
+        "unknown_merchant": "This Merchant ID was not found. Check it in the Flitt portal.",
+        "unreachable": "Could not reach the payment service. Please try again.",
+        "notConfigured": "Payments cannot be configured right now. Please contact support.",
+        "notVerified": "Check the connection successfully before enabling payments.",
+        "forbidden": "Only the gym owner can manage this integration.",
+        "invalid": "Check your Merchant ID and payment secret key.",
+        "unexpected": "Could not read the integration status. Please reload and try again."
+      }
     }
   },
   "auth": {

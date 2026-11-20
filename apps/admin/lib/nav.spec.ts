@@ -55,6 +55,7 @@ describe('sidebar nav ⇄ route guards', () => {
         item.permission,
         `nav "${item.href}" and its route guard require different capabilities`,
       ).toBe(guard?.permission);
+      expect(item.ownerOnly).toBe(guard?.ownerOnly);
       expect(
         item.minRole,
         `nav "${item.href}" and its route guard require different minimum roles`,
@@ -92,7 +93,9 @@ describe('sidebar nav ⇄ route guards', () => {
         const guard = routeGuardForPath(item.href);
         const holdsCapability =
           guard?.permission === undefined || permissions.grants.includes(guard.permission);
-        const clearsFloor = guard?.minRole === undefined || hasRoleAtLeast(role, guard.minRole);
+        const clearsFloor =
+          (!guard?.ownerOnly || role === 'OWNER') &&
+          (guard?.minRole === undefined || hasRoleAtLeast(role, guard.minRole));
         if (holdsCapability && clearsFloor) {
           expect(shown.has(item.href), `${role} may open ${item.href} but the rail hides it`).toBe(
             true,
@@ -284,5 +287,15 @@ describe('Classes hub capability guards', () => {
     expect(routeGuardForPath('/classes/rules')?.permission).toBe(Permission.ClassWrite);
     expect(routeGuardForPath('/classes/blocked')?.permission).toBe(Permission.ClassAttendance);
     expect(routeGuardForPath('/classes')?.permission).toBe(Permission.ClassRead);
+  });
+});
+
+describe('owner-only integrations navigation', () => {
+  it.each(ROLES)('only OWNER sees the entry even with all capabilities: %s', (role) => {
+    const permissions = { ...defaultPermissionsForRole(role), grants: [...ALL_PERMISSIONS] };
+    expect(visibleNavItems(permissions).some((item) => item.href === '/integrations')).toBe(
+      role === 'OWNER',
+    );
+    expect(routeGuardForPath('/integrations')?.ownerOnly).toBe(true);
   });
 });

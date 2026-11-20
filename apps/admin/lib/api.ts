@@ -319,6 +319,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly data?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -331,9 +332,11 @@ async function unwrap<T>(res: Response): Promise<T> {
     return (await res.json()) as T;
   }
   let code = `HTTP_${res.status}`;
+  let data: unknown;
   try {
-    const body = (await res.json()) as { code?: string; message?: string };
+    const body = (await res.json()) as { code?: string; message?: string; data?: unknown };
     code = body.code ?? body.message ?? code;
+    data = body.data;
   } catch {
     // Non-JSON error body — keep the synthetic code.
   }
@@ -345,7 +348,7 @@ async function unwrap<T>(res: Response): Promise<T> {
   if (res.status === 403 && code === TENANT_MISMATCH_CODE) {
     redirect(`/login?reason=${TENANT_MISMATCH_REASON}`);
   }
-  throw new ApiError(res.status, code);
+  throw new ApiError(res.status, code, data);
 }
 
 /**
@@ -3582,4 +3585,27 @@ export async function liftBookingBlock(id: string): Promise<AdminBookingBlock> {
     cache: 'no-store',
   });
   return unwrap<AdminBookingBlock>(res);
+}
+
+/** Owner-only, tenant-scoped integrations. Secrets are sent only in the PUT body. */
+export async function fetchIntegrations(): Promise<import('@fit/types').GymIntegration[]> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/integrations`, {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    }),
+  );
+}
+export async function mutateFlitt<T>(
+  method: 'PUT' | 'PATCH' | 'POST' | 'DELETE',
+  body?: unknown,
+): Promise<T> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/integrations/flitt${method === 'POST' ? '/test' : ''}`, {
+      method,
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      cache: 'no-store',
+    }),
+  );
 }
