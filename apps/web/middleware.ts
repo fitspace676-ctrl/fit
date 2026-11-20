@@ -125,8 +125,13 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname, search } = req.nextUrl;
   const { locale, rest } = splitLocale(pathname);
   if (rest === '/checkout/result') {
+    // The payment provider sends the buyer to the bare path, so the URL carries
+    // no language. Use the one they last picked (`NEXT_LOCALE`) over the default.
+    const chosen = req.cookies.get('NEXT_LOCALE')?.value;
+    const resultLocale =
+      pathname.startsWith(`/${locale}/`) || !chosen || !isLocale(chosen) ? locale : chosen;
     const target = req.nextUrl.clone();
-    target.pathname = `/${locale}/member/checkout/result`;
+    target.pathname = `/${resultLocale}/member/checkout/result`;
     return NextResponse.redirect(target);
   }
   const forwardedHost = req.headers.get('x-forwarded-host');

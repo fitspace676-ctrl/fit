@@ -1,12 +1,25 @@
 'use client';
 
 import { redirectToHostedPayment } from '@/lib/online-payment';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import type { OnlinePaymentsConfig, PaymentAction } from '@fit/types';
 
 const Capability = createContext<OnlinePaymentsConfig>({ enabled: false, provider: null });
-export const OnlinePaymentsProvider = Capability.Provider;
+
+/**
+ * A real client component, not `Capability.Provider` re-exported: a server
+ * layout cannot render a context object handed across the client boundary.
+ */
+export function OnlinePaymentsProvider({
+  value,
+  children,
+}: {
+  value: OnlinePaymentsConfig;
+  children: ReactNode;
+}) {
+  return <Capability.Provider value={value}>{children}</Capability.Provider>;
+}
 
 export function paymentErrorKey(code?: string) {
   if (code === 'ONLINE_PAYMENTS_UNAVAILABLE') return 'unavailable';

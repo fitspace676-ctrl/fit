@@ -5809,7 +5809,7 @@
         "buyMore": "Buy more",
         "noneOnSale": "No packs on sale",
         "modalTitle": "Buy credits",
-        "modalBody": "Pick a credit pack to buy. Pay at the desk.",
+        "modalBody": "Pick a credit pack to buy.",
         "packMeta": "{count, plural, one {# credit} other {# credits}} · {price}",
         "buy": "Buy",
         "buying": "Buying…",
