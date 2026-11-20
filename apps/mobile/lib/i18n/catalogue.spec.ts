@@ -127,8 +127,8 @@ describe('the member slice', () => {
     //
     // 2026-11-19, reporting a trainer review: 1153 → 1164. The report sheet's
     // title, reasons, note field and outcomes (`member.reviews.report.*`).
-    expect(enKeys).toHaveLength(1164);
-    expect(kaKeys).toHaveLength(1164);
+    expect(enKeys).toHaveLength(1172);
+    expect(kaKeys).toHaveLength(1172);
   });
 });
 

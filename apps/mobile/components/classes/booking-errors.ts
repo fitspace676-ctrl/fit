@@ -32,6 +32,8 @@ export function bookingErrorKey(error: unknown): MessageKey {
   if (!ApiError.is(error)) return 'member.actions.errGeneric';
 
   switch (error.code) {
+    case 'MEMBER_BOOKING_BLOCKED':
+      return 'member.actions.errBookingBlockedUnknown';
     case 'ALREADY_BOOKED':
       return 'member.actions.errAlreadyBooked';
     case 'CLASS_NOT_BOOKABLE':
@@ -64,3 +66,7 @@ export function isSubscriptionFrozen(error: unknown): boolean {
 // on these two screens it is the CTA the member just pressed, sitting a line
 // away and re-rendered against the CURRENT state by the invalidation matrix. A
 // predicate would only feed a second button that does the same thing.
+
+export function isBookingBlocked(error: unknown): boolean {
+  return ApiError.is(error) && error.code === 'MEMBER_BOOKING_BLOCKED';
+}

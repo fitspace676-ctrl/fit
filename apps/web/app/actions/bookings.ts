@@ -10,6 +10,7 @@
 // result the caller turns into a toast; the caller refreshes the route to pull
 // the updated seat counts and booking lists.
 
+import { fetchBookingStanding } from '@/lib/member-bookings';
 import { cookies } from 'next/headers';
 import {
   bookClassInstanceResultSchema,
@@ -23,7 +24,9 @@ import { tenantHeaders } from '@/lib/tenant-headers';
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 /** A booking action's outcome — `ok` with data, or an error with the API code. */
-export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string; code?: string };
+export type ActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; code?: string; blockedUntil?: string };
 
 /** Shared request plumbing: forward the session token, map non-OK to an error. */
 async function callBookingApi(
@@ -52,10 +55,20 @@ async function callBookingApi(
 }
 
 /** Extract `{ code, message }` from an error payload, if present. */
-function errorOf(body: unknown): { code?: string; message?: string } {
+function errorOf(body: unknown): { code?: string; message?: string; blockedUntil?: string } {
   if (body && typeof body === 'object') {
-    const b = body as { code?: unknown; message?: unknown };
+    const b = body as { code?: unknown; message?: unknown; blockedUntil?: unknown; data?: unknown };
+    const data =
+      b.data && typeof b.data === 'object' && !Array.isArray(b.data)
+        ? (b.data as { blockedUntil?: unknown })
+        : {};
     return {
+      blockedUntil:
+        typeof data.blockedUntil === 'string'
+          ? data.blockedUntil
+          : typeof b.blockedUntil === 'string'
+            ? b.blockedUntil
+            : undefined,
       code: typeof b.code === 'string' ? b.code : undefined,
       message: typeof b.message === 'string' ? b.message : undefined,
     };
@@ -75,8 +88,8 @@ export async function bookClassAction(
     }
     return { ok: false, error: 'INVALID_RESPONSE' };
   }
-  const { code, message } = errorOf(body);
-  return { ok: false, error: message ?? `Failed to book (${status})`, code };
+  const { code, message, blockedUntil } = errorOf(body);
+  return { ok: false, error: message ?? `Failed to book (${status})`, code, blockedUntil };
 }
 
 /** Cancel the calling member's booking for a class occurrence. */
@@ -91,6 +104,10 @@ export async function cancelBookingAction(
     }
     return { ok: false, error: 'INVALID_RESPONSE' };
   }
-  const { code, message } = errorOf(body);
-  return { ok: false, error: message ?? `Failed to cancel (${status})`, code };
+  const { code, message, blockedUntil } = errorOf(body);
+  return { ok: false, error: message ?? `Failed to cancel (${status})`, code, blockedUntil };
+}
+
+export async function bookingStandingAction() {
+  return fetchBookingStanding();
 }

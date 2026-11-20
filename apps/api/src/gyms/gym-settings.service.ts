@@ -7,10 +7,13 @@ import {
 import { Prisma } from '@fit/db';
 import {
   enabledPaymentMethods,
+  isNoShowBlockRuleActive,
   gymSettingsStoredSchema,
+  type ClassRules,
   type GetGymSettingsResponse,
   type GymSettings,
   type GymSettingsStored,
+  type UpdateClassRulesInput,
   type UpdateGymSettingsInput,
   type UpdateGymSettingsResponse,
   type UploadGymLogoInput,
@@ -112,6 +115,9 @@ export class GymSettingsService {
       invoice: { ...current.invoice, ...input.invoice },
       receipt: { ...current.receipt, ...input.receipt },
     };
+    if (!isNoShowBlockRuleActive(current.noShow) && isNoShowBlockRuleActive(next.noShow)) {
+      next.noShow.strikesSince = new Date().toISOString();
+    }
     const nextName = brandName ?? gym.name;
 
     // A till that accepts nothing cannot ring up a sale, so the last enabled
@@ -173,6 +179,20 @@ export class GymSettingsService {
     // enum, which Prisma's structural `JsonValue` does not accept even though the
     // runtime value is a plain string array. `toResponse` re-parses it anyway.
     return this.toResponse(nextName, next as unknown as Prisma.JsonValue);
+  }
+
+  /** `GET /gyms/class-rules` — the cancellation cutoff and no-show block rule. */
+  async getClassRules(): Promise<ClassRules> {
+    return toClassRules(await this.getSettings());
+  }
+
+  /**
+   * `PATCH /gyms/class-rules` — update only the class-booking rules. Goes through
+   * {@link updateSettings} so the merge and the `strikesSince` stamp (set when the
+   * block rule switches on) behave exactly as they do from the settings route.
+   */
+  async updateClassRules(input: UpdateClassRulesInput): Promise<ClassRules> {
+    return toClassRules(await this.updateSettings(input));
   }
 
   /**
@@ -412,4 +432,13 @@ export class GymSettingsService {
       receipt: stored.receipt,
     };
   }
+}
+
+/** The class-booking rules slice of a full settings response. */
+function toClassRules(settings: GymSettings): ClassRules {
+  const { strikeLimit, strikeWindowDays, blockDays } = settings.noShow;
+  return {
+    booking: { cancellationCutoffHours: settings.booking.cancellationCutoffHours },
+    noShow: { strikeLimit, strikeWindowDays, blockDays },
+  };
 }

@@ -494,6 +494,8 @@ model Gym {
   timeOffRequests         TimeOffRequest[]
   shiftSlots              ShiftSlot[]
 
+  bookingBlocks BookingBlock[]
+
   @@index([ownerId])
   @@map("gyms")
 }
@@ -540,6 +542,8 @@ model User {
   automationRules         AutomationRule[]         @relation("AutomationRuleCreatedBy")
   campaigns               Campaign[]               @relation("CampaignCreatedBy")
   agentChatSessions       AgentChatSession[]
+
+  liftedBookingBlocks BookingBlock[]
 
   @@map("users")
 }
@@ -908,6 +912,8 @@ model GymMember {
   /// The coach profile this staff member teaches under, when they hold (or once
   /// held) the `TRAINER` role. One-to-one — see {@link Trainer.staffId}.
   trainerProfile          Trainer?
+
+  bookingBlocks BookingBlock[]
 
   @@unique([userId, gymId])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
@@ -4269,4 +4275,35 @@ model GymOnboarding {
   gym             Gym?     @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
   @@map("gym_onboardings")
+}
+
+enum BookingBlockReason {
+  NO_SHOW_LIMIT
+}
+
+enum BookingBlockLiftReason {
+  STAFF
+  CORRECTION
+}
+
+model BookingBlock {
+  id               String                  @id @default(cuid())
+  gymId            String
+  memberId         String
+  reason           BookingBlockReason
+  noShowCount      Int
+  startsAt         DateTime
+  endsAt           DateTime
+  liftedAt         DateTime?
+  liftedByUserId   String?
+  liftReason       BookingBlockLiftReason?
+  expiryNotifiedAt DateTime?
+  createdAt        DateTime                @default(now())
+  gym              Gym                     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member           GymMember               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  liftedBy         User?                   @relation(fields: [liftedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([gymId, memberId])
+  @@index([endsAt])
+  @@map("booking_blocks")
 }

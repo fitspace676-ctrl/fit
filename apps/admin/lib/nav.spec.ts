@@ -278,3 +278,11 @@ describe('nav i18n coverage', () => {
     expect(typeof lookup(ka, key)).toBe('string');
   });
 });
+
+describe('Classes hub capability guards', () => {
+  it('gates rules and blocked members before the generic classes route', () => {
+    expect(routeGuardForPath('/classes/rules')?.permission).toBe(Permission.ClassWrite);
+    expect(routeGuardForPath('/classes/blocked')?.permission).toBe(Permission.ClassAttendance);
+    expect(routeGuardForPath('/classes')?.permission).toBe(Permission.ClassRead);
+  });
+});

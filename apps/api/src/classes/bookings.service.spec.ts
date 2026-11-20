@@ -1,3 +1,4 @@
+import type { BookingRulesService } from './booking-rules.service';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ConflictException,
@@ -108,13 +109,19 @@ function setup(opts?: {
     dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
   };
 
+  const rules = {
+    assertCanBook: vi.fn().mockResolvedValue(undefined),
+    lockMember: vi.fn().mockResolvedValue(undefined),
+  };
   return {
+    rules,
     service: new BookingsService(
       prisma,
       tenant,
       creditPacks as unknown as CreditPacksService,
       occupancy as unknown as ClassOccupancyPublisher,
       automation as unknown as AutomationExecutorService,
+      rules as unknown as BookingRulesService,
     ),
     automation,
     gymMember,
@@ -906,5 +913,26 @@ describe('BookingsService', () => {
         expect(ctx.gym.findFirst).not.toHaveBeenCalled();
       });
     });
+  });
+});
+
+describe('booking block gate', () => {
+  it('rejects both a seat and a waitlist attempt before any capacity mutation', async () => {
+    const ctx = setup();
+    ctx.rules.assertCanBook.mockRejectedValue(
+      new ForbiddenException({
+        code: 'MEMBER_BOOKING_BLOCKED',
+        data: { blockedUntil: '2026-12-01T00:00:00.000Z', reason: 'NO_SHOW_LIMIT' },
+      }),
+    );
+    await expect(ctx.service.book(INSTANCE_ID)).rejects.toMatchObject({
+      response: {
+        code: 'MEMBER_BOOKING_BLOCKED',
+        data: { blockedUntil: '2026-12-01T00:00:00.000Z', reason: 'NO_SHOW_LIMIT' },
+      },
+    });
+    expect(ctx.rules.assertCanBook).toHaveBeenCalledWith(GYM_ID, MEMBER_ID, expect.anything());
+    expect(ctx.booking.create).not.toHaveBeenCalled();
+    expect(ctx.classInstance.updateMany).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,7 @@
 'use client';
 
+import { BookingStandingNotice } from './BookingStandingNotice';
+import { useBookingStanding } from './useBookingStanding';
 import { useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@/src/components/ui/kit';
@@ -18,6 +20,11 @@ import { ClassBookingModal } from './ClassBookingModal';
 // none of which it previously had.
 
 const styles = stylex.create({
+  disabledButton: {
+    backgroundColor: 'var(--fc-quiet)',
+    color: 'var(--color-text-disabled)',
+    cursor: 'not-allowed',
+  },
   wrap: {
     display: 'grid',
   },
@@ -42,11 +49,15 @@ export interface ClassBookingCtaProps {
  */
 export function ClassBookingCta({ instance, isFull, timeZone }: ClassBookingCtaProps) {
   const t = useTranslations('classes');
+  const standing = useBookingStanding();
   const [open, setOpen] = useState(false);
 
   return (
     <div {...stylex.props(styles.wrap)}>
+      <BookingStandingNotice timeZone={timeZone} standing={standing} />
       <Button
+        disabled={!!standing?.block}
+        xstyle={standing?.block ? styles.disabledButton : undefined}
         variant="primary"
         size="page"
         fullWidth

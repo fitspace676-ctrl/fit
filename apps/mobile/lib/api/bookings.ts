@@ -19,6 +19,7 @@ import type {
   CancelBookingResponse,
   ListMemberBookingsQuery,
   ListMemberBookingsResponse,
+  MemberBookingStanding,
 } from '@fit/types';
 import { apiJson } from '../http/api-client';
 import { ENDPOINTS, endpointPath, type FetchOptions } from './endpoints';
@@ -44,6 +45,9 @@ export interface BookClassInput {
  * replay, so a retry is byte-identical; the distinction is the body's
  * `idempotentReplay`. A full occurrence is still a success with
  * `status: 'WAITLIST'`.
+ *
+ * A blocked member receives `MEMBER_BOOKING_BLOCKED`; apiJson normalizes
+ * `data.blockedUntil` (or the legacy top-level field) into ApiError.blockedUntil.
  *
  * Failure modes worth branching on (`ApiError.code`): `CLASS_NOT_BOOKABLE`
  * (409 — canceled/completed), `ALREADY_BOOKED` (409),
@@ -100,6 +104,15 @@ export async function listMyBookings(
   return apiJson<ListMemberBookingsResponse>(endpointPath(ENDPOINTS.listMyBookings), {
     method: ENDPOINTS.listMyBookings.method,
     query: { scope: params.scope },
+    signal: options.signal,
+  });
+}
+
+export async function getBookingStanding(
+  options: FetchOptions = {},
+): Promise<MemberBookingStanding> {
+  return apiJson(endpointPath(ENDPOINTS.bookingStanding), {
+    method: ENDPOINTS.bookingStanding.method,
     signal: options.signal,
   });
 }

@@ -1,4 +1,5 @@
 'use client';
+import { useBookingClock } from '../classes/useBookingClock';
 
 import * as stylex from '@stylexjs/stylex';
 import { Avatar, Badge, ButtonLink, Card, type BadgeTone } from '@/src/components/ui/kit';
@@ -222,6 +223,7 @@ const STATUS_TONE: Record<MemberBookingStatus, BadgeTone> = {
 };
 
 export interface BookingHistoryCardProps {
+  cutoffHours?: number;
   entry: MemberBookingHistoryEntry;
   /** Request-time boundary (ms since epoch), used for the relative day label. */
   now: number;
@@ -247,13 +249,26 @@ export function BookingHistoryCard({
   entry,
   now,
   past = false,
+  cutoffHours = 0,
   timeZone,
 }: BookingHistoryCardProps) {
   const t = useTranslations('account.bookings');
   const locale = useLocale();
+  const clock = useBookingClock();
+  const ta = useTranslations('member.actions');
+  const deadline = new Date(entry.classInstance.startsAt).getTime() - cutoffHours * 3600000;
+  const locked = entry.status === 'BOOKED' && cutoffHours > 0 && clock >= deadline;
   const { classInstance: instance, status } = entry;
   const muted = past && (status === 'NO_SHOW' || status === 'CANCELED');
   const cancelable = !past && (status === 'BOOKED' || status === 'WAITLIST');
+  const deadlineIso = new Date(deadline).toISOString();
+  const deadlineLabel = `${formatShortDate(deadlineIso, locale, timeZone)}, ${formatZonedTime(deadlineIso, timeZone)}`;
+  const cancellationNotice =
+    cancelable && status === 'BOOKED' && cutoffHours > 0
+      ? locked
+        ? ta('errWindowPassedHours', { hours: cutoffHours })
+        : ta('cancelUntil', { date: deadlineLabel })
+      : null;
   const dayLabel = relativeDayLabel(instance.startsAt, now, locale, timeZone, t);
   const isToday = dayLabel === t('relative.today');
 
@@ -325,8 +340,13 @@ export function BookingHistoryCard({
 
             {past ? null : (
               <div {...stylex.props(styles.actions)}>
-                {cancelable ? (
-                  <CancelBookingButton classId={instance.id} classTitle={instance.title} />
+                {cancellationNotice ? <p>{cancellationNotice}</p> : null}
+                {cancelable && !locked ? (
+                  <CancelBookingButton
+                    cutoffHours={cutoffHours}
+                    classId={instance.id}
+                    classTitle={instance.title}
+                  />
                 ) : (
                   <ButtonLink
                     href={`/member/classes/${instance.id}`}

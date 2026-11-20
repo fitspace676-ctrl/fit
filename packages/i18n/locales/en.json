@@ -4000,11 +4000,43 @@
         "confirmHint": "Deleting stops this class running. Sessions that already happened, and upcoming ones a member has booked, are kept on the calendar."
       }
     },
+    "bookingBlocks": {
+      "title": "Blocked members",
+      "description": "Group class booking blocks. Lifting a block does not restore cancelled bookings.",
+      "until": "Blocked from class booking until {date}",
+      "reason": "Reason: {count} no-shows.",
+      "lift": "Lift block",
+      "confirmTitle": "Lift this booking block?",
+      "confirmDescription": "The member will be able to book classes again. Previously cancelled bookings will not be restored.",
+      "cancel": "Cancel",
+      "lifted": "Booking block lifted.",
+      "notActive": "This block has already been lifted or expired. Refresh the page.",
+      "forbidden": "You do not have permission to lift booking blocks.",
+      "failed": "Could not lift the block. Please try again.",
+      "loadFailed": "Could not load booking blocks. Please refresh the page.",
+      "member": "Member",
+      "count": "No-shows",
+      "since": "Blocked since",
+      "untilColumn": "Blocked until",
+      "history": "Block history",
+      "actions": "Actions",
+      "liftHistory": "Lifted {date} by {name}: {reason}",
+      "automatic": "Automatically",
+      "correction": "Attendance correction",
+      "staff": "Staff action",
+      "active": "Active",
+      "expired": "Expired",
+      "includePast": "Include past blocks",
+      "empty": "No members are currently blocked from booking classes.",
+      "emptyAll": "No booking blocks to show."
+    },
     "classesTabs": {
+      "blocked": "Blocked members",
       "types": "Class Types",
       "schedule": "Schedule",
       "ptCalendar": "PT Calendar",
-      "ariaLabel": "Classes sections"
+      "ariaLabel": "Classes sections",
+      "rules": "Rules"
     },
     "invoicesHub": {
       "meta": {
@@ -4936,6 +4968,25 @@
         "chosenBranchFallback": "the branch you choose",
         "allBranchesPreview": "(all branches: {from} → {to})"
       }
+    },
+    "classRules": {
+      "title": "Class rules",
+      "cutoffLabel": "Cancellation cutoff",
+      "cutoffHint": "Members cannot cancel within this many hours of the class start. 0 means no limit.",
+      "limitLabel": "No-shows before a block",
+      "limitHint": "How many missed classes trigger a booking block (0-50).",
+      "windowLabel": "Counted within the last",
+      "windowHint": "Count no-shows within this many days (0-365).",
+      "durationLabel": "Block length",
+      "durationHint": "How many days the member cannot book classes (0-365).",
+      "hours": "hours",
+      "days": "days",
+      "noShows": "no-shows",
+      "summary": "{count} no-shows in {windowDays} days → blocked from booking classes for {blockDays} days.",
+      "off": "The no-show rule is off while any of its three values is 0. Set all three to 0 to turn it off.",
+      "requiredTogether": "Enter a value greater than 0, or set all three no-show values to 0.",
+      "attendanceNote": "A booking is automatically marked as a no-show 30 minutes after the class ends unless attendance was recorded. A door check-in counts as attended.",
+      "description": "Cancellation and no-show rules for group classes. PT sessions are not affected."
     }
   },
   "auth": {
@@ -5602,6 +5653,14 @@
       "canceled": "Booking canceled",
       "errAlreadyBooked": "You're already booked",
       "errNotBookable": "This class can't be booked",
+      "errBookingBlocked": "You can't book classes until {date} because of {count, plural, one {# missed class} other {# missed classes}}.",
+      "errBookingBlockedUntil": "You can't book classes until {date} because of missed classes.",
+      "errBookingBlockedUnknown": "Class booking is restricted because of missed classes.",
+      "bookingWarning": "One more missed class and you'll be blocked from booking for {days, plural, one {# day} other {# days}}.",
+      "bookingStrikes": "{count} of {limit} missed classes in the last {days, plural, one {# day} other {# days}}.",
+      "cancelUntil": "Free cancellation until {date}",
+      "errWindowPassedHours": "Can no longer be cancelled (less than {hours, plural, one {# hour} other {# hours}} before start).",
+      "cancellationRule": "Cancellation is possible up to {hours, plural, one {# hour} other {# hours}} before the class.",
       "errWindowPassed": "Cancellation window has passed",
       "errNotFound": "No booking found",
       "errAuth": "Please sign in",

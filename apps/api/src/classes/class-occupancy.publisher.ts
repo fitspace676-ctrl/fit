@@ -1,3 +1,4 @@
+import { PrismaService } from '../prisma/prisma.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { BookingStatus } from '@fit/db';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -30,6 +31,7 @@ export class ClassOccupancyPublisher {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly stream: OccupancyStreamService,
+    private readonly unscoped: PrismaService,
   ) {}
 
   /**
@@ -39,9 +41,25 @@ export class ClassOccupancyPublisher {
    * broadcast.
    */
   async publish(classInstanceId: string): Promise<void> {
+    return this.publishWithClient(
+      this.tenant.gymId,
+      classInstanceId,
+      this.prisma.client as unknown as PrismaService['client'],
+    );
+  }
+
+  async publishForGym(gymId: string, classInstanceId: string): Promise<void> {
+    return this.publishWithClient(gymId, classInstanceId, this.unscoped.client);
+  }
+
+  private async publishWithClient(
+    gymId: string,
+    classInstanceId: string,
+    client: PrismaService['client'],
+  ): Promise<void> {
     try {
-      const instance = await this.prisma.client.classInstance.findFirst({
-        where: { id: classInstanceId },
+      const instance = await client.classInstance.findFirst({
+        where: { id: classInstanceId, gymId },
         select: {
           status: true,
           bookedCount: true,
@@ -54,8 +72,8 @@ export class ClassOccupancyPublisher {
         return;
       }
 
-      const waitlistCount = await this.prisma.client.booking.count({
-        where: { classInstanceId, status: BookingStatus.WAITLIST },
+      const waitlistCount = await client.booking.count({
+        where: { gymId, classInstanceId, status: BookingStatus.WAITLIST },
       });
 
       const capacity =
@@ -64,7 +82,7 @@ export class ClassOccupancyPublisher {
         instance.classType?.capacity ??
         0;
 
-      this.stream.publish(this.tenant.gymId, {
+      this.stream.publish(gymId, {
         classInstanceId,
         capacity,
         bookedCount: instance.bookedCount,
