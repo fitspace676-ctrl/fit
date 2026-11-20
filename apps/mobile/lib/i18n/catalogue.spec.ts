@@ -134,8 +134,10 @@ describe('the member slice', () => {
     // 2026-11-20: manual membership renewal adds 6 member keys → 1204.
     // Same day, the portal's payment-method tile says "online" for a manual
     // membership (`payOnline`): → 1205.
-    expect(enKeys).toHaveLength(1205);
-    expect(kaKeys).toHaveLength(1205);
+    // Same day, the app's payment result screen names each state
+    // (`member.payment.result.*`, 15 keys): → 1220.
+    expect(enKeys).toHaveLength(1220);
+    expect(kaKeys).toHaveLength(1220);
   });
 });
 
