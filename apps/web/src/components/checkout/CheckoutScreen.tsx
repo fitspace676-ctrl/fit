@@ -923,8 +923,11 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
       startDateAcceptable &&
       memberSignupSchemaFor(intake).safeParse(signupBody).success);
 
-  const canPay = (online.enabled || isFree) && !online.redirecting &&
-    Boolean(gymId && (product || isFree) && terms && detailsReady) && !submitting;
+  const canPay =
+    (online.enabled || isFree) &&
+    !online.redirecting &&
+    Boolean(gymId && (product || isFree) && terms && detailsReady) &&
+    !submitting;
 
   /**
    * Reserve the membership.
@@ -938,7 +941,8 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if ((!online.enabled && !isFree) || !gymId || (!product && !isFree) || !terms || submitting) return;
+      if ((!online.enabled && !isFree) || !gymId || (!product && !isFree) || !terms || submitting)
+        return;
 
       setSubmitting(true);
       setError(null);
@@ -984,9 +988,13 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
           return;
         }
         const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : undefined;
-        setError(code === 'ONLINE_PAYMENTS_UNAVAILABLE' || code === 'PAYMENT_PROVIDER_UNAVAILABLE'
-          ? online.t(paymentErrorKey(code))
-          : err instanceof Error ? err.message : t('payment.error'));
+        setError(
+          code === 'ONLINE_PAYMENTS_UNAVAILABLE' || code === 'PAYMENT_PROVIDER_UNAVAILABLE'
+            ? online.t(paymentErrorKey(code))
+            : err instanceof Error
+              ? err.message
+              : t('payment.error'),
+        );
       });
     },
     [
@@ -1486,7 +1494,11 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
             </div>
 
             {/* Explain the hosted handoff before the buyer pays. */}
-            {isFree ? null : <p {...stylex.props(styles.orderNote)}>{online.enabled ? online.t('secure') : online.t('unavailable')}</p>}
+            {isFree ? null : (
+              <p {...stylex.props(styles.orderNote)}>
+                {online.enabled ? online.t('secure') : online.t('unavailable')}
+              </p>
+            )}
           </div>
 
           {error ? (

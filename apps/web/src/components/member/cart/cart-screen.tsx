@@ -411,7 +411,9 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
         setOrderId(res.orderId);
         setCart({ items: [], subtotal: 0, discount: 0, total: 0, currency: cart.currency });
       } else {
-        setError(res.code === 'PRICE_CHANGED' ? t('errPrice') : online.t(paymentErrorKey(res.code)));
+        setError(
+          res.code === 'PRICE_CHANGED' ? t('errPrice') : online.t(paymentErrorKey(res.code)),
+        );
       }
     });
   }
@@ -596,13 +598,21 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
             variant="primary"
             size="block"
             icon={<Icon name="bag" />}
-            label={online.redirecting ? online.t('redirecting') : pending ? t('placing') : `${t('placeOrder')} · ${money(cart.total)}`}
+            label={
+              online.redirecting
+                ? online.t('redirecting')
+                : pending
+                  ? t('placing')
+                  : `${t('placeOrder')} · ${money(cart.total)}`
+            }
             loading={pending}
             disabled={pending || online.redirecting || cart.items.length === 0}
             onClick={checkout}
             xstyle={styles.checkout}
           />
-          <p {...stylex.props(styles.secure)}>{online.provider === 'flitt' ? online.t('secure') : t('securePayment')}</p>
+          <p {...stylex.props(styles.secure)}>
+            {online.provider === 'flitt' ? online.t('secure') : t('securePayment')}
+          </p>
         </Card>
       </div>
     </div>

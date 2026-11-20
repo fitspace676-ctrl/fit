@@ -1,3 +1,4 @@
+import { onlinePaymentsConfigSchema, type OnlinePaymentsConfig } from '@fit/types';
 import { headers } from 'next/headers';
 import { extractGymSlug } from '@fit/utils';
 import {
@@ -433,16 +434,17 @@ export async function getActiveGymMemberTerms(): Promise<GymMemberTermsResponse 
 }
 
 /** Fail closed when the public tenant lookup cannot confirm online sales. */
-export async function getActiveGymOnlinePayments(): Promise<import('@fit/types').OnlinePaymentsConfig> {
+export async function getActiveGymOnlinePayments(): Promise<OnlinePaymentsConfig> {
   const unavailable = { enabled: false, provider: null } as const;
   const slug = await getActiveGymSlug();
   if (!slug) return unavailable;
   try {
     const response = await lookupTenant(slug);
     if (!response.ok) return unavailable;
-    const body = await response.json();
-    const { onlinePaymentsConfigSchema } = await import('@fit/types');
+    const body = (await response.json()) as { onlinePayments?: unknown };
     const parsed = onlinePaymentsConfigSchema.safeParse(body.onlinePayments);
     return parsed.success ? parsed.data : unavailable;
-  } catch { return unavailable; }
+  } catch {
+    return unavailable;
+  }
 }

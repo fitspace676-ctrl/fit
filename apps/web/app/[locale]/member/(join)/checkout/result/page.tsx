@@ -7,7 +7,10 @@ import { PaymentResult } from '@/src/components/checkout/payment-result';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PaymentResultPage({ params, searchParams }: {
+export default async function PaymentResultPage({
+  params,
+  searchParams,
+}: {
   params: Promise<{ locale: string }>;
   searchParams: Promise<{ orderId?: string }>;
 }) {

@@ -13,7 +13,7 @@
 import { cookies } from 'next/headers';
 import {
   purchaseCreditPackSchema,
-  type PurchaseCreditPackResponse,
+  type MemberPurchaseCreditPackResponse,
   PACK_UNAVAILABLE_CODE,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
@@ -23,7 +23,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').rep
 
 /** A purchase action's outcome — `ok` with the new pack id, or an error with the API's stable `code`. */
 export type PurchaseCreditPackActionResult =
-  | { ok: true; data: PurchaseCreditPackResponse }
+  | { ok: true; data: MemberPurchaseCreditPackResponse }
   | { ok: false; error: string; code?: string };
 
 /** Extract `{ code, message }` from an error payload, if present. */
@@ -71,7 +71,7 @@ export async function purchaseCreditPackAction(
   const body = (await response.json().catch(() => null)) as unknown;
 
   if (response.status === 201 && body && typeof body === 'object') {
-    return { ok: true, data: body as PurchaseCreditPackResponse };
+    return { ok: true, data: body as MemberPurchaseCreditPackResponse };
   }
   const { code, message } = errorOf(body);
   return {

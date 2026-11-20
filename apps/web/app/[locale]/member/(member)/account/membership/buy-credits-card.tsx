@@ -210,7 +210,9 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
       </div>
       <p {...stylex.props(styles.value)}>{credits}</p>
       {online.redirecting ? <p role="status">{online.t('redirecting')}</p> : null}
-      {!online.enabled ? <p>{online.t('unavailable')}</p> : catalogue.length > 0 ? (
+      {!online.enabled ? (
+        <p>{online.t('unavailable')}</p>
+      ) : catalogue.length > 0 ? (
         <Button
           variant="secondary"
           size="inline"
@@ -249,7 +251,9 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
               </div>
             ) : (
               <>
-                <p role="status">{online.redirecting ? online.t('redirecting') : online.t('secure')}</p>
+                <p role="status">
+                  {online.redirecting ? online.t('redirecting') : online.t('secure')}
+                </p>
                 <ul {...stylex.props(styles.packs)}>
                   {catalogue.map((pack) => (
                     <li key={pack.id} {...stylex.props(styles.pack)}>
