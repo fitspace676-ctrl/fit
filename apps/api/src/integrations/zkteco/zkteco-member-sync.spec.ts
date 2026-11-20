@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GymMemberStatus, Prisma, SubscriptionStatus } from '@fit/db';
 import { DEFAULT_ZKTECO_DEVICE_SETTINGS, DEFAULT_ZKTECO_SETTINGS } from '@fit/types';
 import type { PrismaService } from '../../prisma/prisma.service';
-import { ZktecoUnavailableError, type ZktecoGateway, type ZktecoTarget } from './zkteco-gateway';
+import {
+  ZktecoUnavailableError,
+  type PushOutcome,
+  type ZktecoGateway,
+  type ZktecoTarget,
+} from './zkteco-gateway';
 import { FIRST_PIN, ZktecoMemberSync, desiredState } from './zkteco-member-sync.service';
 import type { ZktecoPhotoLoader } from './zkteco-photo-loader';
 
@@ -148,8 +153,9 @@ function setup() {
     },
   };
   const gateway = {
-    apply: vi.fn((_t: unknown, pushes: { pin: string }[]) =>
-      Promise.resolve(pushes.map((p) => ({ pin: p.pin, ok: true }))),
+    apply: vi.fn(
+      (_t: unknown, pushes: { pin: string }[]): Promise<PushOutcome[]> =>
+        Promise.resolve(pushes.map((p) => ({ pin: p.pin, ok: true }))),
     ),
     listRemotePins: vi.fn().mockResolvedValue(new Set<string>()),
   };
