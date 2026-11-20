@@ -495,7 +495,9 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             <Icon name="card" {...stylex.props(styles.metricIcon)} />
             <p {...stylex.props(styles.metricLabel)}>{t('paymentMethod')}</p>
           </div>
-          <p {...stylex.props(styles.metricValue)}>{t('payAtDesk')}</p>
+          <p {...stylex.props(styles.metricValue)}>
+            {subscription?.payment?.mode === 'manual' ? t('payOnline') : t('payAtDesk')}
+          </p>
         </Card>
         <Card padding="none" xstyle={styles.metricCard}>
           <div {...stylex.props(styles.metricHead)}>

@@ -132,8 +132,10 @@ describe('the member slice', () => {
     // The base already contained 8 billing period keys beyond the 1164 comment.
     // Same day, the portal's Flitt result flow adds 15 more member keys: → 1198.
     // 2026-11-20: manual membership renewal adds 6 member keys → 1204.
-    expect(enKeys).toHaveLength(1204);
-    expect(kaKeys).toHaveLength(1204);
+    // Same day, the portal's payment-method tile says "online" for a manual
+    // membership (`payOnline`): → 1205.
+    expect(enKeys).toHaveLength(1205);
+    expect(kaKeys).toHaveLength(1205);
   });
 });
 
