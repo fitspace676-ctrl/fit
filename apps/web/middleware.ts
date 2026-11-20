@@ -84,6 +84,7 @@ function splitLocale(pathname: string): { locale: Locale; rest: string } {
 }
 
 function isPublicPath(pathname: string): boolean {
+  if (pathname === '/member/checkout/result') return false;
   // `/` is handled explicitly (login / role dashboard), not as a public page.
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
@@ -123,6 +124,11 @@ function finish(res: NextResponse, outcome: SessionOutcome): NextResponse {
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname, search } = req.nextUrl;
   const { locale, rest } = splitLocale(pathname);
+  if (rest === '/checkout/result') {
+    const target = req.nextUrl.clone();
+    target.pathname = `/${locale}/member/checkout/result`;
+    return NextResponse.redirect(target);
+  }
   const forwardedHost = req.headers.get('x-forwarded-host');
   const host = req.headers.get('host');
   const hostGymSlug = requestGymSlug(forwardedHost, host);

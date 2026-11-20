@@ -47,7 +47,7 @@ function errorOf(body: unknown): { code?: string; message?: string } {
 export async function purchaseCreditPackAction(
   packId: string,
 ): Promise<PurchaseCreditPackActionResult> {
-  const parsed = purchaseCreditPackSchema.safeParse({ packId });
+  const parsed = purchaseCreditPackSchema.safeParse({ packId, returnTo: 'web' });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'INVALID_REQUEST' };
   }

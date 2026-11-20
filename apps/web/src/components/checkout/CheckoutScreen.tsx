@@ -1,5 +1,7 @@
 'use client';
 
+import { useOnlinePayment, paymentErrorKey } from '@/src/components/checkout/online-payments';
+
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
@@ -736,6 +738,7 @@ function todayIn(timeZone: string): string {
  */
 export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps) {
   const t = useTranslations('checkout');
+  const online = useOnlinePayment();
   const tAuth = useTranslations('auth');
   const router = useRouter();
   const { user, isLoading: sessionLoading } = useSession();
@@ -920,7 +923,8 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
       startDateAcceptable &&
       memberSignupSchemaFor(intake).safeParse(signupBody).success);
 
-  const canPay = Boolean(gymId && (product || isFree) && terms && detailsReady) && !submitting;
+  const canPay = (online.enabled || isFree) && !online.redirecting &&
+    Boolean(gymId && (product || isFree) && terms && detailsReady) && !submitting;
 
   /**
    * Reserve the membership.
@@ -934,7 +938,7 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
   const onSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!gymId || (!product && !isFree) || !terms || submitting) return;
+      if ((!online.enabled && !isFree) || !gymId || (!product && !isFree) || !terms || submitting) return;
 
       setSubmitting(true);
       setError(null);
@@ -951,7 +955,8 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
           productType,
           productId: product.id,
           ...(locationId ? { locationId } : {}),
-        }).then(({ orderId }) => {
+        }).then(({ orderId, payment }) => {
+          if (online.redirect(payment)) return;
           // Replace (not push) so Back from the confirmation cannot resubmit.
           router.replace(
             orderId
@@ -978,10 +983,14 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
           setEmailTaken(true);
           return;
         }
-        setError(err instanceof Error ? err.message : t('payment.error'));
+        const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : undefined;
+        setError(code === 'ONLINE_PAYMENTS_UNAVAILABLE' || code === 'PAYMENT_PROVIDER_UNAVAILABLE'
+          ? online.t(paymentErrorKey(code))
+          : err instanceof Error ? err.message : t('payment.error'));
       });
     },
     [
+      online,
       gymId,
       product,
       isFree,
@@ -1005,10 +1014,12 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
   ];
   /** A step is reachable once every step before it is satisfied. */
   const reachable = (i: number): boolean => done.slice(0, i).every(Boolean);
-  const canAdvance = done[step] === true;
+  const canAdvance = done[step] === true && (step !== 1 || online.enabled || isFree);
 
   return (
     <form onSubmit={onSubmit} {...stylex.props(styles.page)}>
+      {!online.enabled ? <p role="status">{online.t('unavailable')}</p> : null}
+      {online.redirecting ? <p role="status">{online.t('redirecting')}</p> : null}
       <div {...stylex.props(styles.head)}>
         <div>
           <p {...stylex.props(styles.eyebrow)}>
@@ -1137,6 +1148,7 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
                       <button
                         key={card.id}
                         type="button"
+                        disabled={!online.enabled}
                         onClick={() => setProductId(card.id)}
                         aria-pressed={on}
                         {...stylex.props(styles.card, on && styles.cardOn)}
@@ -1394,7 +1406,7 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
 
               <p {...stylex.props(styles.notice)}>
                 <Icon name="info" sw={2} {...stylex.props(styles.noticeIcon)} />
-                {isFree ? t('payment.freeNotice') : t('payment.notice')}
+                {isFree ? t('payment.freeNotice') : online.t('secure')}
               </p>
             </div>
           </section>
@@ -1473,9 +1485,8 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
               )}
             </div>
 
-            {/* The standing note is about settling at reception — true of every
-                purchase, and untrue of the one choice that buys nothing. */}
-            {isFree ? null : <p {...stylex.props(styles.orderNote)}>{t('summary.note')}</p>}
+            {/* Explain the hosted handoff before the buyer pays. */}
+            {isFree ? null : <p {...stylex.props(styles.orderNote)}>{online.enabled ? online.t('secure') : online.t('unavailable')}</p>}
           </div>
 
           {error ? (

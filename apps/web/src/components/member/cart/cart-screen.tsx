@@ -1,5 +1,7 @@
 'use client';
 
+import { useOnlinePayment, paymentErrorKey } from '@/src/components/checkout/online-payments';
+
 import { useState, useTransition } from 'react';
 import {
   Badge,
@@ -368,6 +370,7 @@ export interface CartScreenProps {
  * pickup location + promo, and a checkout that places the order. */
 export function CartScreen({ initialCart, locations }: CartScreenProps) {
   const t = useTranslations('member.cart');
+  const online = useOnlinePayment();
   const locale = useLocale();
   const { toast } = useToast();
   const [cart, setCart] = useState<CartView>(initialCart);
@@ -404,10 +407,11 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
     startTransition(async () => {
       const res = await checkoutCartAction(locationId, promo || undefined);
       if (res.ok) {
+        if (online.redirect(res.payment)) return;
         setOrderId(res.orderId);
         setCart({ items: [], subtotal: 0, discount: 0, total: 0, currency: cart.currency });
       } else {
-        setError(res.code === 'PRICE_CHANGED' ? t('errPrice') : t('errCheckout'));
+        setError(res.code === 'PRICE_CHANGED' ? t('errPrice') : online.t(paymentErrorKey(res.code)));
       }
     });
   }
@@ -592,13 +596,13 @@ export function CartScreen({ initialCart, locations }: CartScreenProps) {
             variant="primary"
             size="block"
             icon={<Icon name="bag" />}
-            label={pending ? t('placing') : `${t('placeOrder')} · ${money(cart.total)}`}
+            label={online.redirecting ? online.t('redirecting') : pending ? t('placing') : `${t('placeOrder')} · ${money(cart.total)}`}
             loading={pending}
-            disabled={pending || cart.items.length === 0}
+            disabled={pending || online.redirecting || cart.items.length === 0}
             onClick={checkout}
             xstyle={styles.checkout}
           />
-          <p {...stylex.props(styles.secure)}>{t('securePayment')}</p>
+          <p {...stylex.props(styles.secure)}>{online.provider === 'flitt' ? online.t('secure') : t('securePayment')}</p>
         </Card>
       </div>
     </div>

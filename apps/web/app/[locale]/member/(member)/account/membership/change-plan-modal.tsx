@@ -1,5 +1,7 @@
 'use client';
 
+import { useOnlinePayment, paymentErrorKey } from '@/src/components/checkout/online-payments';
+
 import { useEffect, useId, useState, useTransition } from 'react';
 import {
   Badge,
@@ -269,6 +271,7 @@ export function ChangePlanModal({
   hasMembership,
 }: ChangePlanModalProps) {
   const t = useTranslations('member.membership');
+  const online = useOnlinePayment();
   const locale = useLocale();
   const router = useRouter();
 
@@ -320,15 +323,16 @@ export function ChangePlanModal({
     plan.interval === 'YEAR' ? t('plan.perYear') : t('plan.perMonth');
 
   function submit(): void {
-    if (!picked) return;
+    if (!picked || !online.enabled || online.redirecting) return;
     setFlow({ step: 'picking', error: null });
     startTransition(async () => {
       try {
-        await createCheckout({
+        const result = await createCheckout({
           productType: 'subscription',
           productId: picked.id,
           ...(locationId ? { locationId } : {}),
         });
+        if (online.redirect(result.payment)) return;
         setFlow({
           step: 'done',
           title: hasMembership ? t('plan.changedTitle') : t('plan.startedTitle'),
@@ -347,7 +351,7 @@ export function ChangePlanModal({
               ? t('plan.errAlreadySubscribed')
               : code === 'PRODUCT_UNAVAILABLE'
                 ? t('plan.errUnavailable')
-                : t('plan.error'),
+                : online.t(paymentErrorKey(code)),
         });
       }
     });
@@ -390,7 +394,7 @@ export function ChangePlanModal({
                       ? t('changePlan')
                       : t('choosePlan')
               }
-              disabled={!picked || pending}
+              disabled={!picked || pending || online.redirecting}
               onClick={submit}
             />
           </>
@@ -398,6 +402,7 @@ export function ChangePlanModal({
       }
     >
       <div {...stylex.props(styles.body)}>
+        <p role="status">{online.redirecting ? online.t('redirecting') : online.t('secure')}</p>
         {flow.step === 'done' ? (
           <div {...stylex.props(styles.outcome)}>
             <span aria-hidden {...stylex.props(styles.outcomeDisc)}>
@@ -524,7 +529,9 @@ export function ChangePlanButton({
   hasMembership: boolean;
 }) {
   const t = useTranslations('member.membership');
+  const online = useOnlinePayment();
   const [open, setOpen] = useState(false);
+  if (!online.enabled) return <p>{online.t('unavailable')}</p>;
 
   return (
     <>

@@ -431,3 +431,18 @@ export async function getActiveGymMemberTerms(): Promise<GymMemberTermsResponse 
     return null;
   }
 }
+
+/** Fail closed when the public tenant lookup cannot confirm online sales. */
+export async function getActiveGymOnlinePayments(): Promise<import('@fit/types').OnlinePaymentsConfig> {
+  const unavailable = { enabled: false, provider: null } as const;
+  const slug = await getActiveGymSlug();
+  if (!slug) return unavailable;
+  try {
+    const response = await lookupTenant(slug);
+    if (!response.ok) return unavailable;
+    const body = await response.json();
+    const { onlinePaymentsConfigSchema } = await import('@fit/types');
+    const parsed = onlinePaymentsConfigSchema.safeParse(body.onlinePayments);
+    return parsed.success ? parsed.data : unavailable;
+  } catch { return unavailable; }
+}

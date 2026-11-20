@@ -5343,6 +5343,23 @@
       "total": "Total",
       "empty": "Pick a branch and a plan. Your choice will show up here.",
       "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
+    },
+    "online": {
+      "unavailable": "Online payment is not available. Please pay at the front desk.",
+      "providerUnavailable": "Secure payment is temporarily unavailable. Please try again shortly.",
+      "inProgress": "Payment is still in progress. Please wait before cancelling the order.",
+      "error": "We could not check the payment. Please try again.",
+      "secure": "Card payment takes place on Flitt’s secure page.",
+      "redirecting": "Redirecting to secure payment…",
+      "checking": "Checking your payment…",
+      "paid": "Payment received",
+      "incomplete": "Payment not completed",
+      "retry": "Try again",
+      "cancel": "Cancel order",
+      "cancelled": "Order cancelled",
+      "refunded": "This payment has been refunded.",
+      "home": "Return home",
+      "confirmed": "Your purchase is confirmed."
     }
   },
   "classes": {

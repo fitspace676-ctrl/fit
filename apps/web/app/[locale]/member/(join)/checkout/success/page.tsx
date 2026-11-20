@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
@@ -197,6 +198,10 @@ export default async function CheckoutSuccessPage({
       ? await fetchOrder({ orderId: sp.orderId, accessToken }).catch(() => null)
       : null;
 
+  if (order?.payment?.provider === 'flitt' && order.payment.status !== 'paid') {
+    redirect(`/${locale}/member/checkout/result?orderId=${encodeURIComponent(order.id)}`);
+  }
+
   return (
     <div {...stylex.props(styles.page)}>
       {order ? (
@@ -239,8 +244,8 @@ function OrderConfirmation({
             />
           </svg>
         </span>
-        <h1 {...stylex.props(styles.title)}>{t('success.title')}</h1>
-        <p {...stylex.props(styles.subtitle)}>{t('success.subtitle')}</p>
+        <h1 {...stylex.props(styles.title)}>{order.payment?.provider === 'flitt' ? t('online.paid') : t('success.title')}</h1>
+        <p {...stylex.props(styles.subtitle)}>{order.payment?.provider === 'flitt' ? t('online.confirmed') : t('success.subtitle')}</p>
         <p {...stylex.props(styles.orderId)}>{t('success.orderId', { id: order.id })}</p>
       </div>
 
@@ -261,10 +266,10 @@ function OrderConfirmation({
         </div>
       </dl>
 
-      <p {...stylex.props(styles.verify)}>
+      {order.payment?.provider !== 'flitt' ? <p {...stylex.props(styles.verify)}>
         <Icon name="mail" {...stylex.props(styles.verifyIcon)} sw={2.2} />
         {t('success.verifyEmail')}
-      </p>
+      </p> : null}
 
       <HomeCta label={t('success.returnHome')} />
     </div>

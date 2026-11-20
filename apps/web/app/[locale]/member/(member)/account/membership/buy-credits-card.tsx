@@ -1,5 +1,7 @@
 'use client';
 
+import { useOnlinePayment, paymentErrorKey } from '@/src/components/checkout/online-payments';
+
 import { useState, useTransition } from 'react';
 import { Banner, Button, Card, Dialog } from '@/src/components/ui/kit';
 import * as stylex from '@stylexjs/stylex';
@@ -173,6 +175,7 @@ type Flow =
  */
 export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
   const t = useTranslations('member.membership.credits');
+  const online = useOnlinePayment();
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -180,17 +183,19 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
   const [buyingId, setBuyingId] = useState<string | null>(null);
 
   function buy(pack: CreditPackCatalogueEntry): void {
+    if (!online.enabled || online.redirecting) return;
     setBuyingId(pack.id);
     startTransition(async () => {
       const result = await purchaseCreditPackAction(pack.id);
       setBuyingId(null);
       if (result.ok) {
+        if (online.redirect(result.data.payment)) return;
         setFlow({ kind: 'done', message: t('boughtToast', { count: pack.sessionCount }) });
         router.refresh();
       } else if (result.code === PACK_UNAVAILABLE_CODE) {
         setFlow({ kind: 'picking', error: t('errUnavailable') });
       } else {
-        setFlow({ kind: 'picking', error: t('errGeneric') });
+        setFlow({ kind: 'picking', error: online.t(paymentErrorKey(result.code)) });
       }
     });
   }
@@ -204,7 +209,8 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
         <p {...stylex.props(styles.label)}>{t('title')}</p>
       </div>
       <p {...stylex.props(styles.value)}>{credits}</p>
-      {catalogue.length > 0 ? (
+      {online.redirecting ? <p role="status">{online.t('redirecting')}</p> : null}
+      {!online.enabled ? <p>{online.t('unavailable')}</p> : catalogue.length > 0 ? (
         <Button
           variant="secondary"
           size="inline"
@@ -229,7 +235,7 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
               size="block"
               label={t('close')}
               onClick={close}
-              disabled={pending}
+              disabled={pending || online.redirecting}
             />
           }
         >
@@ -243,6 +249,7 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
               </div>
             ) : (
               <>
+                <p role="status">{online.redirecting ? online.t('redirecting') : online.t('secure')}</p>
                 <ul {...stylex.props(styles.packs)}>
                   {catalogue.map((pack) => (
                     <li key={pack.id} {...stylex.props(styles.pack)}>
@@ -261,7 +268,7 @@ export function BuyCreditsCard({ credits, catalogue }: BuyCreditsCardProps) {
                         loading={buyingId === pack.id}
                         label={buyingId === pack.id ? t('buying') : t('buy')}
                         onClick={() => buy(pack)}
-                        disabled={pending}
+                        disabled={pending || online.redirecting}
                       />
                     </li>
                   ))}
