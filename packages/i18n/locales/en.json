@@ -6247,6 +6247,12 @@
       "empty": "This gym has not published its terms yet. Contact the gym for details."
     },
     "payment": {
+      "manualMethod": "Online payment each period",
+      "renewalAmount": "Next period: {amount}",
+      "renewalDue": "Payment due: {date}",
+      "payPeriod": "Pay",
+      "notDue": "Your next payment is not due yet.",
+      "overdue": "Your membership payment is overdue.",
       "frontDesk": "Online payment is unavailable. Please pay at the front desk.",
       "checking": "Checking payment…",
       "incomplete": "Payment not completed",

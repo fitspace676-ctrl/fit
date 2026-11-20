@@ -96,3 +96,18 @@ it('keeps the buyer on the result screen when cancellation is refused', async ()
   await screen.findByText('Could not update payment. Check again before placing another order.');
   expect(mockReplace).not.toHaveBeenCalled();
 });
+
+it('returns a paid renewal to membership and invalidates its query', async () => {
+  await AsyncStorage.setItem('payment-destination:ord_1', 'membership');
+  mockSync.mockResolvedValue(result('paid'));
+  const screen = renderScreen(<PaymentResultScreen />);
+  const invalidate = jest.spyOn(screen.client, 'invalidateQueries');
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/profile/membership'));
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['membership', 'gym_1'] });
+});
+it('preserves membership destination when retrying a renewal', async () => {
+  await AsyncStorage.setItem('payment-destination:ord_1', 'membership');
+  const screen = renderScreen(<PaymentResultScreen />);
+  fireEvent.press(await screen.findByTestId('payment-retry'));
+  await waitFor(() => expect(mockOpen).toHaveBeenCalledWith(payment, 'membership'));
+});

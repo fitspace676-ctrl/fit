@@ -8,7 +8,10 @@ import { launchPayment, paymentResultPath, paymentScheme } from '../lib/payment-
 export const paymentDestinationKey = (orderId: string) => `payment-destination:${orderId}`;
 export function usePaymentBrowser() {
   const router = useRouter();
-  return async (payment: PaymentAction | undefined, destination: 'shop' | 'join' = 'join') => {
+  return async (
+    payment: PaymentAction | undefined,
+    destination: 'shop' | 'join' | 'membership' = 'join',
+  ) => {
     if (payment?.status !== 'requires_action') return false;
     // Retain the destination across a cold-start deep link as well as dismissal.
     await AsyncStorage.setItem(paymentDestinationKey(payment.orderId), destination).catch(

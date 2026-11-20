@@ -131,8 +131,9 @@ describe('the member slice', () => {
     // checking,incomplete,retry,cancel,error,checkAgain,back,complete,refunded,planBody}.
     // The base already contained 8 billing period keys beyond the 1164 comment.
     // Same day, the portal's Flitt result flow adds 15 more member keys: → 1198.
-    expect(enKeys).toHaveLength(1198);
-    expect(kaKeys).toHaveLength(1198);
+    // 2026-11-20: manual membership renewal adds 6 member keys → 1204.
+    expect(enKeys).toHaveLength(1204);
+    expect(kaKeys).toHaveLength(1204);
   });
 });
 

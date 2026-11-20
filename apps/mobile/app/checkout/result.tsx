@@ -72,9 +72,11 @@ export default function PaymentResultScreen() {
         );
         if (controller.signal.aborted) return;
         router.replace(
-          destination === 'join'
-            ? `/checkout-success?orderId=${encodeURIComponent(orderId)}`
-            : `/shop/order/${encodeURIComponent(orderId)}`,
+          destination === 'membership'
+            ? '/profile/membership'
+            : destination === 'join'
+              ? `/checkout-success?orderId=${encodeURIComponent(orderId)}`
+              : `/shop/order/${encodeURIComponent(orderId)}`,
         );
       }
     }
@@ -101,7 +103,10 @@ export default function PaymentResultScreen() {
       const destination = await AsyncStorage.getItem(paymentDestinationKey(orderId)).catch(
         () => null,
       );
-      await openPayment(result.payment, destination === 'join' ? 'join' : 'shop');
+      await openPayment(
+        result.payment,
+        destination === 'membership' ? 'membership' : destination === 'join' ? 'join' : 'shop',
+      );
       setRound((value) => value + 1);
     } catch {
       setFailed(true);

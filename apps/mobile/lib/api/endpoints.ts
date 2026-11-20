@@ -145,6 +145,11 @@ export const ENDPOINTS = {
   },
   updateMyProfile: { method: 'PATCH', path: '/me/profile', permission: [Permission.ProfileManage] },
   /** `GET /me/subscription` — the membership **and** its invoice history. */
+  payMySubscription: {
+    method: 'POST',
+    path: '/me/subscription/pay',
+    permission: [Permission.ProfileManage],
+  },
   getMySubscription: {
     method: 'GET',
     path: '/me/subscription',

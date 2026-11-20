@@ -14,6 +14,7 @@ import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
 import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
+import { RenewalPayment } from './renewal-payment';
 import { FreezeCard } from './freeze-card';
 import { ChangePlanButton } from './change-plan-modal';
 import { BuyCreditsCard } from './buy-credits-card';
@@ -418,6 +419,8 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
           {t('pastDue.title')} - {t('pastDue.body')}
         </Banner>
       ) : null}
+
+      <RenewalPayment payment={subscription?.payment} overdue={status === 'PAST_DUE'} />
 
       <section {...stylex.props(styles.twoCol, !subscription && styles.oneCol)}>
         {/* Current plan */}
