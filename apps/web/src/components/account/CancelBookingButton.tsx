@@ -23,7 +23,11 @@ export interface CancelBookingButtonProps {
  * the route so the list and status badges reflect the change. The dialog stays
  * open with a spinner while the action is in flight and only closes on success.
  */
-export function CancelBookingButton({ classId, classTitle, cutoffHours = 0 }: CancelBookingButtonProps) {
+export function CancelBookingButton({
+  classId,
+  classTitle,
+  cutoffHours = 0,
+}: CancelBookingButtonProps) {
   const t = useTranslations('account.bookings');
   const ta = useTranslations('member.actions');
   const { toast } = useToast();
@@ -39,7 +43,12 @@ export function CancelBookingButton({ classId, classTitle, cutoffHours = 0 }: Ca
         setOpen(false);
         router.refresh();
       } else {
-        toast(result.code === 'CANCELLATION_WINDOW_PASSED' && cutoffHours > 0 ? ta('errWindowPassedHours', { hours: cutoffHours }) : ta(messageKey(result.code)), { tone: 'danger', icon: 'x' });
+        toast(
+          result.code === 'CANCELLATION_WINDOW_PASSED' && cutoffHours > 0
+            ? ta('errWindowPassedHours', { hours: cutoffHours })
+            : ta(messageKey(result.code)),
+          { tone: 'danger', icon: 'x' },
+        );
       }
     });
   }

@@ -155,11 +155,26 @@ export function useClassBooking(): ClassBooking {
         return;
       }
       if (next.status === null && standing?.block) {
-        setFailure({ frozen: false, blocked: true, blockedUntil: standing.block.until, limit: standing.noShow.limit, messageKey: 'member.actions.errBookingBlockedUnknown' });
+        setFailure({
+          frozen: false,
+          blocked: true,
+          blockedUntil: standing.block.until,
+          limit: standing.noShow.limit,
+          messageKey: 'member.actions.errBookingBlockedUnknown',
+        });
         return;
       }
-      if (next.status === 'BOOKED' && standing && standing.cancellationCutoffHours > 0 && Date.now() >= Date.parse(next.startsAt) - standing.cancellationCutoffHours * 3600000) {
-        setFailure({ frozen: false, messageKey: 'member.actions.errWindowPassedHours', cutoffHours: standing.cancellationCutoffHours });
+      if (
+        next.status === 'BOOKED' &&
+        standing &&
+        standing.cancellationCutoffHours > 0 &&
+        Date.now() >= Date.parse(next.startsAt) - standing.cancellationCutoffHours * 3600000
+      ) {
+        setFailure({
+          frozen: false,
+          messageKey: 'member.actions.errWindowPassedHours',
+          cutoffHours: standing.cancellationCutoffHours,
+        });
         return;
       }
       if (attempt.current?.classId !== next.id) {

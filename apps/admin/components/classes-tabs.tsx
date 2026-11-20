@@ -18,9 +18,11 @@ export function ClassesTabs() {
     { href: '/classes', label: t('types'), icon: 'dumbbell', exact: true },
     { href: '/classes/schedule', label: t('schedule'), icon: 'calendar' },
     ...(consoleCan(permissions, Permission.ClassWrite)
-      ? [{ href: '/classes/rules', label: t('rules'), icon: 'shield' as const }] : []),
+      ? [{ href: '/classes/rules', label: t('rules'), icon: 'shield' as const }]
+      : []),
     ...(consoleCan(permissions, Permission.ClassAttendance)
-      ? [{ href: '/classes/blocked', label: t('blocked'), icon: 'lock' as const }] : []),
+      ? [{ href: '/classes/blocked', label: t('blocked'), icon: 'lock' as const }]
+      : []),
     { href: '/classes/pt-calendar', label: t('ptCalendar'), icon: 'calendarPlus' },
   ];
   return <HubTabs items={items} ariaLabel={t('ariaLabel')} />;

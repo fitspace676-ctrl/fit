@@ -238,7 +238,14 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
           // `409 CANCELLATION_WINDOW_PASSED` has its own sentence — the seat is
           // NOT released and the credit is NOT refunded, and a generic "try
           // again" would invite a member to press a button that cannot work.
-          toast.error(bookingErrorKey(error) === 'member.actions.errWindowPassed' && standing?.cancellationCutoffHours ? t('member.actions.errWindowPassedHours', { hours: standing.cancellationCutoffHours }) : t(bookingErrorKey(error)));
+          toast.error(
+            bookingErrorKey(error) === 'member.actions.errWindowPassed' &&
+              standing?.cancellationCutoffHours
+              ? t('member.actions.errWindowPassedHours', {
+                  hours: standing.cancellationCutoffHours,
+                })
+              : t(bookingErrorKey(error)),
+          );
         },
       },
     );
@@ -384,13 +391,18 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
                       half === 'upcoming' &&
                       (entry.status === 'BOOKED' || entry.status === 'WAITLIST');
                     const deadlineLabel = createDateTimeFormat(locale, {
-                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
                     }).format(wallClock(new Date(deadline)));
-                    const cancellationNotice = cancellable && entry.status === 'BOOKED' && hours > 0
-                      ? locked
-                        ? t('member.actions.errWindowPassedHours', { hours })
-                        : t('member.actions.cancelUntil', { date: deadlineLabel })
-                      : null;
+                    const cancellationNotice =
+                      cancellable && entry.status === 'BOOKED' && hours > 0
+                        ? locked
+                          ? t('member.actions.errWindowPassedHours', { hours })
+                          : t('member.actions.cancelUntil', { date: deadlineLabel })
+                        : null;
 
                     return (
                       <Surface key={entry.bookingId} tone="card" padding={4} radius={22}>
@@ -420,7 +432,9 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
                               </View>
                             }
                           />
-                          {cancellationNotice ? <InlineNote icon="clock">{cancellationNotice}</InlineNote> : null}
+                          {cancellationNotice ? (
+                            <InlineNote icon="clock">{cancellationNotice}</InlineNote>
+                          ) : null}
                           {cancellable ? (
                             <Button
                               testID={`bookings-cancel-${entry.bookingId}`}

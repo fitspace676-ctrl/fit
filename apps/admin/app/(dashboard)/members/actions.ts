@@ -464,8 +464,14 @@ export async function liftBookingBlockAction(id: string): Promise<ActionResult> 
     revalidatePath('/classes/schedule');
     return { ok: true, data: undefined };
   } catch (error) {
-    return { ok: false, error: error instanceof ApiError && error.message === 'BOOKING_BLOCK_NOT_ACTIVE'
-      ? t('notActive') : error instanceof ApiError && error.status === 403
-        ? t('forbidden') : t('failed') };
+    return {
+      ok: false,
+      error:
+        error instanceof ApiError && error.message === 'BOOKING_BLOCK_NOT_ACTIVE'
+          ? t('notActive')
+          : error instanceof ApiError && error.status === 403
+            ? t('forbidden')
+            : t('failed'),
+    };
   }
 }

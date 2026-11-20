@@ -17,7 +17,13 @@ import { consoleCan } from '@/lib/console-permissions';
 import { getConsolePermissions } from '@/lib/permissions-server';
 import { getServerSession } from '@/lib/session';
 import { getActiveGymBrand } from '@/lib/active-gym';
-import { ApiError, listBookingBlocks, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
+import {
+  ApiError,
+  listBookingBlocks,
+  fetchCreditPackCatalogue,
+  fetchMember,
+  fetchMemberCreditPacks,
+} from '@/lib/api';
 import { Badge, Banner, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
 import { gymCalendarContext } from '@/lib/gym-time';
@@ -542,19 +548,31 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
 
       {blocksError ? (
         <Card padding="none" xstyle={styles.errorCard}>
-          <p role="alert" {...stylex.props(styles.errorText)}>{blocksT('loadFailed')}</p>
+          <p role="alert" {...stylex.props(styles.errorText)}>
+            {blocksT('loadFailed')}
+          </p>
         </Card>
-      ) : blocks.filter((block) => block.active).map((block) => (
-        <Banner key={block.id} tone="info" xstyle={styles.bookingBanner}>
-          <span {...stylex.props(styles.bookingBannerBody)}>
-            <span {...stylex.props(styles.bookingBannerCopy)}>
-              <strong>{blocksT('until', { date: formatBookingBlockDate(block.endsAt, locale, timeZone) })}</strong>
-              <span {...stylex.props(styles.bookingBannerReason)}>{blocksT('reason', { count: block.noShowCount })}</span>
-            </span>
-            {canLiftBlock ? <BookingBlockAction blockId={block.id} /> : null}
-          </span>
-        </Banner>
-      ))}
+      ) : (
+        blocks
+          .filter((block) => block.active)
+          .map((block) => (
+            <Banner key={block.id} tone="info" xstyle={styles.bookingBanner}>
+              <span {...stylex.props(styles.bookingBannerBody)}>
+                <span {...stylex.props(styles.bookingBannerCopy)}>
+                  <strong>
+                    {blocksT('until', {
+                      date: formatBookingBlockDate(block.endsAt, locale, timeZone),
+                    })}
+                  </strong>
+                  <span {...stylex.props(styles.bookingBannerReason)}>
+                    {blocksT('reason', { count: block.noShowCount })}
+                  </span>
+                </span>
+                {canLiftBlock ? <BookingBlockAction blockId={block.id} /> : null}
+              </span>
+            </Banner>
+          ))
+      )}
 
       {/* Identity header card. */}
       <Card padding="none" xstyle={styles.identityCard}>

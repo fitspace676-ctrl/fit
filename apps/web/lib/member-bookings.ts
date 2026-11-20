@@ -84,5 +84,7 @@ export async function fetchBookingStanding(): Promise<MemberBookingStanding | nu
       cache: 'no-store',
     });
     return response.ok ? ((await response.json()) as MemberBookingStanding) : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }

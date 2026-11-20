@@ -17,11 +17,24 @@ export async function generateMetadata() {
 }
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
-  title: { margin: 0, fontFamily: 'var(--font-family-heading)', fontSize: 'clamp(1.5rem, 4vw, 1.875rem)', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' },
+  title: {
+    margin: 0,
+    fontFamily: 'var(--font-family-heading)',
+    fontSize: 'clamp(1.5rem, 4vw, 1.875rem)',
+    fontWeight: 800,
+    letterSpacing: '-0.02em',
+    color: 'var(--color-text-primary)',
+  },
   description: { margin: 0, fontSize: '0.875rem', color: 'var(--color-text-secondary)' },
-  error: { padding: '1rem', color: 'var(--color-error)', backgroundColor: 'var(--color-error-muted)' },
+  error: {
+    padding: '1rem',
+    color: 'var(--color-error)',
+    backgroundColor: 'var(--color-error-muted)',
+  },
 });
-export default async function BlockedMembersPage({ searchParams }: {
+export default async function BlockedMembersPage({
+  searchParams,
+}: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const t = await getTranslations('admin.bookingBlocks');
@@ -31,13 +44,28 @@ export default async function BlockedMembersPage({ searchParams }: {
   if (!canLift) redirect('/403');
   let blocks: AdminBookingBlock[] = [];
   let failed = false;
-  try { ({ blocks } = await listBookingBlocks({ status: showPast ? 'all' : 'active' })); }
-  catch { failed = true; }
-  return <div {...stylex.props(styles.page)}>
-    <ClassesTabs />
-    <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
-    <p {...stylex.props(styles.description)}>{t('description')}</p>
-    {failed ? <Card xstyle={styles.error}><p role="alert">{t('loadFailed')}</p></Card>
-      : <BookingBlocksTable blocks={blocks} timeZone={timeZone} showPast={showPast} canLift={canLift} />}
-  </div>;
+  try {
+    ({ blocks } = await listBookingBlocks({ status: showPast ? 'all' : 'active' }));
+  } catch {
+    failed = true;
+  }
+  return (
+    <div {...stylex.props(styles.page)}>
+      <ClassesTabs />
+      <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
+      <p {...stylex.props(styles.description)}>{t('description')}</p>
+      {failed ? (
+        <Card xstyle={styles.error}>
+          <p role="alert">{t('loadFailed')}</p>
+        </Card>
+      ) : (
+        <BookingBlocksTable
+          blocks={blocks}
+          timeZone={timeZone}
+          showPast={showPast}
+          canLift={canLift}
+        />
+      )}
+    </div>
+  );
 }

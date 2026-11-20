@@ -67,4 +67,6 @@ export function isSubscriptionFrozen(error: unknown): boolean {
 // away and re-rendered against the CURRENT state by the invalidation matrix. A
 // predicate would only feed a second button that does the same thing.
 
-export function isBookingBlocked(error: unknown): boolean { return ApiError.is(error) && error.code === 'MEMBER_BOOKING_BLOCKED'; }
+export function isBookingBlocked(error: unknown): boolean {
+  return ApiError.is(error) && error.code === 'MEMBER_BOOKING_BLOCKED';
+}

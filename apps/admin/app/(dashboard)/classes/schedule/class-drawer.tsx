@@ -920,9 +920,14 @@ function RosterRow({
       <span {...stylex.props(styles.avatar)}>{initials(label)}</span>
       <div {...stylex.props(styles.rowText)}>
         <span {...stylex.props(styles.rowName)}>{label}</span>
-        {entry.bookingBlockedUntil ? <Badge tone="pending" label={blocksT('until', {
-          date: formatBookingBlockDate(entry.bookingBlockedUntil, locale, timeZone),
-        })} /> : null}
+        {entry.bookingBlockedUntil ? (
+          <Badge
+            tone="pending"
+            label={blocksT('until', {
+              date: formatBookingBlockDate(entry.bookingBlockedUntil, locale, timeZone),
+            })}
+          />
+        ) : null}
         {entry.memberName ? (
           <span {...stylex.props(styles.rowEmail)}>{entry.memberEmail}</span>
         ) : null}

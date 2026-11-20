@@ -37,10 +37,30 @@ export function BookingBlockAction({ blockId }: { blockId: string }) {
       }
     });
   }
-  return <>
-    <Button variant="secondary" size="card" xstyle={styles.action} label={t('lift')} onClick={() => { setError(null); setOpen(true); }} />
-    <ConfirmDialog open={open} onClose={() => { if (!pending) setOpen(false); }} onConfirm={lift}
-      title={t('confirmTitle')} description={error ?? t('confirmDescription')}
-      confirmLabel={t('lift')} cancelLabel={t('cancel')} loading={pending} />
-  </>;
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="card"
+        xstyle={styles.action}
+        label={t('lift')}
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
+      />
+      <ConfirmDialog
+        open={open}
+        onClose={() => {
+          if (!pending) setOpen(false);
+        }}
+        onConfirm={lift}
+        title={t('confirmTitle')}
+        description={error ?? t('confirmDescription')}
+        confirmLabel={t('lift')}
+        cancelLabel={t('cancel')}
+        loading={pending}
+      />
+    </>
+  );
 }

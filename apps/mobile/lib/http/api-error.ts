@@ -183,7 +183,12 @@ export function apiErrorFromResponse(
     status,
     code: typeof record.code === 'string' ? record.code : codeForStatus(status),
     message: typeof record.message === 'string' ? record.message : codeForStatus(status),
-    blockedUntil: typeof data.blockedUntil === 'string' ? data.blockedUntil : typeof record.blockedUntil === 'string' ? record.blockedUntil : undefined,
+    blockedUntil:
+      typeof data.blockedUntil === 'string'
+        ? data.blockedUntil
+        : typeof record.blockedUntil === 'string'
+          ? record.blockedUntil
+          : undefined,
     details: asStringArray(record.details),
     requestId: typeof record.requestId === 'string' ? record.requestId : undefined,
     sentryEventId: typeof record.sentryEventId === 'string' ? record.sentryEventId : undefined,

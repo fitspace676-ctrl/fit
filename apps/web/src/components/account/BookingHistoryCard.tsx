@@ -263,11 +263,12 @@ export function BookingHistoryCard({
   const cancelable = !past && (status === 'BOOKED' || status === 'WAITLIST');
   const deadlineIso = new Date(deadline).toISOString();
   const deadlineLabel = `${formatShortDate(deadlineIso, locale, timeZone)}, ${formatZonedTime(deadlineIso, timeZone)}`;
-  const cancellationNotice = cancelable && status === 'BOOKED' && cutoffHours > 0
-    ? locked
-      ? ta('errWindowPassedHours', { hours: cutoffHours })
-      : ta('cancelUntil', { date: deadlineLabel })
-    : null;
+  const cancellationNotice =
+    cancelable && status === 'BOOKED' && cutoffHours > 0
+      ? locked
+        ? ta('errWindowPassedHours', { hours: cutoffHours })
+        : ta('cancelUntil', { date: deadlineLabel })
+      : null;
   const dayLabel = relativeDayLabel(instance.startsAt, now, locale, timeZone, t);
   const isToday = dayLabel === t('relative.today');
 
@@ -341,7 +342,11 @@ export function BookingHistoryCard({
               <div {...stylex.props(styles.actions)}>
                 {cancellationNotice ? <p>{cancellationNotice}</p> : null}
                 {cancelable && !locked ? (
-                  <CancelBookingButton cutoffHours={cutoffHours} classId={instance.id} classTitle={instance.title} />
+                  <CancelBookingButton
+                    cutoffHours={cutoffHours}
+                    classId={instance.id}
+                    classTitle={instance.title}
+                  />
                 ) : (
                   <ButtonLink
                     href={`/member/classes/${instance.id}`}

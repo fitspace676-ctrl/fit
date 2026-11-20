@@ -24,7 +24,9 @@ import { tenantHeaders } from '@/lib/tenant-headers';
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 /** A booking action's outcome — `ok` with data, or an error with the API code. */
-export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string; code?: string; blockedUntil?: string };
+export type ActionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; code?: string; blockedUntil?: string };
 
 /** Shared request plumbing: forward the session token, map non-OK to an error. */
 async function callBookingApi(
@@ -56,10 +58,17 @@ async function callBookingApi(
 function errorOf(body: unknown): { code?: string; message?: string; blockedUntil?: string } {
   if (body && typeof body === 'object') {
     const b = body as { code?: unknown; message?: unknown; blockedUntil?: unknown; data?: unknown };
-    const data = b.data && typeof b.data === 'object' && !Array.isArray(b.data)
-      ? b.data as { blockedUntil?: unknown } : {};
+    const data =
+      b.data && typeof b.data === 'object' && !Array.isArray(b.data)
+        ? (b.data as { blockedUntil?: unknown })
+        : {};
     return {
-      blockedUntil: typeof data.blockedUntil === 'string' ? data.blockedUntil : typeof b.blockedUntil === 'string' ? b.blockedUntil : undefined,
+      blockedUntil:
+        typeof data.blockedUntil === 'string'
+          ? data.blockedUntil
+          : typeof b.blockedUntil === 'string'
+            ? b.blockedUntil
+            : undefined,
       code: typeof b.code === 'string' ? b.code : undefined,
       message: typeof b.message === 'string' ? b.message : undefined,
     };
@@ -99,4 +108,6 @@ export async function cancelBookingAction(
   return { ok: false, error: message ?? `Failed to cancel (${status})`, code, blockedUntil };
 }
 
-export async function bookingStandingAction() { return fetchBookingStanding(); }
+export async function bookingStandingAction() {
+  return fetchBookingStanding();
+}

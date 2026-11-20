@@ -5,16 +5,26 @@ import type { ClassInstanceCard, MemberBookingStanding } from '@fit/types';
 
 // Routing, session and the booking action are all out of scope here — the
 // modal's cover is what these tests are about.
-const policy = vi.hoisted(() => ({ standing: null as MemberBookingStanding | null, signedIn: false, book: vi.fn() }));
+const policy = vi.hoisted(() => ({
+  standing: null as MemberBookingStanding | null,
+  signedIn: false,
+  book: vi.fn(),
+}));
 vi.mock('./useBookingStanding', () => ({ useBookingStanding: () => policy.standing }));
-beforeEach(() => { policy.standing = null; policy.signedIn = false; policy.book.mockReset(); });
+beforeEach(() => {
+  policy.standing = null;
+  policy.signedIn = false;
+  policy.book.mockReset();
+});
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/src/i18n/navigation', () => ({
   usePathname: () => '/member/classes',
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
   Link: ({ children }: { children: React.ReactNode }) => <a href="#">{children}</a>,
 }));
-vi.mock('@/hooks/use-session', () => ({ useSession: () => ({ user: policy.signedIn ? { id: 'member' } : null, loading: false }) }));
+vi.mock('@/hooks/use-session', () => ({
+  useSession: () => ({ user: policy.signedIn ? { id: 'member' } : null, loading: false }),
+}));
 vi.mock('@/app/actions/bookings', () => ({ bookClassAction: policy.book }));
 
 const { ClassBookingModal } = await import('./ClassBookingModal');
@@ -47,7 +57,14 @@ const messages = {
       },
     },
   },
-  member: { actions: { close: 'Close', errBookingBlockedUntil: "You can't book classes until {date} because of missed classes.", bookingWarning: 'One more missed class blocks booking for {days} days.', cancellationRule: 'Cancel at least {hours} hours before class.' } },
+  member: {
+    actions: {
+      close: 'Close',
+      errBookingBlockedUntil: "You can't book classes until {date} because of missed classes.",
+      bookingWarning: 'One more missed class blocks booking for {days} days.',
+      cancellationRule: 'Cancel at least {hours} hours before class.',
+    },
+  },
 };
 
 function card(over: Partial<ClassInstanceCard> = {}): ClassInstanceCard {
@@ -101,7 +118,11 @@ describe('ClassBookingModal cover image', () => {
 });
 
 it('states the warning and cancellation rule before confirmation', () => {
-  policy.standing = { cancellationCutoffHours: 4, noShow: { active: true, limit: 3, windowDays: 30, blockDays: 14, count: 2, remaining: 1 }, block: null };
+  policy.standing = {
+    cancellationCutoffHours: 4,
+    noShow: { active: true, limit: 3, windowDays: 30, blockDays: 14, count: 2, remaining: 1 },
+    block: null,
+  };
   renderModal();
   expect(screen.getByText('One more missed class blocks booking for 14 days.')).toBeTruthy();
   expect(screen.getByText('Cancel at least 4 hours before class.')).toBeTruthy();
@@ -110,9 +131,17 @@ it('states the warning and cancellation rule before confirmation', () => {
 it('renders the normalized blocked expiry returned by the server action', async () => {
   policy.signedIn = true;
   // The server action normalizes data.blockedUntil into its client-safe result.
-  policy.book.mockResolvedValue({ ok: false, code: 'MEMBER_BOOKING_BLOCKED', blockedUntil: '2027-01-01T12:00:00Z' });
+  policy.book.mockResolvedValue({
+    ok: false,
+    code: 'MEMBER_BOOKING_BLOCKED',
+    blockedUntil: '2027-01-01T12:00:00Z',
+  });
   renderModal();
   fireEvent.click(screen.getByRole('button', { name: 'Book this class' }));
-  expect(await screen.findByText("You can't book classes until January 1, 2027 because of missed classes.")).toBeTruthy();
+  expect(
+    await screen.findByText(
+      "You can't book classes until January 1, 2027 because of missed classes.",
+    ),
+  ).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Book this class' })).toBeDisabled();
 });

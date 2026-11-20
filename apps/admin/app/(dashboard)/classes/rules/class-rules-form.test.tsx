@@ -9,14 +9,25 @@ import { updateClassRulesAction } from './actions';
 
 vi.mock('./actions', () => ({ updateClassRulesAction: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-const values = { booking: { cancellationCutoffHours: 6 }, noShow: { strikeLimit: 3, strikeWindowDays: 30, blockDays: 7 } };
+const values = {
+  booking: { cancellationCutoffHours: 6 },
+  noShow: { strikeLimit: 3, strikeWindowDays: 30, blockDays: 7 },
+};
 function setup() {
   const initial: ClassRules = values;
   vi.mocked(updateClassRulesAction).mockResolvedValue({ ok: true, data: initial });
-  render(<NextIntlClientProvider locale="en" messages={en}><ToastProvider><ClassRulesForm initial={initial} /></ToastProvider></NextIntlClientProvider>);
+  render(
+    <NextIntlClientProvider locale="en" messages={en}>
+      <ToastProvider>
+        <ClassRulesForm initial={initial} />
+      </ToastProvider>
+    </NextIntlClientProvider>,
+  );
 }
-const field = (key: 'cutoff' | 'limit' | 'window' | 'duration') => screen.getByRole('spinbutton', { name: new RegExp(en.admin.classRules[`${key}Label`]) });
-const save = () => fireEvent.click(screen.getByRole('button', { name: en.admin.settings.saveBar.save }));
+const field = (key: 'cutoff' | 'limit' | 'window' | 'duration') =>
+  screen.getByRole('spinbutton', { name: new RegExp(en.admin.classRules[`${key}Label`]) });
+const save = () =>
+  fireEvent.click(screen.getByRole('button', { name: en.admin.settings.saveBar.save }));
 beforeEach(() => vi.mocked(updateClassRulesAction).mockReset());
 describe('Class rules form', () => {
   it('renders the loaded values', () => {
@@ -38,6 +49,9 @@ describe('Class rules form', () => {
     fireEvent.change(field('cutoff'), { target: { value: '12' } });
     save();
     await waitFor(() => expect(updateClassRulesAction).toHaveBeenCalledTimes(1));
-    expect(vi.mocked(updateClassRulesAction).mock.calls[0]![0]).toEqual({ ...values, booking: { cancellationCutoffHours: 12 } });
+    expect(vi.mocked(updateClassRulesAction).mock.calls[0]![0]).toEqual({
+      ...values,
+      booking: { cancellationCutoffHours: 12 },
+    });
   });
 });

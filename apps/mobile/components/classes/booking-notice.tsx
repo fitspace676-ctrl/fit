@@ -36,7 +36,9 @@ import type { BookingFailure } from './use-class-booking';
 
 function blockDate(iso: string, locale: Locale): string {
   return createDateTimeFormat(locale, {
-    day: 'numeric', month: 'long', year: 'numeric',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
   }).format(wallClock(iso));
 }
 
@@ -53,7 +55,26 @@ export function BookingFailureNotice({
   const { t, locale } = useI18n();
   const router = useRouter();
 
-  if (failure.blocked) return <Alert tone="warning" icon="info" live title={failure.blockedUntil && failure.limit !== undefined ? t('member.actions.errBookingBlocked', { date: blockDate(failure.blockedUntil, locale), count: failure.limit }) : failure.blockedUntil ? t('member.actions.errBookingBlockedUntil', { date: blockDate(failure.blockedUntil, locale) }) : t('member.actions.errBookingBlockedUnknown')} />;
+  if (failure.blocked)
+    return (
+      <Alert
+        tone="warning"
+        icon="info"
+        live
+        title={
+          failure.blockedUntil && failure.limit !== undefined
+            ? t('member.actions.errBookingBlocked', {
+                date: blockDate(failure.blockedUntil, locale),
+                count: failure.limit,
+              })
+            : failure.blockedUntil
+              ? t('member.actions.errBookingBlockedUntil', {
+                  date: blockDate(failure.blockedUntil, locale),
+                })
+              : t('member.actions.errBookingBlockedUnknown')
+        }
+      />
+    );
 
   if (failure.frozen) {
     return (
@@ -94,17 +115,54 @@ export function BookingFailureNotice({
       // The direct result of pressing a button, so a screen-reader user who
       // heard nothing after pressing must be told why.
       live
-      title={failure.cutoffHours && (failure.messageKey === 'member.actions.errWindowPassed' || failure.messageKey === 'member.actions.errWindowPassedHours') ? t('member.actions.errWindowPassedHours', { hours: failure.cutoffHours }) : t(failure.messageKey)}
+      title={
+        failure.cutoffHours &&
+        (failure.messageKey === 'member.actions.errWindowPassed' ||
+          failure.messageKey === 'member.actions.errWindowPassedHours')
+          ? t('member.actions.errWindowPassedHours', { hours: failure.cutoffHours })
+          : t(failure.messageKey)
+      }
     />
   );
 }
 
-export function BookingStandingNotice({ standing, history = false }: { standing?: MemberBookingStanding; history?: boolean }) {
+export function BookingStandingNotice({
+  standing,
+  history = false,
+}: {
+  standing?: MemberBookingStanding;
+  history?: boolean;
+}) {
   const { t, locale } = useI18n();
   if (!standing) return null;
-  if (standing.block) return <Alert tone="warning" icon="info" title={t('member.actions.errBookingBlocked', { date: blockDate(standing.block.until, locale), count: standing.noShow.limit })} />;
+  if (standing.block)
+    return (
+      <Alert
+        tone="warning"
+        icon="info"
+        title={t('member.actions.errBookingBlocked', {
+          date: blockDate(standing.block.until, locale),
+          count: standing.noShow.limit,
+        })}
+      />
+    );
   const rule = standing.noShow;
   if (!rule.active) return null;
-  if (rule.remaining === 1) return <Alert tone="warning" icon="info" title={t('member.actions.bookingWarning', { days: rule.blockDays })} />;
-  return history && rule.count > 0 && rule.remaining !== null && rule.remaining > 1 ? <InlineNote icon="info">{t('member.actions.bookingStrikes', { count: rule.count, limit: rule.limit, days: rule.windowDays })}</InlineNote> : null;
+  if (rule.remaining === 1)
+    return (
+      <Alert
+        tone="warning"
+        icon="info"
+        title={t('member.actions.bookingWarning', { days: rule.blockDays })}
+      />
+    );
+  return history && rule.count > 0 && rule.remaining !== null && rule.remaining > 1 ? (
+    <InlineNote icon="info">
+      {t('member.actions.bookingStrikes', {
+        count: rule.count,
+        limit: rule.limit,
+        days: rule.windowDays,
+      })}
+    </InlineNote>
+  ) : null;
 }

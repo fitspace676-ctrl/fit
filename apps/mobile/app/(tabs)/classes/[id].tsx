@@ -94,7 +94,10 @@ import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';
 import { useBookingClock } from '../../../hooks/useBookingClock';
 import { useBookingStanding } from '../../../hooks/queries/useBookingStanding';
-import { BookingFailureNotice, BookingStandingNotice } from '../../../components/classes/booking-notice';
+import {
+  BookingFailureNotice,
+  BookingStandingNotice,
+} from '../../../components/classes/booking-notice';
 import { ClassBookingSheet } from '../../../components/classes/booking-sheet';
 import {
   NO_BOOKING,
@@ -227,13 +230,22 @@ export default function ClassDetailScreen() {
 
   const bookingBlocked = mine.status === null && (!!standing?.block || !!booking.failure?.blocked);
   const cutoffHours = standing?.cancellationCutoffHours ?? 0;
-  const cancellationDeadline = instance === null ? null : Date.parse(instance.startsAt) - cutoffHours * 3600000;
-  const showCancellationNotice = mine.status === 'BOOKED' && cutoffHours > 0 && cancellationDeadline !== null;
+  const cancellationDeadline =
+    instance === null ? null : Date.parse(instance.startsAt) - cutoffHours * 3600000;
+  const showCancellationNotice =
+    mine.status === 'BOOKED' && cutoffHours > 0 && cancellationDeadline !== null;
   const cancellationCutoffPassed = showCancellationNotice && clock >= cancellationDeadline;
   const bookingActionDisabled = bookingBlocked || cancellationCutoffPassed;
-  const deadlineLabel = cancellationDeadline === null ? '' : createDateTimeFormat(locale, {
-    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
-  }).format(localWallClock(new Date(cancellationDeadline)));
+  const deadlineLabel =
+    cancellationDeadline === null
+      ? ''
+      : createDateTimeFormat(locale, {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).format(localWallClock(new Date(cancellationDeadline)));
   const cancellationNotice = showCancellationNotice
     ? cancellationCutoffPassed
       ? t('member.actions.errWindowPassedHours', { hours: cutoffHours })

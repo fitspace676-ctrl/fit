@@ -92,7 +92,11 @@ export function ClassBookingSheet({
       {...(!booked && !waitlisted && full
         ? { note: t('classes.detail.booking.fullNote'), noteIcon: 'bolt' as const }
         : {})}
-      {...(!waitlisted && standing && standing.cancellationCutoffHours > 0 ? { note: t('member.actions.cancellationRule', { hours: standing.cancellationCutoffHours }) } : {})}
+      {...(!waitlisted && standing && standing.cancellationCutoffHours > 0
+        ? {
+            note: t('member.actions.cancellationRule', { hours: standing.cancellationCutoffHours }),
+          }
+        : {})}
       destructive={booked || waitlisted}
       busy={booking.busy}
       busyLabel={

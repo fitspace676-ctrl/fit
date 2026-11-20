@@ -115,7 +115,11 @@ describe('listMyBookings', () => {
 
 describe('booking standing', () => {
   it('fetches the member standing with the abort signal', async () => {
-    const body = { cancellationCutoffHours: 4, noShow: { active: true, limit: 3, windowDays: 30, blockDays: 30, count: 2, remaining: 1 }, block: null };
+    const body = {
+      cancellationCutoffHours: 4,
+      noShow: { active: true, limit: 3, windowDays: 30, blockDays: 30, count: 2, remaining: 1 },
+      block: null,
+    };
     const calls = stubFetch(body);
     const controller = new AbortController();
     expect(await getBookingStanding({ signal: controller.signal })).toEqual(body);
@@ -128,6 +132,9 @@ describe('booking standing', () => {
     { data: { blockedUntil: '2027-01-01T12:00:00Z' }, blockedUntil: '2026-01-01T12:00:00Z' },
   ])('preserves block expiry from the envelope, with legacy fallback: %j', async (body) => {
     stubFetch({ code: 'MEMBER_BOOKING_BLOCKED', ...body }, 403);
-    await expect(bookClass({ classId: 'ci_1' })).rejects.toMatchObject({ code: 'MEMBER_BOOKING_BLOCKED', blockedUntil: '2027-01-01T12:00:00Z' });
+    await expect(bookClass({ classId: 'ci_1' })).rejects.toMatchObject({
+      code: 'MEMBER_BOOKING_BLOCKED',
+      blockedUntil: '2027-01-01T12:00:00Z',
+    });
   });
 });

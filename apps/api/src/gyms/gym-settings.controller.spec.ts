@@ -97,8 +97,12 @@ describe('GymSettingsController', () => {
 
   describe('PATCH /gyms/class-rules', () => {
     it('validates the body and delegates the parsed patch', async () => {
-      const result = await ctx.controller.updateClassRules({ booking: { cancellationCutoffHours: 2 } });
-      expect(ctx.updateClassRules).toHaveBeenCalledWith({ booking: { cancellationCutoffHours: 2 } });
+      const result = await ctx.controller.updateClassRules({
+        booking: { cancellationCutoffHours: 2 },
+      });
+      expect(ctx.updateClassRules).toHaveBeenCalledWith({
+        booking: { cancellationCutoffHours: 2 },
+      });
       expect(result).toEqual(RULES);
     });
 

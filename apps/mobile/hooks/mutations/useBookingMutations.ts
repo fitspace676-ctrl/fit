@@ -25,7 +25,10 @@ export function bookClassMutationOptions(
       return bookClass(input);
     },
     onError: () => {
-      if (deps.gymId) void deps.queryClient.invalidateQueries({ queryKey: [...queryKeys.bookings(deps.gymId), 'standing'] });
+      if (deps.gymId)
+        void deps.queryClient.invalidateQueries({
+          queryKey: [...queryKeys.bookings(deps.gymId), 'standing'],
+        });
     },
     onSuccess: () => {
       invalidateFor(deps.queryClient, requireGymId(deps.gymId, 'Booking a class'), 'bookClass');
@@ -55,7 +58,10 @@ export function cancelBookingMutationOptions(
       return cancelBooking(input);
     },
     onError: () => {
-      if (deps.gymId) void deps.queryClient.invalidateQueries({ queryKey: [...queryKeys.bookings(deps.gymId), 'standing'] });
+      if (deps.gymId)
+        void deps.queryClient.invalidateQueries({
+          queryKey: [...queryKeys.bookings(deps.gymId), 'standing'],
+        });
     },
     onSuccess: () => {
       invalidateFor(

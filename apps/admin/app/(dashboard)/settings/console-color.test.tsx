@@ -126,7 +126,6 @@ describe('the console colour on Settings > General', () => {
   });
 });
 
-
 describe('Settings section rail', () => {
   it('marks only Business hours current after selecting it', () => {
     renderForm(null);

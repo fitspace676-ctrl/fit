@@ -3569,14 +3569,17 @@ export async function listBookingBlocks(
   if (options.status) query.set('status', options.status);
   if (options.memberId) query.set('memberId', options.memberId);
   const res = await fetch(`${apiBaseUrl()}/admin/booking-blocks?${query}`, {
-    headers: await authHeaders(), cache: 'no-store',
+    headers: await authHeaders(),
+    cache: 'no-store',
   });
   return unwrap<{ blocks: AdminBookingBlock[] }>(res);
 }
 
 export async function liftBookingBlock(id: string): Promise<AdminBookingBlock> {
   const res = await fetch(`${apiBaseUrl()}/admin/booking-blocks/${encodeURIComponent(id)}/lift`, {
-    method: 'POST', headers: await authHeaders(), cache: 'no-store',
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
   });
   return unwrap<AdminBookingBlock>(res);
 }

@@ -7,12 +7,22 @@ export function useBookingStanding(refresh?: unknown) {
   useEffect(() => {
     let live = true;
     const refreshStanding = async () => {
-      try { const value = await bookingStandingAction(); if (live) setStanding(value); } catch { /* Optional metadata. */ }
+      try {
+        const value = await bookingStandingAction();
+        if (live) setStanding(value);
+      } catch {
+        /* Optional metadata. */
+      }
     };
-    const onFocus = () => { void refreshStanding(); };
+    const onFocus = () => {
+      void refreshStanding();
+    };
     onFocus();
     window.addEventListener('focus', onFocus);
-    return () => { live = false; window.removeEventListener('focus', onFocus); };
+    return () => {
+      live = false;
+      window.removeEventListener('focus', onFocus);
+    };
   }, [refresh]);
   return standing;
 }

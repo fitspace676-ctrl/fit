@@ -108,6 +108,11 @@ export async function listMyBookings(
   });
 }
 
-export async function getBookingStanding(options: FetchOptions = {}): Promise<MemberBookingStanding> {
-  return apiJson(endpointPath(ENDPOINTS.bookingStanding), { method: ENDPOINTS.bookingStanding.method, signal: options.signal });
+export async function getBookingStanding(
+  options: FetchOptions = {},
+): Promise<MemberBookingStanding> {
+  return apiJson(endpointPath(ENDPOINTS.bookingStanding), {
+    method: ENDPOINTS.bookingStanding.method,
+    signal: options.signal,
+  });
 }

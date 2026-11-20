@@ -324,8 +324,30 @@ export function ClassBookingModal({ instance, onClose, timeZone }: ClassBookingM
         // bookings board, if that is where the member goes next.
         router.refresh();
       } else {
-        if (result.code === 'MEMBER_BOOKING_BLOCKED') setBlockedUntil(result.blockedUntil ?? 'unknown');
-        setPhase({ step: 'idle', error: result.code === 'MEMBER_BOOKING_BLOCKED' && result.blockedUntil && standing ? ta('errBookingBlocked', { date: formatZoned(result.blockedUntil, timeZone, locale, { day: 'numeric', month: 'long', year: 'numeric' }), count: standing.noShow.limit }) : result.code === 'MEMBER_BOOKING_BLOCKED' && result.blockedUntil ? ta('errBookingBlockedUntil', { date: formatZoned(result.blockedUntil, timeZone, locale, { day: 'numeric', month: 'long', year: 'numeric' }) }) : ta(messageKey(result.code)) });
+        if (result.code === 'MEMBER_BOOKING_BLOCKED')
+          setBlockedUntil(result.blockedUntil ?? 'unknown');
+        setPhase({
+          step: 'idle',
+          error:
+            result.code === 'MEMBER_BOOKING_BLOCKED' && result.blockedUntil && standing
+              ? ta('errBookingBlocked', {
+                  date: formatZoned(result.blockedUntil, timeZone, locale, {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  }),
+                  count: standing.noShow.limit,
+                })
+              : result.code === 'MEMBER_BOOKING_BLOCKED' && result.blockedUntil
+                ? ta('errBookingBlockedUntil', {
+                    date: formatZoned(result.blockedUntil, timeZone, locale, {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    }),
+                  })
+                : ta(messageKey(result.code)),
+        });
       }
     });
   }
@@ -513,7 +535,9 @@ export function ClassBookingModal({ instance, onClose, timeZone }: ClassBookingM
             {/* The failure is stated where the button is, not in a toast at the
                 edge of the screen the member is not looking at. */}
             <BookingStandingNotice timeZone={timeZone} standing={standing} />
-            {standing && standing.cancellationCutoffHours > 0 ? <p>{ta('cancellationRule', { hours: standing.cancellationCutoffHours })}</p> : null}
+            {standing && standing.cancellationCutoffHours > 0 ? (
+              <p>{ta('cancellationRule', { hours: standing.cancellationCutoffHours })}</p>
+            ) : null}
             {phase.error ? <Banner tone="error">{phase.error}</Banner> : null}
           </>
         )}
@@ -537,7 +561,8 @@ function durationLabel(startIso: string, endIso: string): string {
 /** Map an API error code to a friendly i18n key (falls back to a generic error). */
 function messageKey(code?: string): string {
   switch (code) {
-    case 'MEMBER_BOOKING_BLOCKED': return 'errBookingBlockedUnknown';
+    case 'MEMBER_BOOKING_BLOCKED':
+      return 'errBookingBlockedUnknown';
     case 'ALREADY_BOOKED':
       return 'errAlreadyBooked';
     case 'CLASS_NOT_BOOKABLE':

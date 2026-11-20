@@ -6,7 +6,9 @@ export function formatBookingBlockDate(iso: string, locale: string, timeZone: st
   const instant = new Date(iso);
   const day = new Date(`${zonedIsoDate(instant, timeZone)}T00:00:00.000Z`);
   const date = createDateTimeFormat(locale, {
-    year: 'numeric', month: 'short', day: 'numeric',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
   }).format(day);
   return `${date}, ${zonedClock(instant, timeZone)}`;
 }
