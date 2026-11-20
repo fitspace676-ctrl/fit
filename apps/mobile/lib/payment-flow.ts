@@ -11,8 +11,19 @@ export function paymentScheme(scheme: string | string[] | undefined): string {
   return value;
 }
 
-export const paymentResultPath = (orderId: string) =>
-  `/checkout/result?orderId=${encodeURIComponent(orderId)}` as const;
+/**
+ * `dismissed` marks a buyer who closed the payment page themselves, so the
+ * result screen asks the server once instead of waiting on a bank that was
+ * never asked.
+ */
+export const paymentResultPath = (
+  orderId: string,
+  dismissed = false,
+): `/checkout/result?orderId=${string}` =>
+  `/checkout/result?orderId=${encodeURIComponent(orderId)}${dismissed ? '&dismissed=1' : ''}`;
+
+/** How long the result screen keeps asking, by what the server last said. */
+export const PAYMENT_WAIT_MS = { idle: 8_000, processing: 90_000 } as const;
 
 export async function launchPayment(
   payment: PaymentAction | undefined,
@@ -25,28 +36,47 @@ export async function launchPayment(
   if (payment?.status !== 'requires_action') return false;
   // Even a missing URL or a dismissed/failed browser must lead to server sync,
   // never to a receipt and never back to creating a duplicate order.
+  let dismissed = false;
   try {
-    if (payment.checkoutUrl)
-      await deps.open(payment.checkoutUrl, `${deps.scheme}://checkout/result`);
+    if (payment.checkoutUrl) {
+      const outcome = await deps.open(payment.checkoutUrl, `${deps.scheme}://checkout/result`);
+      const type = (outcome as { type?: unknown } | null | undefined)?.type;
+      dismissed = type === 'cancel' || type === 'dismiss';
+    }
   } finally {
-    deps.result(paymentResultPath(payment.orderId));
+    deps.result(paymentResultPath(payment.orderId, dismissed));
   }
   return true;
 }
 
-/** Sequential polling: no overlapping provider requests, and abort on leave. */
+/**
+ * Sequential polling: no overlapping provider requests, and abort on leave.
+ *
+ * Every round asks the API, which asks the provider. It stops on a final state,
+ * and otherwise waits only as long as the answer justifies: up to 90 seconds
+ * while the bank is processing a submitted card, 8 seconds when nothing has
+ * been submitted, and not at all when the buyer closed the page themselves.
+ */
 export async function pollPayment(
   sync: () => Promise<GetOrderResponse>,
-  options: { signal: AbortSignal; wait: () => Promise<void>; now?: () => number },
+  options: {
+    signal: AbortSignal;
+    wait: () => Promise<void>;
+    now?: () => number;
+    dismissed?: boolean;
+  },
 ): Promise<GetOrderResponse | undefined> {
   const now = options.now ?? Date.now;
-  const deadline = now() + 30_000;
+  const start = now();
   let response: GetOrderResponse | undefined;
-  for (let attempt = 0; attempt <= 15 && !options.signal.aborted; attempt += 1) {
+  while (!options.signal.aborted) {
     response = await sync();
-    const status = response.order.payment?.status;
-    if (status !== 'pending' && status !== 'requires_action') return response;
-    if (attempt === 15 || now() >= deadline) return response;
+    const payment = response.order.payment;
+    if (payment?.status !== 'pending' && payment?.status !== 'requires_action') return response;
+    const processing = payment.processing === true;
+    if (options.dismissed && !processing) return response;
+    const limit = processing ? PAYMENT_WAIT_MS.processing : PAYMENT_WAIT_MS.idle;
+    if (now() - start >= limit) return response;
     await options.wait();
   }
   return response;

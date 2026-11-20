@@ -11,6 +11,8 @@ export interface PaymentStateInput {
     status: PaymentAttemptStatus;
     checkoutUrl: string | null;
     expiresAt: Date;
+    /** The provider's last reported `order_status`, verbatim. */
+    providerStatus?: string | null;
   } | null;
   now?: Date;
 }
@@ -61,18 +63,22 @@ export function toOrderPaymentState(input: PaymentStateInput): OrderPaymentState
     return { ...base, status: 'failed', retry: pending };
   }
   switch (attempt.status) {
-    case PaymentAttemptStatus.PENDING:
+    case PaymentAttemptStatus.PENDING: {
+      // Only the provider's own word says a card is being charged right now.
+      const processing = attempt.providerStatus === 'processing';
       if (pending && isLiveAttempt(attempt, now)) {
         return {
           ...base,
           status: 'requires_action',
+          processing,
           retry: true,
           checkoutUrl: attempt.checkoutUrl,
           expiresAt: attempt.expiresAt.toISOString(),
         };
       }
       // Past its lifetime or never opened: waiting on the provider's final word.
-      return { ...base, status: 'pending' };
+      return { ...base, status: 'pending', processing };
+    }
     case PaymentAttemptStatus.EXPIRED:
       return { ...base, status: 'expired', retry: pending };
     case PaymentAttemptStatus.FAILED:

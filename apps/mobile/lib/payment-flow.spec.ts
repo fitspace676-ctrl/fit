@@ -36,7 +36,9 @@ describe('hosted payment', () => {
       const result = vi.fn();
       expect(await launchPayment(action, { scheme: 'synergy', open, result })).toBe(true);
       expect(open).toHaveBeenCalledWith(action.checkoutUrl, 'synergy://checkout/result');
-      expect(result).toHaveBeenCalledWith('/checkout/result?orderId=ord%2F1');
+      expect(result).toHaveBeenCalledWith(
+        `/checkout/result?orderId=ord%2F1${type === 'success' ? '' : '&dismissed=1'}`,
+      );
     },
   );
   it('never routes an instant payment through a browser', async () => {
@@ -85,7 +87,7 @@ describe('payment result polling', () => {
     expect(sync).toHaveBeenCalledTimes(3);
     expect(wait).toHaveBeenCalledTimes(2);
   });
-  it('stops unpaid after 30 seconds, preserving retry state', async () => {
+  it('stops after 8 seconds when nobody has paid, preserving retry state', async () => {
     let time = 0;
     const sync = vi.fn().mockResolvedValue(order('requires_action'));
     const result = await pollPayment(sync, {
@@ -95,9 +97,40 @@ describe('payment result polling', () => {
         time += 2000;
       },
     });
-    expect(time).toBe(30000);
-    expect(sync).toHaveBeenCalledTimes(16);
+    expect(time).toBe(8000);
+    expect(sync).toHaveBeenCalledTimes(5);
     expect(result?.order.payment?.retry).toBe(true);
+  });
+  it('keeps asking for 90 seconds while the bank is processing', async () => {
+    let time = 0;
+    const processing = order('requires_action');
+    processing.order.payment = { ...processing.order.payment!, processing: true };
+    const sync = vi.fn().mockResolvedValue(processing);
+    await pollPayment(sync, {
+      signal: new AbortController().signal,
+      now: () => time,
+      wait: async () => {
+        time += 2000;
+      },
+    });
+    expect(time).toBe(90000);
+    expect(sync).toHaveBeenCalledTimes(46);
+  });
+  it('asks once when the buyer closed the payment page, unless the bank is processing', async () => {
+    const wait = vi.fn().mockResolvedValue(undefined);
+    const signal = new AbortController().signal;
+    const idle = vi.fn().mockResolvedValue(order('requires_action'));
+    await pollPayment(idle, { signal, wait, dismissed: true });
+    expect(idle).toHaveBeenCalledTimes(1);
+    expect(wait).not.toHaveBeenCalled();
+
+    const processing = order('requires_action');
+    processing.order.payment = { ...processing.order.payment!, processing: true };
+    const busy = vi.fn().mockResolvedValueOnce(processing).mockResolvedValue(order('paid'));
+    expect(
+      (await pollPayment(busy, { signal, wait, dismissed: true }))?.order.payment?.status,
+    ).toBe('paid');
+    expect(busy).toHaveBeenCalledTimes(2);
   });
   it.each(['failed', 'expired', 'refunded'] as const)(
     'does not poll a terminal %s state',
