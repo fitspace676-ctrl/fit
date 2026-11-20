@@ -242,7 +242,7 @@ export class OnlinePaymentsService {
             amount: total,
             currency: spec.order.currency,
             purpose: spec.purpose,
-            fulfilment: spec.fulfilment as unknown as Prisma.InputJsonValue,
+            fulfilment: spec.fulfilment,
             returnTo: spec.returnTo,
             expiresAt,
           },
@@ -359,7 +359,7 @@ export class OnlinePaymentsService {
           amount: order.payment!.amount,
           currency: order.payment!.currency,
           purpose: template.purpose,
-          fulfilment: (template.fulfilment ?? undefined) as Prisma.InputJsonValue | undefined,
+          fulfilment: template.fulfilment ?? undefined,
           returnTo: input.returnTo,
           expiresAt,
         },
@@ -858,7 +858,7 @@ export function buildResultUrl(returnTo: string, orderId: string, gymSlug: strin
 /** Whether the provider's report matches what the attempt was opened for. */
 export function paymentMismatch(
   attempt: { amount: number; currency: string; merchantId: string },
-  status: FlittOrderResult & { merchant_id?: unknown },
+  status: FlittOrderResult & { merchant_id?: string | number },
 ): string | null {
   if (status.merchant_id !== undefined && String(status.merchant_id) !== attempt.merchantId) {
     return 'merchant_mismatch';

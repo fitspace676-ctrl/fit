@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/unbound-method -- vitest matchers and mock handles */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { PaymentAttemptStatus } from '@fit/db';
@@ -37,7 +38,13 @@ function attemptRow(over: Record<string, unknown> = {}) {
     currency: 'GEL',
     status: PaymentAttemptStatus.PENDING,
     purpose: 'credit_pack',
-    fulfilment: { kind: 'credit_pack', planId: 'plan-1', name: '10 classes', credits: 10, validityDays: 30 },
+    fulfilment: {
+      kind: 'credit_pack',
+      planId: 'plan-1',
+      name: '10 classes',
+      credits: 10,
+      validityDays: 30,
+    },
     returnTo: 'web',
     checkoutUrl: 'https://pay.flitt.com/x',
     expiresAt: new Date(Date.now() + 10 * 60_000),
@@ -123,9 +130,7 @@ describe('purchase policy', () => {
     expect((error as ConflictException).getResponse()).toMatchObject({
       code: 'ONLINE_PAYMENTS_UNAVAILABLE',
     });
-    await expect(resolvePurchaseMode(undefined, 'gym-1')).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(resolvePurchaseMode(undefined, 'gym-1')).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('falls back to the stub when the flag allows it', async () => {
@@ -309,7 +314,11 @@ describe('settleAttempt', () => {
 describe('helpers', () => {
   it('detects merchant, amount and currency mismatches', () => {
     const attempt = { amount: 2500, currency: 'GEL', merchantId: '1549901' };
-    const ok = { order_id: 'a', order_status: 'approved' as const, response_status: 'success' as const };
+    const ok = {
+      order_id: 'a',
+      order_status: 'approved' as const,
+      response_status: 'success' as const,
+    };
     expect(paymentMismatch(attempt, { ...ok, amount: '2500', currency: 'GEL' })).toBeNull();
     expect(paymentMismatch(attempt, { ...ok, amount: 2500, currency: 'GEL', merchant_id: 7 })).toBe(
       'merchant_mismatch',

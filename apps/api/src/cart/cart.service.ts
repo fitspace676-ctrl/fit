@@ -385,8 +385,7 @@ export class CartService {
     // provider the shop keeps the pay-at-pickup path below, untouched.
     const credentials = this.payments ? await this.payments.shopCredentials(gymId) : null;
     if (credentials) {
-      const pickupLocationId =
-        input.fulfillment === 'PICKUP' ? (input.locationId ?? null) : null;
+      const pickupLocationId = input.fulfillment === 'PICKUP' ? (input.locationId ?? null) : null;
       const { orderId, payment } = await this.payments!.begin(
         {
           gymId,

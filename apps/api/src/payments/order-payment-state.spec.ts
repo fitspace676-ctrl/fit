@@ -16,7 +16,13 @@ describe('toOrderPaymentState', () => {
         latestAttempt: null,
         now: NOW,
       }),
-    ).toEqual({ status: 'paid', provider: 'stub', retry: false, checkoutUrl: null, expiresAt: null });
+    ).toEqual({
+      status: 'paid',
+      provider: 'stub',
+      retry: false,
+      checkoutUrl: null,
+      expiresAt: null,
+    });
   });
 
   it('reads a refunded order as refunded', () => {
@@ -38,7 +44,13 @@ describe('toOrderPaymentState', () => {
         latestAttempt: null,
         now: NOW,
       }),
-    ).toEqual({ status: 'pending', provider: null, retry: false, checkoutUrl: null, expiresAt: null });
+    ).toEqual({
+      status: 'pending',
+      provider: null,
+      retry: false,
+      checkoutUrl: null,
+      expiresAt: null,
+    });
   });
 
   it('hands back a live checkout as requires_action', () => {

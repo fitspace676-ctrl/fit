@@ -408,37 +408,37 @@ enum ServiceSessionStatus {
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
-  integrations GymIntegration[]
-  paymentAttempts  PaymentAttempt[]
-  paymentReversals PaymentReversal[]
-  onboarding GymOnboarding?
-  id              String    @id @default(cuid())
-  name            String
-  slug            String    @unique
-  ownerId         String?
+  integrations           GymIntegration[]
+  paymentAttempts        PaymentAttempt[]
+  paymentReversals       PaymentReversal[]
+  onboarding             GymOnboarding?
+  id                     String            @id @default(cuid())
+  name                   String
+  slug                   String            @unique
+  ownerId                String?
   /// The user who provisioned the gym (T2.11). Equals `ownerId` for owner
   /// self-signup, but distinct when a SUPER_ADMIN creates a gym on an owner's
   /// behalf. Nullable for rows that predate the column (seed/legacy).
-  createdByUserId String?
-  status          GymStatus @default(ACTIVE)
+  createdByUserId        String?
+  status                 GymStatus         @default(ACTIVE)
   /// Gym settings (T4.8): brand (logo + colours), locale (language, currency,
   /// timezone), default business hours, and notification sender. Stored as a
   /// single JSON blob validated by `gymSettingsStoredSchema` in `@fit/types`;
   /// the gym's display name stays on `name` (the single source of truth) and is
   /// surfaced as `brand.name`. Null until the owner first saves settings.
-  settings        Json?
+  settings               Json?
   /// Whether a white-label mobile app has been provisioned for this gym.
-  mobileAppEnabled Boolean @default(false)
+  mobileAppEnabled       Boolean           @default(false)
   /// Optional mobile feature visibility, defaulted by resolveMobileAppFeatures.
-  mobileAppFeatures Json @default("{}")
+  mobileAppFeatures      Json              @default("{}")
   /// The mobile app's own sign-in photograph (R2 public URL under `{gymId}/logos/`).
   /// Null inherits `settings.memberPortal.loginImageUrl`; see resolveMobileAppLoginImage.
   mobileAppLoginImageUrl String?
   /// The mobile app's own accent colour (`#rrggbb`). Null inherits the member
   /// portal's, then the brand's; see resolveMobileAppPrimaryColor.
-  mobileAppPrimaryColor String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  mobileAppPrimaryColor  String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
 
   members                 GymMember[]
   trainers                Trainer[]
@@ -2275,13 +2275,13 @@ enum ReviewReportReason {
 }
 
 model ReviewReport {
-  id        String @id @default(cuid())
+  id        String             @id @default(cuid())
   gymId     String
   reviewId  String
   memberId  String
   reason    ReviewReportReason
-  note      String? @db.VarChar(500)
-  createdAt DateTime @default(now())
+  note      String?            @db.VarChar(500)
+  createdAt DateTime           @default(now())
 
   gym    Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
   review Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
@@ -2294,16 +2294,16 @@ model ReviewReport {
 }
 
 model Review {
-  reports ReviewReport[]
-  id              String       @id @default(cuid())
+  reports         ReviewReport[]
+  id              String         @id @default(cuid())
   gymId           String
   memberId        String
   trainerId       String?
   classInstanceId String?
   rating          Int
   comment         String?
-  status          ReviewStatus @default(VISIBLE)
-  createdAt       DateTime     @default(now())
+  status          ReviewStatus   @default(VISIBLE)
+  createdAt       DateTime       @default(now())
 
   gym           Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
   member        GymMember      @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -2387,30 +2387,30 @@ model StaffInvite {
 /// (see {@link OrderStatus}); payment is captured via the related {@link Payment}.
 model Order {
   /// Snapshot of the online member benefit; POS orders retain zero.
-  memberDiscountPercent Int @default(0)
-  memberDiscountAmount Int @default(0)
-  id              String      @id @default(cuid())
-  gymId           String
-  packageId       String?
-  locationId      String?
-  memberId        String?
+  memberDiscountPercent Int         @default(0)
+  memberDiscountAmount  Int         @default(0)
+  id                    String      @id @default(cuid())
+  gymId                 String
+  packageId             String?
+  locationId            String?
+  memberId              String?
   /// Guest buyer's name (step 3 of the wizard); null for a signed-in member.
-  customerName    String?
+  customerName          String?
   /// Guest buyer's email, normalised lower-case so guest checkout and a later
   /// sign-in resolve to the same identity; null for a signed-in member.
-  customerEmail   String?
-  total           Int         @default(0)
-  currency        String      @default("USD")
-  status          OrderStatus @default(PENDING)
+  customerEmail         String?
+  total                 Int         @default(0)
+  currency              String      @default("USD")
+  status                OrderStatus @default(PENDING)
   /// How the order is fulfilled (T7.10): `PICKUP` from the `location` branch, or
   /// `DELIVERY` to `deliveryAddress` by the gym's in-house courier. Defaults to
   /// `PICKUP` so orders predating the choice (POS sales, the package wizard) read
   /// as collected-at-desk.
-  fulfillment     Fulfillment @default(PICKUP)
+  fulfillment           Fulfillment @default(PICKUP)
   /// The free-text destination for a `DELIVERY` order; null for a `PICKUP` (which
   /// names a `locationId` instead). Captured at checkout and shown to staff so the
   /// in-house courier knows where to take the order.
-  deliveryAddress String?
+  deliveryAddress       String?
   /// The staff member who rang this sale, as a gym-scoped {@link GymMember} rather
   /// than a cross-gym `User` — "sales by staff member" is a question about this
   /// gym's roster, and one person may hold staff roles at several gyms.
@@ -2420,28 +2420,28 @@ model Order {
   /// member would invent a seller. It is also null for every POS sale recorded
   /// before this column existed, which is why the report has to treat "unknown"
   /// as its own bucket rather than as a zero.
-  soldById        String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  soldById              String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
-  gym            Gym                @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  package        PackagePlan?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  location       Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  member         GymMember?         @relation("OrderBuyer", fields: [memberId], references: [id], onDelete: SetNull)
+  gym              Gym                @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  package          PackagePlan?       @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  location         Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  member           GymMember?         @relation("OrderBuyer", fields: [memberId], references: [id], onDelete: SetNull)
   /// `SetNull`, not `Cascade`: a staff member leaving the gym must never delete
   /// the sales they rang, the same way `member` keeps the order when a membership
   /// is purged.
-  soldBy         GymMember?         @relation("OrderSeller", fields: [soldById], references: [id], onDelete: SetNull)
-  items          OrderItem[]
-  payment        Payment?
-  refunds        Refund[]
-  statusEvents   OrderStatusEvent[]
-  creditPack     CreditPack?
-  invoices       Invoice[]
+  soldBy           GymMember?         @relation("OrderSeller", fields: [soldById], references: [id], onDelete: SetNull)
+  items            OrderItem[]
+  payment          Payment?
+  refunds          Refund[]
+  statusEvents     OrderStatusEvent[]
+  creditPack       CreditPack?
+  invoices         Invoice[]
   /// The stock this order moved — `SALE` rows at checkout, `REFUND_RESTOCK` rows
   /// when it is refunded. Was a relation-less `StockMovement.orderId` scalar until
   /// Stage 4 of multi-branch.
-  stockMovements StockMovement[]
+  stockMovements   StockMovement[]
   /// Online (Flitt) payment attempts for this order — one per hosted-checkout try.
   paymentAttempts  PaymentAttempt[]
   paymentReversals PaymentReversal[]
@@ -2661,12 +2661,12 @@ model Payment {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  gym      Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  gym       Gym               @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  order     Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
   /// `SetNull`, never `Cascade`: closing a branch must not delete the money it
   /// took. Same stance as every other `location` relation in this schema.
-  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  refunds  Refund[]
+  location  Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  refunds   Refund[]
   attempts  PaymentAttempt[]
   reversals PaymentReversal[]
 
@@ -3528,15 +3528,15 @@ model AutomationRule {
 /// it (a member id + `"member"`, a subscription id + `"subscription"`, …);
 /// `detail` is a short human line describing the (stubbed) action taken.
 model AutomationRun {
-  id          String                @id @default(cuid())
-  gymId       String
-  ruleId      String
-  triggerType AutomationTriggerType
-  status      AutomationRunStatus   @default(QUEUED)
-  entityId    String?
-  entityType  String?
-  detail      String                @default("")
-  ranAt       DateTime              @default(now())
+  id           String                @id @default(cuid())
+  gymId        String
+  ruleId       String
+  triggerType  AutomationTriggerType
+  status       AutomationRunStatus   @default(QUEUED)
+  entityId     String?
+  entityType   String?
+  detail       String                @default("")
+  ranAt        DateTime              @default(now())
   scheduledFor DateTime?
 
   gym  Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)
@@ -4254,33 +4254,33 @@ model AgentChatSession {
 
 /// A revocable bearer link for configuring a newly provisioned gym.
 model GymOnboarding {
-  id              String   @id @default(cuid())
-  gymId           String?  @unique
-  gymName         String
-  subdomainSlug   String @unique
-  ownerEmail      String
-  ownerName       String?
-  passwordHash    String?
-  draft           Json @default("{}")
-  codeHash        String?
-  codeExpiresAt   DateTime?
-  codeAttempts    Int @default(0)
-  codeSentAt      DateTime?
-  submittedAt     DateTime?
-  approvedAt      DateTime?
+  id               String    @id @default(cuid())
+  gymId            String?   @unique
+  gymName          String
+  subdomainSlug    String    @unique
+  ownerEmail       String
+  ownerName        String?
+  passwordHash     String?
+  draft            Json      @default("{}")
+  codeHash         String?
+  codeExpiresAt    DateTime?
+  codeAttempts     Int       @default(0)
+  codeSentAt       DateTime?
+  submittedAt      DateTime?
+  approvedAt       DateTime?
   approvedByUserId String?
-  rejectedAt      DateTime?
+  rejectedAt       DateTime?
   rejectedByUserId String?
-  rejectionReason String?
-  nonce           String
-  completedSteps  String[] @default([])
-  startedAt       DateTime?
-  completedAt     DateTime?
-  expiresAt       DateTime
-  createdByUserId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  gym             Gym?     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  rejectionReason  String?
+  nonce            String
+  completedSteps   String[]  @default([])
+  startedAt        DateTime?
+  completedAt      DateTime?
+  expiresAt        DateTime
+  createdByUserId  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  gym              Gym?      @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
   @@map("gym_onboardings")
 }
@@ -4319,18 +4319,18 @@ model BookingBlock {
 /// One gym's own provider account. Secrets are AES-256-GCM ciphertext only;
 /// the display hint never exposes the complete payment key.
 model GymIntegration {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   gymId            String
   provider         String
-  enabled          Boolean  @default(false)
+  enabled          Boolean   @default(false)
   merchantId       String?
   secretCiphertext String?
   secretHint       String?
   verifiedAt       DateTime?
   lastError        String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  gym              Gym      @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  gym              Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
   @@unique([gymId, provider])
   @@map("gym_integrations")

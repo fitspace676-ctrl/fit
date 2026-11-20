@@ -105,7 +105,7 @@ export function parseFulfilment(value: unknown): OrderFulfilment | null {
           planId: record.planId,
           name: record.name,
           credits: record.credits,
-          validityDays: record.validityDays as number | null,
+          validityDays: record.validityDays,
         };
       }
       return null;

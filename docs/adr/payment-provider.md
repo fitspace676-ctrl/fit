@@ -146,5 +146,5 @@ leaves the renewal seam and job untouched (subscriptions still enrol as before).
   refused → reversal `FAILED` and the claim released in one transaction, no refund,
   `502 PROVIDER_REFUND_FAILED`; unknown (timeout, crash) → the claim stays held and the
   sweep re-sends the SAME `reverse_id` until Flitt answers (`502
-  PROVIDER_REFUND_PENDING` to the caller). A failed reversal therefore never keeps
+PROVIDER_REFUND_PENDING` to the caller). A failed reversal therefore never keeps
   the claim, and a succeeded one is never lost.

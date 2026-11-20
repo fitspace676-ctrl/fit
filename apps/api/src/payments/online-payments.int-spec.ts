@@ -176,9 +176,7 @@ describe('Online payments (integration)', () => {
       status: PaymentStatus.CAPTURED,
       providerRef: '805243692',
     });
-    expect(order.statusEvents.filter((event) => event.status === OrderStatus.PAID)).toHaveLength(
-      1,
-    );
+    expect(order.statusEvents.filter((event) => event.status === OrderStatus.PAID)).toHaveLength(1);
     // A later settle (the sweep, a retried callback) is a no-op.
     await expect(payments.settleAttempt(attempt.id)).resolves.toEqual({
       kind: 'final',
@@ -190,9 +188,7 @@ describe('Online payments (integration)', () => {
   it('grants nothing on a decline and lets the member retry with a new attempt', async () => {
     const { orderId } = await beginPack();
     const first = await prisma.paymentAttempt.findFirstOrThrow({ where: { orderId } });
-    flitt.getOrderStatus.mockResolvedValueOnce(
-      statusFor(first.providerOrderId, 'declined', 2500),
-    );
+    flitt.getOrderStatus.mockResolvedValueOnce(statusFor(first.providerOrderId, 'declined', 2500));
     await payments.settleAttempt(first.id);
 
     expect(await prisma.creditPack.count({ where: { orderId } })).toBe(0);
@@ -213,18 +209,16 @@ describe('Online payments (integration)', () => {
     const second = attempts[1]!;
     expect(second.providerOrderId).not.toBe(first.providerOrderId);
     expect(second.returnTo).toBe('app');
-    expect(
-      await prisma.payment.findFirstOrThrow({ where: { orderId } }),
-    ).toMatchObject({ status: PaymentStatus.PENDING });
+    expect(await prisma.payment.findFirstOrThrow({ where: { orderId } })).toMatchObject({
+      status: PaymentStatus.PENDING,
+    });
 
     // A second retry while the new checkout is live hands back the same one.
     const again = await payments.retry({ gymId, orderId, memberId, returnTo: 'app' });
     expect(again.checkoutUrl).toBe(retry.checkoutUrl);
     expect(await prisma.paymentAttempt.count({ where: { orderId } })).toBe(2);
 
-    flitt.getOrderStatus.mockResolvedValueOnce(
-      statusFor(second.providerOrderId, 'approved', 2500),
-    );
+    flitt.getOrderStatus.mockResolvedValueOnce(statusFor(second.providerOrderId, 'approved', 2500));
     await payments.settleAttempt(second.id);
     expect(await prisma.creditPack.count({ where: { orderId } })).toBe(1);
   });
@@ -354,14 +348,17 @@ describe('Online payments (integration)', () => {
         refundedAmount: 0,
         status: PaymentStatus.CAPTURED,
       });
-      expect(await prisma.paymentReversal.findFirstOrThrow({ where: { orderId } })).toMatchObject(
-        { status: PaymentReversalStatus.FAILED },
-      );
+      expect(await prisma.paymentReversal.findFirstOrThrow({ where: { orderId } })).toMatchObject({
+        status: PaymentReversalStatus.FAILED,
+      });
     });
 
     it('writes exactly one refund for a confirmed reversal, with a stable reverse_id', async () => {
       const orderId = await capturedOrder();
-      flitt.reverse.mockResolvedValueOnce({ reverse_status: 'approved', response_status: 'success' });
+      flitt.reverse.mockResolvedValueOnce({
+        reverse_status: 'approved',
+        response_status: 'success',
+      });
 
       const { refundId } = await refunds.refund(refundInput(orderId, 2500));
       const reversal = await prisma.paymentReversal.findFirstOrThrow({ where: { orderId } });
@@ -392,18 +389,24 @@ describe('Online payments (integration)', () => {
       });
       expect(await prisma.refund.count({ where: { orderId } })).toBe(0);
       // The claim is held, so a concurrent refund cannot spend it twice.
-      expect(
-        (await prisma.payment.findFirstOrThrow({ where: { orderId } })).refundedAmount,
-      ).toBe(1000);
+      expect((await prisma.payment.findFirstOrThrow({ where: { orderId } })).refundedAmount).toBe(
+        1000,
+      );
 
-      flitt.reverse.mockResolvedValueOnce({ reverse_status: 'approved', response_status: 'success' });
+      flitt.reverse.mockResolvedValueOnce({
+        reverse_status: 'approved',
+        response_status: 'success',
+      });
       await expect(refunds.retryPending(-60_000)).resolves.toBe(1);
-      const [firstCall, retryCall] = flitt.reverse.mock.calls;
-      expect(retryCall![1].reverseId).toBe(firstCall![1].reverseId);
+      const reverseIds = flitt.reverse.mock.calls.map(
+        (call) => (call[1] as { reverseId: string }).reverseId,
+      );
+      expect(reverseIds).toHaveLength(2);
+      expect(reverseIds[1]).toBe(reverseIds[0]);
       expect(await prisma.refund.count({ where: { orderId } })).toBe(1);
-      expect(
-        (await prisma.payment.findFirstOrThrow({ where: { orderId } })).refundedAmount,
-      ).toBe(1000);
+      expect((await prisma.payment.findFirstOrThrow({ where: { orderId } })).refundedAmount).toBe(
+        1000,
+      );
     });
   });
 });
