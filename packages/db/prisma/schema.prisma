@@ -408,6 +408,7 @@ enum ServiceSessionStatus {
 /// `ownerId` references the owning User (set during provisioning, T2.11); kept
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
+  integrations GymIntegration[]
   onboarding GymOnboarding?
   id              String    @id @default(cuid())
   name            String
@@ -4306,4 +4307,24 @@ model BookingBlock {
   @@index([gymId, memberId])
   @@index([endsAt])
   @@map("booking_blocks")
+}
+
+/// One gym's own provider account. Secrets are AES-256-GCM ciphertext only;
+/// the display hint never exposes the complete payment key.
+model GymIntegration {
+  id               String   @id @default(cuid())
+  gymId            String
+  provider         String
+  enabled          Boolean  @default(false)
+  merchantId       String?
+  secretCiphertext String?
+  secretHint       String?
+  verifiedAt       DateTime?
+  lastError        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  gym              Gym      @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([gymId, provider])
+  @@map("gym_integrations")
 }

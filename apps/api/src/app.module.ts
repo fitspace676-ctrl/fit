@@ -1,3 +1,4 @@
+import { IntegrationsModule } from './integrations/integrations.module';
 import { GymOnboardingModule } from './gym-onboarding/gym-onboarding.module';
 import { Module, type MiddlewareConsumer, type NestModule, RequestMethod } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -168,6 +169,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     StorageModule,
     AuthModule,
     GymOnboardingModule,
+    IntegrationsModule,
     ClassesModule,
     TrainersModule,
     LocationsModule,

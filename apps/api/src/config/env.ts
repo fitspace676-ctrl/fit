@@ -381,6 +381,10 @@ export const envSchema = z.object({
   // exceed how long a form can sit open. Default 24h.
   MEDIA_SWEEP_GRACE_HOURS: z.coerce.number().int().positive().default(24),
 
+  // Per-gym payment credentials. Optional so deployments without integrations boot.
+  FLITT_API_URL: z.string().url().default('https://pay.flitt.com'),
+  INTEGRATIONS_ENCRYPTION_KEY: z.string().optional(),
+
   // ── Logging ──
   LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
 

@@ -98,6 +98,7 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
  * service, not to this file.
  */
 export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
+  'GymIntegration',
   'GymMember',
   // What a person signs in to ONE gym with (T1.25): that gym's password,
   // verification stamp, name and phone. The auth flows that create and check
