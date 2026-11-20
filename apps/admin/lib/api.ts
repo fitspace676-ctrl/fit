@@ -273,6 +273,7 @@ import type {
   SetReviewVisibilityResponse,
 } from '@fit/types';
 import { TENANT_MISMATCH_CODE, reportQueryParams } from '@fit/types';
+import type { GymIntegration } from '@fit/types';
 import { redirect } from 'next/navigation';
 import { pickSessionToken } from './auth-session';
 import { tenantHeaders } from './tenant-headers';
@@ -3588,7 +3589,7 @@ export async function liftBookingBlock(id: string): Promise<AdminBookingBlock> {
 }
 
 /** Owner-only, tenant-scoped integrations. Secrets are sent only in the PUT body. */
-export async function fetchIntegrations(): Promise<import('@fit/types').GymIntegration[]> {
+export async function fetchIntegrations(): Promise<GymIntegration[]> {
   return unwrap(
     await fetch(`${apiBaseUrl()}/integrations`, {
       headers: await authHeaders(),

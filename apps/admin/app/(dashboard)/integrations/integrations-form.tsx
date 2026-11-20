@@ -35,6 +35,7 @@ const styles = stylex.create({
     margin: 0,
   },
   value: { margin: 0, marginTop: '0.25rem', overflowWrap: 'anywhere' },
+  block: { display: 'block', marginTop: '0.5rem' },
   link: { color: 'var(--color-text-primary)', textDecoration: 'underline' },
 });
 
@@ -108,8 +109,11 @@ export function IntegrationsForm({ initial }: { initial: GymIntegration }) {
         <div {...stylex.props(styles.stack)}>
           <div {...stylex.props(styles.row)}>
             <h2 {...stylex.props(styles.heading)}>Flitt</h2>
-            <Badge tone={integration.enabled ? 'positive' : 'neutral'}>{t(`state.${state}`)}</Badge>
-            {integration.testMode && <Badge>{t('testMode')}</Badge>}
+            <Badge
+              tone={integration.enabled ? 'positive' : 'neutral'}
+              label={t(`state.${state}`)}
+            />
+            {integration.testMode && <Badge tone="pending" label={t('testMode')} />}
           </div>
           <p {...stylex.props(styles.text)}>{t('description')}</p>
           {integration.connected && (
@@ -159,9 +163,8 @@ export function IntegrationsForm({ initial }: { initial: GymIntegration }) {
                 variant="secondary"
                 disabled={busy}
                 onClick={() => void run({ kind: 'test' })}
-              >
-                {t('test')}
-              </Button>
+                label={t('test')}
+              />
               <Button
                 variant="secondary"
                 disabled={busy}
@@ -170,12 +173,14 @@ export function IntegrationsForm({ initial }: { initial: GymIntegration }) {
                   setSecretKey('');
                   setFields({});
                 }}
-              >
-                {t('replace')}
-              </Button>
-              <Button variant="secondary" disabled={busy} onClick={() => setConfirm(true)}>
-                {t('disconnect')}
-              </Button>
+                label={t('replace')}
+              />
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onClick={() => setConfirm(true)}
+                label={t('disconnect')}
+              />
             </div>
           )}
           {editing && (
@@ -217,9 +222,12 @@ export function IntegrationsForm({ initial }: { initial: GymIntegration }) {
                 )}
               </div>
               <div {...stylex.props(styles.row)}>
-                <Button type="submit" variant="primary" disabled={busy}>
-                  {t(integration.connected ? 'save' : 'connect')}
-                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={busy}
+                  label={t(integration.connected ? 'save' : 'connect')}
+                />
                 {integration.connected && (
                   <Button
                     type="button"
@@ -230,9 +238,8 @@ export function IntegrationsForm({ initial }: { initial: GymIntegration }) {
                       setSecretKey('');
                       setMerchantId(integration.merchantId ?? '');
                     }}
-                  >
-                    {t('cancel')}
-                  </Button>
+                    label={t('cancel')}
+                  />
                 )}
               </div>
             </form>
@@ -262,11 +269,11 @@ export function IntegrationsForm({ initial }: { initial: GymIntegration }) {
         title={t('disconnectTitle')}
         message={
           <>
-            <p>{t('disconnectMessage')}</p>
+            {t('disconnectMessage')}
             {error && (
-              <p role="alert" {...stylex.props(styles.error)}>
+              <span role="alert" {...stylex.props(styles.error, styles.block)}>
                 {t(`errors.${error}`)}
-              </p>
+              </span>
             )}
           </>
         }
