@@ -1,8 +1,41 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import { DEFAULT_FREEZE_DAYS_PER_PERIOD, Prisma } from '@fit/db';
-import type { GetMeSubscriptionResponse, MeInvoice } from '@fit/types';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import {
+  DEFAULT_FREEZE_DAYS_PER_PERIOD,
+  LIVE_SUBSCRIPTION_STATUSES,
+  MS_PER_DAY,
+  Prisma,
+  isLiveStatus,
+  subscriptionInvoiceDescription,
+  type SubscriptionStatus,
+} from '@fit/db';
+import {
+  ONLINE_PAYMENTS_UNAVAILABLE_CODE,
+  SUBSCRIPTION_NOT_DUE_CODE,
+  SUBSCRIPTION_NOT_PAYABLE_CODE,
+  type GetMeSubscriptionResponse,
+  type MeInvoice,
+  type MeSubscriptionPayment,
+  type PaySubscriptionResponse,
+  type PaymentReturnTarget,
+} from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import {
+  FulfilmentConflictError,
+  OnlinePaymentsService,
+} from '../payments/online-payments.service';
+import type { OrderFulfilment } from '../payments/order-fulfilment';
+import {
+  MANUAL_PAY_PROVIDER,
+  SUBSCRIPTION_PAY_WINDOW_DAYS,
+  manualPaymentWindow,
+} from '../subscriptions/subscription-periods';
 
 /** How many of the member's most recent invoices the billing-history read returns. */
 const INVOICE_HISTORY_LIMIT = 50;
@@ -35,6 +68,9 @@ export class MeSubscriptionService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    // Optional so the specs that build this by hand need not pass it; provided by
+    // `PaymentsModule` in the running app. Without it nothing is payable online.
+    @Optional() private readonly payments?: OnlinePaymentsService,
   ) {}
 
   /** The caller's current membership + billing history (most recent first). */
@@ -54,6 +90,7 @@ export class MeSubscriptionService {
     if (!member) {
       return { subscription: null, invoices: [] };
     }
+    const memberId = member.id;
 
     // The member's billing history (T5.9) — every invoice raised for them, newest
     // first — surfaced whether or not they currently hold a live subscription, so a
@@ -95,9 +132,194 @@ export class MeSubscriptionService {
         freezeDaysUsed,
         freezeDaysRemaining,
         memberSince: member.joinedAt.toISOString(),
+        payment: await this.paymentState(memberId, subscription),
       },
       invoices,
     };
+  }
+
+  /**
+   * `POST /me/subscription/pay` — open (or hand back) a hosted checkout for the
+   * caller's NEXT period of a manually paid subscription. The amount is the
+   * subscription's own snapshotted price; the grant (advancing the period) happens
+   * only when the payment is captured, through the shared renewal write, guarded
+   * on the period end this order is opened for.
+   *
+   * Failure modes: `403` no member session / not a member; `404
+   * SUBSCRIPTION_NOT_FOUND` no live subscription; `409 SUBSCRIPTION_NOT_PAYABLE`
+   * not paid by hand, frozen or cancelling; `409 SUBSCRIPTION_NOT_DUE` the window
+   * ({@link SUBSCRIPTION_PAY_WINDOW_DAYS} days before period end) is not open yet
+   * and it is not past due; `409 ONLINE_PAYMENTS_UNAVAILABLE` the gym's Flitt is
+   * off; `503 PAYMENT_PROVIDER_UNAVAILABLE` Flitt could not open the checkout.
+   */
+  async payNextPeriod(returnTo: PaymentReturnTarget): Promise<PaySubscriptionResponse> {
+    const memberId = await this.requireCallerMembership();
+    const gymId = this.tenant.gymId;
+
+    const sub = await this.prisma.client.subscription.findFirst({
+      where: { memberId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        provider: true,
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: true,
+        priceAmount: true,
+        currency: true,
+        interval: true,
+        plan: { select: { name: true } },
+      },
+    });
+    if (!sub) {
+      throw new NotFoundException({
+        message: 'You have no membership to pay for',
+        code: 'SUBSCRIPTION_NOT_FOUND',
+      });
+    }
+
+    const window = manualPaymentWindow(sub, new Date());
+    if (window === 'not_payable') {
+      throw new ConflictException({
+        message: 'This membership cannot be paid online right now',
+        code: SUBSCRIPTION_NOT_PAYABLE_CODE,
+      });
+    }
+    if (window === 'not_due') {
+      const opensAt = new Date(
+        sub.currentPeriodEnd.getTime() - SUBSCRIPTION_PAY_WINDOW_DAYS * MS_PER_DAY,
+      );
+      throw new ConflictException({
+        message: 'The next period cannot be paid yet',
+        code: SUBSCRIPTION_NOT_DUE_CODE,
+        details: [`opensAt=${opensAt.toISOString()}`],
+      });
+    }
+
+    const payments = this.payments;
+    const mode = payments ? await payments.purchaseMode(gymId) : null;
+    if (!payments || mode?.mode !== 'flitt') {
+      throw new ConflictException({
+        message: 'This gym does not accept online payments right now',
+        code: ONLINE_PAYMENTS_UNAVAILABLE_CODE,
+      });
+    }
+
+    // One unpaid order per period: an open one is resumed (a live checkout handed
+    // back, or a fresh attempt on the same order) — exactly the retry behaviour.
+    const open = await payments.findOpenOrder(gymId, memberId, (fulfilment) =>
+      isRenewalOf(fulfilment, sub.id, sub.currentPeriodEnd),
+    );
+    if (open) {
+      return { payment: await payments.retry({ gymId, orderId: open, memberId, returnTo }) };
+    }
+
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId },
+      select: { locationId: true },
+    });
+    const locationId = member?.locationId ?? null;
+    const label = subscriptionInvoiceDescription(sub.plan?.name ?? null, sub.interval, 'renewal');
+    try {
+      const { payment } = await payments.begin(
+        {
+          gymId,
+          memberId,
+          purpose: 'subscription_renewal',
+          fulfilment: {
+            kind: 'subscription_renewal',
+            subscriptionId: sub.id,
+            periodEnd: sub.currentPeriodEnd.toISOString(),
+          },
+          description: label,
+          returnTo,
+          order: {
+            locationId,
+            total: sub.priceAmount,
+            currency: sub.currency,
+            items: [{ label, amount: sub.priceAmount }],
+          },
+          paymentLocationId: locationId,
+          promo: null,
+        },
+        mode.credentials,
+      );
+      return { payment };
+    } catch (error) {
+      // Only reachable for a 0-priced period, fulfilled inside `begin`.
+      if (error instanceof FulfilmentConflictError) {
+        throw new ConflictException({
+          message: 'This membership cannot be paid online right now',
+          code: SUBSCRIPTION_NOT_PAYABLE_CODE,
+        });
+      }
+      throw error;
+    }
+  }
+
+  /** The `payment` block of `GET /me/subscription` — see `MeSubscriptionPayment`. */
+  private async paymentState(
+    memberId: string,
+    sub: {
+      id: string;
+      status: SubscriptionStatus;
+      provider: string;
+      cancelAtPeriodEnd: boolean;
+      currentPeriodEnd: Date;
+      priceAmount: number;
+      currency: string;
+    },
+  ): Promise<MeSubscriptionPayment> {
+    const live = isLiveStatus(sub.status);
+    const manual = live && sub.provider === MANUAL_PAY_PROVIDER;
+    const base = {
+      amount: sub.priceAmount,
+      currency: sub.currency,
+      dueAt: live ? sub.currentPeriodEnd.toISOString() : null,
+    };
+    if (!manual || !this.payments) {
+      return {
+        ...base,
+        mode: manual ? 'manual' : live ? 'auto' : 'none',
+        canPayNow: false,
+        pendingOrderId: null,
+      };
+    }
+    const gymId = this.tenant.gymId;
+    const [credentials, pendingOrderId] = await Promise.all([
+      this.payments.shopCredentials(gymId),
+      this.payments.findOpenOrder(gymId, memberId, (fulfilment) =>
+        isRenewalOf(fulfilment, sub.id, sub.currentPeriodEnd),
+      ),
+    ]);
+    return {
+      ...base,
+      mode: 'manual',
+      canPayNow: credentials !== null && manualPaymentWindow(sub, new Date()) === 'due',
+      pendingOrderId,
+    };
+  }
+
+  /** The caller's own `GymMember` id: `403` without a member session / membership here. */
+  private async requireCallerMembership(): Promise<string> {
+    const userId = this.tenant.userId;
+    if (!userId) {
+      throw new ForbiddenException({
+        message: 'A member session is required',
+        code: 'MEMBER_SESSION_REQUIRED',
+      });
+    }
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new ForbiddenException({
+        message: 'You are not a member of this gym',
+        code: 'NOT_A_MEMBER',
+      });
+    }
+    return member.id;
   }
 
   /**
@@ -114,6 +336,19 @@ export class MeSubscriptionService {
     });
     return rows.map(toMeInvoice);
   }
+}
+
+/** Whether `fulfilment` pays the period of `subscriptionId` that ends at `periodEnd`. */
+function isRenewalOf(
+  fulfilment: OrderFulfilment,
+  subscriptionId: string,
+  periodEnd: Date,
+): boolean {
+  return (
+    fulfilment.kind === 'subscription_renewal' &&
+    fulfilment.subscriptionId === subscriptionId &&
+    new Date(fulfilment.periodEnd).getTime() === periodEnd.getTime()
+  );
 }
 
 /** Project an {@link Invoice} row to the member-facing {@link MeInvoice} wire shape. */

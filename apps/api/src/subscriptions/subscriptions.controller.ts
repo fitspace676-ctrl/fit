@@ -13,7 +13,7 @@ import {
   Permission,
   enrollSubscriptionSchema,
   freezeSubscriptionSchema,
-  type EnrollSubscriptionResponse,
+  type SelfEnrollSubscriptionResponse,
   type FreezeSubscriptionResponse,
   type UnfreezeSubscriptionResponse,
 } from '@fit/types';
@@ -46,7 +46,10 @@ export class SubscriptionsController {
   /**
    * `POST /subscriptions` — the calling member enrols themselves on a plan (T5.3).
    * The body carries only `planId`; the member is resolved from the session and the
-   * price / period are computed server-side. Returns `201 { subscription }`.
+   * price / period are computed server-side. Returns `201 { subscription }`; at a
+   * Flitt gym a paid plan returns `201 { subscription: null, orderId, payment }`
+   * instead (pay first — see `SelfEnrollSubscriptionResponse`). `409
+   * ONLINE_PAYMENTS_UNAVAILABLE` when the gym has no provider and no stub.
    * Failure modes: `404 SUBSCRIPTION_PLAN_NOT_FOUND`, `409
    * SUBSCRIPTION_PLAN_INACTIVE`, and `409 ALREADY_SUBSCRIBED` when the member
    * already holds a live subscription.
@@ -55,8 +58,9 @@ export class SubscriptionsController {
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions(Permission.SubscriptionManage)
   @RateLimit(RATE_LIMITS.enroll)
-  async enroll(@Body() body: unknown): Promise<EnrollSubscriptionResponse> {
-    return this.enrollment.enrollSelf(parse(enrollSubscriptionSchema, body).planId);
+  async enroll(@Body() body: unknown): Promise<SelfEnrollSubscriptionResponse> {
+    const { planId, returnTo } = parse(enrollSubscriptionSchema, body);
+    return this.enrollment.enrollSelf(planId, returnTo ?? 'web');
   }
 
   /**

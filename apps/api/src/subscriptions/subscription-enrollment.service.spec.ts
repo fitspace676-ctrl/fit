@@ -16,6 +16,7 @@ import {
 import { Prisma, SubscriptionPlanStatus, SubscriptionStatus } from '@fit/db';
 import { SubscriptionEnrollmentService } from './subscription-enrollment.service';
 import type { InvoiceService } from '../billing/invoice.service';
+import type { OnlinePaymentsService } from '../payments/online-payments.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
 
@@ -63,6 +64,7 @@ function setup(overrides?: {
   existingLive?: { id: string } | null;
   createError?: Error;
   gymId?: string | null;
+  payments?: Partial<OnlinePaymentsService>;
 }) {
   const memberFindFirst = vi.fn(() =>
     Promise.resolve(overrides?.member === undefined ? { id: 'member-1' } : overrides.member),
@@ -70,12 +72,18 @@ function setup(overrides?: {
   const planFindFirst = vi.fn(() =>
     Promise.resolve(overrides?.plan === undefined ? plan() : overrides.plan),
   );
-  const subscriptionFindFirst = vi.fn(() => Promise.resolve(overrides?.existingLive ?? null));
+  // The created row, read back by id after the shared `startSubscription` inserts it
+  // (the live-slot pre-check is the other `findFirst`, keyed by member).
+  let created: ReturnType<typeof createdRow> | null = null;
+  const subscriptionFindFirst = vi.fn((args?: { where?: { id?: string } }) =>
+    Promise.resolve(args?.where?.id ? created : (overrides?.existingLive ?? null)),
+  );
   const subscriptionCreate = vi.fn((args: { data: Record<string, unknown> }) => {
     if (overrides?.createError) {
       return Promise.reject(overrides.createError);
     }
-    return Promise.resolve(createdRow({ ...args.data, plan: { name: 'Premium' } }));
+    created = createdRow({ ...args.data, plan: { name: 'Premium' } });
+    return Promise.resolve({ id: created.id });
   });
 
   const client: Record<string, unknown> = {
@@ -106,7 +114,12 @@ function setup(overrides?: {
   const invoices = { issue: invoiceIssue, announcePaid } as unknown as InvoiceService;
 
   return {
-    service: new SubscriptionEnrollmentService(prisma, tenant, invoices),
+    service: new SubscriptionEnrollmentService(
+      prisma,
+      tenant,
+      invoices,
+      overrides?.payments as OnlinePaymentsService | undefined,
+    ),
     memberFindFirst,
     planFindFirst,
     subscriptionFindFirst,
@@ -260,7 +273,7 @@ describe('SubscriptionEnrollmentService.enrollSelf', () => {
       currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
       currentPeriodEnd: new Date('2026-06-15T00:00:00.000Z'),
     });
-    expect(result.subscription.status).toBe(SubscriptionStatus.TRIAL);
+    expect(result.subscription!.status).toBe(SubscriptionStatus.TRIAL);
     // A trial charges nothing yet, so no invoice is minted at enrolment — the
     // recurring-billing job raises the first one when the trial converts.
     expect(invoiceIssue).not.toHaveBeenCalled();
@@ -315,5 +328,186 @@ describe('SubscriptionEnrollmentService payment_received (T12.5)', () => {
     await expect(service.enrollSelf('plan-1')).rejects.toBeInstanceOf(ConflictException);
 
     expect(announcePaid).not.toHaveBeenCalled();
+  });
+});
+
+describe('SubscriptionEnrollmentService at a gym that takes Flitt', () => {
+  const CREDS = { merchantId: '1549901', secretKey: 'test' };
+  const ACTION = {
+    status: 'requires_action' as const,
+    orderId: 'order-1',
+    checkoutUrl: 'https://pay.flitt.com/merchants/test/a-1',
+    expiresAt: '2026-06-01T00:30:00.000Z',
+  };
+
+  function flittPayments() {
+    const begin = vi.fn((_spec: unknown, _creds: unknown) =>
+      Promise.resolve({ orderId: 'order-1', payment: ACTION }),
+    );
+    const retry = vi.fn(() => Promise.resolve(ACTION));
+    const findOpenOrder = vi.fn(() => Promise.resolve(null as string | null));
+    const payments = {
+      purchaseMode: vi.fn(() => Promise.resolve({ mode: 'flitt' as const, credentials: CREDS })),
+      begin,
+      retry,
+      findOpenOrder,
+    } as unknown as Partial<OnlinePaymentsService>;
+    return { payments, begin, retry, findOpenOrder };
+  }
+
+  it('opens a first-period order and creates no subscription before payment', async () => {
+    const { payments, begin } = flittPayments();
+    const { service, subscriptionCreate, invoiceIssue } = setup({ payments });
+
+    const result = await service.purchaseSelf('plan-1', 'app');
+
+    expect(result).toEqual({ subscriptionId: null, orderId: 'order-1', payment: ACTION });
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(invoiceIssue).not.toHaveBeenCalled();
+    expect(begin.mock.calls[0]![0]).toMatchObject({
+      gymId: 'gym-1',
+      memberId: 'member-1',
+      purpose: 'subscription_start',
+      returnTo: 'app',
+      promo: null,
+      fulfilment: {
+        kind: 'subscription_start',
+        planId: 'plan-1',
+        planName: 'Premium',
+        priceAmount: 12000,
+        currency: 'GEL',
+        interval: 'MONTH',
+      },
+      order: { total: 12000, currency: 'GEL', items: [{ label: 'Premium', amount: 12000 }] },
+    });
+    expect(begin.mock.calls[0]![1]).toBe(CREDS);
+  });
+
+  it('refuses with 409 ALREADY_SUBSCRIBED before opening any order', async () => {
+    const { payments, begin } = flittPayments();
+    const { service } = setup({ payments, existingLive: { id: 'sub-old' } });
+
+    const error = await rejection(service.purchaseSelf('plan-1', 'web'));
+
+    expect((error.getResponse() as { code: string }).code).toBe('ALREADY_SUBSCRIBED');
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it('hands back the open order for the same plan instead of a second one', async () => {
+    const { payments, begin, retry, findOpenOrder } = flittPayments();
+    findOpenOrder.mockResolvedValueOnce('order-open');
+    const { service } = setup({ payments });
+
+    const result = await service.purchaseSelf('plan-1', 'web');
+
+    expect(result.orderId).toBe('order-open');
+    expect(retry).toHaveBeenCalledWith({
+      gymId: 'gym-1',
+      orderId: 'order-open',
+      memberId: 'member-1',
+      returnTo: 'web',
+    });
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it('starts a trial at once, stamped for manual payment', async () => {
+    const { payments, begin } = flittPayments();
+    const { service, subscriptionCreate } = setup({ payments, plan: plan({ trialDays: 7 }) });
+
+    const result = await service.purchaseSelf('plan-1', 'web');
+
+    expect(result.subscriptionId).toBe('sub-new');
+    expect(subscriptionCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: SubscriptionStatus.TRIAL,
+      provider: 'flitt',
+    });
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it('legacy POST /subscriptions applies the same policy: a paid plan opens a payment, enrols nothing', async () => {
+    const { payments, begin } = flittPayments();
+    const { service, subscriptionCreate } = setup({ payments });
+
+    const result = await service.enrollSelf('plan-1', 'app');
+
+    expect(result).toEqual({ subscription: null, orderId: 'order-1', payment: ACTION });
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+    expect(begin.mock.calls[0]![0]).toMatchObject({
+      purpose: 'subscription_start',
+      returnTo: 'app',
+    });
+  });
+
+  it('legacy POST /subscriptions still enrols a trial at once (provider flitt)', async () => {
+    const { payments, begin } = flittPayments();
+    const { service } = setup({ payments, plan: plan({ trialDays: 7 }) });
+
+    const result = await service.enrollSelf('plan-1');
+
+    expect(result.subscription).toMatchObject({ id: 'sub-new', status: SubscriptionStatus.TRIAL });
+    expect(result.payment).toBeUndefined();
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it('legacy POST /subscriptions 409s ONLINE_PAYMENTS_UNAVAILABLE with neither Flitt nor stub', async () => {
+    const payments = {
+      purchaseMode: vi.fn(() =>
+        Promise.reject(new ConflictException({ code: 'ONLINE_PAYMENTS_UNAVAILABLE' })),
+      ),
+    };
+    const { service, subscriptionCreate } = setup({
+      payments: payments as unknown as Partial<OnlinePaymentsService>,
+    });
+
+    const error = await rejection(service.enrollSelf('plan-1'));
+
+    expect((error.getResponse() as { code: string }).code).toBe('ONLINE_PAYMENTS_UNAVAILABLE');
+    expect(subscriptionCreate).not.toHaveBeenCalled();
+  });
+
+  it('legacy POST /subscriptions is unchanged in stub mode', async () => {
+    const payments = {
+      purchaseMode: vi.fn(() => Promise.resolve({ mode: 'stub' as const })),
+      begin: vi.fn(),
+    };
+    const { service } = setup({ payments: payments as unknown as Partial<OnlinePaymentsService> });
+
+    const result = await service.enrollSelf('plan-1');
+
+    expect(Object.keys(result)).toEqual(['subscription']);
+    expect(result.subscription).toMatchObject({ id: 'sub-new', status: SubscriptionStatus.ACTIVE });
+    expect(payments.begin).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stub enrolment byte-for-byte when the purchase mode is stub', async () => {
+    const payments = {
+      purchaseMode: vi.fn(() => Promise.resolve({ mode: 'stub' as const })),
+      begin: vi.fn(),
+    };
+    const { service, subscriptionCreate } = setup({
+      payments: payments as unknown as Partial<OnlinePaymentsService>,
+    });
+
+    const result = await service.purchaseSelf('plan-1', 'web');
+
+    expect(result).toEqual({ subscriptionId: 'sub-new', orderId: null });
+    expect(subscriptionCreate.mock.calls[0]?.[0]?.data).toMatchObject({ provider: 'stub' });
+    expect(payments.begin).not.toHaveBeenCalled();
+  });
+
+  it('409s ONLINE_PAYMENTS_UNAVAILABLE when the gym has neither Flitt nor the stub', async () => {
+    const payments = {
+      purchaseMode: vi.fn(() =>
+        Promise.reject(new ConflictException({ code: 'ONLINE_PAYMENTS_UNAVAILABLE' })),
+      ),
+    };
+    const { service, subscriptionCreate } = setup({
+      payments: payments as unknown as Partial<OnlinePaymentsService>,
+    });
+
+    const error = await rejection(service.purchaseSelf('plan-1', 'web'));
+
+    expect((error.getResponse() as { code: string }).code).toBe('ONLINE_PAYMENTS_UNAVAILABLE');
+    expect(subscriptionCreate).not.toHaveBeenCalled();
   });
 });

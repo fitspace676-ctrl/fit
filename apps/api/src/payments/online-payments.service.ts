@@ -4,13 +4,16 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
+  AutomationTriggerType,
   OrderStatus,
   PaymentAttemptStatus,
   PaymentStatus,
   StockMovementReason,
+  SubscriptionStatus,
   type PaymentAttempt as AttemptRow,
   type Prisma,
 } from '@fit/db';
@@ -24,6 +27,7 @@ import {
   type PaymentReturnTarget,
 } from '@fit/types';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
+import { InvoiceService, type IssuedInvoice } from '../billing/invoice.service';
 import { buildMemberUrl } from '../common/console-url';
 import { env, onlinePaymentsStubEnabled } from '../config/env';
 import {
@@ -38,6 +42,13 @@ import { PromoRedemptionService, type ResolvedPromo } from '../marketing/promo-r
 import { dispatchSaleAutomation } from '../orders/order-automation';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyOrderStockMovements, type OrderStockLine } from '../products/order-stock';
+import {
+  AlreadySubscribedError,
+  MANUAL_PAY_PROVIDER,
+  applyRenewal,
+  nextManualPeriod,
+  startSubscription,
+} from '../subscriptions/subscription-periods';
 import { mintCreditPack, parseFulfilment, type OrderFulfilment } from './order-fulfilment';
 import { isLiveAttempt } from './order-payment-state';
 
@@ -94,6 +105,34 @@ export type SettleOutcome =
   | { kind: 'failed'; status: PaymentAttemptStatus }
   | { kind: 'needs_review'; reason: string };
 
+/**
+ * Thrown inside the capture transaction when the paid-for grant can no longer be
+ * honoured (the member subscribed meanwhile, the period was already paid). The
+ * transaction rolls back — nothing is granted, the order stays as it was — and the
+ * attempt is parked NEEDS_REVIEW for staff to reverse, like `order_not_pending`.
+ */
+export class FulfilmentConflictError extends Error {
+  constructor(readonly reason: string) {
+    super(`Fulfilment conflict: ${reason}`);
+    this.name = 'FulfilmentConflictError';
+  }
+}
+
+/** What a committed fulfilment still has to announce (after the transaction). */
+interface FulfilmentEffects {
+  invoice: IssuedInvoice | null;
+  renewedSubscriptionId: string | null;
+}
+
+const NO_EFFECTS: FulfilmentEffects = { invoice: null, renewedSubscriptionId: null };
+
+/** Subscription statuses a manual renewal payment may be applied to. */
+const RENEWABLE_STATUSES: readonly SubscriptionStatus[] = [
+  SubscriptionStatus.TRIAL,
+  SubscriptionStatus.ACTIVE,
+  SubscriptionStatus.PAST_DUE,
+];
+
 /** Callback verdict → HTTP status the webhook replies with. */
 export type CallbackVerdict = 'accepted' | 'bad_request' | 'unknown_order';
 
@@ -124,6 +163,9 @@ export class OnlinePaymentsService {
     private readonly flitt: FlittClient,
     private readonly promos: PromoRedemptionService,
     private readonly automation: AutomationExecutorService,
+    // Stateless (it works on the caller's transaction); optional so the specs that
+    // build this service by hand need not pass it. Wired by `InvoiceModule`.
+    @Optional() private readonly invoices: InvoiceService = new InvoiceService(),
   ) {}
 
   // ── Policy ──────────────────────────────────────────────────────────────
@@ -176,6 +218,7 @@ export class OnlinePaymentsService {
     const expiresAt = new Date(Date.now() + CHECKOUT_LIFETIME_SECONDS * 1000);
     const free = total <= 0;
 
+    let freeEffects: FulfilmentEffects = NO_EFFECTS;
     const orderId = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
@@ -228,7 +271,13 @@ export class OnlinePaymentsService {
       });
 
       if (free) {
-        await this.fulfil(tx, { gymId, memberId, orderId: order.id }, spec.fulfilment);
+        // A conflict here (`FulfilmentConflictError`) rolls the whole order back
+        // and reaches the caller, which maps it to its own 409.
+        freeEffects = await this.fulfil(
+          tx,
+          { gymId, memberId, orderId: order.id },
+          spec.fulfilment,
+        );
       } else {
         await tx.paymentAttempt.create({
           data: {
@@ -255,6 +304,7 @@ export class OnlinePaymentsService {
     });
 
     if (free) {
+      this.announce(gymId, freeEffects);
       dispatchSaleAutomation(this.automation, null, { gymId, orderId, memberId, paid: true });
       return {
         orderId,
@@ -310,6 +360,10 @@ export class OnlinePaymentsService {
     if (order.status !== OrderStatus.PENDING || order.payment?.provider !== 'flitt') {
       throw notPayable();
     }
+    if (order.paymentAttempts.some((a) => a.status === PaymentAttemptStatus.NEEDS_REVIEW)) {
+      // Money may already have moved for this order; staff resolve it first.
+      throw paymentInProgress();
+    }
 
     // Settle whatever is still open first — it may already be paid.
     for (const attempt of order.paymentAttempts) {
@@ -340,7 +394,11 @@ export class OnlinePaymentsService {
       });
       if (locked.count === 0) return 'not_payable' as const;
       const open = await tx.paymentAttempt.count({
-        where: { orderId, gymId, status: PaymentAttemptStatus.PENDING },
+        where: {
+          orderId,
+          gymId,
+          status: { in: [PaymentAttemptStatus.PENDING, PaymentAttemptStatus.NEEDS_REVIEW] },
+        },
       });
       if (open > 0) return 'in_progress' as const;
       await tx.payment.updateMany({
@@ -477,6 +535,44 @@ export class OnlinePaymentsService {
   }
 
   /**
+   * The member's newest unpaid online order whose grant matches `match` (e.g. a
+   * renewal of one subscription period), or `null`. An order parked for staff (a
+   * NEEDS_REVIEW attempt) is never offered again. Used to hand back an existing
+   * checkout instead of opening a second order for the same thing.
+   */
+  async findOpenOrder(
+    gymId: string,
+    memberId: string,
+    match: (fulfilment: OrderFulfilment) => boolean,
+  ): Promise<string | null> {
+    const orders = await this.prisma.client.order.findMany({
+      where: {
+        gymId,
+        memberId,
+        status: OrderStatus.PENDING,
+        payment: { is: { provider: 'flitt' } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        paymentAttempts: {
+          select: { status: true, fulfilment: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    for (const order of orders) {
+      if (order.paymentAttempts.some((a) => a.status === PaymentAttemptStatus.NEEDS_REVIEW)) {
+        continue;
+      }
+      const fulfilment = parseFulfilment(order.paymentAttempts[0]?.fulfilment);
+      if (fulfilment && match(fulfilment)) return order.id;
+    }
+    return null;
+  }
+
+  /**
    * Member cancel of an unpaid online order. Open attempts are settled first (a
    * payment that already went through wins); a checkout that may still be paid
    * refuses the cancel with `409 PAYMENT_IN_PROGRESS`.
@@ -515,8 +611,15 @@ export class OnlinePaymentsService {
           data: { status: OrderStatus.CANCELLED },
         });
         if (cancelled.count === 0) return false;
+        // An open checkout may still be paid; a NEEDS_REVIEW one may already have
+        // been (approved but not grantable) — cancelling would hide money staff
+        // must reverse.
         const open = await tx.paymentAttempt.count({
-          where: { gymId, orderId, status: PaymentAttemptStatus.PENDING },
+          where: {
+            gymId,
+            orderId,
+            status: { in: [PaymentAttemptStatus.PENDING, PaymentAttemptStatus.NEEDS_REVIEW] },
+          },
         });
         if (open > 0) throw new OpenAttemptError();
 
@@ -613,57 +716,71 @@ export class OnlinePaymentsService {
     const now = new Date();
     const providerRef =
       status.payment_id !== undefined ? String(status.payment_id) : attempt.providerPaymentId;
-    const result = await this.prisma.client.$transaction(async (tx) => {
-      // The claim: only one settler moves the attempt out of PENDING. A racing
-      // transaction blocks on the row lock, re-evaluates the predicate after this
-      // one commits, and matches nothing (docs/adr/atomic-counters.md).
-      const claimed = await tx.paymentAttempt.updateMany({
-        where: { id: attempt.id, status: PaymentAttemptStatus.PENDING },
-        data: {
-          status: PaymentAttemptStatus.CAPTURED,
-          providerStatus: 'approved',
-          providerPaymentId: providerRef,
-          settledAt: now,
-          lastCheckedAt: now,
-        },
-      });
-      if (claimed.count === 0) return { kind: 'lost' as const };
-
-      const paid = await tx.order.updateMany({
-        where: { id: attempt.orderId, gymId: attempt.gymId, status: OrderStatus.PENDING },
-        data: { status: OrderStatus.PAID },
-      });
-      if (paid.count === 0) {
-        // Abandoned, or paid by another attempt: money arrived that this order
-        // cannot take. Grant nothing; staff reverse it.
-        await tx.paymentAttempt.update({
-          where: { id: attempt.id },
-          data: { status: PaymentAttemptStatus.NEEDS_REVIEW, failureCode: 'order_not_pending' },
+    const result = await this.prisma.client
+      .$transaction(async (tx) => {
+        // The claim: only one settler moves the attempt out of PENDING. A racing
+        // transaction blocks on the row lock, re-evaluates the predicate after this
+        // one commits, and matches nothing (docs/adr/atomic-counters.md).
+        const claimed = await tx.paymentAttempt.updateMany({
+          where: { id: attempt.id, status: PaymentAttemptStatus.PENDING },
+          data: {
+            status: PaymentAttemptStatus.CAPTURED,
+            providerStatus: 'approved',
+            providerPaymentId: providerRef,
+            settledAt: now,
+            lastCheckedAt: now,
+          },
         });
-        return { kind: 'review' as const };
-      }
-      await tx.orderStatusEvent.create({
-        data: { orderId: attempt.orderId, status: OrderStatus.PAID },
+        if (claimed.count === 0) return { kind: 'lost' as const };
+
+        const paid = await tx.order.updateMany({
+          where: { id: attempt.orderId, gymId: attempt.gymId, status: OrderStatus.PENDING },
+          data: { status: OrderStatus.PAID },
+        });
+        if (paid.count === 0) {
+          // Abandoned, or paid by another attempt: money arrived that this order
+          // cannot take. Grant nothing; staff reverse it.
+          await tx.paymentAttempt.update({
+            where: { id: attempt.id },
+            data: { status: PaymentAttemptStatus.NEEDS_REVIEW, failureCode: 'order_not_pending' },
+          });
+          return { kind: 'review' as const };
+        }
+        await tx.orderStatusEvent.create({
+          data: { orderId: attempt.orderId, status: OrderStatus.PAID },
+        });
+        await tx.payment.update({
+          where: { id: attempt.paymentId },
+          data: { status: PaymentStatus.CAPTURED, providerRef, provider: 'flitt' },
+        });
+        const order = await tx.order.findFirst({
+          where: { id: attempt.orderId, gymId: attempt.gymId },
+          select: { memberId: true },
+        });
+        const fulfilment = parseFulfilment(attempt.fulfilment);
+        const effects = fulfilment
+          ? await this.fulfil(
+              tx,
+              { gymId: attempt.gymId, memberId: order?.memberId ?? null, orderId: attempt.orderId },
+              fulfilment,
+              now,
+            )
+          : NO_EFFECTS;
+        return { kind: 'captured' as const, memberId: order?.memberId ?? null, effects };
+      })
+      .catch((error: unknown) => {
+        // The grant could not be honoured: everything above rolled back (the
+        // attempt is PENDING again, the order unpaid) and the attempt is parked
+        // for staff below. Never a retry loop: NEEDS_REVIEW is final.
+        if (error instanceof FulfilmentConflictError) {
+          return { kind: 'conflict' as const, reason: error.reason };
+        }
+        throw error;
       });
-      await tx.payment.update({
-        where: { id: attempt.paymentId },
-        data: { status: PaymentStatus.CAPTURED, providerRef, provider: 'flitt' },
-      });
-      const order = await tx.order.findFirst({
-        where: { id: attempt.orderId, gymId: attempt.gymId },
-        select: { memberId: true },
-      });
-      const fulfilment = parseFulfilment(attempt.fulfilment);
-      if (fulfilment) {
-        await this.fulfil(
-          tx,
-          { gymId: attempt.gymId, memberId: order?.memberId ?? null, orderId: attempt.orderId },
-          fulfilment,
-          now,
-        );
-      }
-      return { kind: 'captured' as const, memberId: order?.memberId ?? null };
-    });
+
+    if (result.kind === 'conflict') {
+      return this.needsReview(attempt, result.reason, 'approved');
+    }
 
     if (result.kind === 'lost') {
       const current = await this.prisma.client.paymentAttempt.findUnique({
@@ -679,6 +796,7 @@ export class OnlinePaymentsService {
       return { kind: 'needs_review', reason: 'order_not_pending' };
     }
     this.logger.log(`Payment attempt ${attempt.id} captured`);
+    this.announce(attempt.gymId, result.effects);
     dispatchSaleAutomation(this.automation, null, {
       gymId: attempt.gymId,
       orderId: attempt.orderId,
@@ -746,27 +864,151 @@ export class OnlinePaymentsService {
       .catch(() => undefined);
   }
 
+  /**
+   * Grant what an order bought, inside the capture (or free-order) transaction.
+   * Throws {@link FulfilmentConflictError} when a subscription grant can no longer
+   * be honoured, which rolls the whole transaction back.
+   */
   private async fulfil(
     tx: Prisma.TransactionClient,
     target: { gymId: string; memberId: string | null; orderId: string },
     fulfilment: OrderFulfilment,
     now?: Date,
-  ): Promise<void> {
-    if (fulfilment.kind !== 'credit_pack') return;
-    if (!target.memberId) {
-      this.logger.error(`Order ${target.orderId}: credit pack paid with no member to mint for`);
-      return;
+  ): Promise<FulfilmentEffects> {
+    switch (fulfilment.kind) {
+      case 'package':
+      case 'shop':
+        return NO_EFFECTS;
+      case 'credit_pack':
+        if (!target.memberId) {
+          this.logger.error(`Order ${target.orderId}: credit pack paid with no member to mint for`);
+          return NO_EFFECTS;
+        }
+        await mintCreditPack(tx, {
+          gymId: target.gymId,
+          memberId: target.memberId,
+          orderId: target.orderId,
+          planId: fulfilment.planId,
+          name: fulfilment.name,
+          credits: fulfilment.credits,
+          validityDays: fulfilment.validityDays,
+          now,
+        });
+        return NO_EFFECTS;
+      case 'subscription_start':
+        return this.fulfilSubscriptionStart(tx, target, fulfilment, now ?? new Date());
+      case 'subscription_renewal':
+        return this.fulfilSubscriptionRenewal(tx, target, fulfilment);
     }
-    await mintCreditPack(tx, {
-      gymId: target.gymId,
-      memberId: target.memberId,
-      orderId: target.orderId,
-      planId: fulfilment.planId,
-      name: fulfilment.name,
-      credits: fulfilment.credits,
-      validityDays: fulfilment.validityDays,
-      now,
+  }
+
+  /**
+   * The paid first period: the same `startSubscription` the stub enrolment runs,
+   * on the terms snapshotted when the order was opened, starting at the moment
+   * the payment was confirmed. The live-slot check runs again here — a member who
+   * subscribed while paying gets nothing granted (NEEDS_REVIEW).
+   */
+  private async fulfilSubscriptionStart(
+    tx: Prisma.TransactionClient,
+    target: { gymId: string; memberId: string | null; orderId: string },
+    fulfilment: Extract<OrderFulfilment, { kind: 'subscription_start' }>,
+    now: Date,
+  ): Promise<FulfilmentEffects> {
+    if (!target.memberId) throw new FulfilmentConflictError('no_member');
+    // A plan deleted while the buyer paid: the paid terms still apply, plan-less.
+    const plan = await tx.subscriptionPlan.findFirst({
+      where: { id: fulfilment.planId, gymId: target.gymId },
+      select: { id: true },
     });
+    try {
+      const started = await startSubscription(tx, this.invoices, {
+        gymId: target.gymId,
+        memberId: target.memberId,
+        planId: plan?.id ?? null,
+        planName: fulfilment.planName,
+        priceAmount: fulfilment.priceAmount,
+        currency: fulfilment.currency,
+        interval: fulfilment.interval,
+        trialDays: 0,
+        provider: MANUAL_PAY_PROVIDER,
+        orderId: target.orderId,
+        now,
+      });
+      return { invoice: started.invoice, renewedSubscriptionId: null };
+    } catch (error) {
+      if (error instanceof AlreadySubscribedError) {
+        throw new FulfilmentConflictError('already_subscribed');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * One manually paid period: advanced exactly as a successful renewal charge
+   * advances it (`applyRenewal`), guarded on the period end the order was opened
+   * for — so a second paid order for the same period, or a subscription that
+   * lapsed / froze meanwhile, advances nothing (NEEDS_REVIEW).
+   */
+  private async fulfilSubscriptionRenewal(
+    tx: Prisma.TransactionClient,
+    target: { gymId: string; memberId: string | null; orderId: string },
+    fulfilment: Extract<OrderFulfilment, { kind: 'subscription_renewal' }>,
+  ): Promise<FulfilmentEffects> {
+    const sub = await tx.subscription.findFirst({
+      where: { id: fulfilment.subscriptionId, gymId: target.gymId },
+      select: {
+        id: true,
+        gymId: true,
+        memberId: true,
+        status: true,
+        currentPeriodEnd: true,
+        priceAmount: true,
+        currency: true,
+        interval: true,
+        plan: { select: { name: true } },
+      },
+    });
+    if (!sub || sub.memberId !== target.memberId) {
+      throw new FulfilmentConflictError('subscription_missing');
+    }
+    if (sub.currentPeriodEnd.toISOString() !== new Date(fulfilment.periodEnd).toISOString()) {
+      throw new FulfilmentConflictError('period_already_paid');
+    }
+    if (!RENEWABLE_STATUSES.includes(sub.status)) {
+      throw new FulfilmentConflictError('subscription_not_payable');
+    }
+    const { nextPeriodStart, nextPeriodEnd } = nextManualPeriod(sub.currentPeriodEnd, sub.interval);
+    const invoice = await applyRenewal(tx, this.invoices, {
+      sub: {
+        id: sub.id,
+        gymId: sub.gymId,
+        memberId: sub.memberId,
+        status: sub.status,
+        currentPeriodEnd: sub.currentPeriodEnd,
+        priceAmount: sub.priceAmount,
+        currency: sub.currency,
+        interval: sub.interval,
+        planName: sub.plan?.name ?? null,
+      },
+      nextPeriodStart,
+      nextPeriodEnd,
+      provider: MANUAL_PAY_PROVIDER,
+      orderId: target.orderId,
+    });
+    // Another writer advanced or moved it between the read and the update.
+    if (!invoice) throw new FulfilmentConflictError('period_already_paid');
+    return { invoice, renewedSubscriptionId: sub.id };
+  }
+
+  /** Post-commit announcements of a fulfilment (best-effort, never awaited). */
+  private announce(gymId: string, effects: FulfilmentEffects): void {
+    if (effects.invoice) this.invoices.announcePaid({ gymId }, effects.invoice);
+    if (effects.renewedSubscriptionId) {
+      void this.automation.dispatchForGym(gymId, AutomationTriggerType.membership_renewed, {
+        entityId: effects.renewedSubscriptionId,
+        entityType: 'subscription',
+      });
+    }
   }
 
   private async openCheckout(

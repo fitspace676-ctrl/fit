@@ -43,9 +43,12 @@ import { toOrderPaymentState } from '../payments/order-payment-state';
  *   {@link CreditPacksService.purchasePack}, which raises a `PAID` order + a
  *   `CAPTURED` stub payment and mints the pack in one transaction.
  * - `subscription` — delegated to
- *   {@link SubscriptionEnrollmentService.enrollSelf}, which snapshots the plan's
- *   terms onto the subscription and mints the first period's `Invoice`. No order
- *   is raised: doing so would record the same revenue twice.
+ *   {@link SubscriptionEnrollmentService.purchaseSelf}. On the stub path it
+ *   snapshots the plan's terms onto the subscription and mints the first period's
+ *   `Invoice`; no order is raised (it would record the same revenue twice). At a
+ *   Flitt gym a paid plan instead raises a PENDING order the member pays on
+ *   Flitt's page; the subscription and its invoice (tied to that order, so the
+ *   revenue is still counted once) are created when the payment is captured.
  * - `package` — a plain plan with no finite session count has no existing
  *   purchase path, so the order + stub payment are written here, mirroring the
  *   credit-pack transaction exactly.
@@ -86,8 +89,19 @@ export class CheckoutService {
         };
       }
       case 'subscription': {
-        const { subscription } = await this.subscriptions.enrollSelf(input.productId);
-        return { productType: input.productType, orderId: null, subscriptionId: subscription.id };
+        // Stub mode: the instant enrolment, exactly as before (no `payment` key).
+        // Flitt mode, paid plan: a pending first-period order + checkout, and no
+        // subscription until Flitt approves the payment.
+        const result = await this.subscriptions.purchaseSelf(
+          input.productId,
+          input.returnTo ?? 'web',
+        );
+        return {
+          productType: input.productType,
+          orderId: result.orderId,
+          subscriptionId: result.subscriptionId,
+          ...(result.payment ? { payment: result.payment } : {}),
+        };
       }
       case 'package': {
         const { orderId, payment } = await this.buyPackage(

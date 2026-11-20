@@ -102,9 +102,15 @@ export class PaymentSweepService {
         status: OrderStatus.PENDING,
         createdAt: { lt: cutoff },
         payment: { is: { provider: 'flitt' } },
+        // Never an order with an open attempt, a recent one, or one parked for
+        // staff (NEEDS_REVIEW — money may have moved; `abandonOrder` refuses it too).
         paymentAttempts: {
           none: {
-            OR: [{ status: PaymentAttemptStatus.PENDING }, { createdAt: { gte: cutoff } }],
+            OR: [
+              { status: PaymentAttemptStatus.PENDING },
+              { status: PaymentAttemptStatus.NEEDS_REVIEW },
+              { createdAt: { gte: cutoff } },
+            ],
           },
         },
       },

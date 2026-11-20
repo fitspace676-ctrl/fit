@@ -113,3 +113,19 @@ export const PROVIDER_REFUND_FAILED_CODE = 'PROVIDER_REFUND_FAILED';
  * background; the refund appears once the provider confirms it.
  */
 export const PROVIDER_REFUND_PENDING_CODE = 'PROVIDER_REFUND_PENDING';
+
+/* -------------------------------------------------------------------------- */
+/*  Subscriptions paid by hand, period by period                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `409` — `POST /me/subscription/pay` before the payment window opens: the
+ * current period ends more than the window (7 days) from now and the
+ * subscription is not past due. `GET /me/subscription` → `payment.dueAt` says when.
+ */
+export const SUBSCRIPTION_NOT_DUE_CODE = 'SUBSCRIPTION_NOT_DUE';
+/**
+ * `409` — `POST /me/subscription/pay` on a subscription that is not paid by hand
+ * (another provider), or is frozen, cancelling at period end, or over.
+ */
+export const SUBSCRIPTION_NOT_PAYABLE_CODE = 'SUBSCRIPTION_NOT_PAYABLE';

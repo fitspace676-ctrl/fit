@@ -142,7 +142,7 @@ describe('Subscription lifecycle (integration)', () => {
   /** Enrol the caller and return the freshly-created subscription row. */
   async function enrolActive() {
     const { subscription } = await asTenant(caller, () => enrollment.enrollSelf(planId));
-    return prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } });
+    return prisma.subscription.findUniqueOrThrow({ where: { id: subscription!.id } });
   }
 
   it('renews an active subscription at period end: advances the period, resets freeze usage, mints a renewal invoice', async () => {
@@ -204,7 +204,7 @@ describe('Subscription lifecycle (integration)', () => {
 
     const { subscription } = await asTenant(caller, () => enrollment.enrollSelf(trialPlan.id));
     const trial = await prisma.subscription.findUniqueOrThrow({
-      where: { id: subscription.id },
+      where: { id: subscription!.id },
     });
     expect(trial.status).toBe(SubscriptionStatus.TRIAL);
     // A trial charges nothing yet, so no invoice is raised at enrolment.

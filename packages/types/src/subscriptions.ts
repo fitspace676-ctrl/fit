@@ -13,6 +13,7 @@
 // re-freeze of an already-frozen subscription is a `409 ALREADY_FROZEN`.
 
 import { z } from 'zod';
+import { paymentReturnTargetSchema, type PaymentAction } from './online-payments';
 
 /* -------------------------------------------------------------------------- */
 /*  POST /subscriptions  &  POST /admin/subscriptions/enroll  (enrolment, T5.3) */
@@ -26,6 +27,11 @@ import { z } from 'zod';
  */
 export const enrollSubscriptionSchema = z.object({
   planId: z.string().trim().min(1, 'A plan is required'),
+  /**
+   * Where the payment provider sends the member back to when the plan must be
+   * paid online first (`web`, the default, or `app`). Ignored on the stub path.
+   */
+  returnTo: paymentReturnTargetSchema.optional(),
 });
 
 /** Validated `POST /subscriptions` body — {@link enrollSubscriptionSchema}. */
@@ -79,6 +85,22 @@ export type EnrolledSubscription = z.infer<typeof enrolledSubscriptionSchema>;
  */
 export interface EnrollSubscriptionResponse {
   subscription: EnrolledSubscription;
+}
+
+/**
+ * `POST /subscriptions` (the member's own enrolment) response. Identical to
+ * {@link EnrollSubscriptionResponse} on the stub path and for a free trial. At a
+ * gym that takes payment online through its own provider (Flitt), a paid plan is
+ * NOT enrolled yet: `subscription` is `null` and `orderId` + `payment` describe the
+ * first-period order the member must pay on `payment.checkoutUrl` (then follow
+ * `GET /checkout/:orderId`, exactly as for `POST /checkout`). The subscription is
+ * created when the payment is captured. `409 ONLINE_PAYMENTS_UNAVAILABLE` when the
+ * gym has no provider and the stub is off.
+ */
+export interface SelfEnrollSubscriptionResponse {
+  subscription: EnrolledSubscription | null;
+  orderId?: string;
+  payment?: PaymentAction;
 }
 
 /** The most days a single freeze request may span (one year — a generous ceiling the schema rejects past). */

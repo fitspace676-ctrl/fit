@@ -4,9 +4,11 @@ import { gymSettingsStoredSchema } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
 import { resolveEmailLocale, type EmailLocale } from '../notifications/notification-email';
+import { MANUAL_PAY_PROVIDER } from './subscription-periods';
 
 /** In-app deep link every billing notification routes to — the member portal's
- *  membership screen, where they can see their plan and update payment. */
+ *  membership screen, where they can see their plan, update payment and (for a
+ *  manually paid subscription) pay the next period. */
 const MEMBERSHIP_HREF = '/account/membership';
 
 /**
@@ -110,15 +112,80 @@ export class BillingNotificationsService {
    */
   async chargeFailed(
     sub: BillingSubscriptionRef,
-    opts: { rung: number; periodEnd: Date },
+    opts: { rung: number; periodEnd: Date; manual?: boolean },
   ): Promise<void> {
     const locale = await this.resolveGymLocale(sub.gymId);
     const amount = formatMoney(sub.priceAmount, sub.currency, locale);
+    // A manually paid subscription has no card to fix: the member is asked to pay.
+    const copy = opts.manual
+      ? manualPaymentOverdueCopy(locale, amount, formatDate(opts.periodEnd, locale))
+      : chargeFailedCopy(locale, amount);
     await this.deliver(
       sub,
-      chargeFailedCopy(locale, amount),
+      copy,
       `billing-failed:${sub.id}:${opts.periodEnd.toISOString()}:r${opts.rung}`,
     );
+  }
+
+  /**
+   * Remind every member whose MANUALLY paid subscription (provider `flitt` — no
+   * card on file, nothing is charged automatically) ends within the lead window,
+   * and has not been paid ahead yet, that they must pay to continue. Cross-tenant
+   * like {@link notifyTrialsEndingSoon}; keyed to the period end, so a member is
+   * reminded once per period even as the window slides across runs (a period paid
+   * ahead moves `currentPeriodEnd` out of the window, so it is not reminded).
+   */
+  async notifyManualRenewalsDue(now: Date, leadDays: number): Promise<TrialEndingSweepSummary> {
+    const windowEnd = new Date(now.getTime() + leadDays * 24 * 60 * 60 * 1000);
+    const due = await this.prisma.client.subscription.findMany({
+      where: {
+        provider: MANUAL_PAY_PROVIDER,
+        status: { in: [SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE] },
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: { gt: now, lte: windowEnd },
+      },
+      select: {
+        id: true,
+        gymId: true,
+        priceAmount: true,
+        currency: true,
+        currentPeriodEnd: true,
+        member: { select: { userId: true } },
+      },
+      orderBy: { currentPeriodEnd: 'asc' },
+    });
+
+    const summary: TrialEndingSweepSummary = {
+      matched: due.length,
+      notified: 0,
+      deduped: 0,
+      errors: 0,
+    };
+    for (const sub of due) {
+      try {
+        const locale = await this.resolveGymLocale(sub.gymId);
+        const amount = formatMoney(sub.priceAmount, sub.currency, locale);
+        const when = formatDate(sub.currentPeriodEnd, locale);
+        const result = await this.notifications.send({
+          gymId: sub.gymId,
+          userId: sub.member.userId,
+          category: NotificationCategory.BILLING,
+          ...manualRenewalDueCopy(locale, amount, when),
+          href: MEMBERSHIP_HREF,
+          channels: BILLING_CHANNELS,
+          dedupeKey: `manual-renewal-due:${sub.id}:${sub.currentPeriodEnd.toISOString()}`,
+        });
+        if (result.deduped) summary.deduped += 1;
+        else summary.notified += 1;
+      } catch (error) {
+        summary.errors += 1;
+        this.logger.warn(
+          `Failed to remind subscription ${sub.id} (gym ${sub.gymId}) to pay: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    return summary;
   }
 
   /**
@@ -135,6 +202,9 @@ export class BillingNotificationsService {
         status: SubscriptionStatus.TRIAL,
         cancelAtPeriodEnd: false,
         currentPeriodEnd: { gt: now, lte: windowEnd },
+        // A manually paid trial is never charged; `notifyManualRenewalsDue` asks
+        // that member to pay instead of announcing a charge.
+        provider: { not: MANUAL_PAY_PROVIDER },
       },
       select: {
         id: true,
@@ -302,6 +372,46 @@ function chargeFailedCopy(locale: EmailLocale, amount: string): { title: string;
     body:
       `We couldn't process your ${amount} membership payment. ` +
       `Please update your payment method to keep your membership active.`,
+  };
+}
+
+/** Copy for a manually paid membership ending soon — nothing will be charged. */
+function manualRenewalDueCopy(
+  locale: EmailLocale,
+  amount: string,
+  when: string,
+): { title: string; body: string } {
+  if (locale === 'ka') {
+    return {
+      title: 'გაწევრიანება მალე მთავრდება',
+      body: `თქვენი გაწევრიანება მთავრდება ${when}. გასაგრძელებლად გადაიხადეთ ${amount}.`,
+    };
+  }
+  return {
+    title: 'Your membership is ending soon',
+    body: `Your membership ends on ${when}. Pay ${amount} to continue.`,
+  };
+}
+
+/** Copy for a manually paid membership whose period ended unpaid. */
+function manualPaymentOverdueCopy(
+  locale: EmailLocale,
+  amount: string,
+  endedOn: string,
+): { title: string; body: string } {
+  if (locale === 'ka') {
+    return {
+      title: 'გაწევრიანების გადახდა ვადაგადაცილებულია',
+      body:
+        `თქვენი გაწევრიანების პერიოდი დასრულდა ${endedOn}. ` +
+        `გადაიხადეთ ${amount}, რომ გაწევრიანება არ შეწყდეს.`,
+    };
+  }
+  return {
+    title: 'Membership payment overdue',
+    body:
+      `Your membership period ended on ${endedOn}. ` +
+      `Pay ${amount} to keep your membership active.`,
   };
 }
 

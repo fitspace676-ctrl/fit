@@ -5,6 +5,7 @@
 // member id on the wire — and is tenant-scoped to the caller's gym.
 
 import { z } from 'zod';
+import { onlinePurchaseOptionsSchema, type PaymentAction } from './online-payments';
 import { orderStatusSchema } from './orders';
 
 /* -------------------------------------------------------------------------- */
@@ -21,6 +22,34 @@ export const meSubscriptionStatusSchema = z.enum([
   'EXPIRED',
 ]);
 export type MeSubscriptionStatus = z.infer<typeof meSubscriptionStatusSchema>;
+
+/**
+ * How the member pays for their membership, and whether they can pay now — what
+ * the Membership screen needs to render a "Pay" action.
+ *
+ * - `mode` — `manual`: paid by hand each period on the gym's online checkout (no
+ *   card stored, nothing charged automatically; unpaid at period end → past due →
+ *   grace → expired). `auto`: renewed by the billing job / at the desk — nothing
+ *   for the member to pay here. `none`: the membership is over (cancelled /
+ *   expired).
+ * - `canPayNow` — `POST /me/subscription/pay` would open (or hand back) a
+ *   checkout: a manual membership, not frozen or cancelling, whose period ends
+ *   within 7 days or that is past due, at a gym whose online payments are on.
+ * - `dueAt` — when the next payment falls due (the current period end), ISO; null
+ *   for `none`.
+ * - `amount` / `currency` — what the next period costs (MINOR units).
+ * - `pendingOrderId` — an unpaid order already opened for the next period; resume
+ *   it with `GET /checkout/:orderId` / `POST /checkout/:orderId/payment/retry`.
+ */
+export const meSubscriptionPaymentSchema = z.object({
+  mode: z.enum(['manual', 'auto', 'none']),
+  canPayNow: z.boolean(),
+  dueAt: z.string().nullable(),
+  amount: z.number().int().nonnegative(),
+  currency: z.string(),
+  pendingOrderId: z.string().nullable(),
+});
+export type MeSubscriptionPayment = z.infer<typeof meSubscriptionPaymentSchema>;
 
 /** The member's current membership, as the portal's Membership screen renders it. */
 export const meSubscriptionSchema = z.object({
@@ -46,6 +75,11 @@ export const meSubscriptionSchema = z.object({
   freezeDaysRemaining: z.number().int().nonnegative(),
   /** When the caller joined the gym (their `GymMember.joinedAt`). */
   memberSince: z.string(),
+  /**
+   * How the next period is paid and whether the member can pay it now. Always
+   * sent by the API; optional only so older fixtures and clients stay valid.
+   */
+  payment: meSubscriptionPaymentSchema.optional(),
 });
 export type MeSubscription = z.infer<typeof meSubscriptionSchema>;
 
@@ -69,6 +103,29 @@ export type MeInvoice = z.infer<typeof meInvoiceSchema>;
 export interface GetMeSubscriptionResponse {
   subscription: MeSubscription | null;
   invoices: MeInvoice[];
+}
+
+/* -------------------------------------------------------------------------- */
+/*  POST /me/subscription/pay                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Body for `POST /me/subscription/pay` — pay the caller's NEXT membership period
+ * on the gym's hosted checkout. The amount is the subscription's own price
+ * (server-side); only where to come back to is chosen by the client.
+ */
+export const paySubscriptionSchema = onlinePurchaseOptionsSchema;
+export type PaySubscriptionInput = z.infer<typeof paySubscriptionSchema>;
+
+/**
+ * `POST /me/subscription/pay` → `201`. Open `payment.checkoutUrl`; the result
+ * screen then follows `payment.orderId` exactly as for any online purchase
+ * (`GET /checkout/:orderId`, `/payment/sync`, `/payment/retry`, `/payment/cancel`).
+ * An unpaid order already open for the same period is handed back rather than a
+ * second one opened.
+ */
+export interface PaySubscriptionResponse {
+  payment: PaymentAction;
 }
 
 /* -------------------------------------------------------------------------- */

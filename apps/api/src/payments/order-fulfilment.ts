@@ -1,4 +1,4 @@
-import { CreditPackStatus, MS_PER_DAY } from '@fit/db';
+import { CreditPackStatus, MS_PER_DAY, SubscriptionInterval } from '@fit/db';
 
 /**
  * What paying for an order grants, shared by the instant stub purchase and the
@@ -8,6 +8,14 @@ import { CreditPackStatus, MS_PER_DAY } from '@fit/db';
  * - `credit_pack` — a {@link CreditPack} of `credits` is minted against the order.
  * - `shop` — the stock was already drawn down when the order was placed; paying
  *   only flips the order.
+ * - `subscription_start` — the first paid period of a plan: paying enrols the
+ *   member (subscription ACTIVE, provider `flitt`, first-period invoice tied to
+ *   the order) on the snapshotted terms. See `subscriptions/subscription-periods.ts`.
+ * - `subscription_renewal` — one manually paid period of an existing
+ *   subscription: paying advances it from `periodEnd` exactly as a successful
+ *   renewal charge does. `periodEnd` is the period end the order was opened
+ *   against (ISO) — the guard that makes a second paid order for the same period
+ *   advance nothing.
  *
  * Stored as a JSON snapshot on each `PaymentAttempt` so a later catalogue edit
  * (a pack's credit count, its validity) cannot change what was bought.
@@ -21,7 +29,17 @@ export type OrderFulfilment =
       credits: number;
       validityDays: number | null;
     }
-  | { kind: 'shop' };
+  | { kind: 'shop' }
+  | {
+      kind: 'subscription_start';
+      planId: string;
+      planName: string;
+      /** The plan's price per period (MINOR units) — snapshotted onto the subscription. */
+      priceAmount: number;
+      currency: string;
+      interval: SubscriptionInterval;
+    }
+  | { kind: 'subscription_renewal'; subscriptionId: string; periodEnd: string };
 
 /** The slice of a transaction client {@link mintCreditPack} needs (tenant-scoped or base). */
 export interface CreditPackMintClient {
@@ -106,6 +124,40 @@ export function parseFulfilment(value: unknown): OrderFulfilment | null {
           name: record.name,
           credits: record.credits,
           validityDays: record.validityDays,
+        };
+      }
+      return null;
+    case 'subscription_start':
+      if (
+        typeof record.planId === 'string' &&
+        typeof record.planName === 'string' &&
+        typeof record.priceAmount === 'number' &&
+        Number.isInteger(record.priceAmount) &&
+        record.priceAmount >= 0 &&
+        typeof record.currency === 'string' &&
+        (record.interval === SubscriptionInterval.MONTH ||
+          record.interval === SubscriptionInterval.YEAR)
+      ) {
+        return {
+          kind: 'subscription_start',
+          planId: record.planId,
+          planName: record.planName,
+          priceAmount: record.priceAmount,
+          currency: record.currency,
+          interval: record.interval,
+        };
+      }
+      return null;
+    case 'subscription_renewal':
+      if (
+        typeof record.subscriptionId === 'string' &&
+        typeof record.periodEnd === 'string' &&
+        !Number.isNaN(Date.parse(record.periodEnd))
+      ) {
+        return {
+          kind: 'subscription_renewal',
+          subscriptionId: record.subscriptionId,
+          periodEnd: record.periodEnd,
         };
       }
       return null;
