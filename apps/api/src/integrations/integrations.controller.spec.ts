@@ -21,4 +21,28 @@ describe('IntegrationsController', () => {
     void controller.connect({ merchantId: '1549901', secretKey: ' test ' });
     expect(connect).toHaveBeenCalledWith({ merchantId: '1549901', secretKey: 'test' });
   });
+  it('validates and routes Sender actions with the real provider', () => {
+    const service = {
+      connectSender: vi.fn(),
+      testSender: vi.fn(),
+      setEnabled: vi.fn(),
+      disconnect: vi.fn(),
+      sendTestSms: vi.fn(),
+    };
+    const controller = new IntegrationsController(service as unknown as IntegrationsService);
+    expect(() => controller.connectSender({ apiKey: '' })).toThrow(
+      'Invalid integration parameters',
+    );
+    void controller.connectSender({ apiKey: ' private ' });
+    expect(service.connectSender).toHaveBeenCalledWith({ apiKey: 'private' });
+    void controller.testSender();
+    expect(service.testSender).toHaveBeenCalledOnce();
+    void controller.setSenderEnabled({ enabled: true });
+    expect(service.setEnabled).toHaveBeenCalledWith(true, 'sender');
+    void controller.disconnectSender();
+    expect(service.disconnect).toHaveBeenCalledWith('sender');
+    void controller.sendTestSms({ phone: '599123456' });
+    expect(service.sendTestSms).toHaveBeenCalledWith('599123456');
+    expect(() => controller.sendTestSms({ phone: '' })).toThrow('Invalid integration parameters');
+  });
 });

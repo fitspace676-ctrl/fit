@@ -22,7 +22,9 @@ describe('SenderClient', () => {
     expect(url).toBe('https://sender.ge/api/getBalance.php');
     expect(options?.method).toBe('POST');
     expect(options?.headers).toMatchObject({ 'Content-Type': 'application/x-www-form-urlencoded' });
-    expect(new URLSearchParams(String(options?.body)).get('apikey')).toBe('private&key');
+    expect(
+      new URLSearchParams(typeof options?.body === 'string' ? options.body : '').get('apikey'),
+    ).toBe('private&key');
   });
   it('sends a single encoded request and reads only its message id', async () => {
     fetchMock.mockResolvedValue(
@@ -31,7 +33,11 @@ describe('SenderClient', () => {
     expect(await client.send('key', input)).toEqual({ ok: true, messageId: 'm1' });
     const [url, options] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://sender.ge/api/send.php');
-    expect(Object.fromEntries(new URLSearchParams(String(options?.body)))).toEqual({
+    expect(
+      Object.fromEntries(
+        new URLSearchParams(typeof options?.body === 'string' ? options.body : ''),
+      ),
+    ).toEqual({
       apikey: 'key',
       ...input,
       smsno: '1',
