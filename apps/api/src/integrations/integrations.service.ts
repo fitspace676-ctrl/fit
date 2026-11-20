@@ -5,13 +5,16 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import type { GymIntegration as IntegrationRecord, Prisma } from '@fit/db';
+import type { GymIntegration as IntegrationRecord } from '@fit/db';
 import type { ConnectFlittInput, GymIntegration, TestIntegrationResponse } from '@fit/types';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SecretBox } from '../common/crypto/secret-box';
 import { FlittClient, type FlittCredentials } from './flitt/flitt-client';
+
+/** The tenant-scoped transaction client `TenantPrismaService.client.$transaction` hands its callback. */
+type TenantTx = Parameters<Parameters<TenantPrismaService['client']['$transaction']>[0]>[0];
 
 @Injectable()
 export class IntegrationsService {
@@ -176,7 +179,7 @@ export class IntegrationsService {
     }
   }
 
-  private async audit(tx: Prisma.TransactionClient, gymId: string, action: string): Promise<void> {
+  private async audit(tx: TenantTx, gymId: string, action: string): Promise<void> {
     await tx.auditLog.create({
       data: {
         gymId,

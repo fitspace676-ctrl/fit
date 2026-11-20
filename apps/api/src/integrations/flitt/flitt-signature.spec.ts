@@ -12,8 +12,16 @@ const sample = {
 };
 
 describe('Flitt signatures', () => {
-  it('matches the published test merchant sample', () => {
-    expect(signFlittParams('test', sample)).toBe('91ea7da493a8367410fe3d7f877fb5e0ed666490');
+  it('signs the string the docs publish for the test merchant sample', () => {
+    // The docs give this exact string-to-sign for the sample request. The digest
+    // printed beside it (91ea7da4…) is stale — it is not the SHA-1 of that string —
+    // while Flitt's live test merchant accepts signatures built this way (checked
+    // 2026-11-20 against /api/checkout/url and /api/status/order_id).
+    const documented = 'test|1000|GEL|1549901|Test payment|TestOrder2|http://myshop/callback/';
+    expect(signFlittParams('test', sample)).toBe(
+      createHash('sha1').update(documented).digest('hex'),
+    );
+    expect(signFlittParams('test', sample)).toBe('cd0edb710cbbdb6c2a4d965cdb91fdfabc343215');
   });
   it('sorts parameter names, ignores null/undefined/empty, but preserves zero', () => {
     const expected = createHash('sha1').update('key|0|GEL').digest('hex');

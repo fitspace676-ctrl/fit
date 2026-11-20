@@ -91,6 +91,7 @@ describe('IntegrationsService', () => {
     );
     expect(ctx.model.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest matcher
         update: expect.objectContaining({ secretCiphertext: 'encrypted', secretHint: 'st' }),
       }),
     );
@@ -123,6 +124,7 @@ describe('IntegrationsService', () => {
   it('does not expose a complete one/two-character secret as its hint', async () => {
     await ctx.service.connect({ merchantId: '1', secretKey: 'ab' });
     expect(ctx.model.upsert).toHaveBeenCalledWith(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest matcher
       expect.objectContaining({ update: expect.objectContaining({ secretHint: null }) }),
     );
   });

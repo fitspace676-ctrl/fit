@@ -6,7 +6,6 @@ const { mockEnv } = vi.hoisted(() => ({
 vi.mock('../config/env', () => ({ env: mockEnv }));
 import { asTenant, disconnect, prisma, resetDb, tenantPrisma } from '../test/integration-db';
 import { TenantContext, type TenantState } from '../common/tenant/tenant.context';
-import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { SecretBox } from '../common/crypto/secret-box';
 import type { FlittClient } from './flitt/flitt-client';
@@ -14,7 +13,7 @@ import { IntegrationsService } from './integrations.service';
 
 const verifyCredentials = vi.fn();
 const service = new IntegrationsService(
-  { client: tenantPrisma } as unknown as TenantPrismaService,
+  { client: tenantPrisma },
   new TenantContext(),
   { verifyCredentials } as unknown as FlittClient,
   new SecretBox(),
