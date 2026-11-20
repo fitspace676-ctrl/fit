@@ -43,6 +43,7 @@ import {
   type Catalogues,
   type MessageParams,
 } from '../lib/i18n/resolve';
+import { brandCopy } from '../lib/brand';
 import { detectDeviceLocale, hydratedLocale, loadStoredLocale, persistLocale } from '../lib/locale';
 
 const catalogues = memberMessages as unknown as Catalogues;
@@ -130,7 +131,8 @@ export function I18nProvider({ children, initialLocale = defaultLocale }: I18nPr
   }, []);
 
   const t = useCallback(
-    (key: MessageKey, params?: MessageParams) => translate(catalogues, locale, key, params),
+    (key: MessageKey, params?: MessageParams) =>
+      brandCopy(translate(catalogues, locale, key, params)),
     [locale],
   );
 

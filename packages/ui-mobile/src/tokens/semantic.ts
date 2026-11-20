@@ -129,6 +129,11 @@ export const colorTuples = {
    */
   accentHover: [brand[400], brand[400]],
   onAccent: [white, white],
+  /**
+   * The membership block's fill. The accent unless a brand theme gives the block
+   * its own colour; labels on it stay `onAccent`.
+   */
+  membership: [brand[500], brand[500]],
   textAccent: [brand[700], brand[300]],
   iconAccent: [brand[700], brand[300]],
 

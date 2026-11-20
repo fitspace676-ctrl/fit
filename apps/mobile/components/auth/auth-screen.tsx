@@ -103,9 +103,22 @@ import { useI18n } from '../../providers/I18nProvider';
  * Metro resolves both to the same asset id.
  */
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const LOGO_DARK = require('../../assets/logo-dark.png') as number;
+const FORMACORE_LOGO_DARK = require('../../assets/logo-dark.png') as number;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const LOGO_LIGHT = require('../../assets/logo-light.png') as number;
+const FORMACORE_LOGO_LIGHT = require('../../assets/logo-light.png') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SYNERGY_LOGO_DARK = require('../../assets/brands/synergy/logo-dark.png') as number;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SYNERGY_LOGO_LIGHT = require('../../assets/brands/synergy/logo-light.png') as number;
+
+/**
+ * A gym-branded build (see `app.config.js`) shows that gym's mark here instead.
+ * Read as a literal member expression so Expo inlines it at build time; the
+ * brand art shares the 989 × 288 canvas, so the layout below is unchanged.
+ */
+const IS_SYNERGY = process.env.EXPO_PUBLIC_APP_VARIANT === 'synergy';
+const LOGO_DARK = IS_SYNERGY ? SYNERGY_LOGO_DARK : FORMACORE_LOGO_DARK;
+const LOGO_LIGHT = IS_SYNERGY ? SYNERGY_LOGO_LIGHT : FORMACORE_LOGO_LIGHT;
 
 const BRAND_WIDTH = 200;
 const BRAND_ASPECT_RATIO = 989 / 288;

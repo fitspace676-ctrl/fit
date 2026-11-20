@@ -29,7 +29,7 @@ it('opens an auth browser with the configured callback and remembers shop origin
   });
   expect(browser).toHaveBeenCalledWith(payment.checkoutUrl, 'synergy://checkout/result');
   expect(await AsyncStorage.getItem('payment-destination:ord_1')).toBe('shop');
-  expect(mockReplace).toHaveBeenCalledWith('/checkout/result?orderId=ord_1');
+  expect(mockReplace).toHaveBeenCalledWith('/checkout/result?orderId=ord_1&dismissed=1');
 });
 it('leaves the instant-paid and legacy success paths unchanged', async () => {
   const { result } = renderHook(() => usePaymentBrowser());

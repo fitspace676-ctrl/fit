@@ -180,7 +180,7 @@ export class CheckoutService {
         items: { select: { label: true, amount: true }, orderBy: { createdAt: 'asc' } },
         payment: { select: { provider: true, status: true } },
         paymentAttempts: {
-          select: { status: true, checkoutUrl: true, expiresAt: true },
+          select: { status: true, checkoutUrl: true, expiresAt: true, providerStatus: true },
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
