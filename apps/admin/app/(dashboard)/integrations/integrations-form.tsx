@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type ReactNode, type FormEvent } from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { connectFlittSchema, connectSenderSchema, type GymIntegration } from '@fit/types';
@@ -49,9 +49,11 @@ const styles = stylex.create({
 export function IntegrationsForm({
   initial,
   sender,
+  children,
 }: {
   initial: GymIntegration;
   sender?: GymIntegration;
+  children?: ReactNode;
 }) {
   const t = useTranslations('admin.integrations');
   const format = useFormatter();
@@ -274,6 +276,7 @@ export function IntegrationsForm({
         </div>
       </Card>
       {sender && <SenderCard initial={sender} />}
+      {children}
       <ConfirmDialog
         open={confirm}
         onClose={() => {

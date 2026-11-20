@@ -1,3 +1,5 @@
+import { AccessCard } from './access-card';
+import { changeZkteco } from '../../integrations/zkteco-actions';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -481,6 +483,8 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   // Write controls (edit + deactivate) are a `MemberWrite` capability — shown only
   // to staff who hold it, and re-checked by the actions and the API behind them.
   const session = await getServerSession();
+  // Connection metadata is owner-only; do not request it for staff.
+  const zkteco = session?.role === 'OWNER' ? await changeZkteco({ kind: 'load' }) : null;
   const canWrite = session !== null && roleHasPermission(session.role, Permission.MemberWrite);
   // Freezing / resuming a membership is `MembershipManage` (the freeze endpoints
   // sit behind it), distinct from the `MemberWrite` roster edit above.
@@ -631,6 +635,8 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
           icon="clock"
         />
       </section>
+
+      {canWrite && zkteco?.data?.connected && <AccessCard memberId={member.id} />}
 
       <MemberTabs
         member={member}

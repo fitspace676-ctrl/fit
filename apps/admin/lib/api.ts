@@ -3626,3 +3626,19 @@ export async function mutateSender<T>(
     }),
   );
 }
+
+/** Tenant-authenticated ZKTeco requests; credentials are never put in a URL. */
+export async function requestZkteco<T>(
+  method: 'GET' | 'PUT' | 'PATCH' | 'POST' | 'DELETE',
+  path = '',
+  body?: unknown,
+): Promise<T> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/integrations/zkteco${path}`, {
+      method,
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      cache: 'no-store',
+    }),
+  );
+}
