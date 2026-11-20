@@ -736,7 +736,8 @@ describe('transport and higher-level contracts', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('revalidates DNS and isolates connection tokens on every call', async () => {
-    fetchMock.mockResolvedValue(reply(person));
+    // Response bodies are single-use, just like real fetch responses.
+    fetchMock.mockImplementation(() => Promise.resolve(reply(person)));
     await client.getPerson(connection, '123', 240);
     await client.getPerson({ baseUrl: 'https://other.example', apiToken: 'other' }, '123', 240);
     expect(assertPublicHost).toHaveBeenCalledTimes(2);
