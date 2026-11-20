@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import type { ClassInstanceCard, MemberBookingStanding } from '@fit/types';
 
@@ -143,5 +143,8 @@ it('renders the normalized blocked expiry returned by the server action', async 
       "You can't book classes until January 1, 2027 because of missed classes.",
     ),
   ).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Book this class' })).toBeDisabled();
+  // The alert can paint before the pending "Booking…" label settles back.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Book this class' })).toBeDisabled(),
+  );
 });
