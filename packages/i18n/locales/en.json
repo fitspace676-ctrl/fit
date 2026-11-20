@@ -5091,6 +5091,7 @@
         "publicAddress": "A public address is required. For a standalone device, configure a public IP and port forwarding. Local network addresses are blocked.",
         "deviceWarning": "On this device, expiry or freezing deletes the person, including their fingerprint and face data. After restoring access, enrol them again on the device. Photos, access levels, validity windows and occupancy are not supported.",
         "replaceWarning": "Connecting another server or device leaves people on the old one. New credentials are verified before saving.",
+        "disconnectTitle": "Disconnect ZKTeco?",
         "disconnectWarning": "Disconnecting cannot remove people from the turnstile because its credentials are deleted. Disable the integration first and verify access on the device before disconnecting.",
         "enable": "Enable turnstile integration",
         "enabledHint": "Membership changes and passages are synchronised according to the settings below.",

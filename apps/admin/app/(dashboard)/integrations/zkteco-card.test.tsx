@@ -192,6 +192,8 @@ describe('ZKTeco card', () => {
     show();
     fireEvent.click(await screen.findByRole('button', { name: t.disconnect }));
     expect(screen.getByText(z.disconnectWarning)).toBeInTheDocument();
+    expect(screen.getByText(z.disconnectTitle)).toBeInTheDocument();
+    expect(screen.queryByText(t.disconnectTitle)).not.toBeInTheDocument();
     expect(changeZkteco).not.toHaveBeenCalledWith({ kind: 'disconnect' });
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: t.disconnect }));

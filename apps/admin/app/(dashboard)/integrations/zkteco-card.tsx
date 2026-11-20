@@ -704,7 +704,7 @@ export function ZktecoCard() {
               if (!busy) setConfirm(false);
             }}
             onConfirm={() => void run({ kind: 'disconnect' })}
-            title={t('disconnectTitle')}
+            title={z('disconnectTitle')}
             message={
               <>
                 {z('disconnectWarning')}
