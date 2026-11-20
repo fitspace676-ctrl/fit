@@ -231,7 +231,14 @@ export default function JoinCheckoutScreen() {
   // ── The purchase ─────────────────────────────────────────────────────────
 
   const submit = useCallback((): void => {
-    if (gymId === null || submitting || coolDown.active || !online || (product !== null && !payments.enabled)) return;
+    if (
+      gymId === null ||
+      submitting ||
+      coolDown.active ||
+      !online ||
+      (product !== null && !payments.enabled)
+    )
+      return;
     if (!canSubmit(state, context, gymId, submitting)) {
       setShowErrors(true);
       return;
@@ -481,7 +488,9 @@ export default function JoinCheckoutScreen() {
           height, which `Screen` already reserves — so the final card clears
           the button band with room to spare. */}
       <View style={{ gap: spacing[6], paddingBottom: spacing[6] }}>
-        {!payments.enabled ? <Text variant="bodySmall">{t('member.payment.frontDesk')}</Text> : null}
+        {!payments.enabled ? (
+          <Text variant="bodySmall">{t('member.payment.frontDesk')}</Text>
+        ) : null}
         {/* Plan §6 item 4. TODO(i18n): there are no `offline` keys in either
             catalogue — see `components/auth/pending-copy.ts`. */}
         {online ? null : <OfflineNotice testID="join-offline" />}

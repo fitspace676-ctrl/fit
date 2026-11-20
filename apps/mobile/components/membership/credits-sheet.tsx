@@ -79,10 +79,10 @@ export function CreditsSheet({ open, onClose, testID = 'credits-sheet' }: Credit
     purchase.mutate(
       { packId: chosen.id },
       {
-        onSuccess: async (result) => {
+        onSuccess: (result) => {
           if (result.payment?.status === 'requires_action') {
             onClose();
-            await openPayment(result.payment);
+            void openPayment(result.payment);
             return;
           }
           toast.success(t('member.membership.credits.boughtToast', { count: chosen.sessionCount }));

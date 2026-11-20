@@ -36,37 +36,60 @@ export default function PaymentResultScreen() {
       if (!orderId) throw new Error('Missing order');
       const result = await pollPayment(
         () => syncOrderPayment(orderId, { signal: controller.signal }),
-        { signal: controller.signal, wait: () => new Promise<void>((resolve) => {
-          wake = resolve;
-          timer = setTimeout(resolve, 2000);
-        }) },
+        {
+          signal: controller.signal,
+          wait: () =>
+            new Promise<void>((resolve) => {
+              wake = resolve;
+              timer = setTimeout(resolve, 2000);
+            }),
+        },
       );
       if (controller.signal.aborted || !result) return;
       setOrder(result.order);
       if (result.order.payment?.status === 'paid') {
         if (gymId) {
-          const keys = [queryKeys.creditPacks(gymId), queryKeys.membership(gymId),
-            queryKeys.packages(gymId), queryKeys.myOrders(gymId), queryKeys.cart(gymId),
-            queryKeys.checkoutOrder(gymId, orderId), queryKeys.profile(gymId),
-            queryKeys.packCatalogue(gymId), queryKeys.catalogue(gymId),
-            queryKeys.bookings(gymId), queryKeys.classes(gymId), queryKeys.products(gymId)];
+          const keys = [
+            queryKeys.creditPacks(gymId),
+            queryKeys.membership(gymId),
+            queryKeys.packages(gymId),
+            queryKeys.myOrders(gymId),
+            queryKeys.cart(gymId),
+            queryKeys.checkoutOrder(gymId, orderId),
+            queryKeys.profile(gymId),
+            queryKeys.packCatalogue(gymId),
+            queryKeys.catalogue(gymId),
+            queryKeys.bookings(gymId),
+            queryKeys.classes(gymId),
+            queryKeys.products(gymId),
+          ];
           for (const queryKey of keys) {
             void client.invalidateQueries({ queryKey: queryKey.slice(0, 2) });
           }
         }
-        const destination = await AsyncStorage.getItem(paymentDestinationKey(orderId)).catch(() => null);
+        const destination = await AsyncStorage.getItem(paymentDestinationKey(orderId)).catch(
+          () => null,
+        );
         if (controller.signal.aborted) return;
-        router.replace(destination === 'join'
-          ? `/checkout-success?orderId=${encodeURIComponent(orderId)}`
-          : `/shop/order/${encodeURIComponent(orderId)}`);
+        router.replace(
+          destination === 'join'
+            ? `/checkout-success?orderId=${encodeURIComponent(orderId)}`
+            : `/shop/order/${encodeURIComponent(orderId)}`,
+        );
       }
     }
-    void check().catch(() => {
-      if (!controller.signal.aborted) setFailed(true);
-    }).finally(() => {
-      if (!controller.signal.aborted) setChecking(false);
-    });
-    return () => { controller.abort(); clearTimeout(timer); wake?.(); };
+    void check()
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setChecking(false);
+      });
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+      wake?.();
+    };
   }, [orderId, round, gymId, client, router]);
 
   async function retry() {
@@ -75,11 +98,16 @@ export default function PaymentResultScreen() {
     setFailed(false);
     try {
       const result = await retryOrderPayment(orderId);
-      const destination = await AsyncStorage.getItem(paymentDestinationKey(orderId)).catch(() => null);
+      const destination = await AsyncStorage.getItem(paymentDestinationKey(orderId)).catch(
+        () => null,
+      );
       await openPayment(result.payment, destination === 'join' ? 'join' : 'shop');
       setRound((value) => value + 1);
-    } catch { setFailed(true); }
-    finally { setBusy(false); }
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
   }
   async function cancel() {
     if (busy || !orderId) return;
@@ -92,23 +120,48 @@ export default function PaymentResultScreen() {
         void client.invalidateQueries({ queryKey: queryKeys.checkoutOrder(gymId, orderId) });
       }
       router.replace(`/shop/order/${encodeURIComponent(orderId)}`);
-    } catch { setFailed(true); }
-    finally { setBusy(false); }
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <Screen testID="payment-result">
       <View style={{ gap: spacing[4] }}>
-        <Text variant="subheading">{t(checking ? 'member.payment.checking' : 'member.payment.incomplete')}</Text>
+        <Text variant="subheading">
+          {t(checking ? 'member.payment.checking' : 'member.payment.incomplete')}
+        </Text>
         {checking ? <ActivityIndicator /> : null}
         {failed ? <Text>{t('member.payment.error')}</Text> : null}
         {!checking && order?.payment?.retry ? (
-          <Button label={t('member.payment.retry')} onPress={() => { void retry(); }} busy={busy} testID="payment-retry" />
+          <Button
+            label={t('member.payment.retry')}
+            onPress={() => {
+              void retry();
+            }}
+            busy={busy}
+            testID="payment-retry"
+          />
         ) : null}
         {!checking && order?.status === 'pending' && order.payment?.provider ? (
-          <Button label={t('member.payment.cancel')} onPress={() => { void cancel(); }} disabled={busy} testID="payment-cancel" />
+          <Button
+            label={t('member.payment.cancel')}
+            onPress={() => {
+              void cancel();
+            }}
+            disabled={busy}
+            testID="payment-cancel"
+          />
         ) : null}
-        {!checking ? <Button label={t('member.payment.checkAgain')} disabled={busy || !orderId}
-          onPress={() => setRound((value) => value + 1)} testID="payment-check" /> : null}
+        {!checking ? (
+          <Button
+            label={t('member.payment.checkAgain')}
+            disabled={busy || !orderId}
+            onPress={() => setRound((value) => value + 1)}
+            testID="payment-check"
+          />
+        ) : null}
         <Button label={t('member.payment.back')} onPress={() => router.replace('/home')} />
       </View>
     </Screen>

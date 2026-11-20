@@ -1,5 +1,10 @@
-jest.mock('../../../hooks/useOnlinePayments', () => ({ useOnlinePayments: () => ({ enabled: true }) }));
-jest.mock('../../../hooks/usePaymentBrowser', () => ({ usePaymentBrowser: () => async () => false }));
+/* eslint-disable @typescript-eslint/require-await -- jest mocks */
+jest.mock('../../../hooks/useOnlinePayments', () => ({
+  useOnlinePayments: () => ({ enabled: true }),
+}));
+jest.mock('../../../hooks/usePaymentBrowser', () => ({
+  usePaymentBrowser: () => async () => false,
+}));
 // `/profile/membership` — every §6 branch, and the three affordances the API
 // forbids.
 //

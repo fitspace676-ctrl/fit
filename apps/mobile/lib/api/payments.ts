@@ -4,14 +4,21 @@ import { ENDPOINTS, endpointPath, type FetchOptions } from './endpoints';
 
 export function syncOrderPayment(orderId: string, options: FetchOptions = {}) {
   return apiJson<GetOrderResponse>(endpointPath(ENDPOINTS.syncOrderPayment, { orderId }), {
-    method: 'POST', signal: options.signal,
+    method: 'POST',
+    signal: options.signal,
   });
 }
 export function retryOrderPayment(orderId: string) {
-  return apiJson<RetryOrderPaymentResponse>(endpointPath(ENDPOINTS.retryOrderPayment, { orderId }), {
-    method: 'POST', json: { returnTo: 'app' },
-  });
+  return apiJson<RetryOrderPaymentResponse>(
+    endpointPath(ENDPOINTS.retryOrderPayment, { orderId }),
+    {
+      method: 'POST',
+      json: { returnTo: 'app' },
+    },
+  );
 }
 export function cancelOrderPayment(orderId: string) {
-  return apiJson<unknown>(endpointPath(ENDPOINTS.cancelOrderPayment, { orderId }), { method: 'POST' });
+  return apiJson<unknown>(endpointPath(ENDPOINTS.cancelOrderPayment, { orderId }), {
+    method: 'POST',
+  });
 }

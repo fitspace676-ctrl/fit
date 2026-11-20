@@ -130,8 +130,9 @@ describe('the member slice', () => {
     // 2026-11-20, Flitt mobile: 1172 → 1183. member.payment.{frontDesk,
     // checking,incomplete,retry,cancel,error,checkAgain,back,complete,refunded,planBody}.
     // The base already contained 8 billing period keys beyond the 1164 comment.
-    expect(enKeys).toHaveLength(1183);
-    expect(kaKeys).toHaveLength(1183);
+    // Same day, the portal's Flitt result flow adds 15 more member keys: → 1198.
+    expect(enKeys).toHaveLength(1198);
+    expect(kaKeys).toHaveLength(1198);
   });
 });
 

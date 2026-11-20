@@ -239,17 +239,34 @@ export default function OrderScreen() {
 
         {order.payment?.provider && order.payment.status !== 'paid' ? (
           <View style={{ gap: spacing[2] }}>
-            <Text>{t(order.payment.status === 'refunded' ? 'member.payment.refunded' : 'member.payment.incomplete')}</Text>
-            {order.payment.retry ? <Button label={t('member.payment.complete')}
-              onPress={() => {
-                if (order.payment?.status === 'requires_action' && order.payment.checkoutUrl) {
-                  void openPayment({ status: 'requires_action', orderId: order.id,
-                    checkoutUrl: order.payment.checkoutUrl, expiresAt: order.payment.expiresAt }, 'shop');
-                } else {
-                  router.push(`/checkout/result?orderId=${encodeURIComponent(order.id)}`);
-                }
-              }}
-              testID="order-complete-payment" /> : null}
+            <Text>
+              {t(
+                order.payment.status === 'refunded'
+                  ? 'member.payment.refunded'
+                  : 'member.payment.incomplete',
+              )}
+            </Text>
+            {order.payment.retry ? (
+              <Button
+                label={t('member.payment.complete')}
+                onPress={() => {
+                  if (order.payment?.status === 'requires_action' && order.payment.checkoutUrl) {
+                    void openPayment(
+                      {
+                        status: 'requires_action',
+                        orderId: order.id,
+                        checkoutUrl: order.payment.checkoutUrl,
+                        expiresAt: order.payment.expiresAt,
+                      },
+                      'shop',
+                    );
+                  } else {
+                    router.push(`/checkout/result?orderId=${encodeURIComponent(order.id)}`);
+                  }
+                }}
+                testID="order-complete-payment"
+              />
+            ) : null}
           </View>
         ) : null}
 

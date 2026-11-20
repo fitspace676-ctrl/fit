@@ -7,7 +7,7 @@ import { canPayOnline } from '../lib/payment-flow';
 export function useOnlinePayments() {
   const gymId = useGymId();
   const query = useGymBySlug(resolveGymSlug());
-  const onlinePayments = gymId && query.data?.gymId !== gymId
-    ? undefined : query.data?.onlinePayments;
+  const onlinePayments =
+    gymId && query.data?.gymId !== gymId ? undefined : query.data?.onlinePayments;
   return { onlinePayments, enabled: canPayOnline(onlinePayments), isPending: query.isPending };
 }

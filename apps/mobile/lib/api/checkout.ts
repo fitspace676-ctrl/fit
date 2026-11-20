@@ -53,7 +53,11 @@ import { ENDPOINTS, endpointPath, type FetchOptions } from './endpoints';
  */
 export type CartCheckoutOutcome =
   /** `201`. The cart is now empty server-side and stock has moved. */
-  | { readonly ok: true; readonly orderId: string; readonly payment?: CartCheckoutResponse['payment'] }
+  | {
+      readonly ok: true;
+      readonly orderId: string;
+      readonly payment?: CartCheckoutResponse['payment'];
+    }
   /**
    * `409`. One or more line prices drifted. **The server has already re-priced
    * the cart**, so an immediate retry of the identical request succeeds — which

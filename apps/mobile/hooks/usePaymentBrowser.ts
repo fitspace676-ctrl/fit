@@ -11,7 +11,9 @@ export function usePaymentBrowser() {
   return async (payment: PaymentAction | undefined, destination: 'shop' | 'join' = 'join') => {
     if (payment?.status !== 'requires_action') return false;
     // Retain the destination across a cold-start deep link as well as dismissal.
-    await AsyncStorage.setItem(paymentDestinationKey(payment.orderId), destination).catch(() => undefined);
+    await AsyncStorage.setItem(paymentDestinationKey(payment.orderId), destination).catch(
+      () => undefined,
+    );
     try {
       return await launchPayment(payment, {
         scheme: paymentScheme(Constants.expoConfig?.scheme),

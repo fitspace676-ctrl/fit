@@ -302,7 +302,7 @@ export default function CartScreen() {
         promoCode: code === '' ? undefined : code,
       },
       {
-        onSuccess: async (outcome) => {
+        onSuccess: (outcome) => {
           if (outcome.ok) {
             setPriceChanges(null);
             // The server emptied the cart. The mutation already invalidated it
@@ -324,8 +324,9 @@ export default function CartScreen() {
             // `placed=1` is what makes that screen say "Order placed" — it is
             // shared with the orders tab and with `fit://orders/:id`, where the
             // same announcement would be a week-old event restated as news.
-            if (await openPayment(outcome.payment, 'shop')) return;
-            router.replace(`/shop/order/${outcome.orderId}?placed=1`);
+            void openPayment(outcome.payment, 'shop').then((opened) => {
+              if (!opened) router.replace(`/shop/order/${outcome.orderId}?placed=1`);
+            });
             return;
           }
           if (outcome.reason === 'PRICE_CHANGED') {

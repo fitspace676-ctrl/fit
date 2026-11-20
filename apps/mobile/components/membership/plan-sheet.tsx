@@ -54,10 +54,10 @@ export function PlanSheet({
     enroll.mutate(
       { productType: 'subscription', productId: chosen.id },
       {
-        onSuccess: async (result) => {
+        onSuccess: (result) => {
           if (result.payment?.status === 'requires_action') {
             onClose();
-            await openPayment(result.payment);
+            void openPayment(result.payment);
             return;
           }
           toast.success(t('member.membership.plan.startedTitle'));

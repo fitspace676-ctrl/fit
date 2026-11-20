@@ -16,13 +16,18 @@ export const paymentResultPath = (orderId: string) =>
 
 export async function launchPayment(
   payment: PaymentAction | undefined,
-  deps: { scheme: string; open: (url: string, returnUrl: string) => Promise<unknown>; result: (path: ReturnType<typeof paymentResultPath>) => void },
+  deps: {
+    scheme: string;
+    open: (url: string, returnUrl: string) => Promise<unknown>;
+    result: (path: ReturnType<typeof paymentResultPath>) => void;
+  },
 ): Promise<boolean> {
   if (payment?.status !== 'requires_action') return false;
   // Even a missing URL or a dismissed/failed browser must lead to server sync,
   // never to a receipt and never back to creating a duplicate order.
   try {
-    if (payment.checkoutUrl) await deps.open(payment.checkoutUrl, `${deps.scheme}://checkout/result`);
+    if (payment.checkoutUrl)
+      await deps.open(payment.checkoutUrl, `${deps.scheme}://checkout/result`);
   } finally {
     deps.result(paymentResultPath(payment.orderId));
   }

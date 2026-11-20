@@ -11,7 +11,7 @@
 // not exist, because it asserted that the UI moved to a confirmation screen.
 // These assert the REQUEST: which body went out, and how many times.
 import { onlineManager } from '@tanstack/react-query';
-import { act, fireEvent } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 
 import CartScreen, { resolveBranch } from './cart';
 import { renderApp } from '../../../test-support/render';
@@ -347,7 +347,7 @@ describe('checkout', () => {
     );
   });
 
-  it('on 201 empties the cached cart and REPLACES to the order screen', () => {
+  it('on 201 empties the cached cart and REPLACES to the order screen', async () => {
     const { getByTestId } = renderApp(<CartScreen />);
     fireEvent.press(getByTestId('cart-location-loc_1'));
     fireEvent.press(getByTestId('cart-place-order'));
@@ -362,7 +362,9 @@ describe('checkout', () => {
     // `replace`: the cart the member just emptied is not a screen to go back to.
     // `placed=1` marks this as the arrival that may say "Order placed" — the
     // orders tab opens the same route without it.
-    expect(mockReplace).toHaveBeenCalledWith('/shop/order/ord_1?placed=1');
+    // Awaited: the order screen is reached only once the payment browser has
+    // said it has nothing to open for this order.
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/shop/order/ord_1?placed=1'));
     expect(mockPush).not.toHaveBeenCalled();
   });
 
@@ -517,7 +519,7 @@ describe('409 PRICE_CHANGED — a failure that is not an error', () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
-  it('re-fires the IDENTICAL checkout only from the confirm press', () => {
+  it('re-fires the IDENTICAL checkout only from the confirm press', async () => {
     const { getByTestId } = renderApp(<CartScreen />);
     fireEvent.press(getByTestId('cart-location-loc_1'));
     fireEvent.press(getByTestId('cart-place-order'));
@@ -527,7 +529,7 @@ describe('409 PRICE_CHANGED — a failure that is not an error', () => {
 
     expect(mockCheckout).toHaveBeenCalledTimes(2);
     expect(mockCheckout.mock.calls[1]?.[0]).toEqual(mockCheckout.mock.calls[0]?.[0]);
-    expect(mockReplace).toHaveBeenCalledWith('/shop/order/ord_2?placed=1');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/shop/order/ord_2?placed=1'));
   });
 
   it('puts a RETRY FAILURE inside the sheet, not underneath it', () => {
