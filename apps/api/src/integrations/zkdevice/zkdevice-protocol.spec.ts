@@ -50,7 +50,7 @@ describe('ZK binary protocol', () => {
     [12345, 123, '6de13279'],
     [0xffffffff, 0, '9e823286'],
   ])('scrambles communication key %i with session %i', (key, session, hex) => {
-    expect(makeCommKey(key as number, session as number).toString('hex')).toBe(hex);
+    expect(makeCommKey(key, session).toString('hex')).toBe(hex);
   });
   it('encodes packed device-local calendar time without applying server timezone', () => {
     expect(encodeTime('2000-01-01T00:00:00')).toBe(0);

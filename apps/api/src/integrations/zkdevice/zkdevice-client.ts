@@ -130,15 +130,13 @@ export class ZkDeviceSession {
     if (packet.command === CMD.UNAUTH && command !== CMD.CONNECT)
       throw new ZkDeviceError('unauthorized');
     if (packet.command === CMD.ERROR) throw new ZkDeviceError('rejected');
-    if (
-      ![
-        CMD.OK,
-        CMD.DATA,
-        CMD.PREPARE_DATA,
-        ...(command === CMD.CONNECT ? [CMD.UNAUTH] : []),
-      ].includes(packet.command)
-    )
-      throw new ZkDeviceError('protocol');
+    const acceptedCommands: readonly number[] = [
+      CMD.OK,
+      CMD.DATA,
+      CMD.PREPARE_DATA,
+      ...(command === CMD.CONNECT ? [CMD.UNAUTH] : []),
+    ];
+    if (!acceptedCommands.includes(packet.command)) throw new ZkDeviceError('protocol');
     return packet;
   }
   private async ok(command: number, payload?: Buffer): Promise<Buffer> {
@@ -310,8 +308,8 @@ export class ZkDeviceSession {
     });
   }
   /** Privilege controls administrator roles, not a portable membership enabled flag. */
-  async setUserEnabled(_uid: number, _enabled: boolean): Promise<never> {
-    throw new ZkDeviceError('unsupported_operation');
+  setUserEnabled(_uid: number, _enabled: boolean): Promise<never> {
+    return Promise.reject(new ZkDeviceError('unsupported_operation'));
   }
   listAttendance(options: ZkAttendanceOptions): Promise<ZkAttendance[]> {
     return this.exclusive(async () => {

@@ -49,7 +49,7 @@ export function encodePacket(
   command: number,
   session: number,
   reply: number,
-  payload = Buffer.alloc(0),
+  payload: Buffer = Buffer.alloc(0),
 ): Buffer {
   const packet = Buffer.alloc(16 + payload.length);
   packet.writeUInt16LE(0x5050, 0);

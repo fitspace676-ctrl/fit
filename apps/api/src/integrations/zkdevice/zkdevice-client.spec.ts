@@ -2,6 +2,7 @@ import { createServer, type Server, type Socket } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertPublicHost } from '../zkbio/zkbio-url';
 import { ZkDeviceClient } from './zkdevice-client';
+import { ZkDeviceError } from './zkdevice-errors';
 import { CMD, PacketDecoder, encodePacket, makeCommKey, type Packet } from './zkdevice-protocol';
 
 // The production helper is tested independently by zkbio-url.spec.ts. Only this
@@ -13,7 +14,12 @@ const sockets = new Set<Socket>();
 let seen: Packet[];
 let handler: (p: Packet, socket: Socket) => void;
 let port: number;
-function answer(socket: Socket, p: Packet, command: number = CMD.OK, payload = Buffer.alloc(0)) {
+function answer(
+  socket: Socket,
+  p: Packet,
+  command: number = CMD.OK,
+  payload: Buffer = Buffer.alloc(0),
+) {
   socket.write(encodePacket(command, 42, p.reply, payload));
 }
 function countData(users: number, logs = 0): Buffer {
@@ -87,7 +93,9 @@ describe('standalone fake TCP device', () => {
     handler = (p, socket) => answer(socket, p, CMD.UNAUTH, Buffer.from('12345 device.example'));
     const e = await client()
       .checkConnection(connection())
-      .catch((e) => e);
+      .catch((e: unknown) => e);
+    expect(e).toBeInstanceOf(ZkDeviceError);
+    if (!(e instanceof ZkDeviceError)) throw new Error('Expected a typed device error');
     expect(e.reason).toBe('unauthorized');
     expect(JSON.stringify(e)).not.toContain('12345');
     expect(e.message).not.toContain('device.example');
