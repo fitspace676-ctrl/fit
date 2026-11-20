@@ -104,7 +104,10 @@ export class CheckInService {
    * hole Stage 3 exists to close, so the fallback is the default branch and never
    * `null`.
    */
-  async recordCheckIn(input: RecordCheckInInput): Promise<RecordCheckInResponse> {
+  async recordCheckIn(
+    input: RecordCheckInInput,
+    internal: InternalCheckInOptions = {},
+  ): Promise<RecordCheckInResponse> {
     const member = await this.requireMember(input.gymMemberId);
     // Resolved before the create so a bad branch fails without having written an
     // arrival, and so the failure names the branch rather than a foreign key.
@@ -114,8 +117,15 @@ export class CheckInService {
       data: {
         gymId: this.tenant.gymId,
         gymMemberId: member.id,
-        method: input.method === 'QR' ? CheckInMethod.QR : CheckInMethod.MANUAL,
+        method: internal.turnstile
+          ? CheckInMethod.TURNSTILE
+          : input.method === 'QR'
+            ? CheckInMethod.QR
+            : CheckInMethod.MANUAL,
         locationId,
+        // A turnstile passage keeps the moment the gate saw it, not the moment
+        // the import job got to it.
+        ...(internal.checkedInAt ? { checkedInAt: internal.checkedInAt } : {}),
       },
       select: CHECK_IN_ROW_SELECT,
     });
@@ -351,7 +361,7 @@ export class CheckInService {
       id: `checkin:${row.id}`,
       type: 'checkin',
       title: 'Checked in',
-      detail: row.method === CheckInMethod.QR ? 'QR scan' : 'Front desk',
+      detail: methodDetail(row.method),
       memberId: row.gymMemberId,
       memberName: row.member.user.name ?? row.member.user.email,
       amount: null,
@@ -368,7 +378,7 @@ export class CheckInService {
       name: row.member.user.name ?? row.member.user.email,
       // No member-avatar source yet; the field is on the contract for a later API.
       photoUrl: null,
-      method: row.method === CheckInMethod.QR ? 'QR' : 'MANUAL',
+      method: row.method,
       // The branch walked into, not the member's home branch — `null` only for an
       // arrival whose branch was later deleted (`onDelete: SetNull` keeps the
       // footfall history), which the feed renders as a dash.
@@ -376,6 +386,23 @@ export class CheckInService {
       checkedInAt: row.checkedInAt.toISOString(),
     };
   }
+}
+
+/**
+ * Server-side options no client can send. `turnstile` is set only by the ZKTeco
+ * event import, which also passes the passage time; the desk's body never
+ * carries either.
+ */
+export interface InternalCheckInOptions {
+  turnstile?: boolean;
+  checkedInAt?: Date;
+}
+
+/** The activity feed's one-line "how", shared with `ActivityService`'s projection. */
+export function methodDetail(method: CheckInMethod): string {
+  if (method === CheckInMethod.QR) return 'QR scan';
+  if (method === CheckInMethod.TURNSTILE) return 'Turnstile';
+  return 'Front desk';
 }
 
 /** Start of the current calendar day in the server's zone — the "today" bound. */

@@ -262,7 +262,8 @@ export class ActivityService {
       id: `checkin:${row.id}`,
       type: 'checkin',
       title: 'Checked in',
-      detail: row.method === 'QR' ? 'QR scan' : 'Front desk',
+      detail:
+        row.method === 'QR' ? 'QR scan' : row.method === 'TURNSTILE' ? 'Turnstile' : 'Front desk',
       memberId: row.member.id,
       memberName: row.member.user.name ?? row.member.user.email,
       amount: null,

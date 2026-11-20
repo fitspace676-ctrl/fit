@@ -18,9 +18,16 @@ import { z } from 'zod';
 /**
  * How an arrival was recorded, mirroring the Prisma `CheckInMethod` enum. `QR` is
  * a scanned member code at the reception kiosk; `MANUAL` is a receptionist
- * looking the member up and checking them in by hand.
+ * looking the member up and checking them in by hand; `TURNSTILE` is a passage
+ * imported from the gym's ZKTeco turnstile or door controller.
  */
-export const checkInMethodSchema = z.enum(['QR', 'MANUAL']);
+export const checkInMethodSchema = z.enum(['QR', 'MANUAL', 'TURNSTILE']);
+
+/**
+ * The methods the desk may record itself. `TURNSTILE` is written only by the
+ * ZKTeco event import, never sent by a client.
+ */
+export const deskCheckInMethodSchema = z.enum(['QR', 'MANUAL']);
 
 /** How a check-in was recorded — {@link checkInMethodSchema}. */
 export type CheckInMethod = z.infer<typeof checkInMethodSchema>;
@@ -66,7 +73,7 @@ export type MemberEligibility = z.infer<typeof memberEligibilitySchema>;
  */
 export const recordCheckInSchema = z.object({
   gymMemberId: z.string().min(1),
-  method: checkInMethodSchema.default('MANUAL'),
+  method: deskCheckInMethodSchema.default('MANUAL'),
   /**
    * The branch the member physically **walked into** for this arrival — the door
    * they came through, which is `CheckIn.locationId` and emphatically NOT

@@ -99,6 +99,12 @@ import { tenantStorage, type TenantState } from '../tenant/tenant.context';
  */
 export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'GymIntegration',
+  // ZKTeco turnstile identities, job state and imported passages. The jobs run on
+  // the unscoped client with an explicit `gymId`; listed so a scoped read from the
+  // owner's Integrations page stays in its gym.
+  'ZktecoMember',
+  'ZktecoSyncState',
+  'ZktecoEvent',
   'GymMember',
   // What a person signs in to ONE gym with (T1.25): that gym's password,
   // verification stamp, name and phone. The auth flows that create and check

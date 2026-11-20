@@ -1,4 +1,5 @@
 import { IntegrationsModule } from './integrations/integrations.module';
+import { ZktecoModule } from './integrations/zkteco/zkteco.module';
 import { PaymentsModule } from './payments/payments.module';
 import { GymOnboardingModule } from './gym-onboarding/gym-onboarding.module';
 import { Module, type MiddlewareConsumer, type NestModule, RequestMethod } from '@nestjs/common';
@@ -171,6 +172,7 @@ import { TenantMiddleware } from './common/tenant/tenant.middleware';
     AuthModule,
     GymOnboardingModule,
     IntegrationsModule,
+    ZktecoModule,
     PaymentsModule,
     ClassesModule,
     TrainersModule,

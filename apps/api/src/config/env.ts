@@ -385,6 +385,12 @@ export const envSchema = z.object({
   SENDER_API_URL: z.string().url().default('https://sender.ge/api'),
   FLITT_API_URL: z.string().url().default('https://pay.flitt.com'),
   INTEGRATIONS_ENCRYPTION_KEY: z.string().optional(),
+  // ZKTeco turnstile jobs (event import every 15s, membership sync, nightly
+  // reconcile). They open connections to each gym's own ZKBio server or device.
+  // Unset → on in production and OFF everywhere else, so a development database
+  // copied from production never drives a real gym's turnstiles. Read it through
+  // `zktecoJobsEnabled()`, never the raw field.
+  ZKTECO_JOBS_ENABLED: z.enum(['true', 'false']).optional(),
   // Whether a gym with NO active payment integration may still "sell" packages and
   // credit packs online through the instant stub (an order stamped PAID with no
   // money taken). Unset → on outside production (so dev, CI and the unit /
@@ -420,6 +426,14 @@ export const env: ApiEnv = validateEnv(envSchema);
  * active payment integration — `ONLINE_PAYMENTS_STUB`, defaulting to on outside
  * production and off in production.
  */
+/** Whether the ZKTeco jobs run on this instance; see `ZKTECO_JOBS_ENABLED`. */
+export function zktecoJobsEnabled(
+  source: Pick<ApiEnv, 'NODE_ENV' | 'ZKTECO_JOBS_ENABLED'> = env,
+): boolean {
+  if (source.ZKTECO_JOBS_ENABLED !== undefined) return source.ZKTECO_JOBS_ENABLED === 'true';
+  return source.NODE_ENV === 'production';
+}
+
 export function onlinePaymentsStubEnabled(
   source: Pick<ApiEnv, 'NODE_ENV' | 'ONLINE_PAYMENTS_STUB'> = env,
 ): boolean {

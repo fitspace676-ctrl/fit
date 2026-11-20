@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-// `flitt` takes online payments; `sender` (Sender.ge) delivers SMS. Each gym
-// connects its own account for either, on the owner's Integrations page.
-export const integrationProviderSchema = z.enum(['flitt', 'sender']);
+// `flitt` takes online payments; `sender` (Sender.ge) delivers SMS; `zkteco`
+// drives turnstiles and doors (its own contract is in `./zkteco`). Each gym
+// connects its own account for any of them, on the owner's Integrations page.
+export const integrationProviderSchema = z.enum(['flitt', 'sender', 'zkteco']);
 export const gymIntegrationSchema = z.object({
   provider: integrationProviderSchema,
   connected: z.boolean(),

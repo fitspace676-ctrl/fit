@@ -20,5 +20,7 @@ import { CheckInService } from './check-in.service';
   imports: [AutomationModule, LoyaltyModule],
   controllers: [CheckInController],
   providers: [CheckInService],
+  // The ZKTeco event import records turnstile passages through the same path.
+  exports: [CheckInService],
 })
 export class CheckInModule {}
