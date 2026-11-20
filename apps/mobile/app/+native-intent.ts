@@ -32,6 +32,8 @@
 // ===========================================================================
 
 import { isLocale } from '@fit/i18n';
+import Constants from 'expo-constants';
+import appJson from '../app.json';
 
 /**
  * The custom URI scheme this app registers, exactly as `app.json`'s
@@ -45,7 +47,8 @@ import { isLocale } from '@fit/i18n';
  * scheme read straight out of `app.json`, so a mismatch fails the spec rather
  * than the launch path.
  */
-const APP_SCHEME = 'fit';
+const configuredScheme = Constants.expoConfig?.scheme ?? appJson.expo.scheme;
+const APP_SCHEMES = Array.isArray(configuredScheme) ? configuredScheme : [configuredScheme];
 
 /** `scheme://` — captured so we can tell a web host from a custom-scheme path. */
 const SCHEME = /^([a-z][a-z0-9+.-]*):\/\//i;
@@ -64,7 +67,7 @@ const SCHEME = /^([a-z][a-z0-9+.-]*):\/\//i;
  * {@link APP_SCHEME}.
  */
 function isAppScheme(scheme: string): boolean {
-  return scheme === APP_SCHEME || scheme === `exp+${APP_SCHEME}`;
+  return APP_SCHEMES.some((value) => scheme === value || scheme === `exp+${value}`);
 }
 
 /** A parsed incoming link: route segments plus the query, still encoded. */

@@ -89,6 +89,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // 404's problem, and the staff gate has already turned away everyone who has no
   // business in the console.
   if (guard) {
+    if (guard.ownerOnly && permissions.role !== 'OWNER') redirect('/403');
     if (guard.permission && !consoleCan(permissions, guard.permission)) {
       redirect('/403');
     }

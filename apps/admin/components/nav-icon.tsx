@@ -48,6 +48,7 @@ const ICON_PATHS: Record<NavIconKey, string> = {
   // those read as "theme editor", and the page is about ONE surface.
   appSettings: 'M7 2h10a2 2 0 012 2v16a2 2 0 01-2 2H7a2 2 0 01-2-2V4a2 2 0 012-2zM10 18h4',
   memberPortal: 'M3 4h18a1 1 0 011 1v14a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1zM2 9h20M10 9v11',
+  integrations: 'M9 2v6M15 2v6M6 8h12v4a6 6 0 01-12 0V8zM12 18v4',
   // Sliders, not a cog — and the same glyph `@fit/ui-web`'s `settings` icon uses,
   // so the rail and every in-page Settings affordance read as one thing. The
   // twelve-notch gear this replaced turned to mush at the rail's 20px.

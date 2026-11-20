@@ -14,7 +14,7 @@ import type {
   ListCreditPackCatalogueResponse,
   ListCreditPacksResponse,
   PurchaseCreditPackInput,
-  PurchaseCreditPackResponse,
+  MemberPurchaseCreditPackResponse,
 } from '@fit/types';
 import { apiJson } from '../http/api-client';
 import { ENDPOINTS, endpointPath, type FetchOptions } from './endpoints';
@@ -61,10 +61,10 @@ export async function listCreditPackCatalogue(
 export async function purchaseCreditPack(
   input: PurchaseCreditPackInput,
   options: FetchOptions = {},
-): Promise<PurchaseCreditPackResponse> {
-  return apiJson<PurchaseCreditPackResponse>(endpointPath(ENDPOINTS.purchaseCreditPack), {
+): Promise<MemberPurchaseCreditPackResponse> {
+  return apiJson<MemberPurchaseCreditPackResponse>(endpointPath(ENDPOINTS.purchaseCreditPack), {
     method: ENDPOINTS.purchaseCreditPack.method,
-    json: input,
+    json: { ...input, returnTo: 'app' },
     signal: options.signal,
   });
 }

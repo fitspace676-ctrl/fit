@@ -12,6 +12,13 @@ const dsn = process.env.SENTRY_DSN;
 if (dsn) {
   Sentry.init({
     dsn,
+    // Integration requests contain payment secrets; never attach their bodies.
+    beforeSend(event) {
+      if (event.request?.url?.includes('/integrations')) {
+        delete event.request.data;
+      }
+      return event;
+    },
     environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',
     release: process.env.SENTRY_RELEASE,
     // Performance tracing — sample rate is conservative by default; override

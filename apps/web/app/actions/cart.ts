@@ -8,7 +8,7 @@
 // (or a tagged error) so the caller can re-render without a separate read.
 
 import { cookies } from 'next/headers';
-import type { CartView } from '@fit/types';
+import type { CartView, PaymentAction } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from '@/lib/auth-session';
 import { parseCartView } from '@/lib/cart';
 import { tenantHeaders } from '@/lib/tenant-headers';
@@ -20,7 +20,7 @@ export type CartActionResult =
   | { ok: false; error: string; code?: string };
 
 export type CheckoutResult =
-  | { ok: true; orderId: string }
+  | { ok: true; orderId: string; payment?: PaymentAction }
   | { ok: false; error: string; code?: string };
 
 async function token(): Promise<string | undefined> {
@@ -99,6 +99,7 @@ export async function checkoutCartAction(
     },
     body: JSON.stringify({
       fulfillment: 'PICKUP',
+      returnTo: 'web',
       locationId,
       ...(promoCode ? { promoCode } : {}),
     }),
@@ -106,6 +107,7 @@ export async function checkoutCartAction(
   });
   const json = (await response.json().catch(() => null)) as {
     orderId?: string;
+    payment?: PaymentAction;
     code?: string;
     message?: string;
   } | null;
@@ -116,5 +118,5 @@ export async function checkoutCartAction(
       code: json?.code,
     };
   }
-  return { ok: true, orderId: json.orderId };
+  return { ok: true, orderId: json.orderId, payment: json.payment };
 }

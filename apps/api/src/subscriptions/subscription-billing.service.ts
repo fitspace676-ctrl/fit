@@ -3,12 +3,10 @@ import { Cron } from '@nestjs/schedule';
 import * as Sentry from '@sentry/nestjs';
 import {
   AutomationTriggerType,
-  InvoiceType,
   Prisma,
   SubscriptionStatus,
   applyEvent,
   classifyDueSubscription,
-  subscriptionInvoiceDescription,
 } from '@fit/db';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { InvoiceService } from '../billing/invoice.service';
@@ -20,6 +18,11 @@ import {
   type BillingSubscriptionRef,
 } from './billing-notifications.service';
 import { PAYMENT_PROVIDER, type PaymentProvider } from './payment-provider';
+import {
+  MANUAL_PAY_PROVIDER,
+  MANUAL_RENEWAL_REMINDER_DAYS,
+  applyRenewal,
+} from './subscription-periods';
 
 /** The subscription columns the billing sweep reads to charge and advance a period. */
 const BILLABLE_SUBSCRIPTION_SELECT = {
@@ -33,6 +36,9 @@ const BILLABLE_SUBSCRIPTION_SELECT = {
   currentPeriodEnd: true,
   cancelAtPeriodEnd: true,
   paymentRetries: true,
+  // Which provider settles this subscription. A manually paid one (`flitt`) is
+  // never charged by this job — see `charge`.
+  provider: true,
   providerRef: true,
   // The plan name (snapshot-free, read live) only feeds the renewal invoice's
   // human-readable description; a plan-less / deleted-plan subscription renews fine
@@ -69,6 +75,8 @@ export interface BillingCycleSummary {
   errors: number;
   /** Free trials converting within the lead window that were warned this pass (T8.7). */
   trialEndingWarned: number;
+  /** Manually paid subscriptions ending soon whose members were reminded to pay. */
+  manualRenewalReminded: number;
 }
 
 /** Cron: daily at 02:00 (server time) — a quiet hour, well clear of the report digests. */
@@ -204,6 +212,7 @@ export class SubscriptionBillingService {
       canceled: 0,
       errors: 0,
       trialEndingWarned: 0,
+      manualRenewalReminded: 0,
     };
 
     for (const sub of due) {
@@ -233,6 +242,22 @@ export class SubscriptionBillingService {
     } catch (error) {
       this.logger.warn(
         `Trial-ending sweep failed (billing charges unaffected): ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    // "Your membership ends on <date> — pay to continue" for subscriptions the
+    // member pays by hand (no card on file, so nothing will be charged). Same
+    // shape and isolation as the trial sweep above.
+    try {
+      const manual = await this.notifications.notifyManualRenewalsDue(
+        now,
+        MANUAL_RENEWAL_REMINDER_DAYS,
+      );
+      summary.manualRenewalReminded = manual.notified;
+    } catch (error) {
+      this.logger.warn(
+        `Manual-renewal reminder sweep failed (billing unaffected): ` +
           `${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -290,6 +315,16 @@ export class SubscriptionBillingService {
     nextPeriodEnd: Date,
     summary: BillingCycleSummary,
   ): Promise<void> {
+    if (sub.provider === MANUAL_PAY_PROVIDER) {
+      // Paid by hand on the gym's Flitt page: no card is stored and no gateway is
+      // called. A period that reached its end unpaid (the member's payment would
+      // have advanced it) walks the same unpaid path a declined charge does —
+      // PAST_DUE → the retry rungs (each one just re-checks) → EXPIRED — so the
+      // member keeps access through the grace window and can pay any time in it.
+      await this.recordUnpaid(sub, summary, 'manual payment not received', true);
+      return;
+    }
+
     const idempotencyKey = `${sub.id}:${sub.currentPeriodEnd.toISOString()}:r${sub.paymentRetries}`;
     const result = await this.provider.chargeRenewal({
       subscriptionId: sub.id,
@@ -324,7 +359,22 @@ export class SubscriptionBillingService {
       return;
     }
 
-    this.logger.warn(`Renewal charge failed for subscription ${sub.id}: ${result.reason}`);
+    await this.recordUnpaid(sub, summary, result.reason, false);
+  }
+
+  /**
+   * A renewal that was not paid — a declined charge, or a manually paid period
+   * that reached its end unpaid (`manual`): advance the dunning ladder, fire
+   * `payment_failed` and warn the member (a manual subscription gets the
+   * "pay to continue" wording instead of "update your payment method").
+   */
+  private async recordUnpaid(
+    sub: BillableRow,
+    summary: BillingCycleSummary,
+    reason: string,
+    manual: boolean,
+  ): Promise<void> {
+    this.logger.warn(`Renewal not paid for subscription ${sub.id}: ${reason}`);
     if (await this.recordFailedCharge(sub)) {
       summary.pastDue += 1;
       // No FAILED invoice is minted for a declined renewal, so the trigger points at
@@ -335,6 +385,7 @@ export class SubscriptionBillingService {
       await this.notifications.chargeFailed(toNotificationRef(sub), {
         rung: sub.paymentRetries,
         periodEnd: sub.currentPeriodEnd,
+        ...(manual ? { manual: true } : {}),
       });
     }
   }
@@ -358,47 +409,29 @@ export class SubscriptionBillingService {
     nextPeriodEnd: Date,
     providerRef: string | null | undefined,
   ): Promise<{ id: string } | null> {
-    const nextStatus = applyEvent(sub.status, 'RENEW');
-    const data: Prisma.SubscriptionUpdateManyMutationInput = {
-      status: nextStatus,
-      currentPeriodStart: nextPeriodStart,
-      currentPeriodEnd: nextPeriodEnd,
-      freezeDaysUsed: 0,
-      paymentRetries: 0,
-      provider: this.provider.key,
-    };
-    // Only overwrite the external ref when the provider returned one, so the stub
-    // (which returns none) never clobbers a real ref set by a prior provider.
-    if (providerRef !== undefined) {
-      data.providerRef = providerRef;
-    }
-
-    return this.prisma.client.$transaction(async (tx) => {
-      const { count } = await tx.subscription.updateMany({
-        where: { id: sub.id, currentPeriodEnd: sub.currentPeriodEnd, status: sub.status },
-        data,
-      });
-      if (count === 0) {
-        // Another runner already advanced this period — leave its invoice alone.
-        return null;
-      }
-      return this.invoices.issue(tx, {
-        gymId: sub.gymId,
-        memberId: sub.memberId,
-        subscriptionId: sub.id,
-        amount: sub.priceAmount,
-        currency: sub.currency,
-        // A recurring membership charge, whatever the plan is called.
-        type: InvoiceType.MEMBERSHIP,
-        description: subscriptionInvoiceDescription(
-          sub.plan?.name ?? null,
-          sub.interval,
-          'renewal',
-        ),
-        // Bill for the period that just opened, so the invoice date tracks the renewal.
-        issuedAt: nextPeriodStart,
-      });
-    });
+    // The shared write (`subscription-periods.ts`) a member's manual payment of a
+    // period runs too, so both advance a period identically.
+    return this.prisma.client.$transaction((tx) =>
+      applyRenewal(tx, this.invoices, {
+        sub: {
+          id: sub.id,
+          gymId: sub.gymId,
+          memberId: sub.memberId,
+          status: sub.status,
+          currentPeriodEnd: sub.currentPeriodEnd,
+          priceAmount: sub.priceAmount,
+          currency: sub.currency,
+          interval: sub.interval,
+          planName: sub.plan?.name ?? null,
+        },
+        nextPeriodStart,
+        nextPeriodEnd,
+        provider: this.provider.key,
+        // Only overwrite the external ref when the provider returned one, so the
+        // stub (which returns none) never clobbers a real ref set by a prior provider.
+        providerRef,
+      }),
+    );
   }
 
   /**

@@ -8,6 +8,7 @@
 // its "no active plan" state instead of erroring. Parsing is done with plain
 // guards (web has no `zod` dependency).
 
+import { meSubscriptionPaymentSchema, type MeSubscriptionPayment } from '@fit/types';
 import { cookies } from 'next/headers';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
 import { tenantHeaders } from './tenant-headers';
@@ -50,6 +51,7 @@ export interface MemberSubscription {
   /** Days of the allowance still available this period. */
   freezeDaysRemaining: number;
   memberSince: string | null;
+  payment?: MeSubscriptionPayment;
 }
 
 export interface MemberInvoice {
@@ -92,6 +94,7 @@ function parseSubscription(raw: unknown): MemberSubscription | null {
   if (!id) {
     return null;
   }
+  const payment = meSubscriptionPaymentSchema.safeParse(r.payment);
   return {
     id,
     status: oneOf(r.status, STATUSES, 'ACTIVE'),
@@ -109,6 +112,7 @@ function parseSubscription(raw: unknown): MemberSubscription | null {
     freezeDaysUsed: num(r.freezeDaysUsed),
     freezeDaysRemaining: num(r.freezeDaysRemaining),
     memberSince: str(r.memberSince),
+    payment: payment.success ? payment.data : undefined,
   };
 }
 

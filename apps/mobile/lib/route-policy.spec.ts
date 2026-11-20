@@ -314,3 +314,7 @@ describe('the §5 test boundary', () => {
     expect(source).not.toMatch(/from\s+'expo-router'/);
   });
 });
+
+it('requires authentication for payment recovery, including shop payments', () => {
+  expect(policyFor(['checkout', 'result'])).toBe('auth');
+});

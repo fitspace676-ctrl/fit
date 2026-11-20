@@ -11,6 +11,7 @@
 // invalidates `queryKeys.membership(gymId)`, not some separate invoices key.
 
 import type {
+  PaySubscriptionResponse,
   GetMeProfileResponse,
   GetMeSubscriptionResponse,
   UpdateMeProfileInput,
@@ -102,4 +103,11 @@ export async function downloadMyInvoicePdf(
     },
   );
   return response.blob();
+}
+
+export async function payMySubscription(): Promise<PaySubscriptionResponse> {
+  return apiJson<PaySubscriptionResponse>(endpointPath(ENDPOINTS.payMySubscription), {
+    method: ENDPOINTS.payMySubscription.method,
+    json: { returnTo: 'app' },
+  });
 }

@@ -4989,6 +4989,50 @@
       "requiredTogether": "Enter a value greater than 0, or set all three no-show values to 0.",
       "attendanceNote": "A booking is automatically marked as a no-show 30 minutes after the class ends unless attendance was recorded. A door check-in counts as attended.",
       "description": "Cancellation and no-show rules for group classes. PT sessions are not affected."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect the services your gym uses.",
+      "description": "Online card payments for your members.",
+      "state": {
+        "disconnected": "Not connected",
+        "off": "Connected but off",
+        "active": "Active"
+      },
+      "testMode": "Test mode",
+      "merchantId": "Merchant ID",
+      "secretKey": "Payment secret key",
+      "verifiedAt": "Last verified",
+      "neverVerified": "Not verified yet",
+      "lastError": "Last connection error",
+      "enable": "Enable payments",
+      "onConsequence": "Members pay online by card through Flitt.",
+      "offConsequence": "Online purchase is unavailable to members while payments are off or Flitt is not connected.",
+      "test": "Check connection",
+      "replace": "Replace key",
+      "disconnect": "Disconnect",
+      "connect": "Connect",
+      "save": "Save credentials",
+      "cancel": "Cancel",
+      "testSuccess": "Connection verified successfully.",
+      "saved": "Integration updated.",
+      "merchantInvalid": "Enter a Merchant ID containing 1–12 digits.",
+      "secretInvalid": "Enter a payment secret key containing 1–200 characters.",
+      "helpTitle": "Where to find your credentials",
+      "help": "Open the Flitt merchant portal → Technical settings to find your Merchant ID and payment secret key.",
+      "portal": "Open Flitt merchant portal (new tab)",
+      "disconnectTitle": "Disconnect Flitt?",
+      "disconnectMessage": "The saved credentials will be removed and online purchase will be unavailable to members.",
+      "errors": {
+        "bad_key": "The payment secret key is incorrect. Check it in the Flitt portal and try again.",
+        "unknown_merchant": "This Merchant ID was not found. Check it in the Flitt portal.",
+        "unreachable": "Could not reach the payment service. Please try again.",
+        "notConfigured": "Payments cannot be configured right now. Please contact support.",
+        "notVerified": "Check the connection successfully before enabling payments.",
+        "forbidden": "Only the gym owner can manage this integration.",
+        "invalid": "Check your Merchant ID and payment secret key.",
+        "unexpected": "Could not read the integration status. Please reload and try again."
+      }
     }
   },
   "auth": {
@@ -5299,6 +5343,23 @@
       "total": "Total",
       "empty": "Pick a branch and a plan. Your choice will show up here.",
       "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
+    },
+    "online": {
+      "unavailable": "Online payment is not available. Please pay at the front desk.",
+      "providerUnavailable": "Secure payment is temporarily unavailable. Please try again shortly.",
+      "inProgress": "Payment is still in progress. Please wait before cancelling the order.",
+      "error": "We could not check the payment. Please try again.",
+      "secure": "Card payment takes place on Flitt’s secure page.",
+      "redirecting": "Redirecting to secure payment…",
+      "checking": "Checking your payment…",
+      "paid": "Payment received",
+      "incomplete": "Payment not completed",
+      "retry": "Try again",
+      "cancel": "Cancel order",
+      "cancelled": "Order cancelled",
+      "refunded": "This payment has been refunded.",
+      "home": "Return home",
+      "confirmed": "Your purchase is confirmed."
     }
   },
   "classes": {
@@ -5691,6 +5752,7 @@
       "memberSince": "Member since",
       "paymentMethod": "Payment method",
       "payAtDesk": "Pay at desk",
+      "payOnline": "Online, by card",
       "thisPeriod": "This period",
       "classes": "classes",
       "ptCredits": "PT credits",
@@ -5748,7 +5810,7 @@
         "buyMore": "Buy more",
         "noneOnSale": "No packs on sale",
         "modalTitle": "Buy credits",
-        "modalBody": "Pick a credit pack to buy. Pay at the desk.",
+        "modalBody": "Pick a credit pack to buy.",
         "packMeta": "{count, plural, one {# credit} other {# credits}} · {price}",
         "buy": "Buy",
         "buying": "Buying…",
@@ -6184,6 +6246,25 @@
     "terms": {
       "title": "Terms and conditions",
       "empty": "This gym has not published its terms yet. Contact the gym for details."
+    },
+    "payment": {
+      "manualMethod": "Online payment each period",
+      "renewalAmount": "Next period: {amount}",
+      "renewalDue": "Payment due: {date}",
+      "payPeriod": "Pay",
+      "notDue": "Your next payment is not due yet.",
+      "overdue": "Your membership payment is overdue.",
+      "frontDesk": "Online payment is unavailable. Please pay at the front desk.",
+      "checking": "Checking payment…",
+      "incomplete": "Payment not completed",
+      "retry": "Try again",
+      "cancel": "Cancel order",
+      "error": "Could not update payment. Check again before placing another order.",
+      "checkAgain": "Check payment",
+      "back": "Back to home",
+      "complete": "Complete payment",
+      "refunded": "Payment refunded",
+      "planBody": "Choose a plan. Pay for each period securely in your browser."
     }
   },
   "notifications": {

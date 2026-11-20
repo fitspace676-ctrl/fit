@@ -26,6 +26,7 @@ import type { locationSummarySchema } from './locations';
 import { genderSchema } from './members';
 import type { packageSummarySchema } from './packages';
 import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from './auth';
+import { paymentActionSchema, paymentReturnTargetSchema } from './online-payments';
 
 // ── Catalogue (step 1 + step 2, signed out) ───────────────────────────────
 
@@ -274,6 +275,12 @@ export const createCheckoutSchema = z.object({
    * full price.
    */
   promoCode: z.string().trim().min(1).max(64).optional(),
+  /**
+   * Where the payment provider sends the buyer back to — the gym's portal
+   * (`web`, the default) or the member app (`app`). Ignored by the stub path and
+   * by a free-trial subscription.
+   */
+  returnTo: paymentReturnTargetSchema.optional(),
 });
 
 /** Validated `POST /checkout` body — {@link createCheckoutSchema}. */
@@ -297,10 +304,25 @@ export type CreateCheckoutInput = z.infer<typeof createCheckoutSchema>;
  */
 export const createCheckoutResponseSchema = z.object({
   productType: checkoutProductTypeSchema,
-  /** The `PAID` order — set for `package` / `credit_pack`, null for a subscription. */
+  /**
+   * The order — set for `package` / `credit_pack`; for a `subscription` only
+   * when it is paid online (the pending first-period order), else null.
+   */
   orderId: z.string().min(1).nullable(),
-  /** The live subscription — set for `subscription`, null otherwise. */
+  /**
+   * The live subscription — set for `subscription` when it exists already (stub
+   * path, or a free trial); null while a paid-online subscription awaits payment
+   * (it is created when the payment is captured — read `GET /me/subscription`
+   * after the result screen shows `paid`), and for other products.
+   */
   subscriptionId: z.string().min(1).nullable(),
+  /**
+   * Present only when the gym takes payment online through its own provider: the
+   * order is still `pending` and the buyer must pay on `payment.checkoutUrl`
+   * before anything is granted. Absent on the stub path (the order is already
+   * `paid`) and for a free-trial subscription.
+   */
+  payment: paymentActionSchema.optional(),
 });
 
 /** Validated `POST /checkout` response — {@link createCheckoutResponseSchema}. */

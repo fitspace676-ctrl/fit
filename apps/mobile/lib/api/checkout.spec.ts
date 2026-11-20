@@ -41,7 +41,7 @@ describe('checkoutCart — the route the deleted app never called', () => {
     const call = calls[0] as Call;
     expect(call.url).toBe(`${env.apiUrl}/cart/checkout`);
     expect(call.init.method).toBe('POST');
-    expect(JSON.parse(call.init.body as string)).toEqual(PICKUP);
+    expect(JSON.parse(call.init.body as string)).toEqual({ ...PICKUP, returnTo: 'app' });
   });
 
   it('resolves 201 to { ok: true, orderId }', async () => {

@@ -1,3 +1,10 @@
+jest.mock('../../../hooks/useOnlinePayments', () => ({
+  useOnlinePayments: () => ({ enabled: true }),
+}));
+jest.mock('../../../hooks/usePaymentBrowser', () => ({
+  paymentDestinationKey: (id: string) => `payment-destination:${id}`,
+  usePaymentBrowser: () => mockOpenPayment,
+}));
 // `/profile/membership` — every §6 branch, and the three affordances the API
 // forbids.
 //
@@ -22,6 +29,8 @@ jest.setTimeout(30_000);
 const WAIT = { timeout: 10_000 };
 const DAY = 86_400_000;
 
+const mockOpenPayment = jest.fn();
+const mockPaySubscription = jest.fn();
 const mockPush = jest.fn();
 const mockBack = jest.fn();
 let mockCanGoBack = true;
@@ -41,6 +50,7 @@ jest.mock('../../../hooks/useActiveGym', () => ({
 
 const mockGetMySubscription = jest.fn();
 jest.mock('../../../lib/api/me', () => ({
+  payMySubscription: () => mockPaySubscription() as unknown,
   getMySubscription: () => mockGetMySubscription() as unknown,
   getMyProfile: () => Promise.resolve({ profile: {} }),
 }));
@@ -122,6 +132,9 @@ function membership(sub: MeSubscription | null): GetMeSubscriptionResponse {
 }
 
 beforeEach(() => {
+  mockPaySubscription.mockReset();
+  mockOpenPayment.mockReset();
+  mockOpenPayment.mockResolvedValue(true);
   mockPush.mockClear();
   mockBack.mockClear();
   mockCanGoBack = true;
@@ -462,3 +475,63 @@ describe('the chrome', () => {
     }
   });
 });
+
+const manualPayment = {
+  mode: 'manual' as const,
+  canPayNow: true,
+  dueAt: '2026-11-20T00:00:00Z',
+  amount: 5000,
+  currency: 'GEL',
+  pendingOrderId: null,
+};
+it('shows manual Pay only when canPayNow', async () => {
+  mockGetMySubscription.mockResolvedValue(
+    membership(subscription({ payment: { ...manualPayment, canPayNow: false } })),
+  );
+  const view = renderApp(<MembershipScreen />);
+  await waitFor(() => expect(view.getByTestId('membership-card')).toBeTruthy(), WAIT);
+  expect(view.queryByTestId('membership-pay')).toBeNull();
+});
+it('pays the next period through the payment browser', async () => {
+  mockGetMySubscription.mockResolvedValue(membership(subscription({ payment: manualPayment })));
+  const payment = {
+    status: 'requires_action',
+    orderId: 'o1',
+    checkoutUrl: 'https://pay.example',
+    expiresAt: null,
+  };
+  mockPaySubscription.mockResolvedValue({ payment });
+  const view = renderApp(<MembershipScreen />);
+  fireEvent.press(await view.findByTestId('membership-pay'));
+  await waitFor(() => expect(mockOpenPayment).toHaveBeenCalledWith(payment, 'membership'), WAIT);
+  expect(mockPaySubscription).toHaveBeenCalledTimes(1);
+});
+it('resumes the pending renewal without a new pay call', async () => {
+  mockGetMySubscription.mockResolvedValue(
+    membership(subscription({ payment: { ...manualPayment, pendingOrderId: 'o1' } })),
+  );
+  const view = renderApp(<MembershipScreen />);
+  fireEvent.press(await view.findByTestId('membership-pay'));
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/checkout/result?orderId=o1'), WAIT);
+  expect(mockPaySubscription).not.toHaveBeenCalled();
+});
+it.each([
+  ['SUBSCRIPTION_NOT_DUE', 'Your next payment is not due yet.'],
+  ['ONLINE_PAYMENTS_UNAVAILABLE', 'Online payment is unavailable. Please pay at the front desk.'],
+])('explains renewal error %s', async (code, message) => {
+  mockGetMySubscription.mockResolvedValue(membership(subscription({ payment: manualPayment })));
+  mockPaySubscription.mockRejectedValue(new ApiError({ status: 409, code, message: code }));
+  const view = renderApp(<MembershipScreen />);
+  fireEvent.press(await view.findByTestId('membership-pay'));
+  await waitFor(() => expect(view.getByText(message)).toBeTruthy(), WAIT);
+});
+
+it.each([undefined, { ...manualPayment, mode: 'auto' as const }])(
+  'hides renewal when manual payment is absent',
+  async (payment) => {
+    mockGetMySubscription.mockResolvedValue(membership(subscription({ payment })));
+    const view = renderApp(<MembershipScreen />);
+    await waitFor(() => expect(view.getByTestId('membership-card')).toBeTruthy(), WAIT);
+    expect(view.queryByTestId('membership-pay')).toBeNull();
+  },
+);

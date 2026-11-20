@@ -60,7 +60,7 @@ describe('purchaseCreditPack', () => {
     const call = calls[0] as Call;
     expect(call.init.method).toBe('POST');
     expect(call.url).toBe(`${env.apiUrl}/credit-packs/purchase`);
-    expect(JSON.parse(call.init.body as string)).toEqual({ packId: 'pack_1' });
+    expect(JSON.parse(call.init.body as string)).toEqual({ packId: 'pack_1', returnTo: 'app' });
   });
 
   it('forwards a promo code so an inapplicable one is refused loudly', async () => {
@@ -69,6 +69,7 @@ describe('purchaseCreditPack', () => {
     expect(JSON.parse((calls[0] as Call).init.body as string)).toEqual({
       packId: 'pack_1',
       promoCode: 'PACKS20',
+      returnTo: 'app',
     });
   });
 });

@@ -52,7 +52,7 @@ export function loggerConfig(): Params {
       transport: isProduction
         ? undefined
         : { target: 'pino-pretty', options: { singleLine: true } },
-      redact: ['req.headers.authorization', 'req.headers.cookie'],
+      redact: ['req.headers.authorization', 'req.headers.cookie', 'req.body.secretKey'],
     },
   };
 }

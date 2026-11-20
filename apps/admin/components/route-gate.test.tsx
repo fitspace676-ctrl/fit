@@ -101,3 +101,14 @@ describe('mayOpenRoute', () => {
     expect(mayOpenRoute(defaultPermissionsForRole('OWNER'), '/admin/settings')).toBe(true);
   });
 });
+
+describe('owner-only integration route', () => {
+  it.each(['OWNER', 'SUPER_ADMIN', 'MANAGER', 'RECEPTIONIST', 'TRAINER', 'MEMBER'] as const)(
+    'requires exactly OWNER even with every capability: %s',
+    (role) => {
+      const permissions = { ...defaultPermissionsForRole(role), grants: [...ALL_PERMISSIONS] };
+      expect(mayOpenRoute(permissions, '/integrations')).toBe(role === 'OWNER');
+      expect(mayOpenRoute(permissions, '/admin/integrations')).toBe(role === 'OWNER');
+    },
+  );
+});

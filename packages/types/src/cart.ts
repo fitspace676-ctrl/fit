@@ -21,6 +21,7 @@
 
 import { z } from 'zod';
 import { MAX_CART_LINE_QUANTITY } from './products';
+import { paymentReturnTargetSchema, type PaymentAction } from './online-payments';
 
 /** The sentinel variant-index segment for a product bought at its base price. */
 export const BASE_VARIANT_SEGMENT = 'base';
@@ -108,6 +109,8 @@ export const cartCheckoutSchema = z
     fulfillment: fulfillmentSchema,
     locationId: z.string().min(1).optional(),
     deliveryAddress: z.string().trim().min(1).max(500).optional(),
+    /** Where the payment provider returns the buyer (`web` default) — online-paying gyms only. */
+    returnTo: paymentReturnTargetSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.fulfillment === 'PICKUP' && !value.locationId) {
@@ -193,6 +196,12 @@ export interface CartResponse {
 /** Successful `POST /cart/checkout` response (`201 Created`) — the created order id. */
 export interface CartCheckoutResponse {
   orderId: string;
+  /**
+   * Present only when the gym takes payment online: the order is `pending` with
+   * its stock reserved, and the buyer pays on `payment.checkoutUrl`. Absent for a
+   * pay-at-pickup gym (today's behaviour).
+   */
+  payment?: PaymentAction;
 }
 
 /**

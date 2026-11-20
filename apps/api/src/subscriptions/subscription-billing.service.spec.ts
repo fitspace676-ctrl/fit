@@ -27,6 +27,7 @@ interface BillableRow {
   currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
   paymentRetries: number;
+  provider: string;
   providerRef: string | null;
   member: { userId: string };
 }
@@ -42,6 +43,7 @@ const row = (over?: Partial<BillableRow>): BillableRow => ({
   currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
   cancelAtPeriodEnd: false,
   paymentRetries: 0,
+  provider: 'stub',
   providerRef: null,
   member: { userId: 'user-1' },
   ...over,
@@ -128,10 +130,18 @@ function setup(
       ) => Promise<{ matched: number; notified: number; deduped: number; errors: number }>
     >()
     .mockResolvedValue({ matched: 0, notified: 0, deduped: 0, errors: 0 });
+  const notifyManualRenewalsDue = vi
+    .fn<
+      (
+        ...args: unknown[]
+      ) => Promise<{ matched: number; notified: number; deduped: number; errors: number }>
+    >()
+    .mockResolvedValue({ matched: 0, notified: 0, deduped: 0, errors: 0 });
   const notifications = {
     renewalSucceeded,
     chargeFailed,
     notifyTrialsEndingSoon,
+    notifyManualRenewalsDue,
   } as unknown as BillingNotificationsService;
 
   return {
@@ -153,6 +163,7 @@ function setup(
     renewalSucceeded,
     chargeFailed,
     notifyTrialsEndingSoon,
+    notifyManualRenewalsDue,
   };
 }
 
@@ -704,5 +715,90 @@ describe('SubscriptionBillingService.runScheduled', () => {
     const args = set.mock.calls[0]!;
     expect(args[0]).toMatch(/^subscription-billing:lock:/);
     expect(args).toContain('NX');
+  });
+});
+
+describe('SubscriptionBillingService — subscriptions paid by hand (provider flitt)', () => {
+  it('never calls the gateway: an unpaid period end walks the failed-charge path', async () => {
+    const { service, chargeRenewal, updateMany, chargeFailed, invoiceIssue, dispatchForGym } =
+      setup({ due: [row({ provider: 'flitt' })] });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(chargeRenewal).not.toHaveBeenCalled();
+    expect(invoiceIssue).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ pastDue: 1, renewed: 0, errors: 0 });
+    expect(updateMany.mock.calls[0]![0].data).toEqual({ status: SubscriptionStatus.PAST_DUE });
+    expect(dispatchForGym).toHaveBeenCalledWith('gym-1', 'payment_failed', {
+      entityId: 'sub-1',
+      entityType: 'subscription',
+    });
+    expect(chargeFailed).toHaveBeenCalledWith(expect.objectContaining({ id: 'sub-1' }), {
+      rung: 0,
+      periodEnd: new Date('2026-06-01T00:00:00.000Z'),
+      manual: true,
+    });
+  });
+
+  it('advances the dunning rung of a past-due manual subscription without a charge', async () => {
+    const { service, chargeRenewal, updateMany } = setup({
+      due: [
+        row({
+          provider: 'flitt',
+          status: SubscriptionStatus.PAST_DUE,
+          currentPeriodEnd: new Date('2026-06-05T00:00:00.000Z'),
+          paymentRetries: 0,
+        }),
+      ],
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(chargeRenewal).not.toHaveBeenCalled();
+    expect(summary.pastDue).toBe(1);
+    expect(updateMany.mock.calls[0]![0].data).toEqual({ paymentRetries: { increment: 1 } });
+  });
+
+  it('expires a manual subscription whose ladder is exhausted, exactly like a declined one', async () => {
+    const { service, chargeRenewal, updateMany } = setup({
+      due: [
+        row({
+          provider: 'flitt',
+          status: SubscriptionStatus.PAST_DUE,
+          currentPeriodEnd: new Date('2026-06-01T00:00:00.000Z'),
+          paymentRetries: 3,
+        }),
+      ],
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(chargeRenewal).not.toHaveBeenCalled();
+    expect(summary.expired).toBe(1);
+    expect(updateMany.mock.calls[0]![0].data).toEqual({ status: SubscriptionStatus.EXPIRED });
+  });
+
+  it('runs the pay-to-continue reminder sweep once per cycle and surfaces its count', async () => {
+    const { service, notifyManualRenewalsDue } = setup({ due: [] });
+    notifyManualRenewalsDue.mockResolvedValueOnce({
+      matched: 2,
+      notified: 2,
+      deduped: 0,
+      errors: 0,
+    });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(notifyManualRenewalsDue).toHaveBeenCalledWith(NOW, 3);
+    expect(summary.manualRenewalReminded).toBe(2);
+  });
+
+  it('keeps charging a stub-provider subscription through the bound provider', async () => {
+    const { service, chargeRenewal } = setup({ due: [row({ provider: 'stub' })] });
+
+    const summary = await service.runBillingCycle({ now: NOW });
+
+    expect(chargeRenewal).toHaveBeenCalledTimes(1);
+    expect(summary.renewed).toBe(1);
   });
 });

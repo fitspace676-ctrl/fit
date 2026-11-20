@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AutomationModule } from '../automation/automation.module';
 import { InvoiceModule } from '../billing/invoice.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { AdminSubscriptionEnrollmentController } from './admin-subscription-enrollment.controller';
 import { AdminSubscriptionFreezeController } from './admin-subscription-freeze.controller';
 import { BillingNotificationsService } from './billing-notifications.service';
@@ -49,7 +50,9 @@ import { SubscriptionsController } from './subscriptions.controller';
 @Module({
   // `AutomationModule` for the executor the freeze and billing flows fire their
   // subscription / payment triggers through (T12.5).
-  imports: [InvoiceModule, NotificationsModule, AutomationModule],
+  // `PaymentsModule` for the member's paid-online enrolment (Flitt); it imports
+  // nothing back (see its header).
+  imports: [InvoiceModule, NotificationsModule, AutomationModule, PaymentsModule],
   controllers: [
     SubscriptionsController,
     AdminSubscriptionEnrollmentController,

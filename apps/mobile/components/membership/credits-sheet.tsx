@@ -33,6 +33,8 @@
 // the same shape `plan-sheet.tsx` uses for enrolment, and the mutation is
 // `retry: false` because a retried purchase is a second order.
 
+import { useOnlinePayments } from '../../hooks/useOnlinePayments';
+import { usePaymentBrowser } from '../../hooks/usePaymentBrowser';
 import { useState } from 'react';
 import { View } from 'react-native';
 import {
@@ -62,6 +64,8 @@ export interface CreditsSheetProps {
 export function CreditsSheet({ open, onClose, testID = 'credits-sheet' }: CreditsSheetProps) {
   const { t, locale } = useI18n();
   const toast = useToast();
+  const payments = useOnlinePayments();
+  const openPayment = usePaymentBrowser();
   const catalogue = usePackCatalogue();
   const purchase = usePurchaseCreditPack();
 
@@ -71,11 +75,16 @@ export function CreditsSheet({ open, onClose, testID = 'credits-sheet' }: Credit
   const chosen = packs.find((pack) => pack.id === selected) ?? null;
 
   function confirm() {
-    if (chosen === null || purchase.isPending) return;
+    if (!payments.enabled || chosen === null || purchase.isPending) return;
     purchase.mutate(
       { packId: chosen.id },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          if (result.payment?.status === 'requires_action') {
+            onClose();
+            void openPayment(result.payment);
+            return;
+          }
           toast.success(t('member.membership.credits.boughtToast', { count: chosen.sessionCount }));
           setSelected(null);
           onClose();
@@ -101,7 +110,7 @@ export function CreditsSheet({ open, onClose, testID = 'credits-sheet' }: Credit
             testID={`${testID}-confirm`}
             label={t('member.membership.credits.buy')}
             fullWidth
-            disabled={chosen === null}
+            disabled={!payments.enabled || chosen === null}
             busy={purchase.isPending}
             busyLabel={t('member.membership.credits.buying')}
             onPress={confirm}
@@ -110,6 +119,7 @@ export function CreditsSheet({ open, onClose, testID = 'credits-sheet' }: Credit
       }
     >
       <View style={{ gap: spacing[2] }}>
+        {!payments.enabled ? <Text>{t('member.payment.frontDesk')}</Text> : null}
         {catalogue.isPending && catalogue.data === undefined ? (
           <View
             testID={`${testID}-loading`}

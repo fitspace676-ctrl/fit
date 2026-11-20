@@ -10,7 +10,9 @@ import {
   type GymMemberTermsResponse,
   type GymSummary,
   type ListGymsResponse,
+  type OnlinePaymentsConfig,
 } from '@fit/types';
+import { onlinePaymentsStubEnabled } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -100,6 +102,32 @@ export class GymsService {
       // renderable. It rides along here because the sign-in screen — painted
       // before anyone has a session — has nothing else to ask.
       portal: gymPortalTheme(gym.settings),
+      // Whether a purchase button can work at all — see `resolveOnlinePayments`.
+      onlinePayments: await this.resolveOnlinePayments(gym.id),
     };
+  }
+
+  /**
+   * The gym's online-payment capability: its own active Flitt merchant, else the
+   * instant stub where `ONLINE_PAYMENTS_STUB` allows it (never in production by
+   * default), else none. The same rule `OnlinePaymentsService.purchaseMode`
+   * enforces on purchase — read directly here so this public lookup does not
+   * have to pull in the payments module.
+   */
+  private async resolveOnlinePayments(gymId: string): Promise<OnlinePaymentsConfig> {
+    const active = await this.prisma.client.gymIntegration.count({
+      where: {
+        gymId,
+        provider: 'flitt',
+        enabled: true,
+        merchantId: { not: null },
+        secretCiphertext: { not: null },
+        verifiedAt: { not: null },
+      },
+    });
+    if (active > 0) return { enabled: true, provider: 'flitt' };
+    return onlinePaymentsStubEnabled()
+      ? { enabled: true, provider: 'stub' }
+      : { enabled: false, provider: null };
   }
 }

@@ -127,8 +127,15 @@ describe('the member slice', () => {
     //
     // 2026-11-19, reporting a trainer review: 1153 → 1164. The report sheet's
     // title, reasons, note field and outcomes (`member.reviews.report.*`).
-    expect(enKeys).toHaveLength(1172);
-    expect(kaKeys).toHaveLength(1172);
+    // 2026-11-20, Flitt mobile: 1172 → 1183. member.payment.{frontDesk,
+    // checking,incomplete,retry,cancel,error,checkAgain,back,complete,refunded,planBody}.
+    // The base already contained 8 billing period keys beyond the 1164 comment.
+    // Same day, the portal's Flitt result flow adds 15 more member keys: → 1198.
+    // 2026-11-20: manual membership renewal adds 6 member keys → 1204.
+    // Same day, the portal's payment-method tile says "online" for a manual
+    // membership (`payOnline`): → 1205.
+    expect(enKeys).toHaveLength(1205);
+    expect(kaKeys).toHaveLength(1205);
   });
 });
 

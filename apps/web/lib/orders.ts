@@ -47,6 +47,7 @@ export async function createOrder({
     },
     body: JSON.stringify(body),
     signal,
+    cache: 'no-store',
   });
 
   if (!response.ok) {
@@ -91,9 +92,10 @@ export async function fetchOrder({
       Authorization: `Bearer ${accessToken}`,
     },
     signal,
+    cache: 'no-store',
   });
 
-  if (response.status === 404) {
+  if (response.status === 404 || response.status === 403) {
     return null;
   }
 

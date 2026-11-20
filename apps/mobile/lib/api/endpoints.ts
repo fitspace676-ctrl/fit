@@ -145,6 +145,11 @@ export const ENDPOINTS = {
   },
   updateMyProfile: { method: 'PATCH', path: '/me/profile', permission: [Permission.ProfileManage] },
   /** `GET /me/subscription` — the membership **and** its invoice history. */
+  payMySubscription: {
+    method: 'POST',
+    path: '/me/subscription/pay',
+    permission: [Permission.ProfileManage],
+  },
   getMySubscription: {
     method: 'GET',
     path: '/me/subscription',
@@ -243,6 +248,21 @@ export const ENDPOINTS = {
    * The member-safe replacement for `GET /orders/:orderId` (`BillingRead` → 403).
    * Someone else's order id is a `404`, never a disclosure.
    */
+  syncOrderPayment: {
+    method: 'POST',
+    path: '/checkout/:orderId/payment/sync',
+    permission: [Permission.ProfileManage],
+  },
+  retryOrderPayment: {
+    method: 'POST',
+    path: '/checkout/:orderId/payment/retry',
+    permission: [Permission.ProfileManage],
+  },
+  cancelOrderPayment: {
+    method: 'POST',
+    path: '/checkout/:orderId/payment/cancel',
+    permission: [Permission.ProfileManage],
+  },
   getCheckoutOrder: {
     method: 'GET',
     path: '/checkout/:orderId',

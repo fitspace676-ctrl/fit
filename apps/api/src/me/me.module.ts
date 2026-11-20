@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { MePhotoController } from './me-photo.controller';
 import { MePhotoService } from './me-photo.service';
 import { BillingModule } from '../billing/billing.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { MeSubscriptionController } from './me-subscription.controller';
 import { MeSubscriptionService } from './me-subscription.service';
 import { MeInvoicesController } from './me-invoices.controller';
@@ -36,7 +37,8 @@ import { MeOrdersService } from './me-orders.service';
  * tenant-scoped client the other `/me` services use.
  */
 @Module({
-  imports: [BillingModule],
+  // `PaymentsModule` for `POST /me/subscription/pay` (Flitt hosted checkout).
+  imports: [BillingModule, PaymentsModule],
   controllers: [
     MeAccountController,
     MePhotoController,

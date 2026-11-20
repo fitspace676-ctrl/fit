@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('expo-constants', () => ({ default: { expoConfig: { scheme: 'fit' } } }));
 import appJson from '../app.json';
 import { redirectSystemPath } from './+native-intent';
 
@@ -190,4 +191,21 @@ describe('redirectSystemPath — hostile and malformed input', () => {
   it('ignores `initial`', () => {
     expect(rewrite('fit://profile', true)).toBe(rewrite('fit://profile', false));
   });
+});
+
+it('preserves the payment result order on cold and warm links', () => {
+  for (const initial of [true, false]) {
+    expect(rewrite('fit://checkout/result?orderId=a%2Fb', initial)).toBe(
+      '/checkout/result?orderId=a%2Fb',
+    );
+  }
+});
+
+it('uses the resolved scheme for a branded app', async () => {
+  vi.resetModules();
+  vi.doMock('expo-constants', () => ({ default: { expoConfig: { scheme: 'synergy' } } }));
+  const branded = await import('./+native-intent');
+  expect(
+    branded.redirectSystemPath({ path: 'synergy://checkout/result?orderId=ord_1', initial: true }),
+  ).toBe('/checkout/result?orderId=ord_1');
 });

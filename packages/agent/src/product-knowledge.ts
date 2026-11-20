@@ -186,6 +186,12 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     'აპლიკაციის პარამეტრები',
     'Configure the member mobile app.',
   ),
+  page(
+    '/integrations',
+    'Integrations',
+    'ინტეგრაციები',
+    "Connect the gym's online payment provider (Flitt).",
+  ),
   page('/settings', 'Settings', 'პარამეტრები', 'Set gym policies and branding.', 'settings'),
   page('/profile', 'Profile', 'პროფილი', 'View your account and gym.'),
 ];

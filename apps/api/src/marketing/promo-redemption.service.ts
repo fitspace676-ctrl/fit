@@ -21,6 +21,18 @@ export interface PromoTransactionClient {
   };
 }
 
+/** The slice of a transaction client {@link PromoRedemptionService.release} needs. */
+export interface PromoReleaseClient {
+  promoCode: PromoTransactionClient['promoCode'];
+  promoRedemption: {
+    findMany(args: {
+      where: { gymId: string; orderId: string };
+      select: { id: true; promoCodeId: true };
+    }): Promise<Array<{ id: string; promoCodeId: string }>>;
+    deleteMany(args: { where: { id: string } }): Promise<{ count: number }>;
+  };
+}
+
 /** A resolved code, ready to be consumed once the purchase it discounts commits. */
 export interface ResolvedPromo {
   promoId: string;
@@ -157,6 +169,28 @@ export class PromoRedemptionService {
         discountAmount: input.discount,
       },
     });
+  }
+
+  /**
+   * Give back every code an order consumed, inside the caller's transaction — the
+   * inverse of {@link consume}, for an online order that was abandoned unpaid.
+   * The redemption rows are deleted (so a one-per-customer code is usable again)
+   * and each code's `usedCount` is decremented, bounded at zero so a double
+   * release can never drive it negative. Idempotent: a second call finds no rows.
+   */
+  async release(tx: PromoReleaseClient, input: { gymId: string; orderId: string }): Promise<void> {
+    const rows = await tx.promoRedemption.findMany({
+      where: { gymId: input.gymId, orderId: input.orderId },
+      select: { id: true, promoCodeId: true },
+    });
+    for (const row of rows) {
+      const removed = await tx.promoRedemption.deleteMany({ where: { id: row.id } });
+      if (removed.count === 0) continue;
+      await tx.promoCode.updateMany({
+        where: { id: row.promoCodeId, usedCount: { gt: 0 } },
+        data: { usedCount: { decrement: 1 } },
+      });
+    }
   }
 
   /**

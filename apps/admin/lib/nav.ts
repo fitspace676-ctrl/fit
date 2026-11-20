@@ -45,6 +45,8 @@ export interface NavItem {
    * today; the test is what keeps that true).
    */
   minRole?: Role;
+  /** Exact OWNER match: a platform role must impersonate the gym owner first. */
+  ownerOnly?: boolean;
   /** One of the inline icon keys rendered by the sidebar. */
   icon: NavIcon;
 }
@@ -74,6 +76,7 @@ export type NavIcon =
   | 'activity'
   | 'audit'
   | 'memberPortal'
+  | 'integrations'
   | 'appSettings'
   | 'settings';
 
@@ -187,6 +190,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: 'settings',
     permission: Permission.GymManage,
   },
+  {
+    labelKey: 'integrations.title',
+    href: '/integrations',
+    icon: 'integrations',
+    permission: Permission.GymManage,
+    minRole: 'OWNER',
+    ownerOnly: true,
+  },
 ];
 
 /** A labelled cluster of nav destinations, rendered as one collapsible section. */
@@ -211,7 +222,10 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   { labelKey: 'navGroups.commerce', hrefs: ['/payments', '/shop', '/services', '/pos'] },
   { labelKey: 'navGroups.growth', hrefs: ['/automation', '/marketing'] },
   { labelKey: 'navGroups.insights', hrefs: ['/reports'] },
-  { labelKey: 'navGroups.system', hrefs: ['/member-portal', '/app-settings', '/settings'] },
+  {
+    labelKey: 'navGroups.system',
+    hrefs: ['/member-portal', '/app-settings', '/settings', '/integrations'],
+  },
 ];
 
 /**
@@ -234,6 +248,7 @@ export function visibleNavItems(permissions: ConsolePermissions | null): NavItem
     ? (permissions.role as Role)
     : null;
   return NAV_ITEMS.filter((item) => {
+    if (item.ownerOnly && role !== 'OWNER') return false;
     if (item.permission && !consoleCan(permissions, item.permission)) {
       return false;
     }

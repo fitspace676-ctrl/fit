@@ -67,6 +67,14 @@ jest.mock('expo-font', () => ({
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
 jest.mock('expo-camera', () => require('./test-support/expo-camera-mock'));
 
+// AsyncStorage has no native module under jest. The package ships its own
+// in-memory mock; a suite that needs specific behaviour still overrides it with
+// its own `jest.mock` (see `components/notifications/device-prefs.test.tsx`).
+jest.mock('@react-native-async-storage/async-storage', () =>
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-return
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+
 // The birthday picker is a native view (iOS) and a native dialog (Android), and
 // jest-expo stubs neither. Same module-not-factory shape as `expo-camera`.
 jest.mock('@react-native-community/datetimepicker', () =>

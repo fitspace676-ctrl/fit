@@ -14,6 +14,7 @@ import { fetchMemberBookings } from '@/lib/member-bookings';
 import { formatMoney } from '@/lib/shop';
 import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
+import { RenewalPayment } from './renewal-payment';
 import { FreezeCard } from './freeze-card';
 import { ChangePlanButton } from './change-plan-modal';
 import { BuyCreditsCard } from './buy-credits-card';
@@ -419,6 +420,8 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         </Banner>
       ) : null}
 
+      <RenewalPayment payment={subscription?.payment} overdue={status === 'PAST_DUE'} />
+
       <section {...stylex.props(styles.twoCol, !subscription && styles.oneCol)}>
         {/* Current plan */}
         <div {...stylex.props(styles.planCard)}>
@@ -492,7 +495,9 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             <Icon name="card" {...stylex.props(styles.metricIcon)} />
             <p {...stylex.props(styles.metricLabel)}>{t('paymentMethod')}</p>
           </div>
-          <p {...stylex.props(styles.metricValue)}>{t('payAtDesk')}</p>
+          <p {...stylex.props(styles.metricValue)}>
+            {subscription?.payment?.mode === 'manual' ? t('payOnline') : t('payAtDesk')}
+          </p>
         </Card>
         <Card padding="none" xstyle={styles.metricCard}>
           <div {...stylex.props(styles.metricHead)}>

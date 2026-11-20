@@ -3,6 +3,7 @@ import { AutomationModule } from '../automation/automation.module';
 import { AuthModule } from '../auth/auth.module';
 import { GymsModule } from '../gyms/gyms.module';
 import { MarketingModule } from '../marketing/marketing.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 
@@ -19,7 +20,7 @@ import { CartService } from './cart.service';
 @Module({
   // `GymsModule` for `GymLocaleService`: an empty basket is labelled in the gym's
   // own configured currency rather than a hardcoded one.
-  imports: [AuthModule, MarketingModule, GymsModule, AutomationModule],
+  imports: [AuthModule, MarketingModule, GymsModule, AutomationModule, PaymentsModule],
   controllers: [CartController],
   providers: [CartService],
 })

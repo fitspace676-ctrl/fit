@@ -41,6 +41,8 @@
 // `useDiscoveryMutationDeps()` — for the CHARGE, which `useMutationDeps()`
 // cannot serve. See that file for why.
 
+import { useOnlinePayments } from '../../hooks/useOnlinePayments';
+import { usePaymentBrowser } from '../../hooks/usePaymentBrowser';
 import {
   Alert as Advisory,
   Button,
@@ -128,6 +130,8 @@ export default function JoinCheckoutScreen() {
   const online = useIsOnline();
   const session = useSession();
   const gym = useDiscoveryGym();
+  const payments = useOnlinePayments();
+  const openPayment = usePaymentBrowser();
   const checkoutDeps = useDiscoveryMutationDeps();
   const queryClient = useQueryClient();
   const onboarding = useOnboarding();
@@ -227,7 +231,14 @@ export default function JoinCheckoutScreen() {
   // ── The purchase ─────────────────────────────────────────────────────────
 
   const submit = useCallback((): void => {
-    if (gymId === null || submitting || coolDown.active || !online) return;
+    if (
+      gymId === null ||
+      submitting ||
+      coolDown.active ||
+      !online ||
+      (product !== null && !payments.enabled)
+    )
+      return;
     if (!canSubmit(state, context, gymId, submitting)) {
       setShowErrors(true);
       return;
@@ -286,6 +297,8 @@ export default function JoinCheckoutScreen() {
         ...(state.locationId === null ? {} : { locationId: state.locationId }),
       });
 
+      if (await openPayment(result.payment)) return;
+
       // `replace`, not `push`: back out of the confirmation must not be able to
       // re-submit. Exactly one of the two ids is set, keyed by `productType` —
       // a package or pack settles onto an `Order`, a subscription mints an
@@ -333,6 +346,8 @@ export default function JoinCheckoutScreen() {
     });
   }, [
     gymId,
+    payments.enabled,
+    openPayment,
     submitting,
     coolDown,
     online,
@@ -426,7 +441,7 @@ export default function JoinCheckoutScreen() {
                 // the switch appears. Nothing can be bought without the tick;
                 // the difference is only whether the buyer is told why.
                 // ==========================================================
-                disabled={coolDown.active || !online}
+                disabled={coolDown.active || !online || (product !== null && !payments.enabled)}
                 onPress={submit}
               />
             ) : (
@@ -473,6 +488,9 @@ export default function JoinCheckoutScreen() {
           height, which `Screen` already reserves — so the final card clears
           the button band with room to spare. */}
       <View style={{ gap: spacing[6], paddingBottom: spacing[6] }}>
+        {!payments.enabled ? (
+          <Text variant="bodySmall">{t('member.payment.frontDesk')}</Text>
+        ) : null}
         {/* Plan §6 item 4. TODO(i18n): there are no `offline` keys in either
             catalogue — see `components/auth/pending-copy.ts`. */}
         {online ? null : <OfflineNotice testID="join-offline" />}

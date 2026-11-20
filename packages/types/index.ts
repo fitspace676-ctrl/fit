@@ -77,3 +77,5 @@ export * from './src/gym-onboarding';
 export * from './src/brand-skins';
 
 export * from './src/booking-rules';
+export * from './src/integrations';
+export * from './src/online-payments';
