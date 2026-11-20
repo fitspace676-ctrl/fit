@@ -190,7 +190,7 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     '/integrations',
     'Integrations',
     'ინტეგრაციები',
-    "Connect the gym's online payment provider (Flitt).",
+    'Connect payments (Flitt) and SMS (Sender.ge).',
   ),
   page('/settings', 'Settings', 'პარამეტრები', 'Set gym policies and branding.', 'settings'),
   page('/profile', 'Profile', 'პროფილი', 'View your account and gym.'),

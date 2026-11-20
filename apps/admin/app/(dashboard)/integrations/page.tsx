@@ -23,5 +23,15 @@ export default async function IntegrationsPage() {
   }
   const flitt = integrations.find((item) => item.provider === 'flitt');
   if (!flitt) return <p role="alert">{t('errors.unexpected')}</p>;
-  return <IntegrationsForm initial={flitt} />;
+  const sender = integrations.find((item) => item.provider === 'sender') ?? {
+    provider: 'sender' as const,
+    connected: false,
+    enabled: false,
+    merchantId: null,
+    secretHint: null,
+    verifiedAt: null,
+    lastError: null,
+    testMode: false,
+  };
+  return <IntegrationsForm initial={flitt} sender={sender} />;
 }

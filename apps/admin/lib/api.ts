@@ -3610,3 +3610,19 @@ export async function mutateFlitt<T>(
     }),
   );
 }
+
+/** Sender credentials remain in authenticated server requests. */
+export async function mutateSender<T>(
+  method: 'PUT' | 'PATCH' | 'POST' | 'DELETE',
+  body?: unknown,
+  action: 'test' | 'test-message' = 'test',
+): Promise<T> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/integrations/sender${method === 'POST' ? `/${action}` : ''}`, {
+      method,
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      cache: 'no-store',
+    }),
+  );
+}
