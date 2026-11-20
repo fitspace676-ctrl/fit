@@ -99,22 +99,31 @@ export class ZkbioClient {
   }
 
   /** §2.1.1.5. */
-  async getPerson(connection: ZkbioConnection, pin: string): Promise<Person> {
-    return this.request(connection, '/api/person/get', 'GET', { pin }, undefined);
+  async getPerson(
+    connection: ZkbioConnection,
+    pin: string,
+    utcOffsetMinutes: number,
+  ): Promise<Person> {
+    return personResponse(
+      await this.request(connection, '/api/person/get', 'GET', { pin }),
+      utcOffsetMinutes,
+    );
   }
 
   /** §2.1.1.12. */
   async listPersons(
     connection: ZkbioConnection,
     input: Pagination & { pins?: string[]; deptCodes?: string[] },
+    utcOffsetMinutes: number,
   ): Promise<Page<Person>> {
-    return this.request(
+    const result = await this.request<Page<Record<string, unknown>>>(
       connection,
       '/api/v2/person/getPersonList',
       'POST',
       {},
       { ...page(input), pins: input.pins?.join(','), deptCodes: input.deptCodes?.join(',') },
     );
+    return { ...result, data: result.data.map((row) => personResponse(row, utcOffsetMinutes)) };
   }
 
   /** §2.1.1.3. */
@@ -617,8 +626,16 @@ export class ZkbioClient {
 
   /** §2.1.1.12: the manual has no separate person-bound-level endpoint.
    * Read accLevelIds from the full personnel record; §2.1.1.5 omits it. */
-  async getPersonAccessLevelIds(connection: ZkbioConnection, pin: string): Promise<string[]> {
-    const result = await this.listPersons(connection, { pins: [pin], pageNo: 1, pageSize: 1 });
+  async getPersonAccessLevelIds(
+    connection: ZkbioConnection,
+    pin: string,
+    utcOffsetMinutes: number,
+  ): Promise<string[]> {
+    const result = await this.listPersons(
+      connection,
+      { pins: [pin], pageNo: 1, pageSize: 1 },
+      utcOffsetMinutes,
+    );
     const person = result.data.find((p) => p.pin === pin);
     if (!person) throw new ZkbioApiError(-22);
     return person.accLevelIds?.split(',').filter(Boolean) ?? [];
@@ -940,4 +957,13 @@ function responseDate(value: unknown, offset: number): Date {
   } catch {
     throw new ZkbioTransportError('not_zkbio');
   }
+}
+
+function personResponse(row: Record<string, unknown>, offset: number): Person {
+  return {
+    ...row,
+    accStartTime:
+      row.accStartTime == null ? row.accStartTime : responseDate(row.accStartTime, offset),
+    accEndTime: row.accEndTime == null ? row.accEndTime : responseDate(row.accEndTime, offset),
+  } as unknown as Person;
 }

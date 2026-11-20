@@ -75,18 +75,21 @@ const contracts: Contract[] = [
   ],
   [
     'getPerson §2.1.1.5',
-    () => client.getPerson(connection, '123'),
+    () => client.getPerson(connection, '123', 240),
     'GET',
     '/api/person/get',
     { pin: '123' },
+    undefined,
+    person,
   ],
   [
     'listPersons §2.1.1.12',
-    () => client.listPersons(connection, { ...p, pins: ['1', '2'], deptCodes: ['3', '4'] }),
+    () => client.listPersons(connection, { ...p, pins: ['1', '2'], deptCodes: ['3', '4'] }, 240),
     'POST',
     '/api/v2/person/getPersonList',
     {},
     { ...p, pins: '1,2', deptCodes: '3,4' },
+    { page: 0, size: 1, total: 1, data: [person] },
   ],
   [
     'deletePerson §2.1.1.3',
@@ -707,7 +710,7 @@ describe('transport and higher-level contracts', () => {
   it('aborts fetch at 10 seconds even if the injected fetch ignores AbortSignal', async () => {
     vi.useFakeTimers();
     fetchMock.mockImplementation(() => new Promise(() => {}));
-    const result = expect(client.getPerson(connection, '123')).rejects.toMatchObject({
+    const result = expect(client.getPerson(connection, '123', 240)).rejects.toMatchObject({
       reason: 'timeout',
     });
     await vi.advanceTimersByTimeAsync(10000);
@@ -723,7 +726,7 @@ describe('transport and higher-level contracts', () => {
           finish = resolve;
         }),
     );
-    const result = expect(client.getPerson(connection, '123')).rejects.toMatchObject({
+    const result = expect(client.getPerson(connection, '123', 240)).rejects.toMatchObject({
       reason: 'timeout',
     });
     await vi.advanceTimersByTimeAsync(10000);
@@ -733,15 +736,15 @@ describe('transport and higher-level contracts', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('revalidates DNS and isolates connection tokens on every call', async () => {
-    fetchMock.mockResolvedValue(reply());
-    await client.getPerson(connection, '123');
-    await client.getPerson({ baseUrl: 'https://other.example', apiToken: 'other' }, '123');
+    fetchMock.mockResolvedValue(reply(person));
+    await client.getPerson(connection, '123', 240);
+    await client.getPerson({ baseUrl: 'https://other.example', apiToken: 'other' }, '123', 240);
     expect(assertPublicHost).toHaveBeenCalledTimes(2);
     expect(new URL(fetchMock.mock.calls[1]![0] as string).searchParams.get('access_token')).toBe(
       'other',
     );
     vi.mocked(assertPublicHost).mockRejectedValue(new Error('private host'));
-    await expect(client.getPerson(connection, '123')).rejects.toMatchObject({
+    await expect(client.getPerson(connection, '123', 240)).rejects.toMatchObject({
       reason: 'unreachable',
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -750,13 +753,16 @@ describe('transport and higher-level contracts', () => {
     fetchMock.mockResolvedValue(
       reply({ page: 0, size: 1, total: 1, data: [{ pin: '123', accLevelIds: 'a,b' }] }),
     );
-    await expect(client.getPersonAccessLevelIds(connection, '123')).resolves.toEqual(['a', 'b']);
+    await expect(client.getPersonAccessLevelIds(connection, '123', 240)).resolves.toEqual([
+      'a',
+      'b',
+    ]);
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(new URL(url as string).pathname).toBe('/api/v2/person/getPersonList');
     expect(init!.method).toBe('POST');
     expect(JSON.parse(init!.body as string)).toEqual({ pins: '123', pageNo: 1, pageSize: 1 });
     fetchMock.mockResolvedValue(reply({ data: [] }));
-    await expect(client.getPersonAccessLevelIds(connection, '123')).rejects.toMatchObject({
+    await expect(client.getPersonAccessLevelIds(connection, '123', 240)).rejects.toMatchObject({
       reason: 'person_not_found',
     });
   });
@@ -772,6 +778,12 @@ describe('transport and higher-level contracts', () => {
       accStartTime: event.eventTime,
       accEndTime: event.eventTime,
     });
+    fetchMock.mockResolvedValue(
+      reply({ ...person, accStartTime: event.eventTime, accEndTime: null }),
+    );
+    const parsedPerson = await client.getPerson(connection, '123', 240);
+    expect(parsedPerson.accStartTime).toEqual(instant);
+    expect(parsedPerson.accEndTime).toBeNull();
     fetchMock.mockResolvedValue(reply(eventPage));
     expect(
       (await client.listAccessTransactions(connection, { ...p, ...dates })).data[0]!.eventTime,

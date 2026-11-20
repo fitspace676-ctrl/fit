@@ -50,8 +50,8 @@ export interface PersonInput {
 export interface Person extends Omit<PersonInput, 'accStartTime' | 'accEndTime'> {
   id?: string;
   deptName?: string;
-  accStartTime?: string | null;
-  accEndTime?: string | null;
+  accStartTime?: Date | null;
+  accEndTime?: Date | null;
   vislightPhoto?: string;
   vislightPhotoPath?: string;
 }
