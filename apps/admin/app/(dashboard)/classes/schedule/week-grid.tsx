@@ -16,8 +16,10 @@ type T = ReturnType<typeof useTranslations>;
  * and cards with room for trainer, duration and occupancy tell a staffer more
  * than blocks whose height encodes minutes.
  *
- * Same-hour classes stack vertically inside their cell, so parallel sessions
- * never fight for column width. Click-to-create survives the redesign as a
+ * Same-hour classes are layered two to a row: each pair sits side by side
+ * with the left card tucked under the right one, and an odd last card spans
+ * the cell. Hover or focus lifts a card to the front. This keeps a busy hour
+ * from stretching its whole row. Click-to-create survives the redesign as a
  * "+" target at the foot of every cell — occupied or not — seeded with that
  * cell's day and hour.
  */
@@ -247,6 +249,39 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-background-muted)',
     color: 'var(--color-error)',
   },
+  layers: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    rowGap: '0.5rem',
+  },
+  layer: {
+    position: 'relative',
+    zIndex: { default: 1, ':hover': 3, ':focus-within': 3 },
+    display: 'flex',
+    minWidth: 0,
+  },
+  /** Left card of a pair: reaches under its right neighbour. */
+  layerTucked: {
+    marginInlineEnd: '-0.875rem',
+  },
+  /** Right card of a pair: sits on top, with an edge shadow over the left one. */
+  layerOnTop: {
+    zIndex: { default: 2, ':hover': 3, ':focus-within': 3 },
+  },
+  layerWide: {
+    gridColumn: '1 / -1',
+  },
+  cardLayered: {
+    boxShadow: {
+      default: '-6px 0 12px -6px rgba(0, 0, 0, 0.35)',
+      ':hover': 'var(--shadow-high)',
+    },
+  },
+  oneLine: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   addTarget: {
     display: 'flex',
     alignItems: 'center',
@@ -388,15 +423,44 @@ export function WeekGrid<E extends CalendarEvent>({
                   role="gridcell"
                   {...stylex.props(styles.slot, key === todayKey && styles.slotToday)}
                 >
-                  {slotClasses.map((instance) => (
-                    <SlotCard
-                      key={instance.id}
-                      instance={instance}
-                      timeZone={timeZone}
-                      t={t}
-                      onOpen={onOpen}
-                    />
-                  ))}
+                  {slotClasses.length > 1 ? (
+                    <div {...stylex.props(styles.layers)}>
+                      {slotClasses.map((instance, index) => {
+                        const wide =
+                          index === slotClasses.length - 1 && slotClasses.length % 2 === 1;
+                        const left = !wide && index % 2 === 0;
+                        return (
+                          <div
+                            key={instance.id}
+                            {...stylex.props(
+                              styles.layer,
+                              left && styles.layerTucked,
+                              !left && !wide && styles.layerOnTop,
+                              wide && styles.layerWide,
+                            )}
+                          >
+                            <SlotCard
+                              instance={instance}
+                              timeZone={timeZone}
+                              t={t}
+                              onOpen={onOpen}
+                              layered
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    slotClasses.map((instance) => (
+                      <SlotCard
+                        key={instance.id}
+                        instance={instance}
+                        timeZone={timeZone}
+                        t={t}
+                        onOpen={onOpen}
+                      />
+                    ))
+                  )}
                   {onPickSlot ? (
                     <button
                       type="button"
@@ -444,15 +508,22 @@ function SlotCard<E extends CalendarEvent>({
   timeZone,
   t,
   onOpen,
+  layered = false,
 }: {
   instance: E;
   timeZone: string;
   t: T;
   onOpen: (instance: E) => void;
+  /** Shares its hour with other classes: drawn as a narrower, overlapping layer. */
+  layered?: boolean;
 }) {
   const start = zonedClock(new Date(instance.startsAt), timeZone);
   const canceled = instance.status === 'CANCELED';
-  const completed = instance.status === 'COMPLETED';
+  // A class whose end time has passed reads as ended even before attendance is
+  // recorded (the stored status flips to COMPLETED only on the first mark).
+  const completed =
+    instance.status === 'COMPLETED' ||
+    (instance.status === 'SCHEDULED' && Date.parse(instance.endsAt) <= Date.now());
   // An event with no seats (a PT session) has no occupancy to state: its
   // footer carries the subtitle (who it is for) or, failing that, its status.
   const seated = instance.capacity !== null && instance.bookedCount !== null;
@@ -465,19 +536,31 @@ function SlotCard<E extends CalendarEvent>({
       ? t('status.COMPLETED')
       : seated && instance.bookedCount! >= instance.capacity!
         ? t('card.full')
-        : spots;
+        : layered && seated
+          ? `${instance.bookedCount}/${instance.capacity}`
+          : spots;
 
   return (
     <button
       type="button"
       onClick={() => onOpen(instance)}
       aria-label={t('card.viewAria', { title: instance.title, time: start })}
-      {...stylex.props(styles.card, (canceled || completed) && styles.cardMutedFate)}
+      {...stylex.props(
+        styles.card,
+        layered && styles.cardLayered,
+        (canceled || completed) && styles.cardMutedFate,
+      )}
       style={{ borderTopColor: instance.color }}
     >
       <span {...stylex.props(styles.cardBody)}>
         <span {...stylex.props(styles.cardTime)}>{start}</span>
-        <span {...stylex.props(styles.cardTitle, canceled && styles.cardTitleCanceled)}>
+        <span
+          {...stylex.props(
+            styles.cardTitle,
+            layered && styles.oneLine,
+            canceled && styles.cardTitleCanceled,
+          )}
+        >
           {instance.title}
         </span>
         {instance.trainerName ? (
@@ -512,7 +595,7 @@ function SlotCard<E extends CalendarEvent>({
           canceled ? styles.footCanceled : completed ? styles.footEnded : styles.footScheduled,
         )}
       >
-        {footText}
+        {layered ? <span {...stylex.props(styles.oneLine)}>{footText}</span> : footText}
       </span>
     </button>
   );

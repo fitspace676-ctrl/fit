@@ -63,7 +63,7 @@ export class AttendanceController {
    * once, `status` either `ATTENDED` or `NO_SHOW`. Recording transitions the
    * occurrence to `COMPLETED` and returns the refreshed roster. Failure modes:
    * `404 CLASS_INSTANCE_NOT_FOUND`, `409 ATTENDANCE_NOT_AVAILABLE` (canceled
-   * occurrence), `409 CLASS_NOT_STARTED`, `404 BOOKING_NOT_FOUND`, and `409
+   * occurrence), `409 CLASS_NOT_ENDED`, `404 BOOKING_NOT_FOUND`, and `409
    * BOOKING_NOT_ATTENDABLE` (a referenced booking held no seat).
    */
   @Post(':id/attendance')

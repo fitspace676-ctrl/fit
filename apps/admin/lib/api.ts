@@ -2440,7 +2440,7 @@ export async function bookMemberOntoClass(
  * more held seats on an occurrence and return the refreshed attendance roster
  * (T3.5). Each entry flips a held-seat booking to `ATTENDED` / `NO_SHOW` and the
  * occurrence transitions to `COMPLETED`. Gated `ClassWrite` API-side; a class
- * that has not started is a `409 CLASS_NOT_STARTED`, a canceled one a `409
+ * that has not ended is a `409 CLASS_NOT_ENDED`, a canceled one a `409
  * ATTENDANCE_NOT_AVAILABLE`, and an unknown / cross-tenant id a `404
  * CLASS_INSTANCE_NOT_FOUND`.
  */

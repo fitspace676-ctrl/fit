@@ -365,10 +365,13 @@ describe('AttendanceService', () => {
       expect(ctx.booking.update).not.toHaveBeenCalled();
     });
 
-    it('409s an occurrence that has not started yet (CLASS_NOT_STARTED)', async () => {
+    it('409s an occurrence that has not started yet (CLASS_NOT_ENDED)', async () => {
       const ctx = setup();
       const future = new Date(Date.now() + 60 * 60 * 1000);
-      ctx.classInstance.findFirst.mockResolvedValueOnce(instance({ startsAt: future }));
+      const futureEnd = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      ctx.classInstance.findFirst.mockResolvedValueOnce(
+        instance({ startsAt: future, endsAt: futureEnd }),
+      );
 
       const error = await ctx.service
         .markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-1', status: 'ATTENDED' }]))
@@ -376,7 +379,23 @@ describe('AttendanceService', () => {
 
       expect(error).toBeInstanceOf(ConflictException);
       expect((error as ConflictException).getResponse()).toMatchObject({
-        code: 'CLASS_NOT_STARTED',
+        code: 'CLASS_NOT_ENDED',
+      });
+      expect(ctx.booking.update).not.toHaveBeenCalled();
+    });
+
+    it('409s an occurrence that is still running (CLASS_NOT_ENDED)', async () => {
+      const ctx = setup();
+      const laterToday = new Date(Date.now() + 30 * 60 * 1000);
+      ctx.classInstance.findFirst.mockResolvedValueOnce(instance({ endsAt: laterToday }));
+
+      const error = await ctx.service
+        .markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-1', status: 'ATTENDED' }]))
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'CLASS_NOT_ENDED',
       });
       expect(ctx.booking.update).not.toHaveBeenCalled();
     });

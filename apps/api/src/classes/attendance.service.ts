@@ -58,8 +58,8 @@ type RosterBookingRecord = Prisma.BookingGetPayload<{ select: typeof ROSTER_BOOK
  *   `ATTENDED` / `NO_SHOW` rows *can* be re-marked, so a mistyped roster is
  *   correctable.
  * - **Attendance is recorded once the class has run.** Marking before the
- *   occurrence has started is meaningless, so it is gated on `startsAt <= now`
- *   (`409 CLASS_NOT_STARTED`); a `CANCELED` occurrence can never be attended
+ *   occurrence has ended is premature, so it is gated on `endsAt <= now`
+ *   (`409 CLASS_NOT_ENDED`); a `CANCELED` occurrence can never be attended
  *   (`409 ATTENDANCE_NOT_AVAILABLE`). Recording attendance transitions the
  *   occurrence to `COMPLETED`.
  */
@@ -108,7 +108,7 @@ export class AttendanceService {
    *
    * Failure modes: `404 CLASS_INSTANCE_NOT_FOUND` (unknown / cross-tenant
    * occurrence), `409 ATTENDANCE_NOT_AVAILABLE` (canceled occurrence), `409
-   * CLASS_NOT_STARTED` (occurrence is still in the future), `404 BOOKING_NOT_FOUND`
+   * CLASS_NOT_ENDED` (occurrence has not ended yet), `404 BOOKING_NOT_FOUND`
    * (a referenced booking is unknown / not on this occurrence), and `409
    * BOOKING_NOT_ATTENDABLE` (the booking holds no seat — waitlisted or canceled).
    */
@@ -139,10 +139,10 @@ export class AttendanceService {
           code: 'ATTENDANCE_NOT_AVAILABLE',
         });
       }
-      if (instance.startsAt.getTime() > Date.now()) {
+      if (instance.endsAt.getTime() > Date.now()) {
         throw new ConflictException({
-          message: 'Attendance can only be recorded once the class has started',
-          code: 'CLASS_NOT_STARTED',
+          message: 'Attendance can only be recorded once the class has ended',
+          code: 'CLASS_NOT_ENDED',
         });
       }
 
