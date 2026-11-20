@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type {
   AdminClassInstanceDetail,
@@ -23,6 +23,7 @@ import {
   type MemberSearchResult,
 } from './actions';
 import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
+import { formatBookingBlockDate } from '@/lib/booking-block-format';
 import { zonedClock, zonedIsoDate } from './week';
 
 type T = ReturnType<typeof useTranslations>;
@@ -36,6 +37,9 @@ const pulse = stylex.keyframes({
   '50%': { opacity: 0.5 },
   '100%': { opacity: 1 },
 });
+
+/** Attendance "attended" green, light/dark: see `markSuccessIdle`. */
+const ATTENDED_GREEN = 'light-dark(#079455, #17B26A)';
 
 const styles = stylex.create({
   /** Icon size inside a kit `Button`. */
@@ -278,23 +282,34 @@ const styles = stylex.create({
       ':disabled': 'none',
     },
   },
-  markInactive: {
-    borderColor: 'var(--color-border)',
-    color: 'var(--color-text-secondary)',
+  // Attendance is the one place the console asks for a literal green: the
+  // FormaCore theme maps `success` onto the brand colour, which read as just
+  // another blue here. Green/red lets staff scan a roster at a glance.
+  markSuccessIdle: {
+    borderColor: ATTENDED_GREEN,
+    color: ATTENDED_GREEN,
     backgroundColor: {
       default: 'transparent',
-      ':hover': 'var(--color-background-muted)',
+      ':hover': `color-mix(in srgb, ${ATTENDED_GREEN} 14%, transparent)`,
     },
   },
   markSuccess: {
-    borderColor: 'var(--color-success)',
-    backgroundColor: 'var(--color-success)',
-    color: 'var(--color-on-success)',
+    borderColor: ATTENDED_GREEN,
+    backgroundColor: ATTENDED_GREEN,
+    color: '#FFFFFF',
   },
-  markWarning: {
-    borderColor: 'var(--color-warning)',
-    backgroundColor: 'var(--color-warning)',
-    color: 'var(--color-on-warning)',
+  markDangerIdle: {
+    borderColor: 'var(--color-error)',
+    color: 'var(--color-error)',
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-error-muted)',
+    },
+  },
+  markDanger: {
+    borderColor: 'var(--color-error)',
+    backgroundColor: 'var(--color-error)',
+    color: 'var(--color-on-error)',
   },
   accentBtn: {
     display: 'inline-flex',
@@ -593,23 +608,26 @@ export function ClassDrawer({
   // The header reads from the loaded detail once present, else the clicked
   // summary; the two agree on every shared field.
   const head = detail ?? instance;
-  const status = head?.status ?? 'SCHEDULED';
-  const canCancel = canWrite && status === 'SCHEDULED';
-  // Attendance can be marked once the class has started and while it isn't
-  // canceled; the API re-checks and a mark flips the occurrence to COMPLETED.
-  const canMark =
-    canMarkAttendance &&
-    status !== 'CANCELED' &&
-    head !== null &&
-    Date.parse(head.startsAt) <= Date.now();
+  // A class whose end time has passed is over, even before anyone marks it (the
+  // stored status only flips to COMPLETED once attendance is recorded).
+  const ended = head !== null && Date.parse(head.endsAt) <= Date.now();
+  const storedStatus = head?.status ?? 'SCHEDULED';
+  const status = storedStatus === 'SCHEDULED' && ended ? 'COMPLETED' : storedStatus;
+  const isOpen = status === 'SCHEDULED';
+  const canCancel = canWrite && isOpen;
+  // Attendance is marked once the class has ended (not before) and while it
+  // isn't canceled; the API re-checks and a mark flips the occurrence to COMPLETED.
+  const canMark = canMarkAttendance && storedStatus !== 'CANCELED' && ended;
+  // Shown instead of the toggles while the class is still ahead or running.
+  const markLater = canMarkAttendance && isOpen;
   // A waitlisted member can be promoted into a seat only while the occurrence is
-  // still SCHEDULED (a canceled / completed class is settled) and the staff holds
+  // still open (a canceled / ended class is settled) and the staff holds
   // ClassWaitlist — the API re-checks both.
-  const canPromote = canManageWaitlist && status === 'SCHEDULED';
+  const canPromote = canManageWaitlist && isOpen;
   // The desk can book a member onto the class on their behalf while it is still
-  // SCHEDULED and the staff holds BookingManage; the API re-checks and honours
-  // the capacity/credit rules.
-  const canBook = canBookMembers && status === 'SCHEDULED';
+  // open and the staff holds BookingManage; the API re-checks and honours the
+  // capacity/credit rules.
+  const canBook = canBookMembers && isOpen;
   // While any roster write (a mark, a promote, or a desk booking) is recording,
   // every row's controls freeze so the desk only ever has one change in flight.
   const rosterBusy = markingId !== null || promotingId !== null || bookingMemberId !== null;
@@ -686,11 +704,13 @@ export function ClassDrawer({
 
             {/* Roster. */}
             <Roster
+              timeZone={timeZone}
               t={t}
               loading={loading}
               error={error}
               detail={detail}
               canMark={canMark}
+              markLater={markLater}
               canPromote={canPromote}
               markingId={markingId}
               promotingId={promotingId}
@@ -811,11 +831,13 @@ function Occupancy({
 
 /** The booking roster: held seats, then the waitlist. */
 function Roster({
+  timeZone,
   t,
   loading,
   error,
   detail,
   canMark,
+  markLater,
   canPromote,
   markingId,
   promotingId,
@@ -823,12 +845,15 @@ function Roster({
   onMark,
   onPromote,
 }: {
+  timeZone: string;
   t: T;
   loading: boolean;
   error: string | null;
   detail: AdminClassInstanceDetail | null;
-  /** Whether attendance can be marked (occurrence started, not canceled, ClassWrite). */
+  /** Whether attendance can be marked (occurrence ended, not canceled, ClassAttendance). */
   canMark: boolean;
+  /** The staffer will be able to mark once the class ends: say so above the list. */
+  markLater: boolean;
   /** Whether a waitlist entry can be promoted (occurrence scheduled, ClassWrite). */
   canPromote: boolean;
   /** The booking whose attendance is recording, if any — its controls show busy. */
@@ -852,25 +877,31 @@ function Roster({
       ) : !detail || detail.roster.length === 0 ? (
         <p {...stylex.props(styles.rosterEmpty)}>{t('roster.empty')}</p>
       ) : (
-        <ul {...stylex.props(styles.rosterList)}>
-          {detail.roster.map((entry) => (
-            <RosterRow
-              key={entry.bookingId}
-              entry={entry}
-              t={t}
-              // Only held seats are markable; a waitlisted entry never got one.
-              canMark={canMark && entry.status !== 'WAITLIST'}
-              // Only a queued entry is promotable into a seat.
-              canPromote={canPromote && entry.status === 'WAITLIST'}
-              // While any roster write is in flight, freeze every row's controls.
-              busy={rosterBusy}
-              marking={markingId === entry.bookingId}
-              promoting={promotingId === entry.bookingId}
-              onMark={onMark}
-              onPromote={onPromote}
-            />
-          ))}
-        </ul>
+        <>
+          {markLater ? (
+            <p {...stylex.props(styles.rosterEmpty)}>{t('roster.markAfterEnd')}</p>
+          ) : null}
+          <ul {...stylex.props(styles.rosterList)}>
+            {detail.roster.map((entry) => (
+              <RosterRow
+                key={entry.bookingId}
+                entry={entry}
+                timeZone={timeZone}
+                t={t}
+                // Only held seats are markable; a waitlisted entry never got one.
+                canMark={canMark && entry.status !== 'WAITLIST'}
+                // Only a queued entry is promotable into a seat.
+                canPromote={canPromote && entry.status === 'WAITLIST'}
+                // While any roster write is in flight, freeze every row's controls.
+                busy={rosterBusy}
+                marking={markingId === entry.bookingId}
+                promoting={promotingId === entry.bookingId}
+                onMark={onMark}
+                onPromote={onPromote}
+              />
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
@@ -886,6 +917,7 @@ function Roster({
  */
 function RosterRow({
   entry,
+  timeZone,
   t,
   canMark,
   canPromote,
@@ -896,6 +928,7 @@ function RosterRow({
   onPromote,
 }: {
   entry: AdminClassInstanceRosterEntry;
+  timeZone: string;
   t: T;
   canMark: boolean;
   canPromote: boolean;
@@ -905,12 +938,22 @@ function RosterRow({
   onMark: (bookingId: string, status: AttendanceStatus) => void;
   onPromote: (bookingId: string) => void;
 }) {
+  const locale = useLocale();
+  const blocksT = useTranslations('admin.bookingBlocks');
   const label = entry.memberName?.trim() || entry.memberEmail;
   return (
     <li {...stylex.props(styles.row)}>
       <span {...stylex.props(styles.avatar)}>{initials(label)}</span>
       <div {...stylex.props(styles.rowText)}>
         <span {...stylex.props(styles.rowName)}>{label}</span>
+        {entry.bookingBlockedUntil ? (
+          <Badge
+            tone="pending"
+            label={blocksT('until', {
+              date: formatBookingBlockDate(entry.bookingBlockedUntil, locale, timeZone),
+            })}
+          />
+        ) : null}
         {entry.memberName ? (
           <span {...stylex.props(styles.rowEmail)}>{entry.memberEmail}</span>
         ) : null}
@@ -934,7 +977,7 @@ function RosterRow({
             icon="x"
             label={t('roster.status.NO_SHOW')}
             active={entry.status === 'NO_SHOW'}
-            activeTone="warning"
+            activeTone="danger"
             busy={marking}
             disabled={busy}
             onClick={() => onMark(entry.bookingId, 'NO_SHOW')}
@@ -996,7 +1039,7 @@ function MarkButton({
   label: string;
   active: boolean;
   /** The tone the button carries once it's the set outcome. */
-  activeTone: 'success' | 'warning';
+  activeTone: 'success' | 'danger';
   busy: boolean;
   disabled: boolean;
   onClick: () => void;
@@ -1011,11 +1054,13 @@ function MarkButton({
       disabled={disabled}
       {...stylex.props(
         styles.markBtn,
-        active
-          ? activeTone === 'success'
+        activeTone === 'success'
+          ? active
             ? styles.markSuccess
-            : styles.markWarning
-          : styles.markInactive,
+            : styles.markSuccessIdle
+          : active
+            ? styles.markDanger
+            : styles.markDangerIdle,
       )}
     >
       {busy ? (

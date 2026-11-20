@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { GymMemberStatus, OrderStatus, PackagePlanStatus, PaymentStatus } from '@fit/db';
@@ -11,6 +12,8 @@ import {
   type CreateCheckoutResponse,
   type GetOrderResponse,
   type OrderSummary,
+  type PaymentAction,
+  type PaymentReturnTarget,
 } from '@fit/types';
 import { CreditPacksService } from '../billing/credit-packs.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
@@ -19,6 +22,8 @@ import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enrollment.service';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { dispatchSaleAutomation } from '../orders/order-automation';
+import { OnlinePaymentsService, resolvePurchaseMode } from '../payments/online-payments.service';
+import { toOrderPaymentState } from '../payments/order-payment-state';
 
 /**
  * The join wizard's final step: the authenticated purchase that closes signup
@@ -38,9 +43,12 @@ import { dispatchSaleAutomation } from '../orders/order-automation';
  *   {@link CreditPacksService.purchasePack}, which raises a `PAID` order + a
  *   `CAPTURED` stub payment and mints the pack in one transaction.
  * - `subscription` — delegated to
- *   {@link SubscriptionEnrollmentService.enrollSelf}, which snapshots the plan's
- *   terms onto the subscription and mints the first period's `Invoice`. No order
- *   is raised: doing so would record the same revenue twice.
+ *   {@link SubscriptionEnrollmentService.purchaseSelf}. On the stub path it
+ *   snapshots the plan's terms onto the subscription and mints the first period's
+ *   `Invoice`; no order is raised (it would record the same revenue twice). At a
+ *   Flitt gym a paid plan instead raises a PENDING order the member pays on
+ *   Flitt's page; the subscription and its invoice (tied to that order, so the
+ *   revenue is still counted once) are created when the payment is captured.
  * - `package` — a plain plan with no finite session count has no existing
  *   purchase path, so the order + stub payment are written here, mirroring the
  *   credit-pack transaction exactly.
@@ -59,28 +67,98 @@ export class CheckoutService {
     private readonly subscriptions: SubscriptionEnrollmentService,
     private readonly promos: PromoRedemptionService,
     private readonly automation: AutomationExecutorService,
+    // Optional so the unit specs that construct this by hand keep the stub path;
+    // always provided by `PaymentsModule` in the running app.
+    @Optional() private readonly payments?: OnlinePaymentsService,
   ) {}
 
   /** Buy the named catalogue product for the calling member. */
   async checkout(input: CreateCheckoutInput): Promise<CreateCheckoutResponse> {
     switch (input.productType) {
       case 'credit_pack': {
-        const { orderId } = await this.creditPacks.purchasePack({
+        const { orderId, payment } = await this.creditPacks.purchasePack({
           packId: input.productId,
           ...(input.promoCode ? { promoCode: input.promoCode } : {}),
+          ...(input.returnTo ? { returnTo: input.returnTo } : {}),
         });
-        return { productType: input.productType, orderId, subscriptionId: null };
-      }
-      case 'subscription': {
-        const { subscription } = await this.subscriptions.enrollSelf(input.productId);
-        return { productType: input.productType, orderId: null, subscriptionId: subscription.id };
-      }
-      case 'package':
         return {
           productType: input.productType,
-          orderId: await this.buyPackage(input.productId, input.locationId, input.promoCode),
+          orderId,
           subscriptionId: null,
+          ...(payment ? { payment } : {}),
         };
+      }
+      case 'subscription': {
+        // Stub mode: the instant enrolment, exactly as before (no `payment` key).
+        // Flitt mode, paid plan: a pending first-period order + checkout, and no
+        // subscription until Flitt approves the payment.
+        const result = await this.subscriptions.purchaseSelf(
+          input.productId,
+          input.returnTo ?? 'web',
+        );
+        return {
+          productType: input.productType,
+          orderId: result.orderId,
+          subscriptionId: result.subscriptionId,
+          ...(result.payment ? { payment: result.payment } : {}),
+        };
+      }
+      case 'package': {
+        const { orderId, payment } = await this.buyPackage(
+          input.productId,
+          input.locationId,
+          input.promoCode,
+          input.returnTo ?? 'web',
+        );
+        return {
+          productType: input.productType,
+          orderId,
+          subscriptionId: null,
+          ...(payment ? { payment } : {}),
+        };
+      }
+    }
+  }
+
+  /**
+   * `POST /checkout/:orderId/payment/sync` — ask the provider about the caller's
+   * own order right now (settling any open attempt), then return the same read as
+   * {@link readOrder}. What makes the flow work when Flitt's callback cannot
+   * reach the API, and when the buyer is back before the callback is.
+   */
+  async syncPayment(orderId: string): Promise<GetOrderResponse> {
+    const memberId = await this.requireCallerMembership();
+    await this.requireOwnOrder(orderId, memberId);
+    await this.payments?.syncOrder(this.tenant.gymId, orderId);
+    return this.readOrder(orderId);
+  }
+
+  /** `POST /checkout/:orderId/payment/retry` — a (new) checkout for an unpaid order. */
+  async retryPayment(orderId: string, returnTo: PaymentReturnTarget): Promise<PaymentAction> {
+    const memberId = await this.requireCallerMembership();
+    if (!this.payments) {
+      throw new NotFoundException({ message: 'Order not found', code: 'ORDER_NOT_FOUND' });
+    }
+    return this.payments.retry({ gymId: this.tenant.gymId, orderId, memberId, returnTo });
+  }
+
+  /** `POST /checkout/:orderId/payment/cancel` — give up an unpaid online order. */
+  async cancelPayment(orderId: string): Promise<GetOrderResponse> {
+    const memberId = await this.requireCallerMembership();
+    if (!this.payments) {
+      throw new NotFoundException({ message: 'Order not found', code: 'ORDER_NOT_FOUND' });
+    }
+    await this.payments.cancelOwnOrder(this.tenant.gymId, orderId, memberId);
+    return this.readOrder(orderId);
+  }
+
+  private async requireOwnOrder(orderId: string, memberId: string): Promise<void> {
+    const order = await this.prisma.client.order.findFirst({
+      where: { id: orderId, memberId },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException({ message: 'Order not found', code: 'ORDER_NOT_FOUND' });
     }
   }
 
@@ -100,6 +178,12 @@ export class CheckoutService {
         total: true,
         currency: true,
         items: { select: { label: true, amount: true }, orderBy: { createdAt: 'asc' } },
+        payment: { select: { provider: true, status: true } },
+        paymentAttempts: {
+          select: { status: true, checkoutUrl: true, expiresAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
     });
     if (!order) {
@@ -112,6 +196,11 @@ export class CheckoutService {
       total: order.total,
       currency: order.currency,
       items: order.items.map((item) => ({ label: item.label, amount: item.amount })),
+      payment: toOrderPaymentState({
+        orderStatus: order.status,
+        payment: order.payment ?? null,
+        latestAttempt: order.paymentAttempts?.[0] ?? null,
+      }),
     };
     return { order: summary };
   }
@@ -127,9 +216,10 @@ export class CheckoutService {
    */
   private async buyPackage(
     packageId: string,
-    locationId?: string,
-    promoCode?: string,
-  ): Promise<string> {
+    locationId: string | undefined,
+    promoCode: string | undefined,
+    returnTo: PaymentReturnTarget,
+  ): Promise<{ orderId: string; payment?: PaymentAction }> {
     const memberId = await this.requireCallerMembership();
     const gymId = this.tenant.gymId;
 
@@ -179,6 +269,34 @@ export class CheckoutService {
     });
     const discount = promo?.discount ?? 0;
     const total = plan.priceAmount - discount;
+
+    // No active provider and no stub → `409 ONLINE_PAYMENTS_UNAVAILABLE`.
+    const mode = await resolvePurchaseMode(this.payments, gymId);
+    if (mode.mode === 'flitt') {
+      return this.payments!.begin(
+        {
+          gymId,
+          memberId,
+          purpose: 'package',
+          fulfilment: { kind: 'package', planId: plan.id },
+          description: plan.name,
+          returnTo,
+          order: {
+            packageId: plan.id,
+            locationId: branchId,
+            total,
+            currency: plan.currency,
+            items: [
+              { label: plan.name, amount: plan.priceAmount },
+              ...(discount > 0 ? [{ label: `Promo ${promoCode}`, amount: -discount }] : []),
+            ],
+          },
+          paymentLocationId: branchId,
+          promo,
+        },
+        mode.credentials,
+      );
+    }
 
     const orderId = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.create({
@@ -232,7 +350,7 @@ export class CheckoutService {
 
     // After commit, never awaited. A package holds no stock, so no low-stock read.
     dispatchSaleAutomation(this.automation, null, { gymId, orderId, memberId, paid: true });
-    return orderId;
+    return { orderId };
   }
 
   /**

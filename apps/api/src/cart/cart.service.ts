@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { OrderStatus, ProductStatus, StockMovementReason, type Prisma } from '@fit/db';
@@ -17,6 +18,7 @@ import {
   type CartItemDetail,
   type CartPriceChange,
   type CartView,
+  type PaymentAction,
 } from '@fit/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { applyOrderStockMovements } from '../products/order-stock';
@@ -25,6 +27,7 @@ import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { dispatchSaleAutomation } from '../orders/order-automation';
+import { OnlinePaymentsService } from '../payments/online-payments.service';
 
 /**
  * Sentinel stock for a position whose product does not count stock. Untracked is
@@ -84,7 +87,7 @@ export interface CartResult {
 
 /** The outcome of a checkout attempt — created, or a re-confirmation needed. */
 export type CheckoutOutcome =
-  | { kind: 'created'; orderId: string }
+  | { kind: 'created'; orderId: string; payment?: PaymentAction }
   | { kind: 'price_changed'; newPrices: CartPriceChange[] }
   | { kind: 'out_of_stock'; removedItems: string[] };
 
@@ -115,6 +118,9 @@ export class CartService {
     private readonly promos: PromoRedemptionService,
     private readonly locale: GymLocaleService,
     private readonly automation: AutomationExecutorService,
+    // Optional so hand-built specs keep the pay-at-pickup path; provided by
+    // `PaymentsModule` in the running app.
+    @Optional() private readonly payments?: OnlinePaymentsService,
   ) {}
 
   /**
@@ -371,6 +377,53 @@ export class CartService {
     }
     if (discount > 0) {
       lines.push({ label: `Promo ${input.promoCode}`, amount: -discount });
+    }
+
+    // A gym taking payment online: the same PENDING order with the same stock
+    // reservation and promo, plus a payment attempt; it turns PAID when Flitt
+    // confirms, and is cancelled + restocked if it is never paid. Without an active
+    // provider the shop keeps the pay-at-pickup path below, untouched.
+    const credentials = this.payments ? await this.payments.shopCredentials(gymId) : null;
+    if (credentials) {
+      const pickupLocationId = input.fulfillment === 'PICKUP' ? (input.locationId ?? null) : null;
+      const { orderId, payment } = await this.payments!.begin(
+        {
+          gymId,
+          memberId: member?.id ?? null,
+          purpose: 'shop',
+          fulfilment: { kind: 'shop' },
+          description:
+            cart.items.length > 1
+              ? `${lines[0]!.label} +${cart.items.length - 1}`
+              : (lines[0]?.label ?? 'Shop order'),
+          returnTo: input.returnTo ?? 'web',
+          order: {
+            total,
+            currency,
+            memberDiscountPercent,
+            memberDiscountAmount,
+            fulfillment: input.fulfillment,
+            locationId: pickupLocationId,
+            deliveryAddress:
+              input.fulfillment === 'DELIVERY' ? (input.deliveryAddress ?? null) : null,
+            items: lines,
+          },
+          paymentLocationId: pickupLocationId,
+          promo: promo ? { ...promo, discount } : null,
+          stockItems: cart.items,
+          cartId: cart.id,
+        },
+        credentials,
+      );
+      dispatchSaleAutomation(this.automation, this.prisma.client, {
+        gymId,
+        orderId,
+        memberId: member?.id ?? null,
+        // Only the stock trigger here; `purchase_completed` fires from the
+        // payment's settlement (or from `begin` for a fully discounted basket).
+        paid: false,
+      });
+      return { kind: 'created', orderId, payment };
     }
 
     const orderId = await this.prisma.client.$transaction(async (tx) => {

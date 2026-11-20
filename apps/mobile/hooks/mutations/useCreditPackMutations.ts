@@ -5,7 +5,7 @@
 // as well. One resource, three writers, one row each in the matrix.
 
 import { useMutation, type UseMutationOptions } from '@tanstack/react-query';
-import type { PurchaseCreditPackInput, PurchaseCreditPackResponse } from '@fit/types';
+import type { PurchaseCreditPackInput, MemberPurchaseCreditPackResponse } from '@fit/types';
 import { purchaseCreditPack } from '../../lib/api/credit-packs';
 import { invalidateFor } from './invalidation';
 import { requireGymId, useMutationDeps, type MutationDeps } from './deps';
@@ -13,7 +13,7 @@ import { requireGymId, useMutationDeps, type MutationDeps } from './deps';
 /** `POST /credit-packs/purchase`. */
 export function purchaseCreditPackMutationOptions(
   deps: MutationDeps,
-): UseMutationOptions<PurchaseCreditPackResponse, Error, PurchaseCreditPackInput> {
+): UseMutationOptions<MemberPurchaseCreditPackResponse, Error, PurchaseCreditPackInput> {
   return {
     mutationKey: ['purchaseCreditPack'],
     // A purchase. See `useCheckoutMutations.ts` — retrying creates a second order.

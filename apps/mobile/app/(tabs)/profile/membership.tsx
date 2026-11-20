@@ -74,6 +74,7 @@ import {
   hasLivePlan,
   isFrozen,
 } from '../../../components/membership/derive';
+import { RenewalPayment } from '../../../components/membership/renewal-payment';
 import { CreditsSheet } from '../../../components/membership/credits-sheet';
 import { FreezeSheet } from '../../../components/membership/freeze-sheet';
 import { ProfileMembershipCard } from '../../../components/membership/membership-card';
@@ -201,6 +202,12 @@ export default function MembershipScreen() {
           )}
         </HomeSection>
 
+        <RenewalPayment
+          payment={subscription?.payment}
+          overdue={subscription?.status === 'PAST_DUE'}
+          online={online}
+        />
+
         {/* ── Payment trouble ────────────────────────────────────────────── */}
         {subscription?.status === 'PAST_DUE' ? (
           <Alert
@@ -235,11 +242,12 @@ export default function MembershipScreen() {
                 testID="membership-fact-member-since"
               />
               <ListRow
-                // Not a stored payment method — there is no card on file
-                // anywhere in this API, and `member.membership.payAtDesk` is
-                // the model the whole product runs on.
                 title={t('member.membership.paymentMethod')}
-                value={t('member.membership.payAtDesk')}
+                value={t(
+                  subscription?.payment?.mode === 'manual'
+                    ? 'member.payment.manualMethod'
+                    : 'member.membership.payAtDesk',
+                )}
                 testID="membership-fact-payment"
               />
             </Surface>

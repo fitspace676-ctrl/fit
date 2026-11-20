@@ -87,12 +87,12 @@ describe('SubscriptionEnrollmentService (integration)', () => {
     });
 
     // The period is one month long and the terms are snapshotted onto the row.
-    const start = new Date(result.subscription.currentPeriodStart);
-    const end = new Date(result.subscription.currentPeriodEnd);
+    const start = new Date(result.subscription!.currentPeriodStart);
+    const end = new Date(result.subscription!.currentPeriodEnd);
     expect(end.getTime()).toBeGreaterThan(start.getTime());
 
     const stored = await prisma.subscription.findUniqueOrThrow({
-      where: { id: result.subscription.id },
+      where: { id: result.subscription!.id },
     });
     expect(stored).toMatchObject({
       gymId: gymAId,
@@ -106,7 +106,7 @@ describe('SubscriptionEnrollmentService (integration)', () => {
     // the member's gym and linked to the new subscription, so the billing history is
     // populated from day one.
     const invoice = await prisma.invoice.findFirstOrThrow({
-      where: { subscriptionId: result.subscription.id },
+      where: { subscriptionId: result.subscription!.id },
     });
     expect(invoice).toMatchObject({
       gymId: gymAId,
@@ -138,13 +138,13 @@ describe('SubscriptionEnrollmentService (integration)', () => {
   it('allows a fresh enrolment after the prior subscription is canceled (terminal frees the slot)', async () => {
     const first = await asTenant(member(gymAId, userId), () => service.enrollSelf(planAId));
     await prisma.subscription.update({
-      where: { id: first.subscription.id },
+      where: { id: first.subscription!.id },
       data: { status: SubscriptionStatus.CANCELED, canceledAt: new Date() },
     });
 
     const second = await asTenant(member(gymAId, userId), () => service.enrollSelf(planAId));
-    expect(second.subscription.id).not.toBe(first.subscription.id);
-    expect(second.subscription.status).toBe(SubscriptionStatus.ACTIVE);
+    expect(second.subscription!.id).not.toBe(first.subscription!.id);
+    expect(second.subscription!.status).toBe(SubscriptionStatus.ACTIVE);
   });
 
   it('cannot enrol on another gym’s plan — it is invisible under tenant scoping (404)', async () => {

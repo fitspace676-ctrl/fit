@@ -151,3 +151,18 @@ describe('web session isolation', () => {
     expect(res.headers.get('location')).toBeNull();
   });
 });
+
+describe('Flitt return routing', () => {
+  it('preserves the order id on the exact provider return URL', async () => {
+    const res = await middleware(request('/checkout/result?orderId=o1', ''));
+    const location = new URL(res.headers.get('location')!);
+    expect(location.pathname).toBe('/ka/member/checkout/result');
+    expect(location.searchParams.get('orderId')).toBe('o1');
+  });
+  it('requires login on the result route and preserves the return destination', async () => {
+    const res = await middleware(request('/en/member/checkout/result?orderId=o1', ''));
+    const location = new URL(res.headers.get('location')!);
+    expect(location.pathname).toBe('/en/member/login');
+    expect(location.searchParams.get('from')).toBe('/en/member/checkout/result?orderId=o1');
+  });
+});

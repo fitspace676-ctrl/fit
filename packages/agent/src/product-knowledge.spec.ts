@@ -25,10 +25,10 @@ function pageFiles(dir: string, prefix = ''): string[] {
 }
 
 describe('product knowledge', () => {
-  it('covers all 48 physical dashboard pages plus the audience tab, without invented routes', () => {
+  it('covers all 51 physical dashboard pages plus the audience tab, without invented routes', () => {
     const physical = pageFiles(dashboard).sort();
-    expect(physical).toHaveLength(48);
-    expect(CONSOLE_PAGES).toHaveLength(49);
+    expect(physical).toHaveLength(51);
+    expect(CONSOLE_PAGES).toHaveLength(52);
     expect(new Set(CONSOLE_PAGES.map((p) => p.path)).size).toBe(CONSOLE_PAGES.length);
     for (const page of CONSOLE_PAGES) {
       expect(existsSync(resolve(dashboard, routeFile(page.path))), page.path).toBe(true);

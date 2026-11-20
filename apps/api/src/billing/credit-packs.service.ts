@@ -2,12 +2,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   CreditPackStatus,
   ENTITLED_SUBSCRIPTION_STATUSES,
-  MS_PER_DAY,
   OrderStatus,
   PackagePlanStatus,
   PaymentStatus,
@@ -18,12 +18,15 @@ import {
   type CreditPackSummary,
   type ListCreditPackCatalogueResponse,
   type ListCreditPacksResponse,
+  type MemberPurchaseCreditPackResponse,
   type PurchaseCreditPackData,
   type PurchaseCreditPackResponse,
 } from '@fit/types';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
+import { OnlinePaymentsService, resolvePurchaseMode } from '../payments/online-payments.service';
+import { mintCreditPack } from '../payments/order-fulfilment';
 
 /**
  * Credit packs / class passes (T8.5).
@@ -55,6 +58,9 @@ export class CreditPacksService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly promos: PromoRedemptionService,
+    // Optional so hand-built unit specs keep the stub path; provided by
+    // `PaymentsModule` in the running app.
+    @Optional() private readonly payments?: OnlinePaymentsService,
   ) {}
 
   /**
@@ -67,9 +73,47 @@ export class CreditPacksService {
    * an `expiresAt` of `now + creditValidityDays` (or null when the plan never
    * expires). Returns the new pack's id.
    */
-  async purchasePack(data: PurchaseCreditPackData): Promise<PurchaseCreditPackResponse> {
+  async purchasePack(data: PurchaseCreditPackData): Promise<MemberPurchaseCreditPackResponse> {
     const memberId = await this.requireCallerMembership();
-    return this.mintPackForMember(memberId, data);
+    const purchase = await this.preparePurchase(memberId, data);
+    const gymId = this.tenant.gymId;
+
+    // A member buying online pays through the gym's provider; with none active the
+    // stub stands in only where `ONLINE_PAYMENTS_STUB` allows it, else `409`.
+    const mode = await resolvePurchaseMode(this.payments, gymId);
+    if (mode.mode === 'stub') return this.writeStubPurchase(memberId, data, purchase);
+
+    const { plan, promo, discount, total } = purchase;
+    const { orderId, payment } = await this.payments!.begin(
+      {
+        gymId,
+        memberId,
+        purpose: 'credit_pack',
+        fulfilment: {
+          kind: 'credit_pack',
+          planId: plan.id,
+          name: plan.name,
+          credits: plan.sessionCount,
+          validityDays: plan.creditValidityDays,
+        },
+        description: plan.name,
+        returnTo: data.returnTo ?? 'web',
+        order: {
+          packageId: plan.id,
+          total,
+          currency: plan.currency,
+          items: [
+            { label: plan.name, amount: plan.priceAmount },
+            ...(discount > 0 ? [{ label: `Promo ${data.promoCode}`, amount: -discount }] : []),
+          ],
+        },
+        // Unattributed, like the stub purchase below: a pack is bought at no branch.
+        paymentLocationId: null,
+        promo,
+      },
+      mode.credentials,
+    );
+    return { creditPackId: null, orderId, payment };
   }
 
   /**
@@ -85,7 +129,8 @@ export class CreditPacksService {
     data: PurchaseCreditPackData,
   ): Promise<PurchaseCreditPackResponse> {
     await this.requireMemberInGym(memberId);
-    return this.mintPackForMember(memberId, data);
+    // Staff record a sale paid at the desk: always written at once, never online.
+    return this.writeStubPurchase(memberId, data, await this.preparePurchase(memberId, data));
   }
 
   /**
@@ -135,15 +180,14 @@ export class CreditPacksService {
   }
 
   /**
-   * Validate the catalogue plan then mint the pack for `memberId` in one
-   * transaction — the shared core of {@link purchasePack} (the member buying for
-   * themselves) and {@link grantPackForMember} (staff selling to a member). See the
-   * class docstring for the purchase lifecycle.
+   * Validate the catalogue plan and resolve the promo for `memberId` — the shared
+   * front half of {@link purchasePack} (the member buying for themselves) and
+   * {@link grantPackForMember} (staff selling to a member). Writes nothing.
    */
-  private async mintPackForMember(
+  private async preparePurchase(
     memberId: string,
     data: PurchaseCreditPackData,
-  ): Promise<PurchaseCreditPackResponse> {
+  ): Promise<PreparedPackPurchase> {
     const gymId = this.tenant.gymId;
 
     const plan = await this.prisma.client.packagePlan.findFirst({
@@ -188,12 +232,21 @@ export class CreditPacksService {
     });
     const discount = promo?.discount ?? 0;
     const total = plan.priceAmount - discount;
+    return { plan: { ...plan, sessionCount: plan.sessionCount }, promo, discount, total };
+  }
 
+  /**
+   * The instant purchase: a `PAID` order + a `CAPTURED` stub payment + the minted
+   * pack in one transaction. See the class docstring for the purchase lifecycle.
+   */
+  private async writeStubPurchase(
+    memberId: string,
+    data: PurchaseCreditPackData,
+    purchase: PreparedPackPurchase,
+  ): Promise<PurchaseCreditPackResponse> {
+    const gymId = this.tenant.gymId;
+    const { plan, promo, discount, total } = purchase;
     const credits = plan.sessionCount;
-    const expiresAt =
-      plan.creditValidityDays !== null
-        ? new Date(Date.now() + plan.creditValidityDays * MS_PER_DAY)
-        : null;
 
     // The order, its opening status event, the stub payment, and the pack are
     // written in one transaction, so a half-finished purchase (a charged payment
@@ -255,19 +308,15 @@ export class CreditPacksService {
         select: { id: true },
       });
 
-      const pack = await tx.creditPack.create({
-        data: {
-          gymId,
-          memberId,
-          planId: plan.id,
-          orderId: order.id,
-          name: plan.name,
-          totalCredits: credits,
-          remainingCredits: credits,
-          expiresAt,
-          status: CreditPackStatus.ACTIVE,
-        },
-        select: { id: true },
+      // The same mint the provider-settled purchase runs on approval.
+      const creditPackId = await mintCreditPack(tx, {
+        gymId,
+        memberId,
+        orderId: order.id,
+        planId: plan.id,
+        name: plan.name,
+        credits,
+        validityDays: plan.creditValidityDays,
       });
 
       if (promo) {
@@ -276,7 +325,7 @@ export class CreditPacksService {
         await this.promos.consume(tx, { ...promo, gymId, memberId, orderId: order.id });
       }
 
-      return { creditPackId: pack.id, orderId: order.id };
+      return { creditPackId, orderId: order.id };
     });
   }
 
@@ -342,10 +391,14 @@ export class CreditPacksService {
   async chargeSeatCredit(
     tx: CreditPackTransactionClient,
     memberId: string,
-    options?: { required?: boolean },
+    options?: { required?: boolean; gymId?: string },
   ): Promise<string | null> {
     const entitled = await tx.subscription.findFirst({
-      where: { memberId, status: { in: [...ENTITLED_SUBSCRIPTION_STATUSES] } },
+      where: {
+        ...(options?.gymId ? { gymId: options.gymId } : {}),
+        memberId,
+        status: { in: [...ENTITLED_SUBSCRIPTION_STATUSES] },
+      },
       select: { id: true },
     });
     if (entitled) {
@@ -356,6 +409,7 @@ export class CreditPacksService {
     for (;;) {
       const pack = await tx.creditPack.findFirst({
         where: {
+          ...(options?.gymId ? { gymId: options.gymId } : {}),
           memberId,
           status: CreditPackStatus.ACTIVE,
           remainingCredits: { gt: 0 },
@@ -378,7 +432,12 @@ export class CreditPacksService {
       }
 
       const charged = await tx.creditPack.updateMany({
-        where: { id: pack.id, status: CreditPackStatus.ACTIVE, remainingCredits: { gt: 0 } },
+        where: {
+          ...(options?.gymId ? { gymId: options.gymId } : {}),
+          id: pack.id,
+          status: CreditPackStatus.ACTIVE,
+          remainingCredits: { gt: 0 },
+        },
         data: { remainingCredits: { decrement: 1 } },
       });
       if (charged.count === 1) {
@@ -398,12 +457,16 @@ export class CreditPacksService {
    * then (a no-op). Safe for a `null` id (a subscription-covered or uncharged
    * seat) — nothing to refund.
    */
-  async refundCredit(tx: CreditPackTransactionClient, creditPackId: string | null): Promise<void> {
+  async refundCredit(
+    tx: CreditPackTransactionClient,
+    creditPackId: string | null,
+    gymId?: string,
+  ): Promise<void> {
     if (!creditPackId) {
       return;
     }
     await tx.creditPack.updateMany({
-      where: { id: creditPackId, status: CreditPackStatus.ACTIVE },
+      where: { ...(gymId ? { gymId } : {}), id: creditPackId, status: CreditPackStatus.ACTIVE },
       data: { remainingCredits: { increment: 1 } },
     });
   }
@@ -451,6 +514,21 @@ export class CreditPacksService {
       throw new NotFoundException({ message: 'Member not found', code: 'MEMBER_NOT_FOUND' });
     }
   }
+}
+
+/** A validated pack purchase, priced and with its promo resolved — not yet written. */
+interface PreparedPackPurchase {
+  plan: {
+    id: string;
+    name: string;
+    priceAmount: number;
+    currency: string;
+    sessionCount: number;
+    creditValidityDays: number | null;
+  };
+  promo: Awaited<ReturnType<PromoRedemptionService['resolve']>>;
+  discount: number;
+  total: number;
 }
 
 /**

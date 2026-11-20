@@ -84,6 +84,7 @@ export async function updateGymSettingsAction(
   try {
     const settings = await updateGymSettings(parsed.data);
     revalidatePath('/settings');
+    revalidatePath('/classes/rules');
     return { ok: true, data: settings };
   } catch (error) {
     return { ok: false, error: await toMessage(error) };

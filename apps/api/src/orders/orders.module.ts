@@ -3,6 +3,7 @@ import { AutomationModule } from '../automation/automation.module';
 import { AuthModule } from '../auth/auth.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { MarketingModule } from '../marketing/marketing.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
@@ -21,7 +22,14 @@ import { OrdersService } from './orders.service';
  * created by hand afterwards.
  */
 @Module({
-  imports: [MarketingModule, AuthModule, LoyaltyModule, SubscriptionsModule, AutomationModule],
+  imports: [
+    MarketingModule,
+    AuthModule,
+    LoyaltyModule,
+    SubscriptionsModule,
+    AutomationModule,
+    PaymentsModule,
+  ],
   controllers: [OrdersController],
   providers: [OrdersService],
 })

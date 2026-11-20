@@ -3,21 +3,72 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   LIVE_SUBSCRIPTION_STATUSES,
-  InvoiceType,
   Prisma,
   SubscriptionPlanStatus,
-  SubscriptionStatus,
-  initialBillingPeriod,
-  subscriptionInvoiceDescription,
-  trialBillingPeriod,
+  type SubscriptionInterval,
 } from '@fit/db';
-import type { EnrolledSubscription, EnrollSubscriptionResponse } from '@fit/types';
+import {
+  type EnrolledSubscription,
+  type EnrollSubscriptionResponse,
+  type SelfEnrollSubscriptionResponse,
+  type PaymentAction,
+  type PaymentReturnTarget,
+} from '@fit/types';
 import { InvoiceService } from '../billing/invoice.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import {
+  FulfilmentConflictError,
+  OnlinePaymentsService,
+  resolvePurchaseMode,
+} from '../payments/online-payments.service';
+import {
+  AlreadySubscribedError,
+  MANUAL_PAY_PROVIDER,
+  startSubscription,
+} from './subscription-periods';
+
+/** The plan columns enrolment (and the paid-online start) reads. */
+const ENROLLABLE_PLAN_SELECT = {
+  id: true,
+  name: true,
+  status: true,
+  priceAmount: true,
+  currency: true,
+  interval: true,
+  trialDays: true,
+} satisfies Prisma.SubscriptionPlanSelect;
+
+interface EnrollablePlan {
+  id: string;
+  name: string;
+  priceAmount: number;
+  currency: string;
+  interval: SubscriptionInterval;
+  trialDays: number;
+}
+
+/** The plan read enrolment makes — structural so both the client and a transaction fit. */
+interface EnrollablePlanClient {
+  subscriptionPlan: {
+    findFirst(args: {
+      where: { id: string };
+      select: typeof ENROLLABLE_PLAN_SELECT;
+    }): Promise<(EnrollablePlan & { status: SubscriptionPlanStatus }) | null>;
+  };
+}
+
+/** Where the subscription provider key comes from for the instant (stub) path. */
+const STUB_PROVIDER = 'stub';
+
+/** What a member's self-purchase (`POST /checkout`, productType `subscription`) produced. */
+export type SelfPurchaseResult =
+  | { subscriptionId: string; orderId: null; payment?: undefined }
+  | { subscriptionId: null; orderId: string; payment: PaymentAction };
 
 /** The columns projected off a created {@link Subscription} for the enrolment response. */
 const ENROLLED_SUBSCRIPTION_SELECT = {
@@ -67,9 +118,18 @@ type EnrolledSubscriptionRecord = Prisma.SubscriptionGetPayload<{
  * auto-converts it to `ACTIVE` (and starts the first paid period there). A trial thus
  * occupies the same single live slot as any other live subscription.
  *
- * The charge itself is a **stub** at this stage: the subscription is stamped
- * `provider = "stub"` (the model default) rather than settling a real payment through a
- * gateway (T5.11 / T8.8). A paid (non-trial) enrolment does, however, mint a numbered
+ * Payment depends on the gym's purchase mode ({@link resolvePurchaseMode}):
+ * - `stub` — the instant path: the subscription is stamped `provider = "stub"`
+ *   without settling a real payment (T5.11 / T8.8).
+ * - `flitt` — the member pays each period by hand on the gym's Flitt page. A paid
+ *   plan bought by the member ({@link purchaseSelf}) opens a PENDING order and
+ *   creates NOTHING until Flitt approves it; the capture then runs the same
+ *   `startSubscription` this service runs (provider `flitt`). A trial still starts
+ *   at once, stamped `flitt`, so it is paid by hand when it converts.
+ * - no provider and no stub → `409 ONLINE_PAYMENTS_UNAVAILABLE` for the member's
+ *   own enrolment. Staff enrolment ({@link enrollMember}) is a desk sale and keeps
+ *   the stub stamp.
+ * A paid (non-trial) enrolment does, however, mint a numbered
  * {@link Invoice} for the first period via {@link InvoiceService} inside the same
  * transaction (T5.9), so the member's billing history — surfaced by
  * `GET /me/subscription` — reflects the charge from day one. A `TRIAL` enrolment charges
@@ -82,18 +142,140 @@ export class SubscriptionEnrollmentService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly invoices: InvoiceService,
+    // Optional so the unit specs that construct this by hand keep the stub path;
+    // always provided by `PaymentsModule` in the running app.
+    @Optional() private readonly payments?: OnlinePaymentsService,
   ) {}
 
   /**
-   * Enrol the **calling member** on `planId` (member self-checkout,
-   * `POST /subscriptions`). The member is resolved from the session — never a
-   * member id on the wire — mirroring {@link SubscriptionFreezeService}. Fails with
-   * `403` when there is no member session / the caller is not a member of this gym,
-   * and shares enrolment's `404` / `409` failure modes (see {@link enroll}).
+   * Enrol the **calling member** on `planId` (member self-checkout, the legacy
+   * `POST /subscriptions` older app builds still call). The member is resolved from
+   * the session — never a member id on the wire — mirroring
+   * {@link SubscriptionFreezeService}. Fails with `403` when there is no member
+   * session / the caller is not a member of this gym, and shares enrolment's
+   * `404` / `409` failure modes (see {@link enroll}).
+   *
+   * The same purchase-mode policy as `POST /checkout` ({@link purchaseSelf}): stub →
+   * unchanged `{ subscription }`; Flitt + paid plan → `{ subscription: null,
+   * orderId, payment }` (nothing created until Flitt approves); Flitt + trial →
+   * `{ subscription }` (provider `flitt`); no provider and no stub → `409
+   * ONLINE_PAYMENTS_UNAVAILABLE`.
    */
-  async enrollSelf(planId: string): Promise<EnrollSubscriptionResponse> {
+  async enrollSelf(
+    planId: string,
+    returnTo: PaymentReturnTarget = 'web',
+  ): Promise<SelfEnrollSubscriptionResponse> {
+    const result = await this.purchase(planId, returnTo);
+    if (result.kind === 'enrolled') return result.response;
+    return { subscription: null, orderId: result.orderId, payment: result.payment };
+  }
+
+  /**
+   * The member's own purchase of a plan (`POST /checkout`, productType
+   * `subscription`) — see {@link purchase}.
+   */
+  async purchaseSelf(planId: string, returnTo: PaymentReturnTarget): Promise<SelfPurchaseResult> {
+    const result = await this.purchase(planId, returnTo);
+    if (result.kind === 'enrolled') {
+      return { subscriptionId: result.response.subscription.id, orderId: null };
+    }
+    return { subscriptionId: null, orderId: result.orderId, payment: result.payment };
+  }
+
+  /**
+   * The purchase-mode policy both member routes share:
+   *
+   * - `stub` mode: the instant enrolment, exactly as before.
+   * - `flitt` mode, trial plan: the trial starts at once (provider `flitt`).
+   * - `flitt` mode, paid plan: `409 ALREADY_SUBSCRIBED` if the member holds a live
+   *   subscription; otherwise a PENDING order for the first period (the plan's
+   *   price, GEL only) and a Flitt checkout. Nothing is created until Flitt approves
+   *   the payment — the capture runs `startSubscription` and re-checks the live slot
+   *   (a member who subscribed meanwhile gets a NEEDS_REVIEW attempt, not a second
+   *   subscription). A member who already has an unpaid start order for the SAME
+   *   plan gets that order's checkout back instead of a second order.
+   * - neither → `409 ONLINE_PAYMENTS_UNAVAILABLE` (from {@link resolvePurchaseMode}).
+   */
+  private async purchase(
+    planId: string,
+    returnTo: PaymentReturnTarget,
+  ): Promise<
+    | { kind: 'enrolled'; response: EnrollSubscriptionResponse }
+    | { kind: 'payment'; orderId: string; payment: PaymentAction }
+  > {
     const memberId = await this.requireCallerMembership();
-    return this.enroll(memberId, planId);
+    const gymId = this.requireGymId();
+    const mode = await resolvePurchaseMode(this.payments, gymId);
+    if (mode.mode === 'stub') {
+      return { kind: 'enrolled', response: await this.enroll(memberId, planId, STUB_PROVIDER) };
+    }
+
+    const plan = await this.loadEnrollablePlan(this.prisma.client, planId);
+    if (plan.trialDays > 0) {
+      return {
+        kind: 'enrolled',
+        response: await this.enroll(memberId, planId, MANUAL_PAY_PROVIDER),
+      };
+    }
+
+    const existingLive = await this.prisma.client.subscription.findFirst({
+      where: { memberId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+      select: { id: true },
+    });
+    if (existingLive) throw this.alreadySubscribed();
+
+    const payments = this.payments!;
+    const open = await payments.findOpenOrder(
+      gymId,
+      memberId,
+      (fulfilment) => fulfilment.kind === 'subscription_start' && fulfilment.planId === plan.id,
+    );
+    if (open) {
+      const payment = await payments.retry({ gymId, orderId: open, memberId, returnTo });
+      return { kind: 'payment', orderId: open, payment };
+    }
+
+    // The payment is attributed to the member's home branch — the same branch the
+    // first-period invoice is stamped with (`InvoiceService.issue`).
+    const member = await this.prisma.client.gymMember.findFirst({
+      where: { id: memberId },
+      select: { locationId: true },
+    });
+    const locationId = member?.locationId ?? null;
+
+    try {
+      const { orderId, payment } = await payments.begin(
+        {
+          gymId,
+          memberId,
+          purpose: 'subscription_start',
+          fulfilment: {
+            kind: 'subscription_start',
+            planId: plan.id,
+            planName: plan.name,
+            priceAmount: plan.priceAmount,
+            currency: plan.currency,
+            interval: plan.interval,
+          },
+          description: plan.name,
+          returnTo,
+          order: {
+            locationId,
+            total: plan.priceAmount,
+            currency: plan.currency,
+            items: [{ label: plan.name, amount: plan.priceAmount }],
+          },
+          paymentLocationId: locationId,
+          promo: null,
+        },
+        mode.credentials,
+      );
+      return { kind: 'payment', orderId, payment };
+    } catch (error) {
+      // A free (0-priced) plan is fulfilled inside `begin`'s own transaction.
+      if (error instanceof FulfilmentConflictError) throw this.alreadySubscribed();
+      throw error;
+    }
   }
 
   /**
@@ -131,103 +313,48 @@ export class SubscriptionEnrollmentService {
    * `(gymId, memberId) WHERE status IN (live)` — a concurrent second enrolment
    * hits it and is mapped to the same `409`.
    */
-  private async enroll(memberId: string, planId: string): Promise<EnrollSubscriptionResponse> {
-    const gymId = this.tenant.gymId;
-    if (!gymId) {
-      throw new ForbiddenException({
-        message: 'Tenant scope is required to enrol a subscription',
-        code: 'TENANT_CONTEXT_MISSING',
-      });
-    }
+  private async enroll(
+    memberId: string,
+    planId: string,
+    provider: string = STUB_PROVIDER,
+  ): Promise<EnrollSubscriptionResponse> {
+    const gymId = this.requireGymId();
 
     const { row, invoice } = await this.prisma.client.$transaction(async (tx) => {
-      const plan = await tx.subscriptionPlan.findFirst({
-        where: { id: planId },
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          priceAmount: true,
-          currency: true,
-          interval: true,
-          trialDays: true,
-        },
-      });
-      if (!plan) {
-        throw new NotFoundException({
-          message: 'Subscription plan not found',
-          code: 'SUBSCRIPTION_PLAN_NOT_FOUND',
-        });
-      }
-      if (plan.status === SubscriptionPlanStatus.INACTIVE) {
-        throw new ConflictException({
-          message: 'This subscription plan is not available for enrolment',
-          code: 'SUBSCRIPTION_PLAN_INACTIVE',
-        });
-      }
-
-      const existingLive = await tx.subscription.findFirst({
-        where: { memberId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
-        select: { id: true },
-      });
-      if (existingLive) {
-        throw this.alreadySubscribed();
-      }
+      const plan = await this.loadEnrollablePlan(tx, planId);
 
       // A plan with `trialDays > 0` starts the member in a free TRIAL that runs a
       // fixed number of days; the recurring-billing job's first charge at trial end
-      // auto-converts it to ACTIVE. Otherwise enrolment is a normal ACTIVE membership
-      // whose first paid period starts now. Either way the plan's price/currency/
-      // interval are snapshotted (the terms that apply once — or immediately — paid).
-      const now = new Date();
-      const isTrial = plan.trialDays > 0;
-      const { currentPeriodStart, currentPeriodEnd } = isTrial
-        ? trialBillingPeriod(now, plan.trialDays)
-        : initialBillingPeriod(now, plan.interval);
-
+      // (or, for a manually paid subscription, the member's own payment) converts it
+      // to ACTIVE. Otherwise enrolment is a normal ACTIVE membership whose first paid
+      // period starts now and mints its invoice in this same transaction. Either way
+      // the plan's price/currency/interval are snapshotted. The live-slot check, the
+      // period arithmetic and the invoice live in the shared `startSubscription`, which
+      // the Flitt capture of a `subscription_start` order runs too.
       try {
-        const created = await tx.subscription.create({
-          data: {
-            gymId,
-            planId: plan.id,
-            memberId,
-            status: isTrial ? SubscriptionStatus.TRIAL : SubscriptionStatus.ACTIVE,
-            priceAmount: plan.priceAmount,
-            currency: plan.currency,
-            interval: plan.interval,
-            currentPeriodStart,
-            currentPeriodEnd,
-          },
+        const started = await startSubscription(tx, this.invoices, {
+          gymId,
+          memberId,
+          planId: plan.id,
+          planName: plan.name,
+          priceAmount: plan.priceAmount,
+          currency: plan.currency,
+          interval: plan.interval,
+          trialDays: plan.trialDays,
+          provider,
+          now: new Date(),
+        });
+        const created = await tx.subscription.findFirst({
+          where: { id: started.subscriptionId },
           select: ENROLLED_SUBSCRIPTION_SELECT,
         });
-
-        // A paid (non-trial) enrolment charges the first period now, so it mints a
-        // numbered invoice inside this same transaction — the subscription and its
-        // first billing record commit together. A trial charges nothing yet (the
-        // recurring-billing job raises the first invoice when it converts), so none is
-        // minted here.
-        const invoice = isTrial
-          ? null
-          : await this.invoices.issue(tx, {
-              gymId,
-              memberId,
-              subscriptionId: created.id,
-              amount: plan.priceAmount,
-              currency: plan.currency,
-              // The first period of a recurring membership.
-              type: InvoiceType.MEMBERSHIP,
-              description: subscriptionInvoiceDescription(plan.name, plan.interval, 'enrolment'),
-              issuedAt: currentPeriodStart,
-            });
-
-        return { row: created, invoice };
+        if (!created) throw new Error('The enrolled subscription could not be read back');
+        return { row: created, invoice: started.invoice };
       } catch (error) {
-        // The partial unique index is the race-safe backstop for the pre-check
-        // above: a concurrent enrolment that slipped between the read and this
-        // insert trips it, and reads identically to the checked case.
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          throw this.alreadySubscribed();
-        }
+        // The partial unique index is the race-safe backstop for the pre-check: a
+        // concurrent enrolment that slipped between the read and the insert reads
+        // identically to the checked case.
+        if (error instanceof AlreadySubscribedError) throw this.alreadySubscribed();
         throw error;
       }
     });
@@ -263,6 +390,45 @@ export class SubscriptionEnrollmentService {
       });
     }
     return member.id;
+  }
+
+  /**
+   * The plan a member may be enrolled on: `404 SUBSCRIPTION_PLAN_NOT_FOUND` for an
+   * unknown / cross-tenant plan, `409 SUBSCRIPTION_PLAN_INACTIVE` for a retired one.
+   * Takes the client so it runs inside the enrolment transaction too.
+   */
+  private async loadEnrollablePlan(
+    client: EnrollablePlanClient,
+    planId: string,
+  ): Promise<EnrollablePlan> {
+    const plan = await client.subscriptionPlan.findFirst({
+      where: { id: planId },
+      select: ENROLLABLE_PLAN_SELECT,
+    });
+    if (!plan) {
+      throw new NotFoundException({
+        message: 'Subscription plan not found',
+        code: 'SUBSCRIPTION_PLAN_NOT_FOUND',
+      });
+    }
+    if (plan.status === SubscriptionPlanStatus.INACTIVE) {
+      throw new ConflictException({
+        message: 'This subscription plan is not available for enrolment',
+        code: 'SUBSCRIPTION_PLAN_INACTIVE',
+      });
+    }
+    return plan;
+  }
+
+  private requireGymId(): string {
+    const gymId = this.tenant.gymId;
+    if (!gymId) {
+      throw new ForbiddenException({
+        message: 'Tenant scope is required to enrol a subscription',
+        code: 'TENANT_CONTEXT_MISSING',
+      });
+    }
+    return gymId;
   }
 
   /** `409` for a member who already holds a live subscription in this gym. */

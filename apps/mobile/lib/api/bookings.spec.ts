@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../env';
 import { ApiError } from '../http/api-error';
-import { bookClass, cancelBooking, listMyBookings } from './bookings';
+import { bookClass, cancelBooking, listMyBookings, getBookingStanding } from './bookings';
 
 interface Call {
   url: string;
@@ -110,5 +110,31 @@ describe('listMyBookings', () => {
     const calls = stubFetch({ bookings: [] });
     await listMyBookings({ scope: 'upcoming' });
     expect((calls[0] as Call).url).toBe(`${env.apiUrl}/me/bookings?scope=upcoming`);
+  });
+});
+
+describe('booking standing', () => {
+  it('fetches the member standing with the abort signal', async () => {
+    const body = {
+      cancellationCutoffHours: 4,
+      noShow: { active: true, limit: 3, windowDays: 30, blockDays: 30, count: 2, remaining: 1 },
+      block: null,
+    };
+    const calls = stubFetch(body);
+    const controller = new AbortController();
+    expect(await getBookingStanding({ signal: controller.signal })).toEqual(body);
+    expect(calls[0]?.url).toBe(`${env.apiUrl}/me/bookings/standing`);
+    expect(calls[0]?.init.method).toBe('GET');
+  });
+  it.each([
+    { data: { blockedUntil: '2027-01-01T12:00:00Z', reason: 'NO_SHOW_LIMIT' } },
+    { blockedUntil: '2027-01-01T12:00:00Z' },
+    { data: { blockedUntil: '2027-01-01T12:00:00Z' }, blockedUntil: '2026-01-01T12:00:00Z' },
+  ])('preserves block expiry from the envelope, with legacy fallback: %j', async (body) => {
+    stubFetch({ code: 'MEMBER_BOOKING_BLOCKED', ...body }, 403);
+    await expect(bookClass({ classId: 'ci_1' })).rejects.toMatchObject({
+      code: 'MEMBER_BOOKING_BLOCKED',
+      blockedUntil: '2027-01-01T12:00:00Z',
+    });
   });
 });

@@ -57,6 +57,7 @@ import { useMoney } from '../../../../components/shop/money';
 import { useSignInGate } from '../../../../components/shop/sign-in-gate';
 import { LoadFailed, RowSkeletons, useRetry } from '../../../../components/shop/states';
 import { useCheckoutOrder } from '../../../../hooks/queries/useCheckoutOrder';
+import { usePaymentBrowser } from '../../../../hooks/usePaymentBrowser';
 import { useGymId } from '../../../../hooks/useActiveGym';
 import { ApiError } from '../../../../lib/http/api-error';
 import type { MessageKey } from '../../../../lib/i18n/keys';
@@ -87,6 +88,7 @@ const STATUS_TONE = {
 export default function OrderScreen() {
   const { t } = useI18n();
   const router = useRouter();
+  const openPayment = usePaymentBrowser();
   const money = useMoney();
   const online = useIsOnline();
   const gate = useSignInGate();
@@ -234,6 +236,39 @@ export default function OrderScreen() {
     >
       <View style={{ gap: spacing[6] }}>
         {online ? null : <OfflineNotice testID="order-offline" />}
+
+        {order.payment?.provider && order.payment.status !== 'paid' ? (
+          <View style={{ gap: spacing[2] }}>
+            <Text>
+              {t(
+                order.payment.status === 'refunded'
+                  ? 'member.payment.refunded'
+                  : 'member.payment.incomplete',
+              )}
+            </Text>
+            {order.payment.retry ? (
+              <Button
+                label={t('member.payment.complete')}
+                onPress={() => {
+                  if (order.payment?.status === 'requires_action' && order.payment.checkoutUrl) {
+                    void openPayment(
+                      {
+                        status: 'requires_action',
+                        orderId: order.id,
+                        checkoutUrl: order.payment.checkoutUrl,
+                        expiresAt: order.payment.expiresAt,
+                      },
+                      'shop',
+                    );
+                  } else {
+                    router.push(`/checkout/result?orderId=${encodeURIComponent(order.id)}`);
+                  }
+                }}
+                testID="order-complete-payment"
+              />
+            ) : null}
+          </View>
+        ) : null}
 
         {placed ? (
           <Text variant="bodySmall" color="textSecondary" testID="order-subtitle">

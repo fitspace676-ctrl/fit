@@ -1,3 +1,4 @@
+import { createDateTimeFormat } from '@fit/i18n';
 // Class detail. `mobile-class-detail.tsx`, on `GET /class-instances/:id`.
 //
 // ===========================================================================
@@ -67,6 +68,7 @@ import {
   Eyebrow,
   FactTile,
   IconButton,
+  InlineNote,
   Mono,
   OCCUPANCY_TONE_ROLE,
   OccupancyMeter,
@@ -90,7 +92,12 @@ import {
 import { AppFeature } from '../../../providers/AppFeaturesProvider';
 import { OfflineNotice } from '../../../components/auth/notices';
 import { useIsOnline } from '../../../components/auth/use-online';
-import { BookingFailureNotice } from '../../../components/classes/booking-notice';
+import { useBookingClock } from '../../../hooks/useBookingClock';
+import { useBookingStanding } from '../../../hooks/queries/useBookingStanding';
+import {
+  BookingFailureNotice,
+  BookingStandingNotice,
+} from '../../../components/classes/booking-notice';
 import { ClassBookingSheet } from '../../../components/classes/booking-sheet';
 import {
   NO_BOOKING,
@@ -99,7 +106,7 @@ import {
 } from '../../../components/classes/my-bookings';
 import { ClassTrainerSheet } from '../../../components/classes/trainer-sheet';
 import { combinePhases, sectionPhase, type SectionPhase } from '../../../components/home/section';
-import { formatLongDay, formatTime } from '../../../components/classes/schedule';
+import { formatLongDay, formatTime, localWallClock } from '../../../components/classes/schedule';
 import { useClassBooking } from '../../../components/classes/use-class-booking';
 import { trainerInitials } from '../../../components/trainers/trainer-filters';
 import { useMyBookings } from '../../../hooks/queries/useBookings';
@@ -112,7 +119,7 @@ import { queryKeys } from '../../../lib/query-keys';
 import { useI18n } from '../../../providers/I18nProvider';
 
 export default function ClassDetailScreen() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
   const online = useIsOnline();
@@ -126,6 +133,8 @@ export default function ClassDetailScreen() {
 
   const gym = useDiscoveryGym();
   const booking = useClassBooking();
+  const standing = useBookingStanding().data;
+  const clock = useBookingClock();
   // The SESSION's gym — what `useMyBookings` scopes itself by, and therefore
   // what decides whether that query is enabled at all.
   const sessionGymId = useGymId();
@@ -219,6 +228,30 @@ export default function ClassDetailScreen() {
   const failed = !offline && !notFound && screenPhase === 'error';
   const ready = !offline && !notFound && screenPhase === 'ready';
 
+  const bookingBlocked = mine.status === null && (!!standing?.block || !!booking.failure?.blocked);
+  const cutoffHours = standing?.cancellationCutoffHours ?? 0;
+  const cancellationDeadline =
+    instance === null ? null : Date.parse(instance.startsAt) - cutoffHours * 3600000;
+  const showCancellationNotice =
+    mine.status === 'BOOKED' && cutoffHours > 0 && cancellationDeadline !== null;
+  const cancellationCutoffPassed = showCancellationNotice && clock >= cancellationDeadline;
+  const bookingActionDisabled = bookingBlocked || cancellationCutoffPassed;
+  const deadlineLabel =
+    cancellationDeadline === null
+      ? ''
+      : createDateTimeFormat(locale, {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).format(localWallClock(new Date(cancellationDeadline)));
+  const cancellationNotice = showCancellationNotice
+    ? cancellationCutoffPassed
+      ? t('member.actions.errWindowPassedHours', { hours: cutoffHours })
+      : t('member.actions.cancelUntil', { date: deadlineLabel })
+    : null;
+
   return (
     <Screen
       testID="class-detail-screen"
@@ -249,6 +282,7 @@ export default function ClassDetailScreen() {
         // this screen exists to stop telling.
         ready && instance !== null && instance.status === 'SCHEDULED' ? (
           <BookingBar
+            disabled={bookingActionDisabled}
             instance={instance}
             status={mine.status}
             signedIn={session.status === 'signed-in'}
@@ -273,6 +307,8 @@ export default function ClassDetailScreen() {
       }
     >
       <View style={{ paddingHorizontal: layout.screenGutter, gap: layout.sectionGap }}>
+        <BookingStandingNotice standing={standing} />
+        {cancellationNotice ? <InlineNote icon="clock">{cancellationNotice}</InlineNote> : null}
         {booking.failure !== null ? <BookingFailureNotice failure={booking.failure} /> : null}
 
         {offline ? (
@@ -634,12 +670,14 @@ function BookingBar({
   instance,
   status,
   signedIn,
+  disabled,
   busy,
   onPress,
 }: {
   instance: ClassInstanceDetail;
   status: ClassCardStatus;
   signedIn: boolean;
+  disabled?: boolean;
   busy: boolean;
   onPress: () => void;
 }) {
@@ -696,6 +734,7 @@ function BookingBar({
           pills. `radius="full"` on the button because an `element` radius (14)
           inside a 36 pill reads as a rectangle someone forgot to round. */}
       <Button
+        disabled={disabled}
         testID="class-book"
         label={label}
         onPress={onPress}

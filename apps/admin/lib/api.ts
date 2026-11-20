@@ -11,6 +11,7 @@
 import { cookies } from 'next/headers';
 import { getLocale } from 'next-intl/server';
 import type {
+  AdminBookingBlock,
   MobileAppSettings,
   UpdateMobileAppSettingsInput,
   UploadMobileAppLoginImageInput,
@@ -44,6 +45,8 @@ import type {
   ListAuditLogQuery,
   ListAuditLogResponse,
   GetGymSettingsResponse,
+  ClassRules,
+  UpdateClassRulesInput,
   UpdateGymSettingsInput,
   UpdateGymSettingsResponse,
   UploadGymLogoInput,
@@ -270,6 +273,7 @@ import type {
   SetReviewVisibilityResponse,
 } from '@fit/types';
 import { TENANT_MISMATCH_CODE, reportQueryParams } from '@fit/types';
+import type { GymIntegration } from '@fit/types';
 import { redirect } from 'next/navigation';
 import { pickSessionToken } from './auth-session';
 import { tenantHeaders } from './tenant-headers';
@@ -316,6 +320,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly data?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -328,9 +333,11 @@ async function unwrap<T>(res: Response): Promise<T> {
     return (await res.json()) as T;
   }
   let code = `HTTP_${res.status}`;
+  let data: unknown;
   try {
-    const body = (await res.json()) as { code?: string; message?: string };
+    const body = (await res.json()) as { code?: string; message?: string; data?: unknown };
     code = body.code ?? body.message ?? code;
+    data = body.data;
   } catch {
     // Non-JSON error body — keep the synthetic code.
   }
@@ -342,7 +349,7 @@ async function unwrap<T>(res: Response): Promise<T> {
   if (res.status === 403 && code === TENANT_MISMATCH_CODE) {
     redirect(`/login?reason=${TENANT_MISMATCH_REASON}`);
   }
-  throw new ApiError(res.status, code);
+  throw new ApiError(res.status, code, data);
 }
 
 /**
@@ -1892,6 +1899,26 @@ export async function updateGymSettings(
   return unwrap<UpdateGymSettingsResponse>(res);
 }
 
+/** `GET /gyms/class-rules` — the cancellation cutoff and no-show block rule (`ClassWrite`). */
+export async function fetchClassRules(): Promise<ClassRules> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/class-rules`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ClassRules>(res);
+}
+
+/** `PATCH /gyms/class-rules` — partial update of the class-booking rules; returns them. */
+export async function updateClassRules(input: UpdateClassRulesInput): Promise<ClassRules> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/class-rules`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<ClassRules>(res);
+}
+
 /** `POST /gyms/settings/logo` — finalise a logo upload by its R2 key; returns its public URL. */
 export async function uploadGymLogo(input: UploadGymLogoInput): Promise<UploadGymLogoResponse> {
   const res = await fetch(`${apiBaseUrl()}/gyms/settings/logo`, {
@@ -2417,7 +2444,7 @@ export async function bookMemberOntoClass(
  * more held seats on an occurrence and return the refreshed attendance roster
  * (T3.5). Each entry flips a held-seat booking to `ATTENDED` / `NO_SHOW` and the
  * occurrence transitions to `COMPLETED`. Gated `ClassWrite` API-side; a class
- * that has not started is a `409 CLASS_NOT_STARTED`, a canceled one a `409
+ * that has not ended is a `409 CLASS_NOT_ENDED`, a canceled one a `409
  * ATTENDANCE_NOT_AVAILABLE`, and an unknown / cross-tenant id a `404
  * CLASS_INSTANCE_NOT_FOUND`.
  */
@@ -3535,5 +3562,51 @@ export async function moderateReview(id: string, hidden: boolean) {
       `${apiBaseUrl()}/admin/reviews/${encodeURIComponent(id)}/${hidden ? 'hide' : 'unhide'}`,
       { method: 'POST', headers: await authHeaders(), cache: 'no-store' },
     ),
+  );
+}
+
+/** Active blocks by default; history is explicitly requested by the staff view. */
+export async function listBookingBlocks(
+  options: { status?: 'active' | 'all'; memberId?: string } = {},
+): Promise<{ blocks: AdminBookingBlock[] }> {
+  const query = new URLSearchParams();
+  if (options.status) query.set('status', options.status);
+  if (options.memberId) query.set('memberId', options.memberId);
+  const res = await fetch(`${apiBaseUrl()}/admin/booking-blocks?${query}`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<{ blocks: AdminBookingBlock[] }>(res);
+}
+
+export async function liftBookingBlock(id: string): Promise<AdminBookingBlock> {
+  const res = await fetch(`${apiBaseUrl()}/admin/booking-blocks/${encodeURIComponent(id)}/lift`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<AdminBookingBlock>(res);
+}
+
+/** Owner-only, tenant-scoped integrations. Secrets are sent only in the PUT body. */
+export async function fetchIntegrations(): Promise<GymIntegration[]> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/integrations`, {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    }),
+  );
+}
+export async function mutateFlitt<T>(
+  method: 'PUT' | 'PATCH' | 'POST' | 'DELETE',
+  body?: unknown,
+): Promise<T> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/integrations/flitt${method === 'POST' ? '/test' : ''}`, {
+      method,
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      cache: 'no-store',
+    }),
   );
 }

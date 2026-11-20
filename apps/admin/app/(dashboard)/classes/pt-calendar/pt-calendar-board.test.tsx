@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
@@ -142,6 +142,16 @@ function renderBoard({ canWrite = true, trainerId = '' } = {}) {
 }
 
 describe('PtCalendarBoard', () => {
+  // The fixtures sit in August 2026; pin "now" before them so a scheduled
+  // session still reads as upcoming (a slot past its end time renders as ended).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-09T12:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('draws the schedule toolbar: Today · Week · Month and Calendar · List', () => {
     renderBoard();
 

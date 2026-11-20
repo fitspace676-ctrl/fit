@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../env';
 import {
   downloadMyInvoicePdf,
+  payMySubscription,
   getMyProfile,
   getMySubscription,
   myInvoicePdfUrl,
@@ -88,4 +89,13 @@ describe('the invoice PDF', () => {
       status: 404,
     });
   });
+});
+
+it('pays a subscription with an app return target', async () => {
+  const calls = stubFetch({ payment: { orderId: 'o1' } }, 201);
+  await payMySubscription();
+  const call = calls[0] as Call;
+  expect(call.url).toBe(`${env.apiUrl}/me/subscription/pay`);
+  expect(call.init.method).toBe('POST');
+  expect(bodyOf(call)).toEqual({ returnTo: 'app' });
 });

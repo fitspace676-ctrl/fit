@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider, useTranslations } from 'next-intl';
@@ -111,6 +111,16 @@ function renderGrid(
 }
 
 describe('WeekGrid slot cards', () => {
+  // The fixtures sit in August 2026; pin "now" before them so a scheduled class
+  // still reads as upcoming (a class past its end time renders as ended).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-09T12:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders a class as a card carrying time, trainer, duration and occupancy', () => {
     renderGrid([makeInstance({})]);
 

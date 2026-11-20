@@ -54,8 +54,8 @@ function toMessage(error: unknown, t: T): string {
     if (error.message === 'CLASS_NOT_CANCELABLE') {
       return t('errors.notCancelable');
     }
-    if (error.message === 'CLASS_NOT_STARTED') {
-      return t('errors.notStarted');
+    if (error.message === 'CLASS_NOT_ENDED' || error.message === 'CLASS_NOT_STARTED') {
+      return t('errors.notEnded');
     }
     if (error.message === 'ATTENDANCE_NOT_AVAILABLE') {
       return t('errors.attendanceUnavailable');

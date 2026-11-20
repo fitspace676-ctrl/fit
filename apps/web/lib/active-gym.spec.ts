@@ -10,8 +10,12 @@ vi.mock('./env', () => ({
   env: { NEXT_PUBLIC_ROOT_DOMAIN: 'formacore.io', NEXT_PUBLIC_API_URL: 'https://api.test' },
 }));
 
-const { getActiveGymBrand, getActiveGymPortalSkin, getActiveGymPresence } =
-  await import('./active-gym');
+const {
+  getActiveGymBrand,
+  getActiveGymPortalSkin,
+  getActiveGymPresence,
+  getActiveGymOnlinePayments,
+} = await import('./active-gym');
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -221,5 +225,23 @@ describe('registered tenant skin', () => {
       themeColor: null,
       skinSlug: 'synergy',
     });
+  });
+});
+
+describe('online payment capability', () => {
+  it('passes the public capability to the portal', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ onlinePayments: { enabled: true, provider: 'flitt' } })),
+    );
+    await expect(getActiveGymOnlinePayments()).resolves.toEqual({
+      enabled: true,
+      provider: 'flitt',
+    });
+  });
+  it('fails closed for old or unavailable gym responses', async () => {
+    fetchMock.mockResolvedValue(new Response('{}'));
+    await expect(getActiveGymOnlinePayments()).resolves.toEqual({ enabled: false, provider: null });
+    fetchMock.mockRejectedValue(new Error('offline'));
+    await expect(getActiveGymOnlinePayments()).resolves.toEqual({ enabled: false, provider: null });
   });
 });

@@ -1286,7 +1286,8 @@
             "WAITLIST": "Waitlist"
           },
           "promote": "Promote",
-          "promoteMember": "Promote {member} into a seat"
+          "promoteMember": "Promote {member} into a seat",
+          "markAfterEnd": "Attendance can be marked once the class ends."
         },
         "book": {
           "title": "Book a member",
@@ -1330,7 +1331,8 @@
           "notBookable": "This class is no longer open for booking.",
           "alreadyBooked": "That member already has a booking for this class.",
           "subscriptionFrozen": "That member's membership is frozen. Resume it before booking.",
-          "insufficientCredits": "That member has no class credits left. Sell them a pack or subscription first."
+          "insufficientCredits": "That member has no class credits left. Sell them a pack or subscription first.",
+          "notEnded": "Attendance can only be recorded after the class ends."
         },
         "details": {
           "category": "Category",
@@ -4000,11 +4002,43 @@
         "confirmHint": "Deleting stops this class running. Sessions that already happened, and upcoming ones a member has booked, are kept on the calendar."
       }
     },
+    "bookingBlocks": {
+      "title": "Blocked members",
+      "description": "Group class booking blocks. Lifting a block does not restore cancelled bookings.",
+      "until": "Blocked from class booking until {date}",
+      "reason": "Reason: {count} no-shows.",
+      "lift": "Lift block",
+      "confirmTitle": "Lift this booking block?",
+      "confirmDescription": "The member will be able to book classes again. Previously cancelled bookings will not be restored.",
+      "cancel": "Cancel",
+      "lifted": "Booking block lifted.",
+      "notActive": "This block has already been lifted or expired. Refresh the page.",
+      "forbidden": "You do not have permission to lift booking blocks.",
+      "failed": "Could not lift the block. Please try again.",
+      "loadFailed": "Could not load booking blocks. Please refresh the page.",
+      "member": "Member",
+      "count": "No-shows",
+      "since": "Blocked since",
+      "untilColumn": "Blocked until",
+      "history": "Block history",
+      "actions": "Actions",
+      "liftHistory": "Lifted {date} by {name}: {reason}",
+      "automatic": "Automatically",
+      "correction": "Attendance correction",
+      "staff": "Staff action",
+      "active": "Active",
+      "expired": "Expired",
+      "includePast": "Include past blocks",
+      "empty": "No members are currently blocked from booking classes.",
+      "emptyAll": "No booking blocks to show."
+    },
     "classesTabs": {
+      "blocked": "Blocked members",
       "types": "Class Types",
       "schedule": "Schedule",
       "ptCalendar": "PT Calendar",
-      "ariaLabel": "Classes sections"
+      "ariaLabel": "Classes sections",
+      "rules": "Rules"
     },
     "invoicesHub": {
       "meta": {
@@ -4936,6 +4970,69 @@
         "chosenBranchFallback": "the branch you choose",
         "allBranchesPreview": "(all branches: {from} → {to})"
       }
+    },
+    "classRules": {
+      "title": "Class rules",
+      "cutoffLabel": "Cancellation cutoff",
+      "cutoffHint": "Members cannot cancel within this many hours of the class start. 0 means no limit.",
+      "limitLabel": "No-shows before a block",
+      "limitHint": "How many missed classes trigger a booking block (0-50).",
+      "windowLabel": "Counted within the last",
+      "windowHint": "Count no-shows within this many days (0-365).",
+      "durationLabel": "Block length",
+      "durationHint": "How many days the member cannot book classes (0-365).",
+      "hours": "hours",
+      "days": "days",
+      "noShows": "no-shows",
+      "summary": "{count} no-shows in {windowDays} days → blocked from booking classes for {blockDays} days.",
+      "off": "The no-show rule is off while any of its three values is 0. Set all three to 0 to turn it off.",
+      "requiredTogether": "Enter a value greater than 0, or set all three no-show values to 0.",
+      "attendanceNote": "A booking is automatically marked as a no-show 30 minutes after the class ends unless attendance was recorded. A door check-in counts as attended.",
+      "description": "Cancellation and no-show rules for group classes. PT sessions are not affected."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect the services your gym uses.",
+      "description": "Online card payments for your members.",
+      "state": {
+        "disconnected": "Not connected",
+        "off": "Connected but off",
+        "active": "Active"
+      },
+      "testMode": "Test mode",
+      "merchantId": "Merchant ID",
+      "secretKey": "Payment secret key",
+      "verifiedAt": "Last verified",
+      "neverVerified": "Not verified yet",
+      "lastError": "Last connection error",
+      "enable": "Enable payments",
+      "onConsequence": "Members pay online by card through Flitt.",
+      "offConsequence": "Online purchase is unavailable to members while payments are off or Flitt is not connected.",
+      "test": "Check connection",
+      "replace": "Replace key",
+      "disconnect": "Disconnect",
+      "connect": "Connect",
+      "save": "Save credentials",
+      "cancel": "Cancel",
+      "testSuccess": "Connection verified successfully.",
+      "saved": "Integration updated.",
+      "merchantInvalid": "Enter a Merchant ID containing 1–12 digits.",
+      "secretInvalid": "Enter a payment secret key containing 1–200 characters.",
+      "helpTitle": "Where to find your credentials",
+      "help": "Open the Flitt merchant portal → Technical settings to find your Merchant ID and payment secret key.",
+      "portal": "Open Flitt merchant portal (new tab)",
+      "disconnectTitle": "Disconnect Flitt?",
+      "disconnectMessage": "The saved credentials will be removed and online purchase will be unavailable to members.",
+      "errors": {
+        "bad_key": "The payment secret key is incorrect. Check it in the Flitt portal and try again.",
+        "unknown_merchant": "This Merchant ID was not found. Check it in the Flitt portal.",
+        "unreachable": "Could not reach the payment service. Please try again.",
+        "notConfigured": "Payments cannot be configured right now. Please contact support.",
+        "notVerified": "Check the connection successfully before enabling payments.",
+        "forbidden": "Only the gym owner can manage this integration.",
+        "invalid": "Check your Merchant ID and payment secret key.",
+        "unexpected": "Could not read the integration status. Please reload and try again."
+      }
     }
   },
   "auth": {
@@ -5246,6 +5343,23 @@
       "total": "Total",
       "empty": "Pick a branch and a plan. Your choice will show up here.",
       "note": "No card is charged now. You complete payment at the front desk, and your membership is reserved from the moment you confirm."
+    },
+    "online": {
+      "unavailable": "Online payment is not available. Please pay at the front desk.",
+      "providerUnavailable": "Secure payment is temporarily unavailable. Please try again shortly.",
+      "inProgress": "Payment is still in progress. Please wait before cancelling the order.",
+      "error": "We could not check the payment. Please try again.",
+      "secure": "Card payment takes place on Flitt’s secure page.",
+      "redirecting": "Redirecting to secure payment…",
+      "checking": "Checking your payment…",
+      "paid": "Payment received",
+      "incomplete": "Payment not completed",
+      "retry": "Try again",
+      "cancel": "Cancel order",
+      "cancelled": "Order cancelled",
+      "refunded": "This payment has been refunded.",
+      "home": "Return home",
+      "confirmed": "Your purchase is confirmed."
     }
   },
   "classes": {
@@ -5602,6 +5716,14 @@
       "canceled": "Booking canceled",
       "errAlreadyBooked": "You're already booked",
       "errNotBookable": "This class can't be booked",
+      "errBookingBlocked": "You can't book classes until {date} because of {count, plural, one {# missed class} other {# missed classes}}.",
+      "errBookingBlockedUntil": "You can't book classes until {date} because of missed classes.",
+      "errBookingBlockedUnknown": "Class booking is restricted because of missed classes.",
+      "bookingWarning": "One more missed class and you'll be blocked from booking for {days, plural, one {# day} other {# days}}.",
+      "bookingStrikes": "{count} of {limit} missed classes in the last {days, plural, one {# day} other {# days}}.",
+      "cancelUntil": "Free cancellation until {date}",
+      "errWindowPassedHours": "Can no longer be cancelled (less than {hours, plural, one {# hour} other {# hours}} before start).",
+      "cancellationRule": "Cancellation is possible up to {hours, plural, one {# hour} other {# hours}} before the class.",
       "errWindowPassed": "Cancellation window has passed",
       "errNotFound": "No booking found",
       "errAuth": "Please sign in",
@@ -5630,6 +5752,7 @@
       "memberSince": "Member since",
       "paymentMethod": "Payment method",
       "payAtDesk": "Pay at desk",
+      "payOnline": "Online, by card",
       "thisPeriod": "This period",
       "classes": "classes",
       "ptCredits": "PT credits",
@@ -5687,7 +5810,7 @@
         "buyMore": "Buy more",
         "noneOnSale": "No packs on sale",
         "modalTitle": "Buy credits",
-        "modalBody": "Pick a credit pack to buy. Pay at the desk.",
+        "modalBody": "Pick a credit pack to buy.",
         "packMeta": "{count, plural, one {# credit} other {# credits}} · {price}",
         "buy": "Buy",
         "buying": "Buying…",
@@ -6123,6 +6246,25 @@
     "terms": {
       "title": "Terms and conditions",
       "empty": "This gym has not published its terms yet. Contact the gym for details."
+    },
+    "payment": {
+      "manualMethod": "Online payment each period",
+      "renewalAmount": "Next period: {amount}",
+      "renewalDue": "Payment due: {date}",
+      "payPeriod": "Pay",
+      "notDue": "Your next payment is not due yet.",
+      "overdue": "Your membership payment is overdue.",
+      "frontDesk": "Online payment is unavailable. Please pay at the front desk.",
+      "checking": "Checking payment…",
+      "incomplete": "Payment not completed",
+      "retry": "Try again",
+      "cancel": "Cancel order",
+      "error": "Could not update payment. Check again before placing another order.",
+      "checkAgain": "Check payment",
+      "back": "Back to home",
+      "complete": "Complete payment",
+      "refunded": "Payment refunded",
+      "planBody": "Choose a plan. Pay for each period securely in your browser."
     }
   },
   "notifications": {

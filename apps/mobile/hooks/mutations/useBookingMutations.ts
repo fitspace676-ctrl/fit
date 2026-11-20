@@ -7,6 +7,7 @@
 // before the server said "WAITLIST, position 4" — the one case where an
 // optimistic update is a lie about scarcity rather than a latency hide.
 
+import { queryKeys } from '../../lib/query-keys';
 import { useMutation, type UseMutationOptions } from '@tanstack/react-query';
 import type { BookClassInstanceResponse, CancelBookingResponse } from '@fit/types';
 import { bookClass, cancelBooking, type BookClassInput } from '../../lib/api/bookings';
@@ -22,6 +23,12 @@ export function bookClassMutationOptions(
     mutationFn: (input) => {
       requireGymId(deps.gymId, 'Booking a class');
       return bookClass(input);
+    },
+    onError: () => {
+      if (deps.gymId)
+        void deps.queryClient.invalidateQueries({
+          queryKey: [...queryKeys.bookings(deps.gymId), 'standing'],
+        });
     },
     onSuccess: () => {
       invalidateFor(deps.queryClient, requireGymId(deps.gymId, 'Booking a class'), 'bookClass');
@@ -49,6 +56,12 @@ export function cancelBookingMutationOptions(
     mutationFn: (input) => {
       requireGymId(deps.gymId, 'Cancelling a booking');
       return cancelBooking(input);
+    },
+    onError: () => {
+      if (deps.gymId)
+        void deps.queryClient.invalidateQueries({
+          queryKey: [...queryKeys.bookings(deps.gymId), 'standing'],
+        });
     },
     onSuccess: () => {
       invalidateFor(

@@ -1,5 +1,5 @@
 // Operator vocabulary and routes, checked against the admin pages and @fit/types.
-// Query destinations are tabs: 49 destinations cover 48 physical page.tsx files.
+// Query destinations are tabs: 51 destinations cover 50 physical page.tsx files.
 export interface ConsolePage {
   path: string;
   title: { en: string; ka: string };
@@ -38,6 +38,20 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     'Schedule',
     'განრიგი',
     'Manage sessions, bookings and attendance.',
+    'classes',
+  ),
+  page(
+    '/classes/rules',
+    'Class rules',
+    'წესები',
+    'Set the cancellation cutoff and no-show block.',
+    'classes',
+  ),
+  page(
+    '/classes/blocked',
+    'Blocked members',
+    'დაბლოკილი წევრები',
+    'Review and lift class booking blocks.',
     'classes',
   ),
   page(
@@ -171,6 +185,12 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     'App settings',
     'აპლიკაციის პარამეტრები',
     'Configure the member mobile app.',
+  ),
+  page(
+    '/integrations',
+    'Integrations',
+    'ინტეგრაციები',
+    "Connect the gym's online payment provider (Flitt).",
   ),
   page('/settings', 'Settings', 'პარამეტრები', 'Set gym policies and branding.', 'settings'),
   page('/profile', 'Profile', 'პროფილი', 'View your account and gym.'),

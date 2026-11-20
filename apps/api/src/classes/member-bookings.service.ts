@@ -1,3 +1,4 @@
+import { BookingRulesService } from './booking-rules.service';
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@fit/db';
 import type {
@@ -79,6 +80,7 @@ export class MemberBookingsService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    private readonly rules: BookingRulesService,
   ) {}
 
   /**
@@ -89,6 +91,10 @@ export class MemberBookingsService {
    * `all` (most recent first). An empty result is a normal success — a member
    * who has never booked.
    */
+  async getStanding() {
+    return this.rules.getStanding(this.tenant.gymId, await this.requireCallerMembership());
+  }
+
   async list(query: ListMemberBookingsQuery): Promise<ListMemberBookingsResult> {
     const memberId = await this.requireCallerMembership();
 

@@ -1,9 +1,11 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
@@ -24,6 +26,7 @@ import {
   isPaymentMethodEnabled,
   ORDER_EXPORT_COLUMNS,
   orderExportCells,
+  PROVIDER_REFUND_FAILED_CODE,
   REFUND_EXCEEDS_PAID_CODE,
   type AdminOrderDetail,
   type AdminOrderRow,
@@ -54,6 +57,7 @@ import { SubscriptionEnrollmentService } from '../subscriptions/subscription-enr
 import { PromoRedemptionService } from '../marketing/promo-redemption.service';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { dispatchSaleAutomation } from './order-automation';
+import { ProviderRefundService } from '../payments/provider-refund.service';
 
 /**
  * The stock position a till line sold, in the composite form order lines and the
@@ -101,6 +105,9 @@ export class OrdersService {
     private readonly enrollment: SubscriptionEnrollmentService,
     private readonly promos: PromoRedemptionService,
     private readonly automation: AutomationExecutorService,
+    // Optional so the hand-built specs keep today's refund path; provided by
+    // `PaymentsModule` in the running app.
+    @Optional() private readonly providerRefunds?: ProviderRefundService,
   ) {}
 
   /**
@@ -590,6 +597,31 @@ export class OrdersService {
     // Resolved outside the transaction, as in `recordSale`.
     const processedById = await this.currentStaffId();
 
+    // A payment captured by the gym's provider is refunded THROUGH the provider —
+    // the money goes back on the card before a refund is recorded. Ordering and
+    // idempotency live in `ProviderRefundService`; stub / pos refunds stay below.
+    if (this.providerRefunds) {
+      const captured = await this.prisma.client.payment.findFirst({
+        where: { orderId },
+        select: { provider: true },
+      });
+      if (captured?.provider === 'flitt') {
+        const refunded = await this.providerRefunds.refund({
+          gymId,
+          orderId,
+          amount: input.amount,
+          reason: input.reason,
+          restockItems: input.restockItems,
+          processedById,
+          actor,
+        });
+        if (refunded.memberId) {
+          void this.dispatchRefundIssued(gymId, orderId);
+        }
+        return { refundId: refunded.refundId };
+      }
+    }
+
     const result = await this.prisma.client.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
         where: { id: orderId },
@@ -600,12 +632,19 @@ export class OrdersService {
           // The branch this order was rung up at — copied onto the refund below so
           // a reversal nets against the takings it reverses (Stage 5).
           locationId: true,
-          payment: { select: { id: true, amount: true, refundedAmount: true } },
+          payment: { select: { id: true, amount: true, refundedAmount: true, provider: true } },
           items: { select: { productVariantId: true, qty: true } },
         },
       });
       if (!order) {
         throw new NotFoundException({ message: 'Order not found', code: 'ORDER_NOT_FOUND' });
+      }
+      if (order.payment?.provider === 'flitt') {
+        // Never record a provider refund without reversing it (see above).
+        throw new BadGatewayException({
+          code: PROVIDER_REFUND_FAILED_CODE,
+          message: 'This payment can only be refunded through its payment provider',
+        });
       }
 
       const payment = order.payment;

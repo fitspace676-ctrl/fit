@@ -11,14 +11,19 @@
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { Dimensions, Image } from 'react-native';
 import { SCREEN_GUTTER, ToastProvider, capsuleMetricsFor } from '@fit/ui-mobile';
+import type { MemberBookingStanding } from '@fit/types';
 import type { ReactElement } from 'react';
 
 import ClassDetailScreen from './[id]';
-import { ApiError } from '../../../lib/http/api-error';
+import { ApiError, apiErrorFromResponse } from '../../../lib/http/api-error';
 import { renderScreen } from '../../../test-support/render-screen';
 import { flatStyle } from '../../../test-support/style';
 
 // ── The router, and the route param ────────────────────────────────────────
+let mockStanding: MemberBookingStanding | undefined;
+jest.mock('../../../hooks/queries/useBookingStanding', () => ({
+  useBookingStanding: () => ({ data: mockStanding }),
+}));
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
@@ -187,6 +192,7 @@ async function settle(): Promise<void> {
 }
 
 beforeEach(() => {
+  mockStanding = undefined;
   mockPush.mockClear();
   mockReplace.mockClear();
   mockBack.mockClear();
@@ -415,6 +421,7 @@ describe('the five §6 branches', () => {
 
 describe('the auth-soft boundary', () => {
   beforeEach(() => {
+    mockStanding = undefined;
     mockSession = { status: 'signed-out', userId: null, gymId: null, role: null, expiresAt: null };
   });
 
@@ -865,4 +872,48 @@ describe('the booking bar', () => {
       view.getByTestId('class-occupancy-panel').findByProps({ testID: 'class-booking-line' }),
     ).toBeTruthy();
   });
+});
+
+it('disables booking while the member has an active block', async () => {
+  mockStanding = {
+    cancellationCutoffHours: 4,
+    noShow: { active: true, limit: 3, windowDays: 30, blockDays: 14, count: 3, remaining: 0 },
+    block: { until: '2027-01-01T12:00:00Z', reason: 'NO_SHOW_LIMIT' },
+  };
+  const view = renderScreen(screen());
+  await settle();
+  const button = await view.findByTestId('class-book');
+  expect(
+    (button.props as { accessibilityState?: { disabled?: boolean } }).accessibilityState?.disabled,
+  ).toBe(true);
+  fireEvent.press(button);
+  expect(mockBook).not.toHaveBeenCalled();
+});
+
+it('shows the expiry from a blocked error envelope and disables retry', async () => {
+  mockBook.mockImplementation(
+    (_input: unknown, handlers: { onError: (error: unknown) => void }) => {
+      handlers.onError(
+        apiErrorFromResponse(403, {
+          code: 'MEMBER_BOOKING_BLOCKED',
+          data: { blockedUntil: '2027-01-01T12:00:00Z', reason: 'NO_SHOW_LIMIT' },
+        }),
+      );
+    },
+  );
+  const view = renderScreen(screen());
+  await settle();
+  await view.findByTestId('class-hero');
+  fireEvent.press(view.getByTestId('class-book'));
+  await act(async () => {
+    fireEvent.press(view.getByTestId('class-booking-confirm-confirm'));
+    await Promise.resolve();
+  });
+  expect(
+    view.getByText("You can't book classes until January 1, 2027 because of missed classes."),
+  ).toBeTruthy();
+  expect(
+    (view.getByTestId('class-book').props as { accessibilityState?: { disabled?: boolean } })
+      .accessibilityState?.disabled,
+  ).toBe(true);
 });

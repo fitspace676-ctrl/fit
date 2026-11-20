@@ -89,3 +89,125 @@ subscription cancelled upstream):
 
 No change is needed to `SubscriptionBillingService`, the enrolment flow, the invoice
 generation, or the webhook controller — that is the point of the seam.
+
+## Per-gym Flitt flow (one-off purchases)
+
+The seam above binds ONE provider for the whole deployment and was built for
+subscription renewals. One-off online purchases are different: every gym connects
+its **own** Flitt merchant (`GymIntegration`, owner-managed), so credentials belong
+to the call, not to a singleton. That flow lives in `apps/api/src/payments/` and
+leaves the renewal seam and job untouched (subscriptions still enrol as before).
+
+- **Policy.** Packages and credit packs (`POST /checkout`, `POST /credit-packs/purchase`)
+  go through Flitt when the gym has an active, verified integration. Without one they
+  are refused with `409 ONLINE_PAYMENTS_UNAVAILABLE`, unless `ONLINE_PAYMENTS_STUB` is
+  on — then the old instant stub (order `PAID`, payment `CAPTURED`, provider `stub`)
+  runs unchanged. The flag defaults to on outside production and off in production.
+  The shop basket without Flitt keeps pay-at-pickup (never stamped paid). The public
+  gym lookup exposes `onlinePayments: { enabled, provider }` so clients hide buttons.
+- **Attempts.** A purchase creates the order `PENDING`, its single `Payment`
+  `PENDING` (provider `flitt`) and a `PaymentAttempt`; nothing is granted. Flitt's
+  `order_id` must be unique per try and a member may retry, so each try is its own
+  attempt — its id is the `order_id`. The attempt snapshots the amount, currency,
+  merchant id and the grant (`fulfilment` JSON). Promo codes are consumed (reserved)
+  with the order and released if it is abandoned, so the usage cap is decided before
+  anyone is charged; shop stock is drawn down at checkout as before. If Flitt cannot
+  open the checkout the order is abandoned at once and the purchase fails with
+  `503 PAYMENT_PROVIDER_UNAVAILABLE`.
+- **Settle authority.** `OnlinePaymentsService.settleAttempt` is the only place state
+  changes. It re-reads the status from Flitt with the gym's credentials (never trusts
+  a caller), checks order id, merchant, amount and currency, and applies it: approved
+  → attempt + payment `CAPTURED`, order `PAID` + status event, fulfilment (credit-pack
+  mint — the same `mintCreditPack` the stub path calls) and, after commit, the sale
+  automations; declined / expired → attempt `FAILED` / `EXPIRED`, payment `FAILED`,
+  order stays `PENDING` for a retry; anything that does not match, or money for an
+  order that is no longer pending, → `NEEDS_REVIEW` (nothing granted, logged). The
+  state change is guarded by a conditional `PENDING → …` update on the attempt row
+  (see `atomic-counters.md`): concurrent settlers block on the row lock and the losers
+  match nothing, so the product is granted exactly once.
+- **Callers.** `POST /webhooks/flitt` (signature verified with the owning gym's
+  secret; `200` for anything authentic, `400` bad signature, `404` unknown order),
+  the browser return `GET|POST /payments/flitt/return/:attemptId` (`response_url`;
+  reads nothing from the browser, settles, then `303` to
+  `https://<slug>.<PLATFORM_ROOT_DOMAIN>/checkout/result?orderId=…` or
+  `<MOBILE_APP_SCHEME>://checkout/result?orderId=…`), the member's
+  `POST /checkout/:orderId/payment/sync` (what makes local development work, where
+  Flitt's callback cannot reach the API) and a five-minute sweep.
+- **Sweep.** `PaymentSweepService` (Redis-locked like the booking reminders) settles
+  attempts past their lifetime, abandons unpaid online orders with no open attempt
+  after an hour (order `CANCELLED`, stock back through `applyOrderStockMovements`
+  with `REFUND_RESTOCK`, promo released) and re-sends refunds whose outcome is unknown.
+- **Refund ordering.** For a Flitt payment `refundOrder` delegates to
+  `ProviderRefundService`: (1) one transaction claims the headroom on
+  `Payment.refundedAmount` (the same bounded increment) and records a
+  `PaymentReversal` `PENDING`; (2) Flitt's reverse is called with the reversal id as
+  the idempotent `reverse_id`; (3) approved → the `Refund` is written once
+  (conditional `PENDING → SUCCEEDED`), with the full-refund status flips and restock;
+  refused → reversal `FAILED` and the claim released in one transaction, no refund,
+  `502 PROVIDER_REFUND_FAILED`; unknown (timeout, crash) → the claim stays held and the
+  sweep re-sends the SAME `reverse_id` until Flitt answers (`502
+PROVIDER_REFUND_PENDING` to the caller). A failed reversal therefore never keeps
+  the claim, and a succeeded one is never lost.
+
+## Subscriptions paid by hand through Flitt
+
+Phase 1 stores no card, so a Flitt gym's subscriptions are **paid by the member each
+period** on the same hosted checkout; nothing is ever charged automatically.
+
+- **Provider key.** Such a subscription carries `Subscription.provider = "flitt"`
+  (`MANUAL_PAY_PROVIDER` in `subscriptions/subscription-periods.ts`). Stub-paid and
+  desk-enrolled ones keep `"stub"`.
+- **First period.** `POST /checkout` (productType `subscription`) at a Flitt gym, for a
+  paid plan: `409 ALREADY_SUBSCRIBED` if the member holds a live subscription, else a
+  PENDING order for the plan price (GEL only, no promo — the subscription path never
+  took one) with fulfilment `subscription_start` (the plan's terms snapshotted). The
+  response has `orderId` + `payment`, `subscriptionId: null`. On capture the shared
+  `startSubscription` (the same function the stub enrolment runs) creates the ACTIVE
+  subscription from the confirmation instant and mints the first-period invoice with
+  `orderId` set (revenue is counted from the `Payment`; invoices with an order are
+  excluded from the recurring figure, so it is counted once). An unpaid start order
+  for the same plan is resumed rather than duplicated. A trial plan still starts at
+  once (provider `flitt`). The legacy member route `POST /subscriptions` (older app
+  builds) applies the same policy: at a Flitt gym a paid plan answers
+  `201 { subscription: null, orderId, payment }` (`SelfEnrollSubscriptionResponse`,
+  body accepts `returnTo`). With no Flitt and no stub both routes answer
+  `409 ONLINE_PAYMENTS_UNAVAILABLE`. Staff enrolment is unchanged.
+- **Next period.** `POST /me/subscription/pay { returnTo? }` → `201 { payment }` opens
+  an order for the subscription's snapshotted price with fulfilment
+  `subscription_renewal { subscriptionId, periodEnd }`. It is allowed from 7 days
+  before the period end (`SUBSCRIPTION_PAY_WINDOW_DAYS`) or while PAST_DUE
+  (`409 SUBSCRIPTION_NOT_DUE` otherwise; `409 SUBSCRIPTION_NOT_PAYABLE` for another
+  provider, FROZEN, cancelling or ended). An unpaid order for the same period is
+  handed back through `retry`. On capture the shared `applyRenewal` (the same write
+  the renewal job runs after a successful charge) advances the period contiguously
+  from `periodEnd`, resets the freeze allowance and the dunning ladder, `RENEW`s the
+  status (PAST_DUE / TRIAL → ACTIVE) and mints the invoice tied to the order.
+- **Idempotency.** The attempt claim grants once per attempt. Inside the capture
+  transaction a subscription grant that can no longer be honoured — the member
+  became subscribed meanwhile (pre-check + the partial unique index), the period end
+  no longer equals the order's `periodEnd` (a second paid order for the same period,
+  a freeze that moved it), or the subscription is no longer TRIAL/ACTIVE/PAST_DUE —
+  throws `FulfilmentConflictError`; the whole transaction rolls back (order and
+  payment stay PENDING, nothing granted) and the attempt goes `NEEDS_REVIEW` with the
+  reason (`already_subscribed`, `period_already_paid`, `subscription_not_payable`,
+  `subscription_missing`). An order with a NEEDS_REVIEW attempt is never abandoned
+  (neither by the member's cancel nor by the sweep) and never retried; staff reverse
+  the money on Flitt.
+- **Lapse.** The renewal job treats a due `flitt` subscription as an unpaid charge
+  without calling `PaymentProvider.chargeRenewal`: ACTIVE/TRIAL → PAST_DUE, each rung
+  of the retry ladder just advances `paymentRetries`, the exhausted ladder EXPIREs —
+  with the existing `payment_failed` trigger and `chargeFailed` notification (manual
+  wording: "pay to continue"). Stub subscriptions still go through the bound
+  provider, which still throws in production (never a fake charge). **For lapse to
+  run in production `SUBSCRIPTION_BILLING_ENABLED=true` must be set**; while the stub
+  is the bound provider, every stub subscription that falls due then errors (left
+  untouched, counted in `errors`, a Sentry warning per run) — gyms still on stub
+  subscriptions need them moved to `flitt` or cancelled before enabling it.
+- **Reminders.** The job's run also sends "your membership ends on <date> — pay to
+  continue" to live `flitt` subscriptions ending within 3 days
+  (`MANUAL_RENEWAL_REMINDER_DAYS`), BILLING category, deduped per period, `href`
+  `/account/membership`. Manual trials are excluded from the "you will be charged"
+  trial-ending notice.
+- **Refunds.** A subscription period's order is an ordinary Flitt order, so
+  `ProviderRefundService` reverses it unchanged. It does not touch the subscription
+  or its invoice: staff cancel the membership separately, and the invoice stays PAID.

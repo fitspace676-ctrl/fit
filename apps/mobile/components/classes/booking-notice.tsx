@@ -25,11 +25,22 @@
 // the ones §6 item 3 names, and those do carry a working retry; see the
 // screens' `EmptyState` branches.)
 
+import { createDateTimeFormat, type Locale } from '@fit/i18n';
+import { wallClock } from '../services/date-format';
 import { useRouter } from 'expo-router';
-import { Alert, Button } from '@fit/ui-mobile';
+import type { MemberBookingStanding } from '@fit/types';
+import { Alert, Button, InlineNote } from '@fit/ui-mobile';
 
 import { useI18n } from '../../providers/I18nProvider';
 import type { BookingFailure } from './use-class-booking';
+
+function blockDate(iso: string, locale: Locale): string {
+  return createDateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(wallClock(iso));
+}
 
 export interface BookingFailureNoticeProps {
   failure: BookingFailure;
@@ -41,8 +52,29 @@ export function BookingFailureNotice({
   failure,
   testID = 'class-booking-error',
 }: BookingFailureNoticeProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
+
+  if (failure.blocked)
+    return (
+      <Alert
+        tone="warning"
+        icon="info"
+        live
+        title={
+          failure.blockedUntil && failure.limit !== undefined
+            ? t('member.actions.errBookingBlocked', {
+                date: blockDate(failure.blockedUntil, locale),
+                count: failure.limit,
+              })
+            : failure.blockedUntil
+              ? t('member.actions.errBookingBlockedUntil', {
+                  date: blockDate(failure.blockedUntil, locale),
+                })
+              : t('member.actions.errBookingBlockedUnknown')
+        }
+      />
+    );
 
   if (failure.frozen) {
     return (
@@ -83,7 +115,54 @@ export function BookingFailureNotice({
       // The direct result of pressing a button, so a screen-reader user who
       // heard nothing after pressing must be told why.
       live
-      title={t(failure.messageKey)}
+      title={
+        failure.cutoffHours &&
+        (failure.messageKey === 'member.actions.errWindowPassed' ||
+          failure.messageKey === 'member.actions.errWindowPassedHours')
+          ? t('member.actions.errWindowPassedHours', { hours: failure.cutoffHours })
+          : t(failure.messageKey)
+      }
     />
   );
+}
+
+export function BookingStandingNotice({
+  standing,
+  history = false,
+}: {
+  standing?: MemberBookingStanding;
+  history?: boolean;
+}) {
+  const { t, locale } = useI18n();
+  if (!standing) return null;
+  if (standing.block)
+    return (
+      <Alert
+        tone="warning"
+        icon="info"
+        title={t('member.actions.errBookingBlocked', {
+          date: blockDate(standing.block.until, locale),
+          count: standing.noShow.limit,
+        })}
+      />
+    );
+  const rule = standing.noShow;
+  if (!rule.active) return null;
+  if (rule.remaining === 1)
+    return (
+      <Alert
+        tone="warning"
+        icon="info"
+        title={t('member.actions.bookingWarning', { days: rule.blockDays })}
+      />
+    );
+  return history && rule.count > 0 && rule.remaining !== null && rule.remaining > 1 ? (
+    <InlineNote icon="info">
+      {t('member.actions.bookingStrikes', {
+        count: rule.count,
+        limit: rule.limit,
+        days: rule.windowDays,
+      })}
+    </InlineNote>
+  ) : null;
 }

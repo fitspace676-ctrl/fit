@@ -114,7 +114,11 @@ export class CartController {
       return { code: 'OUT_OF_STOCK', removedItems: outcome.removedItems };
     }
     res.status(201);
-    return { orderId: outcome.orderId };
+    // `payment` only when the gym takes payment online — see `CartCheckoutResponse`.
+    return {
+      orderId: outcome.orderId,
+      ...(outcome.payment ? { payment: outcome.payment } : {}),
+    };
   }
 
   /** Apply the cart result's cookie directive and wrap the view as the response. */

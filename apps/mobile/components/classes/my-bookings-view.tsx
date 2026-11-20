@@ -1,3 +1,7 @@
+import { createDateTimeFormat } from '@fit/i18n';
+import { useBookingClock } from '../../hooks/useBookingClock';
+import { useBookingStanding } from '../../hooks/queries/useBookingStanding';
+import { BookingStandingNotice } from './booking-notice';
 // The member's own bookings — the list, the counters, the cancel, the review.
 //
 // ===========================================================================
@@ -99,7 +103,7 @@ import { useIsOnline } from '../auth/use-online';
 import { bookingErrorKey } from './booking-errors';
 import { sectionPhase } from '../home/section';
 import { ReviewSheet } from '../reviews/review-sheet';
-import { formatDayHeading, formatTime } from '../services/date-format';
+import { formatDayHeading, formatTime, wallClock } from '../services/date-format';
 import { useMyBookings } from '../../hooks/queries/useBookings';
 import { useMyServiceSessions } from '../../hooks/queries/useServices';
 import { useCancelBooking } from '../../hooks/mutations/useBookingMutations';
@@ -151,7 +155,7 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
   const gymId = useGymId();
   const scoped = gymId ?? '';
 
-  const [now] = useState(() => Date.now());
+  const now = useBookingClock();
   const [half, setHalf] = useState<Half>('upcoming');
   // ONE sheet, per `Sheet`'s single-instance rule. The kind AND the target are
   // the state, so two sheets cannot be open at once by construction.
@@ -172,6 +176,7 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
 
   // `all`, not the server's `scope`: the counters below need every status, and
   // splitting the two views client-side is one request rather than two.
+  const standing = useBookingStanding().data;
   const bookings = useMyBookings('all');
   const sessions = useMyServiceSessions();
   const cancel = useCancelBooking();
@@ -233,11 +238,18 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
           // `409 CANCELLATION_WINDOW_PASSED` has its own sentence — the seat is
           // NOT released and the credit is NOT refunded, and a generic "try
           // again" would invite a member to press a button that cannot work.
-          toast.error(t(bookingErrorKey(error)));
+          toast.error(
+            bookingErrorKey(error) === 'member.actions.errWindowPassed' &&
+              standing?.cancellationCutoffHours
+              ? t('member.actions.errWindowPassedHours', {
+                  hours: standing.cancellationCutoffHours,
+                })
+              : t(bookingErrorKey(error)),
+          );
         },
       },
     );
-  }, [confirming, cancel, toast, t]);
+  }, [confirming, cancel, toast, t, standing]);
 
   const upcomingSessions = useMemo(
     () =>
@@ -253,6 +265,7 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
         {online ? null : <OfflineNotice testID="bookings-offline" />}
 
         <AppFeature name="classes">
+          <BookingStandingNotice standing={standing} history />
           {/* ── Counters ───────────────────────────────────────────────────── */}
           {phase === 'ready' ? (
             <TileGrid testID="bookings-stats" columns={2} gap={3}>
@@ -371,9 +384,25 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
                             position: entry.waitlistPosition,
                           })
                         : t(`account.bookings.status.${entry.status}`);
+                    const hours = standing?.cancellationCutoffHours ?? 0;
+                    const deadline = Date.parse(instance.startsAt) - hours * 3600000;
+                    const locked = entry.status === 'BOOKED' && hours > 0 && now >= deadline;
                     const cancellable =
                       half === 'upcoming' &&
                       (entry.status === 'BOOKED' || entry.status === 'WAITLIST');
+                    const deadlineLabel = createDateTimeFormat(locale, {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    }).format(wallClock(new Date(deadline)));
+                    const cancellationNotice =
+                      cancellable && entry.status === 'BOOKED' && hours > 0
+                        ? locked
+                          ? t('member.actions.errWindowPassedHours', { hours })
+                          : t('member.actions.cancelUntil', { date: deadlineLabel })
+                        : null;
 
                     return (
                       <Surface key={entry.bookingId} tone="card" padding={4} radius={22}>
@@ -403,9 +432,13 @@ export function MyBookingsView({ onBrowseClasses }: MyBookingsViewProps) {
                               </View>
                             }
                           />
+                          {cancellationNotice ? (
+                            <InlineNote icon="clock">{cancellationNotice}</InlineNote>
+                          ) : null}
                           {cancellable ? (
                             <Button
                               testID={`bookings-cancel-${entry.bookingId}`}
+                              disabled={locked}
                               label={t('account.bookings.cancel')}
                               variant="secondary"
                               size="sm"

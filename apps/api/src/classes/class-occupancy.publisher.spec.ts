@@ -1,3 +1,4 @@
+import type { PrismaService } from '../prisma/prisma.service';
 import { describe, expect, it, vi } from 'vitest';
 import type { ClassOccupancy } from '@fit/types';
 import { ClassOccupancyPublisher } from './class-occupancy.publisher';
@@ -32,7 +33,12 @@ function setup(
   const publish = vi.fn<(gymId: string, occupancy: ClassOccupancy) => void>();
   const stream = { publish } as unknown as OccupancyStreamService;
   return {
-    publisher: new ClassOccupancyPublisher(prisma, tenant, stream),
+    publisher: new ClassOccupancyPublisher(
+      prisma,
+      tenant,
+      stream,
+      prisma as unknown as PrismaService,
+    ),
     findFirst,
     count,
     publish,

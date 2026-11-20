@@ -143,7 +143,7 @@ export async function createCheckout(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, returnTo: 'web' }),
     signal,
   });
 

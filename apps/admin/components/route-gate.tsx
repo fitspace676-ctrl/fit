@@ -56,6 +56,7 @@ export function mayOpenRoute(permissions: ConsolePermissions, pathname: string):
     // everyone who has no business in the console.
     return true;
   }
+  if (guard.ownerOnly && permissions.role !== 'OWNER') return false;
   if (guard.permission && !consoleCan(permissions, guard.permission)) {
     return false;
   }

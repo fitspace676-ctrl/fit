@@ -110,9 +110,11 @@ describe('product guidance and behavior', () => {
     expect(prompt).toContain('Link text for a console page = its map title');
   });
 
-  it('adds at most 6050 characters, including behavioral guidance, without context', () => {
+  it('adds at most 6170 characters, including behavioral guidance, without context', () => {
     // Context-free prompt before product knowledge and behavioral additions: 1924 chars.
     // Keep this fixed baseline so future growth cannot silently increase the allowance.
-    expect(buildSystemPrompt().length - 1924).toBeLessThanOrEqual(6050);
+    // 6050 → 6130: the page map gained /classes/rules and /classes/blocked.
+    // 6130 → 6170: the page map gained /integrations.
+    expect(buildSystemPrompt().length - 1924).toBeLessThanOrEqual(6170);
   });
 });

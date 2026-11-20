@@ -580,3 +580,36 @@ describe('member shop settings', () => {
     });
   });
 });
+
+describe('no-show rule activation boundary', () => {
+  it('sets strikesSince only on inactive to active transition', async () => {
+    const { service } = setup();
+    const before = Date.now();
+    const result = await service.updateSettings({
+      noShow: { strikeLimit: 3, strikeWindowDays: 30, blockDays: 7 },
+    });
+    expect(new Date(result.noShow.strikesSince!).getTime()).toBeGreaterThanOrEqual(before);
+    expect(new Date(result.noShow.strikesSince!).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+  it.each([{ blockDays: 10 }, { strikeLimit: 0 }])(
+    'preserves activation while editing or disabling %o',
+    async (patch) => {
+      const since = '2026-11-01T00:00:00.000Z';
+      const { service } = setup({
+        gym: {
+          name: 'Gym',
+          settings: {
+            noShow: { strikeLimit: 3, strikeWindowDays: 30, blockDays: 7, strikesSince: since },
+          },
+        },
+      });
+      expect((await service.updateSettings({ noShow: patch })).noShow.strikesSince).toBe(since);
+    },
+  );
+  it('keeps the timestamp null when only part of the rule is set', async () => {
+    const { service } = setup();
+    expect(
+      (await service.updateSettings({ noShow: { strikeLimit: 3 } })).noShow.strikesSince,
+    ).toBeNull();
+  });
+});

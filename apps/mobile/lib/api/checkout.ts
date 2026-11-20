@@ -53,7 +53,11 @@ import { ENDPOINTS, endpointPath, type FetchOptions } from './endpoints';
  */
 export type CartCheckoutOutcome =
   /** `201`. The cart is now empty server-side and stock has moved. */
-  | { readonly ok: true; readonly orderId: string }
+  | {
+      readonly ok: true;
+      readonly orderId: string;
+      readonly payment?: CartCheckoutResponse['payment'];
+    }
   /**
    * `409`. One or more line prices drifted. **The server has already re-priced
    * the cart**, so an immediate retry of the identical request succeeds — which
@@ -101,14 +105,14 @@ export async function checkoutCart(
     endpointPath(ENDPOINTS.checkoutCart),
     {
       method: ENDPOINTS.checkoutCart.method,
-      json: input,
+      json: { ...input, returnTo: 'app' },
       signal: options.signal,
       acceptStatuses: CHECKOUT_RESULT_STATUSES,
     },
   );
 
   if (result.ok) {
-    return { ok: true, orderId: result.data.orderId };
+    return { ok: true, ...result.data };
   }
 
   const body = result.data;
@@ -147,7 +151,7 @@ export async function createCheckout(
 ): Promise<CreateCheckoutResponse> {
   return apiJson<CreateCheckoutResponse>(endpointPath(ENDPOINTS.createCheckout), {
     method: ENDPOINTS.createCheckout.method,
-    json: input,
+    json: { ...input, returnTo: 'app' },
     signal: options.signal,
   });
 }

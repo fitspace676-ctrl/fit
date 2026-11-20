@@ -1,3 +1,4 @@
+import { BookingRulesService } from './booking-rules.service';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { contactEmail } from '../common/directory-identity';
 import { AutomationTriggerType, BookingStatus, InstanceStatus, Prisma } from '@fit/db';
@@ -57,8 +58,8 @@ type RosterBookingRecord = Prisma.BookingGetPayload<{ select: typeof ROSTER_BOOK
  *   `ATTENDED` / `NO_SHOW` rows *can* be re-marked, so a mistyped roster is
  *   correctable.
  * - **Attendance is recorded once the class has run.** Marking before the
- *   occurrence has started is meaningless, so it is gated on `startsAt <= now`
- *   (`409 CLASS_NOT_STARTED`); a `CANCELED` occurrence can never be attended
+ *   occurrence has ended is premature, so it is gated on `endsAt <= now`
+ *   (`409 CLASS_NOT_ENDED`); a `CANCELED` occurrence can never be attended
  *   (`409 ATTENDANCE_NOT_AVAILABLE`). Recording attendance transitions the
  *   occurrence to `COMPLETED`.
  */
@@ -68,6 +69,7 @@ export class AttendanceService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly automation: AutomationExecutorService,
+    private readonly rules: BookingRulesService,
   ) {}
 
   /**
@@ -106,7 +108,7 @@ export class AttendanceService {
    *
    * Failure modes: `404 CLASS_INSTANCE_NOT_FOUND` (unknown / cross-tenant
    * occurrence), `409 ATTENDANCE_NOT_AVAILABLE` (canceled occurrence), `409
-   * CLASS_NOT_STARTED` (occurrence is still in the future), `404 BOOKING_NOT_FOUND`
+   * CLASS_NOT_ENDED` (occurrence has not ended yet), `404 BOOKING_NOT_FOUND`
    * (a referenced booking is unknown / not on this occurrence), and `409
    * BOOKING_NOT_ATTENDABLE` (the booking holds no seat — waitlisted or canceled).
    */
@@ -120,6 +122,8 @@ export class AttendanceService {
     // Bookings this call newly marks NO_SHOW — they fire `attendance_marked` too,
     // so a rule can follow up on a missed class (`booking_attendance` condition).
     const newlyNoShow: string[] = [];
+    const noShowMembers = new Set<string>();
+    const correctedMembers = new Set<string>();
 
     const roster = await this.prisma.client.$transaction(async (tx) => {
       const instance = await tx.classInstance.findFirst({
@@ -135,10 +139,10 @@ export class AttendanceService {
           code: 'ATTENDANCE_NOT_AVAILABLE',
         });
       }
-      if (instance.startsAt.getTime() > Date.now()) {
+      if (instance.endsAt.getTime() > Date.now()) {
         throw new ConflictException({
-          message: 'Attendance can only be recorded once the class has started',
-          code: 'CLASS_NOT_STARTED',
+          message: 'Attendance can only be recorded once the class has ended',
+          code: 'CLASS_NOT_ENDED',
         });
       }
 
@@ -180,6 +184,7 @@ export class AttendanceService {
           !newlyAttended.some((b) => b.id === entry.bookingId)
         ) {
           newlyAttended.push({ id: entry.bookingId, memberId: before.memberId });
+          if (before.status === BookingStatus.NO_SHOW) correctedMembers.add(before.memberId);
         }
         if (
           entry.status === BookingStatus.NO_SHOW &&
@@ -187,6 +192,7 @@ export class AttendanceService {
           !newlyNoShow.includes(entry.bookingId)
         ) {
           newlyNoShow.push(entry.bookingId);
+          noShowMembers.add(before.memberId);
         }
       }
 
@@ -225,6 +231,12 @@ export class AttendanceService {
       void this.dispatchFirstClassAttended(gymId, newlyAttended);
     }
 
+    for (const memberId of correctedMembers) {
+      await this.rules.onNoShowCorrected(gymId, memberId).catch(() => undefined);
+    }
+    for (const memberId of noShowMembers) {
+      await this.rules.evaluateMember(gymId, memberId).catch(() => undefined);
+    }
     return roster;
   }
 

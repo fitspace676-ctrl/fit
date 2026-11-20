@@ -7,6 +7,8 @@ export function appFeaturesForPath(path: string): MobileAppFeature[] {
     .split('/')
     .filter((part) => part && !part.startsWith('('));
   const [head, child] = parts;
+  // Recovery must remain reachable for shop buyers and after a feature is disabled.
+  if (head === 'checkout' && child === 'result') return [];
   if (head === 'checkout' || head === 'checkout-success') return ['membership', 'billing'];
   if (head === 'shop') return ['shop'];
   if (head === 'profile') {

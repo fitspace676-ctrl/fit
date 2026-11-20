@@ -17,6 +17,7 @@ import {
   freezeSubscription,
   unfreezeSubscription,
 } from '../../lib/api/subscriptions';
+import { payMySubscription } from '../../lib/api/me';
 import { invalidateFor } from './invalidation';
 import { requireGymId, useMutationDeps, type MutationDeps } from './deps';
 
@@ -109,4 +110,17 @@ export function unfreezeSubscriptionMutationOptions(
  */
 export function useUnfreezeSubscription() {
   return useMutation(unfreezeSubscriptionMutationOptions(useMutationDeps()));
+}
+
+/** Opening checkout does not grant a period; the result screen invalidates membership. */
+export function usePaySubscription() {
+  const deps = useMutationDeps();
+  return useMutation({
+    mutationKey: ['paySubscription'],
+    retry: false,
+    mutationFn: () => {
+      requireGymId(deps.gymId, 'Paying for a membership');
+      return payMySubscription();
+    },
+  });
 }
