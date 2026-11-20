@@ -56,6 +56,7 @@ import {
 } from 'react';
 
 import { appAccentFor, getAppAccent, subscribeAppAccent } from '../lib/app-accent';
+import { BRAND_THEME } from '../lib/brand';
 import { resolveGymSlug } from '../lib/auth/session';
 import { useSession } from '../hooks/useSession';
 
@@ -110,7 +111,10 @@ export function ThemePreferenceProvider({
   initialPreference = defaultThemePreference,
 }: ThemePreferenceProviderProps) {
   const [preference, setPreferenceState] = useState<ThemePreference>(initialPreference);
-  const accent = useGymAccent();
+  // A branded build paints its own colour guide; the gym's accent setting is
+  // for the FormaCore app, where it is the only colour a gym can choose.
+  const gymAccent = useGymAccent();
+  const accent = BRAND_THEME ?? gymAccent;
 
   // Set the instant the user picks a mode, and never unset. A ref, not state:
   // the hydration callback has to read the value at the moment it resolves, and
