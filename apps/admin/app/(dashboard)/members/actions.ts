@@ -20,9 +20,12 @@ import {
   type SendMemberEmailInput,
   type UpdateMemberInput,
 } from '@fit/types';
+import { consoleCan } from '@/lib/console-permissions';
+import { getConsolePermissions } from '@/lib/permissions-server';
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  liftBookingBlock,
   bulkExportMembers,
   createMember,
   createMemberNote,
@@ -446,5 +449,23 @@ export async function unfreezeMemberSubscriptionAction(
     return { ok: true, data: { newPeriodEnd } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+export async function liftBookingBlockAction(id: string): Promise<ActionResult> {
+  const t = await getTranslations('admin.bookingBlocks');
+  if (!consoleCan(await getConsolePermissions(), Permission.ClassAttendance)) {
+    return { ok: false, error: t('forbidden') };
+  }
+  try {
+    const block = await liftBookingBlock(id);
+    revalidatePath(`/members/${block.memberId}`);
+    revalidatePath('/classes/blocked');
+    revalidatePath('/classes/schedule');
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: error instanceof ApiError && error.message === 'BOOKING_BLOCK_NOT_ACTIVE'
+      ? t('notActive') : error instanceof ApiError && error.status === 403
+        ? t('forbidden') : t('failed') };
   }
 }

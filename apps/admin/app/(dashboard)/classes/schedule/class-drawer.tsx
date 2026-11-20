@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type {
   AdminClassInstanceDetail,
@@ -23,6 +23,7 @@ import {
   type MemberSearchResult,
 } from './actions';
 import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
+import { formatBookingBlockDate } from '@/lib/booking-block-format';
 import { zonedClock, zonedIsoDate } from './week';
 
 type T = ReturnType<typeof useTranslations>;
@@ -686,6 +687,7 @@ export function ClassDrawer({
 
             {/* Roster. */}
             <Roster
+              timeZone={timeZone}
               t={t}
               loading={loading}
               error={error}
@@ -811,6 +813,7 @@ function Occupancy({
 
 /** The booking roster: held seats, then the waitlist. */
 function Roster({
+  timeZone,
   t,
   loading,
   error,
@@ -823,6 +826,7 @@ function Roster({
   onMark,
   onPromote,
 }: {
+  timeZone: string;
   t: T;
   loading: boolean;
   error: string | null;
@@ -857,6 +861,7 @@ function Roster({
             <RosterRow
               key={entry.bookingId}
               entry={entry}
+              timeZone={timeZone}
               t={t}
               // Only held seats are markable; a waitlisted entry never got one.
               canMark={canMark && entry.status !== 'WAITLIST'}
@@ -886,6 +891,7 @@ function Roster({
  */
 function RosterRow({
   entry,
+  timeZone,
   t,
   canMark,
   canPromote,
@@ -896,6 +902,7 @@ function RosterRow({
   onPromote,
 }: {
   entry: AdminClassInstanceRosterEntry;
+  timeZone: string;
   t: T;
   canMark: boolean;
   canPromote: boolean;
@@ -905,12 +912,17 @@ function RosterRow({
   onMark: (bookingId: string, status: AttendanceStatus) => void;
   onPromote: (bookingId: string) => void;
 }) {
+  const locale = useLocale();
+  const blocksT = useTranslations('admin.bookingBlocks');
   const label = entry.memberName?.trim() || entry.memberEmail;
   return (
     <li {...stylex.props(styles.row)}>
       <span {...stylex.props(styles.avatar)}>{initials(label)}</span>
       <div {...stylex.props(styles.rowText)}>
         <span {...stylex.props(styles.rowName)}>{label}</span>
+        {entry.bookingBlockedUntil ? <Badge tone="pending" label={blocksT('until', {
+          date: formatBookingBlockDate(entry.bookingBlockedUntil, locale, timeZone),
+        })} /> : null}
         {entry.memberName ? (
           <span {...stylex.props(styles.rowEmail)}>{entry.memberEmail}</span>
         ) : null}

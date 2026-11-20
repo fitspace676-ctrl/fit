@@ -10,13 +10,19 @@ import {
   type CreditPackCatalogueEntry,
   type CreditPackSummary,
   type MemberDetail,
+  type AdminBookingBlock,
   type MergeValues,
 } from '@fit/types';
+import { consoleCan } from '@/lib/console-permissions';
+import { getConsolePermissions } from '@/lib/permissions-server';
 import { getServerSession } from '@/lib/session';
 import { getActiveGymBrand } from '@/lib/active-gym';
-import { ApiError, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
-import { Badge, Card, type BadgeTone } from '@fit/ui-kit';
+import { ApiError, listBookingBlocks, fetchCreditPackCatalogue, fetchMember, fetchMemberCreditPacks } from '@/lib/api';
+import { Badge, Banner, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
+import { gymCalendarContext } from '@/lib/gym-time';
+import { formatBookingBlockDate } from '@/lib/booking-block-format';
+import { BookingBlockAction } from './booking-block-action';
 import { MemberActions } from './member-actions';
 import { MemberTabs } from './member-tabs';
 import { EmailMemberDrawer } from './email-member-drawer';
@@ -119,6 +125,29 @@ const styles = stylex.create({
     margin: 0,
     fontSize: '0.875rem',
     color: 'var(--color-text-primary)',
+  },
+  bookingBanner: {
+    backgroundColor: 'var(--color-warning-muted)',
+    color: 'var(--color-text-primary)',
+  },
+  bookingBannerBody: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '0.875rem',
+    flex: 1,
+    minWidth: 0,
+  },
+  bookingBannerCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    flexGrow: 1,
+    flexBasis: '20rem',
+    minWidth: 0,
+  },
+  bookingBannerReason: {
+    color: 'var(--color-text-secondary)',
   },
   identityCard: {
     display: 'flex',
@@ -384,6 +413,8 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const t = await getTranslations('admin.members');
   const locale = await getLocale();
+  const blocksT = await getTranslations('admin.bookingBlocks');
+  const { timeZone } = await gymCalendarContext();
 
   let member: MemberDetail;
   try {
@@ -410,6 +441,17 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         </Card>
       </div>
     );
+  }
+
+  const canLiftBlock = consoleCan(await getConsolePermissions(), Permission.ClassAttendance);
+  let blocks: AdminBookingBlock[] = [];
+  let blocksError = false;
+  if (canLiftBlock) {
+    try {
+      ({ blocks } = await listBookingBlocks({ memberId: id }));
+    } catch {
+      blocksError = true;
+    }
   }
 
   const statusTone: BadgeTone = STATUS_TONES[member.status] ?? 'neutral';
@@ -497,6 +539,22 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
           </p>
         </Card>
       ) : null}
+
+      {blocksError ? (
+        <Card padding="none" xstyle={styles.errorCard}>
+          <p role="alert" {...stylex.props(styles.errorText)}>{blocksT('loadFailed')}</p>
+        </Card>
+      ) : blocks.filter((block) => block.active).map((block) => (
+        <Banner key={block.id} tone="info" xstyle={styles.bookingBanner}>
+          <span {...stylex.props(styles.bookingBannerBody)}>
+            <span {...stylex.props(styles.bookingBannerCopy)}>
+              <strong>{blocksT('until', { date: formatBookingBlockDate(block.endsAt, locale, timeZone) })}</strong>
+              <span {...stylex.props(styles.bookingBannerReason)}>{blocksT('reason', { count: block.noShowCount })}</span>
+            </span>
+            {canLiftBlock ? <BookingBlockAction blockId={block.id} /> : null}
+          </span>
+        </Banner>
+      ))}
 
       {/* Identity header card. */}
       <Card padding="none" xstyle={styles.identityCard}>

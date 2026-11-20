@@ -12,6 +12,7 @@ import { cookies } from 'next/headers';
 import {
   listMemberBookingsResultSchema,
   type MemberBookingHistoryEntry,
+  type MemberBookingStanding,
   type MemberBookingScope,
 } from '@fit/types';
 import { ACCESS_TOKEN_COOKIE } from './auth-session';
@@ -71,4 +72,17 @@ export async function fetchMemberBookings({
   }
 
   return listMemberBookingsResultSchema.parse(await response.json()).bookings;
+}
+
+/** Optional policy metadata must never prevent a member from viewing bookings. */
+export async function fetchBookingStanding(): Promise<MemberBookingStanding | null> {
+  try {
+    const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+    if (!token) return null;
+    const response = await fetch(`${API_URL}/me/bookings/standing`, {
+      headers: { ...(await tenantHeaders()), Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    return response.ok ? ((await response.json()) as MemberBookingStanding) : null;
+  } catch { return null; }
 }

@@ -43,6 +43,8 @@
 // report rather than half-translated across two namespaces.
 // ===========================================================================
 
+import { useBookingStanding } from '../../hooks/queries/useBookingStanding';
+import { ApiError } from '../../lib/http/api-error';
 import { useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { useToast, type ClassCardStatus } from '@fit/ui-mobile';
@@ -51,7 +53,7 @@ import { useBookClass, useCancelBooking } from '../../hooks/mutations/useBooking
 import { useSession } from '../../hooks/useSession';
 import type { MessageKey } from '../../lib/i18n/keys';
 import { useI18n } from '../../providers/I18nProvider';
-import { bookingErrorKey, isSubscriptionFrozen } from './booking-errors';
+import { bookingErrorKey, isSubscriptionFrozen, isBookingBlocked } from './booking-errors';
 
 /** The class an open confirm sheet is about. */
 export interface BookingTarget {
@@ -72,6 +74,10 @@ export interface BookingFailure {
   readonly messageKey: MessageKey;
   /** The 403 `SUBSCRIPTION_FROZEN` refusal — its own state, see the module head. */
   readonly frozen: boolean;
+  readonly blocked?: boolean;
+  readonly blockedUntil?: string;
+  readonly limit?: number;
+  readonly cutoffHours?: number;
 }
 
 /** What {@link useClassBooking} hands a screen. */
@@ -124,6 +130,7 @@ export function useClassBooking(): ClassBooking {
   const { t } = useI18n();
   const session = useSession();
 
+  const standing = useBookingStanding().data;
   const book = useBookClass();
   const cancel = useCancelBooking();
 
@@ -147,12 +154,20 @@ export function useClassBooking(): ClassBooking {
         router.push(bookingSignInHref(next.id));
         return;
       }
+      if (next.status === null && standing?.block) {
+        setFailure({ frozen: false, blocked: true, blockedUntil: standing.block.until, limit: standing.noShow.limit, messageKey: 'member.actions.errBookingBlockedUnknown' });
+        return;
+      }
+      if (next.status === 'BOOKED' && standing && standing.cancellationCutoffHours > 0 && Date.now() >= Date.parse(next.startsAt) - standing.cancellationCutoffHours * 3600000) {
+        setFailure({ frozen: false, messageKey: 'member.actions.errWindowPassedHours', cutoffHours: standing.cancellationCutoffHours });
+        return;
+      }
       if (attempt.current?.classId !== next.id) {
         attempt.current = { classId: next.id, key: mintIdempotencyKey(next.id) };
       }
       setTarget(next);
     },
-    [router, session.status],
+    [router, session.status, standing],
   );
 
   const dismiss = useCallback(() => {
@@ -182,9 +197,13 @@ export function useClassBooking(): ClassBooking {
       settle({
         messageKey: bookingErrorKey(error),
         frozen: isSubscriptionFrozen(error),
+        blocked: isBookingBlocked(error),
+        blockedUntil: ApiError.is(error) ? error.blockedUntil : undefined,
+        limit: standing?.noShow.limit,
+        cutoffHours: standing?.cancellationCutoffHours,
       });
     },
-    [settle],
+    [settle, standing],
   );
 
   const confirm = useCallback(() => {

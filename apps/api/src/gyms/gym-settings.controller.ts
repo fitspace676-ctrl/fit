@@ -12,11 +12,13 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  updateClassRulesSchema,
   updateGymSettingsSchema,
   uploadGymLogoSchema,
   uploadGymPortalImageSchema,
   uploadGymPortalFaviconSchema,
   uploadGymPortalLogoSchema,
+  type ClassRules,
   type GetGymSettingsResponse,
   type UpdateGymSettingsResponse,
   type UploadGymLogoResponse,
@@ -70,6 +72,26 @@ export class GymSettingsController {
   @RequirePermissions(Permission.GymManage)
   async update(@Body() body: unknown): Promise<UpdateGymSettingsResponse> {
     return this.settings.updateSettings(parse(updateGymSettingsSchema, body));
+  }
+
+  /**
+   * `GET /gyms/class-rules` — the class-booking rules (cancellation cutoff and
+   * no-show block). Guarded by {@link Permission.ClassWrite}, not `GymManage`, so
+   * whoever runs the classes (a MANAGER by default) can see and tune them.
+   */
+  @Get('class-rules')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ClassWrite)
+  async getClassRules(): Promise<ClassRules> {
+    return this.settings.getClassRules();
+  }
+
+  /** `PATCH /gyms/class-rules` — partial update of the class-booking rules only. */
+  @Patch('class-rules')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ClassWrite)
+  async updateClassRules(@Body() body: unknown): Promise<ClassRules> {
+    return this.settings.updateClassRules(parse(updateClassRulesSchema, body));
   }
 
   /**

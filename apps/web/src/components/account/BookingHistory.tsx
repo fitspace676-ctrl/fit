@@ -1,4 +1,6 @@
 'use client';
+import { BookingStandingNotice } from '../classes/BookingStandingNotice';
+import type { MemberBookingStanding } from '@fit/types';
 
 import { useMemo, useState } from 'react';
 import {
@@ -267,6 +269,7 @@ const styles = stylex.create({
 });
 
 export interface BookingHistoryProps {
+  standing?: MemberBookingStanding | null;
   entries: MemberBookingHistoryEntry[];
   /** Request-time boundary (ms since epoch) splitting upcoming from past. */
   now: number;
@@ -289,7 +292,7 @@ const ALL = '';
  * narrows either tab and the soonest upcoming class is surfaced as a lime-block
  * "Next up" hero. Booking actions (cancel / re-book) live on each card.
  */
-export function BookingHistory({ entries, now, timeZone }: BookingHistoryProps) {
+export function BookingHistory({ entries, now, timeZone, standing }: BookingHistoryProps) {
   const t = useTranslations('account.bookings');
   const locale = useLocale();
   const [view, setView] = useState<View>('upcoming');
@@ -318,6 +321,7 @@ export function BookingHistory({ entries, now, timeZone }: BookingHistoryProps) 
   if (entries.length === 0) {
     return (
       <Card>
+        <BookingStandingNotice timeZone={timeZone} standing={standing} history />
         <EmptyState
           icon={<Icon name="calendar" {...stylex.props(styles.emptyIcon)} />}
           title={t('empty.title')}
@@ -373,6 +377,7 @@ export function BookingHistory({ entries, now, timeZone }: BookingHistoryProps) 
         ))}
       </div>
 
+      <BookingStandingNotice timeZone={timeZone} standing={standing} history />
       {nextUp ? <NextUpHero entry={nextUp} now={now} locale={locale} timeZone={timeZone} /> : null}
 
       <div {...stylex.props(styles.controls)}>
@@ -417,6 +422,7 @@ export function BookingHistory({ entries, now, timeZone }: BookingHistoryProps) 
         <ul {...stylex.props(styles.list)}>
           {shown.map((entry) => (
             <BookingHistoryCard
+              cutoffHours={standing?.cancellationCutoffHours}
               timeZone={timeZone}
               key={entry.bookingId}
               entry={entry}

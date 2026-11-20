@@ -78,6 +78,8 @@ export const ROUTE_PERMISSIONS: readonly RouteGuard[] = [
   { prefix: '/staff', permission: Permission.StaffRead, minRole: 'MANAGER' },
 
   // ---- Operations ---------------------------------------------------------
+  { prefix: '/classes/rules', permission: Permission.ClassWrite },
+  { prefix: '/classes/blocked', permission: Permission.ClassAttendance },
   { prefix: '/classes', permission: Permission.ClassRead },
 
   // ---- Commerce -----------------------------------------------------------

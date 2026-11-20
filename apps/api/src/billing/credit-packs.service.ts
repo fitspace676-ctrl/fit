@@ -342,10 +342,14 @@ export class CreditPacksService {
   async chargeSeatCredit(
     tx: CreditPackTransactionClient,
     memberId: string,
-    options?: { required?: boolean },
+    options?: { required?: boolean; gymId?: string },
   ): Promise<string | null> {
     const entitled = await tx.subscription.findFirst({
-      where: { memberId, status: { in: [...ENTITLED_SUBSCRIPTION_STATUSES] } },
+      where: {
+        ...(options?.gymId ? { gymId: options.gymId } : {}),
+        memberId,
+        status: { in: [...ENTITLED_SUBSCRIPTION_STATUSES] },
+      },
       select: { id: true },
     });
     if (entitled) {
@@ -356,6 +360,7 @@ export class CreditPacksService {
     for (;;) {
       const pack = await tx.creditPack.findFirst({
         where: {
+          ...(options?.gymId ? { gymId: options.gymId } : {}),
           memberId,
           status: CreditPackStatus.ACTIVE,
           remainingCredits: { gt: 0 },
@@ -378,7 +383,12 @@ export class CreditPacksService {
       }
 
       const charged = await tx.creditPack.updateMany({
-        where: { id: pack.id, status: CreditPackStatus.ACTIVE, remainingCredits: { gt: 0 } },
+        where: {
+          ...(options?.gymId ? { gymId: options.gymId } : {}),
+          id: pack.id,
+          status: CreditPackStatus.ACTIVE,
+          remainingCredits: { gt: 0 },
+        },
         data: { remainingCredits: { decrement: 1 } },
       });
       if (charged.count === 1) {
@@ -398,12 +408,16 @@ export class CreditPacksService {
    * then (a no-op). Safe for a `null` id (a subscription-covered or uncharged
    * seat) — nothing to refund.
    */
-  async refundCredit(tx: CreditPackTransactionClient, creditPackId: string | null): Promise<void> {
+  async refundCredit(
+    tx: CreditPackTransactionClient,
+    creditPackId: string | null,
+    gymId?: string,
+  ): Promise<void> {
     if (!creditPackId) {
       return;
     }
     await tx.creditPack.updateMany({
-      where: { id: creditPackId, status: CreditPackStatus.ACTIVE },
+      where: { ...(gymId ? { gymId } : {}), id: creditPackId, status: CreditPackStatus.ACTIVE },
       data: { remainingCredits: { increment: 1 } },
     });
   }

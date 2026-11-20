@@ -163,6 +163,7 @@ export type AdminRosterBookingStatus = 'BOOKED' | 'WAITLIST' | 'ATTENDED' | 'NO_
  * made, giving the held-seat list a stable order.
  */
 export interface AdminClassInstanceRosterEntry {
+  bookingBlockedUntil: string | null;
   bookingId: string;
   memberId: string;
   memberName: string | null;

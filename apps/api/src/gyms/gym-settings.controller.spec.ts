@@ -11,9 +11,15 @@ const SETTINGS: GymSettings = (() => {
   return { ...stored, brand: { name: 'Iron Gym', ...stored.brand } };
 })();
 
+const RULES = {
+  booking: { cancellationCutoffHours: 4 },
+  noShow: { strikeLimit: 3, strikeWindowDays: 30, blockDays: 30 },
+};
+
 function setup() {
   const getSettings = vi.fn(() => Promise.resolve(SETTINGS));
   const updateSettings = vi.fn(() => Promise.resolve(SETTINGS));
+  const updateClassRules = vi.fn(() => Promise.resolve(RULES));
   const setLogo = vi.fn(() => Promise.resolve({ logoUrl: 'https://cdn/gym-1/logos/a.png' }));
   const setPortalImage = vi.fn(() =>
     Promise.resolve({ loginImageUrl: 'https://cdn/gym-1/logos/hero.jpg' }),
@@ -27,6 +33,7 @@ function setup() {
   const service = {
     getSettings,
     updateSettings,
+    updateClassRules,
     setLogo,
     setPortalImage,
     setPortalLogo,
@@ -36,6 +43,7 @@ function setup() {
     controller: new GymSettingsController(service),
     getSettings,
     updateSettings,
+    updateClassRules,
     setLogo,
     setPortalImage,
     setPortalLogo,
@@ -84,6 +92,24 @@ describe('GymSettingsController', () => {
       await expect(
         ctx.controller.update({ locale: { timezone: 'Mars/Phobos' } }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('PATCH /gyms/class-rules', () => {
+    it('validates the body and delegates the parsed patch', async () => {
+      const result = await ctx.controller.updateClassRules({ booking: { cancellationCutoffHours: 2 } });
+      expect(ctx.updateClassRules).toHaveBeenCalledWith({ booking: { cancellationCutoffHours: 2 } });
+      expect(result).toEqual(RULES);
+    });
+
+    it('rejects any setting outside the class rules with a 400', async () => {
+      await expect(
+        ctx.controller.updateClassRules({ booking: { bookingWindowDays: 7 } }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        ctx.controller.updateClassRules({ locale: { currency: 'USD' } }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(ctx.updateClassRules).not.toHaveBeenCalled();
     });
   });
 

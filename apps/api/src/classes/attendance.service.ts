@@ -1,3 +1,4 @@
+import { BookingRulesService } from './booking-rules.service';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { contactEmail } from '../common/directory-identity';
 import { AutomationTriggerType, BookingStatus, InstanceStatus, Prisma } from '@fit/db';
@@ -68,6 +69,7 @@ export class AttendanceService {
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
     private readonly automation: AutomationExecutorService,
+    private readonly rules: BookingRulesService,
   ) {}
 
   /**
@@ -120,6 +122,8 @@ export class AttendanceService {
     // Bookings this call newly marks NO_SHOW — they fire `attendance_marked` too,
     // so a rule can follow up on a missed class (`booking_attendance` condition).
     const newlyNoShow: string[] = [];
+    const noShowMembers = new Set<string>();
+    const correctedMembers = new Set<string>();
 
     const roster = await this.prisma.client.$transaction(async (tx) => {
       const instance = await tx.classInstance.findFirst({
@@ -180,6 +184,7 @@ export class AttendanceService {
           !newlyAttended.some((b) => b.id === entry.bookingId)
         ) {
           newlyAttended.push({ id: entry.bookingId, memberId: before.memberId });
+          if (before.status === BookingStatus.NO_SHOW) correctedMembers.add(before.memberId);
         }
         if (
           entry.status === BookingStatus.NO_SHOW &&
@@ -187,6 +192,7 @@ export class AttendanceService {
           !newlyNoShow.includes(entry.bookingId)
         ) {
           newlyNoShow.push(entry.bookingId);
+          noShowMembers.add(before.memberId);
         }
       }
 
@@ -225,6 +231,12 @@ export class AttendanceService {
       void this.dispatchFirstClassAttended(gymId, newlyAttended);
     }
 
+    for (const memberId of correctedMembers) {
+      await this.rules.onNoShowCorrected(gymId, memberId).catch(() => undefined);
+    }
+    for (const memberId of noShowMembers) {
+      await this.rules.evaluateMember(gymId, memberId).catch(() => undefined);
+    }
     return roster;
   }
 

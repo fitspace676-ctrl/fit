@@ -1,3 +1,6 @@
+import { AdminBookingBlocksController } from './admin-booking-blocks.controller';
+import { BookingRulesService } from './booking-rules.service';
+import { BookingRulesJobService } from './booking-rules-job.service';
 import { Module } from '@nestjs/common';
 import { AutomationModule } from '../automation/automation.module';
 import { BillingModule } from '../billing/billing.module';
@@ -74,6 +77,7 @@ import { PtSessionsService } from './pt-sessions.service';
 @Module({
   imports: [AutomationModule, BillingModule, NotificationsModule, PortalBranchModule],
   controllers: [
+    AdminBookingBlocksController,
     ClassesController,
     AdminClassTemplatesController,
     ClassTypesController,
@@ -84,6 +88,8 @@ import { PtSessionsService } from './pt-sessions.service';
     MemberBookingsController,
   ],
   providers: [
+    BookingRulesService,
+    BookingRulesJobService,
     ClassesService,
     AdminClassTemplatesService,
     ClassTypesService,

@@ -412,6 +412,10 @@ export type GymBusinessSettings = z.infer<typeof gymBusinessSettingsSchema>;
  * (`0` = never auto-cancel). Config only; defaults impose nothing.
  */
 export const gymNoShowSettingsSchema = z.object({
+  strikeLimit: z.number().int().min(0).max(50).default(0),
+  strikeWindowDays: z.number().int().min(0).max(365).default(0),
+  blockDays: z.number().int().min(0).max(365).default(0),
+  strikesSince: z.string().datetime().nullable().default(null),
   penalty: z.number().min(0).max(MAX_PENALTY_AMOUNT).default(0),
   penaltyType: penaltyTypeSchema.default(DEFAULT_PENALTY_TYPE),
   penaltyDays: z.number().int().min(0).max(365).default(0),
@@ -1088,7 +1092,7 @@ export const updateGymSettingsSchema = z
       .optional(),
     hours: weeklyHoursSchema.optional(),
     booking: gymBookingSettingsSchema.partial().strict().optional(),
-    noShow: gymNoShowSettingsSchema.partial().strict().optional(),
+    noShow: gymNoShowSettingsSchema.omit({ strikesSince: true }).partial().strict().optional(),
     freeze: gymFreezeSettingsSchema.partial().strict().optional(),
     guestPass: gymGuestPassSettingsSchema.partial().strict().optional(),
     trial: gymTrialSettingsSchema.partial().strict().optional(),
@@ -1109,6 +1113,38 @@ export const updateGymSettingsSchema = z
 
 /** Validated `PATCH /gyms/settings` body — {@link updateGymSettingsSchema}. */
 export type UpdateGymSettingsInput = z.infer<typeof updateGymSettingsSchema>;
+
+const classRulesBookingSchema = gymBookingSettingsSchema.pick({ cancellationCutoffHours: true });
+const classRulesNoShowSchema = gymNoShowSettingsSchema.pick({
+  strikeLimit: true,
+  strikeWindowDays: true,
+  blockDays: true,
+});
+
+/**
+ * The class-booking rules slice of the gym settings (`GET /gyms/class-rules`):
+ * the cancellation cutoff and the no-show block rule. Served on its own route so
+ * the people who run classes (`ClassWrite`, e.g. a MANAGER) can tune them without
+ * the owner-only `GymManage` that guards the rest of the settings.
+ */
+export const classRulesSchema = z.object({
+  booking: classRulesBookingSchema,
+  noShow: classRulesNoShowSchema,
+});
+
+/** The class-booking rules — {@link classRulesSchema}. */
+export type ClassRules = z.infer<typeof classRulesSchema>;
+
+/** Body for `PATCH /gyms/class-rules`: a partial update of {@link classRulesSchema}. */
+export const updateClassRulesSchema = z
+  .object({
+    booking: classRulesBookingSchema.partial().strict().optional(),
+    noShow: classRulesNoShowSchema.partial().strict().optional(),
+  })
+  .strict();
+
+/** Validated `PATCH /gyms/class-rules` body — {@link updateClassRulesSchema}. */
+export type UpdateClassRulesInput = z.infer<typeof updateClassRulesSchema>;
 
 /** Successful `PATCH /gyms/settings` response — the full, updated settings. */
 export type UpdateGymSettingsResponse = GymSettings;
@@ -1321,4 +1357,10 @@ export function gymPublicBrand(name: string, rawSettings: unknown): GymPublicBra
     primaryColor: stored.brand.primaryColor,
     secondaryColor: stored.brand.secondaryColor,
   };
+}
+
+export function isNoShowBlockRuleActive(
+  rule: Pick<GymNoShowSettings, 'strikeLimit' | 'strikeWindowDays' | 'blockDays'>,
+): boolean {
+  return rule.strikeLimit > 0 && rule.strikeWindowDays > 0 && rule.blockDays > 0;
 }

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getActiveGymTimezone } from '@/lib/active-gym';
 import * as stylex from '@stylexjs/stylex';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { fetchMemberBookings } from '@/lib/member-bookings';
+import { fetchMemberBookings, fetchBookingStanding } from '@/lib/member-bookings';
 import { fetchMyServiceSessions } from '@/lib/my-service-sessions';
 import { MySessions } from '@/src/components/services/MySessions';
 import { Link } from '@/src/i18n/navigation';
@@ -134,11 +134,12 @@ export default async function AccountBookingsPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, entries, sessions, timeZone] = await Promise.all([
+  const [t, entries, sessions, timeZone, standing] = await Promise.all([
     getTranslations('account.bookings'),
     fetchMemberBookings({ scope: 'all' }),
     fetchMyServiceSessions().catch(() => []),
     getActiveGymTimezone(),
+    fetchBookingStanding(),
   ]);
 
   // Service sessions (personal training and the like) live beside the class
@@ -167,7 +168,7 @@ export default async function AccountBookingsPage({
         />
       </header>
 
-      <BookingHistory timeZone={timeZone} entries={entries} now={now} />
+      <BookingHistory standing={standing} timeZone={timeZone} entries={entries} now={now} />
 
       <section {...stylex.props(styles.sessions)}>
         <div {...stylex.props(styles.sessionsHead)}>

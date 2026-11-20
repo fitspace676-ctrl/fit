@@ -117,6 +117,7 @@ export const ENDPOINTS = {
 
   // ── classes/member-bookings.controller.ts — `@Controller('me/bookings')` ──
   /** `GET /me/bookings?scope` — the caller's booking history. */
+  bookingStanding: { method: 'GET', path: '/me/bookings/standing', permission: [Permission.ClassBook] },
   listMyBookings: { method: 'GET', path: '/me/bookings', permission: [Permission.ClassBook] },
 
   // ── me/*.controller.ts ───────────────────────────────────────────────────

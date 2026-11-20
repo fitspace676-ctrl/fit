@@ -64,6 +64,8 @@ describe('the console colour on Settings > General', () => {
     save();
     await waitFor(() => expect(updateGymSettingsAction).toHaveBeenCalled());
     expect(sent().console).toEqual({ primaryColor: BRAND_RED });
+    expect(sent()).not.toHaveProperty('booking');
+    expect(sent()).not.toHaveProperty('noShow');
     // The member portal colour is a different screen's setting: never sent here.
     expect(sent().memberPortal).toBeUndefined();
   });
@@ -121,5 +123,18 @@ describe('the console colour on Settings > General', () => {
     await waitFor(() => expect(updateGymSettingsAction).toHaveBeenCalled());
     expect(sent().console).toEqual({ primaryColor: '#0f766e' });
     expect(sent().memberPortal).toBeUndefined();
+  });
+});
+
+
+describe('Settings section rail', () => {
+  it('marks only Business hours current after selecting it', () => {
+    renderForm(null);
+    const general = screen.getByRole('button', { name: en.admin.settings.sections.general });
+    const hours = screen.getByRole('button', { name: en.admin.settings.sections.hours });
+    expect(screen.getAllByRole('button', { current: 'page' })).toEqual([general]);
+    fireEvent.click(hours);
+    expect(screen.getAllByRole('button', { current: 'page' })).toEqual([hours]);
+    expect(general).not.toHaveAttribute('aria-current');
   });
 });

@@ -20,6 +20,7 @@
 export interface ApiErrorEnvelope {
   /** Machine-readable, status-independent code. Branch on this. */
   code: string;
+  blockedUntil?: string;
   /** Human-readable message. Safe to show, but never branch on it. */
   message: string;
   /** Per-field validation messages, or `null` when there is no extra detail. */
@@ -85,6 +86,7 @@ export class ApiError extends Error {
   readonly status: number;
   /** The envelope's `code` — the only field callers should branch on. */
   readonly code: string;
+  readonly blockedUntil: string | undefined;
   /** Per-field validation messages, or `null`. */
   readonly details: string[] | null;
   /** Server request id, for support tickets and log correlation. */
@@ -99,6 +101,7 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.status = init.status;
     this.code = init.code ?? codeForStatus(init.status);
+    this.blockedUntil = init.blockedUntil;
     this.details = init.details ?? null;
     this.requestId = init.requestId;
     this.sentryEventId = init.sentryEventId;
@@ -175,10 +178,12 @@ export function apiErrorFromResponse(
   retryAfterSec?: number,
 ): ApiError {
   const record = isRecord(body) ? body : {};
+  const data = isRecord(record.data) ? record.data : {};
   return new ApiError({
     status,
     code: typeof record.code === 'string' ? record.code : codeForStatus(status),
     message: typeof record.message === 'string' ? record.message : codeForStatus(status),
+    blockedUntil: typeof data.blockedUntil === 'string' ? data.blockedUntil : typeof record.blockedUntil === 'string' ? record.blockedUntil : undefined,
     details: asStringArray(record.details),
     requestId: typeof record.requestId === 'string' ? record.requestId : undefined,
     sentryEventId: typeof record.sentryEventId === 'string' ? record.sentryEventId : undefined,

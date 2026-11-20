@@ -26,6 +26,7 @@
 // renders only in the case that HAS copy: `classes.detail.booking.fullNote`,
 // on a full class.
 
+import { useBookingStanding } from '../../hooks/queries/useBookingStanding';
 import { useRef } from 'react';
 import { ConfirmSheet, isClassFull } from '@fit/ui-mobile';
 
@@ -49,6 +50,7 @@ export function ClassBookingSheet({
   booking,
   testID = 'class-booking-confirm',
 }: ClassBookingSheetProps) {
+  const standing = useBookingStanding().data;
   const { t, locale } = useI18n();
 
   // `Sheet` keeps its `Modal` mounted through the EXIT animation, which it can
@@ -90,6 +92,7 @@ export function ClassBookingSheet({
       {...(!booked && !waitlisted && full
         ? { note: t('classes.detail.booking.fullNote'), noteIcon: 'bolt' as const }
         : {})}
+      {...(!waitlisted && standing && standing.cancellationCutoffHours > 0 ? { note: t('member.actions.cancellationRule', { hours: standing.cancellationCutoffHours }) } : {})}
       destructive={booked || waitlisted}
       busy={booking.busy}
       busyLabel={

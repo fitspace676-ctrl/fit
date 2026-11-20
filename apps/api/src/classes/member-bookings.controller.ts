@@ -38,6 +38,12 @@ import { MemberBookingsService } from './member-bookings.service';
 export class MemberBookingsController {
   constructor(private readonly bookings: MemberBookingsService) {}
 
+  @Get('standing')
+  @RequirePermissions(Permission.ClassBook)
+  async standing() {
+    return this.bookings.getStanding();
+  }
+
   /**
    * `GET /me/bookings?scope=upcoming|past|all` — the calling member's bookings.
    * The optional `scope` is validated up front (an unknown value is a `400`) and

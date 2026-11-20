@@ -1,3 +1,4 @@
+import type { BookingRulesService } from './booking-rules.service';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { BookingStatus, InstanceStatus } from '@fit/db';
@@ -73,11 +74,17 @@ function setup(opts?: { transaction?: (cb: (tx: unknown) => unknown) => unknown 
     dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
   };
 
+  const rules = {
+    evaluateMember: vi.fn().mockResolvedValue(undefined),
+    onNoShowCorrected: vi.fn().mockResolvedValue(undefined),
+  };
   return {
+    rules,
     service: new AttendanceService(
       prisma,
       tenant,
       automation as unknown as AutomationExecutorService,
+      rules as unknown as BookingRulesService,
     ),
     automation,
     booking,
@@ -439,5 +446,50 @@ describe('AttendanceService', () => {
       expect(ctx.booking.update).not.toHaveBeenCalled();
       expect(ctx.classInstance.update).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('booking rules attendance hooks', () => {
+  const mark = (entries: { bookingId: string; status: 'ATTENDED' | 'NO_SHOW' }[]) => ({ entries });
+  it('evaluates newly missed seats after the roster commits', async () => {
+    const ctx = setup();
+    ctx.classInstance.findFirst.mockResolvedValue(instance());
+    ctx.booking.findFirst.mockResolvedValue({
+      id: 'bk-1',
+      status: BookingStatus.BOOKED,
+      memberId: 'gm-1',
+    });
+    ctx.booking.findMany.mockResolvedValue([]);
+    await ctx.service.markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-1', status: 'NO_SHOW' }]));
+    expect(ctx.rules.evaluateMember).toHaveBeenCalledExactlyOnceWith('gym-1', 'gm-1');
+    expect(ctx.rules.onNoShowCorrected).not.toHaveBeenCalled();
+  });
+  it('checks correction and ignores rule failures without failing roster save', async () => {
+    const ctx = setup();
+    ctx.classInstance.findFirst.mockResolvedValue(instance());
+    ctx.booking.findFirst.mockResolvedValue({
+      id: 'bk-1',
+      status: BookingStatus.NO_SHOW,
+      memberId: 'gm-1',
+    });
+    ctx.booking.findMany.mockResolvedValue([]);
+    ctx.rules.onNoShowCorrected.mockRejectedValue(new Error('rules unavailable'));
+    await expect(
+      ctx.service.markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-1', status: 'ATTENDED' }])),
+    ).resolves.toMatchObject({ classInstanceId: INSTANCE_ID });
+    expect(ctx.rules.onNoShowCorrected).toHaveBeenCalledExactlyOnceWith('gym-1', 'gm-1');
+    expect(ctx.rules.evaluateMember).not.toHaveBeenCalled();
+  });
+  it('does not evaluate a repeated NO_SHOW mark', async () => {
+    const ctx = setup();
+    ctx.classInstance.findFirst.mockResolvedValue(instance());
+    ctx.booking.findFirst.mockResolvedValue({
+      id: 'bk-1',
+      status: BookingStatus.NO_SHOW,
+      memberId: 'gm-1',
+    });
+    ctx.booking.findMany.mockResolvedValue([]);
+    await ctx.service.markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-1', status: 'NO_SHOW' }]));
+    expect(ctx.rules.evaluateMember).not.toHaveBeenCalled();
   });
 });

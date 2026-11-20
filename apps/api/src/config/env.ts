@@ -274,6 +274,10 @@ export const envSchema = z.object({
   // a multi-instance deployment (only one wins), and the per-booking dedupe key is
   // the independent at-most-once backstop. `"true"` enables; anything else (incl.
   // unset) leaves it disabled.
+  CLASS_BOOKING_RULES_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
   BOOKING_REMINDERS_ENABLED: z
     .enum(['true', 'false'])
     .default('false')

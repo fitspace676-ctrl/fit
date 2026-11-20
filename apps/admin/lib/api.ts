@@ -11,6 +11,7 @@
 import { cookies } from 'next/headers';
 import { getLocale } from 'next-intl/server';
 import type {
+  AdminBookingBlock,
   MobileAppSettings,
   UpdateMobileAppSettingsInput,
   UploadMobileAppLoginImageInput,
@@ -44,6 +45,8 @@ import type {
   ListAuditLogQuery,
   ListAuditLogResponse,
   GetGymSettingsResponse,
+  ClassRules,
+  UpdateClassRulesInput,
   UpdateGymSettingsInput,
   UpdateGymSettingsResponse,
   UploadGymLogoInput,
@@ -1892,6 +1895,26 @@ export async function updateGymSettings(
   return unwrap<UpdateGymSettingsResponse>(res);
 }
 
+/** `GET /gyms/class-rules` — the cancellation cutoff and no-show block rule (`ClassWrite`). */
+export async function fetchClassRules(): Promise<ClassRules> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/class-rules`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ClassRules>(res);
+}
+
+/** `PATCH /gyms/class-rules` — partial update of the class-booking rules; returns them. */
+export async function updateClassRules(input: UpdateClassRulesInput): Promise<ClassRules> {
+  const res = await fetch(`${apiBaseUrl()}/gyms/class-rules`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(input),
+    cache: 'no-store',
+  });
+  return unwrap<ClassRules>(res);
+}
+
 /** `POST /gyms/settings/logo` — finalise a logo upload by its R2 key; returns its public URL. */
 export async function uploadGymLogo(input: UploadGymLogoInput): Promise<UploadGymLogoResponse> {
   const res = await fetch(`${apiBaseUrl()}/gyms/settings/logo`, {
@@ -3536,4 +3559,24 @@ export async function moderateReview(id: string, hidden: boolean) {
       { method: 'POST', headers: await authHeaders(), cache: 'no-store' },
     ),
   );
+}
+
+/** Active blocks by default; history is explicitly requested by the staff view. */
+export async function listBookingBlocks(
+  options: { status?: 'active' | 'all'; memberId?: string } = {},
+): Promise<{ blocks: AdminBookingBlock[] }> {
+  const query = new URLSearchParams();
+  if (options.status) query.set('status', options.status);
+  if (options.memberId) query.set('memberId', options.memberId);
+  const res = await fetch(`${apiBaseUrl()}/admin/booking-blocks?${query}`, {
+    headers: await authHeaders(), cache: 'no-store',
+  });
+  return unwrap<{ blocks: AdminBookingBlock[] }>(res);
+}
+
+export async function liftBookingBlock(id: string): Promise<AdminBookingBlock> {
+  const res = await fetch(`${apiBaseUrl()}/admin/booking-blocks/${encodeURIComponent(id)}/lift`, {
+    method: 'POST', headers: await authHeaders(), cache: 'no-store',
+  });
+  return unwrap<AdminBookingBlock>(res);
 }

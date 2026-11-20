@@ -97,7 +97,17 @@ const ROSTER_SELECT = {
   status: true,
   waitlistPosition: true,
   createdAt: true,
-  member: { select: { user: { select: { name: true, email: true } } } },
+  member: {
+    select: {
+      bookingBlocks: {
+        where: { liftedAt: null },
+        select: { endsAt: true },
+        orderBy: { endsAt: 'desc' as const },
+        take: 1,
+      },
+      user: { select: { name: true, email: true } },
+    },
+  },
 } satisfies Prisma.BookingSelect;
 
 type RosterRow = Prisma.BookingGetPayload<{ select: typeof ROSTER_SELECT }>;
@@ -719,6 +729,9 @@ function toInstanceDetail(row: ScheduleRow, bookings: RosterRow[]): AdminClassIn
       memberId: booking.memberId,
       memberName: booking.member.user.name,
       memberEmail: contactEmail(booking.member.user.email),
+      bookingBlockedUntil:
+        booking.member.bookingBlocks?.find((b) => b.endsAt > new Date())?.endsAt.toISOString() ??
+        null,
       status: booking.status as AdminRosterBookingStatus,
       waitlistPosition: booking.waitlistPosition,
       bookedAt: booking.createdAt.toISOString(),

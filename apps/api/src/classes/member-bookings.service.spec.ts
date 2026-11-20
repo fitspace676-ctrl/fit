@@ -1,3 +1,4 @@
+import type { BookingRulesService } from './booking-rules.service';
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { BookingStatus, InstanceStatus } from '@fit/db';
@@ -77,7 +78,11 @@ function setup(opts?: { userId?: string | null; member?: { id: string } | null }
     userId: opts?.userId === undefined ? USER_ID : opts.userId,
   } as unknown as TenantContext;
 
-  return { service: new MemberBookingsService(prisma, tenant), gymMember, booking };
+  return {
+    service: new MemberBookingsService(prisma, tenant, {} as BookingRulesService),
+    gymMember,
+    booking,
+  };
 }
 
 describe('MemberBookingsService', () => {

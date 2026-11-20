@@ -136,6 +136,7 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set<string>([
   'ClassInstance',
   'PtSession',
   'Booking',
+  'BookingBlock',
   'Review',
   'ReviewReport',
   'Order',
