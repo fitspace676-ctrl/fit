@@ -5045,6 +5045,7 @@
         "phone": "Test phone number",
         "testMessage": "Send a test SMS",
         "testMessageHint": "Enter your own Georgian mobile number. The test SMS is charged to this Sender.ge account.",
+        "testMessageOff": "Turn SMS on to send a test message.",
         "sent": "Test SMS accepted for sending.",
         "helpTitle": "Where do I find the key?",
         "help": "Sign in to Sender.ge and copy the API key from your account’s API section.",

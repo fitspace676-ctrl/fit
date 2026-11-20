@@ -673,6 +673,9 @@ export class MarketingService {
       });
     let sentCount = 0;
     let failedCount = 0;
+    // SMS only: members with no usable mobile number are outside the audience,
+    // not failed deliveries.
+    let skippedCount = 0;
     for (const member of members) {
       try {
         const values = buildMemberMergeValues({
@@ -697,6 +700,9 @@ export class MarketingService {
             kind: 'advertising',
           });
           if (result.status === 'sent') sentCount += 1;
+          else if (result.status === 'skipped' && result.reason === 'invalid_phone')
+            skippedCount += 1;
+          // Includes the integration being switched off mid-send.
           else failedCount += 1;
           continue;
         }
@@ -731,12 +737,18 @@ export class MarketingService {
         // duplicate mail for recipients already accepted by the provider.
         status: sentCount > 0 ? 'sent' : existing.status,
         scheduleType: 'now',
-        audienceSize: members.length,
+        audienceSize: members.length - skippedCount,
         sentCount,
         sentAt: sentCount > 0 ? new Date() : null,
       },
       select: CAMPAIGN_SELECT,
     });
+    if (existing.channel === 'sms' && !sentCount && !failedCount) {
+      throw new BadRequestException({
+        message: 'No recipients have a valid mobile number',
+        code: 'CAMPAIGN_NO_RECIPIENTS',
+      });
+    }
     if (failedCount) {
       throw new ServiceUnavailableException({
         message: `Campaign delivery incomplete: ${sentCount} accepted, ${failedCount} failed`,

@@ -561,7 +561,25 @@ describe('MarketingService.sendCampaign', () => {
     expect(client.campaign.updateMany).not.toHaveBeenCalled();
     expect(sms.send).not.toHaveBeenCalled();
   });
-  it.each(['invalid_phone', 'not_configured', 'rejected', 'unreachable'])(
+  it('leaves members without a usable number out of an SMS campaign', async () => {
+    const { service, sms, client } = deliverySetup({ channel: 'sms' });
+    sms.send.mockResolvedValueOnce({ status: 'skipped', reason: 'invalid_phone' });
+    expect(await service.sendCampaign('camp-1')).toMatchObject({ status: 'sent' });
+    expect(client.campaign.update.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'sent',
+      audienceSize: 1,
+      sentCount: 1,
+    });
+  });
+  it('refuses an SMS campaign none of whose recipients has a usable number', async () => {
+    const { service, sms, client } = deliverySetup({ channel: 'sms' });
+    sms.send.mockResolvedValue({ status: 'skipped', reason: 'invalid_phone' });
+    await expect(service.sendCampaign('camp-1')).rejects.toMatchObject({
+      response: { code: 'CAMPAIGN_NO_RECIPIENTS' },
+    });
+    expect(client.campaign.update.mock.calls[0]?.[0]?.data).toMatchObject({ sentCount: 0 });
+  });
+  it.each(['not_configured', 'rejected', 'unreachable'])(
     'counts SMS failure %s and preserves partial delivery',
     async (reason) => {
       const { service, sms, client } = deliverySetup({ channel: 'sms' });

@@ -463,15 +463,18 @@ export function SenderCard({ initial }: { initial: GymIntegration }) {
                     type="tel"
                     autoComplete="tel"
                     value={phone}
-                    disabled={busy}
+                    disabled={busy || !integration.enabled}
                     onChange={(event) => setPhone(event.target.value)}
                   />
                 </div>
-                <p {...stylex.props(styles.text)}>{s('testMessageHint')}</p>
+                {/* The server sends a test SMS only through a switched-on integration. */}
+                <p {...stylex.props(styles.text)}>
+                  {s(integration.enabled ? 'testMessageHint' : 'testMessageOff')}
+                </p>
                 <Button
                   type="submit"
                   variant="secondary"
-                  disabled={busy}
+                  disabled={busy || !integration.enabled}
                   label={s('testMessage')}
                 />
                 {sent && <p role="status">{s('sent')}</p>}

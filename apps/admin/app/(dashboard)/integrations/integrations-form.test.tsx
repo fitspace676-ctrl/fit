@@ -222,10 +222,16 @@ describe('Sender integration', () => {
     expect(await card.findByRole('status')).toHaveTextContent('GEL');
     expect(card.getByRole('status')).toHaveTextContent('123.45');
   });
+  it('offers no test SMS while the integration is switched off', () => {
+    const card = showSender(senderConnected);
+    expect(card.getByRole('button', { name: st.testMessage })).toBeDisabled();
+    expect(card.getByLabelText(st.phone)).toBeDisabled();
+    expect(card.getByText(st.testMessageOff)).toBeInTheDocument();
+  });
   it.each([undefined, 'invalid_phone', 'rejected', 'unreachable'] as const)(
     'reports test SMS result %s',
     async (error) => {
-      const card = showSender(senderConnected);
+      const card = showSender({ ...senderConnected, enabled: true });
       vi.mocked(changeSender).mockResolvedValue(error ? { ok: false, error } : { ok: true });
       fireEvent.change(card.getByLabelText(st.phone), { target: { value: '+995599123456' } });
       fireEvent.click(card.getByRole('button', { name: st.testMessage }));
