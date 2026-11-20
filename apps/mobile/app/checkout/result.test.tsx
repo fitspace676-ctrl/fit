@@ -6,9 +6,10 @@ import { renderScreen } from '../../test-support/render-screen';
 
 const mockReplace = jest.fn();
 const mockRouter = { replace: mockReplace };
+let mockParams: Record<string, string> = { orderId: 'ord_1' };
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
-  useLocalSearchParams: () => ({ orderId: 'ord_1' }),
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock('../../hooks/useActiveGym', () => ({ useGymId: () => 'gym_1' }));
 const mockOpen = jest.fn();
@@ -50,6 +51,7 @@ function result(status: string) {
 }
 beforeEach(async () => {
   jest.clearAllMocks();
+  mockParams = { orderId: 'ord_1' };
   await AsyncStorage.clear();
   mockSync.mockResolvedValue(result('failed'));
   mockRetry.mockResolvedValue({ payment });
@@ -110,4 +112,40 @@ it('preserves membership destination when retrying a renewal', async () => {
   const screen = renderScreen(<PaymentResultScreen />);
   fireEvent.press(await screen.findByTestId('payment-retry'));
   await waitFor(() => expect(mockOpen).toHaveBeenCalledWith(payment, 'membership'));
+});
+
+it('asks once and says nothing was charged when the buyer closed the payment page', async () => {
+  mockParams = { orderId: 'ord_1', dismissed: '1' };
+  mockSync.mockResolvedValue(result('requires_action'));
+  const screen = renderScreen(<PaymentResultScreen />);
+  await screen.findByTestId('payment-state-notPaid');
+  screen.getByText('Payment not completed');
+  screen.getByText('Nothing was charged. Continue the payment or cancel the order.');
+  screen.getByText('Complete payment');
+  expect(mockSync).toHaveBeenCalledTimes(1);
+});
+it('shows the bank is processing while it keeps asking, then follows the paid order', async () => {
+  const processing = result('requires_action');
+  Object.assign(processing.order.payment, { processing: true });
+  let settle: (value: unknown) => void = () => undefined;
+  mockSync.mockResolvedValueOnce(processing).mockReturnValueOnce(
+    new Promise((resolve) => {
+      settle = resolve;
+    }),
+  );
+  const screen = renderScreen(<PaymentResultScreen />);
+  await screen.findByTestId('payment-state-processing', {}, { timeout: 4000 });
+  screen.getByText('The bank is processing your payment');
+  expect(screen.queryByTestId('payment-retry')).toBeNull();
+  await waitFor(() => expect(mockSync).toHaveBeenCalledTimes(2), { timeout: 4000 });
+  settle(result('paid'));
+  await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/shop/order/ord_1'));
+});
+it('draws the order total and a declined payment as failed', async () => {
+  const screen = renderScreen(<PaymentResultScreen />);
+  await screen.findByTestId('payment-state-failed');
+  screen.getByText('The payment did not go through. Nothing was charged.');
+  screen.getByTestId('payment-summary');
+  screen.getByText('Total');
+  screen.getByText('Try again');
 });

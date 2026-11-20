@@ -6264,7 +6264,24 @@
       "back": "Back to home",
       "complete": "Complete payment",
       "refunded": "Payment refunded",
-      "planBody": "Choose a plan. Pay for each period securely in your browser."
+      "planBody": "Choose a plan. Pay for each period securely in your browser.",
+      "result": {
+        "checkingTitle": "Checking your payment",
+        "checkingBody": "We are asking the bank. This usually takes a few seconds.",
+        "processingTitle": "The bank is processing your payment",
+        "processingBody": "Keep this screen open. We check again every few seconds.",
+        "paidTitle": "Payment received",
+        "notPaidTitle": "Payment not completed",
+        "notPaidBody": "Nothing was charged. Continue the payment or cancel the order.",
+        "failedTitle": "Payment failed",
+        "failedBody": "The payment did not go through. Nothing was charged.",
+        "expiredTitle": "Payment time ran out",
+        "expiredBody": "Nothing was charged. Start the payment again.",
+        "waitingTitle": "Payment is still being confirmed",
+        "waitingBody": "The bank has not answered yet. You can leave this screen. Your purchase appears as soon as the payment is confirmed.",
+        "errorTitle": "Could not check the payment",
+        "total": "Total"
+      }
     }
   },
   "notifications": {

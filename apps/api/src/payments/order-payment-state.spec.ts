@@ -68,10 +68,29 @@ describe('toOrderPaymentState', () => {
     ).toEqual({
       status: 'requires_action',
       provider: 'flitt',
+      processing: false,
       retry: true,
       checkoutUrl: 'https://pay.flitt.com/merchants/x',
       expiresAt: LATER.toISOString(),
     });
+  });
+
+  it('says the payment is processing only when the provider does', () => {
+    const state = (providerStatus: string | null) =>
+      toOrderPaymentState({
+        orderStatus: OrderStatus.PENDING,
+        payment: flitt,
+        latestAttempt: {
+          status: PaymentAttemptStatus.PENDING,
+          checkoutUrl: 'https://pay.flitt.com/merchants/x',
+          expiresAt: LATER,
+          providerStatus,
+        },
+        now: NOW,
+      });
+    expect(state('processing')).toMatchObject({ status: 'requires_action', processing: true });
+    expect(state('created')).toMatchObject({ status: 'requires_action', processing: false });
+    expect(state(null)).toMatchObject({ status: 'requires_action', processing: false });
   });
 
   it('waits (pending, no retry) on an open attempt past its lifetime', () => {
