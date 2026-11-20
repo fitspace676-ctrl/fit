@@ -1,3 +1,4 @@
+import { SmsModule } from '../sms/sms.module';
 import { AutomationFactsService } from './automation-facts.service';
 import { Module } from '@nestjs/common';
 import { AutomationAssistService } from './automation-assist.service';
@@ -27,7 +28,7 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
  * points are credited through the {@link LoyaltyModule}'s `LoyaltyPointsService`.
  */
 @Module({
-  imports: [NotificationsModule, LoyaltyModule],
+  imports: [SmsModule, NotificationsModule, LoyaltyModule],
   controllers: [AutomationController],
   providers: [
     AutomationAssistService,

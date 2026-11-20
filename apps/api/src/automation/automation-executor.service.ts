@@ -1,3 +1,4 @@
+import { SmsService } from '../sms/sms.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import {
@@ -147,8 +148,7 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
  *     period ends within the rule's look-ahead window (`triggerConfig.days`).
  *
  * Email, push (through {@link NotificationService}) and member tasks are really
- * delivered; SMS has no provider yet, so its run records the message it *would*
- * send. The run log is the durable seam a future SMS transport slots into.
+ * delivered; SMS uses the gym's connected and enabled Sender integration.
  *
  * Like the other crons ({@link OpsNotificationsService}, the billing sweep) the
  * scanner is deliberately **cross-tenant**: it reads every gym and its rules /
@@ -168,6 +168,7 @@ export class AutomationExecutorService {
     private readonly facts: AutomationFactsService,
     private readonly notifications: NotificationService,
     private readonly loyalty: LoyaltyPointsService,
+    private readonly sms: SmsService,
   ) {}
 
   /**
@@ -449,8 +450,7 @@ export class AutomationExecutorService {
 
   /**
    * Perform one rule's action and record the run. `email`, `push_notification`
-   * and `create_task` are really delivered; `sms` has no provider yet and is
-   * logged as such.
+   * and `create_task` are delivered; `sms` uses the gym's Sender integration.
    * Returns whether a run row was written.
    *
    * Delivery happens before the row is written so its outcome can be recorded
@@ -535,6 +535,10 @@ export class AutomationExecutorService {
       const bonus = recipient === 'member' ? (action.data.offer?.bonusPoints ?? 0) : 0;
       return await this.applyBonus(gymId, rule, context, target, bonus, outcome);
     } catch (error) {
+      if (rule.actionType === AutomationActionType.sms) {
+        this.logger.warn(`Automation SMS for rule ${rule.id} failed`);
+        return { status: AutomationRunStatus.FAILED, detail: 'SMS failed: unreachable' };
+      }
       const label = actionLabel(rule.actionType);
       this.logger.warn(
         `Automation ${label.toLowerCase()} for rule ${rule.id} failed: ${errMsg(error)}`,
@@ -592,10 +596,27 @@ export class AutomationExecutorService {
     if (rule.actionType === AutomationActionType.create_task) {
       return await this.createTask(gymId, context, body);
     }
+    if (rule.actionType === AutomationActionType.sms) {
+      const result = await this.sms.send(gymId, {
+        to: target?.phone,
+        content: body,
+        kind: 'informational',
+      });
+      if (result.status === 'sent')
+        return { status: AutomationRunStatus.SUCCESS, detail: 'SMS sent' };
+      if (result.status === 'failed')
+        return { status: AutomationRunStatus.FAILED, detail: `SMS failed: ${result.reason}` };
+      const details = {
+        not_configured: 'SMS not sent: no SMS provider connected',
+        invalid_phone: 'SMS not sent: no usable recipient phone',
+        empty: 'SMS not sent: empty message',
+      };
+      return { status: AutomationRunStatus.SKIPPED, detail: details[result.reason] };
+    }
     if (rule.actionType !== AutomationActionType.email) {
       return {
         status: AutomationRunStatus.SUCCESS,
-        detail: `${undeliveredActionDetail(rule.actionType)}; message: ${body.slice(0, 300)}`,
+        detail: `Action not delivered yet; message: ${body.slice(0, 300)}`,
       };
     }
     if (toGym && target && !target.recipient) {
@@ -963,19 +984,6 @@ function offerValues(offer: AutomationOffer | undefined): Record<string, string>
     offer_code: text(offer?.offerCode),
     offer_expiry: text(offer?.offerExpiry),
   };
-}
-
-/**
- * What an action with no provider yet leaves in the log.
- *
- * Deliberately not "queued": nothing queues these, and a run log that claims a
- * send is worse than one that admits there isn't one. When a transport lands,
- * this is where its branch goes.
- */
-function undeliveredActionDetail(actionType: AutomationActionType): string {
-  return actionType === AutomationActionType.sms
-    ? 'SMS not delivered yet'
-    : 'Action not delivered yet';
 }
 
 /** The action's name as a run detail prefixes a failure with. */

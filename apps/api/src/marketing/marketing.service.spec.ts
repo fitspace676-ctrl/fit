@@ -109,8 +109,12 @@ function setup(models?: Record<string, Record<string, unknown>>) {
     isConfigured: true,
     send: vi.fn(() => Promise.resolve({ sent: true, id: 'msg-1' })),
   };
-  Object.assign(service, { mailer });
-  return { service, client, mailer };
+  const sms = {
+    isEnabled: vi.fn().mockResolvedValue(true),
+    send: vi.fn().mockResolvedValue({ status: 'sent', messageId: 'sms1' }),
+  };
+  Object.assign(service, { mailer, sms });
+  return { service, client, mailer, sms };
 }
 
 beforeEach(() => {
@@ -529,16 +533,54 @@ describe('MarketingService.sendCampaign', () => {
     expect(mailer.send).not.toHaveBeenCalled();
   });
 
-  it.each(['sms', 'push'])(
-    'does not pretend unsupported %s campaigns are delivered',
-    async (channel) => {
-      const { service, mailer } = deliverySetup({ channel });
+  it.each(['push'])('does not pretend unsupported %s campaigns are delivered', async (channel) => {
+    const { service, mailer } = deliverySetup({ channel });
+    await expect(service.sendCampaign('camp-1')).rejects.toMatchObject({
+      response: { code: 'CAMPAIGN_CHANNEL_UNSUPPORTED' },
+    });
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it('sends interpolated advertising SMS without a subject or email transport', async () => {
+    const { service, sms, mailer } = deliverySetup({ channel: 'sms', body: 'Hi {{first_name}}' });
+    mailer.isConfigured = false;
+    expect(await service.sendCampaign('camp-1')).toMatchObject({ status: 'sent', sentCount: 2 });
+    expect(sms.send).toHaveBeenNthCalledWith(1, 'gym-1', {
+      to: null,
+      content: 'Hi Nino',
+      kind: 'advertising',
+    });
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+  it('rejects SMS before claiming a campaign when the provider is disabled', async () => {
+    const { service, sms, client } = deliverySetup({ channel: 'sms' });
+    sms.isEnabled.mockResolvedValue(false);
+    await expect(service.sendCampaign('camp-1')).rejects.toMatchObject({
+      response: { code: 'SMS_NOT_CONFIGURED' },
+    });
+    expect(client.campaign.updateMany).not.toHaveBeenCalled();
+    expect(sms.send).not.toHaveBeenCalled();
+  });
+  it.each(['invalid_phone', 'not_configured', 'rejected', 'unreachable'])(
+    'counts SMS failure %s and preserves partial delivery',
+    async (reason) => {
+      const { service, sms, client } = deliverySetup({ channel: 'sms' });
+      sms.send.mockResolvedValueOnce({ status: 'skipped', reason });
       await expect(service.sendCampaign('camp-1')).rejects.toMatchObject({
-        response: { code: 'CAMPAIGN_CHANNEL_UNSUPPORTED' },
+        response: { code: 'SMS_SEND_FAILED', sentCount: 1, failedCount: 1 },
       });
-      expect(mailer.send).not.toHaveBeenCalled();
+      expect(client.campaign.update.mock.calls[0]?.[0]?.data).toMatchObject({
+        status: 'sent',
+        sentCount: 1,
+      });
     },
   );
+  it('does not send SMS after losing the atomic claim', async () => {
+    const { service, sms, client } = deliverySetup({ channel: 'sms' });
+    client.campaign.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.sendCampaign('camp-1')).rejects.toBeInstanceOf(ConflictException);
+    expect(sms.send).not.toHaveBeenCalled();
+  });
 
   it('records partial delivery and surfaces the failure', async () => {
     const { service, client, mailer } = deliverySetup();

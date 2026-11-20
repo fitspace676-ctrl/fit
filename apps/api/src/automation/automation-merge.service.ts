@@ -112,6 +112,7 @@ type SubscriptionRecord = MemberRecord['subscriptions'][number];
 
 /** The staff member a trainer-recipient rule addresses. */
 interface StaffRecipient {
+  phone: string | null;
   name: string;
   email: string | null;
   userId: string | null;
@@ -125,6 +126,8 @@ export interface AutomationMergeTarget {
    * trigger (`product_stock_low`).
    */
   recipient: string | null;
+  /** Resolved recipient phone, separate from member merge tokens for trainer actions. */
+  phone?: string | null;
   /** The member the message is about; `null` for a gym-recipient trigger. */
   memberId: string | null;
   /** The recipient's User id (for push); `null` when there is no account. */
@@ -182,6 +185,7 @@ export class AutomationMergeService {
     if (context.recipient !== 'trainer') {
       return {
         recipient: member.user.email || null,
+        phone: member.user.phone,
         memberId: member.id,
         userId: member.user.id,
         values,
@@ -193,6 +197,7 @@ export class AutomationMergeService {
     values.recipient_name = staff?.name ?? '';
     return {
       recipient: staff?.email ?? null,
+      phone: staff?.phone ?? null,
       memberId: member.id,
       userId: staff?.userId ?? null,
       values,
@@ -244,6 +249,7 @@ export class AutomationMergeService {
       return {
         name: trainer.name,
         email: staff?.user.email || null,
+        phone: staff?.user.phone ?? null,
         userId: staff?.user.id ?? null,
       };
     }
@@ -257,6 +263,7 @@ export class AutomationMergeService {
       return {
         name: staffName(staff),
         email: staff.user.email || null,
+        phone: staff.user.phone,
         userId: staff.user.id,
       };
     }
@@ -270,7 +277,7 @@ export class AutomationMergeService {
       select: {
         firstName: true,
         lastName: true,
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, phone: true } },
       },
     });
   }

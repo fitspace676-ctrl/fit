@@ -1,3 +1,6 @@
+import { SenderClient } from './sender/sender-client';
+import { normalizeGeorgianMobile } from '../sms/normalize-phone';
+import type { ConnectSenderInput, SendTestSmsResponse, IntegrationProvider } from '@fit/types';
 import {
   BadRequestException,
   ConflictException,
@@ -24,6 +27,7 @@ export class IntegrationsService {
     private readonly flitt: FlittClient,
     private readonly secrets: SecretBox,
     private readonly internalPrisma: PrismaService,
+    private readonly sender: SenderClient,
   ) {}
 
   /** Explicit OWNER check: GymManage can be delegated by the role editor. */
@@ -42,7 +46,84 @@ export class IntegrationsService {
     const row = await this.prisma.client.gymIntegration.findUnique({
       where: { gymId_provider: { gymId, provider: 'flitt' } },
     });
-    return [toRead(row)];
+    const sender = await this.prisma.client.gymIntegration.findUnique({
+      where: { gymId_provider: { gymId, provider: 'sender' } },
+    });
+    return [toRead(row), toRead(sender, 'sender')];
+  }
+
+  async connectSender(input: ConnectSenderInput): Promise<GymIntegration> {
+    const gymId = this.ownerGym();
+    const result = await this.sender.getBalance(input.apiKey);
+    if (!result.ok) {
+      const body = {
+        code: 'SENDER_VERIFICATION_FAILED',
+        message: 'Sender credentials could not be verified',
+        data: { reason: result.reason },
+      };
+      if (result.reason === 'unreachable') throw new ServiceUnavailableException(body);
+      throw new BadRequestException(body);
+    }
+    const data = {
+      merchantId: null,
+      secretCiphertext: this.secrets.encrypt(input.apiKey),
+      secretHint: input.apiKey.length > 2 ? input.apiKey.slice(-2) : null,
+      verifiedAt: new Date(),
+      lastError: null,
+    };
+    return this.prisma.client.$transaction(async (tx) => {
+      const row = await tx.gymIntegration.upsert({
+        where: { gymId_provider: { gymId, provider: 'sender' } },
+        create: { gymId, provider: 'sender', ...data },
+        update: data,
+      });
+      await this.audit(tx, gymId, 'integration.connected', 'sender');
+      return toRead(row, 'sender');
+    });
+  }
+
+  async testSender(): Promise<TestIntegrationResponse> {
+    const gymId = this.ownerGym();
+    const row = await this.prisma.client.gymIntegration.findUnique({
+      where: { gymId_provider: { gymId, provider: 'sender' } },
+    });
+    if (!row?.secretCiphertext) throw notConnected('sender');
+    const result = await this.sender.getBalance(this.secrets.decrypt(row.secretCiphertext));
+    await this.prisma.client.$transaction(async (tx) => {
+      const changed = await tx.gymIntegration.updateMany({
+        where: { id: row.id, gymId, secretCiphertext: row.secretCiphertext },
+        data: result.ok
+          ? { verifiedAt: new Date(), lastError: null }
+          : { verifiedAt: null, lastError: result.reason, enabled: false },
+      });
+      if (changed.count === 0) throw changedCredentials('sender');
+      await this.audit(tx, gymId, 'integration.tested', 'sender');
+    });
+    return result;
+  }
+
+  async sendTestSms(phone: string): Promise<SendTestSmsResponse> {
+    const gymId = this.ownerGym();
+    const key = await this.getActiveSenderKey(gymId);
+    if (!key) throw notConnected('sender');
+    const destination = normalizeGeorgianMobile(phone);
+    if (!destination) return { ok: false, reason: 'invalid_phone' };
+    const result = await this.sender.send(key, {
+      destination,
+      content: 'სატესტო შეტყობინება: SMS ინტეგრაცია მუშაობს.',
+      smsno: 2,
+    });
+    return result.ok ? { ok: true } : result;
+  }
+
+  /** Explicit scope supports scheduled jobs without a tenant ALS store. */
+  async getActiveSenderKey(gymId: string): Promise<string | null> {
+    this.assertInternalGym(gymId);
+    const row = await this.internalPrisma.client.gymIntegration.findFirst({
+      where: { gymId, provider: 'sender', enabled: true, verifiedAt: { not: null } },
+      select: { secretCiphertext: true },
+    });
+    return row?.secretCiphertext ? this.secrets.decrypt(row.secretCiphertext) : null;
   }
 
   async connect(input: ConnectFlittInput): Promise<GymIntegration> {
@@ -100,16 +181,19 @@ export class IntegrationsService {
     return result;
   }
 
-  async setEnabled(enabled: boolean): Promise<GymIntegration> {
+  async setEnabled(
+    enabled: boolean,
+    provider: IntegrationProvider = 'flitt',
+  ): Promise<GymIntegration> {
     const gymId = this.ownerGym();
     return this.prisma.client.$transaction(async (tx) => {
       const changed = await tx.gymIntegration.updateMany({
         where: {
           gymId,
-          provider: 'flitt',
+          provider,
           ...(enabled
             ? {
-                merchantId: { not: null },
+                ...(provider === 'flitt' ? { merchantId: { not: null } } : {}),
                 secretCiphertext: { not: null },
                 verifiedAt: { not: null },
               }
@@ -117,21 +201,27 @@ export class IntegrationsService {
         },
         data: { enabled },
       });
-      if (enabled && changed.count === 0) throw notConnected();
-      await this.audit(tx, gymId, enabled ? 'integration.enabled' : 'integration.disabled');
+      if (enabled && changed.count === 0) throw notConnected(provider);
+      await this.audit(
+        tx,
+        gymId,
+        enabled ? 'integration.enabled' : 'integration.disabled',
+        provider,
+      );
       return toRead(
         await tx.gymIntegration.findUnique({
-          where: { gymId_provider: { gymId, provider: 'flitt' } },
+          where: { gymId_provider: { gymId, provider } },
         }),
+        provider,
       );
     });
   }
 
-  async disconnect(): Promise<GymIntegration> {
+  async disconnect(provider: IntegrationProvider = 'flitt'): Promise<GymIntegration> {
     const gymId = this.ownerGym();
     return this.prisma.client.$transaction(async (tx) => {
       await tx.gymIntegration.updateMany({
-        where: { gymId, provider: 'flitt' },
+        where: { gymId, provider },
         data: {
           enabled: false,
           merchantId: null,
@@ -141,8 +231,8 @@ export class IntegrationsService {
           lastError: null,
         },
       });
-      await this.audit(tx, gymId, 'integration.disconnected');
-      return toRead(null);
+      await this.audit(tx, gymId, 'integration.disconnected', provider);
+      return toRead(null, provider);
     });
   }
 
@@ -195,40 +285,48 @@ export class IntegrationsService {
     }
   }
 
-  private async audit(tx: TenantTx, gymId: string, action: string): Promise<void> {
+  private async audit(
+    tx: TenantTx,
+    gymId: string,
+    action: string,
+    provider: IntegrationProvider = 'flitt',
+  ): Promise<void> {
     await tx.auditLog.create({
       data: {
         gymId,
         actorId: this.tenant.userId!,
         action,
         targetId: gymId,
-        metadata: { provider: 'flitt' },
+        metadata: { provider },
       },
     });
   }
 }
 
-function toRead(row: IntegrationRecord | null): GymIntegration {
+function toRead(
+  row: IntegrationRecord | null,
+  provider: IntegrationProvider = 'flitt',
+): GymIntegration {
   return {
-    provider: 'flitt',
-    connected: Boolean(row?.merchantId && row.secretCiphertext),
+    provider,
+    connected: Boolean(row?.secretCiphertext && (provider === 'sender' || row.merchantId)),
     enabled: row?.enabled ?? false,
-    merchantId: row?.merchantId ?? null,
+    merchantId: provider === 'sender' ? null : (row?.merchantId ?? null),
     secretHint: row?.secretHint ?? null,
     verifiedAt: row?.verifiedAt?.toISOString() ?? null,
     lastError: row?.lastError ?? null,
-    testMode: row?.merchantId === '1549901',
+    testMode: provider === 'flitt' && row?.merchantId === '1549901',
   };
 }
-function notConnected(): ConflictException {
+function notConnected(provider: IntegrationProvider = 'flitt'): ConflictException {
   return new ConflictException({
-    code: 'FLITT_NOT_VERIFIED',
-    message: 'Connect and verify Flitt credentials first',
+    code: `${provider.toUpperCase()}_NOT_VERIFIED`,
+    message: `Connect and verify ${provider} credentials first`,
   });
 }
-function changedCredentials(): ConflictException {
+function changedCredentials(provider: IntegrationProvider = 'flitt'): ConflictException {
   return new ConflictException({
-    code: 'FLITT_CREDENTIALS_CHANGED',
+    code: `${provider.toUpperCase()}_CREDENTIALS_CHANGED`,
     message: 'Credentials changed during verification; retry',
   });
 }

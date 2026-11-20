@@ -1,3 +1,4 @@
+import type { SmsService, SmsResult } from '../sms/sms.service';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AutomationActionType, AutomationTriggerType } from '@fit/db';
 import type { AutomationFactsService } from './automation-facts.service';
@@ -55,6 +56,8 @@ function activeRule(over: Partial<FireRule> = {}): FireRule {
 }
 
 function setup(overrides?: {
+  smsResult?: SmsResult;
+  smsThrows?: boolean;
   ruleFindMany?: unknown[];
   ruleFindFirst?: unknown;
   runFindMany?: unknown[];
@@ -171,6 +174,7 @@ function setup(overrides?: {
       overrides?.mergeTarget === undefined
         ? {
             recipient: 'nino@example.com',
+            phone: '+995599123456',
             memberId: overrides?.memberId === undefined ? 'gm-1' : overrides.memberId,
             userId: overrides?.memberUser === null ? null : 'user-1',
             values: { member_first_name: 'Nino' },
@@ -222,7 +226,15 @@ function setup(overrides?: {
   );
   const notifications = { send: notifySend } as unknown as NotificationService;
 
+  const smsSend = vi
+    .fn()
+    .mockImplementation(() =>
+      overrides?.smsThrows
+        ? Promise.reject(new Error('private phone'))
+        : Promise.resolve(overrides?.smsResult ?? { status: 'sent', messageId: 'sms1' }),
+    );
   return {
+    smsSend,
     service: new AutomationExecutorService(
       prisma,
       redis,
@@ -231,6 +243,7 @@ function setup(overrides?: {
       factsService,
       notifications,
       loyalty,
+      { send: smsSend } as unknown as SmsService,
     ),
     awardBonus,
     bookingFindFirst,
@@ -485,7 +498,7 @@ describe('AutomationExecutorService — email delivery', () => {
     expect(mailSend).not.toHaveBeenCalled();
     expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
       status: 'SUCCESS',
-      detail: 'SMS not delivered yet; message: Welcome',
+      detail: 'SMS sent',
     });
   });
 });
@@ -704,7 +717,7 @@ describe('conditions and delayed actions', () => {
     expect(runCreate.mock.calls[0]?.[0].data?.status).toBe('SUCCESS');
   });
   it.each([
-    ['sms', 'SMS not delivered yet; message: Hi Nino '],
+    ['sms', 'SMS sent'],
     ['push_notification', 'Pushed to 2 device(s)'],
     ['create_task', 'Task created: Hi Nino '],
   ] as const)('interpolates the %s message', async (actionType, detail) => {
@@ -1205,5 +1218,46 @@ describe('recipient, offer and bonus', () => {
     const { service, awardBonus } = setup();
     await service.fireRule('gym-1', { ...bonusRule, recipient: 'trainer' }, ctx);
     expect(awardBonus).not.toHaveBeenCalled();
+  });
+});
+
+describe('Automation SMS delivery', () => {
+  it.each([
+    [{ status: 'sent', messageId: 's1' }, 'SUCCESS', 'SMS sent'],
+    [
+      { status: 'skipped', reason: 'not_configured' },
+      'SKIPPED',
+      'SMS not sent: no SMS provider connected',
+    ],
+    [
+      { status: 'skipped', reason: 'invalid_phone' },
+      'SKIPPED',
+      'SMS not sent: no usable recipient phone',
+    ],
+    [{ status: 'skipped', reason: 'empty' }, 'SKIPPED', 'SMS not sent: empty message'],
+    [{ status: 'failed', reason: 'rejected' }, 'FAILED', 'SMS failed: rejected'],
+    [{ status: 'failed', reason: 'unreachable' }, 'FAILED', 'SMS failed: unreachable'],
+  ] as const)('records %o honestly', async (smsResult, status, detail) => {
+    const { service, runCreate, smsSend } = setup({ smsResult });
+    await service.fireRule(
+      'gym-1',
+      activeRule({ actionType: 'sms', actionConfig: { body: 'Hi {{member_first_name}}' } }),
+    );
+    expect(smsSend).toHaveBeenCalledWith('gym-1', {
+      to: '+995599123456',
+      content: 'Hi Nino',
+      kind: 'informational',
+    });
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({ status, detail });
+  });
+  it('never throws or logs private provider errors into the run', async () => {
+    const { service, runCreate } = setup({ smsThrows: true });
+    await expect(
+      service.fireRule('gym-1', activeRule({ actionType: 'sms' })),
+    ).resolves.toBeDefined();
+    expect(runCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+      status: 'FAILED',
+      detail: 'SMS failed: unreachable',
+    });
   });
 });
