@@ -73,6 +73,12 @@ export const orderPaymentStateSchema = z.object({
   /** The open checkout to resume — set only while `status` is `requires_action`. */
   checkoutUrl: z.string().url().nullable(),
   expiresAt: z.string().nullable(),
+  /**
+   * True while the provider reports the payment itself in flight (the buyer has
+   * submitted a card and the bank has not answered). False / absent on an open
+   * checkout means nobody has paid yet, so a client need not keep waiting.
+   */
+  processing: z.boolean().optional(),
 });
 export type OrderPaymentState = z.infer<typeof orderPaymentStateSchema>;
 
