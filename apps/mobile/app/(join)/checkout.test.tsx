@@ -1,3 +1,5 @@
+jest.mock('../../hooks/useOnlinePayments', () => ({ useOnlinePayments: () => ({ enabled: true }) }));
+jest.mock('../../hooks/usePaymentBrowser', () => ({ usePaymentBrowser: () => async () => false }));
 // `(join)/checkout` — the four-step funnel, every DoD branch, and the one
 // assertion this whole stage exists for: **signup happens before the charge,
 // and a failed signup never reaches it.**

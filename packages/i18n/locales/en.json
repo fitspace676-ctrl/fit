@@ -6245,6 +6245,19 @@
     "terms": {
       "title": "Terms and conditions",
       "empty": "This gym has not published its terms yet. Contact the gym for details."
+    },
+    "payment": {
+      "frontDesk": "Online payment is unavailable. Please pay at the front desk.",
+      "checking": "Checking payment…",
+      "incomplete": "Payment not completed",
+      "retry": "Try again",
+      "cancel": "Cancel order",
+      "error": "Could not update payment. Check again before placing another order.",
+      "checkAgain": "Check payment",
+      "back": "Back to home",
+      "complete": "Complete payment",
+      "refunded": "Payment refunded",
+      "planBody": "Choose a plan. Pay for each period securely in your browser."
     }
   },
   "notifications": {

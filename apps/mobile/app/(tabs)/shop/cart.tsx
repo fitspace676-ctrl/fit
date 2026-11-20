@@ -60,6 +60,7 @@
 // reaches the phone. The gym's own list of branches is the only authority the
 // app has, which is why this is a control and not a default.
 
+import { usePaymentBrowser } from '../../../hooks/usePaymentBrowser';
 import {
   Alert,
   AppBar,
@@ -228,6 +229,7 @@ export default function CartScreen() {
   const gate = useSignInGate();
   const session = useSession();
   const gymId = useGymId();
+  const openPayment = usePaymentBrowser();
   const queryClient = useQueryClient();
 
   const cartQuery = useCart(FALLBACK_CURRENCY);
@@ -300,7 +302,7 @@ export default function CartScreen() {
         promoCode: code === '' ? undefined : code,
       },
       {
-        onSuccess: (outcome) => {
+        onSuccess: async (outcome) => {
           if (outcome.ok) {
             setPriceChanges(null);
             // The server emptied the cart. The mutation already invalidated it
@@ -322,6 +324,7 @@ export default function CartScreen() {
             // `placed=1` is what makes that screen say "Order placed" — it is
             // shared with the orders tab and with `fit://orders/:id`, where the
             // same announcement would be a week-old event restated as news.
+            if (await openPayment(outcome.payment, 'shop')) return;
             router.replace(`/shop/order/${outcome.orderId}?placed=1`);
             return;
           }

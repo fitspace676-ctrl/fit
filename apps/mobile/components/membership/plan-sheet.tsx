@@ -1,40 +1,8 @@
-// @fit/mobile — choosing a plan. `member.membership.plan` (28 keys).
-//
-// ===========================================================================
-// THIS SHEET ENROLS. IT DOES NOT SWITCH, AND IT CANNOT.
-//
-// `POST /subscriptions` is the only member-callable subscription write besides
-// freeze / unfreeze, and it answers `409 ALREADY_SUBSCRIBED` while a membership
-// is live — one live membership per member per gym. Switching a live plan is
-// `admin/subscriptions`, behind `BillingManage`, which a `MEMBER` token does
-// not hold. So:
-//
-//   * a member with **no** live plan gets this sheet, and the confirm button
-//     enrols them (`member.membership.plan.start`);
-//   * a member **with** a live plan is never shown the sheet at all — the
-//     membership screen drops the button rather than offering one whose only
-//     possible outcome is `errAlreadySubscribed`.
-//
-// The catalogue already knew: `member.membership.plan.errAlreadySubscribed`
-// reads "You already have a live membership. Cancel it first, or ask at the
-// front desk to switch." That sentence is still rendered — as the error branch
-// of the mutation, for the race where a plan is started on another device while
-// this sheet is open — but it is not the normal path.
-//
-// ---------------------------------------------------------------------------
-// WHERE THE PLANS COME FROM.
-//
-// `GET /catalogue`, the join funnel's public aggregate, whose
-// `subscriptionPlans` array is the gym's on-sale plans. There is no
-// member-scoped plan-listing route; the catalogue is `@Public()` precisely so a
-// visitor can read it before they have a session, and a signed-in member reads
-// the same thing. `member.membership.plan.subtitle` — "Pick the plan you want.
-// You pay for it at the front desk." — is the payment model, and it is why
-// there is no card form here.
-//
-// The price is formatted through `@fit/i18n`'s `createNumberFormat`; `Intl` is
-// banned in this app and would answer en-US to a Georgian member.
+// Plans are bought through POST /checkout. Flitt approval activates the period;
+// the next period is purchased manually. A live plan cannot be switched here.
 
+import { useOnlinePayments } from '../../hooks/useOnlinePayments';
+import { usePaymentBrowser } from '../../hooks/usePaymentBrowser';
 import { useState } from 'react';
 import { View } from 'react-native';
 import {
@@ -48,7 +16,7 @@ import {
   useToast,
 } from '@fit/ui-mobile';
 
-import { useEnrollSubscription } from '../../hooks/mutations/useSubscriptionMutations';
+import { useCreateCheckout } from '../../hooks/mutations/useCheckoutMutations';
 import { useCatalogue } from '../../hooks/queries/useShop';
 import { formatMoney } from '../services/money';
 import { planErrorKey } from './plan-errors';
@@ -71,8 +39,10 @@ export function PlanSheet({
 }: PlanSheetProps) {
   const { t, locale } = useI18n();
   const toast = useToast();
+  const payments = useOnlinePayments();
+  const openPayment = usePaymentBrowser();
   const catalogue = useCatalogue();
-  const enroll = useEnrollSubscription();
+  const enroll = useCreateCheckout();
 
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -80,11 +50,16 @@ export function PlanSheet({
   const chosen = plans.find((plan) => plan.id === selected) ?? null;
 
   function confirm() {
-    if (chosen === null || enroll.isPending) return;
+    if (!payments.enabled || chosen === null || enroll.isPending) return;
     enroll.mutate(
-      { planId: chosen.id },
+      { productType: 'subscription', productId: chosen.id },
       {
-        onSuccess: () => {
+        onSuccess: async (result) => {
+          if (result.payment?.status === 'requires_action') {
+            onClose();
+            await openPayment(result.payment);
+            return;
+          }
           toast.success(t('member.membership.plan.startedTitle'));
           onClose();
         },
@@ -101,7 +76,7 @@ export function PlanSheet({
       open={open}
       onClose={onClose}
       title={t('member.membership.choosePlan')}
-      subtitle={t('member.membership.plan.subtitle')}
+      subtitle={t('member.payment.planBody')}
       closeAccessibilityLabel={t('member.membership.plan.cancel')}
       footer={
         plans.length === 0 ? undefined : (
@@ -113,7 +88,7 @@ export function PlanSheet({
                 : t('member.membership.plan.start', { plan: chosen.name })
             }
             fullWidth
-            disabled={chosen === null}
+            disabled={!payments.enabled || chosen === null}
             busy={enroll.isPending}
             busyLabel={t('member.membership.plan.working')}
             onPress={confirm}
@@ -122,6 +97,7 @@ export function PlanSheet({
       }
     >
       <View style={{ gap: spacing[2] }}>
+        {!payments.enabled ? <Text>{t('member.payment.frontDesk')}</Text> : null}
         {catalogue.isPending && catalogue.data === undefined ? (
           <View
             testID={`${testID}-loading`}

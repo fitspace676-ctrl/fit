@@ -151,6 +151,7 @@ export const ROUTE_POLICY: Readonly<Record<string, RoutePolicy>> = {
   // (`getCartOrEmpty`), so the cart screen is reachable; checkout prompts.
   cart: 'auth-soft',
   checkout: 'auth-soft',
+  'checkout/result': 'auth',
   order: 'auth',
 
   // ── Account (session required) ───────────────────────────────────────────

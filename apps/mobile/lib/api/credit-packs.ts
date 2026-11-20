@@ -64,7 +64,7 @@ export async function purchaseCreditPack(
 ): Promise<PurchaseCreditPackResponse> {
   return apiJson<PurchaseCreditPackResponse>(endpointPath(ENDPOINTS.purchaseCreditPack), {
     method: ENDPOINTS.purchaseCreditPack.method,
-    json: input,
+    json: { ...input, returnTo: 'app' },
     signal: options.signal,
   });
 }

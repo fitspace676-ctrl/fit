@@ -127,8 +127,11 @@ describe('the member slice', () => {
     //
     // 2026-11-19, reporting a trainer review: 1153 → 1164. The report sheet's
     // title, reasons, note field and outcomes (`member.reviews.report.*`).
-    expect(enKeys).toHaveLength(1172);
-    expect(kaKeys).toHaveLength(1172);
+    // 2026-11-20, Flitt mobile: 1172 → 1183. member.payment.{frontDesk,
+    // checking,incomplete,retry,cancel,error,checkAgain,back,complete,refunded,planBody}.
+    // The base already contained 8 billing period keys beyond the 1164 comment.
+    expect(enKeys).toHaveLength(1183);
+    expect(kaKeys).toHaveLength(1183);
   });
 });
 
