@@ -79,6 +79,12 @@ export class AdminScheduleController {
    * tenant context, never a client-supplied id, so the stream honours the same
    * tenant isolation the schedule reads do.
    */
+  @Get('my-trainer')
+  @RequirePermissions(Permission.ClassRead)
+  getMyTrainer(): Promise<{ trainerId: string | null }> {
+    return this.schedule.getMyTrainer();
+  }
+
   @Sse('stream')
   @RequirePermissions(Permission.ClassRead)
   streamOccupancy(): Observable<MessageEvent> {

@@ -29,6 +29,20 @@ async function requireClassWrite(): Promise<boolean> {
   return session !== null && roleHasPermission(session.role, Permission.PtSessionManage);
 }
 
+/**
+ * Slot work (open, book, cancel, complete, member search) also admits
+ * `PtSessionManageOwn` — a coach on their own services and slots. Which ones are
+ * "own" is the API's call (`403 NOT_YOUR_SERVICE`).
+ */
+async function requireSlotWrite(): Promise<boolean> {
+  const session = await getServerSession();
+  return (
+    session !== null &&
+    (roleHasPermission(session.role, Permission.PtSessionManage) ||
+      roleHasPermission(session.role, Permission.PtSessionManageOwn))
+  );
+}
+
 type ErrorT = Awaited<ReturnType<typeof getTranslations>>;
 
 const API_ERROR_KEYS = {
@@ -42,6 +56,7 @@ const API_ERROR_KEYS = {
   SESSION_TAKEN: 'sessionTaken',
   SESSION_PAST: 'sessionPast',
   MEMBER_NOT_FOUND: 'memberNotFound',
+  NOT_YOUR_SERVICE: 'notYourService',
 } as const;
 
 /** Map a thrown API error to a short, staff-facing message. */
@@ -93,7 +108,7 @@ export async function createServiceSessionAction(
   input: CreateServiceSessionInput,
 ): Promise<ActionResult<{ id: string }>> {
   const t = await getTranslations('admin.ptCalendar.errors');
-  if (!(await requireClassWrite())) {
+  if (!(await requireSlotWrite())) {
     return { ok: false, error: t('notAuthorized') };
   }
   const parsed = createServiceSessionSchema.safeParse(input);
@@ -112,7 +127,7 @@ export async function cancelServiceSessionAction(
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
   const t = await getTranslations('admin.ptCalendar.errors');
-  if (!(await requireClassWrite())) {
+  if (!(await requireSlotWrite())) {
     return { ok: false, error: t('notAuthorized') };
   }
   try {
@@ -127,7 +142,7 @@ export async function completeServiceSessionAction(
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
   const t = await getTranslations('admin.ptCalendar.errors');
-  if (!(await requireClassWrite())) {
+  if (!(await requireSlotWrite())) {
     return { ok: false, error: t('notAuthorized') };
   }
   try {
@@ -138,12 +153,12 @@ export async function completeServiceSessionAction(
   }
 }
 
-/** Find members to book onto an open slot (name or email). Enforces `PtSessionManage`. */
+/** Find members to book onto an open slot (name or email). Full or own-slot writers. */
 export async function searchMembersForSlotAction(
   query: string,
 ): Promise<ActionResult<MemberSearchResult[]>> {
   const t = await getTranslations('admin.ptCalendar.errors');
-  if (!(await requireClassWrite())) {
+  if (!(await requireSlotWrite())) {
     return { ok: false, error: t('notAuthorized') };
   }
   const search = query.trim();
@@ -169,7 +184,7 @@ export async function bookServiceSessionForMemberAction(
   memberId: string,
 ): Promise<ActionResult<{ id: string }>> {
   const t = await getTranslations('admin.ptCalendar.errors');
-  if (!(await requireClassWrite())) {
+  if (!(await requireSlotWrite())) {
     return { ok: false, error: t('notAuthorized') };
   }
   try {

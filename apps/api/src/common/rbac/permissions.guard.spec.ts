@@ -13,7 +13,7 @@ import {
 import { ALL_PERMISSIONS, Permission, resolveRolePermissions } from '@fit/types';
 import { ALLOW_CROSS_TENANT_KEY } from '../decorators/allow-cross-tenant.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
+import { ANY_PERMISSIONS_KEY, PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { TenantContext, tenantStorage, type TenantState } from '../tenant/tenant.context';
 
@@ -52,6 +52,7 @@ const ctx = contextFor();
 interface Meta {
   isPublic?: boolean;
   permissions?: Permission[];
+  anyPermissions?: boolean;
   roles?: Role[];
   allowCrossTenant?: boolean;
 }
@@ -89,6 +90,8 @@ function makeGuard(
       switch (key) {
         case IS_PUBLIC_KEY:
           return meta.isPublic;
+        case ANY_PERMISSIONS_KEY:
+          return meta.anyPermissions;
         case PERMISSIONS_KEY:
           return meta.permissions;
         case ROLES_KEY:
@@ -176,6 +179,29 @@ describe('PermissionsGuard (global deny-by-default)', () => {
         tenantStorage.run(state({ role: Role.RECEPTIONIST }), () =>
           guard.canActivate(contextFor(request())),
         ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it.each([Role.TRAINER, Role.RECEPTIONIST])(
+      'admits either attendance capability for %s',
+      async (role) => {
+        const guard = makeGuard({
+          anyPermissions: true,
+          permissions: [Permission.ClassAttendance, Permission.ClassManageOwn],
+        });
+        await expect(
+          tenantStorage.run(state({ role }), () => guard.canActivate(contextFor(request()))),
+        ).resolves.toBe(true);
+      },
+    );
+
+    it('rejects when neither attendance capability is granted', async () => {
+      const guard = makeGuard({
+        anyPermissions: true,
+        permissions: [Permission.ClassAttendance, Permission.ClassManageOwn],
+      });
+      await expect(
+        tenantStorage.run(state(), () => guard.canActivate(contextFor(request()))),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 

@@ -43,7 +43,7 @@ const SCHEDULE_SELECT = {
   // scheduled from a type; for a template-generated one these are usually null and
   // the template's defaults (below) apply.
   room: true,
-  trainer: { select: { name: true } },
+  trainer: { select: { id: true, name: true } },
   location: { select: { name: true } },
   template: {
     select: {
@@ -57,7 +57,7 @@ const SCHEDULE_SELECT = {
       room: true,
       capacity: true,
       durationMinutes: true,
-      trainer: { select: { name: true } },
+      trainer: { select: { id: true, name: true } },
       location: { select: { name: true } },
     },
   },
@@ -147,6 +147,15 @@ export class AdminScheduleService {
    * bounded window), so the service only shapes the tenant-scoped read. An empty
    * array is a normal result the calendar renders as its empty state.
    */
+  async getMyTrainer(): Promise<{ trainerId: string | null }> {
+    if (!this.tenant.userId) return { trainerId: null };
+    const trainer = await this.prisma.client.trainer.findFirst({
+      where: { gymId: this.tenant.gymId, archivedAt: null, staff: { userId: this.tenant.userId } },
+      select: { id: true },
+    });
+    return { trainerId: trainer?.id ?? null };
+  }
+
   async listSchedule(query: AdminScheduleQuery): Promise<AdminScheduleResponse> {
     const where: Prisma.ClassInstanceWhereInput = {
       startsAt: { gte: new Date(query.from), lt: new Date(query.to) },
@@ -158,7 +167,10 @@ export class AdminScheduleService {
     const and: Prisma.ClassInstanceWhereInput[] = [];
     if (query.trainerId) {
       and.push({
-        OR: [{ trainerId: query.trainerId }, { template: { trainerId: query.trainerId } }],
+        OR: [
+          { trainerId: query.trainerId },
+          { trainerId: null, template: { trainerId: query.trainerId } },
+        ],
       });
     }
     if (query.locationId) {
@@ -635,7 +647,7 @@ export class AdminScheduleService {
    * unknown / cross-tenant id is a `404 TRAINER_NOT_FOUND`. */
   private async requireGymTrainer(trainerId: string): Promise<void> {
     const trainer = await this.prisma.client.trainer.findFirst({
-      where: { id: trainerId },
+      where: { id: trainerId, archivedAt: null },
       select: { id: true },
     });
     if (!trainer) {
@@ -796,6 +808,7 @@ function toScheduleInstance(row: ScheduleRow): AdminScheduleInstance {
     durationMinutes,
     // Instance-level assignment wins; a template-generated occurrence falls back to
     // the template's defaults.
+    trainerId: row.trainer?.id ?? row.template?.trainer?.id ?? null,
     trainerName: row.trainer?.name ?? row.template?.trainer?.name ?? null,
     locationName: row.location?.name ?? row.template?.location?.name ?? null,
     room: row.room ?? row.template?.room ?? null,

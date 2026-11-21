@@ -277,7 +277,7 @@ describe('OnboardingWizard', () => {
 
   it.each([
     ['ONBOARDING_CODE_INVALID', 'That code is not right'],
-    ['ONBOARDING_CODE_EXPIRED', 'That code has expired — send a new one'],
+    ['ONBOARDING_CODE_EXPIRED', 'That code has expired. Send a new one'],
   ])('shows %s and preserves the code screen', async (code, copy) => {
     const user = userEvent.setup();
     fetchMock

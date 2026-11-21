@@ -503,6 +503,7 @@ export function OnboardingWizard({ token }: { token: string }) {
                   value={confirm}
                   onChange={(event) => setConfirm(event.target.value)}
                   disabled={pending}
+                  revealLabels={{ show: tAuth('showPassword'), hide: tAuth('hidePassword') }}
                 />
               </>
             )}
@@ -613,7 +614,7 @@ export function OnboardingWizard({ token }: { token: string }) {
                               {...form.register(`location.hours.${day}.open`)}
                               {...stylex.props(styles.time)}
                             />
-                            <span aria-hidden>–</span>
+                            <span aria-hidden>→</span>
                             <input
                               type="time"
                               aria-label={t('closes', { day: label })}
@@ -684,13 +685,16 @@ export function OnboardingWizard({ token }: { token: string }) {
                                   t(`days.${day}`),
                                   state.values.location.hours[day].closed
                                     ? t('closed')
-                                    : `${state.values.location.hours[day].open}–${state.values.location.hours[day].close}`,
+                                    : t('hoursRange', {
+                                        open: state.values.location.hours[day].open,
+                                        close: state.values.location.hours[day].close,
+                                      }),
                                 ]),
                               ]
                             : Object.entries(state.values[item]).map(
                                 ([key, value]): [string, string] => [
                                   t(`summary.${key}`),
-                                  String(value || '—'),
+                                  String(value || t('notSet')),
                                 ],
                               );
                     return (

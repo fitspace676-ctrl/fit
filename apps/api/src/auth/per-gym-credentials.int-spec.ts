@@ -667,7 +667,15 @@ describe('per-gym credentials (integration)', () => {
         },
       });
       expect((await h.auth.inspectStaffInvite(again.token)).needsPassword).toBe(false);
-      await h.auth.completeStaffInvite({ token: again.token }, 'uptown');
+      // No proof, or the wrong proof, redeems nothing.
+      await expect(h.auth.completeStaffInvite({ token: again.token }, 'uptown')).rejects.toThrow();
+      await expect(
+        h.auth.completeStaffInvite({ token: again.token, currentPassword: 'wrong' }, 'uptown'),
+      ).rejects.toThrow();
+      await h.auth.completeStaffInvite(
+        { token: again.token, currentPassword: 'uptown-trainer-1' },
+        'uptown',
+      );
       await expect(
         h.auth.login({ email: EMAIL, password: 'uptown-trainer-1' }, 'uptown'),
       ).resolves.toBeDefined();

@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { requestPasswordReset } from '@/lib/auth';
 import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
@@ -19,6 +19,12 @@ export function ForgotPasswordForm() {
   const t = useTranslations('auth');
 
   const [email, setEmail] = useState('');
+  const [gymSlug, setGymSlug] = useState<string>();
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    setEmail(query.get('email') ?? '');
+    setGymSlug(query.get('gymSlug') ?? undefined);
+  }, []);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -27,7 +33,7 @@ export function ForgotPasswordForm() {
     event.preventDefault();
     setPending(true);
     setError(null);
-    requestPasswordReset(email)
+    requestPasswordReset(email, gymSlug)
       .then(() => setSent(true))
       .catch((err: unknown) => {
         setPending(false);

@@ -138,6 +138,7 @@ export class ReviewsService {
     const memberId = await this.requireCallerMembership();
     const where: Prisma.ReviewWhereInput = {
       trainerId,
+      trainer: { archivedAt: null },
       status: ReviewStatus.VISIBLE,
       reports: { none: { memberId } },
     };

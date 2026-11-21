@@ -8,6 +8,8 @@ import { GymMemberStatus, Role } from '@fit/db';
 import { StaffService } from './staff.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { CreditPacksService } from '../billing/credit-packs.service';
+import type { NotificationService } from '../notifications/notification.service';
 import type { EmailService } from '../auth/email.service';
 import type { TokenService } from '../auth/token.service';
 
@@ -59,13 +61,27 @@ function setup(overrides?: {
   ownerCount?: number;
   deleteManyCount?: number;
   /** The coach profile already linked to the member under test, if any. */
-  trainerFindFirst?: { id: string } | null;
+  trainerFindFirst?: { id: string; staffId?: string | null } | null;
   /** The ids of the gym's live branches, for the write paths' pre-flight check. */
   locations?: string[];
   /** The gym's default branch id (`Location.isDefault`), or `null` when it has none. */
   defaultLocation?: string | null;
   /** The caller's own role (an OWNER unless a test says otherwise). */
   callerRole?: Role;
+  serviceCount?: number;
+  futureClasses?: Array<{
+    id: string;
+    startsAt: Date;
+    template: { title: string } | null;
+    classType: { name: string } | null;
+    bookings: Array<{ status: string; creditPackId: string | null; member: { userId: string } }>;
+  }>;
+  bookedSlots?: Array<{
+    id: string;
+    startsAt: Date;
+    service: { name: string };
+    member: { userId: string } | null;
+  }>;
 }) {
   const gymMemberFindMany = vi.fn(
     (_args: { where?: Record<string, unknown>; data?: Record<string, unknown> }) =>
@@ -81,9 +97,18 @@ function setup(overrides?: {
   );
   const gymMemberDelete = vi.fn(() => Promise.resolve(row()));
 
-  const inviteFindMany = vi.fn(() => Promise.resolve(overrides?.inviteFindMany ?? []));
+  const inviteFindMany = vi.fn(() =>
+    Promise.resolve(
+      (overrides?.inviteFindMany ?? []).map((row) => ({
+        firstName: null,
+        lastName: null,
+        locationIds: ['loc-1'],
+        ...row,
+      })),
+    ),
+  );
   const inviteDeleteMany = vi.fn(() => Promise.resolve({ count: overrides?.deleteManyCount ?? 1 }));
-  const inviteCreate = vi.fn(() => Promise.resolve({ id: 'inv-1' }));
+  const inviteCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'inv-1' }));
 
   const gymFindUnique = vi.fn(() =>
     Promise.resolve({ name: 'Downtown Fitness', settings: { locale: { language: 'ka' } } }),
@@ -98,7 +123,7 @@ function setup(overrides?: {
 
   // The gym's live branches, and the join table the assignments are written to.
   const locationFindMany = vi.fn(() =>
-    Promise.resolve((overrides?.locations ?? []).map((id) => ({ id }))),
+    Promise.resolve((overrides?.locations ?? ['loc-1']).map((id) => ({ id }))),
   );
   const locationFindFirst = vi.fn((_args: { where?: Record<string, unknown> }) =>
     Promise.resolve(
@@ -129,7 +154,32 @@ function setup(overrides?: {
   );
   const shiftSlotDeleteMany = vi.fn((_args: unknown) => Promise.resolve({ count: 0 }));
 
+  const classUpdateMany = vi.fn(() => Promise.resolve({ count: 1 }));
+  const classInstanceFindMany = vi.fn((_args: unknown) =>
+    Promise.resolve(overrides?.futureClasses ?? []),
+  );
+  const bookingUpdateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
+  const credentialUpdateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
+  const templateUpdateMany = vi.fn(() => Promise.resolve({ count: 1 }));
+  const ptUpdateMany = vi.fn(() => Promise.resolve({ count: 1 }));
   const client: Record<string, unknown> = {
+    service: {
+      count: vi.fn(() => Promise.resolve(overrides?.serviceCount ?? 0)),
+      updateMany: vi.fn(() => Promise.resolve({ count: 1 })),
+    },
+    serviceSession: {
+      count: vi.fn(() => Promise.resolve(0)),
+      updateMany: vi.fn(() => Promise.resolve({ count: 1 })),
+      findMany: vi.fn(() => Promise.resolve(overrides?.bookedSlots ?? [])),
+    },
+    classInstance: {
+      updateMany: classUpdateMany,
+      count: vi.fn(() => Promise.resolve(2)),
+      findMany: classInstanceFindMany,
+    },
+    booking: { updateMany: bookingUpdateMany },
+    classTemplate: { updateMany: templateUpdateMany },
+    ptSession: { updateMany: ptUpdateMany, count: vi.fn(() => Promise.resolve(1)) },
     gymMember: {
       findMany: gymMemberFindMany,
       findFirst: gymMemberFindFirst,
@@ -138,7 +188,7 @@ function setup(overrides?: {
       update: gymMemberUpdate,
       delete: gymMemberDelete,
     },
-    gymCredential: { upsert: credentialUpsert },
+    gymCredential: { upsert: credentialUpsert, updateMany: credentialUpdateMany },
     staffInvite: {
       findMany: inviteFindMany,
       deleteMany: inviteDeleteMany,
@@ -178,10 +228,25 @@ function setup(overrides?: {
   const revokeAllForUser = vi.fn(() => Promise.resolve());
   const tokens = { revokeAllForUser } as unknown as TokenService;
 
+  const refundCredit = vi.fn((_tx: unknown, _pack: string | null, _gym?: string) =>
+    Promise.resolve(),
+  );
+  const creditPacks = { refundCredit } as unknown as CreditPacksService;
+  const notify = vi.fn((_input: unknown) => Promise.resolve({ delivered: true }));
+  const notifications = { send: notify } as unknown as NotificationService;
+
   return {
-    service: new StaffService(prisma, tenant, email, tokens),
+    service: new StaffService(prisma, tenant, email, tokens, creditPacks, notifications),
+    classInstanceFindMany,
+    bookingUpdateMany,
+    credentialUpdateMany,
+    refundCredit,
+    notify,
     locationFindMany,
     locationFindFirst,
+    classUpdateMany,
+    templateUpdateMany,
+    ptUpdateMany,
     gymMemberFindMany,
     locationStaffDeleteMany,
     locationStaffCreateMany,
@@ -360,9 +425,64 @@ describe('StaffService', () => {
       });
       expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
         where: { userId: 'other-user', gymId: 'gym-1' },
-        select: { id: true },
+        select: { id: true, archivedAt: true },
       });
       expect(ctx.credentialUpsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createStaff sign-in invitation', () => {
+    const base = {
+      firstName: 'Nino',
+      lastName: 'Beridze',
+      role: 'RECEPTIONIST' as const,
+      status: 'ACTIVE' as const,
+      assignedLocationIds: ['loc-1'],
+      workingHours: [],
+    };
+
+    it('invites an active member added with an email to sign in', async () => {
+      const ctx = setup({ locations: ['loc-1'] });
+      const result = await ctx.service.createStaff({ ...base, email: 'Nino@Example.com' });
+      expect(ctx.inviteCreate.mock.calls[0]?.[0]).toMatchObject({
+        data: {
+          email: 'nino@example.com',
+          role: 'RECEPTIONIST',
+          firstName: 'Nino',
+          lastName: 'Beridze',
+          locationIds: ['loc-1'],
+        },
+      });
+      expect(ctx.sendStaffInviteEmail).toHaveBeenCalledTimes(1);
+      expect(result.inviteSent).toBe(true);
+      // Pending until they accept — redemption flips it to ACTIVE.
+      expect(ctx.gymMemberCreate.mock.calls[0]?.[0]).toMatchObject({ data: { status: 'INVITED' } });
+    });
+
+    it('sends nothing without an email, or for a member added suspended', async () => {
+      const noEmail = setup({ locations: ['loc-1'] });
+      expect((await noEmail.service.createStaff(base)).inviteSent).toBeNull();
+      expect(noEmail.gymMemberCreate.mock.calls[0]?.[0]).toMatchObject({
+        data: { status: 'ACTIVE' },
+      });
+      const suspended = setup({ locations: ['loc-1'] });
+      const result = await suspended.service.createStaff({
+        ...base,
+        email: 'nino@example.com',
+        status: 'SUSPENDED',
+      });
+      expect(result.inviteSent).toBeNull();
+      expect(noEmail.sendStaffInviteEmail).not.toHaveBeenCalled();
+      expect(suspended.sendStaffInviteEmail).not.toHaveBeenCalled();
+    });
+
+    it('keeps the new member when the invitation email fails to send', async () => {
+      const ctx = setup({ locations: ['loc-1'] });
+      ctx.sendStaffInviteEmail.mockRejectedValueOnce(new Error('smtp down'));
+      const result = await ctx.service.createStaff({ ...base, email: 'nino@example.com' });
+      expect(result.inviteSent).toBe(false);
+      expect(result.id).toBeDefined();
+      expect(ctx.inviteCreate).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -548,11 +668,31 @@ describe('StaffService', () => {
   });
 
   describe('inviteStaff', () => {
+    it('rejects a foreign branch before replacing an invite', async () => {
+      const { service, inviteCreate, inviteDeleteMany } = setup({ staffFindFirst: null });
+      await expect(
+        service.inviteStaff({
+          email: 'foreign@example.com',
+          role: 'RECEPTIONIST',
+          firstName: 'Nino',
+          lastName: 'Beridze',
+          locationIds: ['foreign'],
+        }),
+      ).rejects.toMatchObject({ response: { code: 'LOCATION_INVALID' } });
+      expect(inviteCreate).not.toHaveBeenCalled();
+      expect(inviteDeleteMany).not.toHaveBeenCalled();
+    });
     it('rejects an address that is already staff with 409 ALREADY_STAFF', async () => {
       const { service, inviteCreate } = setup({ staffFindFirst: row() });
 
       await expect(
-        service.inviteStaff({ email: 'nino@example.com', role: 'MANAGER' }),
+        service.inviteStaff({
+          email: 'nino@example.com',
+          role: 'MANAGER',
+          firstName: 'Nino',
+          lastName: 'Beridze',
+          locationIds: ['loc-1'],
+        }),
       ).rejects.toMatchObject({ response: { code: 'ALREADY_STAFF' } });
       expect(inviteCreate).not.toHaveBeenCalled();
     });
@@ -562,13 +702,21 @@ describe('StaffService', () => {
         staffFindFirst: null,
       });
 
-      const result = await service.inviteStaff({ email: 'new@example.com', role: 'TRAINER' });
+      const result = await service.inviteStaff({
+        email: 'new@example.com',
+        role: 'TRAINER',
+        firstName: 'Nino',
+        lastName: 'Beridze',
+        locationIds: ['loc-1'],
+      });
 
       expect(result).toEqual({ inviteId: 'inv-1' });
       expect(inviteDeleteMany).toHaveBeenCalledWith({
         where: { email: 'new@example.com', usedAt: null },
       });
-      expect(inviteCreate).toHaveBeenCalledOnce();
+      expect(inviteCreate.mock.calls[0]?.[0]).toMatchObject({
+        data: { firstName: 'Nino', lastName: 'Beridze', locationIds: ['loc-1'] },
+      });
       expect(sendStaffInviteEmail).toHaveBeenCalledWith(
         'new@example.com',
         expect.any(String),
@@ -584,7 +732,13 @@ describe('StaffService', () => {
       sendStaffInviteEmail.mockRejectedValueOnce(new Error('resend down'));
 
       await expect(
-        service.inviteStaff({ email: 'new@example.com', role: 'TRAINER' }),
+        service.inviteStaff({
+          email: 'new@example.com',
+          role: 'TRAINER',
+          firstName: 'Nino',
+          lastName: 'Beridze',
+          locationIds: ['loc-1'],
+        }),
       ).rejects.toMatchObject({ response: { code: 'EMAIL_SEND_FAILED' } });
     });
   });
@@ -602,6 +756,62 @@ describe('StaffService', () => {
   });
 
   describe('updateRole', () => {
+    it("cancels the coach's future classes, refunds held seats and tells the members", async () => {
+      const startsAt = new Date(Date.now() + 86_400_000);
+      const ctx = setup({
+        trainerFindFirst: { id: 'tr-1' },
+        staffFindFirst: row({ role: Role.TRAINER }),
+        futureClasses: [
+          {
+            id: 'ci-1',
+            startsAt,
+            template: { title: 'Morning Yoga' },
+            classType: null,
+            bookings: [
+              { status: 'BOOKED', creditPackId: 'cp-1', member: { userId: 'u-a' } },
+              { status: 'WAITLIST', creditPackId: null, member: { userId: 'u-b' } },
+            ],
+          },
+        ],
+      });
+
+      await ctx.service.removeStaff('gm-1');
+
+      // Taught directly OR inherited from the template.
+      expect(ctx.classInstanceFindMany.mock.calls[0]?.[0]).toMatchObject({
+        where: {
+          status: 'SCHEDULED',
+          OR: [{ trainerId: 'tr-1' }, { trainerId: null, template: { trainerId: 'tr-1' } }],
+        },
+      });
+      // Only the held seat paid a credit.
+      expect(ctx.refundCredit).toHaveBeenCalledTimes(1);
+      expect(ctx.refundCredit.mock.calls[0]?.[1]).toBe('cp-1');
+      expect(ctx.bookingUpdateMany).toHaveBeenCalledWith({
+        where: { classInstanceId: { in: ['ci-1'] }, status: { not: 'CANCELED' } },
+        data: { status: 'CANCELED', waitlistPosition: null },
+      });
+      expect(ctx.classUpdateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['ci-1'] } },
+        data: { status: 'CANCELED', bookedCount: 0 },
+      });
+      // Both the booked and the waitlisted member hear about it.
+      expect(ctx.notify).toHaveBeenCalledTimes(2);
+      expect(ctx.notify.mock.calls.map((c) => (c[0] as { userId: string }).userId)).toEqual([
+        'u-a',
+        'u-b',
+      ]);
+    });
+
+    it("clears the gym's password so a re-invite chooses a new one", async () => {
+      const ctx = setup({ staffFindFirst: row({ role: Role.RECEPTIONIST }) });
+      await ctx.service.removeStaff('gm-1');
+      expect(ctx.credentialUpdateMany).toHaveBeenCalledWith({
+        where: { userId: expect.any(String) as string, gymId: 'gym-1' },
+        data: { passwordHash: null },
+      });
+    });
+
     it('404s an unknown staff id', async () => {
       const { service } = setup({ staffFindFirst: null });
       await expect(service.updateRole('gm-x', { role: 'MANAGER' })).rejects.toBeInstanceOf(
@@ -644,6 +854,33 @@ describe('StaffService', () => {
       expect(gymMemberUpdate).toHaveBeenCalledOnce();
     });
 
+    it('signs the person out everywhere when the role really changes', async () => {
+      const { service, revokeAllForUser, userUpdate } = setup({
+        staffFindFirst: row({ role: Role.MANAGER }),
+      });
+
+      await service.updateRole('gm-1', { role: 'RECEPTIONIST' });
+
+      // The old role rides in their access token; bumping tokenVersion fails it
+      // on the next request instead of leaving manager rights for 15 minutes.
+      expect(revokeAllForUser).toHaveBeenCalledOnce();
+      expect(userUpdate).toHaveBeenCalledWith({
+        where: { id: expect.any(String) as string },
+        data: { tokenVersion: { increment: 1 } },
+      });
+    });
+
+    it('leaves sessions alone when the role is unchanged', async () => {
+      const { service, revokeAllForUser, gymMemberUpdate } = setup({
+        staffFindFirst: row({ role: Role.RECEPTIONIST }),
+      });
+
+      await service.updateRole('gm-1', { role: 'RECEPTIONIST' });
+
+      expect(gymMemberUpdate).not.toHaveBeenCalled();
+      expect(revokeAllForUser).not.toHaveBeenCalled();
+    });
+
     it('creates the coach profile when someone becomes a TRAINER', async () => {
       const { service, trainerCreate } = setup({
         staffFindFirst: row({ role: Role.RECEPTIONIST, firstName: 'Nino', lastName: 'Beridze' }),
@@ -671,7 +908,7 @@ describe('StaffService', () => {
       expect(trainerCreate).not.toHaveBeenCalled();
       expect(trainerUpdate).toHaveBeenCalledWith({
         where: { id: 'tr-1' },
-        data: { status: 'ACTIVE' },
+        data: { name: 'Nino Beridze', status: 'ACTIVE', archivedAt: null },
       });
     });
 
@@ -734,7 +971,13 @@ describe('StaffService', () => {
       const { service, inviteCreate } = setup({ callerRole: Role.MANAGER });
 
       await expect(
-        service.inviteStaff({ email: 'boss@example.com', role: 'OWNER' }),
+        service.inviteStaff({
+          email: 'boss@example.com',
+          role: 'OWNER',
+          firstName: 'Nino',
+          lastName: 'Beridze',
+          locationIds: ['loc-1'],
+        }),
       ).rejects.toMatchObject({ response: { code: 'OWNER_ROLE_RESTRICTED' } });
       expect(inviteCreate).not.toHaveBeenCalled();
     });
@@ -807,9 +1050,87 @@ describe('StaffService', () => {
     });
   });
 
+  describe('removeTrainer', () => {
+    it('removes linked staff with session revocation', async () => {
+      const { service, gymMemberDelete, revokeAllForUser } = setup({
+        trainerFindFirst: { id: 'tr-1', staffId: 'gm-1' },
+      });
+      await service.removeTrainer('tr-1');
+      expect(gymMemberDelete).toHaveBeenCalled();
+      expect(revokeAllForUser).toHaveBeenCalled();
+    });
+    it('archives an orphan without removing a membership', async () => {
+      const { service, gymMemberDelete, trainerUpdate } = setup({
+        trainerFindFirst: { id: 'tr-1', staffId: null },
+      });
+      await service.removeTrainer('tr-1');
+      expect(gymMemberDelete).not.toHaveBeenCalled();
+      expect(trainerUpdate).toHaveBeenCalled();
+    });
+    it('keeps LAST_OWNER protection when deleting via trainer', async () => {
+      const { service, trainerUpdate } = setup({
+        trainerFindFirst: { id: 'tr-1', staffId: 'gm-1' },
+        staffFindFirst: row({ role: Role.OWNER }),
+      });
+      await expect(service.removeTrainer('tr-1')).rejects.toMatchObject({
+        response: { code: 'LAST_OWNER' },
+      });
+      expect(trainerUpdate).not.toHaveBeenCalled();
+    });
+    it('returns the future scheduled impact', async () => {
+      const { service } = setup({ trainerFindFirst: { id: 'tr-1' } });
+      expect(await service.trainerDeleteImpact('tr-1')).toEqual({ classes: 2, ptSessions: 1 });
+    });
+    it('404s a missing or archived trainer', async () => {
+      const { service } = setup();
+      await expect(service.removeTrainer('tr-x')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('removeStaff', () => {
+    it('archives staff with service history without deleting the membership', async () => {
+      const { service, gymMemberDelete, gymMemberUpdate, revokeAllForUser } = setup({
+        serviceCount: 1,
+      });
+      await service.removeStaff('gm-1');
+      expect(gymMemberDelete).not.toHaveBeenCalled();
+      expect(gymMemberUpdate).toHaveBeenCalledWith({
+        where: { id: 'gm-1' },
+        data: { archivedAt: expect.any(Date) as Date, status: 'SUSPENDED' },
+      });
+      expect(revokeAllForUser).toHaveBeenCalled();
+    });
+
+    it('tells a member whose booked PT slot the removal cancelled', async () => {
+      const ctx = setup({
+        serviceCount: 1,
+        bookedSlots: [
+          {
+            id: 'ss-1',
+            startsAt: new Date(Date.now() + 86_400_000),
+            service: { name: 'Personal session' },
+            member: { userId: 'u-client' },
+          },
+        ],
+      });
+      await ctx.service.removeStaff('gm-1');
+      expect(ctx.notify).toHaveBeenCalledTimes(1);
+      expect(ctx.notify.mock.calls[0]?.[0]).toMatchObject({
+        userId: 'u-client',
+        dedupeKey: 'coach-removed:pt:ss-1',
+      });
+    });
+
     it('retires the coach profile before deleting the membership', async () => {
-      const { service, trainerUpdateMany, gymMemberDelete } = setup({
+      const {
+        service,
+        trainerUpdate,
+        gymMemberDelete,
+        classUpdateMany,
+        templateUpdateMany,
+        ptUpdateMany,
+      } = setup({
+        trainerFindFirst: { id: 'tr-1' },
         staffFindFirst: row({ role: Role.TRAINER }),
       });
 
@@ -817,9 +1138,21 @@ describe('StaffService', () => {
 
       // The FK is SET NULL, so the profile survives the delete — but the person no
       // longer works here, so it must drop off the roster and the class picker.
-      expect(trainerUpdateMany).toHaveBeenCalledWith({
-        where: { staffId: 'gm-1' },
-        data: { status: 'INACTIVE' },
+      expect(trainerUpdate).toHaveBeenCalledWith({
+        where: { id: 'tr-1' },
+        data: { status: 'INACTIVE', archivedAt: expect.any(Date) as Date },
+      });
+      const future = {
+        trainerId: 'tr-1',
+        startsAt: { gt: expect.any(Date) as Date },
+        status: 'SCHEDULED',
+      };
+      // No future classes in this fixture — nothing to cancel, nothing unassigned.
+      expect(classUpdateMany).not.toHaveBeenCalled();
+      expect(ptUpdateMany).toHaveBeenCalledWith({ where: future, data: { status: 'CANCELED' } });
+      expect(templateUpdateMany).toHaveBeenCalledWith({
+        where: { trainerId: 'tr-1' },
+        data: { trainerId: null },
       });
       expect(gymMemberDelete).toHaveBeenCalledOnce();
     });
@@ -847,7 +1180,11 @@ describe('StaffService', () => {
       await service.removeStaff('gm-1');
 
       expect(gymMemberDelete).toHaveBeenCalledWith({ where: { id: 'gm-1' } });
-      expect(revokeAllForUser).toHaveBeenCalledWith('u-9');
+      expect(revokeAllForUser).toHaveBeenCalledWith(
+        'u-9',
+        undefined,
+        expect.objectContaining({ gymMember: expect.any(Object) as object }),
+      );
       expect(userUpdate).toHaveBeenCalledWith({
         where: { id: 'u-9' },
         data: { tokenVersion: { increment: 1 } },

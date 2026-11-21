@@ -94,6 +94,7 @@ export function AdminShell({
   locations,
   sidebarCollapsed = false,
   session = null,
+  displayName = null,
   banner = null,
   children,
 }: {
@@ -102,6 +103,7 @@ export function AdminShell({
   locations: ShellLocation[];
   /** The server-verified session, seeding the sidebar's first paint. */
   session?: Session | null;
+  displayName?: string | null;
   /** Sidebar collapse choice, seeded from its cookie by the console layout. */
   sidebarCollapsed?: boolean;
   /**
@@ -139,7 +141,7 @@ export function AdminShell({
       >
         <div id="main-content" {...stylex.props(styles.content)}>
           <div {...stylex.props(styles.topBar)}>
-            <TopBar locations={locations} />
+            <TopBar locations={locations} displayName={displayName} />
           </div>
           <div {...stylex.props(styles.page)}>{children}</div>
         </div>

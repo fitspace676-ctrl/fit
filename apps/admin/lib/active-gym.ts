@@ -48,7 +48,15 @@ export interface ActiveGymBrand {
  * page down with it.
  */
 export async function getActiveGymBrand(): Promise<ActiveGymBrand | null> {
-  const slug = await getActiveGymSlug();
+  return getGymBrand(await getActiveGymSlug());
+}
+
+/**
+ * {@link getActiveGymBrand} for an explicit slug — e.g. the session's own gym
+ * when the console is opened without a tenant host. Same contract: `null` on no
+ * slug, an unknown gym or a failed lookup; never throws.
+ */
+export async function getGymBrand(slug: string | null): Promise<ActiveGymBrand | null> {
   if (!slug) {
     return null;
   }

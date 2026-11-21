@@ -12,7 +12,8 @@ import {
 import * as stylex from '@stylexjs/stylex';
 import type { StyleXStyles } from '@stylexjs/stylex';
 import { Icon } from '@fit/ui-web';
-import { focus, text } from './tokens';
+import { text } from './tokens';
+import { RevealButton } from './reveal-eye';
 
 /**
  * The portal's form controls — the sign-in screen's field, promoted.
@@ -162,7 +163,8 @@ const styles = stylex.create({
   hintError: {
     color: 'var(--color-text-red)',
   },
-  // An inset control over the field's trailing edge — the password reveal.
+  // An inset control over the field's trailing edge (`fieldSkin.trailing`).
+  // The password reveal itself is `RevealButton`, which carries the same look.
   trailing: {
     position: 'absolute',
     insetInlineEnd: '0.5rem',
@@ -412,15 +414,12 @@ export function Field({
         )}
       />
       {revealable && revealLabels ? (
-        <button
-          type="button"
-          onClick={() => setRevealed((prev) => !prev)}
-          aria-label={revealed ? revealLabels.hide : revealLabels.show}
+        <RevealButton
+          revealed={revealed}
+          onToggle={() => setRevealed((prev) => !prev)}
+          labels={revealLabels}
           disabled={inputProps.disabled}
-          {...stylex.props(styles.trailing, focus.ring)}
-        >
-          <Icon name={revealed ? 'eyeOff' : 'eye'} sw={1.9} {...stylex.props(styles.glyph)} />
-        </button>
+        />
       ) : null}
     </FieldShell>
   );

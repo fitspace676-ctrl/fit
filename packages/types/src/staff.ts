@@ -50,6 +50,9 @@ export type StaffStatus = z.infer<typeof staffStatusSchema>;
 export const inviteStaffSchema = z.object({
   email: z.string().trim().toLowerCase().email('A valid email is required').max(200),
   role: staffRoleSchema,
+  firstName: z.string().trim().min(1).max(60),
+  lastName: z.string().trim().min(1).max(60),
+  locationIds: z.array(z.string().trim().min(1)).min(1),
 });
 
 /** Validated `POST /staff/invite` body — {@link inviteStaffSchema}. */
@@ -163,6 +166,10 @@ export interface StaffMember {
  * comparison. `expiresAt` / `createdAt` are ISO-8601 instants.
  */
 export interface PendingInvite {
+  firstName: string | null;
+  lastName: string | null;
+  locationIds: string[];
+  locations: string[];
   id: string;
   email: string;
   role: StaffRole;
@@ -191,6 +198,14 @@ export interface ListStaffResponse {
 export interface InviteStaffResponse {
   inviteId: string;
 }
+
+/**
+ * Successful `POST /staff` response — the new member, plus whether a sign-in
+ * invitation went out with it: `true` sent, `false` the send failed (the pending
+ * invite can be resent from the Invitations tab), `null` none was due (no email,
+ * or the member was added suspended).
+ */
+export type CreateStaffResponse = StaffMember & { inviteSent: boolean | null };
 
 /**
  * Successful `PATCH /staff/:memberId/role` response — the staff member with their

@@ -22,6 +22,7 @@ import {
   updateStaffRoleSchema,
   type InviteStaffResponse,
   type ListStaffResponse,
+  type CreateStaffResponse,
   type StaffMember,
   type UpdateStaffRoleResponse,
 } from '@fit/types';
@@ -62,16 +63,17 @@ export class StaffController {
   }
 
   /**
-   * `POST /staff` — add a staff member straight to the directory: a login-less
-   * record (no invitation email, no password is set). The body is validated with
-   * {@link createStaffSchema} — only `firstName` + `role` are required; contact
-   * details, specialty tags, assigned locations and a weekly schedule are all
-   * optional. Returns the created staff member (`201`).
+   * `POST /staff` — add a staff member straight to the directory. No password is
+   * set; when an email is given (and the member is active) a sign-in invitation
+   * is sent with it. The body is validated with {@link createStaffSchema} — only
+   * `firstName` + `role` are required; contact details, specialty tags, assigned
+   * locations and a weekly schedule are all optional. Returns the created staff
+   * member and `inviteSent` (`201`).
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions(Permission.StaffManage)
-  async create(@Body() body: unknown): Promise<StaffMember> {
+  async create(@Body() body: unknown): Promise<CreateStaffResponse> {
     return this.staff.createStaff(parse(createStaffSchema, body));
   }
 
@@ -134,6 +136,12 @@ export class StaffController {
    * immediately. Returns `204`, or `403 LAST_OWNER` when removing the gym's only
    * owner. An unknown id is a `404 STAFF_NOT_FOUND`.
    */
+  @Get(':memberId/delete-impact')
+  @RequirePermissions(Permission.StaffManage)
+  async deleteImpact(@Param('memberId') memberId: string) {
+    return this.staff.staffDeleteImpact(memberId);
+  }
+
   @Delete(':memberId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions(Permission.StaffManage)

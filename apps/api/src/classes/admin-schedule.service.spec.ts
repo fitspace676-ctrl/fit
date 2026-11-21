@@ -150,6 +150,7 @@ describe('AdminScheduleService', () => {
         startsAt: '2026-06-01T09:00:00.000Z',
         endsAt: '2026-06-01T10:00:00.000Z',
         durationMinutes: 60,
+        trainerId: null,
         trainerName: 'Nino Beridze',
         locationName: 'Vake Branch',
         room: 'Studio A',
@@ -200,7 +201,7 @@ describe('AdminScheduleService', () => {
     // A trainer filter matches the occurrence's own assignment (a class scheduled
     // from a type) or its template's default (a generated one).
     expect(findMany.mock.calls[0]![0].where?.AND).toEqual([
-      { OR: [{ trainerId: 'tr-9' }, { template: { trainerId: 'tr-9' } }] },
+      { OR: [{ trainerId: 'tr-9' }, { trainerId: null, template: { trainerId: 'tr-9' } }] },
     ]);
   });
 
@@ -210,7 +211,7 @@ describe('AdminScheduleService', () => {
     await service.listSchedule(query({ trainerId: 'tr-9', locationId: 'loc-3' }));
 
     expect(findMany.mock.calls[0]![0].where?.AND).toEqual([
-      { OR: [{ trainerId: 'tr-9' }, { template: { trainerId: 'tr-9' } }] },
+      { OR: [{ trainerId: 'tr-9' }, { trainerId: null, template: { trainerId: 'tr-9' } }] },
       { OR: [{ locationId: 'loc-3' }, { template: { locationId: 'loc-3' } }] },
     ]);
   });

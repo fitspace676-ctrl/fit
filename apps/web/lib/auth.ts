@@ -254,11 +254,14 @@ export async function loginWithCredentials(
  * callers should surface the returned `message` as-is. Throws with the API's
  * error message on a non-2xx response.
  */
-export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+export async function requestPasswordReset(
+  email: string,
+  gymSlug?: string,
+): Promise<{ message: string }> {
   const response = await fetch(`${API_URL}/auth/forgot-password`, {
     method: 'POST',
     headers: accountHeaders(),
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, ...(gymSlug ? { gymSlug } : {}) }),
   });
 
   if (!response.ok) {

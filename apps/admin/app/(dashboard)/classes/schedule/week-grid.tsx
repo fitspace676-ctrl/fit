@@ -259,6 +259,10 @@ const styles = stylex.create({
     zIndex: { default: 1, ':hover': 3, ':focus-within': 3 },
     display: 'flex',
     minWidth: 0,
+    // An opaque backing with the card's own radius: a faded (ended / canceled)
+    // card is translucent, and without this the card it overlaps showed through.
+    borderRadius: 'var(--radius-element)',
+    backgroundColor: 'var(--color-background-surface)',
   },
   /** Left card of a pair: reaches under its right neighbour. */
   layerTucked: {

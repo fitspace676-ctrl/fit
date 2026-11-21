@@ -42,7 +42,7 @@ describe('inline review moderation', () => {
   it('shows report counts and reasons and calls the existing hide action', async () => {
     mount();
     expect(await screen.findByText('Reports: 2')).toBeInTheDocument();
-    expect(screen.getByText('Spam — Repeated ad')).toBeInTheDocument();
+    expect(screen.getByText('Spam: Repeated ad')).toBeInTheDocument();
     expect(screen.getByText('Offensive content')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Hide review'));
     await waitFor(() => expect(moderateReviewAction).toHaveBeenCalledWith('r1', true));

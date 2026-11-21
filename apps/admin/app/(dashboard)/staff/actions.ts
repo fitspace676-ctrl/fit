@@ -18,6 +18,7 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  getStaffDeleteImpact,
   createStaff,
   inviteStaff,
   removeStaff,
@@ -96,6 +97,8 @@ export async function inviteStaffAction(
     revalidatePath('/staff');
     return { ok: true, data: { inviteId } };
   } catch (error) {
+    // Delivery failures still leave a pending invitation in the database.
+    revalidatePath('/staff');
     return { ok: false, error: toMessage(error, t) };
   }
 }
@@ -108,7 +111,7 @@ export async function inviteStaffAction(
  */
 export async function createStaffAction(
   input: CreateStaffInput,
-): Promise<ActionResult<{ member: StaffMember }>> {
+): Promise<ActionResult<{ member: StaffMember; inviteSent: boolean | null }>> {
   const t = await getTranslations('admin.staff');
   if (!(await requireStaffManage())) {
     return { ok: false, error: t('errors.notAuthorized') };
@@ -118,9 +121,9 @@ export async function createStaffAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? t('errors.invalidDetails') };
   }
   try {
-    const member = await createStaff(parsed.data);
+    const { inviteSent, ...member } = await createStaff(parsed.data);
     revalidatePath('/staff');
-    return { ok: true, data: { member } };
+    return { ok: true, data: { member, inviteSent } };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }
@@ -217,7 +220,20 @@ export async function removeStaffAction(memberId: string): Promise<ActionResult>
   try {
     await removeStaff(memberId);
     revalidatePath('/staff');
+    revalidatePath('/trainers');
     return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+export async function staffDeleteImpactAction(
+  id: string,
+): Promise<ActionResult<{ classes: number; ptSessions: number }>> {
+  const t = await getTranslations('admin.staff');
+  if (!(await requireStaffManage())) return { ok: false, error: t('errors.notAuthorized') };
+  try {
+    return { ok: true, data: await getStaffDeleteImpact(id) };
   } catch (error) {
     return { ok: false, error: toMessage(error, t) };
   }

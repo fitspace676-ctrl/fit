@@ -59,6 +59,7 @@ describe('PublicReviewsService', () => {
       // The query is constrained to the trainer, the explicit gym, and VISIBLE only.
       expect(ctx.review.findMany.mock.calls[0]?.[0]?.where).toEqual({
         trainerId: TRAINER_ID,
+        trainer: { archivedAt: null },
         gymId: GYM_ID,
         status: ReviewStatus.VISIBLE,
       });

@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { TrainerStatus } from '@fit/types';
-import { Button } from '@fit/ui-kit';
-import { Icon } from '@/components/ui';
-import { setTrainerActiveAction } from '../actions';
+import { Button, ConfirmDialog } from '@fit/ui-kit';
+import { useToast, Icon } from '@/components/ui';
+import { deleteTrainerAction, trainerDeleteImpactAction, setTrainerActiveAction } from '../actions';
 
 const styles = stylex.create({
   wrap: {
@@ -82,14 +82,42 @@ const styles = stylex.create({
 export function TrainerActions({
   trainerId,
   status,
+  canDelete,
 }: {
   trainerId: string;
   status: TrainerStatus;
+  canDelete: boolean;
 }) {
   const t = useTranslations('admin.trainers');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const { toast } = useToast();
+  const [impact, setImpact] = useState<{ classes: number; ptSessions: number } | null>(null);
+
+  function prepareDelete(): void {
+    setError(null);
+    startTransition(async () => {
+      const result = await trainerDeleteImpactAction(trainerId);
+      if (result.ok) setImpact(result.data);
+      else setError(result.error);
+    });
+  }
+
+  function remove(): void {
+    startTransition(async () => {
+      const result = await deleteTrainerAction(trainerId);
+      if (result.ok) {
+        toast(t('detail.deleted'), { tone: 'success', icon: 'check' });
+        router.push('/trainers');
+        router.refresh();
+      } else {
+        setImpact(null);
+        setError(result.error);
+      }
+    });
+  }
 
   const isInactive = status === 'INACTIVE';
 
@@ -125,7 +153,30 @@ export function TrainerActions({
                 : t('detail.deactivate')
           }
         />
+        {canDelete ? (
+          <Button
+            variant="destructive"
+            size="inline"
+            onClick={prepareDelete}
+            disabled={pending}
+            label={t('detail.delete')}
+          />
+        ) : null}
       </div>
+      <ConfirmDialog
+        open={impact !== null}
+        onClose={() => setImpact(null)}
+        onConfirm={remove}
+        loading={pending}
+        confirmVariant="destructive"
+        confirmLabel={t('detail.delete')}
+        cancelLabel={t('detail.cancelDelete')}
+        title={t('detail.deleteTitle')}
+        description={t('detail.deleteBody', {
+          classes: impact?.classes ?? 0,
+          ptSessions: impact?.ptSessions ?? 0,
+        })}
+      />
       {error ? (
         <div {...stylex.props(styles.errorCard)}>
           <Icon name="info" {...stylex.props(styles.errorIcon)} />

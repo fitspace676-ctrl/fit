@@ -1,8 +1,10 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
@@ -13,12 +15,15 @@ import {
   ServiceSessionStatus,
   ServiceStatus,
 } from '@fit/db';
+import { Permission } from '@fit/types';
 import type {
+  AdminOwnService,
   AdminServiceSession,
   AdminServiceSessionsResponse,
   BookServiceSessionResult,
   CreateServiceSessionData,
   ListAdminServiceSessionsQuery,
+  ListAdminOwnServicesResponse,
   ListMemberServiceSessionsResponse,
   ListServiceSlotsQuery,
   ListServiceSlotsResponse,
@@ -28,6 +33,12 @@ import type {
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { InvoiceService } from '../billing/invoice.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
+import { assertFullOrOwn } from '../common/rbac/own-scope';
+import {
+  REQUEST_ACCESS_RESOLVER,
+  sharedRequestAccessResolver,
+  type RequestAccessResolver,
+} from '../common/rbac/request-access';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { PrismaService } from '../prisma/prisma.service';
 import { atLocation } from '../common/location-filter.util';
@@ -87,6 +98,9 @@ export class ServiceSessionsService {
     private readonly tenant: TenantContext,
     private readonly invoices: InvoiceService,
     private readonly automation: AutomationExecutorService,
+    @Optional()
+    @Inject(REQUEST_ACCESS_RESOLVER)
+    private readonly access: RequestAccessResolver = sharedRequestAccessResolver(),
   ) {}
 
   // ── Admin ────────────────────────────────────────────────────────────────
@@ -111,6 +125,43 @@ export class ServiceSessionsService {
   }
 
   /**
+   * The caller's own ACTIVE services — the "Open a slot" picker for a coach who
+   * may only open slots on their own (`PtSessionManageOwn`). Matched through the
+   * service's staff member's user, the same rule {@link create} enforces.
+   */
+  async listOwnServices(): Promise<ListAdminOwnServicesResponse> {
+    const userId = this.tenant.current?.userId;
+    if (!userId) {
+      return { services: [] };
+    }
+    const rows = await this.prisma.client.service.findMany({
+      where: { status: ServiceStatus.ACTIVE, staff: { userId } },
+      select: {
+        id: true,
+        name: true,
+        durationMinutes: true,
+        category: { select: { name: true } },
+        staff: { select: { firstName: true, lastName: true, user: { select: { name: true } } } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return {
+      services: rows.map(
+        (row): AdminOwnService => ({
+          id: row.id,
+          name: row.name,
+          staffName:
+            [row.staff.firstName, row.staff.lastName].filter(Boolean).join(' ').trim() ||
+            row.staff.user.name ||
+            '',
+          category: row.category?.name ?? null,
+          durationMinutes: row.durationMinutes,
+        }),
+      ),
+    };
+  }
+
+  /**
    * Open one slot. `endsAt` follows the service's duration and `staffId` is
    * snapshotted from the service. The staff member must be free: any OPEN or
    * BOOKED session of theirs overlapping the new one is a `409 STAFF_BUSY`.
@@ -118,11 +169,29 @@ export class ServiceSessionsService {
   async create(data: CreateServiceSessionData): Promise<AdminServiceSession> {
     const service = await this.prisma.client.service.findFirst({
       where: { id: data.serviceId, status: ServiceStatus.ACTIVE },
-      select: { id: true, staffId: true, durationMinutes: true },
+      select: {
+        id: true,
+        staffId: true,
+        durationMinutes: true,
+        staff: { select: { userId: true } },
+      },
     });
     if (!service) {
       throw new NotFoundException({ message: 'Service not found', code: 'SERVICE_NOT_FOUND' });
     }
+    // `PtSessionManageOwn` opens slots only on the caller's own services.
+    await assertFullOrOwn({
+      tenant: this.tenant,
+      access: this.access,
+      full: Permission.PtSessionManage,
+      own: Permission.PtSessionManageOwn,
+      ownerUserId: service.staff?.userId,
+      denied: () =>
+        new ForbiddenException({
+          message: 'You can only open slots on your own services',
+          code: 'NOT_YOUR_SERVICE',
+        }),
+    });
     const startsAt = new Date(data.startsAt);
     const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60 * 1000);
 
@@ -158,11 +227,40 @@ export class ServiceSessionsService {
   }
 
   async cancel(id: string): Promise<AdminServiceSession> {
+    await this.assertCanManageSlot(id);
     return this.transition(id, BUSY, ServiceSessionStatus.CANCELLED);
   }
 
   async complete(id: string): Promise<AdminServiceSession> {
+    await this.assertCanManageSlot(id);
     return this.transition(id, [ServiceSessionStatus.BOOKED], ServiceSessionStatus.COMPLETED);
+  }
+
+  /**
+   * Booking, cancelling and completing a slot admit `PtSessionManage`, or
+   * `PtSessionManageOwn` on a slot whose staff member is the caller. An unknown
+   * id passes through so the action itself answers with its usual `404`.
+   */
+  private async assertCanManageSlot(id: string): Promise<void> {
+    const slot = await this.prisma.client.serviceSession.findFirst({
+      where: { id },
+      select: { staff: { select: { userId: true } } },
+    });
+    if (!slot) {
+      return;
+    }
+    await assertFullOrOwn({
+      tenant: this.tenant,
+      access: this.access,
+      full: Permission.PtSessionManage,
+      own: Permission.PtSessionManageOwn,
+      ownerUserId: slot.staff?.userId,
+      denied: () =>
+        new ForbiddenException({
+          message: 'You can only manage your own slots',
+          code: 'NOT_YOUR_SERVICE',
+        }),
+    });
   }
 
   private async transition(
@@ -283,6 +381,7 @@ export class ServiceSessionsService {
    * (`404 MEMBER_NOT_FOUND` otherwise).
    */
   async bookFor(id: string, memberId: string): Promise<AdminServiceSession> {
+    await this.assertCanManageSlot(id);
     const member = await this.prisma.client.gymMember.findFirst({
       where: { id: memberId },
       select: { id: true },

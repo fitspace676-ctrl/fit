@@ -31,6 +31,7 @@ import {
   type ResetPasswordResponse,
   type TokenPair,
 } from '@fit/types';
+import { buildMemberUrl } from '../common/console-url';
 import { Public } from '../common/decorators/public.decorator';
 import {
   resolveTenantSlug,
@@ -175,7 +176,15 @@ export class AuthController {
       token,
       resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN),
     );
-    return { email: invite.email, gymName: invite.gym.name, needsPassword };
+    return {
+      email: invite.email,
+      gymName: invite.gym.name,
+      needsPassword,
+      forgotPasswordUrl: buildMemberUrl(
+        `member/forgot-password?email=${encodeURIComponent(invite.email)}&gymSlug=${encodeURIComponent(invite.gym.slug)}`,
+        invite.gym.slug,
+      ),
+    };
   }
 
   @Post('accept-invite')
@@ -184,6 +193,7 @@ export class AuthController {
     const input = parse(
       acceptInviteSchema.extend({
         password: activateAccountSchema.shape.password.optional(),
+        currentPassword: loginSchema.shape.password.optional(),
       }),
       body,
     );

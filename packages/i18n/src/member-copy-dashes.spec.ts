@@ -1,38 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import en from '../locales/en.json';
 import ka from '../locales/ka.json';
+import { platformEn, platformKa } from '../platform';
 
 /**
- * Member-portal copy uses the plain hyphen, never the typographic em (—) or en
- * (–) dash.
+ * No dashes in product copy — anywhere: the member portal, the console and the
+ * platform site.
  *
- * The two long dashes are indistinguishable from a hyphen at UI sizes but break
+ * Not the typographic em (—) or en (–) dash, not a doubled hyphen, and not a
+ * spaced hyphen standing in for one. Sentences use a full stop, colon or comma;
+ * ranges are written out ("1 to 12", "1-დან 12-მდე"). A hyphen inside a word —
+ * Georgian case endings such as `{to}-მდე`, `check-in` — is spelling, not a dash.
+ *
+ * The long dashes are indistinguishable from a hyphen at UI sizes but break
  * differently, sort differently, and arrive mangled through anything that is not
- * UTF-8 clean (a CSV export, an SMS gateway, a mail client's plain-text part).
- * The portal's Georgian copy is the common case, and there a long dash reads as
- * an artefact rather than punctuation.
- *
- * Scoped to the namespaces `apps/web` actually renders — the console has its own
- * copy and is not covered here.
+ * UTF-8 clean (a CSV export, an SMS gateway, a mail client's plain-text part);
+ * in Georgian copy any dash reads as an artefact rather than punctuation.
  */
-
-/** The top-level namespaces the member portal reads (grep `useTranslations` in apps/web). */
-const MEMBER_NAMESPACES = [
-  'account',
-  'auth',
-  'checkout',
-  'classes',
-  'common',
-  'errors',
-  'footer',
-  'home',
-  'member',
-  'services',
-  'shop',
-  'trainers',
-] as const;
-
-const LONG_DASH = /[—–]/;
+const DASH = /[—–]|--| - /;
 
 /** Every `path -> string` leaf under `node`. */
 function leaves(node: unknown, path: string): [string, string][] {
@@ -45,59 +30,19 @@ function leaves(node: unknown, path: string): [string, string][] {
   return [];
 }
 
-function offenders(catalogue: Record<string, unknown>): string[] {
-  return MEMBER_NAMESPACES.flatMap((ns) => leaves(catalogue[ns], ns))
-    .filter(([, value]) => LONG_DASH.test(value))
+function offenders(catalogue: unknown): string[] {
+  return leaves(catalogue, '')
+    .filter(([, value]) => DASH.test(value))
     .map(([path, value]) => `${path}: ${value}`);
 }
 
-describe('member portal copy', () => {
+describe('product copy', () => {
   it.each([
     ['en', en],
     ['ka', ka],
-  ])('uses a plain hyphen, never an em or en dash (%s)', (_locale, catalogue) => {
-    expect(offenders(catalogue as Record<string, unknown>)).toEqual([]);
-  });
-});
-
-/**
- * Console namespaces held to the same rule. The console's older copy predates it,
- * so this list grows one feature at a time rather than covering `admin.*` wholesale.
- */
-const CONSOLE_NAMESPACES = [
-  'admin.services',
-  'admin.pos.products',
-  'admin.ptCalendar',
-  'admin.trainers.addDrawer',
-  'admin.trainers.clients',
-  'admin.memberPortal.joinCard',
-  'admin.memberPortal.colors',
-  'admin.memberPortal.logo',
-  'admin.memberPortal.favicon',
-  'admin.settings.general.consoleColor',
-  'admin.automation.assist',
-] as const;
-
-/** The subtree at a dotted `path`, e.g. `admin.services`. */
-function at(catalogue: Record<string, unknown>, path: string): unknown {
-  return path
-    .split('.')
-    .reduce<unknown>(
-      (node, key) => (node as Record<string, unknown> | undefined)?.[key],
-      catalogue,
-    );
-}
-
-describe('console copy (services, POS catalogue)', () => {
-  it.each([
-    ['en', en],
-    ['ka', ka],
-  ])('uses a plain hyphen, never an em or en dash (%s)', (_locale, catalogue) => {
-    const found = CONSOLE_NAMESPACES.flatMap((ns) =>
-      leaves(at(catalogue as Record<string, unknown>, ns), ns),
-    )
-      .filter(([, value]) => LONG_DASH.test(value))
-      .map(([path, value]) => `${path}: ${value}`);
-    expect(found).toEqual([]);
+    ['platform en', platformEn],
+    ['platform ka', platformKa],
+  ])('uses no dashes (%s)', (_locale, catalogue) => {
+    expect(offenders(catalogue)).toEqual([]);
   });
 });

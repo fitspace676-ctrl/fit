@@ -133,9 +133,13 @@ export function PtCalendarBoard({
   services,
   trainers,
   trainerId,
+  ownTrainerId = null,
+  ownStaffId = null,
   categories,
   categoryId,
   canWrite,
+  canAdd = canWrite,
+  showTrainerFilter = true,
   timeZone,
   openHour,
   closeHour,
@@ -151,13 +155,22 @@ export function PtCalendarBoard({
   services: ServiceOption[];
   /** The trainer filter's options. */
   trainers: ScheduleOption[];
-  /** The trainer the URL narrows to, or '' for everyone. */
+  /** The trainer the URL narrows to, `'mine'` for the coach's own, or '' for everyone. */
   trainerId: string;
+  /** The signed-in staffer's own coach profile, when they have one — shows "My PT". */
+  ownTrainerId?: string | null;
+  /** The coach's own staff record — slots on it are theirs to book / cancel / complete. */
+  ownStaffId?: string | null;
   /** The service-category filter's options (the gym's own categories, from Services). */
   categories: ScheduleOption[];
   /** The category the URL narrows to, or '' for all. */
   categoryId: string;
+  /** Cancel / complete / book — the full `PtSessionManage` capability. */
   canWrite: boolean;
+  /** Open new slots — `PtSessionManage`, or a coach on their own services. */
+  canAdd?: boolean;
+  /** The trainer dropdown — managers pick a coach; a coach only toggles "My PT". */
+  showTrainerFilter?: boolean;
   /** The gym's IANA zone - the grid's rows and clock labels are read on it. */
   timeZone: string;
   /** The gym's opening window, from Settings > Business hours. */
@@ -274,9 +287,9 @@ export function PtCalendarBoard({
       closeHour={closeHour}
       t={t}
       onOpen={openEvent}
-      onPickSlot={canWrite ? pickSlot : null}
+      onPickSlot={canAdd ? pickSlot : null}
       action={
-        canWrite ? (
+        canAdd ? (
           <AddSlotDrawer
             services={services}
             defaultDate={weekStart}
@@ -288,13 +301,27 @@ export function PtCalendarBoard({
       }
       filters={
         <>
-          <FilterSelect
-            label={t('filters.trainer')}
-            value={trainerId}
-            allLabel={t('filters.allTrainers')}
-            options={trainers}
-            onChange={(value) => setParams({ trainerId: value })}
-          />
+          {/* "My PT" is its own toggle, as on the class schedule: the calendar
+              opens on every trainer and a coach narrows to theirs with one press. */}
+          {ownTrainerId ? (
+            <Button
+              variant={trainerId === 'mine' ? 'primary' : 'secondary'}
+              size="inline"
+              aria-pressed={trainerId === 'mine'}
+              onClick={() => setParams({ trainerId: trainerId === 'mine' ? null : 'mine' })}
+              icon={<Icon name="user" {...stylex.props(styles.kitGlyph)} />}
+              label={t('filters.mySessions')}
+            />
+          ) : null}
+          {showTrainerFilter ? (
+            <FilterSelect
+              label={t('filters.trainer')}
+              value={trainerId === 'mine' ? '' : trainerId}
+              allLabel={t('filters.allTrainers')}
+              options={trainers}
+              onChange={(value) => setParams({ trainerId: value })}
+            />
+          ) : null}
           <FilterSelect
             label={t('filters.category')}
             value={categoryId}
@@ -326,7 +353,10 @@ export function PtCalendarBoard({
         slot={selectedSlot}
         locale={locale}
         timeZone={timeZone}
-        canWrite={canWrite}
+        canWrite={
+          canWrite ||
+          (ownStaffId !== null && selectedSlot !== null && selectedSlot.staffId === ownStaffId)
+        }
         onChanged={() => router.refresh()}
       />
     </CalendarBoard>

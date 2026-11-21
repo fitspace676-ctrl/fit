@@ -123,7 +123,7 @@ export default async function StaffPage() {
   const canAssignOwner = session?.role === 'OWNER' || session?.role === 'SUPER_ADMIN';
 
   try {
-    const [{ staff }, roles, workingNow, locations, display] = await Promise.all([
+    const [{ staff, invites }, roles, workingNow, locations, display] = await Promise.all([
       fetchStaff(),
       // The matrix endpoint is `RolesRead`; anyone below it gets no roles tab.
       canViewRoles ? fetchStaffRoles() : Promise.resolve({ roles: [] }),
@@ -140,6 +140,7 @@ export default async function StaffPage() {
     return (
       <StaffConsole
         staff={staff}
+        invites={invites}
         currentUserId={session?.userId ?? null}
         canManage={canManage}
         canAssignRole={canAssignRole}

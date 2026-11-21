@@ -154,7 +154,11 @@ export class DashboardStaffService {
       // AVAILABILITY, so the roster hop rather than a column: "which coaches can
       // this branch call on". Overlapping — a two-branch coach is on both lists.
       this.prisma.client.trainer.findMany({
-        where: { status: TrainerStatus.ACTIVE, ...staffAtLocation(query.locationId) },
+        where: {
+          archivedAt: null,
+          status: TrainerStatus.ACTIVE,
+          ...staffAtLocation(query.locationId),
+        },
         select: { id: true, name: true, availability: true },
       }),
       // NOT window-scoped: a recurring weekly rota carries no dates. It IS branch
@@ -194,6 +198,7 @@ export class DashboardStaffService {
       this.prisma.client.gymMember.count({
         where: {
           role: { not: Role.MEMBER },
+          archivedAt: null,
           deletedAt: null,
           ...assignedAtLocation(query.locationId),
         },

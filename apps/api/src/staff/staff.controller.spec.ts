@@ -105,10 +105,22 @@ describe('StaffController', () => {
   describe('POST /staff/invite', () => {
     it('validates and forwards a well-formed body', async () => {
       const { controller, inviteStaff } = setup();
-      const result = await controller.invite({ email: 'New@Example.com', role: 'TRAINER' });
+      const result = await controller.invite({
+        email: 'New@Example.com',
+        role: 'TRAINER',
+        firstName: ' Nino ',
+        lastName: ' Beridze ',
+        locationIds: ['loc-1'],
+      });
       expect(result).toEqual({ inviteId: 'inv-1' });
       // Email is normalised to lower-case by the schema before the service sees it.
-      expect(inviteStaff).toHaveBeenCalledWith({ email: 'new@example.com', role: 'TRAINER' });
+      expect(inviteStaff).toHaveBeenCalledWith({
+        email: 'new@example.com',
+        role: 'TRAINER',
+        firstName: 'Nino',
+        lastName: 'Beridze',
+        locationIds: ['loc-1'],
+      });
     });
 
     it('rejects a missing/invalid role with 400', async () => {

@@ -194,7 +194,7 @@ export class SuperAdminService {
     }
 
     const staffMemberships = await this.prisma.client.gymMember.findMany({
-      where: { gymId: gym.id, role: { not: Role.MEMBER }, deletedAt: null },
+      where: { gymId: gym.id, role: { not: Role.MEMBER }, deletedAt: null, archivedAt: null },
       orderBy: { joinedAt: 'asc' },
       select: { userId: true, role: true, status: true, joinedAt: true },
     });

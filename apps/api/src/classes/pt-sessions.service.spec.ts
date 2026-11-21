@@ -1,13 +1,32 @@
 import { describe, expect, it, vi } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InstanceStatus } from '@fit/db';
-import type { CreatePtSessionData, ListAdminPtSessionsQuery } from '@fit/types';
+import { Permission, type CreatePtSessionData, type ListAdminPtSessionsQuery } from '@fit/types';
 import { PtSessionsService } from './pt-sessions.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { RequestAccessResolver } from '../common/rbac/request-access';
 
 /** A fixed tenant context — the service stamps `gymId` on a session it creates. */
-const tenantCtx = { gymId: 'gym-1' } as unknown as TenantContext;
+const tenantCtx = {
+  gymId: 'gym-1',
+  current: { gymId: 'gym-1', userId: 'user-1', role: 'MANAGER' },
+} as unknown as TenantContext;
+
+/** An access resolver granting exactly `grants`. */
+function accessWith(grants: Permission[]): RequestAccessResolver {
+  return {
+    resolve: () =>
+      Promise.resolve({
+        role: 'MANAGER',
+        grants,
+        branchScope: 'all',
+        allowedLocationIds: null,
+        defaultLocationId: null,
+      }),
+    invalidateGym: () => undefined,
+  };
+}
 
 /** A joined PT-session row as the projection selects it. */
 interface PtRow {
@@ -42,8 +61,10 @@ const ptRow = (over?: Partial<PtRow>): PtRow => ({
 function setup(over?: {
   findMany?: PtRow[];
   findFirst?: PtRow | null;
-  trainer?: { id: string; staffId?: string | null } | null;
+  trainer?: { id: string; staffId?: string | null; staff?: { userId: string } | null } | null;
   classType?: { id: string } | null;
+  /** The caller's live grants; defaults to full `PtSessionManage`. */
+  grants?: Permission[];
   /** The branches the coach's staff record is rostered at. */
   assignments?: string[];
   /** Whether a branch id the caller sent resolves to one of this gym's. */
@@ -62,11 +83,14 @@ function setup(over?: {
     update: vi.fn<(args: unknown) => Promise<unknown>>(() => Promise.resolve({ id: 'pt-1' })),
   };
   const trainer = {
-    findFirst: vi.fn<(args: unknown) => Promise<{ id: string; staffId?: string | null } | null>>(
-      () =>
-        Promise.resolve(
-          over?.trainer === undefined ? { id: 'tr-1', staffId: 'gm-1' } : over.trainer,
-        ),
+    findFirst: vi.fn<
+      (args: unknown) => Promise<{
+        id: string;
+        staffId?: string | null;
+        staff?: { userId: string } | null;
+      } | null>
+    >(() =>
+      Promise.resolve(over?.trainer === undefined ? { id: 'tr-1', staffId: 'gm-1' } : over.trainer),
     ),
   };
   const location = {
@@ -87,7 +111,11 @@ function setup(over?: {
   const client = { ptSession, trainer, classType, location, locationStaff } as unknown;
   const prisma = { client } as unknown as TenantPrismaService;
   return {
-    service: new PtSessionsService(prisma, tenantCtx),
+    service: new PtSessionsService(
+      prisma,
+      tenantCtx,
+      accessWith(over?.grants ?? [Permission.PtSessionManage]),
+    ),
     ptSession,
     trainer,
     classType,
@@ -267,6 +295,37 @@ describe('PtSessionsService', () => {
       // 45 minutes after the start.
       expect(args.data.endsAt).toEqual(new Date('2026-07-20T09:45:00.000Z'));
       expect(args.data.status).toBe(InstanceStatus.SCHEDULED);
+    });
+
+    it('lets an own-only coach schedule on their own profile', async () => {
+      const { service, ptSession } = setup({
+        grants: [Permission.PtSessionManageOwn],
+        trainer: { id: 'tr-1', staffId: 'gm-1', staff: { userId: 'user-1' } },
+      });
+      await service.createPtSession(createData());
+      expect(ptSession.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("403s an own-only coach scheduling another trainer's session", async () => {
+      const { service, ptSession } = setup({
+        grants: [Permission.PtSessionManageOwn],
+        trainer: { id: 'tr-2', staffId: 'gm-2', staff: { userId: 'user-2' } },
+      });
+      await expect(service.createPtSession(createData())).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(ptSession.create).not.toHaveBeenCalled();
+    });
+
+    it('403s a caller with neither grant', async () => {
+      const { service, ptSession } = setup({
+        grants: [Permission.PtSessionRead],
+        trainer: { id: 'tr-1', staffId: 'gm-1', staff: { userId: 'user-1' } },
+      });
+      await expect(service.createPtSession(createData())).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      expect(ptSession.create).not.toHaveBeenCalled();
     });
 
     it('404s when the trainer is unknown / cross-tenant', async () => {

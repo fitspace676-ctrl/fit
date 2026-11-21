@@ -4,13 +4,23 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { GymMemberStatus, Prisma, Role, TrainerStatus } from '@fit/db';
+import {
+  BookingStatus,
+  GymMemberStatus,
+  NotificationCategory,
+  NotificationChannel,
+  Prisma,
+  Role,
+  TrainerStatus,
+} from '@fit/db';
 import type {
   CreateStaffInput,
   InviteStaffInput,
+  CreateStaffResponse,
   InviteStaffResponse,
   ListStaffQuery,
   ListStaffResponse,
@@ -28,6 +38,8 @@ import { EmailService } from '../auth/email.service';
 import { resolveEmailLocale } from '../mail/email-locale';
 import { TokenService } from '../auth/token.service';
 import { invalidateGymAccess } from '../common/rbac/request-access';
+import { CreditPacksService } from '../billing/credit-packs.service';
+import { NotificationService } from '../notifications/notification.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { syncTrainerProfile, type TrainerSyncClient } from './trainer-profile-sync';
@@ -80,6 +92,9 @@ type StaffRecord = Prisma.GymMemberGetPayload<{ select: typeof STAFF_SELECT }>;
 
 /** Columns the pending-invite list selects off `StaffInvite`. */
 const INVITE_SELECT = {
+  firstName: true,
+  lastName: true,
+  locationIds: true,
   id: true,
   email: true,
   role: true,
@@ -187,6 +202,16 @@ async function writeLocationAssignments(
  *     so they cannot mint a new session — access is cut within one short-lived
  *     access-token lifetime.
  */
+/** A member whose booking a coach's removal cancelled — one notice each. */
+interface CancellationNotice {
+  kind: 'class' | 'pt';
+  /** The cancelled occurrence or slot — the notice's dedupe key. */
+  refId: string;
+  userId: string;
+  title: string;
+  startsAt: Date;
+}
+
 @Injectable()
 export class StaffService {
   private readonly logger = new Logger(StaffService.name);
@@ -196,6 +221,8 @@ export class StaffService {
     private readonly tenant: TenantContext,
     private readonly email: EmailService,
     private readonly tokens: TokenService,
+    @Optional() private readonly creditPacks?: CreditPacksService,
+    @Optional() private readonly notifications?: NotificationService,
   ) {}
 
   /**
@@ -214,6 +241,7 @@ export class StaffService {
     const [staff, invites] = await Promise.all([
       this.prisma.client.gymMember.findMany({
         where: {
+          archivedAt: null,
           role: filter.role ? (filter.role as Role) : { in: STAFF_ROLES },
           ...(filter.status ? { status: filter.status } : {}),
           // "Who can work at branch X" — the reverse query `assignedLocationIds`
@@ -238,21 +266,31 @@ export class StaffService {
       }),
     ]);
 
+    const inviteLocationIds = [...new Set(invites.flatMap((row) => row.locationIds))];
+    const locations = inviteLocationIds.length
+      ? await this.prisma.client.location.findMany({
+          where: { id: { in: inviteLocationIds } },
+          select: { id: true, name: true },
+        })
+      : [];
     return {
       staff: staff.map((row) => this.toStaffMember(row)),
-      // Pending invites are NOT branch-filtered, and cannot be: an invitation
-      // names an email and a role, and the person has no membership yet — so
-      // there are no assignments to filter on. Under a branch filter the roster
-      // narrows and this list does not, which is the honest rendering of "nobody
-      // has told us where they will work".
-      invites: invites.map((row) => this.toPendingInvite(row)),
+      invites: invites
+        .filter((row) => !filter.locationId || row.locationIds.includes(filter.locationId))
+        .map((row) => ({
+          ...this.toPendingInvite(row),
+          locations: locations
+            .filter((loc) => row.locationIds.includes(loc.id))
+            .map((loc) => loc.name),
+        })),
     };
   }
 
   /**
-   * Add a staff member straight to the directory (`POST /staff`) — a login-less
-   * record: no invitation email is sent and no password is set, so they appear in
-   * the roster but can never sign in. Backed by a `User` with a null
+   * Add a staff member straight to the directory (`POST /staff`). No password is
+   * set; with an email (and active status) a sign-in invitation goes out too, so
+   * they can set one — without an email the record stays login-less, in the
+   * roster but unable to sign in. Backed by a `User` with a null
    * `passwordHash` (the console shows First/Last from the membership, so the
    * `User` only needs a name for other surfaces); an omitted email gets a unique
    * placeholder so the required+unique `User.email` still holds. A supplied email
@@ -261,20 +299,31 @@ export class StaffService {
    * specialties, assigned locations and weekly working hours are written in the
    * same transaction. Returns the new staff member.
    */
-  async createStaff(input: CreateStaffInput): Promise<StaffMember> {
+  async createStaff(input: CreateStaffInput): Promise<CreateStaffResponse> {
     this.assertMayHandleRole(input.role);
     const gymId = this.tenant.gymId;
     const email = input.email?.trim() ? input.email.trim().toLowerCase() : null;
+    // Someone added with an email is invited to sign in and stays INVITED until
+    // they accept (redemption sets ACTIVE); without an email the record is ACTIVE
+    // straight away. An explicit SUSPENDED is kept and invites no one.
+    const status: GymMemberStatus =
+      input.status === 'SUSPENDED'
+        ? GymMemberStatus.SUSPENDED
+        : email
+          ? GymMemberStatus.INVITED
+          : GymMemberStatus.ACTIVE;
 
     const existingUser = email
       ? await this.prisma.client.user.findUnique({ where: { email }, select: { id: true } })
       : null;
+    let archivedMemberId: string | null = null;
     if (existingUser) {
       const clash = await this.prisma.client.gymMember.findFirst({
         where: { userId: existingUser.id, gymId },
-        select: { id: true },
+        select: { id: true, archivedAt: true },
       });
-      if (clash) {
+      if (clash?.archivedAt) archivedMemberId = clash.id;
+      if (clash && !clash.archivedAt) {
         throw new ConflictException({
           message: 'That email already belongs to a member of this gym',
           code: 'EMAIL_IN_USE',
@@ -328,21 +377,25 @@ export class StaffService {
       const baseLocationId =
         assigned.length === 1 ? assigned[0] : await findDefaultLocationId(tx, gymId);
 
-      const member = await tx.gymMember.create({
-        data: {
-          gymId,
-          userId: user.id,
-          role: input.role as Role,
-          status: input.status as GymMemberStatus,
-          firstName: input.firstName.trim(),
-          lastName: input.lastName.trim() || null,
-          locationId: baseLocationId,
-          // The deprecated shadow, written in the same transaction as the join
-          // table it shadows — see {@link writeLocationAssignments}.
-          assignedLocationIds: input.assignedLocationIds,
-        },
-        select: { id: true },
-      });
+      const memberData = {
+        gymId,
+        userId: user.id,
+        role: input.role as Role,
+        status,
+        firstName: input.firstName.trim(),
+        lastName: input.lastName.trim() || null,
+        locationId: baseLocationId,
+        // The deprecated shadow, written in the same transaction as the join
+        // table it shadows — see {@link writeLocationAssignments}.
+        assignedLocationIds: input.assignedLocationIds,
+      };
+      const member = archivedMemberId
+        ? await tx.gymMember.update({
+            where: { id: archivedMemberId },
+            data: { ...memberData, archivedAt: null },
+            select: { id: true },
+          })
+        : await tx.gymMember.create({ data: memberData, select: { id: true } });
 
       await writeLocationAssignments(tx, gymId, member.id, input.assignedLocationIds);
 
@@ -382,7 +435,27 @@ export class StaffService {
     // request re-cache the pre-commit roster for the whole TTL.
     invalidateGymAccess(gymId);
 
-    return this.projectStaff(memberId);
+    const member = await this.projectStaff(memberId);
+
+    // Every staff role has a console, so a person added with an email is invited
+    // to sign in to it — otherwise the record could never log in. Best-effort: the
+    // member is already saved (INVITED), and a failed send leaves the pending
+    // invite in the Invitations tab to resend.
+    if (!email || status !== GymMemberStatus.INVITED) {
+      return { ...member, inviteSent: null };
+    }
+    try {
+      await this.issueInvite({
+        email,
+        role: input.role,
+        firstName: input.firstName.trim(),
+        lastName: input.lastName.trim() || null,
+        locationIds: [...new Set(input.assignedLocationIds)],
+      });
+      return { ...member, inviteSent: true };
+    } catch {
+      return { ...member, inviteSent: false };
+    }
   }
 
   /**
@@ -394,14 +467,16 @@ export class StaffService {
    * awaits provider acceptance of the invite email. Returns the new invite's id.
    */
   async inviteStaff(input: InviteStaffInput): Promise<InviteStaffResponse> {
-    const { email, role } = input;
+    const { email, role, firstName, lastName } = input;
+    const locationIds = [...new Set(input.locationIds)];
+    this.assertLiveLocations(locationIds, await this.liveLocationIds());
     this.assertMayHandleRole(role);
 
     // Already a staff member of *this* gym? The scoped query constrains gymId, so
     // this only ever sees our own gym's memberships. A plain MEMBER is allowed —
     // accepting the invite upgrades them — so only staff roles collide.
     const existingStaff = await this.prisma.client.gymMember.findFirst({
-      where: { role: { in: STAFF_ROLES }, user: { email } },
+      where: { archivedAt: null, role: { in: STAFF_ROLES }, user: { email } },
       select: { id: true },
     });
     if (existingStaff) {
@@ -411,6 +486,24 @@ export class StaffService {
       });
     }
 
+    return this.issueInvite({ email, role, firstName, lastName, locationIds });
+  }
+
+  /**
+   * Mint, store and email one staff invitation — shared by {@link inviteStaff} and
+   * by {@link createStaff} when the added person has an email. Any earlier pending
+   * invite for the address is replaced (a clean resend). The invite row survives a
+   * delivery failure so it can be resent, but the failure is never reported as
+   * success: it throws `503 EMAIL_SEND_FAILED`.
+   */
+  private async issueInvite(data: {
+    email: string;
+    role: InviteStaffInput['role'];
+    firstName: string | null;
+    lastName: string | null;
+    locationIds: string[];
+  }): Promise<InviteStaffResponse> {
+    const { email, role, firstName, lastName, locationIds } = data;
     // Replace any prior pending invite for the same address (a clean resend).
     await this.prisma.client.staffInvite.deleteMany({ where: { email, usedAt: null } });
 
@@ -420,6 +513,9 @@ export class StaffService {
         gymId: this.tenant.gymId,
         email,
         role,
+        firstName,
+        lastName,
+        locationIds,
         token,
         expiresAt: new Date(Date.now() + env.STAFF_INVITE_TTL * 1000),
       },
@@ -474,7 +570,8 @@ export class StaffService {
    * Change a staff member's role (`PATCH /staff/:memberId/role`). Guards the
    * last-owner invariant: downgrading the gym's only `OWNER` is refused with
    * `403 LAST_OWNER`, so a gym can never be left ownerless. An unknown /
-   * cross-tenant id is a `404 STAFF_NOT_FOUND`. Returns the updated staff member.
+   * cross-tenant id is a `404 STAFF_NOT_FOUND`. A real change signs the person out
+   * everywhere at once (see below). Returns the updated staff member.
    */
   async updateRole(
     memberId: string,
@@ -488,10 +585,29 @@ export class StaffService {
       await this.assertNotLastOwner();
     }
 
-    await this.prisma.client.gymMember.update({
-      where: { id: memberId },
-      data: { role: input.role },
-    });
+    if (member.role !== input.role) {
+      // The role rides in the access token, so a changed role ends every session:
+      // bumping `tokenVersion` fails the very next request on any token minted
+      // under the old role (a demoted manager keeps nothing for the rest of its
+      // 15-minute life), and the refresh families go too, so the person signs in
+      // again and lands straight on the console of their new role.
+      await this.prisma.client.$transaction(async (tx) => {
+        await tx.gymMember.update({
+          where: { id: memberId },
+          data: { role: input.role },
+        });
+        await this.tokens.revokeAllForUser(
+          member.userId,
+          undefined,
+          tx as unknown as Prisma.TransactionClient,
+        );
+        await tx.user.update({
+          where: { id: member.userId },
+          data: { tokenVersion: { increment: 1 } },
+        });
+      });
+      invalidateGymAccess(this.tenant.gymId);
+    }
     await this.syncTrainerProfile(memberId, input.role);
 
     return this.projectStaff(memberId);
@@ -510,7 +626,7 @@ export class StaffService {
    */
   async updateStaffProfile(memberId: string, input: UpdateStaffProfileInput): Promise<StaffMember> {
     const existing = await this.prisma.client.gymMember.findFirst({
-      where: { id: memberId, role: { in: STAFF_ROLES } },
+      where: { id: memberId, archivedAt: null, role: { in: STAFF_ROLES } },
       select: { id: true, userId: true, role: true, firstName: true, lastName: true },
     });
     if (!existing) {
@@ -639,25 +755,284 @@ export class StaffService {
       await this.assertNotLastOwner();
     }
 
-    // Retire the coach profile before the membership goes. The FK is `SET NULL`,
-    // so the profile survives the delete (class templates, occurrences, PT
-    // sessions and reviews all point at it) — but the person no longer works
-    // here, so it must not stay on the public roster or in the class trainer
-    // picker either.
-    await this.prisma.client.trainer.updateMany({
-      where: { staffId: memberId },
-      data: { status: TrainerStatus.INACTIVE },
+    const notices = await this.prisma.client.$transaction(async (tx) => {
+      const trainer = await tx.trainer.findFirst({
+        where: { staffId: memberId, archivedAt: null },
+      });
+      const cancelled: CancellationNotice[] = trainer
+        ? await this.archiveTrainer(tx as unknown as Prisma.TransactionClient, trainer.id)
+        : [];
+      const [services, sessions] = await Promise.all([
+        tx.service.count({ where: { staffId: memberId } }),
+        tx.serviceSession.count({ where: { staffId: memberId } }),
+      ]);
+      if (services || sessions) {
+        // These required FKs retain service/order/PT history. Never put archived
+        // staff in member trash: its retention job would hard-delete history.
+        await tx.gymMember.update({
+          where: { id: memberId },
+          data: { archivedAt: new Date(), status: GymMemberStatus.SUSPENDED },
+        });
+        await tx.service.updateMany({ where: { staffId: memberId }, data: { status: 'ARCHIVED' } });
+        const futureSlots = {
+          staffId: memberId,
+          startsAt: { gt: new Date() },
+          status: { in: ['OPEN' as const, 'BOOKED' as const] },
+        };
+        // The booked ones had a member waiting on this coach — tell them.
+        const booked = await tx.serviceSession.findMany({
+          where: { ...futureSlots, status: 'BOOKED', memberId: { not: null } },
+          select: {
+            id: true,
+            startsAt: true,
+            service: { select: { name: true } },
+            member: { select: { userId: true } },
+          },
+        });
+        for (const slot of booked) {
+          if (slot.member) {
+            cancelled.push({
+              kind: 'pt',
+              refId: slot.id,
+              userId: slot.member.userId,
+              title: slot.service.name,
+              startsAt: slot.startsAt,
+            });
+          }
+        }
+        await tx.serviceSession.updateMany({ where: futureSlots, data: { status: 'CANCELLED' } });
+        await tx.shiftSlot.deleteMany({ where: { staffId: memberId } });
+        await tx.locationStaff.deleteMany({ where: { staffId: memberId } });
+      } else {
+        await tx.gymMember.delete({ where: { id: memberId } });
+      }
+      await this.tokens.revokeAllForUser(
+        member.userId,
+        undefined,
+        tx as unknown as Prisma.TransactionClient,
+      );
+      await tx.user.update({
+        where: { id: member.userId },
+        data: { tokenVersion: { increment: 1 } },
+      });
+      // Removal ends this gym's sign-in: the gym's password goes with it, so a
+      // later re-invite has the person choose a new one instead of reviving the
+      // old. Other gyms' credentials are untouched.
+      await tx.gymCredential.updateMany({
+        where: { userId: member.userId, gymId: this.tenant.gymId },
+        data: { passwordHash: null },
+      });
+      return cancelled;
+    });
+    invalidateGymAccess(this.tenant.gymId);
+    await this.notifyCancellations(notices);
+  }
+
+  async staffDeleteImpact(memberId: string) {
+    await this.requireStaff(memberId);
+    const trainer = await this.prisma.client.trainer.findFirst({
+      where: { staffId: memberId, archivedAt: null },
+    });
+    if (trainer) return this.trainerDeleteImpact(trainer.id);
+    const ptSessions = await this.prisma.client.serviceSession.count({
+      where: {
+        staffId: memberId,
+        startsAt: { gt: new Date() },
+        status: { in: ['OPEN', 'BOOKED'] },
+      },
+    });
+    return { classes: 0, ptSessions };
+  }
+
+  async trainerDeleteImpact(id: string) {
+    const trainer = await this.requireUnarchivedTrainer(id);
+    const where = { trainerId: id, startsAt: { gt: new Date() }, status: 'SCHEDULED' as const };
+    const [classes, ptSessions, serviceSessions] = await Promise.all([
+      // The same set removal cancels: taught directly or inherited from the template.
+      this.prisma.client.classInstance.count({
+        where: {
+          startsAt: where.startsAt,
+          status: where.status,
+          OR: [{ trainerId: id }, { trainerId: null, template: { trainerId: id } }],
+        },
+      }),
+      this.prisma.client.ptSession.count({ where }),
+      trainer.staffId
+        ? this.prisma.client.serviceSession.count({
+            where: {
+              staffId: trainer.staffId,
+              startsAt: { gt: new Date() },
+              status: { in: ['OPEN', 'BOOKED'] },
+            },
+          })
+        : Promise.resolve(0),
+    ]);
+    return { classes, ptSessions: ptSessions + serviceSessions };
+  }
+
+  async removeTrainer(id: string): Promise<void> {
+    const trainer = await this.requireUnarchivedTrainer(id);
+    if (trainer.staffId) {
+      // Reuse role protection, LAST_OWNER and atomic session revocation.
+      await this.removeStaff(trainer.staffId);
+    } else {
+      const notices = await this.prisma.client.$transaction((tx) =>
+        this.archiveTrainer(tx as unknown as Prisma.TransactionClient, id),
+      );
+      await this.notifyCancellations(notices);
+    }
+  }
+
+  private async requireUnarchivedTrainer(id: string) {
+    const trainer = await this.prisma.client.trainer.findFirst({ where: { id, archivedAt: null } });
+    if (!trainer)
+      throw new NotFoundException({ code: 'TRAINER_NOT_FOUND', message: 'Trainer not found' });
+    return trainer;
+  }
+
+  /**
+   * Retire a coach. Their future classes are CANCELLED, not left without a coach
+   * — including occurrences that only inherit them from the template: every held
+   * seat's class credit is refunded and every live booking released, the same as
+   * a cancellation from the schedule drawer. Future PT sessions are cancelled.
+   * Templates lose the coach (a manager re-staffs them). Returns one notice per
+   * member whose booking was cancelled, for {@link notifyCancellations}.
+   */
+  private async archiveTrainer(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<CancellationNotice[]> {
+    const now = new Date();
+    await tx.trainer.update({
+      where: { id },
+      data: { archivedAt: now, status: TrainerStatus.INACTIVE },
     });
 
-    await this.prisma.client.gymMember.delete({ where: { id: memberId } });
+    // Read before the templates are unassigned below — an occurrence with no
+    // coach of its own is taught by its template's.
+    const instances = await tx.classInstance.findMany({
+      where: {
+        startsAt: { gt: now },
+        status: 'SCHEDULED',
+        OR: [{ trainerId: id }, { trainerId: null, template: { trainerId: id } }],
+      },
+      select: {
+        id: true,
+        startsAt: true,
+        template: { select: { title: true } },
+        classType: { select: { name: true } },
+        bookings: {
+          where: { status: { not: BookingStatus.CANCELED } },
+          select: { status: true, creditPackId: true, member: { select: { userId: true } } },
+        },
+      },
+    });
 
-    // Cut their sessions. Refresh-token revocation + a tokenVersion bump together
-    // mean their next refresh fails and resolves no staff scope, so the removed
-    // member can't keep a session alive. (Refresh tokens are not gym-scoped, so
-    // this signs the user out of any other gyms too — an acceptable, fail-safe
-    // consequence of removing their access.)
-    await this.tokens.revokeAllForUser(member.userId);
-    await this.bumpTokenVersion(member.userId);
+    const notices: CancellationNotice[] = [];
+    for (const instance of instances) {
+      for (const booking of instance.bookings) {
+        if (booking.status === BookingStatus.BOOKED) {
+          await this.creditPacks?.refundCredit(
+            tx as unknown as Parameters<CreditPacksService['refundCredit']>[0],
+            booking.creditPackId,
+            this.tenant.gymId,
+          );
+        }
+        notices.push({
+          kind: 'class',
+          refId: instance.id,
+          userId: booking.member.userId,
+          title: instance.template?.title ?? instance.classType?.name ?? '',
+          startsAt: instance.startsAt,
+        });
+      }
+    }
+    const ids = instances.map((instance) => instance.id);
+    if (ids.length > 0) {
+      await tx.booking.updateMany({
+        where: { classInstanceId: { in: ids }, status: { not: BookingStatus.CANCELED } },
+        data: { status: BookingStatus.CANCELED, waitlistPosition: null },
+      });
+      await tx.classInstance.updateMany({
+        where: { id: { in: ids } },
+        data: { status: 'CANCELED', bookedCount: 0 },
+      });
+    }
+
+    await tx.classTemplate.updateMany({ where: { trainerId: id }, data: { trainerId: null } });
+    // PT requires its trainer FK. Keep the historical identity, cancel future sessions.
+    await tx.ptSession.updateMany({
+      where: { trainerId: id, startsAt: { gt: now }, status: 'SCHEDULED' },
+      data: { status: 'CANCELED' },
+    });
+    return notices;
+  }
+
+  /**
+   * Tell each member whose class or PT session was cancelled by a coach's
+   * removal — in-app, email and push, in the gym's language and clock. Runs after
+   * the removal committed and is best-effort: a failed notice is logged, never
+   * thrown, so it cannot undo or fail the removal.
+   */
+  private async notifyCancellations(notices: CancellationNotice[]): Promise<void> {
+    if (!this.notifications || notices.length === 0) return;
+    const gymId = this.tenant.gymId;
+    let language = 'ka';
+    let timeZone = 'Asia/Tbilisi';
+    try {
+      const gym = await this.prisma.client.gym.findUnique({
+        where: { id: gymId },
+        select: { settings: true },
+      });
+      const settings = gymSettingsStoredSchema.parse(gym?.settings ?? {});
+      language = settings.locale.language;
+      timeZone = settings.locale.timezone || timeZone;
+    } catch {
+      // Defaults above.
+    }
+    const ka = language === 'ka';
+    const when = new Intl.DateTimeFormat(ka ? 'ka-GE' : 'en-GB', {
+      timeZone,
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    for (const notice of notices) {
+      const at = when.format(notice.startsAt);
+      const copy =
+        notice.kind === 'class'
+          ? {
+              title: ka ? 'კლასი გაუქმდა' : 'Class cancelled',
+              body: ka
+                ? `„${notice.title}“ (${at}) გაუქმდა. თქვენი ჯავშანი მოიხსნა; თუ ის კრედიტით იყო, კრედიტი დაგიბრუნდათ.`
+                : `"${notice.title}" (${at}) has been cancelled. Your booking was released; a class credit used for it has been returned.`,
+            }
+          : {
+              title: ka ? 'PT სესია გაუქმდა' : 'PT session cancelled',
+              body: ka
+                ? `„${notice.title}“ (${at}) გაუქმდა. დეტალებისთვის დაუკავშირდით დარბაზს.`
+                : `"${notice.title}" (${at}) has been cancelled. Please contact the gym for details.`,
+            };
+      try {
+        await this.notifications.send({
+          gymId,
+          userId: notice.userId,
+          category: NotificationCategory.BOOKING,
+          channels: [
+            NotificationChannel.IN_APP,
+            NotificationChannel.EMAIL,
+            NotificationChannel.PUSH,
+          ],
+          href: '/account/bookings',
+          dedupeKey: `coach-removed:${notice.kind}:${notice.refId}`,
+          ...copy,
+        });
+      } catch (error) {
+        this.logger.warn(`Cancellation notice failed: ${String(error)}`);
+      }
+    }
   }
 
   /**
@@ -681,7 +1056,7 @@ export class StaffService {
    */
   private async requireStaff(id: string): Promise<{ id: string; userId: string; role: Role }> {
     const member = await this.prisma.client.gymMember.findFirst({
-      where: { id, role: { in: STAFF_ROLES } },
+      where: { id, archivedAt: null, role: { in: STAFF_ROLES } },
       select: { id: true, userId: true, role: true },
     });
     if (!member) {
@@ -712,25 +1087,15 @@ export class StaffService {
    * about to re-role or remove an owner, and the gym must keep at least one.
    */
   private async assertNotLastOwner(): Promise<void> {
-    const owners = await this.prisma.client.gymMember.count({ where: { role: Role.OWNER } });
+    const owners = await this.prisma.client.gymMember.count({
+      where: { role: Role.OWNER, archivedAt: null },
+    });
     if (owners <= 1) {
       throw new ForbiddenException({
         message: 'A gym must keep at least one owner',
         code: 'LAST_OWNER',
       });
     }
-  }
-
-  /**
-   * Bump a user's `tokenVersion` so any session re-resolved on refresh is stamped
-   * with the new counter. Uses the *unscoped* relation via the scoped client
-   * (`User` is not a tenant-scoped model), updating by primary key.
-   */
-  private async bumpTokenVersion(userId: string): Promise<void> {
-    await this.prisma.client.user.update({
-      where: { id: userId },
-      data: { tokenVersion: { increment: 1 } },
-    });
   }
 
   /**
@@ -814,6 +1179,10 @@ export class StaffService {
   private toPendingInvite(row: InviteRecord): PendingInvite {
     return {
       id: row.id,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      locationIds: row.locationIds,
+      locations: [],
       email: row.email,
       role: row.role as StaffRole,
       expiresAt: row.expiresAt.toISOString(),

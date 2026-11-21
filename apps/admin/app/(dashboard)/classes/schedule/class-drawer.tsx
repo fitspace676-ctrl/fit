@@ -486,6 +486,14 @@ export function ClassDrawer({
   const [, startBook] = useTransition();
 
   const id = instance?.id ?? null;
+  const [now, setNow] = useState(() => Date.now());
+  // Refresh at start/end while the drawer is open; no reload is needed at 19:00.
+  useEffect(() => {
+    if (!open) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [open, id]);
 
   // Fetch the full detail (roster + waitlist) whenever a new occurrence opens.
   useEffect(() => {
@@ -610,16 +618,17 @@ export function ClassDrawer({
   const head = detail ?? instance;
   // A class whose end time has passed is over, even before anyone marks it (the
   // stored status only flips to COMPLETED once attendance is recorded).
-  const ended = head !== null && Date.parse(head.endsAt) <= Date.now();
+  const ended = head !== null && Date.parse(head.endsAt) <= now;
   const storedStatus = head?.status ?? 'SCHEDULED';
   const status = storedStatus === 'SCHEDULED' && ended ? 'COMPLETED' : storedStatus;
   const isOpen = status === 'SCHEDULED';
   const canCancel = canWrite && isOpen;
-  // Attendance is marked once the class has ended (not before) and while it
-  // isn't canceled; the API re-checks and a mark flips the occurrence to COMPLETED.
-  const canMark = canMarkAttendance && storedStatus !== 'CANCELED' && ended;
-  // Shown instead of the toggles while the class is still ahead or running.
-  const markLater = canMarkAttendance && isOpen;
+  // Attendance is marked once the class has started (not before) and while it
+  // isn't canceled; the API re-checks ownership and time before saving.
+  const started = head !== null && Date.parse(head.startsAt) <= now;
+  const canMark = canMarkAttendance && storedStatus !== 'CANCELED' && started;
+  // Shown instead of the toggles while the class has not started.
+  const markLater = canMarkAttendance && isOpen && !started;
   // A waitlisted member can be promoted into a seat only while the occurrence is
   // still open (a canceled / ended class is settled) and the staff holds
   // ClassWaitlist — the API re-checks both.
@@ -641,10 +650,12 @@ export function ClassDrawer({
         footer={
           head ? (
             <div {...stylex.props(styles.footer)}>
-              <Link href={`/classes/${head.templateId}`} {...stylex.props(styles.editLink)}>
-                <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
-                {t('actions.edit')}
-              </Link>
+              {canWrite && head.templateId ? (
+                <Link href={`/classes/${head.templateId}`} {...stylex.props(styles.editLink)}>
+                  <Icon name="settings" sw={2} {...stylex.props(styles.editIcon)} />
+                  {t('actions.edit')}
+                </Link>
+              ) : null}
               {canCancel ? (
                 <Button
                   variant="destructive"
@@ -850,7 +861,7 @@ function Roster({
   loading: boolean;
   error: string | null;
   detail: AdminClassInstanceDetail | null;
-  /** Whether attendance can be marked (occurrence ended, not canceled, ClassAttendance). */
+  /** Whether attendance can be marked (occurrence started, not canceled, authorized staff). */
   canMark: boolean;
   /** The staffer will be able to mark once the class ends: say so above the list. */
   markLater: boolean;
@@ -879,7 +890,7 @@ function Roster({
       ) : (
         <>
           {markLater ? (
-            <p {...stylex.props(styles.rosterEmpty)}>{t('roster.markAfterEnd')}</p>
+            <p {...stylex.props(styles.rosterEmpty)}>{t('roster.markAfterStart')}</p>
           ) : null}
           <ul {...stylex.props(styles.rosterList)}>
             {detail.roster.map((entry) => (

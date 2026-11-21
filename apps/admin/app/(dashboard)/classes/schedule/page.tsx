@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, roleHasPermission } from '@fit/types';
-import { getServerSession } from '@/lib/session';
+import { Permission } from '@fit/types';
+import { getConsolePermissions } from '@/lib/permissions-server';
 import { getActiveLocationId } from '@/lib/active-location-server';
-import { ApiError, fetchSchedule } from '@/lib/api';
+import { ApiError, fetchSchedule, fetchMyScheduleTrainer } from '@/lib/api';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Icon } from '@/components/ui';
 import { ClassesTabs } from '@/components/classes-tabs';
@@ -142,7 +142,7 @@ export default async function SchedulePage({
       : view === 'day'
         ? dayWindow(dayAnchor, timeZone)
         : weekWindow(weekStart, timeZone);
-  const trainerId = readParam(raw, 'trainerId');
+  const requestedTrainerId = readParam(raw, 'trainerId');
   // THE `?locationId=` CONTRACT IS UNCHANGED, THE CONTROL THAT WROTE IT IS GONE.
   //
   // The board used to own a page-local branch select. The top-bar switcher now
@@ -157,9 +157,8 @@ export default async function SchedulePage({
 
   // "Add Class" opens the class-type drawer — offered only to staff who hold the
   // write capability, and its form needs the gym's trainer/location/plan options.
-  const session = await getServerSession();
-  const can = (permission: Permission): boolean =>
-    session !== null && roleHasPermission(session.role, permission);
+  const permissions = await getConsolePermissions();
+  const can = (permission: Permission): boolean => permissions.grants.includes(permission);
   const canWrite = can(Permission.ClassWrite);
   // The roster actions are separate capabilities from editing the class itself,
   // so the front desk can book, mark and promote without being able to cancel or
@@ -170,11 +169,17 @@ export default async function SchedulePage({
 
   let content;
   try {
+    const { trainerId: ownTrainerId } = await fetchMyScheduleTrainer();
+    // Every role opens on all classes; a coach narrows to their own with the
+    // "My classes" toggle (`?trainerId=mine`).
+    const trainerId = requestedTrainerId;
+    const effectiveTrainerId =
+      trainerId === 'mine' ? ownTrainerId : trainerId === 'all' ? '' : trainerId;
     const [{ instances }, filters, addClass] = await Promise.all([
       fetchSchedule({
         from,
         to,
-        trainerId: trainerId || undefined,
+        trainerId: effectiveTrainerId || undefined,
         locationId,
       }),
       loadScheduleFilters(),
@@ -186,9 +191,11 @@ export default async function SchedulePage({
         weekStart={toIsoDate(weekStart)}
         monthAnchor={toIsoDate(monthAnchor)}
         dayAnchor={toIsoDate(dayAnchor)}
-        instances={instances}
+        instances={trainerId === 'mine' && !ownTrainerId ? [] : instances}
         trainers={filters.trainers}
-        trainerId={trainerId}
+        trainerId={trainerId === 'all' ? '' : trainerId}
+        ownTrainerId={ownTrainerId}
+        canManageOwn={can(Permission.ClassManageOwn)}
         canWrite={canWrite}
         canBook={canBook}
         canMarkAttendance={canMarkAttendance}
