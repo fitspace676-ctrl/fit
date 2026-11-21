@@ -17,6 +17,8 @@ import {
 import { getServerSession } from '@/lib/session';
 import {
   ApiError,
+  deleteTrainer,
+  getTrainerDeleteImpact,
   createTrainer,
   createUpload,
   deactivateTrainer,
@@ -205,5 +207,33 @@ export async function moderateReviewAction(id: string, hidden: boolean) {
     return { ok: true as const, data: await moderateReview(id, hidden) };
   } catch {
     return { ok: false as const, error: t('reports.error') };
+  }
+}
+
+export async function trainerDeleteImpactAction(
+  id: string,
+): Promise<ActionResult<{ classes: number; ptSessions: number }>> {
+  const t = await getTranslations('admin.trainers');
+  if (!(await requireTrainerWrite()) || !(await sessionHas(Permission.StaffManage)))
+    return { ok: false, error: t('errors.notAuthorized') };
+  try {
+    return { ok: true, data: await getTrainerDeleteImpact(id) };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
+  }
+}
+
+export async function deleteTrainerAction(id: string): Promise<ActionResult> {
+  const t = await getTranslations('admin.trainers');
+  if (!(await requireTrainerWrite()) || !(await sessionHas(Permission.StaffManage)))
+    return { ok: false, error: t('errors.notAuthorized') };
+  try {
+    await deleteTrainer(id);
+    revalidatePath('/trainers');
+    revalidatePath('/staff');
+    revalidatePath(`/trainers/${id}`);
+    return { ok: true, data: undefined };
+  } catch (error) {
+    return { ok: false, error: toMessage(error, t) };
   }
 }

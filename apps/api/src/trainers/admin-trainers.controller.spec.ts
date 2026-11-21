@@ -1,7 +1,9 @@
+import type { StaffService } from '../staff/staff.service';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import {
   weeklyAvailabilitySchema,
+  Permission,
   type CreateTrainerResponse,
   type GetAdminTrainerResponse,
   type GetTrainerAvailabilityResponse,
@@ -74,7 +76,7 @@ function setup() {
     listClients,
   } as unknown as AdminTrainersService;
   return {
-    controller: new AdminTrainersController(service),
+    controller: new AdminTrainersController(service, {} as StaffService),
     listTrainers,
     getTrainer,
     createTrainer,
@@ -237,5 +239,18 @@ describe('AdminTrainersController', () => {
 
       expect(ctx.listClients).toHaveBeenCalledWith('t-1');
     });
+  });
+});
+
+describe('trainer deletion permissions', () => {
+  it('requires both trainer write and staff management on deletion and impact', () => {
+    for (const name of ['remove', 'deleteImpact']) {
+      const handler = Object.getOwnPropertyDescriptor(AdminTrainersController.prototype, name)
+        ?.value as object;
+      expect(Reflect.getMetadata('permissions', handler)).toEqual([
+        Permission.TrainerWrite,
+        Permission.StaffManage,
+      ]);
+    }
   });
 });

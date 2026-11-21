@@ -52,6 +52,7 @@ export {
   type SelectOptionGroup,
   type TextareaFieldProps,
 } from './field';
+export { RevealButton, RevealEye } from './reveal-eye';
 export { DateField, type DateFieldLabels, type DateFieldProps } from './date-field';
 export { Stepper, NumberField, type StepperProps, type NumberFieldProps } from './stepper';
 export { Switch, type SwitchProps } from './switch';

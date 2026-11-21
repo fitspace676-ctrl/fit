@@ -24,7 +24,7 @@ import { fetchActiveLocations } from '@/lib/active-location-server';
 import { getActiveGymSlug, getGymConsoleColor } from '@/lib/active-gym';
 import { consoleThemeCss } from '@/lib/console-theme';
 import { hasRoleAtLeast, ROLES, type Role } from '@/lib/auth-session';
-import { fetchCheckInStats, fetchGymSettings } from '@/lib/api';
+import { fetchCheckInStats, fetchGymSettings, fetchMyProfile } from '@/lib/api';
 
 /**
  * Authenticated console layout. Every page under this route group renders inside
@@ -174,6 +174,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     access,
   );
 
+  const profile = await fetchMyProfile().catch(() => null);
+
   return (
     <ConsolePermissionsProvider permissions={permissions}>
       {/* The gym's colour over the theme default; see `lib/console-theme.ts`. */}
@@ -187,6 +189,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             sidebarCollapsed={sidebarCollapsed}
             // The verified session — the same one `getConsolePermissions` resolved.
             session={session}
+            displayName={profile?.profile.name ?? null}
             // Into the shell's own banner slot, not above it: the shell is exactly
             // one viewport tall, so a bar stacked on top of it is a bar's worth of
             // document scroll. See the `banner` prop's note in `admin-shell.tsx`.

@@ -126,6 +126,8 @@ export interface AdminScheduleInstance {
   startsAt: string;
   endsAt: string;
   durationMinutes: number;
+  /** Effective coach, instance override before template default. */
+  trainerId?: string | null;
   trainerName: string | null;
   locationName: string | null;
   room: string | null;

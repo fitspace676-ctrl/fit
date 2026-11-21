@@ -141,7 +141,13 @@ export function InvitesTable({
     setNote(null);
     setBusyId(invite.id);
     startTransition(async () => {
-      const result = await inviteStaffAction({ email: invite.email, role: invite.role });
+      const result = await inviteStaffAction({
+        email: invite.email,
+        role: invite.role,
+        firstName: invite.firstName ?? '',
+        lastName: invite.lastName ?? '',
+        locationIds: invite.locationIds,
+      });
       setBusyId(null);
       if (result.ok) {
         setNote(t('invites.resendSuccess', { email: invite.email }));
@@ -166,6 +172,16 @@ export function InvitesTable({
   }
 
   const columns: Column<PendingInvite>[] = [
+    {
+      key: 'name',
+      header: t('invites.columns.name'),
+      cell: (invite) => [invite.firstName, invite.lastName].filter(Boolean).join(' ') || '-',
+    },
+    {
+      key: 'locations',
+      header: t('addStaffDrawer.locations'),
+      cell: (invite) => invite.locations.join(', ') || '-',
+    },
     {
       key: 'email',
       header: t('invites.columns.email'),

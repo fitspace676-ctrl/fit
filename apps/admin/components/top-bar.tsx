@@ -139,7 +139,13 @@ const styles = stylex.create({
   },
 });
 
-export function TopBar({ locations }: { locations: ShellLocation[] }) {
+export function TopBar({
+  locations,
+  displayName,
+}: {
+  locations: ShellLocation[];
+  displayName?: string | null;
+}) {
   const { user, isLoading } = useSession();
   const { theme, toggle } = useTheme();
   const router = useRouter();
@@ -237,16 +243,12 @@ export function TopBar({ locations }: { locations: ShellLocation[] }) {
                   aria-label={t('profile')}
                   {...stylex.props(styles.avatarButton, focus.ring)}
                 >
-                  <Avatar name={user.role} size={36} shape="member" ring />
+                  <Avatar name={displayName || user.role} size={36} shape="member" ring />
                 </button>
               }
             >
-              {/* The menu heads with WHO YOU ARE, like the portal's. The session
-                  carries a role but no profile — `/api/session` decodes the
-                  httpOnly cookie and deliberately returns none — so the role is
-                  what there is to state, set in mono like every other
-                  machine-derived string in the product. */}
               <div {...stylex.props(styles.identity)}>
+                {displayName ? <p {...stylex.props(styles.identityRole)}>{displayName}</p> : null}
                 <p {...stylex.props(styles.identityRole)}>{user.role}</p>
               </div>
               <div {...stylex.props(styles.menuRule)} />

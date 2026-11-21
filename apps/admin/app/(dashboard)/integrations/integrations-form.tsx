@@ -4,8 +4,8 @@ import { useState, type FormEvent } from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { connectFlittSchema, connectSenderSchema, type GymIntegration } from '@fit/types';
-import { Badge, Button, Card, Switch } from '@fit/ui-kit';
-import { ConfirmDialog, Input, Label, useToast } from '@/components/ui';
+import { Badge, Button, Card, RevealButton, Switch } from '@fit/ui-kit';
+import { ConfirmDialog, Input, Label, useToast, type InputProps } from '@/components/ui';
 import {
   changeFlitt,
   changeSender,
@@ -218,9 +218,8 @@ export function IntegrationsForm({
               </div>
               <div {...stylex.props(styles.field)}>
                 <Label htmlFor="flitt-secret">{t('secretKey')}</Label>
-                <Input
+                <SecretInput
                   id="flitt-secret"
-                  type="password"
                   autoComplete="new-password"
                   value={secretKey}
                   disabled={busy}
@@ -485,9 +484,8 @@ export function SenderCard({ initial }: { initial: GymIntegration }) {
             <form onSubmit={submit} noValidate {...stylex.props(styles.stack)}>
               <div {...stylex.props(styles.field)}>
                 <Label htmlFor="sender-key">{s('apiKey')}</Label>
-                <Input
+                <SecretInput
                   id="sender-key"
-                  type="password"
                   autoComplete="new-password"
                   value={apiKey}
                   disabled={busy}
@@ -555,5 +553,30 @@ export function SenderCard({ initial }: { initial: GymIntegration }) {
         busy={busy}
       />
     </section>
+  );
+}
+
+const secretStyles = stylex.create({
+  wrap: { position: 'relative' },
+});
+
+/** A secret-key input with the shared show/hide toggle — keys are long and easy to mistype. */
+function SecretInput(props: Omit<InputProps, 'type'>) {
+  const tAuth = useTranslations('auth');
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div {...stylex.props(secretStyles.wrap)}>
+      <Input
+        {...props}
+        type={revealed ? 'text' : 'password'}
+        style={{ paddingInlineEnd: '3rem' }}
+      />
+      <RevealButton
+        revealed={revealed}
+        onToggle={() => setRevealed((prev) => !prev)}
+        labels={{ show: tAuth('showPassword'), hide: tAuth('hidePassword') }}
+        disabled={props.disabled}
+      />
+    </div>
   );
 }

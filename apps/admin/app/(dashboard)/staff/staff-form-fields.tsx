@@ -304,6 +304,7 @@ export function StaffFormFields({
   roleLocked = false,
   hoursLocked = false,
   lockedHours,
+  showStatus = true,
 }: {
   value: StaffFormValue;
   onChange: (patch: Partial<StaffFormValue>) => void;
@@ -327,15 +328,13 @@ export function StaffFormFields({
    * a day with no blocks) reads as a day off. Ignored unless `hoursLocked`.
    */
   lockedHours?: DayBlock[][];
+  /**
+   * The status picker. Off when adding: a new member with an email is pending
+   * until they accept the invitation, so there is nothing to choose yet.
+   */
+  showStatus?: boolean;
 }) {
   const t = useTranslations('admin.staff');
-
-  function toggleLocation(id: string): void {
-    const next = value.locationIds.includes(id)
-      ? value.locationIds.filter((x) => x !== id)
-      : [...value.locationIds, id];
-    onChange({ locationIds: next });
-  }
 
   function setDay(index: number, patch: Partial<DayHours>): void {
     onChange({ hours: value.hours.map((h, i) => (i === index ? { ...h, ...patch } : h)) });
@@ -343,32 +342,7 @@ export function StaffFormFields({
 
   return (
     <div {...stylex.props(styles.fields)}>
-      <div {...stylex.props(styles.row)}>
-        <label {...stylex.props(styles.field)}>
-          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.firstName')}</span>
-          <input
-            name="firstName"
-            autoComplete="off"
-            placeholder={t('addStaffDrawer.firstNamePlaceholder')}
-            value={value.firstName}
-            onChange={(e) => onChange({ firstName: e.target.value })}
-            disabled={pending}
-            {...stylex.props(styles.input)}
-          />
-        </label>
-        <label {...stylex.props(styles.field)}>
-          <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.lastName')}</span>
-          <input
-            name="lastName"
-            autoComplete="off"
-            placeholder={t('addStaffDrawer.lastNamePlaceholder')}
-            value={value.lastName}
-            onChange={(e) => onChange({ lastName: e.target.value })}
-            disabled={pending}
-            {...stylex.props(styles.input)}
-          />
-        </label>
-      </div>
+      <StaffNameFields value={value} onChange={onChange} pending={pending} />
 
       {/* The kit's `SelectField` draws its own micro-label and binds it to the
           control, so the loose `<span>` that used to sit above each select is
@@ -390,17 +364,19 @@ export function StaffFormFields({
             })),
           ]}
         />
-        <SelectField
-          label={t('addStaffDrawer.status')}
-          value={value.status}
-          onChange={(event) => onChange({ status: event.target.value as DirectoryStatus })}
-          disabled={pending}
-          xstyle={styles.field}
-          options={STATUSES.map((s) => ({
-            value: s,
-            label: t(`addStaffDrawer.statuses.${s}`),
-          }))}
-        />
+        {showStatus ? (
+          <SelectField
+            label={t('addStaffDrawer.status')}
+            value={value.status}
+            onChange={(event) => onChange({ status: event.target.value as DirectoryStatus })}
+            disabled={pending}
+            xstyle={styles.field}
+            options={STATUSES.map((s) => ({
+              value: s,
+              label: t(`addStaffDrawer.statuses.${s}`),
+            }))}
+          />
+        ) : null}
       </div>
 
       <div {...stylex.props(styles.row)}>
@@ -432,36 +408,12 @@ export function StaffFormFields({
         </label>
       </div>
 
-      <div {...stylex.props(styles.section)}>
-        <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.locations')}</span>
-        {locations.length > 0 ? (
-          <div {...stylex.props(styles.chips)}>
-            {locations.map((loc) => {
-              const selected = value.locationIds.includes(loc.id);
-              return (
-                <button
-                  key={loc.id}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => toggleLocation(loc.id)}
-                  disabled={pending}
-                  {...stylex.props(
-                    styles.toggleChip,
-                    selected ? styles.toggleOn : styles.toggleOff,
-                  )}
-                >
-                  {selected ? (
-                    <Icon name="check" {...stylex.props(styles.chipIcon)} sw={2.5} />
-                  ) : null}
-                  {loc.name}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <p {...stylex.props(styles.empty)}>{t('addStaffDrawer.noLocations')}</p>
-        )}
-      </div>
+      <StaffLocationFields
+        value={value}
+        onChange={onChange}
+        locations={locations}
+        pending={pending}
+      />
 
       <div {...stylex.props(styles.section)}>
         <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.workingHours')}</span>
@@ -527,6 +479,100 @@ export function StaffFormFields({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+export function StaffNameFields({
+  value,
+  onChange,
+  pending,
+}: {
+  value: Pick<StaffFormValue, 'firstName' | 'lastName'>;
+  onChange: (patch: Partial<StaffFormValue>) => void;
+  pending: boolean;
+}) {
+  const t = useTranslations('admin.staff');
+  return (
+    <div {...stylex.props(styles.row)}>
+      <label {...stylex.props(styles.field)}>
+        <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.firstName')}</span>
+        <input
+          name="firstName"
+          required
+          maxLength={60}
+          autoComplete="off"
+          placeholder={t('addStaffDrawer.firstNamePlaceholder')}
+          value={value.firstName}
+          onChange={(e) => onChange({ firstName: e.target.value })}
+          disabled={pending}
+          {...stylex.props(styles.input)}
+        />
+      </label>
+      <label {...stylex.props(styles.field)}>
+        <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.lastName')}</span>
+        <input
+          name="lastName"
+          required
+          maxLength={60}
+          autoComplete="off"
+          placeholder={t('addStaffDrawer.lastNamePlaceholder')}
+          value={value.lastName}
+          onChange={(e) => onChange({ lastName: e.target.value })}
+          disabled={pending}
+          {...stylex.props(styles.input)}
+        />
+      </label>
+    </div>
+  );
+}
+
+export function StaffLocationFields({
+  value,
+  onChange,
+  locations,
+  pending,
+}: {
+  value: Pick<StaffFormValue, 'locationIds'>;
+  onChange: (patch: Partial<StaffFormValue>) => void;
+  locations: { id: string; name: string }[];
+  pending: boolean;
+}) {
+  const t = useTranslations('admin.staff');
+  function toggleLocation(id: string): void {
+    const next = value.locationIds.includes(id)
+      ? value.locationIds.filter((x) => x !== id)
+      : [...value.locationIds, id];
+    onChange({ locationIds: next });
+  }
+
+  return (
+    <div {...stylex.props(styles.section)}>
+      <span {...stylex.props(styles.labelText)}>{t('addStaffDrawer.locations')}</span>
+      {locations.length > 0 ? (
+        <div {...stylex.props(styles.chips)}>
+          {locations.map((loc) => {
+            const selected = value.locationIds.includes(loc.id);
+            return (
+              <button
+                key={loc.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggleLocation(loc.id)}
+                disabled={pending}
+                {...stylex.props(styles.toggleChip, selected ? styles.toggleOn : styles.toggleOff)}
+              >
+                {selected ? (
+                  <Icon name="check" {...stylex.props(styles.chipIcon)} sw={2.5} />
+                ) : null}
+                {loc.name}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p {...stylex.props(styles.empty)}>{t('addStaffDrawer.noLocations')}</p>
+      )}
     </div>
   );
 }

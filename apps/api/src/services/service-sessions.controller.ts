@@ -23,10 +23,14 @@ import {
   type BookServiceSessionResult,
   type ListMemberServiceSessionsResponse,
   type ListServiceSlotsResponse,
+  type ListAdminOwnServicesResponse,
 } from '@fit/types';
 import { Public } from '../common/decorators/public.decorator';
 import { PortalBranchService } from '../common/portal-branch.service';
-import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { ServiceSessionsService } from './service-sessions.service';
@@ -45,18 +49,37 @@ export class AdminServiceSessionsController {
     return this.sessions.list(parse(listAdminServiceSessionsQuerySchema, query));
   }
 
-  /** `POST /admin/service-sessions` — open one slot: `{ serviceId, startsAt, notes? }`. */
+  /**
+   * `GET /admin/service-sessions/own-services` — the caller's own ACTIVE services,
+   * for the "Open a slot" picker of a coach who may only open their own.
+   */
+  @Get('own-services')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyPermissions(Permission.PtSessionManage, Permission.PtSessionManageOwn)
+  async ownServices(): Promise<ListAdminOwnServicesResponse> {
+    return this.sessions.listOwnServices();
+  }
+
+  /**
+   * `POST /admin/service-sessions` — open one slot: `{ serviceId, startsAt, notes? }`.
+   * `PtSessionManage` opens any service's slot; `PtSessionManageOwn` only the caller's
+   * own services (checked in the service, `403 NOT_YOUR_SERVICE` otherwise).
+   */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.PtSessionManage)
+  @RequireAnyPermissions(Permission.PtSessionManage, Permission.PtSessionManageOwn)
   async create(@Body() body: unknown): Promise<AdminServiceSession> {
     return this.sessions.create(parse(createServiceSessionSchema, body));
   }
 
-  /** `POST /admin/service-sessions/:id/book` — book an open slot for a member: `{ memberId }`. */
+  /**
+   * `POST /admin/service-sessions/:id/book` — book an open slot for a member:
+   * `{ memberId }`. Book / cancel / complete admit `PtSessionManageOwn` on the
+   * caller's own slots (checked in the service, `403 NOT_YOUR_SERVICE` otherwise).
+   */
   @Post(':id/book')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.PtSessionManage)
+  @RequireAnyPermissions(Permission.PtSessionManage, Permission.PtSessionManageOwn)
   async bookFor(@Param('id') id: string, @Body() body: unknown): Promise<AdminServiceSession> {
     const { memberId } = parse(bookServiceSessionForMemberSchema, body);
     return this.sessions.bookFor(id, memberId);
@@ -64,14 +87,14 @@ export class AdminServiceSessionsController {
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.PtSessionManage)
+  @RequireAnyPermissions(Permission.PtSessionManage, Permission.PtSessionManageOwn)
   async cancel(@Param('id') id: string): Promise<AdminServiceSession> {
     return this.sessions.cancel(id);
   }
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.PtSessionManage)
+  @RequireAnyPermissions(Permission.PtSessionManage, Permission.PtSessionManageOwn)
   async complete(@Param('id') id: string): Promise<AdminServiceSession> {
     return this.sessions.complete(id);
   }

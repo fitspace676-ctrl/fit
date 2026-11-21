@@ -1,4 +1,4 @@
-import { SetMetadata, type CustomDecorator } from '@nestjs/common';
+import { applyDecorators, SetMetadata, type CustomDecorator } from '@nestjs/common';
 import type { Permission } from '@fit/types';
 
 /** Reflector metadata key carrying the permissions a handler requires. */
@@ -25,3 +25,13 @@ export const PERMISSIONS_KEY = 'permissions';
  */
 export const RequirePermissions = (...permissions: Permission[]): CustomDecorator =>
   SetMetadata(PERMISSIONS_KEY, permissions);
+
+/** Any listed capability admits the request; resource ownership is checked in the service. */
+export const ANY_PERMISSIONS_KEY = 'anyPermissions';
+export const RequireAnyPermissions = (
+  ...permissions: Permission[]
+): MethodDecorator & ClassDecorator =>
+  applyDecorators(
+    SetMetadata(PERMISSIONS_KEY, permissions),
+    SetMetadata(ANY_PERMISSIONS_KEY, true),
+  );

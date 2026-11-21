@@ -1,5 +1,13 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InstanceStatus, Prisma } from '@fit/db';
+import { Permission } from '@fit/types';
 import type {
   AdminPtSession,
   AdminPtSessionsResponse,
@@ -9,6 +17,12 @@ import type {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { atLocation } from '../common/location-filter.util';
+import { assertFullOrOwn } from '../common/rbac/own-scope';
+import {
+  REQUEST_ACCESS_RESOLVER,
+  sharedRequestAccessResolver,
+  type RequestAccessResolver,
+} from '../common/rbac/request-access';
 
 /** The columns the PT-calendar list / detail queries select off `PtSession`. */
 const PT_SESSION_SELECT = {
@@ -44,6 +58,9 @@ export class PtSessionsService {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly tenant: TenantContext,
+    @Optional()
+    @Inject(REQUEST_ACCESS_RESOLVER)
+    private readonly access: RequestAccessResolver = sharedRequestAccessResolver(),
   ) {}
 
   /**
@@ -78,6 +95,7 @@ export class PtSessionsService {
    */
   async createPtSession(data: CreatePtSessionData): Promise<AdminPtSession> {
     const trainer = await this.requireGymTrainer(data.trainerId);
+    await this.assertCanSchedule(trainer);
     await this.requireGymClassType(data.classTypeId);
 
     const startsAt = new Date(data.startsAt);
@@ -141,15 +159,41 @@ export class PtSessionsService {
   }
 
   /** Resolve the trainer — tenant-scoped, so an unknown / cross-tenant id is a `404`. */
-  private async requireGymTrainer(trainerId: string): Promise<{ staffId: string | null }> {
+  private async requireGymTrainer(
+    trainerId: string,
+  ): Promise<{ staffId: string | null; staff?: { userId: string } | null }> {
     const trainer = await this.prisma.client.trainer.findFirst({
-      where: { id: trainerId },
-      select: { id: true, staffId: true },
+      where: { id: trainerId, archivedAt: null },
+      select: { id: true, staffId: true, staff: { select: { userId: true } } },
     });
     if (!trainer) {
       throw new NotFoundException({ message: 'Trainer not found', code: 'TRAINER_NOT_FOUND' });
     }
     return trainer;
+  }
+
+  /**
+   * The route admits `PtSessionManage` OR `PtSessionManageOwn`; the second only
+   * covers the caller's own coach profile. Grants are resolved live (a gym may
+   * have edited the role), and the coach is matched through its staff member's
+   * user — the same rule class attendance uses for `ClassManageOwn`.
+   */
+  private async assertCanSchedule(trainer: { staff?: { userId: string } | null }): Promise<void> {
+    await assertFullOrOwn({
+      tenant: this.tenant,
+      access: this.access,
+      full: Permission.PtSessionManage,
+      own: Permission.PtSessionManageOwn,
+      ownerUserId: trainer.staff?.userId,
+      denied: () => this.notYours(),
+    });
+  }
+
+  private notYours(): ForbiddenException {
+    return new ForbiddenException({
+      message: 'You can only schedule your own PT sessions',
+      code: 'NOT_YOUR_PT_SESSION',
+    });
   }
 
   /**

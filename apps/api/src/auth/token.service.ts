@@ -418,8 +418,12 @@ export class TokenService {
    * plus any token with no pin at all, which predates pinning and could be a
    * session on any gym: revoking too much is safe, revoking too little is not.
    */
-  async revokeAllForUser(userId: string, gymId?: string | null): Promise<void> {
-    await this.prisma.client.refreshToken.updateMany({
+  async revokeAllForUser(
+    userId: string,
+    gymId?: string | null,
+    client: Prisma.TransactionClient = this.prisma.client,
+  ): Promise<void> {
+    await client.refreshToken.updateMany({
       where: {
         userId,
         revokedAt: null,

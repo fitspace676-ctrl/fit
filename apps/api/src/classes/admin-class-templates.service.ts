@@ -476,7 +476,7 @@ export class AdminClassTemplatesService {
   ): Promise<void> {
     if (trainerId) {
       const trainer = await this.prisma.client.trainer.findFirst({
-        where: { id: trainerId },
+        where: { id: trainerId, archivedAt: null },
         select: { id: true },
       });
       if (!trainer) {

@@ -1,7 +1,9 @@
+import { StaffService } from '../staff/staff.service';
 import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -49,7 +51,23 @@ import { AdminTrainersService } from './admin-trainers.service';
 @Controller('admin/trainers')
 @UseGuards(TenantGuard, PermissionsGuard)
 export class AdminTrainersController {
-  constructor(private readonly trainers: AdminTrainersService) {}
+  constructor(
+    private readonly trainers: AdminTrainersService,
+    private readonly staff: StaffService,
+  ) {}
+
+  @Get(':id/delete-impact')
+  @RequirePermissions(Permission.TrainerWrite, Permission.StaffManage)
+  async deleteImpact(@Param('id') id: string) {
+    return this.staff.trainerDeleteImpact(id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions(Permission.TrainerWrite, Permission.StaffManage)
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.staff.removeTrainer(id);
+  }
 
   /**
    * `GET /admin/trainers?page&limit&search&status&sort&dir` — one filtered,

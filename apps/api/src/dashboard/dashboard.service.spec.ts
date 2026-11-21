@@ -118,7 +118,10 @@ describe('DashboardService', () => {
 
       await service.getStats();
 
-      expect(trainer.mock.calls[0]?.[0]?.where).toEqual({ status: TrainerStatus.ACTIVE });
+      expect(trainer.mock.calls[0]?.[0]?.where).toEqual({
+        archivedAt: null,
+        status: TrainerStatus.ACTIVE,
+      });
       expect(location.mock.calls[0]?.[0]?.where).toEqual({ status: LocationStatus.ACTIVE });
       expect(product.mock.calls[0]?.[0]?.where).toEqual({ status: ProductStatus.ACTIVE });
     });
@@ -128,7 +131,7 @@ describe('DashboardService', () => {
 
       await service.getStats();
 
-      expect(trainer.mock.calls[1]?.[0]).toBeUndefined();
+      expect(trainer.mock.calls[1]?.[0]).toEqual({ where: { archivedAt: null } });
       expect(location.mock.calls[1]?.[0]).toBeUndefined();
       expect(product.mock.calls[1]?.[0]).toBeUndefined();
     });

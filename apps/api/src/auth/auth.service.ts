@@ -10,6 +10,7 @@ import {
 import * as argon2 from 'argon2';
 import { GymMemberStatus, GymStatus, LocationStatus, Prisma, Role } from '@fit/db';
 import {
+  activateAccountSchema,
   ALREADY_MEMBER_CODE,
   EMAIL_TAKEN_CODE,
   GYM_SELECTION_REQUIRED_CODE,
@@ -51,7 +52,12 @@ import { RedisService } from '../redis/redis.service';
 import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
-import { TokenService, invalidRefreshToken, type SessionClaims } from './token.service';
+import {
+  TokenService,
+  hashRefreshToken,
+  invalidRefreshToken,
+  type SessionClaims,
+} from './token.service';
 import { syncTrainerProfile, type TrainerSyncClient } from '../staff/trainer-profile-sync';
 
 /** Redis key namespace for one-time email-verification tokens. */
@@ -283,10 +289,16 @@ export class AuthService {
     // self-contained: a bad / mismatched token simply leaves registration
     // unaffected (a normal account is still created). Redeemed first so the
     // verification link below can name the gym it lands on.
-    const redeemed = await this.redeemStaffInvite(user.id, input.email, input.inviteToken, {
-      passwordHash,
-      name: input.name,
-    });
+    const redeemed = await this.redeemStaffInvite(
+      user.id,
+      input.email,
+      input.inviteToken,
+      {
+        passwordHash,
+        name: input.name,
+      },
+      true,
+    );
 
     if (input.gymSlug && !redeemed) {
       return this.registerGymMember(input, passwordHash, locale);
@@ -1612,7 +1624,7 @@ export class AuthService {
         select: { tokenVersion: true, isSuperAdmin: true },
       }),
       this.prisma.client.gymMember.findMany({
-        where: { userId, status: GymMemberStatus.ACTIVE },
+        where: { userId, status: GymMemberStatus.ACTIVE, archivedAt: null },
         select: {
           gymId: true,
           role: true,
@@ -1684,14 +1696,14 @@ export class AuthService {
   ): Promise<void> {
     const membership = await this.prisma.client.gymMember.findFirst({
       where: { userId, gym: { slug: gymSlug } },
-      select: { status: true },
+      select: { status: true, archivedAt: true },
     });
 
     if (!membership && signIn) {
       throw notAMember();
     }
 
-    if (membership && membership.status !== GymMemberStatus.ACTIVE) {
+    if (membership && (membership.archivedAt || membership.status !== GymMemberStatus.ACTIVE)) {
       throw new ForbiddenException({
         message: 'Your membership in this gym is not active yet',
         code: MEMBERSHIP_NOT_ACTIVE_CODE,
@@ -1774,6 +1786,64 @@ export class AuthService {
     };
   }
 
+  /** Keep the current refresh family, revoke every other device across gyms.
+   * Access tokens on those devices expire normally; do not bump tokenVersion,
+   * which would also invalidate the caller's current access token.
+   */
+  async changePassword(
+    userId: string,
+    gymId: string,
+    input: {
+      currentPassword: string;
+      password: string;
+      refreshToken: string;
+    },
+  ): Promise<{ success: true }> {
+    if (!activateAccountSchema.shape.password.safeParse(input.password).success) {
+      throw new BadRequestException({ code: 'PASSWORD_INVALID', message: 'Invalid password' });
+    }
+    const session = await this.tokens.sessionForRefreshToken(input.refreshToken);
+    if (!session || session.userId !== userId || session.gymId !== gymId)
+      throw invalidRefreshToken();
+    const credential = await this.prisma.client.gymCredential.findUnique({
+      where: { userId_gymId: { userId, gymId } },
+      select: { passwordHash: true },
+    });
+    if (
+      !credential?.passwordHash ||
+      !(await argon2.verify(credential.passwordHash, input.currentPassword))
+    ) {
+      throw invalidCredentials();
+    }
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+    await this.prisma.client.$transaction(async (tx) => {
+      const current = await tx.refreshToken.findUnique({
+        where: { tokenHash: hashRefreshToken(input.refreshToken) },
+      });
+      if (
+        !current ||
+        current.userId !== userId ||
+        current.gymId !== gymId ||
+        current.expiresAt <= new Date()
+      )
+        throw invalidRefreshToken();
+      const live = await tx.refreshToken.findFirst({
+        where: { familyId: current.familyId, revokedAt: null, expiresAt: { gt: new Date() } },
+      });
+      if (!live) throw invalidRefreshToken();
+      const updated = await tx.gymCredential.updateMany({
+        where: { userId, gymId, passwordHash: credential.passwordHash },
+        data: { passwordHash },
+      });
+      if (!updated.count) throw invalidCredentials();
+      await tx.refreshToken.updateMany({
+        where: { userId, familyId: { not: current.familyId }, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+    return { success: true };
+  }
+
   /** A gym credential without a password is still waiting for setup. */
   async inspectStaffInvite(token: string, tenantSlug?: string | null) {
     const invite = await this.prisma.client.staffInvite.findUnique({
@@ -1790,17 +1860,33 @@ export class AuthService {
       where: { gymId: invite.gymId, user: { email: invite.email } },
       select: { passwordHash: true },
     });
-    return { invite, needsPassword: !credential?.passwordHash };
+    return {
+      invite,
+      needsPassword: !credential?.passwordHash,
+      passwordHash: credential?.passwordHash,
+    };
   }
 
-  /** Inbox possession confirms an existing credential; setup never overwrites it. */
+  /** Existing gym credentials require proof of the current password before redemption. */
   async completeStaffInvite(
-    input: { token: string; password?: string },
+    input: { token: string; password?: string; currentPassword?: string },
     tenantSlug?: string | null,
   ): Promise<TokenPair> {
-    const { invite, needsPassword } = await this.inspectStaffInvite(input.token, tenantSlug);
+    const { invite, needsPassword, passwordHash } = await this.inspectStaffInvite(
+      input.token,
+      tenantSlug,
+    );
     if (needsPassword && !input.password) {
       throw new BadRequestException({ code: 'PASSWORD_REQUIRED', message: 'Choose a password' });
+    }
+    if (needsPassword && !activateAccountSchema.shape.password.safeParse(input.password).success) {
+      throw new BadRequestException({ code: 'PASSWORD_INVALID', message: 'Invalid password' });
+    }
+    if (
+      !needsPassword &&
+      (!input.currentPassword || !(await argon2.verify(passwordHash!, input.currentPassword)))
+    ) {
+      throw invalidCredentials();
     }
     let user = await this.prisma.client.user.findUnique({
       where: { email: invite.email },
@@ -1808,7 +1894,10 @@ export class AuthService {
     });
     if (!user) {
       user = await this.prisma.client.user.create({
-        data: { email: invite.email },
+        data: {
+          email: invite.email,
+          name: [invite.firstName, invite.lastName].filter(Boolean).join(' ') || null,
+        },
         select: { id: true },
       });
     }
@@ -1817,7 +1906,14 @@ export class AuthService {
       needsPassword && input.password
         ? { passwordHash: await argon2.hash(input.password, { type: argon2.argon2id }) }
         : undefined;
-    const redeemed = await this.redeemStaffInvite(user.id, invite.email, input.token, credential);
+    const redeemed = await this.redeemStaffInvite(
+      user.id,
+      invite.email,
+      input.token,
+      credential,
+      false,
+      passwordHash ?? null,
+    );
     if (!redeemed) throw tokenInvalid('Activation');
     return this.tokens.issueTokenPair(
       user.id,
@@ -1862,6 +1958,8 @@ export class AuthService {
     email: string,
     token?: string,
     credential?: { passwordHash: string; name?: string },
+    newUser = false,
+    expectedPasswordHash?: string | null,
   ): Promise<{ gymId: string; gymSlug: string; gymName: string } | null> {
     if (!token) {
       return null;
@@ -1879,6 +1977,15 @@ export class AuthService {
       }
 
       const redeemed = await this.prisma.client.$transaction(async (tx) => {
+        const invitedName = [invite.firstName, invite.lastName].filter(Boolean).join(' ');
+        const locationIds = [...new Set(invite.locationIds ?? [])];
+        if (locationIds.length) {
+          const validLocations = await tx.location.count({
+            where: { gymId: invite.gymId, id: { in: locationIds } },
+          });
+          if (validLocations !== locationIds.length)
+            throw new BadRequestException('LOCATION_INVALID');
+        }
         // Single-use guard: the loser of a race sees zero rows updated and stops.
         const claimed = await tx.staffInvite.updateMany({
           where: { id: invite.id, usedAt: null, expiresAt: { gt: new Date() } },
@@ -1887,29 +1994,59 @@ export class AuthService {
         if (claimed.count === 0) {
           return false;
         }
+        const invitedProfile = {
+          ...(invite.firstName != null ? { firstName: invite.firstName } : {}),
+          ...(invite.lastName != null ? { lastName: invite.lastName } : {}),
+          ...(locationIds.length ? { assignedLocationIds: locationIds } : {}),
+        };
+        if (newUser && invitedName)
+          await tx.user.update({ where: { id: userId }, data: { name: invitedName } });
         const member = await tx.gymMember.upsert({
           where: { userId_gymId: { userId, gymId: invite.gymId } },
           create: {
             userId,
             gymId: invite.gymId,
             role: invite.role,
+            ...invitedProfile,
             status: GymMemberStatus.ACTIVE,
           },
-          update: { role: invite.role, status: GymMemberStatus.ACTIVE },
+          update: {
+            role: invite.role,
+            status: GymMemberStatus.ACTIVE,
+            archivedAt: null,
+            ...invitedProfile,
+          },
           select: { id: true },
         });
 
+        if (locationIds.length) {
+          await tx.locationStaff.deleteMany({ where: { gymId: invite.gymId, staffId: member.id } });
+          await tx.locationStaff.createMany({
+            data: locationIds.map((locationId) => ({
+              gymId: invite.gymId,
+              staffId: member.id,
+              locationId,
+            })),
+          });
+        }
         const existing = await tx.gymCredential.findUnique({
           where: { userId_gymId: { userId, gymId: invite.gymId } },
           select: { passwordHash: true, emailVerifiedAt: true, name: true },
         });
+        // A concurrent password reset/setup must not turn stale proof into a session.
+        if (
+          expectedPasswordHash !== undefined &&
+          (existing?.passwordHash ?? null) !== expectedPasswordHash
+        ) {
+          throw invalidCredentials();
+        }
         if (!existing) {
           await tx.gymCredential.create({
             data: {
               userId,
               gymId: invite.gymId,
               passwordHash: credential?.passwordHash ?? null,
-              name: credential?.name ?? null,
+              name: invitedName || credential?.name || null,
               emailVerifiedAt: new Date(),
             },
           });
@@ -1918,7 +2055,7 @@ export class AuthService {
             where: { userId_gymId: { userId, gymId: invite.gymId } },
             data: {
               passwordHash: existing.passwordHash ?? credential?.passwordHash ?? null,
-              name: existing.name ?? credential?.name ?? null,
+              name: invitedName || existing.name || credential?.name || null,
               emailVerifiedAt: existing.emailVerifiedAt ?? new Date(),
             },
           });

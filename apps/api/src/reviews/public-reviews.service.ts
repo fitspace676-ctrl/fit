@@ -49,6 +49,7 @@ export class PublicReviewsService {
   ): Promise<ListTrainerReviewsResponse> {
     const where: Prisma.ReviewWhereInput = {
       trainerId,
+      trainer: { archivedAt: null },
       gymId: query.gymId,
       status: ReviewStatus.VISIBLE,
     };

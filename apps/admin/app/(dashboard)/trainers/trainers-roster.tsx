@@ -293,27 +293,6 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
-  kebab: {
-    display: 'grid',
-    height: '2rem',
-    width: '2rem',
-    flexShrink: 0,
-    placeItems: 'center',
-    borderRadius: 'var(--radius-element)',
-    textDecoration: 'none',
-    color: {
-      default: 'var(--color-text-secondary)',
-      ':hover': 'var(--color-text-primary)',
-    },
-    backgroundColor: {
-      default: 'transparent',
-      ':hover': 'var(--color-background-muted)',
-    },
-  },
-  kebabDot: {
-    fontSize: '1.125rem',
-    lineHeight: 1,
-  },
   tagRow: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -390,13 +369,25 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   viewLink: {
+    display: 'inline-flex',
     flexShrink: 0,
+    alignItems: 'center',
+    paddingInline: '0.875rem',
+    paddingBlock: '0.4375rem',
+    borderRadius: 'var(--radius-full)',
+    fontSize: '0.875rem',
     fontWeight: 600,
     textDecoration: 'none',
+    backgroundColor: {
+      default: 'var(--color-accent-muted)',
+      ':hover': 'var(--color-accent)',
+    },
     color: {
       default: 'var(--color-text-accent)',
-      ':hover': 'var(--color-text-primary)',
+      ':hover': 'var(--color-on-accent)',
     },
+    transitionProperty: 'background-color, color',
+    transitionDuration: '150ms',
   },
   emptyCard: {
     display: 'flex',
@@ -538,15 +529,6 @@ function TrainerCard({
             <span>· {t('reviews', { count: trainer.reviewCount })}</span>
           </div>
         </div>
-        <Link
-          href={`/trainers/${trainer.id}`}
-          aria-label={t('list.openTrainer', { name: trainer.name })}
-          {...stylex.props(styles.kebab)}
-        >
-          <span aria-hidden {...stylex.props(styles.kebabDot)}>
-            ⋯
-          </span>
-        </Link>
       </div>
 
       {trainer.specialties.length > 0 ? (
@@ -576,7 +558,11 @@ function TrainerCard({
             <span>{t('list.noUpcomingClass')}</span>
           )}
         </span>
-        <Link href={`/trainers/${trainer.id}`} {...stylex.props(styles.viewLink)}>
+        <Link
+          href={`/trainers/${trainer.id}`}
+          aria-label={t('list.openTrainer', { name: trainer.name })}
+          {...stylex.props(styles.viewLink)}
+        >
           {t('list.view')}
         </Link>
       </div>

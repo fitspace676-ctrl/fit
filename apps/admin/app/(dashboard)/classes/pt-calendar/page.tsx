@@ -2,14 +2,17 @@ import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
 import { getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
-import { Permission, roleHasPermission } from '@fit/types';
-import { getServerSession } from '@/lib/session';
+import { Permission } from '@fit/types';
+import { getConsolePermissions } from '@/lib/permissions-server';
 import {
   ApiError,
   fetchAdminServiceSessions,
   fetchAdminServices,
   fetchPtSessions,
+  fetchMyScheduleTrainer,
+  fetchOwnServices,
   fetchServiceCategories,
+  fetchTrainer,
   fetchTrainers,
 } from '@/lib/api';
 import { getActiveLocationId } from '@/lib/active-location-server';
@@ -113,7 +116,8 @@ export default async function PtCalendarPage({
   const rawView = readParam(raw, 'view');
   const view: ScheduleView =
     rawView === 'month' || rawView === 'list' || rawView === 'day' ? rawView : 'week';
-  const trainerId = readParam(raw, 'trainerId');
+  // `?trainerId=mine` is the coach's "My PT" toggle, resolved below.
+  const requestedTrainerId = readParam(raw, 'trainerId');
   const categoryId = readParam(raw, 'categoryId');
   const weekParam = readParam(raw, 'week') || undefined;
 
@@ -132,8 +136,31 @@ export default async function PtCalendarPage({
         ? dayWindow(dayAnchor, timeZone)
         : weekWindow(weekStart, timeZone);
 
-  const session = await getServerSession();
-  const canWrite = session !== null && roleHasPermission(session.role, Permission.PtSessionManage);
+  // Live grants (a gym may have edited the role). `PtSessionManage` writes
+  // everything; `PtSessionManageOwn` only opens slots on the coach's own services.
+  const permissions = await getConsolePermissions();
+  const canWrite = permissions.grants.includes(Permission.PtSessionManage);
+  const canManageOwn = !canWrite && permissions.grants.includes(Permission.PtSessionManageOwn);
+
+  // Every role opens on every trainer; a coach narrows to their own with "My PT".
+  const { trainerId: ownTrainerId } = await fetchMyScheduleTrainer().catch(() => ({
+    trainerId: null,
+  }));
+  // Without the dropdown (a coach) the only narrowing is "My PT"; any other
+  // `?trainerId=` reads as everyone.
+  const trainerId = requestedTrainerId === 'mine' ? 'mine' : canWrite ? requestedTrainerId : '';
+  const effectiveTrainerId = trainerId === 'mine' ? (ownTrainerId ?? '') : trainerId;
+  // A trainer profile's staff record: what a slot (keyed by staff member, not by
+  // trainer) is matched on.
+  const staffIdOf = (id: string): Promise<string | null> =>
+    fetchTrainer(id)
+      .then((trainer) => trainer.staffId)
+      .catch(() => null);
+  const [filterStaffId, ownStaffId] = await Promise.all([
+    effectiveTrainerId ? staffIdOf(effectiveTrainerId) : Promise.resolve(null),
+    // An own-only writer manages the slots on their own staff record.
+    canManageOwn && ownTrainerId ? staffIdOf(ownTrainerId) : Promise.resolve(null),
+  ]);
 
   // THE GRID IS TWO POPULATIONS AND BOTH MUST NARROW.
   //
@@ -166,27 +193,41 @@ export default async function PtCalendarPage({
 
   let body;
   try {
-    const [sessionsRes, slotsRes, servicesRes] = await Promise.all([
+    const [sessionsRes, slotsRes, servicesRes, ownServicesRes] = await Promise.all([
       // No trainer filter unless one was picked - the calendar opens on everyone.
       // A category filter leaves the trainer calendar out: those sessions have
       // no service, so no category to match.
       categoryId
         ? Promise.resolve({ sessions: [] })
-        : fetchPtSessions({ from, to, ...(trainerId ? { trainerId } : {}), locationId }),
-      // Service slots are keyed by staff member, not trainer profile, so the
-      // trainer filter does not apply to them; the window, the branch and the
-      // category do.
-      fetchAdminServiceSessions({
-        from,
-        to,
-        locationId,
-        ...(categoryId ? { categoryId } : {}),
-      }).catch(() => ({
-        sessions: [],
-      })),
+        : trainerId === 'mine' && !effectiveTrainerId
+          ? Promise.resolve({ sessions: [] })
+          : fetchPtSessions({
+              from,
+              to,
+              ...(effectiveTrainerId ? { trainerId: effectiveTrainerId } : {}),
+              locationId,
+            }),
+      // Service slots are keyed by staff member, so a trainer filter narrows them
+      // through that trainer's staff record; a trainer with none has no slots.
+      (trainerId === 'mine' && !effectiveTrainerId) || (effectiveTrainerId && !filterStaffId)
+        ? Promise.resolve({ sessions: [] })
+        : fetchAdminServiceSessions({
+            from,
+            to,
+            locationId,
+            ...(filterStaffId ? { staffId: filterStaffId } : {}),
+            ...(categoryId ? { categoryId } : {}),
+          }).catch(() => ({
+            sessions: [],
+          })),
       // The "Open a slot" picker offers what this branch can actually sell — a
       // service is bookable wherever its staff member is rostered.
-      fetchAdminServices({ status: 'ACTIVE', limit: 100, locationId }).catch(() => null),
+      // A coach who may only open their own slots cannot read the catalogue; the
+      // API hands them just their own services instead.
+      canWrite
+        ? fetchAdminServices({ status: 'ACTIVE', limit: 100, locationId }).catch(() => null)
+        : Promise.resolve(null),
+      canManageOwn ? fetchOwnServices().catch(() => null) : Promise.resolve(null),
     ]);
     // `fetchAdminServiceSessions` builds its query string by hand and does not yet
     // forward `locationId`, so the branch is applied here as well as sent. Removing
@@ -196,13 +237,15 @@ export default async function PtCalendarPage({
     const slots = locationId
       ? slotsRes.sessions.filter((slot) => slot.locationId === locationId)
       : slotsRes.sessions;
-    const services: ServiceOption[] = (servicesRes?.data ?? []).map((service) => ({
-      id: service.id,
-      name: service.name,
-      staffName: service.staff.name,
-      category: service.category?.name ?? null,
-      durationMinutes: service.durationMinutes,
-    }));
+    const services: ServiceOption[] = canManageOwn
+      ? (ownServicesRes?.services ?? [])
+      : (servicesRes?.data ?? []).map((service) => ({
+          id: service.id,
+          name: service.name,
+          staffName: service.staff.name,
+          category: service.category?.name ?? null,
+          durationMinutes: service.durationMinutes,
+        }));
     body = (
       <PtCalendarBoard
         view={view}
@@ -214,9 +257,13 @@ export default async function PtCalendarPage({
         services={services}
         trainers={trainers}
         trainerId={trainerId}
+        ownTrainerId={ownTrainerId}
+        ownStaffId={ownStaffId}
         categories={categories}
         categoryId={categoryId}
         canWrite={canWrite}
+        canAdd={canWrite || services.length > 0}
+        showTrainerFilter={canWrite}
         timeZone={timeZone}
         openHour={openHour}
         closeHour={closeHour}

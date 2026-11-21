@@ -9,10 +9,17 @@ import {
   roleHasPermission,
   weeklyAvailabilitySchema,
   type AdminTrainerDetail,
+  type StaffMember,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { getActiveGymBrand } from '@/lib/active-gym';
-import { ApiError, fetchTrainer, fetchTrainerAvailability, fetchTrainerClients } from '@/lib/api';
+import {
+  ApiError,
+  fetchStaff,
+  fetchTrainer,
+  fetchTrainerAvailability,
+  fetchTrainerClients,
+} from '@/lib/api';
 import { gymCalendarContext } from '@/lib/gym-time';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
@@ -393,6 +400,16 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     .then((res) => res.clients)
     .catch(() => []);
 
+  // The coach's contact details live on their staff record (email, phone,
+  // branches). Read through the Staff API so they show only to someone who may
+  // see them there (`StaffRead`); fail-soft, like the other secondary reads.
+  const contact: StaffMember | null =
+    trainer.staffId && session !== null && roleHasPermission(session.role, Permission.StaffRead)
+      ? await fetchStaff()
+          .then((res) => res.staff.find((member) => member.id === trainer.staffId) ?? null)
+          .catch(() => null)
+      : null;
+
   // The gym's zone, for the next-class label — read on the gym clock, like the
   // schedule board (falls back to the platform default inside the helper).
   const { timeZone } = await gymCalendarContext();
@@ -455,7 +472,13 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
         </div>
-        {canWrite ? <TrainerActions trainerId={trainer.id} status={trainer.status} /> : null}
+        {canWrite ? (
+          <TrainerActions
+            trainerId={trainer.id}
+            status={trainer.status}
+            canDelete={session !== null && roleHasPermission(session.role, Permission.StaffManage)}
+          />
+        ) : null}
       </Card>
 
       {/* Four live KPI cards. */}
@@ -488,6 +511,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
 
       <TrainerTabs
         trainer={trainer}
+        contact={contact}
         availability={availability}
         clients={clients}
         canEditAvailability={canEditAvailability}

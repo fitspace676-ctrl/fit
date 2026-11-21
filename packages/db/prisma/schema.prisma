@@ -712,6 +712,7 @@ model GymMember {
   gymId    String
   role     Role            @default(MEMBER)
   status   GymMemberStatus @default(ACTIVE)
+  archivedAt DateTime?
   joinedAt DateTime        @default(now())
 
   /// Staff override for the derived {@link MemberKind}. `null` — the default, and
@@ -1104,6 +1105,7 @@ model Trainer {
   /// the schema fills to a fully-unavailable seven-day week until staff set hours.
   availability Json          @default("{}")
   status       TrainerStatus @default(ACTIVE)
+  archivedAt   DateTime?
   /// Denormalised aggregate of the trainer's `VISIBLE` reviews (T5.12), kept in
   /// step by {@link Review} writes: `rating` is the average star rating (0 when
   /// the trainer has no visible reviews) and `reviewCount` the number of them. The
@@ -1119,7 +1121,7 @@ model Trainer {
   /// `Cascade` on purpose, because class templates, occurrences, PT sessions and
   /// reviews all point at this row, and deleting someone from the staff directory
   /// must never take the gym's teaching history with it. The staff service
-  /// deactivates the orphaned profile instead.
+  /// archives the profile instead.
   staffId      String?       @unique
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -1170,6 +1172,7 @@ model Trainer {
   /// probed, so a tighter driving index matters more now than it did before the
   /// hop existed.
   @@index([gymId, status, name])
+  @@index([gymId, archivedAt])
   @@map("trainers")
 }
 
@@ -2355,6 +2358,9 @@ model RefreshToken {
 /// the address regardless of the casing it was typed in. Distinct from a
 /// {@link GymMember}, which is the membership the redemption actually creates.
 model StaffInvite {
+  firstName String?
+  lastName String?
+  locationIds String[] @default([])
   id        String    @id @default(cuid())
   gymId     String
   email     String

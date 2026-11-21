@@ -55,6 +55,8 @@ export function ScheduleBoard({
   instances,
   trainers,
   trainerId,
+  ownTrainerId = null,
+  canManageOwn = false,
   canWrite,
   canBook,
   canMarkAttendance,
@@ -75,6 +77,8 @@ export function ScheduleBoard({
   instances: AdminScheduleInstance[];
   trainers: ScheduleOption[];
   trainerId: string;
+  ownTrainerId?: string | null;
+  canManageOwn?: boolean;
   /** Whether the staff session holds `ClassWrite` (gates the drawer's cancel). */
   canWrite: boolean;
   /** `BookingManage` - the drawer's desk booking. */
@@ -177,12 +181,25 @@ export function ScheduleBoard({
       }
       filters={
         <>
+          {/* "My classes" is its own toggle for a staffer with a coach profile,
+              not an entry in the trainer list: the board opens on every class
+              and the coach narrows to theirs with one press. */}
+          {ownTrainerId ? (
+            <Button
+              variant={trainerId === 'mine' ? 'primary' : 'secondary'}
+              size="inline"
+              aria-pressed={trainerId === 'mine'}
+              onClick={() => setParams({ trainerId: trainerId === 'mine' ? null : 'mine' })}
+              icon={<Icon name="user" {...stylex.props(styles.kitGlyph)} />}
+              label={t('filters.myClasses')}
+            />
+          ) : null}
           <FilterSelect
             label={t('filters.trainer')}
-            value={trainerId}
+            value={trainerId === 'mine' ? '' : trainerId}
             allLabel={t('filters.allTrainers')}
             options={trainers}
-            onChange={(value) => setParams({ trainerId: value })}
+            onChange={(value) => setParams({ trainerId: value || null })}
           />
           {/* The branch select that used to sit beside this one is gone — the
               top-bar switcher owns the branch for the whole console, so Clear
@@ -205,7 +222,10 @@ export function ScheduleBoard({
         onClose={() => setDrawerOpen(false)}
         canWrite={canWrite}
         canBook={canBook}
-        canMarkAttendance={canMarkAttendance}
+        canMarkAttendance={
+          canMarkAttendance ||
+          Boolean(canManageOwn && ownTrainerId && selected?.trainerId === ownTrainerId)
+        }
         canManageWaitlist={canManageWaitlist}
         locale={locale}
         timeZone={timeZone}

@@ -199,6 +199,24 @@ export const bookServiceSessionResultSchema = z.object({ session: memberServiceS
 export type BookServiceSessionResult = z.infer<typeof bookServiceSessionResultSchema>;
 
 /**
+ * One of the caller's own ACTIVE services, as `GET /admin/service-sessions/own-services`
+ * returns it — what a coach holding only `PtSessionManageOwn` may open slots on,
+ * without reading the whole (priced) catalogue.
+ */
+export interface AdminOwnService {
+  id: string;
+  name: string;
+  staffName: string;
+  category: string | null;
+  durationMinutes: number;
+}
+
+/** Successful `GET /admin/service-sessions/own-services` response. */
+export interface ListAdminOwnServicesResponse {
+  services: AdminOwnService[];
+}
+
+/**
  * A service named beside the staff member who delivers it, once. A
  * personal-training service is named after its trainer when it is created
  * ("Personal training - Nino"), so appending the trainer again would print the

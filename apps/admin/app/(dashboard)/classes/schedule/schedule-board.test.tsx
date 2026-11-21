@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
+import type { AdminScheduleInstance } from '@fit/types';
 import { navigationMock } from '@/test/next-navigation-mock';
 import { ALL_LOCATIONS } from '@/lib/active-location';
 import { ActiveLocationProvider } from '@/components/active-location';
@@ -23,6 +24,11 @@ vi.mock('./actions', () => ({
 // The board opens a live-occupancy `EventSource` on mount; jsdom has no such
 // global, and none of what these tests assert depends on the stream.
 vi.mock('@/hooks/use-occupancy-stream', () => ({ useOccupancyStream: () => {} }));
+
+vi.mock('./class-drawer', () => ({
+  ClassDrawer: ({ canMarkAttendance, open }: { canMarkAttendance: boolean; open: boolean }) =>
+    open ? <div data-testid="attendance-access">{String(canMarkAttendance)}</div> : null,
+}));
 
 const { ScheduleBoard } = await import('./schedule-board');
 
@@ -61,6 +67,7 @@ const messages = {
         aria: 'Schedule filters',
         trainer: 'Filter by trainer',
         allTrainers: 'All trainers',
+        myClasses: 'My classes',
         clear: 'Clear',
       },
       empty: {
@@ -69,6 +76,14 @@ const messages = {
         filtered: 'No classes match these filters this week.',
       },
       week: { gridAria: 'Week schedule' },
+      card: {
+        viewAria: '{title} at {time}, open class',
+        spots: '{booked}/{cap} booked',
+        remaining: '{remaining} left',
+        full: 'Full',
+      },
+      status: { SCHEDULED: 'Scheduled', COMPLETED: 'Completed', CANCELED: 'Canceled' },
+      day: { minutes: '{count} min' },
       // The board always mounts the class drawer, closed. It resolves its whole
       // namespace up front, so a stub keeps the run free of MISSING_MESSAGE noise
       // that has nothing to do with what is under test.
@@ -93,7 +108,14 @@ const MONDAY = '2026-08-10';
 function renderBoard({
   trainerId = '',
   activeLocation = ALL_LOCATIONS,
-}: { trainerId?: string; activeLocation?: string } = {}) {
+  instances = [],
+  ownTrainerId = null,
+}: {
+  trainerId?: string;
+  activeLocation?: string;
+  instances?: AdminScheduleInstance[];
+  ownTrainerId?: string | null;
+} = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <ToastProvider>
@@ -103,9 +125,11 @@ function renderBoard({
             weekStart={MONDAY}
             monthAnchor="2026-08-01"
             dayAnchor={MONDAY}
-            instances={[]}
+            instances={instances}
             trainers={TRAINERS}
             trainerId={trainerId}
+            ownTrainerId={ownTrainerId}
+            canManageOwn={Boolean(ownTrainerId)}
             canWrite={false}
             canBook={false}
             canMarkAttendance={false}
@@ -188,5 +212,38 @@ describe('schedule empty state', () => {
     navigationMock.setSearch('trainerId=trainer-1');
     renderBoard({ trainerId: 'trainer-1' });
     expect(screen.getByText('No classes match these filters this week.')).toBeInTheDocument();
+  });
+});
+
+describe('Trainer attendance ownership', () => {
+  it.each([
+    ['trainer-1', true],
+    ['trainer-2', false],
+  ] as const)('passes mark access for %s: %s', async (trainerId, allowed) => {
+    const event: AdminScheduleInstance = {
+      id: 'ci-own',
+      templateId: null,
+      classTypeId: null,
+      title: 'QA class',
+      category: '',
+      description: '',
+      pricingRule: 'FREE',
+      priceMinor: null,
+      color: '#22c55e',
+      imageUrl: null,
+      startsAt: '2026-08-10T10:00:00Z',
+      endsAt: '2026-08-10T11:00:00Z',
+      durationMinutes: 60,
+      trainerId,
+      trainerName: 'QA trainer',
+      locationName: null,
+      room: null,
+      capacity: 10,
+      bookedCount: 1,
+      status: 'SCHEDULED',
+    };
+    renderBoard({ instances: [event], ownTrainerId: 'trainer-1' });
+    await userEvent.click(screen.getByRole('button', { name: /QA class/ }));
+    expect(screen.getByTestId('attendance-access')).toHaveTextContent(String(allowed));
   });
 });

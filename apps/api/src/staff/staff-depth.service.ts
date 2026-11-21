@@ -575,7 +575,7 @@ export class StaffDepthService {
    */
   private async requireStaff(staffId: string): Promise<void> {
     const member = await this.prisma.client.gymMember.findFirst({
-      where: { id: staffId, role: { in: STAFF_ROLES } },
+      where: { id: staffId, archivedAt: null, role: { in: STAFF_ROLES } },
       select: { id: true },
     });
     if (!member) {

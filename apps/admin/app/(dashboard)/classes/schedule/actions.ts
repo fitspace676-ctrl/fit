@@ -4,12 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import {
   Permission,
-  roleHasPermission,
   type AttendanceStatus,
   type CancelClassInstanceResponse,
   type GetAdminClassInstanceResponse,
 } from '@fit/types';
-import { getServerSession } from '@/lib/session';
+import { getConsolePermissions } from '@/lib/permissions-server';
 import {
   ApiError,
   bookMemberOntoClass,
@@ -39,8 +38,8 @@ export interface MemberSearchResult {
  * here is defence in depth (the API re-checks again behind its guards).
  */
 async function sessionHas(permission: Permission): Promise<boolean> {
-  const session = await getServerSession();
-  return session !== null && roleHasPermission(session.role, permission);
+  const permissions = await getConsolePermissions();
+  return permissions.grants.includes(permission);
 }
 
 type T = Awaited<ReturnType<typeof getTranslations>>;
@@ -48,6 +47,7 @@ type T = Awaited<ReturnType<typeof getTranslations>>;
 /** Map a thrown API error to a short, staff-facing message. */
 function toMessage(error: unknown, t: T): string {
   if (error instanceof ApiError) {
+    if (error.message === 'NOT_YOUR_CLASS') return t('errors.forbidden');
     if (error.message === 'CLASS_INSTANCE_NOT_FOUND') {
       return t('errors.notFound');
     }
@@ -55,7 +55,7 @@ function toMessage(error: unknown, t: T): string {
       return t('errors.notCancelable');
     }
     if (error.message === 'CLASS_NOT_ENDED' || error.message === 'CLASS_NOT_STARTED') {
-      return t('errors.notEnded');
+      return t('errors.notStarted');
     }
     if (error.message === 'ATTENDANCE_NOT_AVAILABLE') {
       return t('errors.attendanceUnavailable');
@@ -149,7 +149,10 @@ export async function markAttendanceAction(
   status: AttendanceStatus,
 ): Promise<ActionResult<GetAdminClassInstanceResponse>> {
   const t = await getTranslations('admin.schedule.drawer');
-  if (!(await sessionHas(Permission.ClassAttendance))) {
+  if (
+    !(await sessionHas(Permission.ClassAttendance)) &&
+    !(await sessionHas(Permission.ClassManageOwn))
+  ) {
     return { ok: false, error: t('errors.forbidden') };
   }
   try {

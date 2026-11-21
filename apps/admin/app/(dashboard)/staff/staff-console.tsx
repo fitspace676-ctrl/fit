@@ -9,6 +9,7 @@ import type {
   ListStaffRolesResponse,
   StaffDirectoryField,
   StaffMember,
+  PendingInvite,
   StaffRole,
   WorkingNowRow,
 } from '@fit/types';
@@ -20,13 +21,14 @@ import { STAFF_ROLES } from './role-meta';
 import { StaffTable } from './staff-table';
 import { AddStaffDrawer } from './add-staff-drawer';
 import { StaffProfileDrawer } from './staff-profile-drawer';
+import { InvitesTable } from './invites-table';
 import { InviteModal } from './invite-modal';
 import { RolesPanel } from './roles-panel';
 import { RolesCards } from './roles-cards';
 import { WhosWorkingCard } from './whos-working-card';
 
 /** The staff-console top-level tabs. The roster is always one; the rest are opt-in. */
-type ConsoleTab = 'staff' | 'roles';
+type ConsoleTab = 'staff' | 'roles' | 'invitations';
 
 /**
  * The tabs a gym may switch on in Settings → Staff page, in the order they are
@@ -186,6 +188,7 @@ const styles = stylex.create({
  */
 export function StaffConsole({
   staff,
+  invites = [],
   currentUserId,
   canManage,
   canAssignRole,
@@ -197,6 +200,7 @@ export function StaffConsole({
   display,
 }: {
   staff: StaffMember[];
+  invites?: PendingInvite[];
   currentUserId: string | null;
   /** `StaffManage` — add, invite, edit, remove. */
   canManage: boolean;
@@ -279,6 +283,7 @@ export function StaffConsole({
   const tabItems = useMemo<{ value: ConsoleTab; label: string }[]>(
     () => [
       { value: 'staff', label: t('tabs.staffList') },
+      ...(canManage ? [{ value: 'invitations' as const, label: t('tabs.invitations') }] : []),
       ...OPTIONAL_TABS.filter(
         (option) => display[option.field] && (option.tab !== 'roles' || canViewRoles),
       ).map((option) => ({
@@ -286,7 +291,7 @@ export function StaffConsole({
         label: t(option.labelKey),
       })),
     ],
-    [display, canViewRoles, t],
+    [display, canViewRoles, canManage, t],
   );
 
   // Derived rather than synced: a gym can switch off the tab a staffer is sitting
@@ -488,6 +493,15 @@ export function StaffConsole({
         </>
       ) : null}
 
+      {activeTab === 'invitations' ? (
+        <InvitesTable
+          invites={invites.filter(
+            (invite) => !activeLocationId || invite.locationIds.includes(activeLocationId),
+          )}
+          canManage={canManage}
+        />
+      ) : null}
+
       {activeTab === 'roles' ? <RolesCards roles={roles} staffCountByRole={roleCounts} /> : null}
 
       {canManage ? (
@@ -500,6 +514,7 @@ export function StaffConsole({
           />
 
           <InviteModal
+            locations={locations}
             open={inviteOpen}
             onClose={() => setInviteOpen(false)}
             canAssignOwner={canAssignOwner}
@@ -525,6 +540,7 @@ export function StaffConsole({
         canEdit={canManage}
         canAssignRole={canAssignRole}
         canAssignOwner={canAssignOwner}
+        currentUserId={currentUserId}
       />
     </div>
   );

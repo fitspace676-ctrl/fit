@@ -54,6 +54,7 @@ export class TrainersService {
       // roster's hop. An orphan profile (no staff row) reaches no branch.
       where: {
         gymId: query.gymId,
+        archivedAt: null,
         status: TrainerStatus.ACTIVE,
         ...staffAtLocation(query.locationId),
       },
@@ -69,7 +70,7 @@ export class TrainersService {
    */
   async getTrainer(id: string, query: GetTrainerQuery): Promise<GetTrainerResponse> {
     const row = await this.prisma.client.trainer.findFirst({
-      where: { id, gymId: query.gymId, status: TrainerStatus.ACTIVE },
+      where: { id, gymId: query.gymId, archivedAt: null, status: TrainerStatus.ACTIVE },
       select: CARD_SELECT,
     });
     if (!row) {
