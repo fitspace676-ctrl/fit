@@ -10,6 +10,7 @@ import type { EmailService } from './email.service';
 import type { GoogleOAuthService } from './google-oauth.service';
 import type { AppleOAuthService } from './apple-oauth.service';
 import { prisma, resetDb, disconnect } from '../test/integration-db';
+import { memberRealm, staffRealm } from './account-realm';
 
 /**
  * The gym-suspension login gate, proven against a real Postgres (T2.12): a member
@@ -52,13 +53,19 @@ describe('login gym-suspension gate (integration)', () => {
   beforeEach(async () => {
     await resetDb();
     const passwordHash = await argon2.hash(PASSWORD, { type: argon2.argon2id });
-    const user = await prisma.user.create({
-      data: { email: CREDS.email, passwordHash, emailVerifiedAt: new Date() },
-    });
     const gym = await prisma.gym.create({
       data: { name: 'Suspended Gym', slug: 'suspended', status: GymStatus.SUSPENDED },
     });
     gymId = gym.id;
+    // The gym's member account (accounts are per gym and per staff/member).
+    const user = await prisma.user.create({
+      data: {
+        email: CREDS.email,
+        realm: memberRealm(gym.id),
+        passwordHash,
+        emailVerifiedAt: new Date(),
+      },
+    });
     await prisma.gymMember.create({
       data: { userId: user.id, gymId: gym.id, role: Role.MEMBER, status: GymMemberStatus.ACTIVE },
     });
@@ -76,6 +83,11 @@ describe('login gym-suspension gate (integration)', () => {
     expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
   });
 
+  it('blocks login on the suspended gym’s own host too', async () => {
+    const error = await auth.login(CREDS, 'suspended').catch((e: unknown) => e);
+    expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'GYM_SUSPENDED' });
+  });
+
   it('allows login once the gym is reactivated', async () => {
     await prisma.gym.update({ where: { id: gymId }, data: { status: GymStatus.ACTIVE } });
     await expect(auth.login(CREDS)).resolves.toMatchObject({ accessToken: 'access' });
@@ -83,25 +95,22 @@ describe('login gym-suspension gate (integration)', () => {
 });
 
 /**
- * The same gate for a member of *two* gyms, one of them suspended — where the
- * session-level question ("do I have any live gym?") and the tenant the sign-in
- * actually asked for come apart. Without the slug the member still has downtown
- * and signs in there; naming the suspended riverside has to be refused rather
- * than silently answered with a downtown session.
+ * The same gate for an address with a staff account at *two* gyms, one of them
+ * suspended — where the tenant the sign-in asked for matters. Without the slug
+ * the downtown account signs in; naming the suspended riverside has to be refused
+ * rather than silently answered with a downtown session.
  */
 describe('login gym-suspension gate — a member of two gyms (integration)', () => {
   const claims: SessionClaims[] = [];
   const auth = makeAuthService(claims);
   let downtownId: string;
   let riversideId: string;
+  let riversideUserId: string;
 
   beforeEach(async () => {
     await resetDb();
     claims.length = 0;
     const passwordHash = await argon2.hash(PASSWORD, { type: argon2.argon2id });
-    const user = await prisma.user.create({
-      data: { email: CREDS.email, passwordHash, emailVerifiedAt: new Date() },
-    });
     const downtown = await prisma.gym.create({
       data: { name: 'Downtown', slug: 'downtown', status: GymStatus.ACTIVE },
     });
@@ -110,9 +119,23 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
     });
     downtownId = downtown.id;
     riversideId = riverside.id;
+    // One staff account per gym, same address, same password.
+    const [downtownStaff, riversideStaff] = await Promise.all(
+      [downtown.id, riverside.id].map((gymId) =>
+        prisma.user.create({
+          data: {
+            email: CREDS.email,
+            realm: staffRealm(gymId),
+            passwordHash,
+            emailVerifiedAt: new Date(),
+          },
+        }),
+      ),
+    );
+    riversideUserId = riversideStaff!.id;
     await prisma.gymMember.create({
       data: {
-        userId: user.id,
+        userId: downtownStaff!.id,
         gymId: downtown.id,
         role: Role.OWNER,
         status: GymMemberStatus.ACTIVE,
@@ -121,7 +144,7 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
     });
     await prisma.gymMember.create({
       data: {
-        userId: user.id,
+        userId: riversideStaff!.id,
         gymId: riverside.id,
         role: Role.TRAINER,
         status: GymMemberStatus.ACTIVE,
@@ -131,9 +154,12 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
     // The same password at both gyms — what the backfill leaves every existing
     // account with — so the sign-ins below are about the gate, not the credential.
     await prisma.gymCredential.createMany({
-      data: [downtown.id, riverside.id].map((gymId) => ({
-        userId: user.id,
-        gymId,
+      data: [
+        [downtownStaff!.id, downtown.id],
+        [riversideStaff!.id, riverside.id],
+      ].map(([userId, gymId]) => ({
+        userId: userId!,
+        gymId: gymId!,
         passwordHash,
         emailVerifiedAt: new Date(),
       })),
@@ -151,8 +177,8 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
   });
 
   it('signs the same member into their live gym when no subdomain is named', async () => {
-    // The password opens both credentials, but riverside is suspended, so it is
-    // not a candidate: one live match, no gym selection to ask for.
+    // The password opens both accounts, but riverside is suspended, so it is not
+    // a candidate: one live match, no gym selection to ask for.
     await expect(auth.login(CREDS)).resolves.toMatchObject({ accessToken: 'access' });
 
     expect(claims[0]).toMatchObject({ gymId: downtownId, role: Role.OWNER });
@@ -169,7 +195,7 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
   it('refuses the subdomain the member is only INVITED to', async () => {
     await prisma.gym.update({ where: { id: riversideId }, data: { status: GymStatus.ACTIVE } });
     await prisma.gymMember.update({
-      where: { userId_gymId: { userId: (await member()).userId, gymId: riversideId } },
+      where: { userId_gymId: { userId: riversideUserId, gymId: riversideId } },
       data: { status: GymMemberStatus.INVITED },
     });
 
@@ -183,9 +209,8 @@ describe('login gym-suspension gate — a member of two gyms (integration)', () 
     expect(claims).toHaveLength(0);
   });
 
-  /** The seeded member's row in the live gym — the only user these tests create. */
-  async function member(): Promise<{ userId: string }> {
-    const row = await prisma.gymMember.findFirstOrThrow({ where: { gymId: downtownId } });
-    return { userId: row.userId };
-  }
+  it('keeps the downtown account and gym untouched by the riverside refusal', async () => {
+    await auth.login({ ...CREDS, gymSlug: 'downtown' });
+    expect(claims[0]).toMatchObject({ gymId: downtownId, role: Role.OWNER });
+  });
 });

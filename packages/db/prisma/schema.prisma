@@ -503,12 +503,22 @@ model Gym {
   @@map("gyms")
 }
 
-/// An application user. Holds the auth identity (password hash + OAuth subject
-/// ids). Gym-scoped roles live on GymMember, not here, so a user can belong to
-/// N gyms with a different role in each.
+/// An application user: one account in one REALM (see `prisma/account-realm.ts`).
+///
+/// `realm` is `platform` (a super-admin, or a bare account with no gym),
+/// `<gymId>:staff` (one gym's staff account, for its admin console) or
+/// `<gymId>:member` (one gym's member account, for its portal and the mobile app).
+/// An address is unique only inside a realm, so the same e-mail may hold a staff
+/// account and a member account in one gym, with separate passwords, names and
+/// sessions, and unrelated accounts at other gyms. A gym-realm user holds exactly
+/// one `GymMember` row, in its own gym, with role `MEMBER` exactly when the realm
+/// is a member realm; a platform user holds none.
 model User {
   id              String    @id @default(cuid())
-  email           String    @unique
+  email           String
+  /// `platform` | `<gymId>:staff` | `<gymId>:member`. Built and read only through
+  /// `prisma/account-realm.ts`.
+  realm           String    @default("platform")
   name            String?
   /// Optional contact phone, captured/edited from the staff console member
   /// management (T4.3). A user attribute (alongside name/email) rather than a
@@ -516,8 +526,10 @@ model User {
   phone           String?
   passwordHash    String?
   emailVerifiedAt DateTime?
-  googleId        String?   @unique
-  appleId         String?   @unique
+  /// Unique per realm: a Google identity links to one account in each realm.
+  googleId        String?
+  /// Unique per realm, like `googleId`.
+  appleId         String?
   /// Platform-wide SUPER_ADMIN flag. SUPER_ADMIN is *not* a gym-scoped role, so
   /// it lives on the user rather than as a GymMember row: a flagged user's
   /// session resolves to `role = SUPER_ADMIN` with no gym (`gymId = null`).
@@ -548,10 +560,17 @@ model User {
 
   liftedBookingBlocks BookingBlock[]
 
+  @@unique([email, realm])
+  @@unique([googleId, realm])
+  @@unique([appleId, realm])
   @@map("users")
 }
 
 /// What one person uses to sign in to ONE gym (T1.25, per-gym credentials).
+///
+/// Since the account split each gym account (a `User` in a gym realm) holds
+/// exactly one credential, for its own gym; the text below predates that and
+/// still describes the row itself correctly.
 ///
 /// `User` is the cross-gym identity — the email, the OAuth subject ids, the push
 /// tokens. Everything a member proves at a gym's door lives here instead, one row

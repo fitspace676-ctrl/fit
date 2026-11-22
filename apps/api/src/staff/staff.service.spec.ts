@@ -383,7 +383,7 @@ describe('StaffService', () => {
     });
   });
 
-  describe('staff identities across gyms', () => {
+  describe('staff accounts are per gym', () => {
     const input = {
       firstName: 'Nino',
       lastName: 'Beridze',
@@ -394,20 +394,37 @@ describe('StaffService', () => {
       workingHours: [],
     };
 
-    it('links another gym’s identity and creates a password-less credential', async () => {
+    it("looks the address up in this gym's staff realm only", async () => {
       const ctx = setup();
-      ctx.userFindUnique.mockResolvedValue({ id: 'other-user' });
-      ctx.gymMemberFindFirst.mockResolvedValueOnce(null);
       await ctx.service.createStaff(input);
-      expect(ctx.userCreate).not.toHaveBeenCalled();
+      expect(ctx.userFindUnique).toHaveBeenCalledWith({
+        where: { email_realm: { email: 'nino@example.com', realm: 'gym-1:staff' } },
+        select: { id: true },
+      });
+    });
+
+    it('gives an address that is a MEMBER of this gym (or known elsewhere) a new staff account', async () => {
+      // The member account lives in 'gym-1:member', so the staff realm finds nothing.
+      const ctx = setup();
+      ctx.userFindUnique.mockResolvedValue(null);
+      await ctx.service.createStaff(input);
+      expect(ctx.userCreate).toHaveBeenCalledWith({
+        data: {
+          email: 'nino@example.com',
+          realm: 'gym-1:staff',
+          name: 'Nino Beridze',
+          phone: null,
+        },
+        select: { id: true },
+      });
       expect(ctx.userUpdate).not.toHaveBeenCalled();
       expect(ctx.gymMemberCreate.mock.calls[0]?.[0]).toMatchObject({
-        data: { userId: 'other-user', gymId: 'gym-1' },
+        data: { userId: 'u-new', gymId: 'gym-1', role: 'MANAGER' },
       });
       expect(ctx.credentialUpsert).toHaveBeenCalledWith({
-        where: { userId_gymId: { userId: 'other-user', gymId: 'gym-1' } },
+        where: { userId_gymId: { userId: 'u-new', gymId: 'gym-1' } },
         create: {
-          userId: 'other-user',
+          userId: 'u-new',
           gymId: 'gym-1',
           passwordHash: null,
           name: 'Nino Beridze',
@@ -417,17 +434,27 @@ describe('StaffService', () => {
       });
     });
 
-    it('rejects an email only if it is already a member of this gym', async () => {
+    it("rejects an address already on this gym's staff with 409 EMAIL_IN_USE", async () => {
       const ctx = setup();
-      ctx.userFindUnique.mockResolvedValue({ id: 'other-user' });
+      ctx.userFindUnique.mockResolvedValue({ id: 'staff-user' });
       await expect(ctx.service.createStaff(input)).rejects.toMatchObject({
         response: { code: 'EMAIL_IN_USE' },
       });
       expect(ctx.gymMemberFindFirst).toHaveBeenCalledWith({
-        where: { userId: 'other-user', gymId: 'gym-1' },
+        where: { userId: 'staff-user', gymId: 'gym-1' },
         select: { id: true, archivedAt: true },
       });
       expect(ctx.credentialUpsert).not.toHaveBeenCalled();
+    });
+
+    it('checks a changed e-mail for uniqueness inside the staff realm only', async () => {
+      const ctx = setup({ staffFindFirst: row({ role: Role.RECEPTIONIST }) });
+      ctx.userFindUnique.mockResolvedValue(null);
+      await ctx.service.updateStaffProfile('gm-1', { email: 'New@Example.com' });
+      expect(ctx.userFindUnique).toHaveBeenCalledWith({
+        where: { email_realm: { email: 'new@example.com', realm: 'gym-1:staff' } },
+        select: { id: true },
+      });
     });
   });
 
@@ -756,6 +783,15 @@ describe('StaffService', () => {
   });
 
   describe('updateRole', () => {
+    it('refuses a role change that would turn staff into a member (different accounts)', async () => {
+      const ctx = setup({ staffFindFirst: row({ role: Role.MANAGER }) });
+
+      await expect(
+        ctx.service.updateRole('gm-1', { role: 'MEMBER' as never }),
+      ).rejects.toMatchObject({ response: { code: 'ROLE_CHANGES_ACCOUNT_TYPE' } });
+      expect(ctx.gymMemberUpdate).not.toHaveBeenCalled();
+    });
+
     it("cancels the coach's future classes, refunds held seats and tells the members", async () => {
       const startsAt = new Date(Date.now() + 86_400_000);
       const ctx = setup({

@@ -25,10 +25,12 @@ import type { EmailService } from './email.service';
 import type { GoogleOAuthService } from './google-oauth.service';
 import type { AppleOAuthService } from './apple-oauth.service';
 import { prisma, resetDb, disconnect } from '../test/integration-db';
+import { PLATFORM_REALM, gymRealm, type AccountAudience } from './account-realm';
 
 /**
- * Per-gym credentials (T1.25), proven against a real Postgres: one address, two
- * gyms, two passwords. Everything that touches the DB is real — Prisma, argon2,
+ * Per-gym, per-audience accounts (T1.25 + the account split), proven against a
+ * real Postgres: one address, a member account at two gyms with two passwords,
+ * and (where a test adds it) a staff account at one of them with a third. Everything that touches the DB is real — Prisma, argon2,
  * the `TokenService` (so a reset's session revocation is exercised against real
  * `refresh_tokens` rows). Redis is an in-memory map so the emailed tokens can be
  * read back; mail is captured rather than sent.
@@ -99,6 +101,49 @@ function harness() {
 const EMAIL = 'sam@example.com';
 const DOWNTOWN_PASSWORD = 'downtown-secret-1';
 const RIVERSIDE_PASSWORD = 'riverside-secret-2';
+const STAFF_PASSWORD = 'downtown-staff-3';
+const PLATFORM_PASSWORD = 'platform-secret-4';
+
+/** An argon2id digest, as the real sign-in verifies it. */
+function hash(password: string): Promise<string> {
+  return argon2.hash(password, { type: argon2.argon2id });
+}
+
+/**
+ * One gym account for {@link EMAIL}: a user row in the gym's staff or member realm,
+ * its single membership, and its credential. Returns the user id.
+ */
+async function account(
+  gymId: string,
+  audience: AccountAudience,
+  password: string | null,
+  options: { role?: Role; name?: string; status?: GymMemberStatus } = {},
+): Promise<string> {
+  const role = options.role ?? (audience === 'member' ? Role.MEMBER : Role.MANAGER);
+  const passwordHash = password ? await hash(password) : null;
+  const user = await prisma.user.create({
+    data: {
+      email: EMAIL,
+      realm: gymRealm(gymId, audience),
+      name: options.name ?? 'Sam',
+      passwordHash,
+      emailVerifiedAt: new Date(),
+    },
+  });
+  await prisma.gymMember.create({
+    data: { userId: user.id, gymId, role, status: options.status ?? GymMemberStatus.ACTIVE },
+  });
+  await prisma.gymCredential.create({
+    data: {
+      userId: user.id,
+      gymId,
+      passwordHash,
+      emailVerifiedAt: new Date(),
+      name: options.name ?? 'Sam',
+    },
+  });
+  return user.id;
+}
 
 /** The profile a gym's default join form demands (`gymPublicMemberIntake`). */
 const INTAKE = {
@@ -114,11 +159,14 @@ function claimsOf(accessToken: string): SessionClaims {
   return JSON.parse(Buffer.from(payload, 'base64url').toString()) as SessionClaims;
 }
 
-describe('per-gym credentials (integration)', () => {
+describe('per-gym, per-audience accounts (integration)', () => {
   const h = harness();
   let downtownId: string;
   let riversideId: string;
-  let userId: string;
+  /** Sam's member account at Downtown. */
+  let downtownMember: string;
+  /** Sam's member account at Riverside. */
+  let riversideMember: string;
 
   beforeEach(async () => {
     await resetDb();
@@ -133,47 +181,20 @@ describe('per-gym credentials (integration)', () => {
     downtownId = downtown.id;
     riversideId = riverside.id;
 
-    // The state the backfill leaves an existing two-gym member in — except that
-    // the two passwords already differ, which is the whole point.
-    const user = await prisma.user.create({
-      data: {
-        email: EMAIL,
-        name: 'Sam',
-        passwordHash: await argon2.hash(DOWNTOWN_PASSWORD, { type: argon2.argon2id }),
-        emailVerifiedAt: new Date(),
-      },
+    // What the account-realm migration leaves an existing two-gym member as: one
+    // member account per gym, each with its own password.
+    downtownMember = await account(downtownId, 'member', DOWNTOWN_PASSWORD, {
+      name: 'Sam (Downtown)',
     });
-    userId = user.id;
-    await prisma.gymMember.createMany({
-      data: [
-        { userId, gymId: downtownId, role: Role.MEMBER, status: GymMemberStatus.ACTIVE },
-        { userId, gymId: riversideId, role: Role.MEMBER, status: GymMemberStatus.ACTIVE },
-      ],
-    });
-    await prisma.gymCredential.createMany({
-      data: [
-        {
-          userId,
-          gymId: downtownId,
-          passwordHash: await argon2.hash(DOWNTOWN_PASSWORD, { type: argon2.argon2id }),
-          emailVerifiedAt: new Date(),
-          name: 'Sam (Downtown)',
-        },
-        {
-          userId,
-          gymId: riversideId,
-          passwordHash: await argon2.hash(RIVERSIDE_PASSWORD, { type: argon2.argon2id }),
-          emailVerifiedAt: new Date(),
-          name: 'Sam (Riverside)',
-        },
-      ],
+    riversideMember = await account(riversideId, 'member', RIVERSIDE_PASSWORD, {
+      name: 'Sam (Riverside)',
     });
   });
 
   afterAll(disconnect);
 
   describe('register', () => {
-    it('registers one email in two gyms with separate passwords and verification', async () => {
+    it('registers one email in two gyms as two member accounts with separate passwords', async () => {
       const email = 'registered@example.com';
       for (const [gymSlug, password] of [
         ['downtown', DOWNTOWN_PASSWORD],
@@ -183,24 +204,28 @@ describe('per-gym credentials (integration)', () => {
           h.auth.register({ email, name: `Member ${gymSlug}`, password: password!, gymSlug }),
         ).resolves.toEqual({ message: 'verification email sent' });
       }
-      const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-      expect(await prisma.gymMember.count({ where: { userId: user.id } })).toBe(2);
-      expect(await prisma.gymCredential.count({ where: { userId: user.id } })).toBe(2);
+      const accounts = await prisma.user.findMany({
+        where: { email },
+        include: { memberships: true, credentials: true },
+      });
+      expect(accounts.map((a) => a.realm).sort()).toEqual(
+        [gymRealm(downtownId, 'member'), gymRealm(riversideId, 'member')].sort(),
+      );
+      for (const a of accounts) {
+        expect(a.memberships).toHaveLength(1);
+        expect(a.credentials).toHaveLength(1);
+      }
+
       const riversideMail = h.lastMail('verify', email);
       const downtownMail = h.lastMail('verify', email);
       expect(riversideMail.gymSlug).toBe('riverside');
-      expect(downtownMail.gymSlug).toBe('downtown');
       const downtown = await h.auth.verifyEmail(downtownMail.token);
       expect(claimsOf(downtown.accessToken)).toMatchObject({ gymId: downtownId });
-      const stillUnverified = await prisma.gymCredential.findUniqueOrThrow({
-        where: { userId_gymId: { userId: user.id, gymId: riversideId } },
-      });
-      expect(stillUnverified.emailVerifiedAt).toBeNull();
       await expect(
         h.auth.login({ email, password: RIVERSIDE_PASSWORD }, 'riverside'),
       ).rejects.toMatchObject({ response: { code: 'EMAIL_NOT_VERIFIED' } });
-      const riverside = await h.auth.verifyEmail(riversideMail.token);
-      expect(claimsOf(riverside.accessToken)).toMatchObject({ gymId: riversideId });
+      await h.auth.verifyEmail(riversideMail.token);
+
       for (const [gymSlug, password, wrongPassword, gymId] of [
         ['downtown', DOWNTOWN_PASSWORD, RIVERSIDE_PASSWORD, downtownId],
         ['riverside', RIVERSIDE_PASSWORD, DOWNTOWN_PASSWORD, riversideId],
@@ -216,45 +241,64 @@ describe('per-gym credentials (integration)', () => {
       }
     });
 
-    it.each([false, true])(
-      'activates a staff-added member with credential row %s without changing another gym',
-      async (hasCredential) => {
-        await prisma.gymCredential.delete({
-          where: { userId_gymId: { userId, gymId: riversideId } },
-        });
-        if (hasCredential)
-          await prisma.gymCredential.create({
-            data: { userId, gymId: riversideId, passwordHash: null, phone: '+995555000111' },
-          });
-        await prisma.gymMember.update({
-          where: { userId_gymId: { userId, gymId: riversideId } },
-          data: { role: Role.TRAINER },
-        });
-        const before = await prisma.gymCredential.findUniqueOrThrow({
-          where: { userId_gymId: { userId, gymId: downtownId } },
-        });
-        await h.auth.register({
-          email: EMAIL,
-          name: 'Sam Riverside',
-          password: 'new-riverside-password',
-          gymSlug: 'riverside',
-        });
-        await h.auth.verifyEmail(h.lastMail('verify', EMAIL).token);
-        const session = await h.auth.login(
-          { email: EMAIL, password: 'new-riverside-password' },
-          'riverside',
-        );
-        expect(claimsOf(session.accessToken)).toMatchObject({
-          gymId: riversideId,
-          role: Role.TRAINER,
-        });
-        expect(
-          await prisma.gymCredential.findUniqueOrThrow({
-            where: { userId_gymId: { userId, gymId: downtownId } },
-          }),
-        ).toEqual(before);
-      },
-    );
+    it('sets the first password of a staff-added member account, touching no other account', async () => {
+      await prisma.gymCredential.update({
+        where: { userId_gymId: { userId: riversideMember, gymId: riversideId } },
+        data: { passwordHash: null },
+      });
+      const before = await prisma.gymCredential.findUniqueOrThrow({
+        where: { userId_gymId: { userId: downtownMember, gymId: downtownId } },
+      });
+
+      await h.auth.register({
+        email: EMAIL,
+        name: 'Sam Riverside',
+        password: 'new-riverside-password',
+        gymSlug: 'riverside',
+      });
+      await h.auth.verifyEmail(h.lastMail('verify', EMAIL).token);
+      const session = await h.auth.login(
+        { email: EMAIL, password: 'new-riverside-password' },
+        'riverside',
+      );
+      expect(claimsOf(session.accessToken)).toMatchObject({
+        sub: riversideMember,
+        gymId: riversideId,
+        role: Role.MEMBER,
+      });
+      expect(
+        await prisma.gymCredential.findUniqueOrThrow({
+          where: { userId_gymId: { userId: downtownMember, gymId: downtownId } },
+        }),
+      ).toEqual(before);
+      expect(await prisma.user.count({ where: { email: EMAIL } })).toBe(2);
+    });
+
+    it("a member registration never touches the gym's staff account of the same address", async () => {
+      const staff = await account(downtownId, 'staff', STAFF_PASSWORD);
+      await prisma.gymMember.delete({
+        where: { userId_gymId: { userId: downtownMember, gymId: downtownId } },
+      });
+      await prisma.user.delete({ where: { id: downtownMember } });
+
+      await h.auth.register({
+        email: EMAIL,
+        name: 'Sam',
+        password: 'member-password-9',
+        gymSlug: 'downtown',
+      });
+
+      const member = await prisma.user.findUniqueOrThrow({
+        where: { email_realm: { email: EMAIL, realm: gymRealm(downtownId, 'member') } },
+      });
+      expect(member.id).not.toBe(staff);
+      const staffCredential = await prisma.gymCredential.findUniqueOrThrow({
+        where: { userId_gymId: { userId: staff, gymId: downtownId } },
+      });
+      await expect(argon2.verify(staffCredential.passwordHash!, STAFF_PASSWORD)).resolves.toBe(
+        true,
+      );
+    });
 
     it('allows concurrent registrations of a new email in different gyms', async () => {
       const email = 'concurrent@example.com';
@@ -276,7 +320,139 @@ describe('per-gym credentials (integration)', () => {
         { message: 'verification email sent' },
         { message: 'verification email sent' },
       ]);
+      expect(await prisma.user.count({ where: { email } })).toBe(2);
       expect(await prisma.gymCredential.count({ where: { user: { email } } })).toBe(2);
+    });
+  });
+
+  describe('a staff account and a member account in the same gym', () => {
+    let downtownStaff: string;
+
+    beforeEach(async () => {
+      downtownStaff = await account(downtownId, 'staff', STAFF_PASSWORD, {
+        role: Role.MANAGER,
+        name: 'Coach Sam',
+      });
+    });
+
+    it('each audience signs into its own account with its own password', async () => {
+      const member = await h.auth.login(
+        { email: EMAIL, password: DOWNTOWN_PASSWORD, audience: 'member' },
+        'downtown',
+      );
+      expect(claimsOf(member.accessToken)).toMatchObject({
+        sub: downtownMember,
+        gymId: downtownId,
+        role: Role.MEMBER,
+      });
+
+      const staff = await h.auth.login(
+        { email: EMAIL, password: STAFF_PASSWORD, audience: 'staff' },
+        'downtown',
+      );
+      expect(claimsOf(staff.accessToken)).toMatchObject({
+        sub: downtownStaff,
+        gymId: downtownId,
+        role: Role.MANAGER,
+      });
+
+      // Two live sessions side by side: refreshing one leaves the other alone.
+      await expect(
+        h.auth.refresh({ refreshToken: member.refreshToken }, 'downtown'),
+      ).resolves.toBeDefined();
+      await expect(
+        h.auth.refresh({ refreshToken: staff.refreshToken }, 'downtown'),
+      ).resolves.toBeDefined();
+    });
+
+    it("neither password opens the other audience's account", async () => {
+      await expect(
+        h.auth.login({ email: EMAIL, password: STAFF_PASSWORD, audience: 'member' }, 'downtown'),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_CREDENTIALS' } });
+      await expect(
+        h.auth.login({ email: EMAIL, password: DOWNTOWN_PASSWORD, audience: 'staff' }, 'downtown'),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_CREDENTIALS' } });
+    });
+
+    it('a client that sends no audience gets the member account first, then the staff one', async () => {
+      const viaMember = await h.auth.login(
+        { email: EMAIL, password: DOWNTOWN_PASSWORD },
+        'downtown',
+      );
+      expect(claimsOf(viaMember.accessToken)).toMatchObject({ sub: downtownMember });
+
+      const viaStaff = await h.auth.login({ email: EMAIL, password: STAFF_PASSWORD }, 'downtown');
+      expect(claimsOf(viaStaff.accessToken)).toMatchObject({
+        sub: downtownStaff,
+        role: Role.MANAGER,
+      });
+
+      // One password on both accounts: the member account wins.
+      await prisma.gymCredential.update({
+        where: { userId_gymId: { userId: downtownStaff, gymId: downtownId } },
+        data: { passwordHash: await hash(DOWNTOWN_PASSWORD) },
+      });
+      const shared = await h.auth.login({ email: EMAIL, password: DOWNTOWN_PASSWORD }, 'downtown');
+      expect(claimsOf(shared.accessToken)).toMatchObject({ sub: downtownMember });
+    });
+
+    it('with no gym named, the staff password signs in only without a member audience', async () => {
+      await expect(
+        h.auth.login({ email: EMAIL, password: STAFF_PASSWORD, audience: 'member' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      const session = await h.auth.login({ email: EMAIL, password: STAFF_PASSWORD });
+      expect(claimsOf(session.accessToken)).toMatchObject({
+        sub: downtownStaff,
+        gymId: downtownId,
+        role: Role.MANAGER,
+      });
+    });
+
+    it('a reset of the member account leaves the staff account and its sessions alone', async () => {
+      const staffSession = await h.auth.login(
+        { email: EMAIL, password: STAFF_PASSWORD, audience: 'staff' },
+        'downtown',
+      );
+
+      await h.auth.requestPasswordReset({ email: EMAIL, audience: 'member' }, null, 'downtown');
+      expect(h.mail).toHaveLength(1);
+      const { token } = h.lastMail('reset', EMAIL);
+      await h.auth.resetPassword({ token, password: 'new-member-password' }, 'downtown');
+
+      await expect(
+        h.auth.login(
+          { email: EMAIL, password: 'new-member-password', audience: 'member' },
+          'downtown',
+        ),
+      ).resolves.toBeDefined();
+      await expect(
+        h.auth.login({ email: EMAIL, password: STAFF_PASSWORD, audience: 'staff' }, 'downtown'),
+      ).resolves.toBeDefined();
+      await expect(
+        h.auth.refresh({ refreshToken: staffSession.refreshToken }, 'downtown'),
+      ).resolves.toBeDefined();
+    });
+
+    it('a staff reset touches only the staff account and issues no session', async () => {
+      await h.auth.requestPasswordReset({ email: EMAIL, audience: 'staff' }, null, 'downtown');
+      expect(h.mail).toHaveLength(1);
+      const { token } = h.lastMail('reset', EMAIL);
+      const result = await h.auth.resetPassword(
+        { token, password: 'new-staff-password' },
+        'downtown',
+      );
+      expect(result).toEqual({ ok: true, sessionIssued: false });
+
+      await expect(
+        h.auth.login(
+          { email: EMAIL, password: 'new-staff-password', audience: 'staff' },
+          'downtown',
+        ),
+      ).resolves.toBeDefined();
+      await expect(
+        h.auth.login({ email: EMAIL, password: DOWNTOWN_PASSWORD, audience: 'member' }, 'downtown'),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -318,14 +494,29 @@ describe('per-gym credentials (integration)', () => {
       clearRequestAccessResolver();
     });
 
-    it('issues and refreshes a gym member session that passes POST /checkout', async () => {
-      await prisma.user.update({ where: { id: userId }, data: { isSuperAdmin: true } });
+    /** The operator's platform account, same address as the member accounts. */
+    async function superAdmin(): Promise<string> {
+      const user = await prisma.user.create({
+        data: {
+          email: EMAIL,
+          realm: PLATFORM_REALM,
+          isSuperAdmin: true,
+          passwordHash: await hash(PLATFORM_PASSWORD),
+          emailVerifiedAt: new Date(),
+        },
+      });
+      return user.id;
+    }
+
+    it('signs the gym password into the member account and the platform password into the operator', async () => {
+      const operator = await superAdmin();
       const gymSession = await h.auth.login({
         email: EMAIL,
         password: RIVERSIDE_PASSWORD,
         gymSlug: 'riverside',
       });
       expect(claimsOf(gymSession.accessToken)).toMatchObject({
+        sub: riversideMember,
         gymId: riversideId,
         role: Role.MEMBER,
       });
@@ -351,7 +542,7 @@ describe('per-gym credentials (integration)', () => {
 
       const platformSession = await h.auth.login({
         email: EMAIL,
-        password: DOWNTOWN_PASSWORD,
+        password: PLATFORM_PASSWORD,
         gymSlug: 'riverside',
       });
       const refreshedPlatform = await h.auth.refresh(
@@ -359,24 +550,32 @@ describe('per-gym credentials (integration)', () => {
         'riverside',
       );
       for (const session of [platformSession, refreshedPlatform]) {
-        expect(claimsOf(session.accessToken)).toMatchObject({ role: Role.SUPER_ADMIN });
+        expect(claimsOf(session.accessToken)).toMatchObject({
+          sub: operator,
+          role: Role.SUPER_ADMIN,
+        });
         expect(claimsOf(session.accessToken).gymId).toBeUndefined();
       }
+
+      // Tenant-less, the platform password still wins over the gym accounts.
+      const tenantless = await h.auth.login({ email: EMAIL, password: PLATFORM_PASSWORD });
+      expect(claimsOf(tenantless.accessToken)).toMatchObject({ role: Role.SUPER_ADMIN });
     });
 
-    it.each([GymMemberStatus.INVITED, GymMemberStatus.SUSPENDED, null])(
-      'falls back to platform credentials when membership is %s',
+    it.each([GymMemberStatus.INVITED, GymMemberStatus.SUSPENDED])(
+      'refuses a %s member account on its gym, and the platform password still works there',
       async (status) => {
-        await prisma.user.update({ where: { id: userId }, data: { isSuperAdmin: true } });
-        const where = { userId_gymId: { userId, gymId: riversideId } };
-        if (status) await prisma.gymMember.update({ where, data: { status } });
-        else await prisma.gymMember.delete({ where });
+        await superAdmin();
+        await prisma.gymMember.update({
+          where: { userId_gymId: { userId: riversideMember, gymId: riversideId } },
+          data: { status },
+        });
         await expect(
           h.auth.login({ email: EMAIL, password: RIVERSIDE_PASSWORD, gymSlug: 'riverside' }),
-        ).rejects.toBeInstanceOf(UnauthorizedException);
+        ).rejects.toMatchObject({ response: { code: 'MEMBERSHIP_NOT_ACTIVE' } });
         const session = await h.auth.login({
           email: EMAIL,
-          password: DOWNTOWN_PASSWORD,
+          password: PLATFORM_PASSWORD,
           gymSlug: 'riverside',
         });
         expect(claimsOf(session.accessToken)).toMatchObject({ role: Role.SUPER_ADMIN });
@@ -391,13 +590,19 @@ describe('per-gym credentials (integration)', () => {
         { email: EMAIL, password: DOWNTOWN_PASSWORD },
         'downtown',
       );
-      expect(claimsOf(onDowntown.accessToken)).toMatchObject({ gymId: downtownId });
+      expect(claimsOf(onDowntown.accessToken)).toMatchObject({
+        sub: downtownMember,
+        gymId: downtownId,
+      });
 
       const onRiverside = await h.auth.login(
         { email: EMAIL, password: RIVERSIDE_PASSWORD },
         'riverside',
       );
-      expect(claimsOf(onRiverside.accessToken)).toMatchObject({ gymId: riversideId });
+      expect(claimsOf(onRiverside.accessToken)).toMatchObject({
+        sub: riversideMember,
+        gymId: riversideId,
+      });
     });
 
     it("refuses the other gym's password on a host with the plain 401", async () => {
@@ -412,13 +617,16 @@ describe('per-gym credentials (integration)', () => {
 
     it('with no gym named, a password that opens one gym signs in there', async () => {
       const pair = await h.auth.login({ email: EMAIL, password: RIVERSIDE_PASSWORD });
-      expect(claimsOf(pair.accessToken)).toMatchObject({ gymId: riversideId });
+      expect(claimsOf(pair.accessToken)).toMatchObject({
+        sub: riversideMember,
+        gymId: riversideId,
+      });
     });
 
     it('with no gym named, a password shared by two gyms asks which one', async () => {
       await prisma.gymCredential.update({
-        where: { userId_gymId: { userId, gymId: riversideId } },
-        data: { passwordHash: await argon2.hash(DOWNTOWN_PASSWORD, { type: argon2.argon2id }) },
+        where: { userId_gymId: { userId: riversideMember, gymId: riversideId } },
+        data: { passwordHash: await hash(DOWNTOWN_PASSWORD) },
       });
 
       const error = await h.auth
@@ -441,21 +649,20 @@ describe('per-gym credentials (integration)', () => {
       expect(claimsOf(pair.accessToken)).toMatchObject({ gymId: riversideId });
     });
 
-    it('a member with no credential on the host gym is a 401, not NOT_A_MEMBER', async () => {
+    it('an account with no credential on its gym is a 401, not NOT_A_MEMBER', async () => {
       await prisma.gymCredential.delete({
-        where: { userId_gymId: { userId, gymId: riversideId } },
+        where: { userId_gymId: { userId: riversideMember, gymId: riversideId } },
       });
       const error = await h.auth
-        .login({ email: EMAIL, password: DOWNTOWN_PASSWORD }, 'riverside')
+        .login({ email: EMAIL, password: RIVERSIDE_PASSWORD }, 'riverside')
         .catch((e: unknown) => e);
       expect(error).toBeInstanceOf(UnauthorizedException);
     });
 
-    it('a stranger to the host gym is still NOT_A_MEMBER after the password checks out', async () => {
-      // A credential row with no membership behind it (the invite path's
-      // "credential first, membership later" is not a thing, but the gate must
-      // hold regardless of how the row came to be).
-      await prisma.gymMember.delete({ where: { userId_gymId: { userId, gymId: riversideId } } });
+    it('an account whose membership is gone is NOT_A_MEMBER after the password checks out', async () => {
+      await prisma.gymMember.delete({
+        where: { userId_gymId: { userId: riversideMember, gymId: riversideId } },
+      });
       const error = await h.auth
         .login({ email: EMAIL, password: RIVERSIDE_PASSWORD }, 'riverside')
         .catch((e: unknown) => e);
@@ -465,7 +672,7 @@ describe('per-gym credentials (integration)', () => {
   });
 
   describe('password reset', () => {
-    it("on a gym's host resets that gym's password and leaves the other gym's alone", async () => {
+    it("on a gym's host resets that gym's account and leaves the other gym's alone", async () => {
       await h.auth.requestPasswordReset({ email: EMAIL }, null, 'downtown');
       const { token, gymSlug } = h.lastMail('reset', EMAIL);
       expect(gymSlug).toBe('downtown');
@@ -488,7 +695,7 @@ describe('per-gym credentials (integration)', () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
-    it("revokes the reset gym's sessions and keeps the other gym's", async () => {
+    it("revokes the reset account's sessions and keeps the other gym's", async () => {
       const downtownSession = await h.auth.login(
         { email: EMAIL, password: DOWNTOWN_PASSWORD },
         'downtown',
@@ -510,7 +717,7 @@ describe('per-gym credentials (integration)', () => {
       ).resolves.toBeDefined();
     });
 
-    it('mints nothing for a host gym the address has no credential in', async () => {
+    it('mints nothing for a host gym the address has no account at', async () => {
       await prisma.gym.create({ data: { name: 'Uptown', slug: 'uptown' } });
       await h.auth.requestPasswordReset({ email: EMAIL }, null, 'uptown');
       expect(h.mail).toHaveLength(0);
@@ -531,26 +738,25 @@ describe('per-gym credentials (integration)', () => {
       ).resolves.toBeDefined();
     });
 
-    it('with no gym at all, a multi-gym address gets a whole-identity reset', async () => {
+    it('with no gym at all, each member account gets its own link, and each resets one account', async () => {
       await h.auth.requestPasswordReset({ email: EMAIL });
-      const { token, gymSlug } = h.lastMail('reset', EMAIL);
-      expect(gymSlug).toBeNull();
+      expect(h.mail.map((m) => m.gymSlug).sort()).toEqual(['downtown', 'riverside']);
+      const riversideMail = h.lastMail('reset', EMAIL);
+      expect(riversideMail.gymSlug).toBe('riverside');
 
-      await h.auth.resetPassword({ token, password: 'same-everywhere' });
+      await h.auth.resetPassword({ token: riversideMail.token, password: 'new-riverside-only' });
 
       await expect(
-        h.auth.login({ email: EMAIL, password: 'same-everywhere' }, 'downtown'),
+        h.auth.login({ email: EMAIL, password: 'new-riverside-only' }, 'riverside'),
       ).resolves.toBeDefined();
       await expect(
-        h.auth.login({ email: EMAIL, password: 'same-everywhere' }, 'riverside'),
+        h.auth.login({ email: EMAIL, password: DOWNTOWN_PASSWORD }, 'downtown'),
       ).resolves.toBeDefined();
-      const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-      await expect(argon2.verify(user.passwordHash!, 'same-everywhere')).resolves.toBe(true);
     });
   });
 
-  describe('onboarding an address that already exists', () => {
-    it('signup on a third gym reuses the user and gets its own password', async () => {
+  describe('onboarding an address that already has accounts', () => {
+    it('signup on a third gym creates a new member account with its own password', async () => {
       const uptown = await prisma.gym.create({ data: { name: 'Uptown', slug: 'uptown' } });
 
       const pair = await h.auth.signupMember({
@@ -561,22 +767,20 @@ describe('per-gym credentials (integration)', () => {
         ...INTAKE,
       });
       expect(claimsOf(pair.accessToken)).toMatchObject({ gymId: uptown.id });
-      expect(await prisma.user.count()).toBe(1);
+      expect(await prisma.user.count({ where: { email: EMAIL } })).toBe(3);
+      const uptownMember = await prisma.user.findUniqueOrThrow({
+        where: { email_realm: { email: EMAIL, realm: gymRealm(uptown.id, 'member') } },
+      });
 
       const credential = await prisma.gymCredential.findUniqueOrThrow({
-        where: { userId_gymId: { userId, gymId: uptown.id } },
+        where: { userId_gymId: { userId: uptownMember.id, gymId: uptown.id } },
       });
       expect(credential.emailVerifiedAt).toBeNull();
       expect(credential.name).toBe('Sam U.');
 
-      // Verifying from the mailed link stamps that gym only.
       const { token, gymSlug } = h.lastMail('verify', EMAIL);
       expect(gymSlug).toBe('uptown');
       await h.auth.verifyEmail(token);
-      const verified = await prisma.gymCredential.findUniqueOrThrow({
-        where: { userId_gymId: { userId, gymId: uptown.id } },
-      });
-      expect(verified.emailVerifiedAt).not.toBeNull();
 
       await expect(
         h.auth.login({ email: EMAIL, password: 'uptown-secret-3' }, 'uptown'),
@@ -586,7 +790,7 @@ describe('per-gym credentials (integration)', () => {
       ).resolves.toBeDefined();
     });
 
-    it('signup on a gym the address already belongs to is ALREADY_MEMBER', async () => {
+    it('signup on a gym the address is already a member of is ALREADY_MEMBER', async () => {
       const error = await h.auth
         .signupMember({
           gymId: downtownId,
@@ -600,13 +804,39 @@ describe('per-gym credentials (integration)', () => {
       expect((error as ConflictException).getResponse()).toMatchObject({ code: 'ALREADY_MEMBER' });
     });
 
-    it('register-gym for an existing owner email creates the gym and mails an activation link', async () => {
+    it('signup on a gym where the address is only staff creates a separate member account', async () => {
+      const uptown = await prisma.gym.create({ data: { name: 'Uptown', slug: 'uptown' } });
+      const staff = await account(uptown.id, 'staff', STAFF_PASSWORD, { role: Role.TRAINER });
+
+      await h.auth.signupMember({
+        gymId: uptown.id,
+        name: 'Sam',
+        email: EMAIL,
+        password: 'uptown-member-5',
+        ...INTAKE,
+      });
+
+      const member = await prisma.user.findUniqueOrThrow({
+        where: { email_realm: { email: EMAIL, realm: gymRealm(uptown.id, 'member') } },
+        include: { memberships: true },
+      });
+      expect(member.id).not.toBe(staff);
+      expect(member.memberships.map((m) => m.role)).toEqual([Role.MEMBER]);
+      const staffMembership = await prisma.gymMember.findUniqueOrThrow({
+        where: { userId_gymId: { userId: staff, gymId: uptown.id } },
+      });
+      expect(staffMembership.role).toBe(Role.TRAINER);
+    });
+
+    it('register-gym for an address with accounts creates a NEW staff account as the owner', async () => {
       const res = await h.auth.registerGym({
         gymName: 'Uptown',
         subdomainSlug: 'uptown',
         ownerEmail: EMAIL,
       });
-      expect(res.ownerUserId).toBe(userId);
+      expect([downtownMember, riversideMember]).not.toContain(res.ownerUserId);
+      const owner = await prisma.user.findUniqueOrThrow({ where: { id: res.ownerUserId } });
+      expect(owner.realm).toBe(gymRealm(res.gymId, 'staff'));
 
       const { token, gymSlug } = h.lastMail('onboarding', EMAIL);
       expect(gymSlug).toBe('uptown');
@@ -618,19 +848,23 @@ describe('per-gym credentials (integration)', () => {
       expect(wrongHost).toBeInstanceOf(ForbiddenException);
 
       await h.auth.activateAccount({ token, password: 'uptown-owner-1' }, 'uptown');
-      await expect(
-        h.auth.login({ email: EMAIL, password: 'uptown-owner-1' }, 'uptown'),
-      ).resolves.toBeDefined();
+      const ownerSession = await h.auth.login(
+        { email: EMAIL, password: 'uptown-owner-1', audience: 'staff' },
+        'uptown',
+      );
+      expect(claimsOf(ownerSession.accessToken)).toMatchObject({
+        sub: res.ownerUserId,
+        role: Role.OWNER,
+      });
       await expect(
         h.auth.login({ email: EMAIL, password: DOWNTOWN_PASSWORD }, 'downtown'),
       ).resolves.toBeDefined();
     });
 
-    it('a staff invitation sets the new gym password and confirms existing credentials', async () => {
-      const uptown = await prisma.gym.create({ data: { name: 'Uptown', slug: 'uptown' } });
+    it('a staff invitation for a member of the gym creates a separate staff account', async () => {
       const invite = await prisma.staffInvite.create({
         data: {
-          gymId: uptown.id,
+          gymId: downtownId,
           email: EMAIL,
           role: Role.TRAINER,
           token: 'invite-token-1',
@@ -640,26 +874,41 @@ describe('per-gym credentials (integration)', () => {
 
       const { url } = await h.auth.acceptInvite(invite.token);
       expect(url).toContain('/admin/accept-invite');
+      // The member account's password does not count: the staff account is new.
       expect((await h.auth.inspectStaffInvite(invite.token)).needsPassword).toBe(true);
 
       await h.auth.completeStaffInvite(
-        { token: invite.token, password: 'uptown-trainer-1' },
-        'uptown',
+        { token: invite.token, password: 'downtown-trainer-1' },
+        'downtown',
       );
       await expect(h.auth.completeStaffInvite({ token: invite.token })).rejects.toThrow();
 
-      await expect(
-        h.auth.login({ email: EMAIL, password: 'uptown-trainer-1' }, 'uptown'),
-      ).resolves.toBeDefined();
-      const membership = await prisma.gymMember.findUniqueOrThrow({
-        where: { userId_gymId: { userId, gymId: uptown.id } },
+      const staff = await prisma.user.findUniqueOrThrow({
+        where: { email_realm: { email: EMAIL, realm: gymRealm(downtownId, 'staff') } },
+        include: { memberships: true },
       });
-      expect(membership.role).toBe(Role.TRAINER);
+      expect(staff.id).not.toBe(downtownMember);
+      expect(staff.memberships.map((m) => [m.gymId, m.role])).toEqual([[downtownId, Role.TRAINER]]);
 
-      // An existing password requires confirmation only and must stay unchanged.
+      // Both accounts sign in, each with its own password; the member is untouched.
+      const trainer = await h.auth.login(
+        { email: EMAIL, password: 'downtown-trainer-1', audience: 'staff' },
+        'downtown',
+      );
+      expect(claimsOf(trainer.accessToken)).toMatchObject({ sub: staff.id, role: Role.TRAINER });
+      const member = await h.auth.login(
+        { email: EMAIL, password: DOWNTOWN_PASSWORD, audience: 'member' },
+        'downtown',
+      );
+      expect(claimsOf(member.accessToken)).toMatchObject({
+        sub: downtownMember,
+        role: Role.MEMBER,
+      });
+
+      // A second invitation now finds the staff account's password and asks for it.
       const again = await prisma.staffInvite.create({
         data: {
-          gymId: uptown.id,
+          gymId: downtownId,
           email: EMAIL,
           role: Role.RECEPTIONIST,
           token: 'invite-token-2',
@@ -667,17 +916,21 @@ describe('per-gym credentials (integration)', () => {
         },
       });
       expect((await h.auth.inspectStaffInvite(again.token)).needsPassword).toBe(false);
-      // No proof, or the wrong proof, redeems nothing.
-      await expect(h.auth.completeStaffInvite({ token: again.token }, 'uptown')).rejects.toThrow();
       await expect(
-        h.auth.completeStaffInvite({ token: again.token, currentPassword: 'wrong' }, 'uptown'),
+        h.auth.completeStaffInvite(
+          { token: again.token, currentPassword: DOWNTOWN_PASSWORD },
+          'downtown',
+        ),
       ).rejects.toThrow();
       await h.auth.completeStaffInvite(
-        { token: again.token, currentPassword: 'uptown-trainer-1' },
-        'uptown',
+        { token: again.token, currentPassword: 'downtown-trainer-1' },
+        'downtown',
       );
       await expect(
-        h.auth.login({ email: EMAIL, password: 'uptown-trainer-1' }, 'uptown'),
+        h.auth.login(
+          { email: EMAIL, password: 'downtown-trainer-1', audience: 'staff' },
+          'downtown',
+        ),
       ).resolves.toBeDefined();
     });
   });

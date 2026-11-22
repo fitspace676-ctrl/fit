@@ -55,6 +55,7 @@ function setup(overrides: Partial<GymOnboarding> = {}) {
     gym: {
       findUnique: vi.fn(() => Promise.resolve(null as { id: string } | null)),
       create: vi.fn((_args: unknown) => Promise.resolve({ id: 'gym1' })),
+      update: vi.fn((_args: unknown) => Promise.resolve({ id: 'gym1' })),
     },
     user: {
       findUnique: vi.fn(() => Promise.resolve(null as { id: string } | null)),
@@ -118,13 +119,21 @@ describe('SuperAdmin gym requests', () => {
       }) as object,
     });
   });
-  it.each(['gym', 'user'] as const)('rejects an existing %s', async (model) => {
+  it('rejects an existing gym address', async () => {
     const { service, db } = setup();
-    db[model].findUnique.mockResolvedValue({ id: 'existing' });
+    db.gym.findUnique.mockResolvedValue({ id: 'existing' });
     await expect(service.createGymRequest('operator', input)).rejects.toMatchObject(
-      failure(model === 'gym' ? 'SUBDOMAIN_TAKEN' : 'EMAIL_TAKEN'),
+      failure('SUBDOMAIN_TAKEN'),
     );
     expect(db.gymOnboarding.create).not.toHaveBeenCalled();
+  });
+  it('accepts an owner address that already holds accounts elsewhere', async () => {
+    const { service, db } = setup();
+    db.user.findUnique.mockResolvedValue({ id: 'existing' });
+    await expect(service.createGymRequest('operator', input)).resolves.toBeDefined();
+    // The owner becomes a new staff account of the new gym, so users are not consulted.
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.gymOnboarding.create).toHaveBeenCalled();
   });
   it.each(['slug', 'email'] as const)('rejects an open request reserving the %s', async (key) => {
     const { service, db, row } = setup(key === 'email' ? { subdomainSlug: 'different' } : {});
@@ -207,18 +216,23 @@ describe('SuperAdmin gym requests', () => {
     expect(db.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         email: input.ownerEmail,
+        // A new staff account of the new gym, whatever the address holds elsewhere.
+        realm: 'gym1:staff',
         name: 'Owner',
         passwordHash: 'chosen-argon2-hash',
         emailVerifiedAt: expect.any(Date) as Date,
       }) as object,
       select: { id: true },
     });
+    expect(db.gym.update).toHaveBeenCalledWith({
+      where: { id: 'gym1' },
+      data: { ownerId: 'owner1', createdByUserId: 'operator' },
+      select: { id: true },
+    });
     expect(db.gym.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         name: 'Submitted Name',
         slug: 'gym',
-        ownerId: 'owner1',
-        createdByUserId: 'operator',
         settings: expect.objectContaining({
           business: expect.objectContaining({ address: 'Business address' }) as object,
           brand: expect.objectContaining({ primaryColor: '#abcdef' }) as object,
@@ -292,11 +306,11 @@ describe('SuperAdmin gym requests', () => {
       submitted.service.regenerateGymRequestLink('operator', 'request1'),
     ).rejects.toMatchObject(failure('ONBOARDING_SUBMITTED'));
   });
-  it.each(['gym', 'user'] as const)('rechecks %s conflicts before approving', async (model) => {
+  it('rechecks the gym address before approving', async () => {
     const { service, db } = setup({ submittedAt: new Date(), passwordHash: 'hash' });
-    db[model].findUnique.mockResolvedValueOnce({ id: 'taken' });
+    db.gym.findUnique.mockResolvedValueOnce({ id: 'taken' });
     await expect(service.approveGymRequest('operator', 'request1')).rejects.toMatchObject(
-      failure(model === 'gym' ? 'SUBDOMAIN_TAKEN' : 'EMAIL_TAKEN'),
+      failure('SUBDOMAIN_TAKEN'),
     );
     expect(db.gym.create).not.toHaveBeenCalled();
   });

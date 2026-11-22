@@ -8,6 +8,7 @@ import type { EmailService } from './email.service';
 import type { GoogleOAuthService } from './google-oauth.service';
 import type { AppleOAuthService } from './apple-oauth.service';
 import { prisma, resetDb, disconnect } from '../test/integration-db';
+import { staffRealm } from './account-realm';
 
 /**
  * `register-gym` transaction atomicity, proven against a real Postgres (T2.11):
@@ -90,7 +91,7 @@ describe('registerGym atomicity (integration)', () => {
     expect(credential?.passwordHash).toEqual(expect.stringMatching(/^\$argon2id\$/));
   });
 
-  it('reuses an existing owner email: a second gym, a second credential, one user', async () => {
+  it('gives an existing owner email a second gym as a SEPARATE staff account', async () => {
     const first = await auth.registerGym(INPUT);
     const firstCredential = await prisma.gymCredential.findUniqueOrThrow({
       where: { userId_gymId: { userId: first.ownerUserId, gymId: first.gymId } },
@@ -102,7 +103,15 @@ describe('registerGym atomicity (integration)', () => {
       password: 'a-different-password',
     });
 
-    expect(second.ownerUserId).toBe(first.ownerUserId);
+    // Accounts are per gym: two staff accounts with the same address.
+    expect(second.ownerUserId).not.toBe(first.ownerUserId);
+    const owners = await prisma.user.findMany({
+      where: { id: { in: [first.ownerUserId, second.ownerUserId] } },
+      select: { id: true, email: true, realm: true },
+    });
+    expect(owners.map((o) => o.email)).toEqual([INPUT.ownerEmail, INPUT.ownerEmail]);
+    expect(owners.find((o) => o.id === first.ownerUserId)?.realm).toBe(staffRealm(first.gymId));
+    expect(owners.find((o) => o.id === second.ownerUserId)?.realm).toBe(staffRealm(second.gymId));
     const [users, gyms, members, credentials] = await Promise.all([
       prisma.user.count(),
       prisma.gym.count(),
@@ -110,7 +119,7 @@ describe('registerGym atomicity (integration)', () => {
       prisma.gymCredential.count(),
     ]);
     expect({ users, gyms, members, credentials }).toEqual({
-      users: 1,
+      users: 2,
       gyms: 2,
       members: 2,
       credentials: 2,
