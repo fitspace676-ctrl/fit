@@ -1027,6 +1027,7 @@ describe('AuthService', () => {
         'en',
         null,
         null,
+        'member',
       );
     });
 
@@ -1045,6 +1046,7 @@ describe('AuthService', () => {
         'ka',
         'downtown',
         'Downtown',
+        'member',
       );
     });
 
@@ -1059,6 +1061,16 @@ describe('AuthService', () => {
 
       expect(ctx.set).toHaveBeenCalledTimes(1);
       expect(ctx.set.mock.calls[0]?.[1]).toBe(subject('user-ds', 'gym-downtown'));
+      // A staff account's link opens the admin console's reset page.
+      expect(ctx.sendPasswordResetEmail).toHaveBeenCalledWith(
+        'a@b.com',
+        expect.any(String),
+        'Coach Sam',
+        'en',
+        'downtown',
+        'Downtown',
+        'staff',
+      );
     });
 
     it('falls back to the staff account when the gym has no member account for the address', async () => {
@@ -1086,6 +1098,7 @@ describe('AuthService', () => {
         'en',
         'riverside',
         'Riverside',
+        'member',
       );
     });
 
@@ -1714,15 +1727,33 @@ describe('AuthService', () => {
       });
 
       it('with no audience, a member password lands on the member account', async () => {
+        // The matched account's one membership, as the scope resolver reads it.
+        ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('downtown', Role.MEMBER)]);
+
         await ctx.service.login({ email: 'a@b.com', password: 'member-pw' }, 'downtown');
 
-        expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-dm', expect.anything());
+        expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+          'user-dm',
+          expect.objectContaining({ gymSlug: 'downtown', role: Role.MEMBER }),
+        );
+        // The scope is resolved for the account the password opened.
+        expect(ctx.gymMemberFindMany.mock.calls[0]?.[0]).toMatchObject({
+          where: { userId: 'user-dm' },
+        });
       });
 
       it('with no audience, a staff password lands on the staff account (member tried first)', async () => {
+        ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('downtown', Role.MANAGER)]);
+
         await ctx.service.login({ email: 'a@b.com', password: 'staff-pw' }, 'downtown');
 
-        expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-ds', expect.anything());
+        expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+          'user-ds',
+          expect.objectContaining({ gymSlug: 'downtown', role: Role.MANAGER }),
+        );
+        expect(ctx.gymMemberFindMany.mock.calls[0]?.[0]).toMatchObject({
+          where: { userId: 'user-ds' },
+        });
         expect(argonVerify).toHaveBeenCalledWith('member-hash', 'staff-pw');
         expect(argonVerify).toHaveBeenCalledWith('staff-hash', 'staff-pw');
       });
@@ -1734,6 +1765,7 @@ describe('AuthService', () => {
         gymAccount('user-dm', 'downtown', 'member', 'same-hash'),
       ]);
       passwords({ 'same-hash': 'supersecret' });
+      ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('downtown', Role.MEMBER)]);
 
       await ctx.service.login(VALID_LOGIN, 'downtown');
 
@@ -1780,10 +1812,14 @@ describe('AuthService', () => {
     it('takes the gym from the body over the tenant host', async () => {
       ctx.findMany.mockResolvedValue([DOWNTOWN_MEMBER, RIVERSIDE_MEMBER]);
       passwords({ 'riverside-hash': 'supersecret', 'member-hash': 'supersecret' });
+      ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('riverside', Role.MEMBER)]);
 
       await ctx.service.login({ ...VALID_LOGIN, gymSlug: 'riverside' }, 'downtown');
 
-      expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-rm', expect.anything());
+      expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+        'user-rm',
+        expect.objectContaining({ gymSlug: 'riverside' }),
+      );
     });
 
     describe('with no gym named (the mobile app)', () => {
@@ -1828,10 +1864,14 @@ describe('AuthService', () => {
           gymAccount('user-dm', 'downtown', 'member', 'same-hash'),
         ]);
         passwords({ 'same-hash': 'supersecret' });
+        ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('downtown', Role.MEMBER)]);
 
         await ctx.service.login(VALID_LOGIN);
 
-        expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-dm', expect.anything());
+        expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+          'user-dm',
+          expect.objectContaining({ gymSlug: 'downtown', role: Role.MEMBER }),
+        );
       });
 
       it("ignores staff accounts for audience 'member'", async () => {
@@ -1997,6 +2037,7 @@ describe('AuthService', () => {
       it("redeems it for audience 'staff'", async () => {
         ctx.findMany.mockResolvedValue([DOWNTOWN_STAFF]);
         passwords({ 'staff-hash': 'supersecret' });
+        ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('downtown', Role.MANAGER)]);
         const redeem = vi
           .spyOn(ctx.service as never, 'redeemStaffInvite' as never)
           .mockResolvedValue(null);
@@ -2015,6 +2056,7 @@ describe('AuthService', () => {
       it("never redeems it for audience 'member'", async () => {
         ctx.findMany.mockResolvedValue([DOWNTOWN_MEMBER]);
         passwords({ 'member-hash': 'supersecret' });
+        ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('downtown', Role.MEMBER)]);
         const redeem = vi.spyOn(ctx.service as never, 'redeemStaffInvite' as never);
 
         await ctx.service.login(

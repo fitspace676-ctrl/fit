@@ -31,7 +31,7 @@ import {
   type ResetPasswordResponse,
   type TokenPair,
 } from '@fit/types';
-import { buildMemberUrl } from '../common/console-url';
+import { buildConsoleUrl } from '../common/console-url';
 import { Public } from '../common/decorators/public.decorator';
 import {
   resolveTenantSlug,
@@ -180,10 +180,9 @@ export class AuthController {
       email: invite.email,
       gymName: invite.gym.name,
       needsPassword,
-      forgotPasswordUrl: buildMemberUrl(
-        `member/forgot-password?email=${encodeURIComponent(invite.email)}&gymSlug=${encodeURIComponent(invite.gym.slug)}`,
-        invite.gym.slug,
-      ),
+      // The invite is for a STAFF account, so recovery is the admin console's own
+      // forgot-password page on the gym's host, not the member site's.
+      forgotPasswordUrl: staffForgotPasswordUrl(invite.email, invite.gym.slug),
     };
   }
 
@@ -321,4 +320,10 @@ function parse<TSchema extends z.ZodTypeAny>(schema: TSchema, data: unknown): z.
     throw new BadRequestException(details);
   }
   return result.data as z.infer<TSchema>;
+}
+
+/** The admin console's forgot-password page for a staff account of `gymSlug`. */
+function staffForgotPasswordUrl(email: string, gymSlug: string): string {
+  const path = `forgot-password?email=${encodeURIComponent(email)}&gymSlug=${encodeURIComponent(gymSlug)}`;
+  return buildConsoleUrl(path, gymSlug) ?? `${env.ADMIN_BASE_PATH}/${path}`;
 }

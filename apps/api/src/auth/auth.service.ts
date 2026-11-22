@@ -1115,6 +1115,7 @@ export class AuthService {
           locale ?? DEFAULT_EMAIL_LOCALE,
           target.gymSlug,
           target.gymName,
+          target.audience,
         );
       } catch (error) {
         this.logger.error(
@@ -2286,6 +2287,8 @@ interface ResetTarget {
   gymSlug: string | null;
   gymName: string | null;
   name: string | null;
+  /** Which page the link opens: the admin console's for a staff account. */
+  audience: AccountAudience;
 }
 
 /** An account as the reset paths read it. */
@@ -2306,12 +2309,14 @@ function gymResetTarget(
   gym: { id: string; slug: string; name: string },
 ): ResetTarget {
   const credential = account.credentials.find((c) => c.gymId === gym.id);
+  const realm = parseRealm(account.realm);
   return {
     userId: account.id,
     gymId: gym.id,
     gymSlug: gym.slug,
     gymName: gym.name,
     name: credential?.name ?? account.name,
+    audience: realm?.kind === 'gym' ? realm.audience : 'member',
   };
 }
 
@@ -2351,7 +2356,14 @@ function tenantlessResetTargets(
 
   const platform = accounts.find((a) => a.realm === PLATFORM_REALM);
   const platformTarget: ResetTarget | null = platform
-    ? { userId: platform.id, gymId: null, gymSlug: null, gymName: null, name: platform.name }
+    ? {
+        userId: platform.id,
+        gymId: null,
+        gymSlug: null,
+        gymName: null,
+        name: platform.name,
+        audience: 'member',
+      }
     : null;
   if (
     platformTarget &&
