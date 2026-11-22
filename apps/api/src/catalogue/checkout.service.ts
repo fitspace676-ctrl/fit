@@ -92,10 +92,7 @@ export class CheckoutService {
         // Stub mode: the instant enrolment, exactly as before (no `payment` key).
         // Flitt mode, paid plan: a pending first-period order + checkout, and no
         // subscription until Flitt approves the payment.
-        const result = await this.subscriptions.purchaseSelf(
-          input.productId,
-          input.returnTo ?? 'web',
-        );
+        const result = await this.subscriptions.purchaseSelf(input.productId, input.returnTo);
         return {
           productType: input.productType,
           orderId: result.orderId,
@@ -108,7 +105,7 @@ export class CheckoutService {
           input.productId,
           input.locationId,
           input.promoCode,
-          input.returnTo ?? 'web',
+          input.returnTo,
         );
         return {
           productType: input.productType,
@@ -218,7 +215,7 @@ export class CheckoutService {
     packageId: string,
     locationId: string | undefined,
     promoCode: string | undefined,
-    returnTo: PaymentReturnTarget,
+    returnTo: PaymentReturnTarget | undefined,
   ): Promise<{ orderId: string; payment?: PaymentAction }> {
     const memberId = await this.requireCallerMembership();
     const gymId = this.tenant.gymId;

@@ -60,7 +60,7 @@ export class SubscriptionsController {
   @RateLimit(RATE_LIMITS.enroll)
   async enroll(@Body() body: unknown): Promise<SelfEnrollSubscriptionResponse> {
     const { planId, returnTo } = parse(enrollSubscriptionSchema, body);
-    return this.enrollment.enrollSelf(planId, returnTo ?? 'web');
+    return this.enrollment.enrollSelf(planId, returnTo);
   }
 
   /**
