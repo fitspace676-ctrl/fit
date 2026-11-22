@@ -72,6 +72,25 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 export const sessionGymSlugSchema = z.string().trim().toLowerCase().min(1).max(63).optional();
 
 /**
+ * Which of a gym's two separate sets of accounts a call is about.
+ *
+ * A gym has **staff accounts** (the people who run it: owner, managers,
+ * receptionists, trainers — they sign in to the admin console) and **member
+ * accounts** (its customers — the member portal and the mobile app). The two sets
+ * are independent: the same e-mail address may hold one of each in the same gym,
+ * with its own password, name and sessions, and neither can open the other's
+ * app. Accounts are also separate per gym: the same address at two gyms is two
+ * unrelated accounts.
+ *
+ * The admin console sends `staff`; the member portal and the mobile app send
+ * `member`. A client that sends nothing (a build from before the split) is
+ * matched against the gym's member account first and its staff account second.
+ */
+export const accountAudienceSchema = z.enum(['staff', 'member']);
+
+export type AccountAudience = z.infer<typeof accountAudienceSchema>;
+
+/**
  * Body for `POST /auth/login`. Email is normalised the same way registration
  * normalises it so the lookup matches the stored row. The password is only
  * required to be non-empty here — the registration policy (length bounds) is
@@ -85,6 +104,8 @@ export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
   gymSlug: sessionGymSlugSchema,
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
   inviteToken: inviteTokenSchema,
 });
 
@@ -195,6 +216,8 @@ export const TENANT_REQUIRED_CODE = 'TENANT_REQUIRED';
  */
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
   /**
    * The gym whose password is being reset — see {@link sessionGymSlugSchema}.
    * A client on a gym's own site can leave it out (the host names the gym); the
@@ -259,6 +282,8 @@ export interface ActivateAccountResponse {
 export const googleAuthSchema = z.object({
   idToken: z.string().trim().min(1),
   gymSlug: sessionGymSlugSchema,
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
 });
 
 export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
@@ -296,6 +321,8 @@ export const appleAuthSchema = z.object({
   idToken: z.string().trim().min(1),
   name: z.string().trim().min(1).max(100).optional(),
   gymSlug: sessionGymSlugSchema,
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
 });
 
 export type AppleAuthInput = z.infer<typeof appleAuthSchema>;
