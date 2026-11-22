@@ -5,11 +5,8 @@
 // (`GET`, for the client `useSession()` hook, which can't read an httpOnly
 // cookie) and *clear* it (`DELETE`, sign-out).
 //
-// An operator who signs in on the member site instead lands on the same host —
-// the console is served under that gym's `/admin` — so the cookie the web app's
-// identical `POST /api/session` writes is the one this app reads. Both write the
-// same host-only cookies with the same options (`lib/session-cookies.ts`), so
-// either entry point produces one session that both apps accept.
+// The console writes admin-only cookies; the member portal owns its separate
+// session. Verified consumers accept only staff roles.
 
 import { cookies, headers } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
@@ -121,15 +118,8 @@ export async function GET(): Promise<NextResponse> {
 /**
  * `POST /api/session` — persist a freshly-issued token pair as httpOnly cookies.
  *
- * Written for the console's own sign-in at `/admin/login`. Operators who arrive
- * through the member site still land here with the cookie already set by its
- * `POST /api/session`; this route serves the operator who goes straight to the
- * console URL, so the console no longer has to bounce them off to another app to
- * type a password.
- *
- * The tokens are only ever set as httpOnly cookies — never returned to, or
- * readable by, client JS — so an XSS on the console cannot read a session back
- * out. Mirrors the web app's route so a session set by either is identical.
+ * Used by staff sign-in, invitation acceptance and staff password recovery.
+ * Stores the console's own httpOnly cookies, separate from member cookies.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = (await req.json().catch(() => null)) as {

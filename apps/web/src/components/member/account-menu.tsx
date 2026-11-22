@@ -96,17 +96,14 @@ function memberIdOf(userId: string): string {
 }
 
 /**
- * The account control + its panel: the member's id, view profile, an "Admin
- * console" shortcut for staff (any role other than `MEMBER` — the tenant proxy
- * serves `/admin` on this same origin), and sign out. Sign-out clears the
- * session cookie and returns to the login page.
+ * The member's account menu: member id, profile and sign-out.
+ * Sign-out clears only the member session and returns to member login.
  */
 export function AccountMenu() {
   const t = useTranslations('member');
   const router = useRouter();
   const { user } = useSession();
   const [open, setOpen] = useState(false);
-  const isStaff = Boolean(user && user.role !== 'MEMBER');
 
   const onLogout = (): void => {
     setOpen(false);
@@ -161,12 +158,6 @@ export function AccountMenu() {
           <Icon name="user" sw={2.1} {...stylex.props(styles.menuIcon)} />
           {t('shell.viewProfile')}
         </Link>
-        {isStaff && (
-          <a href="/admin" {...stylex.props(styles.menuItem)}>
-            <Icon name="grid" sw={2.1} {...stylex.props(styles.menuIcon)} />
-            {t('shell.adminConsole')}
-          </a>
-        )}
         <div {...stylex.props(styles.menuRule)} />
         <button
           type="button"

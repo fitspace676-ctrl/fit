@@ -26,9 +26,7 @@ export const dynamic = 'force-dynamic';
  * register screens mount too. This page owns only what is specific to signing
  * in: the credentials form, the optional social block, and the terms line.
  *
- * Staff sign in here too, but land elsewhere: `middleware.ts` sends a non-MEMBER
- * session to `/admin` after login. The console's own sign-in lives at
- * `/admin/login` for anyone arriving there directly.
+ * This door signs in member accounts only.
  */
 
 /**

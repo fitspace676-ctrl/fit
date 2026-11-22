@@ -2,7 +2,6 @@
 
 import { type FormEvent, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useSearchParams } from 'next/navigation';
 import { registerWithCredentials } from '@/lib/auth';
 import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
 
@@ -18,14 +17,10 @@ import { Banner, Button, Field, Form, spacing } from '@/src/components/ui/kit';
  * than the other three auth screens (a larger sentence-case label, its own
  * vertical rhythm, the reveal button parked outside the control), which made
  * account-creation the one door in the flow that looked like another product.
- * The server action, invite-token forwarding and success flow are unchanged.
+ * Staff invitations are accepted separately in the console.
  */
 export function RegisterForm() {
   const t = useTranslations('auth');
-  const searchParams = useSearchParams();
-  // Carried from a staff invite link (T4.7): `/member/register?inviteToken=…`. Forwarded
-  // to the API so completing registration redeems the invite onto the new account.
-  const inviteToken = searchParams.get('inviteToken') ?? undefined;
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -38,7 +33,7 @@ export function RegisterForm() {
     event.preventDefault();
     setPending(true);
     setError(null);
-    registerWithCredentials({ name, email, password, inviteToken })
+    registerWithCredentials({ name, email, password })
       .then(() => setDone(true))
       .catch((err: unknown) => {
         setPending(false);

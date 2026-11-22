@@ -5,6 +5,8 @@ import {
   loginWithCredentials,
   loginWithGoogle,
   resetPassword,
+  requestPasswordReset,
+  postLoginPath,
   registerWithCredentials,
   SignInError,
   signInErrorKey,
@@ -105,6 +107,7 @@ describe('social sign-in', () => {
     expect(url).toBe('http://localhost:3000/auth/google');
     expect(new Headers(init?.headers).get('x-tenant-host')).toBe('riverside.formacore.io');
     expect(JSON.parse(init?.body as string)).toEqual({
+      audience: 'member',
       idToken: 'google-token',
       gymSlug: 'riverside',
     });
@@ -118,6 +121,7 @@ describe('social sign-in', () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('http://localhost:3000/auth/apple');
     expect(JSON.parse(init?.body as string)).toEqual({
+      audience: 'member',
       idToken: 'apple-token',
       name: 'Alice',
       gymSlug: 'riverside',
@@ -131,7 +135,10 @@ describe('social sign-in', () => {
     await loginWithGoogle('google-token');
 
     const [, init] = fetchMock.mock.calls[0]!;
-    expect(JSON.parse(init?.body as string)).toEqual({ idToken: 'google-token' });
+    expect(JSON.parse(init?.body as string)).toEqual({
+      audience: 'member',
+      idToken: 'google-token',
+    });
   });
 });
 
@@ -196,17 +203,22 @@ describe('a sign-in the API needs a gym for', () => {
     expect((error as SignInError).gyms).toEqual(selection.data.gyms);
     // Off a tenant host the first attempt named no gym.
     const [, init] = fetchMock.mock.calls[0]!;
-    expect(JSON.parse(init?.body as string)).toEqual({ email: 'a@b.com', password: 'secret' });
+    expect(JSON.parse(init?.body as string)).toEqual({
+      audience: 'member',
+      email: 'a@b.com',
+      password: 'secret',
+    });
   });
 
   it('signs in again naming the gym the visitor picked', async () => {
     vi.stubGlobal('window', { location: { host: 'app.formacore.io' } });
     fetchMock.mockResolvedValueOnce(reply({ accessToken: 'a', refreshToken: 'r' }));
 
-    await loginWithCredentials('a@b.com', 'secret', undefined, 'riverside');
+    await loginWithCredentials('a@b.com', 'secret', 'riverside');
 
     const [, init] = fetchMock.mock.calls[0]!;
     expect(JSON.parse(init?.body as string)).toEqual({
+      audience: 'member',
       email: 'a@b.com',
       password: 'secret',
       gymSlug: 'riverside',
@@ -216,7 +228,7 @@ describe('a sign-in the API needs a gym for', () => {
   it("never lets a picked gym override the page's own", async () => {
     fetchMock.mockResolvedValueOnce(reply({ accessToken: 'a', refreshToken: 'r' }));
 
-    await loginWithCredentials('a@b.com', 'secret', undefined, 'downtown');
+    await loginWithCredentials('a@b.com', 'secret', 'downtown');
 
     const [, init] = fetchMock.mock.calls[0]!;
     expect(JSON.parse(init?.body as string)).toMatchObject({ gymSlug: 'riverside' });
@@ -239,5 +251,25 @@ describe('portal session persistence', () => {
     await expect(loginWithCredentials('same@example.com', 'staff-password')).rejects.toMatchObject({
       code: 'NOT_A_MEMBER',
     });
+  });
+});
+
+describe('member account recovery and destination', () => {
+  it('requests a member reset for the host gym, ignoring another supplied gym', async () => {
+    await requestPasswordReset('same@example.com', 'other');
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('http://localhost:3000/auth/forgot-password');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      email: 'same@example.com',
+      audience: 'member',
+      gymSlug: 'riverside',
+    });
+  });
+
+  it('keeps member return paths and never forwards sign-in to the console', async () => {
+    await expect(postLoginPath('/admin', 'ka')).resolves.toBe('/ka/member/home');
+    await expect(postLoginPath(null, 'en')).resolves.toBe('/en/member/home');
+    await expect(postLoginPath('/en/member/classes', 'en')).resolves.toBe('/en/member/classes');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

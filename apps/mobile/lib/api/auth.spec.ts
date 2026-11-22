@@ -56,7 +56,12 @@ describe('createAuthApi — the wire contract', () => {
     const call = only(h.calls);
     expect(call.url).toBe(`${API_URL}/auth/login`);
     expect(call.init.method).toBe('POST');
-    expect(bodyOf(call)).toEqual({ email: 'a@b.test', password: 'pw', gymSlug: 'downtown' });
+    expect(bodyOf(call)).toEqual({
+      audience: 'member',
+      email: 'a@b.test',
+      password: 'pw',
+      gymSlug: 'downtown',
+    });
     // The whole controller is @Public(); a Bearer here would be noise, and a
     // stale one would be noise the server has to parse.
     expect(call.init.headers).not.toHaveProperty('Authorization');
@@ -107,7 +112,7 @@ describe('createAuthApi — the wire contract', () => {
       {
         run: (api) => api.forgotPassword({ email: 'a@b.test' }),
         path: '/auth/forgot-password',
-        body: { email: 'a@b.test' },
+        body: { audience: 'member', email: 'a@b.test' },
       },
       {
         run: (api) => api.resetPassword({ token: 't', password: 'pw12345678' }),
@@ -116,11 +121,15 @@ describe('createAuthApi — the wire contract', () => {
       },
       // Both social routes take an **ID token**, not an authorization code —
       // the API verifies it against the provider's public keys itself.
-      { run: (api) => api.google({ idToken: 'g' }), path: '/auth/google', body: { idToken: 'g' } },
+      {
+        run: (api) => api.google({ idToken: 'g' }),
+        path: '/auth/google',
+        body: { audience: 'member', idToken: 'g' },
+      },
       {
         run: (api) => api.apple({ idToken: 'a', name: 'Nino' }),
         path: '/auth/apple',
-        body: { idToken: 'a', name: 'Nino' },
+        body: { audience: 'member', idToken: 'a', name: 'Nino' },
       },
       {
         run: (api) => api.logout({ refreshToken: 'r1' }),
