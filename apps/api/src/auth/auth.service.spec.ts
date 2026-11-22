@@ -1993,6 +1993,41 @@ describe('AuthService', () => {
       });
     });
 
+    describe('a staff invite token on the sign-in', () => {
+      it("redeems it for audience 'staff'", async () => {
+        ctx.findMany.mockResolvedValue([DOWNTOWN_STAFF]);
+        passwords({ 'staff-hash': 'supersecret' });
+        const redeem = vi
+          .spyOn(ctx.service as never, 'redeemStaffInvite' as never)
+          .mockResolvedValue(null);
+
+        await ctx.service.login(
+          { ...VALID_LOGIN, audience: 'staff', inviteToken: 'invite-tok' },
+          'downtown',
+        );
+
+        expect(redeem).toHaveBeenCalledWith('a@b.com', 'invite-tok', {
+          passwordHash: 'argon2-hash',
+        });
+        expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-ds', expect.anything());
+      });
+
+      it("never redeems it for audience 'member'", async () => {
+        ctx.findMany.mockResolvedValue([DOWNTOWN_MEMBER]);
+        passwords({ 'member-hash': 'supersecret' });
+        const redeem = vi.spyOn(ctx.service as never, 'redeemStaffInvite' as never);
+
+        await ctx.service.login(
+          { ...VALID_LOGIN, audience: 'member', inviteToken: 'invite-tok' },
+          'downtown',
+        );
+
+        expect(redeem).not.toHaveBeenCalled();
+        expect(argonHash).not.toHaveBeenCalled();
+        expect(ctx.issueTokenPair).toHaveBeenCalledWith('user-dm', expect.anything());
+      });
+    });
+
     it('carries the account tokenVersion into the session scope', async () => {
       ctx.findMany.mockResolvedValue([DOWNTOWN_MEMBER]);
       passwords({ 'member-hash': 'supersecret' });

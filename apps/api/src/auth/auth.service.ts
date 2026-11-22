@@ -1286,7 +1286,10 @@ export class AuthService {
     // password just proven for this address becomes that account's password when
     // it has none yet. Best-effort: a bad / mismatched token leaves login
     // unchanged, and the session below is still the account that signed in.
-    if (input.inviteToken) {
+    // Never from a member sign-in: staff invitations are accepted through the
+    // admin console (audience 'staff', or a client from before the split), so a
+    // member portal / mobile sign-in can never create or touch a staff account.
+    if (input.inviteToken && input.audience !== 'member') {
       await this.redeemStaffInvite(input.email, input.inviteToken, {
         passwordHash: await argon2.hash(input.password, { type: argon2.argon2id }),
       });
