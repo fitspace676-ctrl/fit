@@ -1886,22 +1886,63 @@ describe('AuthService', () => {
         expect(argonVerify).not.toHaveBeenCalledWith('staff-hash', expect.anything());
       });
 
-      it('skips accounts of suspended gyms and accounts without a password', async () => {
-        ctx.findMany.mockResolvedValue([
-          gymAccount('user-dm', 'downtown', 'member', 'member-hash', {
-            gym: { slug: 'downtown', name: 'Downtown', status: 'SUSPENDED' },
-          }),
-          gymAccount('user-rm', 'riverside', 'member', null),
-        ]);
+      it('skips accounts without a password, checking the platform account instead', async () => {
+        ctx.findMany.mockResolvedValue([gymAccount('user-rm', 'riverside', 'member', null)]);
         argonVerify.mockResolvedValue(false);
 
         const error = await ctx.service.login(VALID_LOGIN).catch((e: unknown) => e);
 
-        // No gym account to check: the (absent) platform account is checked instead,
-        // against the dummy hash.
+        // No gym account to check: the (absent) platform account is checked
+        // instead, against the dummy hash.
         expect(error).toBeInstanceOf(UnauthorizedException);
         expect(argonVerify).toHaveBeenCalledTimes(1);
-        expect(argonVerify).not.toHaveBeenCalledWith('member-hash', expect.anything());
+      });
+
+      it('answers 403 GYM_SUSPENDED for the correct password of an account in a suspended gym', async () => {
+        knownGyms(ctx, { downtown: { status: 'SUSPENDED' } });
+        ctx.findMany.mockResolvedValue([
+          gymAccount('user-dm', 'downtown', 'member', 'member-hash', {
+            gym: { slug: 'downtown', name: 'Downtown', status: 'SUSPENDED' },
+          }),
+        ]);
+        passwords({ 'member-hash': 'supersecret' });
+
+        const error = await ctx.service.login(VALID_LOGIN).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as ForbiddenException).getResponse()).toMatchObject({
+          code: 'GYM_SUSPENDED',
+        });
+        expect(ctx.issueTokenPair).not.toHaveBeenCalled();
+      });
+
+      it('still answers 401 for a wrong password on an account in a suspended gym', async () => {
+        ctx.findMany.mockResolvedValue([
+          gymAccount('user-dm', 'downtown', 'member', 'member-hash', {
+            gym: { slug: 'downtown', name: 'Downtown', status: 'SUSPENDED' },
+          }),
+        ]);
+        argonVerify.mockResolvedValue(false);
+
+        await expect(ctx.service.login(VALID_LOGIN)).rejects.toBeInstanceOf(UnauthorizedException);
+      });
+
+      it('ignores a suspended gym while a live gym account matches', async () => {
+        ctx.findMany.mockResolvedValue([
+          gymAccount('user-dm', 'downtown', 'member', 'same-hash', {
+            gym: { slug: 'downtown', name: 'Downtown', status: 'SUSPENDED' },
+          }),
+          gymAccount('user-rm', 'riverside', 'member', 'same-hash'),
+        ]);
+        passwords({ 'same-hash': 'supersecret' });
+        ctx.gymMemberFindMany.mockResolvedValue([scopeMembership('riverside', Role.MEMBER)]);
+
+        await ctx.service.login(VALID_LOGIN);
+
+        expect(ctx.issueTokenPair).toHaveBeenCalledWith(
+          'user-rm',
+          expect.objectContaining({ gymSlug: 'riverside' }),
+        );
       });
 
       it('falls back to the platform account when the address has no gym account', async () => {

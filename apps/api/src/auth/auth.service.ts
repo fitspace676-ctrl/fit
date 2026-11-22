@@ -1387,24 +1387,42 @@ export class AuthService {
       emailVerifiedAt: account.emailVerifiedAt,
     });
 
-    const candidates = accounts
+    const withPassword = accounts
       .flatMap((account) => {
         const realm = parseRealm(account.realm);
         if (!audienceAllows(realm, audience)) {
           return [];
         }
         const credential = ownCredential(account);
-        if (!credential?.passwordHash || credential.gym.status !== GymStatus.ACTIVE) {
+        if (!credential?.passwordHash) {
           return [];
         }
         return [{ account, credential, audience: realm.audience }];
       })
       // Member accounts first, so a gym where both match lands on the member one.
       .sort((a, b) => Number(a.audience === 'staff') - Number(b.audience === 'staff'));
+    const candidates = withPassword.filter((c) => c.credential.gym.status === GymStatus.ACTIVE);
 
     if (candidates.length === 0) {
-      return (await verify(platform?.passwordHash ?? null)) && platform
-        ? platformMatch(platform)
+      // No account in a live gym. The platform account is checked as before; so
+      // are accounts of suspended gyms, so that their correct password still
+      // answers 403 GYM_SUSPENDED (the caller's gate on the matched gym) rather
+      // than looking like a wrong password. One is enough: it ends in that 403.
+      const suspended = withPassword;
+      const [platformOk, ...results] = await Promise.all([
+        verify(platform?.passwordHash ?? null),
+        ...suspended.map((c) => verify(c.credential.passwordHash)),
+      ]);
+      if (platform && platformOk) {
+        return platformMatch(platform);
+      }
+      const hit = suspended.find((_, index) => results[index]);
+      return hit
+        ? {
+            userId: hit.account.id,
+            gymSlug: hit.credential.gym.slug,
+            emailVerifiedAt: hit.credential.emailVerifiedAt,
+          }
         : null;
     }
 
