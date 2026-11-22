@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../config/env', () => ({ env: { SENDER_API_URL: 'https://sender.ge/api/' } }));
 import { SenderClient } from './sender-client';
@@ -64,6 +65,39 @@ describe('SenderClient', () => {
       expect(await client.send('key', input)).toEqual({ ok: false, reason: 'rejected' });
     },
   );
+  it('accepts a numeric balance and message id', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { balance: 0 } })));
+    expect(await client.getBalance('key')).toEqual({ ok: true, balance: '0' });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ messageId: 42 }] })));
+    expect(await client.send('key', input)).toEqual({ ok: true, messageId: '42' });
+  });
+  it('never reads success fields from a refusal', async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ data: { balance: '5' } }), { status: 404 })),
+    );
+    expect(await client.getBalance('key')).toEqual({ ok: false, reason: 'bad_key' });
+  });
+  it('logs the status and shape of a refusal, never its values', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: 'secret-text 599123456' }), { status: 404 }),
+    );
+    await client.getBalance('private-key');
+    fetchMock.mockResolvedValueOnce(new Response('<html>private-key</html>'));
+    await client.getBalance('private-key');
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [{ statusId: 3, qnt: 'x' }] })),
+    );
+    await client.send('private-key', input);
+    const lines = warn.mock.calls.map((call) => String(call[0]));
+    expect(lines).toEqual([
+      'Sender getBalance refused: HTTP 404, body {message:string}',
+      'Sender getBalance refused: HTTP 200, body not-json',
+      'Sender send refused: HTTP 200, body {data:array(1) of {statusId:number,qnt:string}}',
+    ]);
+    expect(lines.join(' ')).not.toMatch(/private-key|599123456|secret-text|გამარჯობა/);
+    warn.mockRestore();
+  });
   it('does not expose or retry a transport failure', async () => {
     fetchMock.mockRejectedValue(new Error('private key and phone from upstream'));
     expect(await client.send('key', input)).toEqual({ ok: false, reason: 'unreachable' });
