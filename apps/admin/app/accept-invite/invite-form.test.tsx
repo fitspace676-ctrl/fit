@@ -44,7 +44,7 @@ describe('invite password modes', () => {
     expect(screen.queryByLabelText(en.admin.invite.confirm)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: en.admin.invite.forgotPassword })).toHaveAttribute(
       'href',
-      '/member/forgot-password?email=qa',
+      '/forgot-password?email=qa%40example.com',
     );
     fetchMock.mockResolvedValueOnce({ ok: false, status: 401 });
     fireEvent.change(password, { target: { value: 'wrong' } });

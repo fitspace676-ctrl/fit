@@ -25,7 +25,7 @@ import {
  * Admin auth gate.
  *
  * Two checks run in order on every non-public route:
- *   1. Authenticated — no valid session ⇒ redirect to the web app's sign-in.
+ *   1. Authenticated — no valid session ⇒ redirect to the console's sign-in.
  *   2. Staff — a plain `MEMBER` has no business in the admin console ⇒ `/403`.
  *
  * **There used to be a third: a minimum-role check per route prefix.** It is gone,
@@ -58,9 +58,8 @@ import {
  * cookie the browser will not drop cannot loop it.
  *
  * The console owns its **own sign-in** at `/admin/login` (inside this app's
- * basePath), so an unauthenticated request is bounced there. The member site's
- * `/{locale}/login` still signs staff in too — it sends a non-MEMBER session
- * straight here after login — but the console is no longer dependent on it.
+ * basePath), so an unauthenticated request is bounced there. Member accounts
+ * sign in separately on the member site and cannot enter the console.
  */
 
 /**
@@ -96,6 +95,8 @@ const BASE_PATH = process.env.ADMIN_BASE_PATH ?? '/admin';
  */
 const PUBLIC_PATHS = [
   '/login',
+  '/forgot-password',
+  '/reset-password',
   '/activate',
   '/accept-invite',
   '/onboarding',
