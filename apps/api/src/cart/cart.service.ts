@@ -396,7 +396,7 @@ export class CartService {
             cart.items.length > 1
               ? `${lines[0]!.label} +${cart.items.length - 1}`
               : (lines[0]?.label ?? 'Shop order'),
-          returnTo: input.returnTo ?? 'web',
+          returnTo: input.returnTo,
           order: {
             total,
             currency,

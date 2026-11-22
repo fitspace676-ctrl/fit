@@ -163,7 +163,7 @@ export class SubscriptionEnrollmentService {
    */
   async enrollSelf(
     planId: string,
-    returnTo: PaymentReturnTarget = 'web',
+    returnTo?: PaymentReturnTarget,
   ): Promise<SelfEnrollSubscriptionResponse> {
     const result = await this.purchase(planId, returnTo);
     if (result.kind === 'enrolled') return result.response;
@@ -174,7 +174,10 @@ export class SubscriptionEnrollmentService {
    * The member's own purchase of a plan (`POST /checkout`, productType
    * `subscription`) — see {@link purchase}.
    */
-  async purchaseSelf(planId: string, returnTo: PaymentReturnTarget): Promise<SelfPurchaseResult> {
+  async purchaseSelf(
+    planId: string,
+    returnTo: PaymentReturnTarget | undefined,
+  ): Promise<SelfPurchaseResult> {
     const result = await this.purchase(planId, returnTo);
     if (result.kind === 'enrolled') {
       return { subscriptionId: result.response.subscription.id, orderId: null };
@@ -198,7 +201,7 @@ export class SubscriptionEnrollmentService {
    */
   private async purchase(
     planId: string,
-    returnTo: PaymentReturnTarget,
+    returnTo: PaymentReturnTarget | undefined,
   ): Promise<
     | { kind: 'enrolled'; response: EnrollSubscriptionResponse }
     | { kind: 'payment'; orderId: string; payment: PaymentAction }

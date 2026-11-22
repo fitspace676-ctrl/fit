@@ -20,6 +20,7 @@ import {
 import {
   gymSettingsStoredSchema,
   ONLINE_PAYMENTS_UNAVAILABLE_CODE,
+  PAYMENT_CLIENT_OUTDATED_CODE,
   ORDER_NOT_PAYABLE_CODE,
   PAYMENT_IN_PROGRESS_CODE,
   PAYMENT_PROVIDER_UNAVAILABLE_CODE,
@@ -72,7 +73,12 @@ export interface OnlinePurchaseSpec {
   fulfilment: OrderFulfilment;
   /** Human product name for the provider's `order_desc` (gym name is prefixed). */
   description: string;
-  returnTo: PaymentReturnTarget;
+  /**
+   * Where the provider sends the buyer back. `undefined` is a client that
+   * predates online payments: {@link OnlinePaymentsService.begin} refuses it when
+   * a checkout would have to be opened.
+   */
+  returnTo: PaymentReturnTarget | undefined;
   order: {
     packageId?: string | null;
     locationId?: string | null;
@@ -214,9 +220,14 @@ export class OnlinePaymentsService {
       throw onlinePaymentsUnavailable('currency');
     }
 
+    const free = total <= 0;
+    const returnTo = spec.returnTo;
+    // Before anything is written: a client that cannot follow a checkout must not
+    // leave an unpaid order (and reserved stock) behind while showing "bought".
+    if (!free && !returnTo) throw clientOutdated();
+
     const attemptId = randomUUID();
     const expiresAt = new Date(Date.now() + CHECKOUT_LIFETIME_SECONDS * 1000);
-    const free = total <= 0;
 
     let freeEffects: FulfilmentEffects = NO_EFFECTS;
     const orderId = await this.prisma.client.$transaction(async (tx) => {
@@ -292,7 +303,7 @@ export class OnlinePaymentsService {
             currency: spec.order.currency,
             purpose: spec.purpose,
             fulfilment: spec.fulfilment,
-            returnTo: spec.returnTo,
+            returnTo: returnTo!,
             expiresAt,
           },
         });
@@ -350,13 +361,16 @@ export class OnlinePaymentsService {
     gymId: string;
     orderId: string;
     memberId: string;
-    returnTo: PaymentReturnTarget;
+    returnTo: PaymentReturnTarget | undefined;
   }): Promise<PaymentAction> {
     const { gymId, orderId } = input;
     const order = await this.loadOwnOrder(gymId, orderId, input.memberId);
     if (order.status === OrderStatus.PAID) {
       return { status: 'paid', orderId, checkoutUrl: null, expiresAt: null };
     }
+    const returnTo = input.returnTo;
+    // A client that cannot follow a checkout is never handed one (see `begin`).
+    if (!returnTo) throw clientOutdated();
     if (order.status !== OrderStatus.PENDING || order.payment?.provider !== 'flitt') {
       throw notPayable();
     }
@@ -418,7 +432,7 @@ export class OnlinePaymentsService {
           currency: order.payment!.currency,
           purpose: template.purpose,
           fulfilment: template.fulfilment ?? undefined,
-          returnTo: input.returnTo,
+          returnTo,
           expiresAt,
         },
       });
@@ -1136,6 +1150,13 @@ function onlinePaymentsUnavailable(reason?: string): ConflictException {
     code: ONLINE_PAYMENTS_UNAVAILABLE_CODE,
     message: 'This gym does not accept online payments right now',
     ...(reason ? { details: [reason] } : {}),
+  });
+}
+
+function clientOutdated(): ConflictException {
+  return new ConflictException({
+    code: PAYMENT_CLIENT_OUTDATED_CODE,
+    message: 'Update the app to pay online',
   });
 }
 

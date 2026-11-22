@@ -14,10 +14,11 @@ import {
   paymentMismatch,
   resolvePurchaseMode,
 } from './online-payments.service';
+import type * as EnvModule from '../config/env';
 
 const stub = vi.hoisted(() => ({ enabled: true }));
 vi.mock('../config/env', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../config/env')>();
+  const actual = await importOriginal<typeof EnvModule>();
   return { ...actual, onlinePaymentsStubEnabled: () => stub.enabled };
 });
 
@@ -145,6 +146,53 @@ describe('purchase policy', () => {
       mode: 'flitt',
       credentials: CREDS,
     });
+  });
+});
+
+describe('a client that predates online payments', () => {
+  const spec = {
+    gymId: 'gym-1',
+    memberId: 'mem-1',
+    purpose: 'shop' as const,
+    fulfilment: { kind: 'shop' as const },
+    description: 'Water',
+    order: { total: 900, currency: 'GEL', items: [] },
+    paymentLocationId: null,
+    promo: null,
+  };
+
+  it('is refused before an order, payment or stock movement is written', async () => {
+    const { service, $transaction } = setup({ active: true });
+    const error = await service
+      .begin({ ...spec, returnTo: undefined }, CREDS)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      code: 'PAYMENT_CLIENT_OUTDATED',
+    });
+    expect($transaction).not.toHaveBeenCalled();
+  });
+
+  it('is never handed the checkout of an order it left open', async () => {
+    const { service, prisma, $transaction } = setup({ active: true });
+    const findFirst = vi.fn(() =>
+      Promise.resolve({
+        id: 'order-1',
+        status: 'PENDING',
+        payment: { id: 'pay-1', provider: 'flitt', amount: 900, currency: 'GEL' },
+        items: [],
+        paymentAttempts: [attemptRow()],
+      }),
+    );
+    (prisma.client as unknown as { order: unknown }).order = { findFirst };
+    const error = await service
+      .retry({ gymId: 'gym-1', orderId: 'order-1', memberId: 'mem-1', returnTo: undefined })
+      .catch((e: unknown) => e);
+    expect(findFirst).toHaveBeenCalled();
+    expect((error as ConflictException).getResponse()).toMatchObject({
+      code: 'PAYMENT_CLIENT_OUTDATED',
+    });
+    expect($transaction).not.toHaveBeenCalled();
   });
 });
 
