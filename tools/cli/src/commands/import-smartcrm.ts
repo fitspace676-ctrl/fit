@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { PrismaClient, type Prisma } from '@fit/db';
+import { PrismaClient, gymRealm, realmForRole, type Prisma } from '@fit/db';
 import { z } from 'zod';
 import { boolFlag, stringFlag, type ParsedArgs } from '../args';
 import { CommandError, type CommandResult } from '../output';
@@ -118,9 +118,15 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     }
   }
   try {
+    // Accounts are per gym and per staff/member (see `@fit/db` account-realm): the
+    // owner is the gym's staff account, every imported person the gym's staff or
+    // member account for their address. Accounts elsewhere are never linked.
+    const ownerRealm = gymRealm(gymId, 'staff');
     const [gym, foundOwner] = await Promise.all([
       db.gym.findUnique({ where: { slug } }),
-      ownerEmail ? db.user.findUnique({ where: { email: ownerEmail } }) : Promise.resolve(null),
+      ownerEmail
+        ? db.user.findUnique({ where: { email_realm: { email: ownerEmail, realm: ownerRealm } } })
+        : Promise.resolve(null),
     ]);
     // The owner of a migrated gym has not signed up yet and must not be contacted:
     // create a password-less, unverified account they later claim by password reset.
@@ -134,7 +140,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         section: 'gym',
         run: () =>
           db.user.create({
-            data: { id: ownerUserId, email: ownerEmail, passwordHash: null, emailVerifiedAt: null },
+            data: {
+              id: ownerUserId,
+              email: ownerEmail,
+              realm: ownerRealm,
+              passwordHash: null,
+              emailVerifiedAt: null,
+            },
           }),
       });
     }
@@ -207,6 +219,9 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         ? data.staff.map((s) => ({
             source: s.sourceId,
             kind: 'staff',
+            // An unmapped role is imported as a suspended MEMBER (below), so it is
+            // a member account.
+            realm: realmForRole(gymId, staffRole(s.roleName) ?? 'MEMBER'),
             name: s.name,
             phone: s.phone,
             email: null as string | null,
@@ -217,6 +232,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         ? data.clients.map((s) => ({
             source: s.sourceId,
             kind: 'client',
+            realm: gymRealm(gymId, 'member'),
             name: s.fullName,
             phone: s.phone,
             email: s.email?.trim().toLowerCase() ?? null,
@@ -234,13 +250,19 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         ]),
       ),
     ];
+    // Keyed by realm and address: the same address may hold one staff and one
+    // member account in this gym.
     const users = new Map<string, string>();
+    const userKey = (realm: string, email: string) => `${realm}\n${email}`;
     for (let offset = 0; offset < candidates.length; offset += 500) {
       for (const u of await db.user.findMany({
-        where: { email: { in: candidates.slice(offset, offset + 500) } },
-        select: { id: true, email: true },
+        where: {
+          email: { in: candidates.slice(offset, offset + 500) },
+          realm: { in: [gymRealm(gymId, 'staff'), gymRealm(gymId, 'member')] },
+        },
+        select: { id: true, email: true, realm: true },
       }))
-        users.set(u.email, u.id);
+        users.set(userKey(u.realm, u.email), u.id);
     }
     const memberships = await db.gymMember.findMany({
       where: { gymId },
@@ -261,12 +283,12 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         p.email && z.string().email().safeParse(p.email).success
           ? p.email
           : syntheticEmail(slug, p.kind, p.source);
-      let userId = users.get(email);
+      let userId = users.get(userKey(p.realm, email));
       if (userId && claimed.has(userId)) {
         // One user cannot represent two source people within one gym.
         warn(section, 'SHARED_EMAIL_SEPARATE_IDENTITY', p.source);
         email = syntheticEmail(slug, p.kind, p.source);
-        userId = users.get(email);
+        userId = users.get(userKey(p.realm, email));
       }
       if (userId && claimed.has(userId))
         throw new CommandError('Import identity collision', {
@@ -278,13 +300,14 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         userRows.push({
           id: userId,
           email,
+          realm: p.realm,
           name: p.name,
           phone: p.phone,
           passwordHash: null,
           emailVerifiedAt: null,
           ...(p.date ? { createdAt: p.date } : {}),
         });
-        users.set(email, userId);
+        users.set(userKey(p.realm, email), userId);
       }
       claimed.add(userId);
       personUsers.set(memberId, userId);

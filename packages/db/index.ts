@@ -113,3 +113,16 @@ export {
   resumeExtensionDays,
   type FreezeAllowance,
 } from './prisma/subscription-freeze-policy';
+
+// Account realms: which separate set of accounts a `users` row belongs to (the
+// platform, one gym's staff, or one gym's members). Re-exported so the API, the
+// CLI and the seed build and read the realm string through one module.
+export {
+  PLATFORM_REALM,
+  audienceOfRole,
+  gymRealm,
+  parseRealm,
+  realmForRole,
+  type AccountAudience,
+  type ParsedRealm,
+} from './prisma/account-realm';

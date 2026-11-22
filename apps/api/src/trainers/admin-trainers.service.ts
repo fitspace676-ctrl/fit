@@ -33,6 +33,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
+import { staffRealm } from '../auth/account-realm';
 import { staffAtLocation } from '../common/location-filter.util';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
 import { assertOwnedMedia } from '../storage/media-ownership';
@@ -217,7 +218,7 @@ export class AdminTrainersService {
 
     const id = await this.prisma.client.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { email: placeholderEmail(), name: input.name },
+        data: { email: placeholderEmail(), realm: staffRealm(gymId), name: input.name },
         select: { id: true },
       });
       const staff = await tx.gymMember.create({

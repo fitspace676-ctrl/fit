@@ -71,6 +71,7 @@ import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { env } from '../config/env';
 import { RedisService } from '../redis/redis.service';
 import { buildPasswordResetUrl } from '../auth/email.service';
+import { memberRealm } from '../auth/account-realm';
 import { buildMemberWelcomeEmail } from '../mail/member-welcome';
 import { emailFrom, MailerService } from '../mail/mailer.service';
 import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
@@ -206,8 +207,9 @@ type LiveSubscription = MemberRecord['subscriptions'][number];
  * Prisma tenant extension, so a staff member can only ever read or mutate their
  * own gym's members — there is no `gymId` to pass or to forget. The roster is the
  * gym's `MEMBER`-role memberships (staff are managed separately in T4.7),
- * paginated server-side. `User` is cross-tenant, so create links an existing
- * person by email rather than duplicating them.
+ * paginated server-side. A member is the gym's member ACCOUNT (a `User` in the
+ * gym's member realm, see `auth/account-realm`), so create finds that account by
+ * email or makes one; staff of the gym and other gyms' accounts are never linked.
  *
  * Every "formacore" figure is a REAL tenant-scoped query: each row's `plan` +
  * `nextBilling` come from the member's live `Subscription`, `lastVisitAt` from the
@@ -342,18 +344,19 @@ export class MembersService {
   }
 
   /**
-   * Create a member (T4.3). The email is the cross-gym {@link Role.MEMBER User}
-   * identity: a person who already exists (a member of another gym, or one who
-   * was removed and is returning) is **linked** rather than duplicated — only a
-   * brand-new email mints a `User`. A duplicate within the caller's own gym is a
-   * `409 MEMBER_EXISTS`. Wrapped in a transaction so a failed membership insert
+   * Create a member (T4.3). The member is the gym's own member account for the
+   * email (a `User` in the gym's member realm): a member account whose membership
+   * was purged is reused, anything else mints a new account. An address that is
+   * on this gym's staff, or known at another gym, gets a separate member account
+   * and those accounts stay untouched. A duplicate within the caller's own gym is
+   * a `409 MEMBER_EXISTS`. Wrapped in a transaction so a failed membership insert
    * never leaves an orphan user behind. Returns the new member's detail (`201`).
    *
    * The whole flow runs on the tenant-scoped client: `gymMember` reads/writes are
    * auto-constrained to (and stamped with) the caller's gym, so there is no
    * `gymId` to pass — the duplicate check and the insert are both this-gym-only by
-   * construction. An existing user's `name`/`phone` is left untouched (it is their
-   * cross-gym identity); edit it afterwards via {@link updateMember} if needed.
+   * construction. A reused account's `name`/`phone` is left untouched; edit it
+   * afterwards via {@link updateMember} if needed.
    */
   async createMember(input: CreateMemberInput): Promise<CreateMemberResponse> {
     const { name, email, phone, status, planId, startDate, locationId } = input;
@@ -365,7 +368,11 @@ export class MembersService {
     const homeLocationId = await this.resolveHomeBranch(locationId);
 
     const created = await this.prisma.client.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({ where: { email }, select: { id: true } });
+      const realm = memberRealm(this.tenant.gymId);
+      const existing = await tx.user.findUnique({
+        where: { email_realm: { email, realm } },
+        select: { id: true },
+      });
 
       if (existing) {
         const already = await tx.gymMember.findFirst({
@@ -392,7 +399,7 @@ export class MembersService {
 
       const userId =
         existing?.id ??
-        (await tx.user.create({ data: { name, email, phone }, select: { id: true } })).id;
+        (await tx.user.create({ data: { name, email, phone, realm }, select: { id: true } })).id;
 
       // `gymId` is read from the request's tenant context. The tenant extension
       // also stamps it on create, so this is belt-and-braces — and it satisfies

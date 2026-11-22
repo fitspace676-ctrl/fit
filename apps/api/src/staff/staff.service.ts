@@ -45,6 +45,7 @@ import { TenantContext } from '../common/tenant/tenant.context';
 import { syncTrainerProfile, type TrainerSyncClient } from './trainer-profile-sync';
 import { assertPermission } from '../common/rbac/assert-permission';
 import { isPlaceholderEmail, placeholderEmail } from '../common/directory-identity';
+import { audienceOfRole, staffRealm } from '../auth/account-realm';
 import { assignedAtLocation } from '../common/location-filter.util';
 import { findDefaultLocationId } from '../locations/default-location';
 
@@ -293,9 +294,11 @@ export class StaffService {
    * roster but unable to sign in. Backed by a `User` with a null
    * `passwordHash` (the console shows First/Last from the membership, so the
    * `User` only needs a name for other surfaces); an omitted email gets a unique
-   * placeholder so the required+unique `User.email` still holds. A supplied email
-   * already in this gym is a `409 EMAIL_IN_USE`; an identity from another gym
-   * is linked with a separate, password-less credential. The selected
+   * placeholder so the required `User.email` still holds. The person gets (or,
+   * when archived, revives) the gym's STAFF account for the address: an address
+   * already on this gym's staff is a `409 EMAIL_IN_USE`, while one that is only a
+   * member of this gym, or known at another gym, gets a separate staff account of
+   * its own and the other accounts stay untouched. The selected
    * specialties, assigned locations and weekly working hours are written in the
    * same transaction. Returns the new staff member.
    */
@@ -313,8 +316,12 @@ export class StaffService {
           ? GymMemberStatus.INVITED
           : GymMemberStatus.ACTIVE;
 
+    const realm = staffRealm(gymId);
     const existingUser = email
-      ? await this.prisma.client.user.findUnique({ where: { email }, select: { id: true } })
+      ? await this.prisma.client.user.findUnique({
+          where: { email_realm: { email, realm } },
+          select: { id: true },
+        })
       : null;
     let archivedMemberId: string | null = null;
     if (existingUser) {
@@ -351,6 +358,7 @@ export class StaffService {
         (await tx.user.create({
           data: {
             email: email ?? placeholderEmail(),
+            realm,
             name: displayName || null,
             phone: input.phone?.trim() ? input.phone.trim() : null,
           },
@@ -472,11 +480,16 @@ export class StaffService {
     this.assertLiveLocations(locationIds, await this.liveLocationIds());
     this.assertMayHandleRole(role);
 
-    // Already a staff member of *this* gym? The scoped query constrains gymId, so
-    // this only ever sees our own gym's memberships. A plain MEMBER is allowed —
-    // accepting the invite upgrades them — so only staff roles collide.
+    // Already on *this* gym's staff? Only the gym's staff account counts: a member
+    // of the gym with the same address is a different account, and accepting the
+    // invite creates a separate staff account for them, leaving the member one
+    // untouched.
     const existingStaff = await this.prisma.client.gymMember.findFirst({
-      where: { archivedAt: null, role: { in: STAFF_ROLES }, user: { email } },
+      where: {
+        archivedAt: null,
+        role: { in: STAFF_ROLES },
+        user: { email, realm: staffRealm(this.tenant.gymId) },
+      },
       select: { id: true },
     });
     if (existingStaff) {
@@ -580,6 +593,14 @@ export class StaffService {
     const member = await this.requireStaff(memberId);
     this.assertMayHandleRole(member.role);
     this.assertMayHandleRole(input.role);
+    // A staff account and a member account are different accounts (different
+    // realms), so a role change may never cross between them.
+    if (audienceOfRole(member.role) !== audienceOfRole(input.role)) {
+      throw new ConflictException({
+        message: 'A member cannot become staff, or staff a member, by changing the role',
+        code: 'ROLE_CHANGES_ACCOUNT_TYPE',
+      });
+    }
 
     if (member.role === Role.OWNER && input.role !== Role.OWNER) {
       await this.assertNotLastOwner();
@@ -642,8 +663,10 @@ export class StaffService {
     // untouched (edit never rewrites a real address to a synthetic placeholder).
     const email = input.email?.trim() ? input.email.trim().toLowerCase() : undefined;
     if (email) {
+      // Unique inside the gym's staff accounts only: the same address on a member
+      // account of this gym, or at another gym, is someone else's account.
       const clash = await this.prisma.client.user.findUnique({
-        where: { email },
+        where: { email_realm: { email, realm: staffRealm(gymId) } },
         select: { id: true },
       });
       if (clash && clash.id !== existing.userId) {

@@ -7,6 +7,7 @@ import {
   SubscriptionStatus,
   SubscriptionInterval,
   generateClassInstances,
+  gymRealm,
   initialBillingPeriod,
 } from '@fit/db';
 import type { ParsedArgs } from '../args';
@@ -30,8 +31,9 @@ import { loadInfraEnv } from '../env-source';
  * write is an upsert / existence-guard, so a second run is a no-op that simply
  * reconciles counts. The owner must already exist — a real owner signs up through
  * the normal auth flow and picks their own password first (the runbook's step 1);
- * the command then wires the gym around that account, so it never fabricates an
- * owner credential.
+ * the command then gives the gym its own staff account for that address (accounts
+ * are per gym and per staff/member), carrying the name and the password they
+ * chose, so it never invents a password for the owner.
  *
  * Members and staff are provisioned without a password (verified accounts they
  * claim via password-reset), matching how the seed creates non-fixture members.
@@ -308,11 +310,16 @@ export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
 
   try {
     // ── Owner (must already exist; signs up through the real flow first) ──────
-    const owner = await prisma.user.findUnique({
+    // Any account with the address proves the sign-up happened. The owner of the
+    // gym is then the gym's own STAFF account (accounts are per realm, see
+    // `@fit/db` account-realm), made below from that account's name and password
+    // when it does not exist yet.
+    const signedUp = await prisma.user.findFirst({
       where: { email: params.ownerEmail },
-      select: { id: true, name: true },
+      orderBy: { createdAt: 'asc' },
+      select: { name: true, passwordHash: true, emailVerifiedAt: true },
     });
-    if (!owner) {
+    if (!signedUp) {
       throw new CommandError(`No user with email '${params.ownerEmail}'`, {
         code: 'OWNER_NOT_FOUND',
         detail: 'The owner must sign up through the normal registration flow first, then re-run.',
@@ -325,6 +332,48 @@ export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
       update: { name: params.name },
       create: { name: params.name, slug: params.slug },
       select: { id: true, ownerId: true },
+    });
+    const staffRealm = gymRealm(gym.id, 'staff');
+    // Refuse before writing anything when the gym already belongs to someone else.
+    const currentOwner = gym.ownerId
+      ? await prisma.user.findUnique({
+          where: { id: gym.ownerId },
+          select: { email: true, realm: true },
+        })
+      : null;
+    if (
+      currentOwner &&
+      (currentOwner.email !== params.ownerEmail || currentOwner.realm !== staffRealm)
+    ) {
+      throw new CommandError(`Gym '${params.slug}' is already owned by another account`, {
+        code: 'OWNER_MISMATCH',
+        detail: { gymId: gym.id },
+      });
+    }
+    const owner = await prisma.user.upsert({
+      where: { email_realm: { email: params.ownerEmail, realm: staffRealm } },
+      update: {},
+      create: {
+        email: params.ownerEmail,
+        realm: staffRealm,
+        name: signedUp.name,
+        passwordHash: signedUp.passwordHash,
+        emailVerifiedAt: signedUp.emailVerifiedAt ?? now,
+      },
+      select: { id: true, name: true, passwordHash: true },
+    });
+    // The owner signs in to the console with the gym's credential; an existing
+    // one is left exactly as it is.
+    await prisma.gymCredential.upsert({
+      where: { userId_gymId: { userId: owner.id, gymId: gym.id } },
+      update: {},
+      create: {
+        userId: owner.id,
+        gymId: gym.id,
+        passwordHash: owner.passwordHash,
+        name: owner.name,
+        emailVerifiedAt: now,
+      },
     });
     if (gym.ownerId && gym.ownerId !== owner.id) {
       throw new CommandError(`Gym '${params.slug}' is already owned by another account`, {
@@ -351,9 +400,9 @@ export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
     for (const staff of DEFAULT_STAFF) {
       const email = `${staff.emailLocal}@${params.slug}.pilot`;
       const user = await prisma.user.upsert({
-        where: { email },
+        where: { email_realm: { email, realm: staffRealm } },
         update: {},
-        create: { name: staff.name, email, emailVerifiedAt: now },
+        create: { name: staff.name, email, realm: staffRealm, emailVerifiedAt: now },
         select: { id: true },
       });
       await prisma.gymMember.upsert({
@@ -425,10 +474,11 @@ export async function runOnboard(args: ParsedArgs): Promise<CommandResult> {
     let subscriptionCount = 0;
     for (let i = 0; i < roster.length; i++) {
       const row = roster[i]!;
+      const memberRealm = gymRealm(gym.id, 'member');
       const user = await prisma.user.upsert({
-        where: { email: row.email },
+        where: { email_realm: { email: row.email, realm: memberRealm } },
         update: { name: row.name },
-        create: { name: row.name, email: row.email, emailVerifiedAt: now },
+        create: { name: row.name, email: row.email, realm: memberRealm, emailVerifiedAt: now },
         select: { id: true },
       });
       const membership = await prisma.gymMember.upsert({
