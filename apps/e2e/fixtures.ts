@@ -176,13 +176,26 @@ export async function seedMemberCatalogue(runId: number): Promise<MemberCatalogu
  * verify or enrol, so those steps are simulated here. Idempotent.
  */
 export async function provisionMember(email: string, gymId: string): Promise<void> {
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, emailVerifiedAt: true },
-  });
-  if (!user) {
+  // Accounts are per gym and per audience: the member account of this gym, or a
+  // registration made on the bare host (a platform account), which is moved in.
+  const realm = `${gymId}:member`;
+  const found =
+    (await prisma.user.findUnique({
+      where: { email_realm: { email, realm } },
+      select: { id: true, emailVerifiedAt: true },
+    })) ??
+    (await prisma.user.findUnique({
+      where: { email_realm: { email, realm: 'platform' } },
+      select: { id: true, emailVerifiedAt: true },
+    }));
+  if (!found) {
     throw new Error(`provisionMember: no user for "${email}" — did the register step run first?`);
   }
+  const user = await prisma.user.update({
+    where: { id: found.id },
+    data: { realm },
+    select: { id: true, emailVerifiedAt: true },
+  });
 
   // The emailed verification link, clicked.
   if (!user.emailVerifiedAt) {
@@ -251,20 +264,22 @@ export async function provisionMember(email: string, gymId: string): Promise<voi
  * Idempotent.
  */
 export async function provisionMultiGymMember(email: string, gymSlugs: string[]): Promise<void> {
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
-    create: {
-      email,
-      name: `E2E Tenant Member`,
-      passwordHash: DEV_PASSWORD_HASH,
-      emailVerifiedAt: new Date(),
-    },
-  });
-
   const now = Date.now();
   for (const [index, slug] of gymSlugs.entries()) {
     const gymId = await gymIdBySlug(slug);
+    // One member account per gym: the same address at two gyms is two accounts.
+    const realm = `${gymId}:member`;
+    const user = await prisma.user.upsert({
+      where: { email_realm: { email, realm } },
+      update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+      create: {
+        email,
+        realm,
+        name: `E2E Tenant Member`,
+        passwordHash: DEV_PASSWORD_HASH,
+        emailVerifiedAt: new Date(),
+      },
+    });
     // A day apart, oldest first — the order is the whole point of the fixture.
     const joinedAt = new Date(now - (gymSlugs.length - index) * 24 * 60 * 60 * 1000);
     await prisma.gymMember.upsert({

@@ -741,8 +741,8 @@ describe('per-gym, per-audience accounts (integration)', () => {
     it('with no gym at all, each member account gets its own link, and each resets one account', async () => {
       await h.auth.requestPasswordReset({ email: EMAIL });
       expect(h.mail.map((m) => m.gymSlug).sort()).toEqual(['downtown', 'riverside']);
-      const riversideMail = h.lastMail('reset', EMAIL);
-      expect(riversideMail.gymSlug).toBe('riverside');
+      // The two mails go out in no particular order; pick riverside's by its gym.
+      const riversideMail = h.mail.find((m) => m.kind === 'reset' && m.gymSlug === 'riverside')!;
 
       await h.auth.resetPassword({ token: riversideMail.token, password: 'new-riverside-only' });
 
