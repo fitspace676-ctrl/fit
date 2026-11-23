@@ -20,6 +20,7 @@ import {
   buildOwnerOnboardingUrl,
   buildOwnerLiveOnboardingUrl,
   buildPasswordResetUrl,
+  buildStaffPasswordResetUrl,
   buildVerificationEmail,
   buildPasswordResetEmail,
   buildOwnerOnboardingEmail,
@@ -574,6 +575,34 @@ describe('buildOwnerOnboardingUrl', () => {
   it('url-encodes the token', () => {
     configure({ OWNER_ONBOARDING_URL: 'https://console.fit/activate' });
     expect(buildOwnerOnboardingUrl('a b+c')).toBe('https://console.fit/activate?token=a%20b%2Bc');
+  });
+});
+
+describe('buildStaffPasswordResetUrl', () => {
+  afterEach(() => configure());
+
+  it("links a staff account to the admin console's reset page on the gym's host", () => {
+    configure({ PLATFORM_ROOT_DOMAIN: 'formacore.io', WEB_URL: 'https://app.formacore.io' });
+    expect(buildStaffPasswordResetUrl('a b+c', 'downtown')).toBe(
+      'https://downtown.formacore.io/admin/reset-password?token=a%20b%2Bc',
+    );
+  });
+
+  it('ignores the member-site PASSWORD_RESET_URL override', () => {
+    configure({
+      PASSWORD_RESET_URL: 'https://m.fit/reset',
+      PLATFORM_ROOT_DOMAIN: 'formacore.io',
+    });
+    expect(buildStaffPasswordResetUrl('abc', 'downtown')).toBe(
+      'https://downtown.formacore.io/admin/reset-password?token=abc',
+    );
+  });
+
+  it('falls back to ADMIN_URL with no root domain', () => {
+    configure({ ADMIN_URL: 'https://console.fit/' });
+    expect(buildStaffPasswordResetUrl('abc', 'downtown')).toBe(
+      'https://console.fit/admin/reset-password?token=abc',
+    );
   });
 });
 

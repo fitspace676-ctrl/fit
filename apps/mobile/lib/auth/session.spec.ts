@@ -323,7 +323,7 @@ describe('signIn', () => {
     const result = await signIn({ ...credentials, gymSlug: 'downtown' });
     await result.gymScope;
     expect(fetchImpl.mock.calls[1]?.[1]?.body).toBe(
-      JSON.stringify({ ...credentials, gymSlug: 'downtown' }),
+      JSON.stringify({ ...credentials, gymSlug: 'downtown', audience: 'member' }),
     );
     expect(storage.map.get('last_gym_slug')).toBe('downtown');
     expect(resolveGymSlug()).toBe('downtown');

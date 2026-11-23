@@ -15,8 +15,7 @@ export const metadata: Metadata = {
  *
  * Staff accounts are provisioned by invitation from the console itself, so
  * there is no "create an account" here; that fact is the form's footer line.
- * Password recovery is the member site's reset flow, which sets the same
- * session - the field-level "forgot?" link points there.
+ * Password recovery uses the console's own forgot/reset-password pages.
  */
 export default async function AdminLoginPage() {
   const t = await getTranslations('admin.login');

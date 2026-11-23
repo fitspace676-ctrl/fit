@@ -708,11 +708,15 @@ describe('MembersService', () => {
         }),
       );
 
-      expect(userFindUnique.mock.calls[0]?.[0]?.where).toMatchObject({ email: 'new@example.com' });
+      // The gym's member realm only (accounts are per gym and per staff/member).
+      expect(userFindUnique.mock.calls[0]?.[0]?.where).toEqual({
+        email_realm: { email: 'new@example.com', realm: 'gym-1:member' },
+      });
       expect(userCreate.mock.calls[0]?.[0]?.data).toMatchObject({
         name: 'New Person',
         email: 'new@example.com',
         phone: '555',
+        realm: 'gym-1:member',
       });
       expect(gymMemberCreate.mock.calls[0]?.[0]?.data).toMatchObject({
         userId: 'u-new',
@@ -723,7 +727,29 @@ describe('MembersService', () => {
       expect(result.subscriptions).toEqual([]);
     });
 
-    it('links an existing user (no duplicate user) when the email is already known', async () => {
+    it('creates a separate member account for an address that is staff of this gym', async () => {
+      // The staff account lives in 'gym-1:staff': the member realm finds nothing.
+      const { service, userCreate, userUpdate, gymMemberCreate } = setup({
+        userFindUnique: null,
+        userCreate: { id: 'u-member' },
+        gymMemberCreate: { id: 'gm-member' },
+        findFirst: row({ id: 'gm-member', userId: 'u-member' }),
+      });
+
+      await service.createMember(createInput({ email: 'coach@example.com' }));
+
+      expect(userCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+        email: 'coach@example.com',
+        realm: 'gym-1:member',
+      });
+      expect(userUpdate).not.toHaveBeenCalled();
+      expect(gymMemberCreate.mock.calls[0]?.[0]?.data).toMatchObject({
+        userId: 'u-member',
+        role: Role.MEMBER,
+      });
+    });
+
+    it("reuses this gym's member account (e.g. after a purge) instead of duplicating it", async () => {
       const { service, userCreate, gymMemberCreate, findFirst } = setup({
         userFindUnique: { id: 'u-existing' },
         findFirst: row({ id: 'gm-2', userId: 'u-existing' }),

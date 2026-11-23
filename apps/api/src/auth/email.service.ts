@@ -141,6 +141,10 @@ export class EmailService {
    * {@link sendVerificationEmail}: the gym whose site the reset was asked for on,
    * when the account belongs to it (see `AuthService.requestPasswordReset`).
    * `gymName` names that gym as the sender, as there.
+   *
+   * `audience` is which of the gym's accounts the token resets: a staff account's
+   * link goes to the admin console's reset page, a member account's (and a
+   * platform account's) to the member site's, as before.
    */
   async sendPasswordResetEmail(
     to: string,
@@ -149,8 +153,12 @@ export class EmailService {
     locale: EmailLocale = DEFAULT_EMAIL_LOCALE,
     gymSlug?: string | null,
     gymName?: string | null,
+    audience: 'staff' | 'member' = 'member',
   ): Promise<void> {
-    const url = buildPasswordResetUrl(token, gymSlug);
+    const url =
+      audience === 'staff'
+        ? buildStaffPasswordResetUrl(token, gymSlug)
+        : buildPasswordResetUrl(token, gymSlug);
     if (!this.isConfigured) {
       this.logger.warn(
         `Resend not configured (RESEND_API_KEY unset) — password-reset link for ${to}: ${url}`,
@@ -428,6 +436,19 @@ export function buildVerificationUrl(token: string, gymSlug?: string | null): st
  */
 export function buildPasswordResetUrl(token: string, gymSlug?: string | null): string {
   const base = memberLinkBase('member/reset-password', env.PASSWORD_RESET_URL, gymSlug);
+  return `${base}?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * The password-reset deep link for a gym's STAFF account: the admin console's own
+ * reset page on the gym's host (`https://<slug>.<root><ADMIN_BASE_PATH>/reset-password`),
+ * addressed by {@link buildConsoleUrl} like the owner onboarding link, with the
+ * same localhost fallback for an unconfigured dev / CI build.
+ */
+export function buildStaffPasswordResetUrl(token: string, gymSlug?: string | null): string {
+  const base =
+    buildConsoleUrl('reset-password', gymSlug) ??
+    `http://localhost:3002${env.ADMIN_BASE_PATH}/reset-password`;
   return `${base}?token=${encodeURIComponent(token)}`;
 }
 

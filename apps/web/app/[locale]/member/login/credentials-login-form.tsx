@@ -76,10 +76,6 @@ export function CredentialsLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Carried from a staff invite link (T4.7): `/member/login?inviteToken=…` when the
-  // invited address already has an account. Forwarded to the API so signing in
-  // redeems the invite onto it. `inviteError` flags an invalid / expired link.
-  const inviteToken = searchParams.get('inviteToken') ?? undefined;
   const inviteError = searchParams.get('inviteError');
   // Set by the reset form when the new password was saved but no session could be
   // issued on this gym (`sessionIssued: false`).
@@ -98,7 +94,7 @@ export function CredentialsLoginForm() {
   const signIn = (gymSlug?: string): void => {
     setPending(true);
     setError(null);
-    loginWithCredentials(email, password, inviteToken, gymSlug)
+    loginWithCredentials(email, password, gymSlug)
       .then(async () => {
         const destination = await postLoginPath(safeFrom(searchParams.get('from')), locale);
         router.replace(destination);

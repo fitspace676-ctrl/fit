@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -156,7 +157,9 @@ export function InviteForm() {
               onChange={(event) => setPassword(event.target.value)}
               revealLabels={{ show: tAuth('showPassword'), hide: tAuth('hidePassword') }}
             />
-            <a href={invitation.forgotPasswordUrl}>{t('forgotPassword')}</a>
+            <Link href={`/forgot-password?email=${encodeURIComponent(invitation.email)}`}>
+              {t('forgotPassword')}
+            </Link>
           </>
         )
       )}

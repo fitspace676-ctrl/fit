@@ -1,4 +1,4 @@
-import { PrismaClient } from '@fit/db';
+import { PLATFORM_REALM, PrismaClient } from '@fit/db';
 import type { ParsedArgs } from '../args';
 import { stringFlag } from '../args';
 import { CommandError, type CommandResult } from '../output';
@@ -14,6 +14,9 @@ const USAGE = 'usage: fit admin <grant --email <email> | revoke --email <email> 
  *
  * Operates directly on the database (the user must already exist — register them
  * through the normal flow first), so it needs `DATABASE_URL`; it is an operator
+ * tool. Only a PLATFORM account (a bare registration, realm `platform`) can be
+ * granted: a gym's staff or member account with the same address is a different
+ * account and is never touched. It is an operator
  * tool, never reachable over the API (which would be a privilege-escalation
  * hole). Connects with the local-target connection string from the shared env.
  */
@@ -31,13 +34,14 @@ export async function run(args: ParsedArgs): Promise<CommandResult> {
           throw new CommandError('--email is required', { code: 'BAD_ARGUMENT', detail: USAGE });
         }
         const user = await prisma.user.findUnique({
-          where: { email },
+          where: { email_realm: { email, realm: PLATFORM_REALM } },
           select: { id: true, isSuperAdmin: true },
         });
         if (!user) {
-          throw new CommandError(`No user with email '${email}'`, {
+          throw new CommandError(`No platform account with email '${email}'`, {
             code: 'USER_NOT_FOUND',
-            detail: 'Register the user through the normal sign-up flow first, then grant.',
+            detail:
+              'Register a platform account (sign-up with no gym) first, then grant. Gym staff and member accounts cannot be granted.',
           });
         }
         const isSuperAdmin = sub === 'grant';

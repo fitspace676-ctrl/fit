@@ -142,7 +142,7 @@ export async function loginWithGoogle(idToken: string): Promise<TokenPair> {
   const response = await fetch(`${API_URL}/auth/google`, {
     method: 'POST',
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken, ...(gymSlug ? { gymSlug } : {}) }),
+    body: JSON.stringify({ audience: 'member', idToken, ...(gymSlug ? { gymSlug } : {}) }),
   });
 
   if (!response.ok) {
@@ -168,7 +168,12 @@ export async function loginWithApple(idToken: string, name?: string): Promise<To
   const response = await fetch(`${API_URL}/auth/apple`, {
     method: 'POST',
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken, ...(name ? { name } : {}), ...(gymSlug ? { gymSlug } : {}) }),
+    body: JSON.stringify({
+      audience: 'member',
+      idToken,
+      ...(name ? { name } : {}),
+      ...(gymSlug ? { gymSlug } : {}),
+    }),
   });
 
   if (!response.ok) {
@@ -192,8 +197,6 @@ export async function registerWithCredentials(input: {
   name: string;
   email: string;
   password: string;
-  /** Staff-invite token (T4.7), forwarded when the sign-up came from an invite link. */
-  inviteToken?: string;
 }): Promise<{ message: string }> {
   const gymSlug = currentGymSlug();
   const response = await fetch(`${API_URL}/auth/register`, {
@@ -223,7 +226,6 @@ export async function registerWithCredentials(input: {
 export async function loginWithCredentials(
   email: string,
   password: string,
-  inviteToken?: string,
   chosenGymSlug?: string,
 ): Promise<TokenPair> {
   const gymSlug = currentGymSlug() || chosenGymSlug || null;
@@ -231,10 +233,10 @@ export async function loginWithCredentials(
     method: 'POST',
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      audience: 'member',
       email,
       password,
       ...(gymSlug ? { gymSlug } : {}),
-      ...(inviteToken ? { inviteToken } : {}),
     }),
   });
 
@@ -258,10 +260,15 @@ export async function requestPasswordReset(
   email: string,
   gymSlug?: string,
 ): Promise<{ message: string }> {
+  const targetGymSlug = currentGymSlug() || gymSlug;
   const response = await fetch(`${API_URL}/auth/forgot-password`, {
     method: 'POST',
     headers: accountHeaders(),
-    body: JSON.stringify({ email, ...(gymSlug ? { gymSlug } : {}) }),
+    body: JSON.stringify({
+      audience: 'member',
+      email,
+      ...(targetGymSlug ? { gymSlug: targetGymSlug } : {}),
+    }),
   });
 
   if (!response.ok) {
@@ -333,27 +340,8 @@ export async function logout(): Promise<void> {
   await fetch(SESSION_ENDPOINT, { method: 'DELETE', credentials: 'same-origin' });
 }
 
-/**
- * Where to send a user right after they sign in.
- *
- * An explicit, already-validated `from` (the path the middleware stashed when it
- * bounced them to login) always wins. Otherwise we look at the freshly-set
- * session: **staff** (any role other than `MEMBER`) land in the admin console at
- * `/admin` — the tenant proxy serves it at the same origin — while members go to
- * their localized member home (`/<locale>/member/home`). The session is read from the verified `GET /api/session`
- * (the sign-in has already persisted the cookie); any failure falls back to the
- * member home, so a hiccup never traps someone on the login page.
- */
-export async function postLoginPath(from: string | null, locale: string): Promise<string> {
-  if (from) return from;
-  try {
-    const res = await fetch(SESSION_ENDPOINT, { credentials: 'same-origin' });
-    if (res.ok) {
-      const { user } = (await res.json()) as { user: { role?: string } | null };
-      if (user?.role && user.role !== 'MEMBER') return '/admin';
-    }
-  } catch {
-    /* fall through to the member home */
-  }
-  return `/${locale}/member/home`;
+/** Return to a member route after sign-in; the console owns a separate account. */
+export function postLoginPath(from: string | null, locale: string): Promise<string> {
+  if (from && /^\/(?:[a-z]{2}\/)?member(?:[/?#]|$)/.test(from)) return Promise.resolve(from);
+  return Promise.resolve(`/${locale}/member/home`);
 }

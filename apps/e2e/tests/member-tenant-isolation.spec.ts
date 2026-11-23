@@ -165,13 +165,16 @@ test.describe('Tenant isolation across gym subdomains', () => {
           await context.close();
         }
       }
-      const user = await db.user.findUniqueOrThrow({ where: { email } });
-      expect(await db.gymMember.count({ where: { userId: user.id } })).toBe(2);
-      expect(await db.gymCredential.count({ where: { userId: user.id } })).toBe(2);
+      // One address, two gyms: two separate member accounts, one membership each.
+      const users = await db.user.findMany({ where: { email }, select: { id: true } });
+      expect(users).toHaveLength(2);
+      const userIds = users.map((user) => user.id);
+      expect(await db.gymMember.count({ where: { userId: { in: userIds } } })).toBe(2);
+      expect(await db.gymCredential.count({ where: { userId: { in: userIds } } })).toBe(2);
       // Simulate the inbox clicks only; registrations above must create both
       // memberships and both passwords. Actual token redemption is covered by integration tests.
       await db.gymCredential.updateMany({
-        where: { userId: user.id },
+        where: { userId: { in: userIds } },
         data: { emailVerifiedAt: new Date() },
       });
       for (const gym of credentials) {

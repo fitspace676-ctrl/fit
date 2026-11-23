@@ -306,7 +306,11 @@ async function readJson(response: Response): Promise<unknown> {
 export function createAuthApi(deps: AuthApiDeps): AuthApi {
   return {
     login: (input, options) =>
-      request(deps, '/auth/login', { method: 'POST', json: input, options }),
+      request(deps, '/auth/login', {
+        method: 'POST',
+        json: { ...input, audience: 'member' },
+        options,
+      }),
 
     // RegisterInput carries the gym resolved by the session layer, just like login.
     register: (input, options) =>
@@ -319,7 +323,11 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
       request(deps, '/auth/verify', { method: 'GET', query: { token }, options }),
 
     forgotPassword: (input, options) =>
-      request(deps, '/auth/forgot-password', { method: 'POST', json: input, options }),
+      request(deps, '/auth/forgot-password', {
+        method: 'POST',
+        json: { ...input, audience: 'member' },
+        options,
+      }),
 
     resetPassword: (input, options) =>
       request(deps, '/auth/reset-password', { method: 'POST', json: input, options }),
@@ -334,7 +342,11 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     // active membership. That is a server-side contract, not a client bug: do
     // not go looking for a lost parameter.
     google: (input, options) =>
-      request(deps, '/auth/google', { method: 'POST', json: input, options }),
+      request(deps, '/auth/google', {
+        method: 'POST',
+        json: { ...input, audience: 'member' },
+        options,
+      }),
 
     // `appleAuthSchema` is `{ idToken, name? }`. `name` is optional because
     // Apple puts the display name in **neither** the ID token nor any
@@ -344,7 +356,11 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     // repair is for the user to revoke the app in iOS Settings. Same primary-gym
     // note as `google` above.
     apple: (input, options) =>
-      request(deps, '/auth/apple', { method: 'POST', json: input, options }),
+      request(deps, '/auth/apple', {
+        method: 'POST',
+        json: { ...input, audience: 'member' },
+        options,
+      }),
 
     logout: (input, options) =>
       request(deps, '/auth/logout', { method: 'POST', json: input, options }),
