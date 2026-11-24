@@ -128,7 +128,11 @@ describe('Smart CRM pure mapping', () => {
   });
 
   it('does not pretend instalments are a supported payment method', () => {
-    expect(paymentMethod('instalment')).toBeNull();
+    expect(paymentMethod('instalment')).toBe('BANK_TRANSFER');
+    expect(paymentMethod('თბს განაწილება')).toBe('BANK_TRANSFER');
+    expect(paymentMethod('ნაწილ ნაწილი ბანკი')).toBe('BANK_TRANSFER');
+    expect(paymentMethod('კლუბი ნაწილ-ნაწილ (4 თვიანი)')).toBe('BANK_TRANSFER');
+    expect(paymentMethod('voucher')).toBeNull();
     expect(paymentMethod('cash')).toBe('CASH');
     expect(paymentMethod('Example terminal')).toBe('CARD');
     expect(paymentMethod('bank transfer')).toBe('BANK_TRANSFER');

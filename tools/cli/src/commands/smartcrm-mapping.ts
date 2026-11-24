@@ -311,6 +311,9 @@ export function paymentMethod(value: string): 'CASH' | 'CARD' | 'BANK_TRANSFER' 
   if (/terminal|ტერმინალ|^flitt$/i.test(value.trim())) return 'CARD';
   // 'გადმორიცხვა' is how the source names a bank transfer ('BOG გადმორიცხვა').
   if (/bank transfer|გადარიცხვა|გადმორიცხვა/i.test(value)) return 'BANK_TRANSFER';
+  // Instalment plans ('თბს განაწილება', 'ნაწილ ნაწილი …', 'ნაწილ-ნაწილ'): the money the
+  // source counts as received reaches the gym's account, not its till or terminal.
+  if (/instal+ment|განაწილება|ნაწილ[ -]ნაწილ/i.test(value)) return 'BANK_TRANSFER';
   return null;
 }
 /** Visit rows have no source id: preserve identical rows with a stable occurrence ordinal. */
