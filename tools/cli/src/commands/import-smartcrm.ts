@@ -93,6 +93,30 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
   const protectedIds = new Set<string>();
   const env = loadInfraEnv('local');
   const db = new PrismaClient({ datasources: { db: { url: env.DATABASE_URL } } });
+  /** With --sync: how many rows change per table and column (names only, never values). */
+  const fieldChanges: Record<string, number> = {};
+  /** Changes not applied because of `--keep` or an unchanged source stock. */
+  const keptChanges: Record<string, number> = {};
+  const keep = new Set(
+    (stringFlag(args.flags, 'keep') ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  const previousPath = stringFlag(args.flags, 'previous');
+  let previousStock: Map<string, number> | null = null;
+  if (previousPath) {
+    try {
+      previousStock = new Map(
+        parseSmartCrm(readFileSync(previousPath, 'utf8')).products.map((p) => [
+          p.sourceId,
+          p.stock,
+        ]),
+      );
+    } catch {
+      throw new CommandError('Cannot read --previous file', { code: 'BAD_IMPORT' });
+    }
+  }
   const writes: Array<{ section: Section; run: () => Promise<unknown> }> = [];
   // Reads and planning also run for --dry-run. No write closure executes until all planning succeeds.
   async function bulk<T extends { id: string }>(
@@ -114,8 +138,31 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         const desired = { ...fields } as Record<string, unknown>;
         for (const key of ['gymId', 'userId', 'memberId', 'createdAt']) delete desired[key];
         const changes = sourceChanges(old, desired) as Partial<T>;
+        const table = row.id.slice(prefix.length).split('_')[0]!;
+        // Columns edited in our product since the import stay ours (`--keep table.column`).
+        for (const key of Object.keys(changes)) {
+          if (!keep.has(`${table}.${key}`)) continue;
+          delete (changes as Record<string, unknown>)[key];
+          keptChanges[`${table}.${key}`] = (keptChanges[`${table}.${key}`] ?? 0) + 1;
+        }
+        // Stock follows the source only where the source itself moved since `--previous`;
+        // otherwise the difference is our own sales and reservations.
+        if (previousStock && 'stock' in changes) {
+          const product = data.products.find(
+            (p) =>
+              id('product', p.sourceId) === row.id || id('productStock', p.sourceId) === row.id,
+          );
+          if (product && previousStock.get(product.sourceId) === product.stock) {
+            delete (changes as Record<string, unknown>).stock;
+            keptChanges[`${table}.stock`] = (keptChanges[`${table}.stock`] ?? 0) + 1;
+          }
+        }
         if (!Object.keys(changes).length) continue;
         counts[section].updated++;
+        for (const key of Object.keys(changes)) {
+          const name = `${table}.${key}`;
+          fieldChanges[name] = (fieldChanges[name] ?? 0) + 1;
+        }
         if (
           section === 'products' &&
           row.id.startsWith(`${prefix}product_`) &&
@@ -1076,6 +1123,8 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         ? {
             sync,
             stockChanges,
+            fieldChanges,
+            keptChanges,
             removedIdFormat:
               'imported database id (original source ids were hashed and not stored)',
           }
