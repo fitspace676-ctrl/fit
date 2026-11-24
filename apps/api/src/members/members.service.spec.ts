@@ -1,3 +1,4 @@
+import { activeMemberWhere } from '../common/live-membership.util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { GymMemberStatus, Role } from '@fit/db';
@@ -371,6 +372,14 @@ describe('MembersService', () => {
   afterEach(() => vi.clearAllMocks());
 
   describe('listMembers', () => {
+    it('uses the dashboard live-membership query for the header active figure', async () => {
+      const { service, count } = setup();
+      await service.listMembers(query({ locationId: 'loc-1' }));
+      expect(count).toHaveBeenCalledWith({
+        where: activeMemberWhere(expect.any(Date) as Date, 'loc-1'),
+      });
+    });
+
     it('projects rows to denormalised MemberRows and echoes pagination totals', async () => {
       const { service } = setup({
         findMany: [
@@ -402,10 +411,10 @@ describe('MembersService', () => {
         page: 1,
         limit: 20,
         planMix: { total: 0, plans: [] },
-        // `frozen` is a dedicated `gymMember.count` (live FROZEN subscription),
+        // `active` and `frozen` are dedicated `gymMember.count` queries,
         // which shares the single `count` stub with the pagination total (1 here);
         // the other buckets come from the empty `groupBy` stub.
-        counts: { all: 0, active: 0, frozen: 1, trial: 0, expired: 0 },
+        counts: { all: 0, active: 1, frozen: 1, trial: 0, expired: 0 },
       });
     });
 

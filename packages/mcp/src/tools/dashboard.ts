@@ -16,7 +16,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Dashboard stats',
     titleKa: 'დაფის სტატისტიკა',
     description:
-      'Read headline counts: members, trainers, branches and products, active and total. For quick size questions; period KPIs are get_dashboard_overview, tables for a date window run_report.',
+      'Read headline counts: members, trainers, branches and products, active and total. Active members hold a membership in force now (frozen excluded). Period KPIs are get_dashboard_overview, tables for a date window run_report.',
     method: 'get',
     path: '/dashboard/stats',
   },
@@ -26,7 +26,7 @@ export const dashboardTools = defineTools('insights', [
     title: 'Get dashboard overview',
     titleKa: 'დაფის მიმოხილვა',
     description:
-      "Headline KPIs of the overview tab for the current period: occupancy, revenue, check-ins, new members, today's classes, alerts. Start here for how the gym is doing; tables are run_report, trends get_analytics.",
+      "Headline KPIs of the overview tab for the current period: occupancy, revenue, check-ins, new members, today's classes, alerts. Active members excludes frozen. Start here for how the gym is doing; tables are run_report, trends get_analytics.",
     method: 'get',
     path: '/dashboard/overview',
     query: dashboardOverviewQuerySchema,

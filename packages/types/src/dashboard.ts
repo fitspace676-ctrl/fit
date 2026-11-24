@@ -191,7 +191,7 @@ export type DashboardKpis = z.infer<typeof dashboardKpisSchema>;
  * descriptive hint rather than a fabricated trend).
  */
 export const dashboardSecondaryKpisSchema = z.object({
-  /** Active `MEMBER`-role members (status ACTIVE). */
+  /** Non-deleted ACTIVE member accounts with a membership in force; excludes frozen. */
   activeMembers: z.number().int().nonnegative(),
   /** Captured revenue this calendar month (MINOR units), delta vs. last month. */
   revenueThisMonth: dashboardKpiSchema,

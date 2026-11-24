@@ -788,7 +788,7 @@
         "noPriorData": "no prior data"
       },
       "secondaryKpi": {
-        "activeMembers": "Active members",
+        "activeMembers": "Members with active membership",
         "revenueThisMonth": "Revenue this month",
         "overduePayments": "Overdue payments",
         "classesToday": "Classes today",
@@ -1568,7 +1568,7 @@
         "title": "Members",
         "subtitle": "Your gym’s member roster.",
         "subtitleEmpty": "No members on the roster yet.",
-        "subtitleCounts": "{all} total · {active} active",
+        "subtitleCounts": "{all} total accounts · {active} with active membership",
         "addMember": "Add member",
         "planMix": "Plan mix",
         "paid": "paid",

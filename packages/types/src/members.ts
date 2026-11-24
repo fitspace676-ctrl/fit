@@ -235,7 +235,8 @@ export interface MemberPlanMix {
  * so the tabs render "All 128 / Active 96 / Frozen 4 / Trial 2 / Expired 26"
  * without a per-tab request. `frozen` counts members with a live `FROZEN`
  * subscription; `trial` / `expired` mirror the `INVITED` / `SUSPENDED` roster
- * states (the reference's segment labels); `all` / `active` mirror the roster.
+ * states (the reference's segment labels); `all` counts accounts and `active`
+ * counts accounts with a membership currently in force.
  */
 export interface MemberTabCounts {
   /** Every `MEMBER`-role membership. */
@@ -246,7 +247,7 @@ export interface MemberTabCounts {
   guest: number;
   /** Suspended, or every subscription lapsed — the "Inactive" segment. */
   inactive: number;
-  /** `ACTIVE` memberships. */
+  /** Non-deleted ACTIVE accounts with a membership currently in force; excludes frozen. */
   active: number;
   /** Members whose live subscription is `FROZEN`. */
   frozen: number;
