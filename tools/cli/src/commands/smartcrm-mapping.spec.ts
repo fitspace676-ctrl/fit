@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateWarnings,
+  sourceChanges,
+  isLiveSubscription,
+  syncSaleDisposition,
   selectSubscriptionSales,
   packageSubscriptionDetails,
   soldSubscriptionDetails,
@@ -313,5 +316,45 @@ describe('Smart CRM pure mapping', () => {
         .selected.map((s) => s.sourceId)
         .sort(),
     ).toEqual(['3', '4', '5', '6']);
+  });
+});
+
+describe('Smart CRM sync decisions', () => {
+  it('counts only changed source columns and compares dates and arrays by value', () => {
+    const previous = {
+      name: 'Example',
+      startsAt: new Date('2026-01-01Z'),
+      tags: ['one'],
+      native: 7,
+    };
+    expect(
+      sourceChanges(previous, {
+        name: 'Example',
+        startsAt: new Date('2026-01-01Z'),
+        tags: ['one'],
+      }),
+    ).toEqual({});
+    expect(sourceChanges(previous, { name: 'Updated', tags: [], missing: undefined })).toEqual({
+      name: 'Updated',
+      tags: [],
+    });
+    expect(sourceChanges({ frozenAt: new Date('2026-01-01Z') }, { frozenAt: null })).toEqual({
+      frozenAt: null,
+    });
+  });
+
+  it('demotes displaced existing sales but keeps displaced new sales note-only', () => {
+    expect(syncSaleDisposition(false, false, true)).toBe('expired');
+    expect(syncSaleDisposition(false, false, false)).toBe('note-only');
+    expect(syncSaleDisposition(true, false, false)).toBe('source');
+    expect(syncSaleDisposition(true, false, true)).toBe('source');
+  });
+
+  it('never promotes or inserts live import access over a native live subscription', () => {
+    expect(syncSaleDisposition(true, true, true)).toBe('expired');
+    expect(syncSaleDisposition(true, true, false)).toBe('note-only');
+    for (const status of ['ACTIVE', 'FROZEN', 'PAST_DUE', 'TRIAL'])
+      expect(isLiveSubscription(status)).toBe(true);
+    for (const status of ['EXPIRED', 'CANCELED']) expect(isLiveSubscription(status)).toBe(false);
   });
 });

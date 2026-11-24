@@ -534,3 +534,24 @@ export function saleNoteText(
 export function productDescriptionText(product: SmartCrmData['products'][number]): string {
   return product.barcode ? `შტრიხკოდი: ${product.barcode}` : '';
 }
+
+/** Compare only explicitly supplied source columns, preserving DB-owned fields. */
+export function sourceChanges<T extends object>(existing: object, desired: T): Partial<T> {
+  const before = existing as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(desired).filter(
+      ([key, value]) =>
+        value !== undefined && JSON.stringify(before[key]) !== JSON.stringify(value),
+    ),
+  ) as Partial<T>;
+}
+
+export function isLiveSubscription(status: string): boolean {
+  return ['ACTIVE', 'FROZEN', 'PAST_DUE', 'TRIAL'].includes(status);
+}
+
+/** A displaced imported sale stays as history; a native live entitlement wins. */
+export function syncSaleDisposition(selected: boolean, nativeLive: boolean, existed: boolean) {
+  if (selected && !nativeLive) return 'source' as const;
+  return existed ? ('expired' as const) : ('note-only' as const);
+}
