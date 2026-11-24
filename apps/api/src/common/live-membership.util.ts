@@ -7,7 +7,9 @@ import { atLocation } from './location-filter.util';
  * Also exclude future periods: a scheduled membership is not in force yet. */
 export function liveSubscriptionWhere(now: Date): Prisma.SubscriptionWhereInput {
   return {
-    status: { in: [SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] },
+    status: {
+      in: [SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+    },
     currentPeriodStart: { lte: now },
     currentPeriodEnd: { gte: now },
   };
