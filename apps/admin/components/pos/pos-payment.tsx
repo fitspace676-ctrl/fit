@@ -28,6 +28,7 @@ import {
   selectTotal,
   usePosCart,
 } from '@/stores/pos-cart-store';
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 /** A finished sale, snapshotted at completion so the success screen survives the cart reset. */
@@ -839,6 +840,7 @@ function PaymentSuccess({
   onFinish: () => void;
 }) {
   const t = useTranslations('admin.pos.payment');
+  const timeZone = useGymTimeZone();
   const labelKey = METHODS.find((entry) => entry.method === sale.method)?.labelKey;
   const methodLabel = labelKey ? t(labelKey) : sale.method;
   const summary = sale.memberName
@@ -889,7 +891,7 @@ function PaymentSuccess({
           <Button
             variant="secondary"
             size="inline"
-            onClick={() => printReceipt(sale, 'Receipt')}
+            onClick={() => printReceipt(sale, 'Receipt', timeZone)}
             icon={<Icon name="download" {...stylex.props(styles.kitGlyph)} />}
             label={t('success.print')}
           />
@@ -987,7 +989,7 @@ function ReceiptSender({ sale }: { sale: CompletedSale }) {
  * Deliberately plain HTML with inline styles — a receipt is 58mm of monospace text,
  * and it must not depend on the app's stylesheet having loaded into the new window.
  */
-function printReceipt(sale: CompletedSale, gymLabel: string): void {
+function printReceipt(sale: CompletedSale, gymLabel: string, timeZone: string): void {
   const money = (minor: number): string => formatPrice(minor, sale.currency);
   const lines = sale.receipt.items
     .map(
@@ -1031,6 +1033,7 @@ function printReceipt(sale: CompletedSale, gymLabel: string): void {
     <h1>${escapeHtml(gymLabel)}</h1>
     <div class="muted">${escapeHtml(
       createDateTimeFormat(defaultLocale, {
+        timeZone,
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',

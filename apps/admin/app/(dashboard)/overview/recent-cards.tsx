@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
@@ -231,6 +232,7 @@ export function RecentCheckInsBody({ data }: { data: DashboardOverviewResponse }
 export function RecentMembersBody({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const locale = useLocale();
+  const timeZone = useGymTimeZone();
   const rows = data.recentMembers;
   return rows.length === 0 ? (
     <EmptyState>{t('recentMembers.empty')}</EmptyState>
@@ -239,7 +241,7 @@ export function RecentMembersBody({ data }: { data: DashboardOverviewResponse })
       {rows.map((row) => {
         const detail = `${row.planName ?? t('recentMembers.noPlan')}${
           row.expiresAt
-            ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt) })}`
+            ? ` · ${t('recentMembers.expires', { date: formatDate(locale, row.expiresAt, timeZone) })}`
             : ''
         }`;
         return (

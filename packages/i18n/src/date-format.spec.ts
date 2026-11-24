@@ -82,3 +82,81 @@ describe('createDateTimeFormat', () => {
     );
   });
 });
+
+describe('explicit gym time zones', () => {
+  const instant = new Date('2026-11-24T23:30:00Z');
+
+  it('crosses midnight in Tbilisi, including weekday, without changing UTC defaults', () => {
+    const options = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    } as const;
+    expect(
+      createDateTimeFormat('en', { ...options, timeZone: 'Asia/Tbilisi' }).format(instant),
+    ).toBe('Wednesday, Nov 25, 2026, 03:30');
+    expect(
+      createDateTimeFormat('ka', { ...options, timeZone: 'Asia/Tbilisi' }).format(instant),
+    ).toBe('ოთხშაბათი, 25 ნოე. 2026, 03:30');
+    expect(createDateTimeFormat('en', options).format(instant)).toBe(
+      'Tuesday, Nov 24, 2026, 23:30',
+    );
+    expect(createDateTimeFormat('en', { ...options, timeZone: 'UTC' }).format(instant)).toBe(
+      createDateTimeFormat('en', options).format(instant),
+    );
+  });
+
+  it.each([
+    ['2026-03-29T00:30:00Z', '01:30'],
+    ['2026-03-29T01:30:00Z', '03:30'],
+    ['2026-10-25T00:30:00Z', '02:30'],
+    ['2026-10-25T01:30:00Z', '02:30'],
+  ])('uses Berlin daylight-saving rules at %s', (iso, expected) => {
+    const formatter = createDateTimeFormat('ka', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Berlin',
+    });
+    expect(formatter.format(new Date(iso))).toBe(expected);
+  });
+
+  it('uses midnight 00 rather than hour 24 and keeps the receipt time with numeric dates', () => {
+    expect(
+      createDateTimeFormat('ka', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Tbilisi',
+      }).format(new Date('2026-11-24T20:00:00Z')),
+    ).toBe('25.11.2026, 00:00');
+  });
+
+  it('rolls back the calendar date in a negative-offset gym', () => {
+    expect(
+      createDateTimeFormat('en', {
+        dateStyle: 'medium',
+        timeZone: 'America/New_York',
+      }).format(new Date('2026-11-24T01:30:00Z')),
+    ).toBe('Nov 23, 2026');
+  });
+
+  it('rejects invalid zones instead of silently displaying UTC or the viewer zone', () => {
+    expect(() => createDateTimeFormat('en', { timeZone: 'Invalid/Zone' })).toThrow(RangeError);
+  });
+
+  describe.each(locales)('%s explicit zone parity', (locale) => {
+    it.each(SHAPES)('matches numeric-field zone conversion for %o', (options) => {
+      for (const timeZone of ['Asia/Tbilisi', 'Europe/Berlin', 'America/New_York']) {
+        const formatter = createDateTimeFormat(locale, { ...options, timeZone });
+        const intl = new Intl.DateTimeFormat(locale, { ...options, timeZone });
+        for (const date of DATES) expect(formatter.format(date)).toBe(intl.format(date));
+      }
+    });
+  });
+});

@@ -68,7 +68,7 @@ const styles = stylex.create({
   errorText: { margin: 0, fontSize: '0.875rem', color: 'var(--color-error)' },
 });
 
-/** `HH:MM` on the gym's clock - `createDateTimeFormat` reads UTC, so it must not do this. */
+/** Fixed 24-hour clock matching the calendar grid's gym-local row labels. */
 const clock = (iso: string, timeZone: string) => zonedClock(new Date(iso), timeZone);
 
 /** The slot's detail drawer: service, staff, when, member, invoice; cancel / complete. */

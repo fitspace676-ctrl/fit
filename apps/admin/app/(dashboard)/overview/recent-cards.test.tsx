@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import type { DashboardOverviewResponse } from '@fit/types';
+import { GymTimeZoneProvider } from '@/components/gym-timezone';
 import { RecentCheckInsBody, RecentMembersBody } from './recent-cards';
 
 const messages = {
   admin: {
     dashboard: {
       recentCheckIns: { empty: 'No check-ins yet.', noPlan: 'No plan' },
-      recentMembers: { empty: 'No members yet.', noPlan: 'No plan' },
+      recentMembers: { empty: 'No members yet.', noPlan: 'No plan', expires: 'Expires {date}' },
       timeAgo: { minutes: '{count}m ago', hours: '{count}h ago', days: '{count}d ago' },
     },
   },
@@ -52,6 +53,17 @@ function renderBody(node: React.ReactNode) {
 // the only place the console says who checked in or who joined, so it has to give
 // the name back — as a tooltip that floats, and as a link that opens the person.
 describe('recent feeds', () => {
+  it('shows the gym-local expiry date across UTC midnight', () => {
+    const payload = data();
+    payload.recentMembers[0]!.expiresAt = '2026-11-24T23:30:00Z';
+    renderBody(
+      <GymTimeZoneProvider timeZone="Asia/Tbilisi">
+        <RecentMembersBody data={payload} />
+      </GymTimeZoneProvider>,
+    );
+    expect(screen.getByRole('link').getAttribute('title')).toContain('Expires Nov 25, 2026');
+  });
+
   it.each([
     ['check-ins', <RecentCheckInsBody key="c" data={data()} />],
     ['members', <RecentMembersBody key="m" data={data()} />],

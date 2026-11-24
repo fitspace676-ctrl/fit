@@ -34,13 +34,15 @@ export function EmptyState({ children }: { children: ReactNode }) {
   return createElement('div', stylex.props(styles.empty), children);
 }
 
-export function formatTime(locale: string, iso: string): string {
-  return createDateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+export function formatTime(locale: string, iso: string, timeZone: string): string {
+  return createDateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone }).format(
+    new Date(iso),
+  );
 }
 
 /** Locale-formatted short date for the recent-members "expires" line. */
-export function formatDate(locale: string, iso: string): string {
-  return createDateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
+export function formatDate(locale: string, iso: string, timeZone: string): string {
+  return createDateTimeFormat(locale, { dateStyle: 'medium', timeZone }).format(new Date(iso));
 }
 
 /** Map a `GymMemberStatus` string to an Astryx Badge variant. */

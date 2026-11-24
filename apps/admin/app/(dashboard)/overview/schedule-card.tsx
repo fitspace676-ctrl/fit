@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useLocale, useTranslations } from 'next-intl';
 import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
@@ -106,6 +107,7 @@ const styles = stylex.create({
 export function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
   const t = useTranslations('admin.dashboard');
   const locale = useLocale();
+  const timeZone = useGymTimeZone();
   const rows = data.todaysSchedule;
 
   return (
@@ -126,7 +128,7 @@ export function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
                   style={{ backgroundColor: row.color ?? 'var(--color-accent)' }}
                 />
                 <span {...stylex.props(styles.scheduleTime)}>
-                  {formatTime(locale, row.startsAt)}
+                  {formatTime(locale, row.startsAt, timeZone)}
                 </span>
                 <span {...stylex.props(styles.scheduleMain)}>
                   <span {...stylex.props(styles.scheduleTitle)}>{row.title}</span>

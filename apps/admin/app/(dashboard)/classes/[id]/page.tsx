@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -173,6 +174,7 @@ export default async function ClassTemplateDetailPage({
   const { id } = await params;
   const t = await getTranslations('admin.classes');
   const locale = await getLocale();
+  const timeZone = await getGymTimeZone();
   const nf = createNumberFormat(locale);
 
   let template;
@@ -292,7 +294,7 @@ export default async function ClassTemplateDetailPage({
       ) : null}
 
       <p {...stylex.props(styles.footerText)}>
-        {t('detailPage.addedAt', { date: formatDateTime(template.createdAt, locale) })}
+        {t('detailPage.addedAt', { date: formatDateTime(template.createdAt, locale, timeZone) })}
       </p>
     </div>
   );

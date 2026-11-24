@@ -16,8 +16,8 @@
 // across every option shape the codebase uses — so the tables cannot drift from
 // CLDR without the suite saying so.
 //
-// Everything here is pure: no `Intl` call on any code path, hence identical
-// output in Node, in a browser, and in a test.
+// Locale names and patterns are deterministic. Explicit zones use Intl only
+// for numeric Gregorian fields, never for locale-dependent presentation.
 
 import { defaultLocale, isLocale, type Locale } from '../index';
 
@@ -86,10 +86,9 @@ export interface DateTimeFormatOptions {
   /** CLDR's medium date: the same fields as `{ year, month: 'short', day }`. */
   dateStyle?: 'medium';
   /**
-   * Only `'UTC'` is honoured; anything else formats in UTC too and is a bug at the
-   * call site. The whole reporting layer is UTC — see `report-window.util.ts` —
-   * and a formatter that silently applied the viewer's zone would put a bucket on
-   * the wrong day.
+   * An explicit IANA zone for instants. Omitted means UTC, preserving report
+   * buckets and date-only values. Never defaults to the viewer's zone.
+   * Invalid zones throw RangeError, matching Intl.DateTimeFormat.
    */
   timeZone?: string;
 }
@@ -107,7 +106,7 @@ function pad(value: number): string {
  * locale the platform does not ship.
  *
  * Drop-in for `new Intl.DateTimeFormat(locale, options)` across the console.
- * Everything is read in UTC; see {@link DateTimeFormatOptions.timeZone}.
+ * UTC unless an explicit zone is provided; see {@link DateTimeFormatOptions.timeZone}.
  */
 export function createDateTimeFormat(
   locale: string,
@@ -119,8 +118,35 @@ export function createDateTimeFormat(
       ? { ...options, year: 'numeric', month: 'short', day: 'numeric' }
       : options;
 
+  // Pin every numeric field, calendar and hour cycle. This needs no Georgian
+  // ICU data and never reads the server/browser's local time zone.
+  const zoneFields =
+    opts.timeZone && opts.timeZone !== 'UTC'
+      ? new Intl.DateTimeFormat('en-US', {
+          timeZone: opts.timeZone,
+          calendar: 'gregory',
+          numberingSystem: 'latn',
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric',
+          hourCycle: 'h23',
+        })
+      : null;
+
   return {
     format(value: Date): string {
+      if (zoneFields) {
+        const fields = zoneFields.formatToParts(value);
+        const field = (type: Intl.DateTimeFormatPartTypes): number =>
+          Number(fields.find((part) => part.type === type)!.value);
+        // A wall-clock token, not an instant: all existing CLDR rendering below
+        // reads UTC fields from this token, including its local weekday.
+        value = new Date(0);
+        value.setUTCFullYear(field('year'), field('month') - 1, field('day'));
+        value.setUTCHours(field('hour'), field('minute'), 0, 0);
+      }
       const parts: string[] = [];
 
       const weekday =
@@ -156,7 +182,12 @@ export function createDateTimeFormat(
         const separator = resolved === 'ka' ? '.' : '/';
         const ordered = resolved === 'ka' ? [day, month, year] : [month, day, year];
         const numeric = ordered.join(separator);
-        return weekday === undefined ? numeric : `${weekday}, ${numeric}`;
+        const date = weekday === undefined ? numeric : `${weekday}, ${numeric}`;
+        // Preserve legacy no-zone output. Explicit-zone instant callers also
+        // need their requested clock (numeric dates formerly dropped it).
+        if (opts.timeZone === undefined) return date;
+        const time = formatTime(resolved, value, opts);
+        return time === '' ? date : `${date}, ${time}`;
       }
 
       // Field ORDER is the locale's, and the separators depend on what they sit

@@ -26,8 +26,9 @@ export const STATUS_STYLES: Record<
   PAUSED: { labelKey: 'status.PAUSED', tone: 'pending' },
 };
 
-function formatShortDate(date: Date, locale: string): string {
+function formatShortDate(date: Date, locale: string, timeZone = 'UTC'): string {
   return createDateTimeFormat(locale, {
+    timeZone,
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -35,16 +36,20 @@ function formatShortDate(date: Date, locale: string): string {
 }
 
 /** Render an ISO instant as a short local date, or `-` when absent. */
-export function formatDateTime(iso: string | null, locale: string = defaultLocale): string {
+export function formatDateTime(
+  iso: string | null,
+  locale: string = defaultLocale,
+  timeZone = 'UTC',
+): string {
   if (!iso) return '-';
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '-' : formatShortDate(date, locale);
+  return Number.isNaN(date.getTime()) ? '-' : formatShortDate(date, locale, timeZone);
 }
 
 /** Render a `YYYY-MM-DD` validity date as a short local date, or `-` when absent. */
 export function formatDate(date: string | null, locale: string = defaultLocale): string {
   if (!date) return '-';
-  const parsed = new Date(`${date}T00:00:00`);
+  const parsed = new Date(`${date}T00:00:00.000Z`);
   return Number.isNaN(parsed.getTime()) ? date : formatShortDate(parsed, locale);
 }
 
