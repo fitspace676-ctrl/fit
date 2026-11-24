@@ -1,40 +1,21 @@
-'use client';
-
-import { createContext, useContext, type ReactNode, type ImgHTMLAttributes } from 'react';
-import { consoleBrandAssets } from '@/lib/brand-skins';
+import type { ImgHTMLAttributes } from 'react';
 import { adminPath } from '@/lib/base-path';
 
-interface ConsoleBrand {
-  slug: string | null;
-  name?: string;
-  logoUrl?: string | null;
-}
-const Context = createContext<ConsoleBrand>({ slug: null });
-
-export function ConsoleBrandProvider({
-  brand,
-  children,
-}: {
-  brand: ConsoleBrand;
-  children: ReactNode;
-}) {
-  return <Context.Provider value={brand}>{children}</Context.Provider>;
-}
-
-/** Uploaded logos win; the sign-in photograph always needs the white-ink pair. */
+/**
+ * The staff console's logo — always FormaCore. The console is FormaCore's
+ * product whatever gym it is managing, so no uploaded gym logo or bundled gym
+ * skin ever replaces it here (the member portal and apps carry the gym's brand).
+ * `mode` picks the ink for the surface: `dark` for dark backgrounds.
+ */
 export function ConsoleLogo({
   mode,
-  slug,
   ...props
-}: ImgHTMLAttributes<HTMLImageElement> & {
-  mode: 'light' | 'dark';
-  slug?: string | null;
-}) {
-  const brand = useContext(Context);
-  const skin = consoleBrandAssets(slug ?? brand.slug);
-  const src =
-    brand.logoUrl ??
-    (mode === 'dark' ? skin?.onDark : skin?.onLight) ??
-    adminPath(mode === 'dark' ? '/logodark.png' : '/logolight.png');
-  return <img {...props} src={src} alt={brand.name ?? skin?.name ?? props.alt ?? 'FormaCore'} />;
+}: ImgHTMLAttributes<HTMLImageElement> & { mode: 'light' | 'dark' }) {
+  return (
+    <img
+      {...props}
+      src={adminPath(mode === 'dark' ? '/logodark.png' : '/logolight.png')}
+      alt="FormaCore"
+    />
+  );
 }

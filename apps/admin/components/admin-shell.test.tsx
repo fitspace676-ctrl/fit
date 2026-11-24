@@ -15,12 +15,7 @@ const messages = { admin: { common: { skipToContent: 'Skip to content' } } };
 function renderShell(banner?: React.ReactNode) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <AdminShell
-        gymSlug="iron-gym"
-        system={{ online: true, checkInCount: 3 }}
-        locations={[]}
-        banner={banner}
-      >
+      <AdminShell system={{ online: true, checkInCount: 3 }} locations={[]} banner={banner}>
         <p data-testid="page">Page body</p>
       </AdminShell>
     </NextIntlClientProvider>,
