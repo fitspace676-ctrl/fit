@@ -6,6 +6,8 @@ import { CommandError, type CommandResult } from '../output';
 import { loadInfraEnv } from '../env-source';
 import {
   aggregateWarnings,
+  monthlyPayments,
+  shopItemQuantity,
   sourceChanges,
   isLiveSubscription,
   syncSaleDisposition,
@@ -68,6 +70,8 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
   // Dependencies are explicit in the summary, and use the same insert-only policy.
   const dependencies: Partial<Record<Section, Section[]>> = {
     clients: ['staff'],
+    cardSales: ['clients', 'paymentTypes'],
+    shopSales: ['products', 'staff', 'paymentTypes'],
     soldPackages: ['clients', 'packages', 'paymentTypes', 'discounts'],
     visits: ['clients'],
     workouts: ['staff', 'groups'],
@@ -117,6 +121,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
       throw new CommandError('Cannot read --previous file', { code: 'BAD_IMPORT' });
     }
   }
+  const revenueByMonth: Partial<Record<Section, ReturnType<typeof monthlyPayments>>> = {};
   const writes: Array<{ section: Section; run: () => Promise<unknown> }> = [];
   // Reads and planning also run for --dry-run. No write closure executes until all planning succeeds.
   async function bulk<T extends { id: string }>(
@@ -1112,6 +1117,137 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
       warn('products', 'BARCODE_DESCRIPTION_ONLY_NO_BARCODE_COLUMN');
       warn('products', 'NO_SOURCE_CREATED_AT_USING_IMPORT_TIME');
     }
+    // Direct ledger inserts: imported stock already reflects these historical sales.
+    for (const section of ['cardSales', 'shopSales'] as const) {
+      if (!selected.has(section)) continue;
+      const methods = new Map(data.paymentTypes.map((p) => [p.sourceId, p.name]));
+      const staffIds = new Set(data.staff.map((s) => s.sourceId));
+      const orders: Array<Prisma.OrderCreateManyInput & { id: string }> = [];
+      const items: Array<Prisma.OrderItemCreateManyInput & { id: string }> = [];
+      const events: Array<Prisma.OrderStatusEventCreateManyInput & { id: string }> = [];
+      const payments: Array<
+        Prisma.PaymentCreateManyInput & {
+          id: string;
+          amount: number;
+          createdAt: Date;
+          status: 'CAPTURED';
+        }
+      > = [];
+      const kind = section === 'cardSales' ? 'card' : 'shop';
+      const sales =
+        section === 'cardSales'
+          ? data.clients.flatMap((client) =>
+              client.cards.map((card) => ({
+                sourceId: card.sourceId,
+                total: card.paidAmount,
+                soldAt: card.recordedAt,
+                paymentTypeSourceId: card.paymentTypeSourceId,
+                memberId: id('client', client.sourceId),
+                staffSourceId: null,
+                lines: [
+                  {
+                    sourceId: card.sourceId,
+                    productSourceId: null,
+                    productName: 'წვდომის ბარათის საფასური',
+                    quantity: 1,
+                    amount: card.paidAmount,
+                  },
+                ],
+              })),
+            )
+          : (data.shopSales ?? []).map((sale) => ({ ...sale, memberId: null }));
+      for (const sale of sales) {
+        const amount = minorUnits(sale.total);
+        const method = paymentMethod(methods.get(sale.paymentTypeSourceId ?? '') ?? '');
+        if (amount <= 0 || !method || !sale.soldAt) {
+          warn(
+            section,
+            amount <= 0
+              ? 'NON_POSITIVE_PAYMENT_SKIPPED'
+              : !method
+                ? 'PAYMENT_METHOD_UNMAPPED_SKIPPED'
+                : 'PAYMENT_DATE_MISSING_SKIPPED',
+            sale.sourceId,
+          );
+          counts[section].skipped++;
+          continue;
+        }
+        const createdAt = instant(sale.soldAt);
+        const orderId = id(`${kind}Order`, sale.sourceId);
+        const soldById =
+          sale.staffSourceId && staffIds.has(sale.staffSourceId)
+            ? id('staff', sale.staffSourceId)
+            : null;
+        if (sale.staffSourceId && !soldById)
+          warn(section, 'SELLER_NOT_FOUND_IMPORTED_WITHOUT_SELLER', sale.sourceId);
+        orders.push({
+          id: orderId,
+          gymId,
+          locationId,
+          memberId: sale.memberId,
+          soldById,
+          total: amount,
+          currency: 'GEL',
+          status: 'PAID',
+          fulfillment: 'PICKUP',
+          createdAt,
+        });
+        payments.push({
+          id: id(`${kind}Payment`, sale.sourceId),
+          gymId,
+          locationId,
+          orderId,
+          amount,
+          currency: 'GEL',
+          status: 'CAPTURED',
+          method,
+          provider: 'smartcrm-import',
+          providerRef: sale.sourceId,
+          createdAt,
+        });
+        events.push({
+          id: id(`${kind}OrderEvent`, sale.sourceId),
+          orderId,
+          status: 'PAID',
+          at: createdAt,
+          actor: soldById ? (personUsers.get(soldById) ?? null) : null,
+        });
+        for (const line of sale.lines) {
+          const qty = shopItemQuantity(line.quantity);
+          if (qty !== line.quantity)
+            warn(section, 'FRACTIONAL_QUANTITY_ROUNDED_AMOUNT_PRESERVED', sale.sourceId);
+          items.push({
+            id: id(`${kind}OrderItem`, `${sale.sourceId}:${line.sourceId}`),
+            orderId,
+            label: line.quantity === 1 ? line.productName : `${line.productName} ×${line.quantity}`,
+            amount: minorUnits(line.amount),
+            qty,
+            createdAt,
+            productVariantId: line.productSourceId
+              ? `${id('product', line.productSourceId)}:base`
+              : null,
+          });
+        }
+      }
+      const existingPayments = await db.payment.findMany({
+        where: { gymId, id: { startsWith: `${prefix}${kind}Payment_` } },
+        select: { id: true, amount: true, createdAt: true, status: true },
+      });
+      revenueByMonth[section] = monthlyPayments(payments, existingPayments, data.gym.timezone);
+      await bulk(section, orders, db.order.findMany(scoped), (rows) =>
+        db.order.createMany({ data: rows }),
+      );
+      const childrenScope = { where: { order: { gymId } }, select: { id: true } } as const;
+      await bulk(section, items, db.orderItem.findMany(childrenScope), (rows) =>
+        db.orderItem.createMany({ data: rows }),
+      );
+      await bulk(section, events, db.orderStatusEvent.findMany(childrenScope), (rows) =>
+        db.orderStatusEvent.createMany({ data: rows }),
+      );
+      await bulk(section, payments, Promise.resolve(existingPayments), (rows) =>
+        db.payment.createMany({ data: rows }),
+      );
+    }
     for (const section of ['discounts', 'paymentTypes', 'services'] as const) {
       if (!selected.has(section)) continue;
       counts[section].skipped += data[section].length;
@@ -1133,6 +1269,9 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
       ownerless: !owner && !gym?.ownerId,
       sections: [...selected],
       counts,
+      revenueByMonth,
+      revenueCurrency: data.gym.currency,
+      revenueTimezone: data.gym.timezone,
       warnings: aggregateWarnings(warnings),
       blockers,
       policy: sync

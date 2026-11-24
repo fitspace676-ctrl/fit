@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateWarnings,
+  monthlyPayments,
+  shopItemQuantity,
   sourceChanges,
   isLiveSubscription,
   syncSaleDisposition,
@@ -360,5 +362,101 @@ describe('Smart CRM sync decisions', () => {
     for (const status of ['ACTIVE', 'FROZEN', 'PAST_DUE', 'TRIAL'])
       expect(isLiveSubscription(status)).toBe(true);
     for (const status of ['EXPIRED', 'CANCELED']) expect(isLiveSubscription(status)).toBe(false);
+  });
+});
+
+describe('Smart CRM card and shop revenue', () => {
+  const product = {
+    sourceId: '91',
+    name: 'Example item',
+    barcode: null,
+    purchasePrice: '1.00',
+    salePrice: '4.00',
+    stock: 8,
+    active: true,
+  };
+  const sale = () => ({
+    sourceId: '92',
+    soldAt: '2025-02-01T00:30:00',
+    staffSourceId: '999',
+    paymentTypeSourceId: null,
+    total: '1.50',
+    lines: [
+      {
+        sourceId: '93',
+        productSourceId: '91',
+        productName: 'Example item',
+        quantity: 0.5,
+        unitPrice: '4.00',
+        amount: '1.50',
+        discountPercent: '25',
+      },
+    ],
+  });
+  const parse = (shopSales: unknown[]) =>
+    parseSmartCrm(
+      JSON.stringify({
+        ...empty(),
+        products: [product],
+        shopSales,
+      }),
+    );
+
+  it('accepts old exports and fractional discounted shop lines with deleted sellers', () => {
+    expect(parseSmartCrm(JSON.stringify(empty())).shopSales).toBeUndefined();
+    expect(parse([sale()]).shopSales?.[0]?.lines[0]?.quantity).toBe(0.5);
+    expect(shopItemQuantity(0.5)).toBe(1);
+    expect(shopItemQuantity(2.6)).toBe(3);
+    expect(shopItemQuantity(2)).toBe(2);
+  });
+
+  it('accepts nonpositive totals for the planner to skip and converts signed cents exactly', () => {
+    for (const total of ['0.00', '-1.25']) {
+      const row = sale();
+      row.total = total;
+      row.lines[0]!.amount = total;
+      expect(parse([row]).shopSales?.[0]?.total).toBe(total);
+    }
+    expect(minorUnits('-1.25')).toBe(-125);
+    expect(minorUnits('-0.01')).toBe(-1);
+  });
+
+  it('rejects broken products, duplicate sale/line ids and inconsistent totals before writes', () => {
+    const broken = sale();
+    broken.lines[0]!.productSourceId = '999';
+    expect(() => parse([broken])).toThrow('Invalid shop sale line reference');
+    expect(() => parse([sale(), sale()])).toThrow('Duplicate sourceId');
+    const duplicate = sale();
+    duplicate.lines.push({ ...duplicate.lines[0]! });
+    expect(() => parse([duplicate])).toThrow('Invalid shop sale line reference');
+    expect(() => parse([{ ...sale(), total: '2.00' }])).toThrow('Shop sale total differs');
+  });
+
+  it('groups captured planned and existing payments by gym month without double counting', () => {
+    const payment = (id: string, amount: number, date: string, status = 'CAPTURED') => ({
+      id,
+      amount,
+      createdAt: new Date(date),
+      status,
+    });
+    expect(
+      monthlyPayments(
+        [
+          payment('a', 999, '2025-01-31T20:00:00Z'),
+          payment('b', 125, '2025-01-31T20:00:00Z'),
+          payment('c', 400, '2025-02-02T00:00:00Z'),
+        ],
+        [
+          payment('a', 250, '2025-01-31T19:59:59Z'),
+          payment('c', 400, '2025-02-02T00:00:00Z', 'REFUNDED'),
+          payment('d', 75, '2025-02-02T00:00:00Z'),
+        ],
+        'Asia/Tbilisi',
+      ),
+    ).toEqual([
+      { month: '2025-01', payments: 1, amountMinor: 250, amount: '2.50' },
+      { month: '2025-02', payments: 2, amountMinor: 200, amount: '2.00' },
+    ]);
+    expect(monthlyPayments([], [], 'Asia/Tbilisi')).toEqual([]);
   });
 });
