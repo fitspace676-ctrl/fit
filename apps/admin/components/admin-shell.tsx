@@ -21,7 +21,10 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { SkipLink, ToastProvider } from '@/components/ui';
+import { Permission } from '@fit/types';
 import { AgentChat } from './agent/agent-chat';
+import { useConsolePermissions } from './console-permissions';
+import { consoleCan } from '@/lib/console-permissions';
 import { Sidebar } from './sidebar';
 import type { Session } from '@/lib/auth-session';
 import { TopBar } from './top-bar';
@@ -118,6 +121,7 @@ export function AdminShell({
   banner?: ReactNode;
   children: ReactNode;
 }) {
+  const canUseAgent = consoleCan(useConsolePermissions(), Permission.AiAgentUse);
   const t = useTranslations('admin.common');
 
   return (
@@ -138,8 +142,8 @@ export function AdminShell({
           </div>
           <div {...stylex.props(styles.page)}>{children}</div>
         </div>
-        {/* Right-edge AI copilot — floats above every console page. */}
-        <AgentChat />
+        {/* Right-edge AI copilot, for roles the gym lets use it (`AiAgentUse`). */}
+        {canUseAgent ? <AgentChat /> : null}
         {/* Palette playground — docked bottom-centre on every console screen so a
             colour can be judged against real pages rather than a swatch sheet. */}
       </AppShell>

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
+import { Permission } from '@fit/types';
 import { AdminShell } from './admin-shell';
+import { ConsolePermissionsProvider } from './console-permissions';
+import { DENIED_ACCESS } from '@/lib/console-permissions';
 
 // The shell's three occupants are stubbed: this spec is about WHERE the shell
 // puts things, not what they render. Each one otherwise drags in the session
@@ -12,12 +15,15 @@ vi.mock('./agent/agent-chat', () => ({ AgentChat: () => <div data-testid="agent-
 
 const messages = { admin: { common: { skipToContent: 'Skip to content' } } };
 
-function renderShell(banner?: React.ReactNode) {
+/** A session that may use the assistant unless `grants` says otherwise. */
+function renderShell(banner?: React.ReactNode, grants: Permission[] = [Permission.AiAgentUse]) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <AdminShell system={{ online: true, checkInCount: 3 }} locations={[]} banner={banner}>
-        <p data-testid="page">Page body</p>
-      </AdminShell>
+      <ConsolePermissionsProvider permissions={{ ...DENIED_ACCESS, role: 'MANAGER', grants }}>
+        <AdminShell system={{ online: true, checkInCount: 3 }} locations={[]} banner={banner}>
+          <p data-testid="page">Page body</p>
+        </AdminShell>
+      </ConsolePermissionsProvider>
     </NextIntlClientProvider>,
   );
 }
@@ -43,6 +49,12 @@ describe('AdminShell', () => {
     const column = document.getElementById('main-content');
     expect(column).not.toContainElement(screen.getByTestId('sidebar'));
     expect(column).not.toContainElement(screen.getByTestId('agent-chat'));
+  });
+
+  it('offers the AI copilot only to a role the gym lets use it', () => {
+    renderShell(undefined, []);
+    // A trainer or receptionist by default: no `AiAgentUse`, no button at all.
+    expect(screen.queryByTestId('agent-chat')).toBeNull();
   });
 
   it('points a skip link at the scrolling column', () => {

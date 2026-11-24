@@ -100,6 +100,7 @@ export const PERMISSION_KEYS: Record<Permission, string> = {
   [Permission.LoyaltyRead]: 'loyaltyRead',
   [Permission.LoyaltyManage]: 'loyaltyManage',
   [Permission.AuditRead]: 'auditRead',
+  [Permission.AiAgentUse]: 'aiAgentUse',
   [Permission.ProfileManage]: 'profileManage',
   [Permission.GymSubscriptionManage]: 'gymSubscriptionManage',
   [Permission.LocationManage]: 'locationManage',

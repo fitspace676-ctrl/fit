@@ -549,6 +549,7 @@ export type PermissionResource =
   | 'marketing'
   | 'loyalty'
   | 'reports'
+  | 'aiAgent'
   | 'locations'
   | 'locationsManage'
   | 'gym'
@@ -1079,6 +1080,16 @@ export const PERMISSION_MATRIX_SECTIONS: readonly PermissionMatrixSection[] = [
           view: Permission.ReportView,
           manage: Permission.ReportExport,
         },
+      },
+      {
+        // The assistant answers with whatever the gym's data holds, so who may
+        // ask it is the gym's call. Owners and managers by default; the front desk
+        // and coaches do not get it unless a gym grants it.
+        resource: 'aiAgent',
+        labelKey: 'permissions.resources.aiAgent',
+        label: 'AI assistant',
+        hrefs: [],
+        cells: { kind: 'single', permission: Permission.AiAgentUse },
       },
     ],
   },

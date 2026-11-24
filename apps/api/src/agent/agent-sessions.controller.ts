@@ -43,19 +43,19 @@ export class AgentSessionsController {
   /** `GET /agent/sessions` — the caller's sessions, newest first (metadata only). */
   @Get()
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProfileManage)
+  @RequirePermissions(Permission.AiAgentUse)
   async list(): Promise<ListAgentSessionsResponse> {
     return this.sessions.list();
   }
 
   @Get('history/search')
-  @RequirePermissions(Permission.ProfileManage)
+  @RequirePermissions(Permission.AiAgentUse)
   async searchHistory(@Query() query: unknown) {
     return this.sessions.searchHistory(parse(historyQuerySchema, query));
   }
 
   @Get('history/:id')
-  @RequirePermissions(Permission.ProfileManage)
+  @RequirePermissions(Permission.AiAgentUse)
   async readHistory(@Param('id') id: string, @Query() query: unknown) {
     return this.sessions.readHistory(id, parse(historyQuerySchema, query));
   }
@@ -63,7 +63,7 @@ export class AgentSessionsController {
   /** `GET /agent/sessions/:id` — one session with its full transcript. */
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProfileManage)
+  @RequirePermissions(Permission.AiAgentUse)
   async get(@Param('id') id: string): Promise<AgentSessionDetail> {
     return this.sessions.get(id);
   }
@@ -74,7 +74,7 @@ export class AgentSessionsController {
    */
   @Put(':id')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProfileManage)
+  @RequirePermissions(Permission.AiAgentUse)
   async upsert(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -85,7 +85,7 @@ export class AgentSessionsController {
   /** `DELETE /agent/sessions/:id` — remove one of the caller's sessions (idempotent). */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @RequirePermissions(Permission.ProfileManage)
+  @RequirePermissions(Permission.AiAgentUse)
   async remove(@Param('id') id: string): Promise<void> {
     await this.sessions.remove(id);
   }

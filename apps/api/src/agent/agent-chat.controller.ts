@@ -182,7 +182,7 @@ export class AgentChatController {
 
   @Post('chat')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ProfileManage)
+  @RequirePermissions(Permission.AiAgentUse)
   async chat(
     @Headers('authorization') authorization: string | undefined,
     @Body() body: ChatBody,
