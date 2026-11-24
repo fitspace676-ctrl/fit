@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import Link from 'next/link';
 import { getLocale, getTranslations } from 'next-intl/server';
 import * as stylex from '@stylexjs/stylex';
@@ -175,9 +176,11 @@ export async function StockPanel({
   /** The console's active branch, or `null` in "All locations" mode. */
   branchName: string | null;
 }) {
+  const timeZone = await getGymTimeZone();
   const [t, locale] = await Promise.all([getTranslations('admin.shop.stockPanel'), getLocale()]);
   const nf = createNumberFormat(locale);
   const dtf = createDateTimeFormat(locale, {
+    timeZone,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

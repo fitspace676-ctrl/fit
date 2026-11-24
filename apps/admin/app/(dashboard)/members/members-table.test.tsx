@@ -22,6 +22,8 @@ import { MembersTable } from './members-table';
 // while `./members-table` is still being imported.
 const mocks = vi.hoisted(() => ({ locationId: { current: undefined as string | undefined } }));
 
+vi.mock('@/components/gym-timezone', () => ({ useGymTimeZone: () => 'Asia/Tbilisi' }));
+
 vi.mock('next/navigation', () => navigationMock.factory());
 
 // The table imports the roster's server actions (trash / bulk export); those pull
@@ -186,5 +188,24 @@ describe('MembersTable — member photos', () => {
   it('falls back to initials without a photo', () => {
     renderRoster([memberRow({ photoUrl: null })]);
     expect(screen.getByText('AB')).toBeDefined();
+  });
+});
+
+describe('MembersTable — gym calendar', () => {
+  it('shows the next billing date after gym midnight, before UTC midnight', () => {
+    renderRoster([memberRow({ billingState: 'due', nextBillingAt: '2026-06-30T21:00:00Z' })]);
+    expect(screen.getByRole('cell', { name: 'Jul 1, 2026' })).toBeInTheDocument();
+  });
+
+  it('uses gym calendar days for yesterday after gym midnight', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-01T21:00:00Z'));
+    try {
+      renderRoster([memberRow({ lastVisitAt: '2026-07-01T12:00:00Z' })]);
+      expect(screen.getByRole('cell', { name: 'Yesterday' })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
   });
 });

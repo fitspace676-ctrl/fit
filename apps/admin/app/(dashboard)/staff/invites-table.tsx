@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useState, useTransition } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
@@ -104,13 +105,16 @@ const styles = stylex.create({
 });
 
 /** Render an ISO instant as a short local date, or an em dash when absent/invalid. */
-function formatDate(iso: string, locale: string): string {
+function formatDate(iso: string, locale: string, timeZone: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /**
@@ -129,6 +133,7 @@ export function InvitesTable({
   canManage: boolean;
 }) {
   const t = useTranslations('admin.staff');
+  const timeZone = useGymTimeZone();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -196,7 +201,7 @@ export function InvitesTable({
       key: 'sent',
       header: t('invites.columns.sent'),
       cell: (invite) => (
-        <span {...stylex.props(styles.mono)}>{formatDate(invite.createdAt, locale)}</span>
+        <span {...stylex.props(styles.mono)}>{formatDate(invite.createdAt, locale, timeZone)}</span>
       ),
     },
     {
@@ -214,11 +219,13 @@ export function InvitesTable({
               }
             />
             <span {...stylex.props(styles.expiresMuted)}>
-              {formatDate(invite.expiresAt, locale)}
+              {formatDate(invite.expiresAt, locale, timeZone)}
             </span>
           </div>
         ) : (
-          <span {...stylex.props(styles.mono)}>{formatDate(invite.expiresAt, locale)}</span>
+          <span {...stylex.props(styles.mono)}>
+            {formatDate(invite.expiresAt, locale, timeZone)}
+          </span>
         ),
     },
     {

@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
@@ -229,6 +230,7 @@ export default async function ReconciliationPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const timeZone = await getGymTimeZone();
   const session = await getServerSession();
   const canView = session !== null && roleHasPermission(session.role, Permission.SalesHistoryRead);
 
@@ -349,6 +351,7 @@ export default async function ReconciliationPage({
           <p {...stylex.props(styles.generatedAt)}>
             Generated{' '}
             {createDateTimeFormat(defaultLocale, {
+              timeZone,
               day: '2-digit',
               month: '2-digit',
               year: 'numeric',

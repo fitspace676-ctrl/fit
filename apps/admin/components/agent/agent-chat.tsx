@@ -30,6 +30,8 @@ import type { IconName } from '@/components/ui';
 import { useAgentChat } from './use-agent-chat';
 import { newSessionId, sessionTitle, useSessions, type AgentSessionMeta } from './use-sessions';
 import type { ChatAttachment } from './types';
+import { useGymTimeZone } from '@/components/gym-timezone';
+import { zonedIsoDate, addDays } from '@/app/(dashboard)/classes/schedule/week';
 import { createDateTimeFormat } from '@fit/i18n';
 
 /** Upload limits — keep the model's token cost (and the operator's bill) bounded. */
@@ -747,6 +749,7 @@ const styles = stylex.create({
 export function AgentChat() {
   const t = useTranslations('admin.agent');
   const locale = useLocale();
+  const timeZone = useGymTimeZone();
   const [open, setOpen] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
   const getSessionId = useCallback(() => (sessionIdRef.current ??= newSessionId()), []);
@@ -844,11 +847,13 @@ export function AgentChat() {
 
   /** Which history group a session's timestamp falls in. */
   const dateGroup = (timestamp: string) => {
-    const date = new Date(timestamp).toDateString();
-    const today = new Date();
-    if (date === today.toDateString()) return 'today';
-    today.setDate(today.getDate() - 1);
-    return date === today.toDateString() ? 'yesterday' : 'earlier';
+    const date = zonedIsoDate(new Date(timestamp), timeZone);
+    const today = zonedIsoDate(new Date(), timeZone);
+    if (date === today) return 'today';
+    const yesterday = addDays(new Date(`${today}T00:00:00.000Z`), -1)
+      .toISOString()
+      .slice(0, 10);
+    return date === yesterday ? 'yesterday' : 'earlier';
   };
   const filteredSessions = sessions.filter((s) =>
     s.title.toLocaleLowerCase(locale).includes(search.toLocaleLowerCase(locale)),
@@ -858,13 +863,15 @@ export function AgentChat() {
   const formatTime = useCallback(
     (ts: string): string => {
       const date = new Date(ts);
-      const today = date.toDateString() === new Date().toDateString();
+      const today = zonedIsoDate(date, timeZone) === zonedIsoDate(new Date(), timeZone);
       return createDateTimeFormat(
         locale,
-        today ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric' },
+        today
+          ? { hour: '2-digit', minute: '2-digit', timeZone }
+          : { month: 'short', day: 'numeric', timeZone },
       ).format(date);
     },
-    [locale],
+    [locale, timeZone],
   );
 
   // Read picked files into base64 attachments, enforcing the count/size caps.

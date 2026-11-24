@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useFormatter, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { connectFlittSchema, connectSenderSchema, type GymIntegration } from '@fit/types';
@@ -55,6 +56,7 @@ export function IntegrationsForm({
 }) {
   const t = useTranslations('admin.integrations');
   const format = useFormatter();
+  const timeZone = useGymTimeZone();
   const { toast } = useToast();
   const [integration, setIntegration] = useState(initial);
   const [editing, setEditing] = useState(!initial.connected);
@@ -144,6 +146,7 @@ export function IntegrationsForm({
                 <dd {...stylex.props(styles.value)}>
                   {integration.verifiedAt
                     ? format.dateTime(new Date(integration.verifiedAt), {
+                        timeZone,
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       })
@@ -303,6 +306,7 @@ export function SenderCard({ initial }: { initial: GymIntegration }) {
   const t = useTranslations('admin.integrations');
   const s = useTranslations('admin.integrations.sender');
   const format = useFormatter();
+  const timeZone = useGymTimeZone();
   const { toast } = useToast();
   const [integration, setIntegration] = useState(initial);
   const [editing, setEditing] = useState(!initial.connected);
@@ -384,6 +388,7 @@ export function SenderCard({ initial }: { initial: GymIntegration }) {
                   <dd {...stylex.props(styles.value)}>
                     {integration.verifiedAt
                       ? format.dateTime(new Date(integration.verifiedAt), {
+                          timeZone,
                           dateStyle: 'medium',
                           timeStyle: 'short',
                         })

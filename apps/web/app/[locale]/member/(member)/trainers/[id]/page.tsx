@@ -146,6 +146,7 @@ export default async function TrainerDetailPage({
           />
           <TrainerSchedule timeZone={timeZone} schedule={trainer.schedule} />
           <TrainerReviews
+            timeZone={timeZone}
             reviews={reviews.reviews}
             avgRating={reviews.avgRating}
             total={reviews.total}

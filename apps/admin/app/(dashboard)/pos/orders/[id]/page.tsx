@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -141,6 +142,7 @@ const styles = stylex.create({
  * a disputed charge is trying to answer.
  */
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const timeZone = await getGymTimeZone();
   const { id } = await params;
 
   const session = await getServerSession();
@@ -199,6 +201,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <Badge tone={order.channel === 'POS' ? 'accent' : 'neutral'} label={order.channel} />
             <span {...stylex.props(styles.metaItem)}>
               {createDateTimeFormat(defaultLocale, {
+                timeZone,
                 day: '2-digit',
                 month: '2-digit',
                 year: 'numeric',
@@ -319,6 +322,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   <tr key={refund.id}>
                     <td {...stylex.props(styles.td, styles.muted)}>
                       {createDateTimeFormat(defaultLocale, {
+                        timeZone,
                         day: '2-digit',
                         month: '2-digit',
                         year: 'numeric',
@@ -349,6 +353,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <div key={`${entry.status}-${index}`} {...stylex.props(styles.timelineRow)}>
                 <span {...stylex.props(styles.timelineWhen)}>
                   {createDateTimeFormat(defaultLocale, {
+                    timeZone,
                     day: '2-digit',
                     month: '2-digit',
                     year: 'numeric',

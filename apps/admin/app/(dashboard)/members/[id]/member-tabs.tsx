@@ -24,6 +24,7 @@ import {
   grantMemberCreditPackAction,
   unfreezeMemberSubscriptionAction,
 } from '../actions';
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { createDateTimeFormat, createNumberFormat, defaultLocale } from '@fit/i18n';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
@@ -675,22 +676,26 @@ function formatAmount(minorUnits: number, currency: string): string {
   }).format(minorUnits / 100)}`;
 }
 
-/** Format an ISO instant as a short local date. */
-function formatDate(iso: string, locale: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
-}
-
-/** Format an ISO instant as a short local date-time. */
-function formatDateTime(iso: string, locale: string): string {
+/** Gym date for instants; UTC preserves the recorded birth/start calendar day. */
+function formatDate(iso: string, locale: string, timeZone = 'UTC'): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
     : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
+}
+
+/** Format an ISO instant as a short local date-time. */
+function formatDateTime(iso: string, locale: string, timeZone: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : createDateTimeFormat(locale, {
+        timeZone,
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -850,12 +855,13 @@ function StatCard({
 
 /** The six overview stats — every figure a real, tenant-scoped count. */
 function StatCards({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  const timeZone = useGymTimeZone();
   const now = new Date();
   const visitsThisMonth = member.accessLog.filter((entry) => {
     const at = new Date(entry.at);
     return at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth();
   }).length;
-  const lastVisit = member.lastVisitAt ? formatDate(member.lastVisitAt, locale) : '-';
+  const lastVisit = member.lastVisitAt ? formatDate(member.lastVisitAt, locale, timeZone) : '-';
 
   return (
     <div {...stylex.props(styles.statGrid)}>
@@ -876,6 +882,7 @@ function ActivityCard({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   return (
     <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.recentActivity')}</h3>
@@ -892,7 +899,7 @@ function ActivityCard({
                 <div {...stylex.props(styles.activityHead)}>
                   <p {...stylex.props(styles.activityTitle)}>{entry.title}</p>
                   <span {...stylex.props(styles.activityTime)}>
-                    {formatDateTime(entry.at, locale)}
+                    {formatDateTime(entry.at, locale, timeZone)}
                   </span>
                 </div>
                 <p {...stylex.props(styles.activityDetail)}>{entry.detail}</p>
@@ -915,6 +922,7 @@ function MembershipSummaryCard({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   const plan = member.currentPlan;
   return (
     <Card padding="none" xstyle={styles.cardTight}>
@@ -935,11 +943,11 @@ function MembershipSummaryCard({
           />
           <FieldRow
             label={t('detail.startDate')}
-            value={formatDate(plan.currentPeriodStart, locale)}
+            value={formatDate(plan.currentPeriodStart, locale, timeZone)}
           />
           <FieldRow
             label={t('detail.currentTerm')}
-            value={formatDate(plan.currentPeriodEnd, locale)}
+            value={formatDate(plan.currentPeriodEnd, locale, timeZone)}
           />
         </>
       ) : (
@@ -1070,6 +1078,7 @@ function PreviousMembershipsCard({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   return (
     <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.previousMemberships')}</h3>
@@ -1082,9 +1091,9 @@ function PreviousMembershipsCard({
               <div {...stylex.props(styles.rowMin)}>
                 <p {...stylex.props(styles.rowTitle)}>{sub.planName}</p>
                 <p {...stylex.props(styles.rowSub)}>
-                  {t('detail.subStarted', { date: formatDate(sub.startedAt, locale) })}
+                  {t('detail.subStarted', { date: formatDate(sub.startedAt, locale, timeZone) })}
                   {sub.renewsAt
-                    ? t('detail.subRenews', { date: formatDate(sub.renewsAt, locale) })
+                    ? t('detail.subRenews', { date: formatDate(sub.renewsAt, locale, timeZone) })
                     : ''}
                 </p>
               </div>
@@ -1099,6 +1108,7 @@ function PreviousMembershipsCard({
 
 /** The member's recent class bookings, newest first. */
 function BookingsCard({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  const timeZone = useGymTimeZone();
   return (
     <Card padding="none" xstyle={styles.card}>
       <h3 {...stylex.props(styles.sectionLabel)}>{t('detail.classBookings')}</h3>
@@ -1110,7 +1120,9 @@ function BookingsCard({ member, t, locale }: { member: MemberDetail; t: T; local
             <li key={booking.id} {...stylex.props(styles.row)}>
               <div {...stylex.props(styles.rowMin)}>
                 <p {...stylex.props(styles.rowTitle)}>{booking.title}</p>
-                <p {...stylex.props(styles.rowSub)}>{formatDateTime(booking.startsAt, locale)}</p>
+                <p {...stylex.props(styles.rowSub)}>
+                  {formatDateTime(booking.startsAt, locale, timeZone)}
+                </p>
               </div>
               <span {...stylex.props(styles.rowStatus)}>{booking.status}</span>
             </li>
@@ -1137,6 +1149,7 @@ function CurrentPlanCard({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   if (!plan) {
     return (
       <Card padding="none" xstyle={styles.cardTight}>
@@ -1188,7 +1201,9 @@ function CurrentPlanCard({
 
       <div {...stylex.props(styles.periodBlock)}>
         <div {...stylex.props(styles.periodHead)}>
-          <span>{t('detail.renews', { date: formatDate(plan.currentPeriodEnd, locale) })}</span>
+          <span>
+            {t('detail.renews', { date: formatDate(plan.currentPeriodEnd, locale, timeZone) })}
+          </span>
           <span {...stylex.props(styles.periodDays)}>
             {t('detail.daysLeft', { count: plan.daysRemaining })}
           </span>
@@ -1230,6 +1245,7 @@ function PlanFreezeControls({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -1277,7 +1293,7 @@ function PlanFreezeControls({
     <>
       {isFrozen ? (
         <p {...stylex.props(styles.frozenPill)}>
-          {t('detail.frozenUntil', { date: formatDate(plan.frozenUntil ?? '', locale) })}
+          {t('detail.frozenUntil', { date: formatDate(plan.frozenUntil ?? '', locale, timeZone) })}
         </p>
       ) : (
         <p {...stylex.props(styles.freezeNote)}>
@@ -1375,6 +1391,7 @@ function CreditsCard({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -1421,7 +1438,9 @@ function CreditsCard({
                 </p>
                 <p {...stylex.props(styles.rowSub)}>
                   {pack.expiresAt
-                    ? t('detail.creditExpires', { date: formatDate(pack.expiresAt, locale) })
+                    ? t('detail.creditExpires', {
+                        date: formatDate(pack.expiresAt, locale, timeZone),
+                      })
                     : t('detail.creditNoExpiry')}
                 </p>
               </div>
@@ -1488,6 +1507,7 @@ function CreditsCard({
 
 /** Payments — the member's captured / declined charges, newest first. */
 function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  const timeZone = useGymTimeZone();
   return (
     <div {...stylex.props(styles.panelStack)}>
       <Card padding="none" xstyle={styles.card}>
@@ -1502,7 +1522,9 @@ function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
                   <p {...stylex.props(styles.rowTitleMono)}>
                     {formatAmount(payment.amount, member.currency)}
                   </p>
-                  <p {...stylex.props(styles.rowSub)}>{formatDate(payment.paidAt, locale)}</p>
+                  <p {...stylex.props(styles.rowSub)}>
+                    {formatDate(payment.paidAt, locale, timeZone)}
+                  </p>
                 </div>
                 <span {...stylex.props(styles.rowStatus)}>{payment.status}</span>
               </li>
@@ -1555,6 +1577,7 @@ function InvoicesPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
 
 /** Purchases — the member's POS orders (items, total, method), newest first. */
 function PurchasesPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  const timeZone = useGymTimeZone();
   if (member.purchases.length === 0) {
     return <EmptyState>{t('detail.noPurchases')}</EmptyState>;
   }
@@ -1571,7 +1594,7 @@ function PurchasesPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
               <div {...stylex.props(styles.rowMin)}>
                 <p {...stylex.props(styles.rowTitleTrunc)}>{items || '-'}</p>
                 <p {...stylex.props(styles.rowSub)}>
-                  {formatDateTime(purchase.at, locale)}
+                  {formatDateTime(purchase.at, locale, timeZone)}
                   {purchase.method ? ` · ${purchase.method}` : ''}
                 </p>
               </div>
@@ -1588,6 +1611,7 @@ function PurchasesPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
 
 /** Access Log — the member's check-ins (arrivals), newest first. */
 function AccessLogPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
+  const timeZone = useGymTimeZone();
   if (member.accessLog.length === 0) {
     return <EmptyState>{t('detail.noAccessLog')}</EmptyState>;
   }
@@ -1599,7 +1623,7 @@ function AccessLogPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
           <li key={entry.id} {...stylex.props(styles.row)}>
             <div {...stylex.props(styles.rowMin)}>
               <p {...stylex.props(styles.rowTitle)}>{t('detail.checkIn')}</p>
-              <p {...stylex.props(styles.rowSub)}>{formatDateTime(entry.at, locale)}</p>
+              <p {...stylex.props(styles.rowSub)}>{formatDateTime(entry.at, locale, timeZone)}</p>
             </div>
             <span {...stylex.props(styles.rowStatus)}>{entry.method}</span>
           </li>
@@ -1625,6 +1649,7 @@ function NotesCard({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   const { toast } = useToast();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -1680,7 +1705,7 @@ function NotesCard({
               <div {...stylex.props(styles.noteHead)}>
                 <p {...stylex.props(styles.noteAuthor)}>{note.author}</p>
                 <span {...stylex.props(styles.metaMono)}>
-                  {formatDateTime(note.createdAt, locale)}
+                  {formatDateTime(note.createdAt, locale, timeZone)}
                 </span>
               </div>
               <p {...stylex.props(styles.noteBody)}>{note.body}</p>

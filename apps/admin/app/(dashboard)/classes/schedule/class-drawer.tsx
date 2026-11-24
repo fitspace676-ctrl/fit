@@ -1303,10 +1303,8 @@ function initials(label: string): string {
 /**
  * Localised full day (e.g. "Monday, Jun 1") on the **gym's** calendar.
  *
- * `createDateTimeFormat` reads every field in UTC by design and ignores the zone
- * it is handed, so passing the gym's zone straight to it dated a 00:30 Tbilisi
- * class to the day before. The gym-local date is resolved first, then formatted
- * as the UTC token it now is — which keeps the ka/en weekday and month names.
+ * Resolve the gym-local day first, then format the resulting UTC date token.
+ * Do not apply the gym zone again to that token.
  */
 function formatDay(iso: string, locale: string, timeZone: string): string {
   const localDay = zonedIsoDate(new Date(iso), timeZone);

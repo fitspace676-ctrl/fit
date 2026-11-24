@@ -11,9 +11,11 @@ import { paySubscriptionAction } from '@/app/actions/subscription-payment';
 import { formatMoney } from '@/lib/shop';
 
 export function RenewalPayment({
+  timeZone,
   payment,
   overdue,
 }: {
+  timeZone: string;
   payment?: MeSubscriptionPayment;
   overdue: boolean;
 }) {
@@ -59,7 +61,7 @@ export function RenewalPayment({
       {payment.dueAt ? (
         <p>
           {t('renewalDue', {
-            date: createDateTimeFormat(locale, { dateStyle: 'medium' }).format(
+            date: createDateTimeFormat(locale, { timeZone, dateStyle: 'medium' }).format(
               new Date(payment.dueAt),
             ),
           })}

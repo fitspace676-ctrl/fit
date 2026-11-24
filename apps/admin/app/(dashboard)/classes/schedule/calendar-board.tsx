@@ -2013,8 +2013,7 @@ function formatDay(day: Date, locale: string): string {
 /**
  * `HH:MM` for an ISO instant, on the gym's clock — the same clock the grid rows
  * are labelled with, so a block can never print a time that disagrees with the
- * row it sits on. (It used to: `createDateTimeFormat` reads every field in UTC by
- * design, so a Tbilisi gym's 12:00 class was drawn on the 12:00 row wearing an
+ * row it sits on. (Previously the formatter read UTC without an explicit zone, so a Tbilisi gym's 12:00 class was drawn on the 12:00 row wearing an
  * "08:00" label.) `locale` no longer takes part — `HH:MM` is the same 24-hour
  * form in both catalogues and matches the gutter's hour labels exactly.
  */

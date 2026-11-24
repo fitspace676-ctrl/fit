@@ -122,6 +122,7 @@ const styles = stylex.create({
 });
 
 export interface TrainerReviewsProps {
+  timeZone: string;
   /** The visible reviews on the current page (newest first), as the API returns them. */
   reviews: PublicReview[];
   /** Mean star rating across all visible reviews (rounded to one decimal). */
@@ -139,7 +140,7 @@ export interface TrainerReviewsProps {
  * error. Stateless: the page owns the data fetch and passes the already-ordered,
  * visible-only reviews.
  */
-export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProps) {
+export function TrainerReviews({ reviews, avgRating, total, timeZone }: TrainerReviewsProps) {
   const t = useTranslations('trainers');
   const locale = useLocale();
 
@@ -181,6 +182,7 @@ export function TrainerReviews({ reviews, avgRating, total }: TrainerReviewsProp
                 />
                 <span {...stylex.props(styles.date)}>
                   {createDateTimeFormat(locale, {
+                    timeZone,
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',

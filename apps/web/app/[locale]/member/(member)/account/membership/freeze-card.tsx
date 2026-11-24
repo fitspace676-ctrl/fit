@@ -37,6 +37,7 @@ import { createDateTimeFormat } from '@fit/i18n';
 
 /** The membership fields the freeze card renders — a subset of `MemberSubscription`. */
 export interface FreezeCardProps {
+  timeZone: string;
   id: string;
   status: string;
   frozenUntil: string | null;
@@ -172,6 +173,7 @@ type Flow =
  * read-only.
  */
 export function FreezeCard({
+  timeZone,
   id,
   status,
   frozenUntil,
@@ -200,6 +202,7 @@ export function FreezeCard({
   const fmtDate = (iso: string | null) =>
     iso
       ? createDateTimeFormat(locale, {
+          timeZone,
           day: 'numeric',
           month: 'short',
           year: 'numeric',
