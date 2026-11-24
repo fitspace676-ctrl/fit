@@ -9,6 +9,10 @@ const money = z
   .string()
   .regex(/^\d+(?:\.\d{1,2})?$/)
   .refine((v) => Number(v) <= 21474836.47);
+const signedMoney = z
+  .string()
+  .regex(/^-?\d+(?:\.\d{1,2})?$/)
+  .refine((v) => Math.abs(Number(v)) <= 21474836.47);
 const date = z.string().refine((v) => {
   if (
     !/^\d{4}-\d{2}-\d{2}(?:T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)?)?$/.test(
@@ -174,6 +178,30 @@ export const smartCrmSchema = z.object({
       cancelled: z.boolean(),
     }),
   ),
+  shopSales: z
+    .array(
+      z.object({
+        sourceId: id,
+        soldAt: date,
+        staffSourceId: ref,
+        paymentTypeSourceId: ref,
+        total: signedMoney,
+        lines: z
+          .array(
+            z.object({
+              sourceId: id,
+              productSourceId: id,
+              productName: z.string(),
+              quantity: z.number().positive().max(2147483647),
+              unitPrice: money,
+              amount: signedMoney,
+              discountPercent: percent.nullable(),
+            }),
+          )
+          .min(1),
+      }),
+    )
+    .optional(),
   products: z.array(
     named.extend({
       barcode: text,
@@ -191,6 +219,8 @@ export const SECTIONS = [
   'clients',
   'packages',
   'soldPackages',
+  'cardSales',
+  'shopSales',
   'visits',
   'groups',
   'workouts',
@@ -219,9 +249,9 @@ export function parseSmartCrm(input: string): SmartCrmData {
   }
   const data = parsed.data;
   for (const section of SECTIONS) {
-    if (section === 'gym' || section === 'visits') continue;
+    if (section === 'gym' || section === 'visits' || section === 'cardSales') continue;
     const seen = new Set<string>();
-    for (const row of data[section]) {
+    for (const row of data[section] ?? []) {
       if (seen.has(row.sourceId))
         throw new CommandError(`Duplicate sourceId in ${section}`, {
           code: 'BAD_IMPORT',
@@ -229,6 +259,26 @@ export function parseSmartCrm(input: string): SmartCrmData {
         });
       seen.add(row.sourceId);
     }
+  }
+  const cardIds = new Set<string>();
+  for (const client of data.clients)
+    for (const card of client.cards) {
+      if (cardIds.has(card.sourceId))
+        throw new CommandError('Duplicate card sourceId', { code: 'BAD_IMPORT' });
+      cardIds.add(card.sourceId);
+    }
+  const products = new Set(data.products.map((p) => p.sourceId));
+  for (const sale of data.shopSales ?? []) {
+    const lineIds = new Set<string>();
+    for (const line of sale.lines) {
+      if (!products.has(line.productSourceId) || lineIds.has(line.sourceId))
+        throw new CommandError('Invalid shop sale line reference', { code: 'BAD_IMPORT' });
+      lineIds.add(line.sourceId);
+    }
+    if (
+      sale.lines.reduce((sum, line) => sum + minorUnits(line.amount), 0) !== minorUnits(sale.total)
+    )
+      throw new CommandError('Shop sale total differs from lines', { code: 'BAD_IMPORT' });
   }
   const clients = new Set(data.clients.map((r) => r.sourceId));
   const packages = new Set(data.packages.map((r) => r.sourceId));
@@ -283,8 +333,8 @@ export function sourceId(slug: string, kind: string, source: string): string {
   return `scrm_${slug}_${kind}_${createHash('sha256').update(source).digest('hex').slice(0, 32)}`;
 }
 export function minorUnits(value: string): number {
-  const [whole = '0', fraction = ''] = value.split('.');
-  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+  const [whole = '0', fraction = ''] = value.replace(/^-/, '').split('.');
+  return (value.startsWith('-') ? -1 : 1) * (Number(whole) * 100 + Number(fraction.padEnd(2, '0')));
 }
 /** Offset-less source timestamps are Tbilisi wall time, never the host timezone. */
 export function instant(value: string): Date {
@@ -311,6 +361,9 @@ export function paymentMethod(value: string): 'CASH' | 'CARD' | 'BANK_TRANSFER' 
   if (/terminal|ტერმინალ|^flitt$/i.test(value.trim())) return 'CARD';
   // 'გადმორიცხვა' is how the source names a bank transfer ('BOG გადმორიცხვა').
   if (/bank transfer|გადარიცხვა|გადმორიცხვა/i.test(value)) return 'BANK_TRANSFER';
+  // Instalment plans ('თბს განაწილება', 'ნაწილ ნაწილი …', 'ნაწილ-ნაწილ'): the money the
+  // source counts as received reaches the gym's account, not its till or terminal.
+  if (/instal+ment|განაწილება|ნაწილ[ -]ნაწილ/i.test(value)) return 'BANK_TRANSFER';
   return null;
 }
 /** Visit rows have no source id: preserve identical rows with a stable occurrence ordinal. */
@@ -533,4 +586,61 @@ export function saleNoteText(
 
 export function productDescriptionText(product: SmartCrmData['products'][number]): string {
   return product.barcode ? `შტრიხკოდი: ${product.barcode}` : '';
+}
+
+/** Compare only explicitly supplied source columns, preserving DB-owned fields. */
+export function sourceChanges<T extends object>(existing: object, desired: T): Partial<T> {
+  const before = existing as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(desired).filter(
+      ([key, value]) =>
+        value !== undefined && JSON.stringify(before[key]) !== JSON.stringify(value),
+    ),
+  ) as Partial<T>;
+}
+
+export function isLiveSubscription(status: string): boolean {
+  return ['ACTIVE', 'FROZEN', 'PAST_DUE', 'TRIAL'].includes(status);
+}
+
+/** A displaced imported sale stays as history; a native live entitlement wins. */
+export function syncSaleDisposition(selected: boolean, nativeLive: boolean, existed: boolean) {
+  if (selected && !nativeLive) return 'source' as const;
+  return existed ? ('expired' as const) : ('note-only' as const);
+}
+
+/** Existing immutable payments win over a newer export, including their status and date. */
+export function monthlyPayments(
+  planned: Array<{ id: string; amount: number; createdAt: Date; status: string }>,
+  existing: Array<{ id: string; amount: number; createdAt: Date; status: string }>,
+  timezone: string,
+) {
+  const rows = new Map(planned.map((row) => [row.id, row]));
+  for (const row of existing) rows.set(row.id, row);
+  const months = new Map<string, { payments: number; amountMinor: number }>();
+  const formatter = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+  });
+  for (const row of rows.values()) {
+    if (row.status !== 'CAPTURED') continue;
+    const parts = formatter.formatToParts(row.createdAt);
+    const month = `${parts.find((p) => p.type === 'year')!.value}-${parts.find((p) => p.type === 'month')!.value}`;
+    const total = months.get(month) ?? { payments: 0, amountMinor: 0 };
+    total.payments++;
+    total.amountMinor += row.amount;
+    months.set(month, total);
+  }
+  return [...months]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, total]) => ({
+      month,
+      ...total,
+      amount: (total.amountMinor / 100).toFixed(2),
+    }));
+}
+
+export function shopItemQuantity(quantity: number): number {
+  return Math.max(1, Math.round(quantity));
 }

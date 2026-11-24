@@ -6,6 +6,11 @@ import { CommandError, type CommandResult } from '../output';
 import { loadInfraEnv } from '../env-source';
 import {
   aggregateWarnings,
+  monthlyPayments,
+  shopItemQuantity,
+  sourceChanges,
+  isLiveSubscription,
+  syncSaleDisposition,
   selectSubscriptionSales,
   packageSubscriptionDetails,
   soldSubscriptionDetails,
@@ -33,7 +38,9 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
   const ownerEmail = stringFlag(args.flags, 'owner-email')?.trim().toLowerCase();
   const dryRun = boolFlag(args.flags, 'dry-run');
   // Rewrite the staff-visible texts (notes, descriptions) of rows a previous run created.
-  const refreshText = boolFlag(args.flags, 'refresh-text');
+  const sync = boolFlag(args.flags, 'sync');
+  const refreshText = sync || boolFlag(args.flags, 'refresh-text');
+  const stockChanges: Array<{ sourceId: string; before: number; after: number }> = [];
   if (!slug || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug) || !name || !path) {
     throw new CommandError('Required: --data <file> --slug <DNS label> --name <name>', {
       code: 'BAD_ARGUMENT',
@@ -63,6 +70,8 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
   // Dependencies are explicit in the summary, and use the same insert-only policy.
   const dependencies: Partial<Record<Section, Section[]>> = {
     clients: ['staff'],
+    cardSales: ['clients', 'paymentTypes'],
+    shopSales: ['products', 'staff', 'paymentTypes'],
     soldPackages: ['clients', 'packages', 'paymentTypes', 'discounts'],
     visits: ['clients'],
     workouts: ['staff', 'groups'],
@@ -83,9 +92,36 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
   const id = (kind: string, source: string) => sourceId(slug, kind, source);
   const gymId = id('gym', '1');
   const locationId = id('location', '1');
+  const prefix = `scrm_${slug}_`;
   const now = new Date();
+  const protectedIds = new Set<string>();
   const env = loadInfraEnv('local');
   const db = new PrismaClient({ datasources: { db: { url: env.DATABASE_URL } } });
+  /** With --sync: how many rows change per table and column (names only, never values). */
+  const fieldChanges: Record<string, number> = {};
+  /** Changes not applied because of `--keep` or an unchanged source stock. */
+  const keptChanges: Record<string, number> = {};
+  const keep = new Set(
+    (stringFlag(args.flags, 'keep') ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  const previousPath = stringFlag(args.flags, 'previous');
+  let previousStock: Map<string, number> | null = null;
+  if (previousPath) {
+    try {
+      previousStock = new Map(
+        parseSmartCrm(readFileSync(previousPath, 'utf8')).products.map((p) => [
+          p.sourceId,
+          p.stock,
+        ]),
+      );
+    } catch {
+      throw new CommandError('Cannot read --previous file', { code: 'BAD_IMPORT' });
+    }
+  }
+  const revenueByMonth: Partial<Record<Section, ReturnType<typeof monthlyPayments>>> = {};
   const writes: Array<{ section: Section; run: () => Promise<unknown> }> = [];
   // Reads and planning also run for --dry-run. No write closure executes until all planning succeeds.
   async function bulk<T extends { id: string }>(
@@ -93,9 +129,61 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     rows: T[],
     existing: Promise<Array<{ id: string }>>,
     create: (rows: T[]) => Promise<unknown>,
+    update?: (row: T, changes: Partial<T>) => Prisma.PrismaPromise<unknown>,
   ) {
-    const present = new Set((await existing).map((r) => r.id));
-    const pending = rows.filter((r) => !present.has(r.id));
+    const previous = await existing;
+    const present = new Set(previous.map((r) => r.id));
+    if (sync && update) {
+      const byId = new Map(previous.map((r) => [r.id, r]));
+      for (const row of rows) {
+        const old = byId.get(row.id);
+        if (!old || protectedIds.has(row.id)) continue;
+        // Identity, ownership and creation timestamps are never rewritten.
+        const { id: _id, ...fields } = row;
+        const desired = { ...fields } as Record<string, unknown>;
+        for (const key of ['gymId', 'userId', 'memberId', 'createdAt']) delete desired[key];
+        const changes = sourceChanges(old, desired) as Partial<T>;
+        const table = row.id.slice(prefix.length).split('_')[0]!;
+        // Columns edited in our product since the import stay ours (`--keep table.column`).
+        for (const key of Object.keys(changes)) {
+          if (!keep.has(`${table}.${key}`)) continue;
+          delete (changes as Record<string, unknown>)[key];
+          keptChanges[`${table}.${key}`] = (keptChanges[`${table}.${key}`] ?? 0) + 1;
+        }
+        // Stock follows the source only where the source itself moved since `--previous`;
+        // otherwise the difference is our own sales and reservations.
+        if (previousStock && 'stock' in changes) {
+          const product = data.products.find(
+            (p) =>
+              id('product', p.sourceId) === row.id || id('productStock', p.sourceId) === row.id,
+          );
+          if (product && previousStock.get(product.sourceId) === product.stock) {
+            delete (changes as Record<string, unknown>).stock;
+            keptChanges[`${table}.stock`] = (keptChanges[`${table}.stock`] ?? 0) + 1;
+          }
+        }
+        if (!Object.keys(changes).length) continue;
+        counts[section].updated++;
+        for (const key of Object.keys(changes)) {
+          const name = `${table}.${key}`;
+          fieldChanges[name] = (fieldChanges[name] ?? 0) + 1;
+        }
+        if (
+          section === 'products' &&
+          row.id.startsWith(`${prefix}product_`) &&
+          'stock' in changes
+        ) {
+          const product = data.products.find((p) => id('product', p.sourceId) === row.id)!;
+          stockChanges.push({
+            sourceId: product.sourceId,
+            before: (old as unknown as { stock: number }).stock,
+            after: product.stock,
+          });
+        }
+        writes.push({ section, run: () => update(row, changes) });
+      }
+    }
+    const pending = rows.filter((r) => !present.has(r.id) && !(sync && protectedIds.has(r.id)));
     counts[section].skipped += rows.length - pending.length;
     counts[section].created += pending.length;
     for (let offset = 0; offset < pending.length; offset += 500) {
@@ -110,7 +198,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     rows: Array<{ id: string; text: string }>,
     update: (row: { id: string; text: string }) => Prisma.PrismaPromise<unknown>,
   ) {
-    if (!refreshText) return;
+    if (!refreshText || sync) return;
     counts[section].updated += rows.length;
     for (let offset = 0; offset < rows.length; offset += 100) {
       const chunk = rows.slice(offset, offset + 100);
@@ -209,7 +297,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
                 locationId,
               },
             ],
-        db.gymMember.findMany(scoped),
+        db.gymMember.findMany({ where: { gymId } }),
         (rows) => db.gymMember.createMany({ data: rows }),
       );
     }
@@ -266,8 +354,27 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     }
     const memberships = await db.gymMember.findMany({
       where: { gymId },
-      select: { id: true, userId: true },
+      include: { user: true },
     });
+    if (sync) {
+      for (const c of selected.has('clients') ? data.clients : []) {
+        const member = memberships.find((m) => m.id === id('client', c.sourceId));
+        if (!member || (!member.user.passwordHash && !member.user.emailVerifiedAt)) continue;
+        for (const kind of ['client', 'clientUser', 'clientCredential', 'clientNote'])
+          protectedIds.add(id(kind, c.sourceId));
+        warn('clients', 'SYNC_CLAIMED_MEMBER_SKIPPED', c.sourceId);
+      }
+      for (const [section, kind] of [
+        ['clients', 'client'],
+        ['staff', 'staff'],
+      ] as const) {
+        if (!selected.has(section)) continue;
+        const current = new Set(data[section].map((p) => id(kind, p.sourceId)));
+        for (const member of memberships)
+          if (member.id.startsWith(`${prefix}${kind}_`) && !current.has(member.id))
+            warn(section, `SYNC_REMOVED_${section.toUpperCase()}_PRESERVED`, member.id);
+      }
+    }
     const existingMembers = new Map(memberships.map((m) => [m.id, m.userId]));
     const claimed = new Set(memberships.map((m) => m.userId));
     if (owner) claimed.add(owner.id);
@@ -277,6 +384,30 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
       const old = existingMembers.get(memberId);
       if (old) {
         personUsers.set(memberId, old);
+        if (sync && !protectedIds.has(memberId) && old.startsWith(prefix)) {
+          const user = memberships.find((m) => m.id === memberId)!.user;
+          const changes =
+            user.passwordHash || user.emailVerifiedAt || user.realm !== p.realm
+              ? {}
+              : sourceChanges(user, { name: p.name, phone: p.phone });
+          if (Object.keys(changes).length) {
+            counts[section].updated++;
+            writes.push({
+              section,
+              run: () =>
+                db.user.updateMany({
+                  where: {
+                    id: { equals: old, startsWith: prefix },
+                    realm: p.realm,
+                    memberships: { some: { gymId, id: memberId } },
+                    passwordHash: null,
+                    emailVerifiedAt: null,
+                  },
+                  data: changes,
+                }),
+            });
+          }
+        }
         continue;
       }
       let email =
@@ -342,8 +473,16 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           locationId,
         };
       });
-      await bulk('staff', rows, db.gymMember.findMany(scoped), (r) =>
-        db.gymMember.createMany({ data: r }),
+      await bulk(
+        'staff',
+        rows,
+        db.gymMember.findMany({ where: { gymId } }),
+        (r) => db.gymMember.createMany({ data: r }),
+        (r, changes) =>
+          db.gymMember.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       await bulk(
         'staff',
@@ -371,7 +510,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         (r) => db.trainer.createMany({ data: r }),
       );
       // No note for staff: the source adds nothing our staff record does not already hold.
-      if (refreshText)
+      if (refreshText && !sync)
         writes.push({
           section: 'staff',
           run: () =>
@@ -400,8 +539,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
             ...(!c.smsEnabled ? ['smartcrm:sms-disabled'] : []),
           ],
         })),
-        db.gymMember.findMany(scoped),
+        db.gymMember.findMany({ where: { gymId } }),
         (r) => db.gymMember.createMany({ data: r }),
+        (r, changes) =>
+          db.gymMember.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       const staffNames = new Map(data.staff.map((s) => [s.sourceId, s.name]));
       await bulk(
@@ -414,8 +558,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           body: clientNoteText(c, staffNames.get(c.trainerStaffSourceId ?? '') ?? null),
           createdAt: instant(c.registeredAt),
         })),
-        db.memberNote.findMany(scoped),
+        db.memberNote.findMany({ where: { gymId } }),
         (r) => db.memberNote.createMany({ data: r }),
+        (r, changes) =>
+          db.memberNote.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       refresh(
         'clients',
@@ -430,8 +579,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     await bulk(
       selected.has('clients') ? 'clients' : 'staff',
       credentials,
-      db.gymCredential.findMany(scoped),
+      db.gymCredential.findMany({ where: { gymId } }),
       (r) => db.gymCredential.createMany({ data: r }),
+      (r, changes) =>
+        db.gymCredential.updateMany({
+          where: { gymId, id: { equals: r.id, startsWith: prefix } },
+          data: changes,
+        }),
     );
     if (selected.has('packages')) {
       await bulk(
@@ -449,8 +603,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           status: 'INACTIVE' as const,
           description: packageSubscriptionDetails(p).description,
         })),
-        db.packagePlan.findMany(scoped),
+        db.packagePlan.findMany({ where: { gymId } }),
         (r) => db.packagePlan.createMany({ data: r }),
+        (r, changes) =>
+          db.packagePlan.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       refresh(
         'packages',
@@ -472,8 +631,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           status: 'INACTIVE' as const,
           ...packageSubscriptionDetails(p),
         })),
-        db.subscriptionPlan.findMany(scoped),
+        db.subscriptionPlan.findMany({ where: { gymId } }),
         (r) => db.subscriptionPlan.createMany({ data: r }),
+        (r, changes) =>
+          db.subscriptionPlan.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       for (const p of data.packages)
         warn('packages', 'CATALOGUE_INACTIVE_DOOR_VISITS_AND_WINDOWS_UNSUPPORTED', p.sourceId);
@@ -500,8 +664,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           body: saleText(p),
           createdAt: instant(p.soldAt),
         })),
-        db.memberNote.findMany(scoped),
+        db.memberNote.findMany({ where: { gymId } }),
         (r) => db.memberNote.createMany({ data: r }),
+        (r, changes) =>
+          db.memberNote.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       refresh(
         'soldPackages',
@@ -520,34 +689,145 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         planId: id('subscriptionPlan', sale.packageSourceId),
         ...soldSubscriptionDetails(sale, packages.get(sale.packageSourceId)!),
       }));
-      const existingSubs = await db.subscription.findMany({
-        where: { gymId },
-        select: { id: true, memberId: true, status: true },
-      });
-      const existingIds = new Set(existingSubs.map((row) => row.id));
-      const liveByMember = new Map<string, number>();
-      for (const row of [
-        ...existingSubs,
-        ...subscriptionRows.filter((row) => !existingIds.has(row.id)),
-      ]) {
-        if (['ACTIVE', 'FROZEN', 'PAST_DUE', 'TRIAL'].includes(row.status))
-          liveByMember.set(row.memberId, (liveByMember.get(row.memberId) ?? 0) + 1);
-      }
-      const conflicts = [...liveByMember].filter(([, count]) => count > 1);
-      if (conflicts.length) {
-        const members = new Set(conflicts.map(([memberId]) => memberId));
-        blockers.push({
-          code: 'MULTIPLE_LIVE_SUBSCRIPTIONS_DB_UNIQUE_CONSTRAINT',
-          count: conflicts.length,
-          sourceIds: data.soldPackages
-            .filter((sale) => members.has(id('client', sale.clientSourceId)) && !sale.expired)
-            .slice(0, 5)
-            .map((sale) => sale.sourceId),
+      const existingSubs = await db.subscription.findMany({ where: { gymId } });
+      if (sync) {
+        const byId = new Map(existingSubs.map((row) => [row.id, row]));
+        const currentIds = new Set(
+          data.soldPackages.map((sale) => id('subscription', sale.sourceId)),
+        );
+        const sourceSelected = new Set(subscriptionSales.selected.map((sale) => sale.sourceId));
+        // Removed live rows cannot be demoted: preserve them and suppress new live access.
+        const reservedLive = new Set(
+          existingSubs
+            .filter(
+              (row) =>
+                isLiveSubscription(row.status) &&
+                (row.provider !== 'smartcrm-import' ||
+                  !row.id.startsWith(prefix) ||
+                  !currentIds.has(row.id)),
+            )
+            .map((row) => row.memberId),
+        );
+        const currentNotes = new Set(
+          data.soldPackages.map((sale) => id('saleNote', sale.sourceId)),
+        );
+        const oldNotes = await db.memberNote.findMany({
+          where: { gymId, id: { startsWith: `${prefix}saleNote_` } },
+          select: { id: true },
         });
+        const removedHashes = new Set<string>();
+        for (const row of oldNotes)
+          if (!currentNotes.has(row.id))
+            removedHashes.add(row.id.slice(`${prefix}saleNote_`.length));
+        for (const row of existingSubs)
+          if (row.id.startsWith(`${prefix}subscription_`) && !currentIds.has(row.id))
+            removedHashes.add(row.id.slice(`${prefix}subscription_`.length));
+        for (const hash of removedHashes)
+          warn('soldPackages', 'SYNC_REMOVED_SALES_PRESERVED', `${prefix}saleNote_${hash}`);
+        const perMember = new Map<
+          string,
+          Array<{
+            row: (typeof subscriptionRows)[number];
+            changes: Partial<(typeof subscriptionRows)[number]>;
+            exists: boolean;
+          }>
+        >();
+        for (const sale of data.soldPackages) {
+          const rowId = id('subscription', sale.sourceId);
+          const old = byId.get(rowId);
+          if (old && old.provider !== 'smartcrm-import') {
+            warn('soldPackages', 'SYNC_NON_IMPORT_SUBSCRIPTION_PRESERVED', sale.sourceId);
+            continue;
+          }
+          const memberId = id('client', sale.clientSourceId);
+          const blocked = !sale.expired && reservedLive.has(memberId);
+          if (blocked && sourceSelected.has(sale.sourceId))
+            warn('soldPackages', 'SYNC_EXISTING_LIVE_SUBSCRIPTION_NOTE_ONLY', sale.sourceId);
+          const disposition = syncSaleDisposition(
+            sourceSelected.has(sale.sourceId),
+            blocked,
+            !!old,
+          );
+          if (disposition === 'note-only') continue;
+          const row = {
+            id: rowId,
+            gymId,
+            memberId,
+            planId: id('subscriptionPlan', sale.packageSourceId),
+            ...soldSubscriptionDetails(
+              disposition === 'expired' ? { ...sale, expired: true } : sale,
+              packages.get(sale.packageSourceId)!,
+            ),
+          };
+          const {
+            id: _id,
+            gymId: _gymId,
+            memberId: _memberId,
+            createdAt: _createdAt,
+            ...fields
+          } = row;
+          const changes = old ? sourceChanges(old, fields) : {};
+          if (old && !Object.keys(changes).length) {
+            counts.soldPackages.skipped++;
+            continue;
+          }
+          if (old) counts.soldPackages.updated++;
+          else counts.soldPackages.created++;
+          const operations = perMember.get(memberId) ?? [];
+          operations.push({ row, changes, exists: !!old });
+          perMember.set(memberId, operations);
+        }
+        for (const operations of perMember.values()) {
+          // Non-live updates first, then promotions and inserts, all in one transaction.
+          operations.sort(
+            (a, b) =>
+              Number(isLiveSubscription(a.row.status)) - Number(isLiveSubscription(b.row.status)),
+          );
+          writes.push({
+            section: 'soldPackages',
+            run: () =>
+              db.$transaction(
+                operations.map(({ row, changes, exists }) =>
+                  exists
+                    ? db.subscription.updateMany({
+                        where: {
+                          gymId,
+                          id: { equals: row.id, startsWith: prefix },
+                          provider: 'smartcrm-import',
+                        },
+                        data: changes,
+                      })
+                    : db.subscription.create({ data: row }),
+                ),
+              ),
+          });
+        }
+      } else {
+        const existingIds = new Set(existingSubs.map((row) => row.id));
+        const liveByMember = new Map<string, number>();
+        for (const row of [
+          ...existingSubs,
+          ...subscriptionRows.filter((row) => !existingIds.has(row.id)),
+        ]) {
+          if (['ACTIVE', 'FROZEN', 'PAST_DUE', 'TRIAL'].includes(row.status))
+            liveByMember.set(row.memberId, (liveByMember.get(row.memberId) ?? 0) + 1);
+        }
+        const conflicts = [...liveByMember].filter(([, count]) => count > 1);
+        if (conflicts.length) {
+          const members = new Set(conflicts.map(([memberId]) => memberId));
+          blockers.push({
+            code: 'MULTIPLE_LIVE_SUBSCRIPTIONS_DB_UNIQUE_CONSTRAINT',
+            count: conflicts.length,
+            sourceIds: data.soldPackages
+              .filter((sale) => members.has(id('client', sale.clientSourceId)) && !sale.expired)
+              .slice(0, 5)
+              .map((sale) => sale.sourceId),
+          });
+        }
+        await bulk('soldPackages', subscriptionRows, Promise.resolve(existingSubs), (r) =>
+          db.subscription.createMany({ data: r }),
+        );
       }
-      await bulk('soldPackages', subscriptionRows, Promise.resolve(existingSubs), (r) =>
-        db.subscription.createMany({ data: r }),
-      );
       warn('soldPackages', 'PERIOD_END_CANCEL_DISPATCHES_AUTOMATION');
       warn('soldPackages', 'AUTO_UNFREEZE_RUNNER_NOT_FOUND_MANUAL_RESUME_EXTENDS_EXPIRY');
       const orders: Array<Prisma.OrderCreateManyInput & { id: string }> = [];
@@ -714,10 +994,18 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         // not invent extra dates or recreate source cancellations outside this export.
         warn('workouts', 'RECURRENCE_PAUSED_EXPORTED_INSTANCES_AUTHORITATIVE', w.sourceId);
       }
-      await bulk('workouts', rows, db.classTemplate.findMany(scoped), (r) =>
-        db.classTemplate.createMany({ data: r }),
+      await bulk(
+        'workouts',
+        rows,
+        db.classTemplate.findMany({ where: { gymId } }),
+        (r) => db.classTemplate.createMany({ data: r }),
+        (r, changes) =>
+          db.classTemplate.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
-      if (refreshText)
+      if (refreshText && !sync)
         writes.push({
           section: 'workouts',
           run: () =>
@@ -741,7 +1029,12 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           id: id('session', session.sourceId),
           gymId,
           locationId,
-          ...(templateId ? { templateId } : { classTypeId: id('group', workout.groupSourceId) }),
+          ...(templateId
+            ? { templateId, ...(sync ? { classTypeId: null } : {}) }
+            : {
+                classTypeId: id('group', workout.groupSourceId),
+                ...(sync ? { templateId: null } : {}),
+              }),
           trainerId: trainerByWorkout.get(workout.sourceId) ?? null,
           startsAt: instant(session.start),
           endsAt: instant(session.end),
@@ -759,8 +1052,16 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         if (!templateId)
           warn('sessions', 'OFF_RULE_OCCURRENCE_IMPORTED_AS_SINGLE_CLASS', session.sourceId);
       }
-      await bulk('sessions', rows, db.classInstance.findMany(scoped), (r) =>
-        db.classInstance.createMany({ data: r }),
+      await bulk(
+        'sessions',
+        rows,
+        db.classInstance.findMany({ where: { gymId } }),
+        (r) => db.classInstance.createMany({ data: r }),
+        (r, changes) =>
+          db.classInstance.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       warn('sessions', 'SOURCE_HAS_NO_OCCURRENCE_CREATED_AT_USING_START');
       warn('sessions', 'PRICING_FREE_NO_SOURCE_PRICE_REVIEW_BEFORE_MEMBER_ACCESS');
@@ -780,8 +1081,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           status: p.active ? ('ACTIVE' as const) : ('INACTIVE' as const),
           description: productDescriptionText(p),
         })),
-        db.product.findMany(scoped),
+        db.product.findMany({ where: { gymId } }),
         (r) => db.product.createMany({ data: r }),
+        (r, changes) =>
+          db.product.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       refresh(
         'products',
@@ -800,11 +1106,147 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           productId: id('product', p.sourceId),
           stock: p.stock,
         })),
-        db.productStock.findMany(scoped),
+        db.productStock.findMany({ where: { gymId } }),
         (r) => db.productStock.createMany({ data: r }),
+        (r, changes) =>
+          db.productStock.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
       );
       warn('products', 'BARCODE_DESCRIPTION_ONLY_NO_BARCODE_COLUMN');
       warn('products', 'NO_SOURCE_CREATED_AT_USING_IMPORT_TIME');
+    }
+    // Direct ledger inserts: imported stock already reflects these historical sales.
+    for (const section of ['cardSales', 'shopSales'] as const) {
+      if (!selected.has(section)) continue;
+      const methods = new Map(data.paymentTypes.map((p) => [p.sourceId, p.name]));
+      const staffIds = new Set(data.staff.map((s) => s.sourceId));
+      const orders: Array<Prisma.OrderCreateManyInput & { id: string }> = [];
+      const items: Array<Prisma.OrderItemCreateManyInput & { id: string }> = [];
+      const events: Array<Prisma.OrderStatusEventCreateManyInput & { id: string }> = [];
+      const payments: Array<
+        Prisma.PaymentCreateManyInput & {
+          id: string;
+          amount: number;
+          createdAt: Date;
+          status: 'CAPTURED';
+        }
+      > = [];
+      const kind = section === 'cardSales' ? 'card' : 'shop';
+      const sales =
+        section === 'cardSales'
+          ? data.clients.flatMap((client) =>
+              client.cards.map((card) => ({
+                sourceId: card.sourceId,
+                total: card.paidAmount,
+                soldAt: card.recordedAt,
+                paymentTypeSourceId: card.paymentTypeSourceId,
+                memberId: id('client', client.sourceId),
+                staffSourceId: null,
+                lines: [
+                  {
+                    sourceId: card.sourceId,
+                    productSourceId: null,
+                    productName: 'წვდომის ბარათის საფასური',
+                    quantity: 1,
+                    amount: card.paidAmount,
+                  },
+                ],
+              })),
+            )
+          : (data.shopSales ?? []).map((sale) => ({ ...sale, memberId: null }));
+      for (const sale of sales) {
+        const amount = minorUnits(sale.total);
+        const method = paymentMethod(methods.get(sale.paymentTypeSourceId ?? '') ?? '');
+        if (amount <= 0 || !method || !sale.soldAt) {
+          warn(
+            section,
+            amount <= 0
+              ? 'NON_POSITIVE_PAYMENT_SKIPPED'
+              : !method
+                ? 'PAYMENT_METHOD_UNMAPPED_SKIPPED'
+                : 'PAYMENT_DATE_MISSING_SKIPPED',
+            sale.sourceId,
+          );
+          counts[section].skipped++;
+          continue;
+        }
+        const createdAt = instant(sale.soldAt);
+        const orderId = id(`${kind}Order`, sale.sourceId);
+        const soldById =
+          sale.staffSourceId && staffIds.has(sale.staffSourceId)
+            ? id('staff', sale.staffSourceId)
+            : null;
+        if (sale.staffSourceId && !soldById)
+          warn(section, 'SELLER_NOT_FOUND_IMPORTED_WITHOUT_SELLER', sale.sourceId);
+        orders.push({
+          id: orderId,
+          gymId,
+          locationId,
+          memberId: sale.memberId,
+          soldById,
+          total: amount,
+          currency: 'GEL',
+          status: 'PAID',
+          fulfillment: 'PICKUP',
+          createdAt,
+        });
+        payments.push({
+          id: id(`${kind}Payment`, sale.sourceId),
+          gymId,
+          locationId,
+          orderId,
+          amount,
+          currency: 'GEL',
+          status: 'CAPTURED',
+          method,
+          provider: 'smartcrm-import',
+          providerRef: sale.sourceId,
+          createdAt,
+        });
+        events.push({
+          id: id(`${kind}OrderEvent`, sale.sourceId),
+          orderId,
+          status: 'PAID',
+          at: createdAt,
+          actor: soldById ? (personUsers.get(soldById) ?? null) : null,
+        });
+        for (const line of sale.lines) {
+          const qty = shopItemQuantity(line.quantity);
+          if (qty !== line.quantity)
+            warn(section, 'FRACTIONAL_QUANTITY_ROUNDED_AMOUNT_PRESERVED', sale.sourceId);
+          items.push({
+            id: id(`${kind}OrderItem`, `${sale.sourceId}:${line.sourceId}`),
+            orderId,
+            label: line.quantity === 1 ? line.productName : `${line.productName} ×${line.quantity}`,
+            amount: minorUnits(line.amount),
+            qty,
+            createdAt,
+            productVariantId: line.productSourceId
+              ? `${id('product', line.productSourceId)}:base`
+              : null,
+          });
+        }
+      }
+      const existingPayments = await db.payment.findMany({
+        where: { gymId, id: { startsWith: `${prefix}${kind}Payment_` } },
+        select: { id: true, amount: true, createdAt: true, status: true },
+      });
+      revenueByMonth[section] = monthlyPayments(payments, existingPayments, data.gym.timezone);
+      await bulk(section, orders, db.order.findMany(scoped), (rows) =>
+        db.order.createMany({ data: rows }),
+      );
+      const childrenScope = { where: { order: { gymId } }, select: { id: true } } as const;
+      await bulk(section, items, db.orderItem.findMany(childrenScope), (rows) =>
+        db.orderItem.createMany({ data: rows }),
+      );
+      await bulk(section, events, db.orderStatusEvent.findMany(childrenScope), (rows) =>
+        db.orderStatusEvent.createMany({ data: rows }),
+      );
+      await bulk(section, payments, Promise.resolve(existingPayments), (rows) =>
+        db.payment.createMany({ data: rows }),
+      );
     }
     for (const section of ['discounts', 'paymentTypes', 'services'] as const) {
       if (!selected.has(section)) continue;
@@ -813,14 +1255,31 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     }
     const summary = {
       dryRun,
+      ...(sync
+        ? {
+            sync,
+            stockChanges,
+            fieldChanges,
+            keptChanges,
+            removedIdFormat:
+              'imported database id (original source ids were hashed and not stored)',
+          }
+        : {}),
       gymId,
       ownerless: !owner && !gym?.ownerId,
       sections: [...selected],
       counts,
+      revenueByMonth,
+      revenueCurrency: data.gym.currency,
+      revenueTimezone: data.gym.timezone,
       warnings: aggregateWarnings(warnings),
       blockers,
-      policy: 'insert-only; existing imported rows are never overwritten',
-      countUnit: 'database rows (users excluded)',
+      policy: sync
+        ? 'sync source columns of scoped imported rows; preserve removed rows and claimed clients'
+        : 'insert-only; existing imported rows are never overwritten',
+      countUnit: sync
+        ? 'database rows (new users excluded; changed users included)'
+        : 'database rows (users excluded)',
       liveEntitlementsPlanned: selected.has('soldPackages'),
       futureSessionsImported: selected.has('sessions'),
     };

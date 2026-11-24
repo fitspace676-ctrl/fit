@@ -38,7 +38,7 @@ commands:
   deploy <app> [--env preview|prod]           deploy an app (wraps vercel/railway/eas)
   logs <app>                                  tail an app's logs
   gym create --name --slug | list             tenant provisioning helpers
-  gym import-smartcrm --data --slug --name    import Smart CRM (direct DB; --dry-run, --only)
+  gym import-smartcrm --data --slug --name    import Smart CRM (direct DB; --dry-run, --only, --sync [--keep table.column,.. --previous <older export>], --refresh-text)
   gym onboard --name --slug --owner-email      stand up a whole pilot gym (T10.7):
       [--members <n>|--roster <file>] [--dry-run]  owner+staff+plans+schedule+members
   admin grant|revoke --email <email> | list   manage platform SUPER_ADMINs
