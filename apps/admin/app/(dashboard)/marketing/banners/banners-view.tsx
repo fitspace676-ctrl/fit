@@ -203,7 +203,9 @@ export function BannersView({ banners, canManage }: { banners: Banner[]; canMana
     if (banner.startsAt === null && banner.endsAt === null) {
       return t('windowAlways');
     }
-    const from = banner.startsAt ? formatDate(banner.startsAt, locale, timeZone) : t('windowOpenStart');
+    const from = banner.startsAt
+      ? formatDate(banner.startsAt, locale, timeZone)
+      : t('windowOpenStart');
     const to = banner.endsAt ? formatDate(banner.endsAt, locale, timeZone) : t('windowOpenEnd');
     return `${from} → ${to}`;
   }

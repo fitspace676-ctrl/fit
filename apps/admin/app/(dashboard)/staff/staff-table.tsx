@@ -43,9 +43,12 @@ function formatJoined(iso: string, locale: string, timeZone: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : createDateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** The row menu's width, in px — mirrors `styles.menu`'s `12rem`, for right-aligning. */
@@ -540,7 +543,9 @@ export function StaffTable({
       key: 'joined',
       header: t('columns.joined'),
       cell: (member) => (
-        <span {...stylex.props(styles.muted)}>{formatJoined(member.joinedAt, locale, timeZone)}</span>
+        <span {...stylex.props(styles.muted)}>
+          {formatJoined(member.joinedAt, locale, timeZone)}
+        </span>
       ),
     },
   };

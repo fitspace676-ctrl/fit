@@ -323,9 +323,12 @@ function formatDate(iso: string | null, locale: string, timeZone: string): strin
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** Render a member's initials for the avatar placeholder. */

@@ -109,9 +109,12 @@ function formatDate(iso: string, locale: string, timeZone: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /**
@@ -220,7 +223,9 @@ export function InvitesTable({
             </span>
           </div>
         ) : (
-          <span {...stylex.props(styles.mono)}>{formatDate(invite.expiresAt, locale, timeZone)}</span>
+          <span {...stylex.props(styles.mono)}>
+            {formatDate(invite.expiresAt, locale, timeZone)}
+          </span>
         ),
     },
     {

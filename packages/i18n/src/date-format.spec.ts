@@ -146,6 +146,18 @@ describe('explicit gym time zones', () => {
     ).toBe('Nov 23, 2026');
   });
 
+  it('preserves legacy numeric date output for callers without a zone', () => {
+    expect(
+      createDateTimeFormat('ka', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(instant),
+    ).toBe('24.11.2026');
+  });
+
   it('rejects invalid zones instead of silently displaying UTC or the viewer zone', () => {
     expect(() => createDateTimeFormat('en', { timeZone: 'Invalid/Zone' })).toThrow(RangeError);
   });

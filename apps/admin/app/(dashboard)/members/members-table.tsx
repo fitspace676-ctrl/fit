@@ -393,9 +393,12 @@ function formatDate(iso: string | null, locale: string, timeZone: string): strin
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /**
@@ -456,7 +459,9 @@ function NextBillingCell({
       return <span {...stylex.props(styles.muted)}>{t('billing.paused')}</span>;
     case 'due':
       return (
-        <span {...stylex.props(styles.billingMono)}>{formatDate(row.nextBillingAt, locale, timeZone)}</span>
+        <span {...stylex.props(styles.billingMono)}>
+          {formatDate(row.nextBillingAt, locale, timeZone)}
+        </span>
       );
     case 'none':
     default:

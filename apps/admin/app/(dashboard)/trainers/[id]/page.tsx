@@ -285,9 +285,12 @@ function formatDate(iso: string | null, locale: string, timeZone: string): strin
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** "Hired March 2025" from an ISO instant, or an em dash when absent/invalid. */
@@ -301,7 +304,9 @@ function formatHired(
   return Number.isNaN(date.getTime())
     ? '-'
     : t('detail.hired', {
-        date: createDateTimeFormat(locale, { timeZone, month: 'long', year: 'numeric' }).format(date),
+        date: createDateTimeFormat(locale, { timeZone, month: 'long', year: 'numeric' }).format(
+          date,
+        ),
       });
 }
 

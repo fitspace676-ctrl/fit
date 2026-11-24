@@ -365,7 +365,12 @@ export default async function OrdersLogPage({
             </thead>
             <tbody>
               {data.map((order) => (
-                <OrderRow key={order.id} order={order} showBranch={showBranch} timeZone={timeZone} />
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  showBranch={showBranch}
+                  timeZone={timeZone}
+                />
               ))}
             </tbody>
           </table>

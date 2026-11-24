@@ -59,6 +59,18 @@ Paths below are relative to `apps/admin/`. Additional admin sites are individual
 
 Date input creation, report-window computation, elapsed-time arithmetic and serializers are not instant presentation formatters and are not reinterpreted by this change. Marketing form input/read-write zone semantics are separate from the display helpers; see companion audit for caveats. No standalone notification timestamp formatter was found in apps/admin beyond the activity/feed surfaces covered above.
 
+## Remaining limitations
+
+- Invoice `issuedAt` mixes manual date-only values and automatically generated instants
+  with no payload discriminator. The existing UTC invoice convention is preserved in
+  billing roster, member detail and web. Automatic invoice issue instants are therefore
+  **not fixed**; a data/API contract decision is needed to satisfy both semantics.
+- Marketing date-input round trips still use the browser zone; this change corrects their
+  read-only displays, not input-to-instant conversion.
+- Member monthly visit aggregation and web calendar navigation/day carriers retain their
+  existing browser-zone behavior. These are not simple instant formatter substitutions.
+  See both companion audits; do not drop these limitations from the owner's report.
+
 ## Owner checks after integration
 
 Run the existing workspace tests/type-check/build from the target checkout, not worker worktrees:

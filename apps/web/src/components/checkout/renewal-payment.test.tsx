@@ -31,12 +31,26 @@ const payment: MeSubscriptionPayment = {
 };
 beforeEach(() => vi.clearAllMocks());
 it('shows Pay only when canPayNow, and hides absent/auto payment', () => {
-  const { rerender } = render(<RenewalPayment timeZone="Asia/Tbilisi" payment={payment} overdue={false} />);
+  const { rerender } = render(
+    <RenewalPayment timeZone="Asia/Tbilisi" payment={payment} overdue={false} />,
+  );
   expect(screen.getByRole('button', { name: 'payPeriod' })).toBeEnabled();
-  rerender(<RenewalPayment timeZone="Asia/Tbilisi" payment={{ ...payment, canPayNow: false }} overdue={false} />);
+  rerender(
+    <RenewalPayment
+      timeZone="Asia/Tbilisi"
+      payment={{ ...payment, canPayNow: false }}
+      overdue={false}
+    />,
+  );
   expect(screen.queryByRole('button')).toBeNull();
   expect(screen.getByText('renewalAmount')).toBeInTheDocument();
-  rerender(<RenewalPayment timeZone="Asia/Tbilisi" payment={{ ...payment, mode: 'auto' }} overdue={false} />);
+  rerender(
+    <RenewalPayment
+      timeZone="Asia/Tbilisi"
+      payment={{ ...payment, mode: 'auto' }}
+      overdue={false}
+    />,
+  );
   expect(screen.queryByText('renewalAmount')).toBeNull();
   rerender(<RenewalPayment timeZone="Asia/Tbilisi" overdue={false} />);
   expect(screen.queryByRole('button')).toBeNull();
@@ -57,7 +71,13 @@ it('pays through the existing hosted payment mechanism', async () => {
   expect(mocks.pay).toHaveBeenCalledOnce();
 });
 it('resumes a pending order without creating another', () => {
-  render(<RenewalPayment timeZone="Asia/Tbilisi" payment={{ ...payment, pendingOrderId: 'o1' }} overdue={false} />);
+  render(
+    <RenewalPayment
+      timeZone="Asia/Tbilisi"
+      payment={{ ...payment, pendingOrderId: 'o1' }}
+      overdue={false}
+    />,
+  );
   fireEvent.click(screen.getByRole('button', { name: 'payPeriod' }));
   expect(mocks.push).toHaveBeenCalledWith('/checkout/result?orderId=o1');
   expect(mocks.pay).not.toHaveBeenCalled();

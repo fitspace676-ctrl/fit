@@ -121,7 +121,7 @@ export function createDateTimeFormat(
   // Pin every numeric field, calendar and hour cycle. This needs no Georgian
   // ICU data and never reads the server/browser's local time zone.
   const zoneFields =
-    opts.timeZone && opts.timeZone !== 'UTC'
+    opts.timeZone !== undefined && opts.timeZone !== 'UTC'
       ? new Intl.DateTimeFormat('en-US', {
           timeZone: opts.timeZone,
           calendar: 'gregory',

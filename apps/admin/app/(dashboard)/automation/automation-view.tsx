@@ -407,7 +407,9 @@ export function AutomationView({
       header: t('columns.created'),
       sortKey: 'createdAt',
       cell: (rule) => (
-        <span {...stylex.props(styles.dateMono)}>{formatDate(rule.createdAt, locale, timeZone)}</span>
+        <span {...stylex.props(styles.dateMono)}>
+          {formatDate(rule.createdAt, locale, timeZone)}
+        </span>
       ),
     },
     {

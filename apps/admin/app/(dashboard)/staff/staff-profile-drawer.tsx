@@ -507,7 +507,9 @@ export function StaffProfileDrawer({
               )}
               {detail(
                 t('profileDrawer.joined'),
-                createDateTimeFormat(defaultLocale, { timeZone }).format(new Date(member.joinedAt)),
+                createDateTimeFormat(defaultLocale, { timeZone, dateStyle: 'medium' }).format(
+                  new Date(member.joinedAt),
+                ),
                 false,
                 true,
               )}

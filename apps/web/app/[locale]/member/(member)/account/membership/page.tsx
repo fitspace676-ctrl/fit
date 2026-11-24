@@ -355,17 +355,25 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, activeLocale, gymId, timeZone, { subscription, invoices }, creditPacks, catalogue, bookings] =
-    await Promise.all([
-      getTranslations('member.membership'),
-      getLocale(),
-      getActiveGymId(),
-      getActiveGymTimezone(),
-      safe(fetchMembership(), { subscription: null, invoices: [] }),
-      safe(fetchMyCreditPacks(), []),
-      safe(fetchCreditPackCatalogue(), []),
-      safe(fetchMemberBookings({ scope: 'all' }), [] as MemberBookingHistoryEntry[]),
-    ]);
+  const [
+    t,
+    activeLocale,
+    gymId,
+    timeZone,
+    { subscription, invoices },
+    creditPacks,
+    catalogue,
+    bookings,
+  ] = await Promise.all([
+    getTranslations('member.membership'),
+    getLocale(),
+    getActiveGymId(),
+    getActiveGymTimezone(),
+    safe(fetchMembership(), { subscription: null, invoices: [] }),
+    safe(fetchMyCreditPacks(), []),
+    safe(fetchCreditPackCatalogue(), []),
+    safe(fetchMemberBookings({ scope: 'all' }), [] as MemberBookingHistoryEntry[]),
+  ]);
 
   const credits = totalRemainingCredits(creditPacks);
   const attended = bookings.filter((b) => b.status === 'ATTENDED').length;
@@ -422,7 +430,11 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         </Banner>
       ) : null}
 
-      <RenewalPayment timeZone={timeZone} payment={subscription?.payment} overdue={status === 'PAST_DUE'} />
+      <RenewalPayment
+        timeZone={timeZone}
+        payment={subscription?.payment}
+        overdue={status === 'PAST_DUE'}
+      />
 
       <section {...stylex.props(styles.twoCol, !subscription && styles.oneCol)}>
         {/* Current plan */}
@@ -545,7 +557,9 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
                     <td {...stylex.props(styles.td, styles.tdMono)}>{inv.number}</td>
                     <td {...stylex.props(styles.td)}>
                       {createDateTimeFormat(activeLocale, {
-                        timeZone,
+                        // Invoice issue dates mix manual calendar days and instants.
+                        // Preserve the billing roster's UTC calendar contract.
+                        timeZone: 'UTC',
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',

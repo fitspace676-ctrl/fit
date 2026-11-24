@@ -681,9 +681,12 @@ function formatDate(iso: string, locale: string, timeZone = 'UTC'): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : createDateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** Format an ISO instant as a short local date-time. */
@@ -1117,7 +1120,9 @@ function BookingsCard({ member, t, locale }: { member: MemberDetail; t: T; local
             <li key={booking.id} {...stylex.props(styles.row)}>
               <div {...stylex.props(styles.rowMin)}>
                 <p {...stylex.props(styles.rowTitle)}>{booking.title}</p>
-                <p {...stylex.props(styles.rowSub)}>{formatDateTime(booking.startsAt, locale, timeZone)}</p>
+                <p {...stylex.props(styles.rowSub)}>
+                  {formatDateTime(booking.startsAt, locale, timeZone)}
+                </p>
               </div>
               <span {...stylex.props(styles.rowStatus)}>{booking.status}</span>
             </li>
@@ -1196,7 +1201,9 @@ function CurrentPlanCard({
 
       <div {...stylex.props(styles.periodBlock)}>
         <div {...stylex.props(styles.periodHead)}>
-          <span>{t('detail.renews', { date: formatDate(plan.currentPeriodEnd, locale, timeZone) })}</span>
+          <span>
+            {t('detail.renews', { date: formatDate(plan.currentPeriodEnd, locale, timeZone) })}
+          </span>
           <span {...stylex.props(styles.periodDays)}>
             {t('detail.daysLeft', { count: plan.daysRemaining })}
           </span>
@@ -1431,7 +1438,9 @@ function CreditsCard({
                 </p>
                 <p {...stylex.props(styles.rowSub)}>
                   {pack.expiresAt
-                    ? t('detail.creditExpires', { date: formatDate(pack.expiresAt, locale, timeZone) })
+                    ? t('detail.creditExpires', {
+                        date: formatDate(pack.expiresAt, locale, timeZone),
+                      })
                     : t('detail.creditNoExpiry')}
                 </p>
               </div>
@@ -1513,7 +1522,9 @@ function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
                   <p {...stylex.props(styles.rowTitleMono)}>
                     {formatAmount(payment.amount, member.currency)}
                   </p>
-                  <p {...stylex.props(styles.rowSub)}>{formatDate(payment.paidAt, locale, timeZone)}</p>
+                  <p {...stylex.props(styles.rowSub)}>
+                    {formatDate(payment.paidAt, locale, timeZone)}
+                  </p>
                 </div>
                 <span {...stylex.props(styles.rowStatus)}>{payment.status}</span>
               </li>
@@ -1543,7 +1554,7 @@ function InvoicesPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
                     {invoice.number} · {formatAmount(invoice.amount, invoice.currency)}
                   </p>
                   <p {...stylex.props(styles.rowSub)}>
-                    {formatDate(invoice.issuedAt, locale, timeZone)} · {invoice.status}
+                    {formatDate(invoice.issuedAt, locale)} · {invoice.status}
                   </p>
                 </div>
                 {/* Download proxy is a root-relative admin route handler, not a data
