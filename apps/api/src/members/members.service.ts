@@ -1,3 +1,4 @@
+import { activeMemberWhere, membershipPlanMix } from '../common/live-membership.util';
 import {
   BadRequestException,
   ConflictException,
@@ -988,64 +989,16 @@ export class MembersService {
   /*  Roster aggregates                                                      */
   /* ---------------------------------------------------------------------- */
 
-  /**
-   * The gym-wide live plan mix — live subscriptions (ACTIVE / PAST_DUE / FROZEN)
-   * grouped by their catalogue plan, labelled with each plan's name, richest
-   * first. A subscription whose plan was deleted rolls up under `"No plan"`.
-   * `total` is the paid-members count across all plans. Mirrors the dashboard's
-   * plan mix. Independent of the page's filters (it describes the whole gym).
-   */
+  /** Current paying members by plan, using the dashboard's exact definition.
+   * Frozen is included; one person contributes to one slice. Search/status page
+   * filters do not change the mix; the selected home branch does. */
   private async planMix(locationId?: string): Promise<MemberPlanMix> {
-    const db = this.prisma.client;
-    const grouped = await db.subscription.groupBy({
-      by: ['planId'],
-      // Exclude subscriptions owned by trashed members — the mix describes the live
-      // roster. `Subscription` has no branch of its own; it inherits the one on the
-      // member who holds it, which is the same attribution rule the roster above
-      // uses, so the bar always describes exactly the members listed beneath it.
-      where: {
-        status: { in: [...LIVE_SUBSCRIPTION_STATUSES] },
-        member: { deletedAt: null, ...atLocation(locationId) },
-      },
-      _count: { _all: true },
-    });
-    if (grouped.length === 0) {
-      return { total: 0, plans: [] };
-    }
-
-    const planIds = grouped.map((g) => g.planId).filter((id): id is string => id !== null);
-    const plans =
-      planIds.length === 0
-        ? []
-        : await db.subscriptionPlan.findMany({
-            where: { id: { in: planIds } },
-            select: { id: true, name: true },
-          });
-    const nameById = new Map(plans.map((p) => [p.id, p.name]));
-
-    let total = 0;
-    const slices = grouped
-      .map((g) => {
-        const count = g._count._all;
-        total += count;
-        return {
-          planId: g.planId,
-          name: g.planId === null ? 'No plan' : (nameById.get(g.planId) ?? 'Deleted plan'),
-          count,
-        };
-      })
-      .sort((a, b) => b.count - a.count)
-      .map((slice, i) => ({ ...slice, color: PLAN_COLORS[i % PLAN_COLORS.length] ?? null }));
-
-    return { total, plans: slices };
+    return membershipPlanMix(this.prisma.client, locationId);
   }
 
-  /**
-   * The gym-wide member counts per segment for the roster's tabs. `all` / `active`
-   * / `trial` (INVITED) / `expired` (SUSPENDED) group the `MEMBER`-role
-   * memberships by `GymMemberStatus`; `frozen` counts members holding a live
-   * `FROZEN` subscription. Independent of the page's filters.
-   */
+  /** Account totals and roster segments, excluding trash. The header's `active`
+   * is a current membership count, identical to the dashboard KPI; `all` keeps
+   * every non-deleted account, including suspended/invited accounts. */
   private async tabCounts(locationId?: string): Promise<MemberTabCounts> {
     const db = this.prisma.client;
     // Every count carries the branch the roster is showing. A tab badge that
@@ -1059,7 +1012,7 @@ export class MembersService {
         where: { role: Role.MEMBER, deletedAt: null, ...branch, ...memberKindWhere(kind) },
       });
 
-    const [byStatus, frozen, trash, member, guest, inactive] = await Promise.all([
+    const [byStatus, frozen, trash, member, guest, inactive, active] = await Promise.all([
       db.gymMember.groupBy({
         by: ['status'],
         where: { role: Role.MEMBER, deletedAt: null, ...branch },
@@ -1077,17 +1030,18 @@ export class MembersService {
       kindCount('MEMBER'),
       kindCount('GUEST'),
       kindCount('INACTIVE'),
+      db.gymMember.count({ where: activeMemberWhere(new Date(), locationId) }),
     ]);
 
     const countOf = (status: GymMemberStatus): number =>
       byStatus.find((g) => g.status === status)?._count._all ?? 0;
 
-    const active = countOf(GymMemberStatus.ACTIVE);
+    const activeAccounts = countOf(GymMemberStatus.ACTIVE);
     const trial = countOf(GymMemberStatus.INVITED);
     const expired = countOf(GymMemberStatus.SUSPENDED);
 
     return {
-      all: active + trial + expired,
+      all: activeAccounts + trial + expired,
       member,
       guest,
       inactive,
