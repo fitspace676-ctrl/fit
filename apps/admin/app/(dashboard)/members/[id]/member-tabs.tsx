@@ -1538,7 +1538,6 @@ function PaymentsPanel({ member, t, locale }: { member: MemberDetail; t: T; loca
 
 /** Invoices — the member's numbered invoices (status + PDF download), newest first. */
 function InvoicesPanel({ member, t, locale }: { member: MemberDetail; t: T; locale: string }) {
-  const timeZone = useGymTimeZone();
   return (
     <div {...stylex.props(styles.panelStack)}>
       <Card padding="none" xstyle={styles.card}>
