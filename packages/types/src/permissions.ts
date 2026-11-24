@@ -198,6 +198,8 @@ export enum Permission {
   ReviewModerate = 'review:moderate',
   /** View the gym's audit log of privileged actions. */
   AuditRead = 'audit:read',
+  /** Use the console's AI assistant — its chat and its saved conversations. */
+  AiAgentUse = 'ai-agent:use',
 
   // -- Member self-service ---------------------------------------------------------
   /** Post a rating + review for a class one attended. */

@@ -2344,7 +2344,8 @@
         "ptSessionManage": "Create, edit & cancel PT sessions",
         "ptSessionManageOwn": "Manage own PT sessions",
         "revenueRead": "View revenue",
-        "reportExport": "Export reports"
+        "reportExport": "Export reports",
+        "aiAgentUse": "Use the AI assistant"
       },
       "errors": {
         "loadStaff": "Could not load staff ({status}): {message}",
@@ -4570,6 +4571,7 @@
         "packages": "Plans & packages",
         "loyalty": "Loyalty",
         "reports": "Reports & dashboard",
+        "aiAgent": "AI assistant",
         "locations": "Branches",
         "gym": "Gym settings & member portal",
         "audit": "Audit log",
