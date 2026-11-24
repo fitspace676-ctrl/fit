@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -32,12 +33,13 @@ const STATUS_STYLES: Record<
 };
 
 /** Render an ISO instant as a short local date, or a dash when absent. */
-function formatDate(iso: string | null, locale: string): string {
+function formatDate(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
     : createDateTimeFormat(locale, {
+        timeZone,
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -57,6 +59,7 @@ export default async function SubscriptionPlanDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const timeZone = await getGymTimeZone();
   const { id } = await params;
   const [t, locale] = await Promise.all([getTranslations('admin.billingPlans'), getLocale()]);
   const nf = createNumberFormat(locale);
@@ -191,7 +194,7 @@ export default async function SubscriptionPlanDetailPage({
       </section>
 
       <p className="text-xs text-ink-400">
-        {t('detail.addedAt', { date: formatDate(plan.createdAt, locale) })}
+        {t('detail.addedAt', { date: formatDate(plan.createdAt, locale, timeZone) })}
       </p>
     </div>
   );

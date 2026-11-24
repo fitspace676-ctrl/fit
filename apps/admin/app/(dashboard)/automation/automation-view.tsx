@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -239,6 +240,7 @@ export function AutomationView({
   catalog: BuilderCatalog;
 }) {
   const t = useTranslations('admin.automation');
+  const timeZone = useGymTimeZone();
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
@@ -405,7 +407,7 @@ export function AutomationView({
       header: t('columns.created'),
       sortKey: 'createdAt',
       cell: (rule) => (
-        <span {...stylex.props(styles.dateMono)}>{formatDate(rule.createdAt, locale)}</span>
+        <span {...stylex.props(styles.dateMono)}>{formatDate(rule.createdAt, locale, timeZone)}</span>
       ),
     },
     {

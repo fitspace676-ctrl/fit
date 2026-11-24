@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useEffect, useState, useTransition, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
@@ -38,11 +39,11 @@ import {
 import { staffDeleteImpactAction, removeStaffAction, updateStaffRoleAction } from './actions';
 
 /** An ISO instant as a short local date, or the raw value if it won't parse. */
-function formatJoined(iso: string, locale: string): string {
+function formatJoined(iso: string, locale: string, timeZone: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
+    : createDateTimeFormat(locale, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(
         date,
       );
 }
@@ -387,6 +388,7 @@ export function StaffTable({
   display: GymStaffDirectorySettings;
 }) {
   const t = useTranslations('admin.staff');
+  const timeZone = useGymTimeZone();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -538,7 +540,7 @@ export function StaffTable({
       key: 'joined',
       header: t('columns.joined'),
       cell: (member) => (
-        <span {...stylex.props(styles.muted)}>{formatJoined(member.joinedAt, locale)}</span>
+        <span {...stylex.props(styles.muted)}>{formatJoined(member.joinedAt, locale, timeZone)}</span>
       ),
     },
   };

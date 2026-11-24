@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -248,6 +249,7 @@ export function StaffProfileDrawer({
   /** Owners only: may pick Owner, or edit an existing owner's role. */
   canAssignOwner: boolean;
 }) {
+  const timeZone = useGymTimeZone();
   const t = useTranslations('admin.staff');
   // Only ever a fallback for a NEWLY switched-on day — `hoursFromShifts` carries
   // each existing shift's own branch through the grid, so an edit made under one
@@ -505,7 +507,7 @@ export function StaffProfileDrawer({
               )}
               {detail(
                 t('profileDrawer.joined'),
-                createDateTimeFormat(defaultLocale, {}).format(new Date(member.joinedAt)),
+                createDateTimeFormat(defaultLocale, { timeZone }).format(new Date(member.joinedAt)),
                 false,
                 true,
               )}

@@ -69,9 +69,9 @@ export function triggerNeedsDays(trigger: AutomationTriggerType): boolean {
 // and the executor's resolver that fills the tokens.
 
 /** Format an ISO timestamp as a short localized date, or an em dash when absent. */
-export function formatDate(iso: string | null | undefined, locale: string): string {
+export function formatDate(iso: string | null | undefined, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '-';
-  return createDateTimeFormat(locale, { dateStyle: 'medium' }).format(date);
+  return createDateTimeFormat(locale, { timeZone, dateStyle: 'medium' }).format(date);
 }

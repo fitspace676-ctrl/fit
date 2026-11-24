@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 // @fit/admin — the home-screen banner reel (T1.16).
 //
 // The member app's carousel, in the order it will be drawn: position, artwork,
@@ -138,6 +139,7 @@ function moved(banners: Banner[], index: number, direction: -1 | 1): Banner[] | 
 
 export function BannersView({ banners, canManage }: { banners: Banner[]; canManage: boolean }) {
   const t = useTranslations('admin.marketing.banners');
+  const timeZone = useGymTimeZone();
   const locale = useLocale();
   const router = useRouter();
   const { toast } = useToast();
@@ -201,8 +203,8 @@ export function BannersView({ banners, canManage }: { banners: Banner[]; canMana
     if (banner.startsAt === null && banner.endsAt === null) {
       return t('windowAlways');
     }
-    const from = banner.startsAt ? formatDate(banner.startsAt, locale) : t('windowOpenStart');
-    const to = banner.endsAt ? formatDate(banner.endsAt, locale) : t('windowOpenEnd');
+    const from = banner.startsAt ? formatDate(banner.startsAt, locale, timeZone) : t('windowOpenStart');
+    const to = banner.endsAt ? formatDate(banner.endsAt, locale, timeZone) : t('windowOpenEnd');
     return `${from} → ${to}`;
   }
 
