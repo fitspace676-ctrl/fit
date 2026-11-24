@@ -104,7 +104,9 @@ describe('DashboardService', () => {
       await service.getStats();
 
       // First call: the active figure — MEMBER role + ACTIVE status, live only.
-      expect(gymMember.mock.calls[0]?.[0]?.where).toEqual(activeMemberWhere(expect.any(Date)));
+      expect(gymMember.mock.calls[0]?.[0]?.where).toEqual(
+        activeMemberWhere(expect.any(Date) as Date),
+      );
       // Second call: the total — MEMBER role, all statuses, trashed excluded.
       expect(gymMember.mock.calls[1]?.[0]?.where).toEqual({ role: Role.MEMBER, deletedAt: null });
     });

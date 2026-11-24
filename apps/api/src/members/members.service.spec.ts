@@ -375,7 +375,9 @@ describe('MembersService', () => {
     it('uses the dashboard live-membership query for the header active figure', async () => {
       const { service, count } = setup();
       await service.listMembers(query({ locationId: 'loc-1' }));
-      expect(count).toHaveBeenCalledWith({ where: activeMemberWhere(expect.any(Date), 'loc-1') });
+      expect(count).toHaveBeenCalledWith({
+        where: activeMemberWhere(expect.any(Date) as Date, 'loc-1'),
+      });
     });
 
     it('projects rows to denormalised MemberRows and echoes pagination totals', async () => {
