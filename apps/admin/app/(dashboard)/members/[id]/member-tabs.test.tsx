@@ -7,6 +7,9 @@ import { ThemeProvider } from '@/components/theme/theme-provider';
 import { ToastProvider } from '@/components/ui';
 import { MemberTabs } from './member-tabs';
 
+const gymZone = vi.hoisted(() => ({ current: 'America/Los_Angeles' }));
+vi.mock('@/components/gym-timezone', () => ({ useGymTimeZone: () => gymZone.current }));
+
 // The panel under test renders no server action, but the module imports them, and
 // those pull `next/headers` in through the session helper.
 vi.mock('../actions', () => ({
@@ -129,5 +132,23 @@ describe('member profile — membership start row', () => {
     // after the node — i.e. the three rows are in this order in the document.
     expect(labels[0]!.compareDocumentPosition(labels[1]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(labels[1]!.compareDocumentPosition(labels[2]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+});
+
+describe('member dates — gym instants and recorded calendar days', () => {
+  it('keeps birth and membership start days unchanged in a western gym zone', () => {
+    renderProfileTab(memberDetail());
+    expect(fieldValue('Date of birth')).toBe('Mar 2, 1994');
+    expect(fieldValue('Membership start')).toBe('Jul 1, 2026');
+  });
+
+  it('renders access instants on the gym clock across the UTC day boundary', () => {
+    renderProfileTab(
+      memberDetail({
+        accessLog: [{ id: 'visit-1', at: '2026-07-01T01:30:00Z', method: 'QR', location: null }],
+      }),
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Access Log' }));
+    expect(screen.getByText('Jun 30, 06:30 PM')).toBeInTheDocument();
   });
 });

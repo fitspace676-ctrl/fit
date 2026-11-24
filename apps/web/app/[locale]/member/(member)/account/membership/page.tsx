@@ -4,7 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { getLocale, getTranslations, setRequestLocale } from 'next-intl/server';
 import type { MemberBookingHistoryEntry } from '@fit/types';
 import { fetchMembership } from '@/lib/membership';
-import { getActiveGymId } from '@/lib/active-gym';
+import { getActiveGymId, getActiveGymTimezone } from '@/lib/active-gym';
 import {
   fetchCreditPackCatalogue,
   fetchMyCreditPacks,
@@ -355,11 +355,12 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, activeLocale, gymId, { subscription, invoices }, creditPacks, catalogue, bookings] =
+  const [t, activeLocale, gymId, timeZone, { subscription, invoices }, creditPacks, catalogue, bookings] =
     await Promise.all([
       getTranslations('member.membership'),
       getLocale(),
       getActiveGymId(),
+      getActiveGymTimezone(),
       safe(fetchMembership(), { subscription: null, invoices: [] }),
       safe(fetchMyCreditPacks(), []),
       safe(fetchCreditPackCatalogue(), []),
@@ -383,6 +384,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
   const fmtDate = (iso: string | null) =>
     iso
       ? createDateTimeFormat(activeLocale, {
+          timeZone,
           day: 'numeric',
           month: 'short',
           year: 'numeric',
@@ -420,7 +422,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
         </Banner>
       ) : null}
 
-      <RenewalPayment payment={subscription?.payment} overdue={status === 'PAST_DUE'} />
+      <RenewalPayment timeZone={timeZone} payment={subscription?.payment} overdue={status === 'PAST_DUE'} />
 
       <section {...stylex.props(styles.twoCol, !subscription && styles.oneCol)}>
         {/* Current plan */}
@@ -478,6 +480,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
             looking empty. */}
         {subscription ? (
           <FreezeCard
+            timeZone={timeZone}
             id={subscription.id}
             status={subscription.status}
             frozenUntil={subscription.frozenUntil}
@@ -542,6 +545,7 @@ export default async function MembershipPage({ params }: { params: Promise<{ loc
                     <td {...stylex.props(styles.td, styles.tdMono)}>{inv.number}</td>
                     <td {...stylex.props(styles.td)}>
                       {createDateTimeFormat(activeLocale, {
+                        timeZone,
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
