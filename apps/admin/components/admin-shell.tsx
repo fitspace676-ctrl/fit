@@ -89,7 +89,6 @@ const styles = stylex.create({
 });
 
 export function AdminShell({
-  gymSlug,
   system,
   locations,
   sidebarCollapsed = false,
@@ -98,7 +97,6 @@ export function AdminShell({
   banner = null,
   children,
 }: {
-  gymSlug: string | null;
   system: ShellSystemState;
   locations: ShellLocation[];
   /** The server-verified session, seeding the sidebar's first paint. */
@@ -130,12 +128,7 @@ export function AdminShell({
         contentPadding={0}
         banner={banner}
         sideNav={
-          <Sidebar
-            gymSlug={gymSlug}
-            system={system}
-            defaultCollapsed={sidebarCollapsed}
-            initialSession={session}
-          />
+          <Sidebar system={system} defaultCollapsed={sidebarCollapsed} initialSession={session} />
         }
         mobileNav={{ hasToggle: false, breakpoint: 'md' }}
       >

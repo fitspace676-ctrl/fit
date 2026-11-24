@@ -17,7 +17,6 @@ import { ThemeProvider } from '@/components/theme/theme-provider';
 import { THEME_COOKIE, resolveTheme, type Theme } from '@/lib/theme';
 import { AstryxProvider } from '@/components/theme/astryx-provider';
 import { getActiveGymBrand, getActiveGymSlug } from '@/lib/active-gym';
-import { ConsoleBrandProvider } from '@/components/console-brand';
 import { ConsoleThemeStyle } from '@/components/console-theme-style';
 import { gymMetadata, gymViewport } from '@/lib/gym-metadata';
 
@@ -72,7 +71,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const locale = await getLocale();
   const messages = await getMessages();
 
-  const [slug, brand] = await Promise.all([getActiveGymSlug(), getActiveGymBrand()]);
+  const slug = await getActiveGymSlug();
 
   return (
     <html
@@ -88,11 +87,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <TopLoader />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider initial={theme}>
-            <AstryxProvider>
-              <ConsoleBrandProvider brand={{ slug, name: brand?.name, logoUrl: brand?.logoUrl }}>
-                {children}
-              </ConsoleBrandProvider>
-            </AstryxProvider>
+            <AstryxProvider>{children}</AstryxProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

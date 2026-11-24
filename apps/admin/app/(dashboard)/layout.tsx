@@ -183,7 +183,6 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <GymCurrencyProvider currency={currency}>
         <ActiveLocationProvider initial={activeLocation} locations={locations} access={access}>
           <AdminShell
-            gymSlug={gymSlug ?? session?.gymSlug ?? null}
             system={system}
             locations={locations}
             sidebarCollapsed={sidebarCollapsed}

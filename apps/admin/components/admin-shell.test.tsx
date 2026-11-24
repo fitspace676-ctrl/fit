@@ -16,7 +16,6 @@ function renderShell(banner?: React.ReactNode) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <AdminShell
-        gymSlug="iron-gym"
         system={{ online: true, checkInCount: 3 }}
         locations={[]}
         banner={banner}
