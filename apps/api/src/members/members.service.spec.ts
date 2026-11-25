@@ -66,6 +66,7 @@ interface FindManyArgs {
     status?: unknown;
     user?: unknown;
     subscriptions?: unknown;
+    AND?: unknown[];
     /** The kind segment's clause — an override branch plus a derived branch. */
     OR?: unknown[];
   };
