@@ -10,6 +10,7 @@ import {
   shopItemQuantity,
   sourceChanges,
   isLiveSubscription,
+  isRemovedImportedSubscription,
   syncSaleDisposition,
   selectSubscriptionSales,
   packageSubscriptionDetails,
@@ -39,6 +40,10 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
   const dryRun = boolFlag(args.flags, 'dry-run');
   // Rewrite the staff-visible texts (notes, descriptions) of rows a previous run created.
   const sync = boolFlag(args.flags, 'sync');
+  const expireRemovedSales = boolFlag(args.flags, 'expire-removed-sales');
+  if (expireRemovedSales && !sync)
+    throw new CommandError('--expire-removed-sales requires --sync', { code: 'BAD_ARGUMENT' });
+  let expiredRemovedSales = 0;
   const refreshText = sync || boolFlag(args.flags, 'refresh-text');
   const stockChanges: Array<{ sourceId: string; before: number; after: number }> = [];
   if (!slug || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug) || !name || !path) {
@@ -121,6 +126,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
       throw new CommandError('Cannot read --previous file', { code: 'BAD_IMPORT' });
     }
   }
+  function applyKeep(table: string, changes: object) {
+    for (const key of Object.keys(changes)) {
+      if (!keep.has(`${table}.${key}`)) continue;
+      delete (changes as Record<string, unknown>)[key];
+      keptChanges[`${table}.${key}`] = (keptChanges[`${table}.${key}`] ?? 0) + 1;
+    }
+  }
   const revenueByMonth: Partial<Record<Section, ReturnType<typeof monthlyPayments>>> = {};
   const writes: Array<{ section: Section; run: () => Promise<unknown> }> = [];
   // Reads and planning also run for --dry-run. No write closure executes until all planning succeeds.
@@ -130,6 +142,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     existing: Promise<Array<{ id: string }>>,
     create: (rows: T[]) => Promise<unknown>,
     update?: (row: T, changes: Partial<T>) => Prisma.PrismaPromise<unknown>,
+    syncFields?: readonly (keyof T)[],
   ) {
     const previous = await existing;
     const present = new Set(previous.map((r) => r.id));
@@ -137,19 +150,18 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
       const byId = new Map(previous.map((r) => [r.id, r]));
       for (const row of rows) {
         const old = byId.get(row.id);
-        if (!old || protectedIds.has(row.id)) continue;
-        // Identity, ownership and creation timestamps are never rewritten.
+        if (!old || !row.id.startsWith(prefix) || protectedIds.has(row.id)) continue;
+        // Identity and ownership stay immutable; timestamp repairs opt in explicitly.
         const { id: _id, ...fields } = row;
         const desired = { ...fields } as Record<string, unknown>;
-        for (const key of ['gymId', 'userId', 'memberId', 'createdAt']) delete desired[key];
+        for (const key of Object.keys(desired)) {
+          if (syncFields ? !syncFields.includes(key as keyof T) : key === 'createdAt')
+            delete desired[key];
+        }
+        for (const key of ['gymId', 'userId', 'memberId']) delete desired[key];
         const changes = sourceChanges(old, desired) as Partial<T>;
         const table = row.id.slice(prefix.length).split('_')[0]!;
-        // Columns edited in our product since the import stay ours (`--keep table.column`).
-        for (const key of Object.keys(changes)) {
-          if (!keep.has(`${table}.${key}`)) continue;
-          delete (changes as Record<string, unknown>)[key];
-          keptChanges[`${table}.${key}`] = (keptChanges[`${table}.${key}`] ?? 0) + 1;
-        }
+        applyKeep(table, changes);
         // Stock follows the source only where the source itself moved since `--previous`;
         // otherwise the difference is our own sales and reservations.
         if (previousStock && 'stock' in changes) {
@@ -671,6 +683,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
             where: { gymId, id: { equals: r.id, startsWith: prefix } },
             data: changes,
           }),
+        ['body', 'authorName', 'createdAt'],
       );
       refresh(
         'soldPackages',
@@ -678,9 +691,16 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         (r) => db.memberNote.update({ where: { id: r.id, gymId }, data: { body: r.text } }),
       );
       const packages = new Map(data.packages.map((p) => [p.sourceId, p]));
-      const subscriptionSales = selectSubscriptionSales(data.soldPackages);
+      const subscriptionSales = selectSubscriptionSales(data.soldPackages, now);
+      const deferred = new Set(subscriptionSales.deferred.map((sale) => sale.sourceId));
       for (const sale of subscriptionSales.noteOnly)
-        warn('soldPackages', 'SECOND_LIVE_PACKAGE_NOTE_ONLY', sale.sourceId);
+        warn(
+          'soldPackages',
+          deferred.has(sale.sourceId)
+            ? 'FUTURE_PACKAGE_DEFERRED_UNTIL_CURRENT_ENDS'
+            : 'SECOND_LIVE_PACKAGE_NOTE_ONLY',
+          sale.sourceId,
+        );
       counts.soldPackages.skipped += subscriptionSales.noteOnly.length;
       const subscriptionRows = subscriptionSales.selected.map((sale) => ({
         id: id('subscription', sale.sourceId),
@@ -696,14 +716,27 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           data.soldPackages.map((sale) => id('subscription', sale.sourceId)),
         );
         const sourceSelected = new Set(subscriptionSales.selected.map((sale) => sale.sourceId));
-        // Removed live rows cannot be demoted: preserve them and suppress new live access.
+        const selectedIds = new Set(subscriptionRows.map((row) => row.id));
+        const removedToExpire = new Set(
+          existingSubs
+            .filter(
+              (row) =>
+                expireRemovedSales &&
+                isRemovedImportedSubscription(row, prefix, currentIds) &&
+                !keep.has('subscription.status'),
+            )
+            .map((row) => row.id),
+        );
+        // Native and preserved removed live rows reserve access; opt-in expirations free it.
         const reservedLive = new Set(
           existingSubs
             .filter(
               (row) =>
                 isLiveSubscription(row.status) &&
+                !removedToExpire.has(row.id) &&
                 (row.provider !== 'smartcrm-import' ||
                   !row.id.startsWith(prefix) ||
+                  (keep.has('subscription.status') && !selectedIds.has(row.id)) ||
                   !currentIds.has(row.id)),
             )
             .map((row) => row.memberId),
@@ -723,15 +756,39 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           if (row.id.startsWith(`${prefix}subscription_`) && !currentIds.has(row.id))
             removedHashes.add(row.id.slice(`${prefix}subscription_`.length));
         for (const hash of removedHashes)
-          warn('soldPackages', 'SYNC_REMOVED_SALES_PRESERVED', `${prefix}saleNote_${hash}`);
+          if (!removedToExpire.has(`${prefix}subscription_${hash}`))
+            warn('soldPackages', 'SYNC_REMOVED_SALES_PRESERVED', `${prefix}saleNote_${hash}`);
         const perMember = new Map<
           string,
           Array<{
-            row: (typeof subscriptionRows)[number];
-            changes: Partial<(typeof subscriptionRows)[number]>;
+            row: Prisma.SubscriptionCreateManyInput & {
+              id: string;
+              status: NonNullable<Prisma.SubscriptionCreateManyInput['status']>;
+            };
+            changes: Prisma.SubscriptionUpdateManyMutationInput;
             exists: boolean;
           }>
         >();
+        for (const old of existingSubs) {
+          if (
+            expireRemovedSales &&
+            keep.has('subscription.status') &&
+            isRemovedImportedSubscription(old, prefix, currentIds)
+          )
+            keptChanges['subscription.status'] = (keptChanges['subscription.status'] ?? 0) + 1;
+          if (!removedToExpire.has(old.id)) continue;
+          const operations = perMember.get(old.memberId) ?? [];
+          operations.push({
+            row: { ...old, status: 'EXPIRED' },
+            changes: { status: 'EXPIRED' },
+            exists: true,
+          });
+          perMember.set(old.memberId, operations);
+          expiredRemovedSales++;
+          counts.soldPackages.updated++;
+          fieldChanges['subscription.status'] = (fieldChanges['subscription.status'] ?? 0) + 1;
+          warn('soldPackages', 'SYNC_REMOVED_SALE_EXPIRED', old.id);
+        }
         for (const sale of data.soldPackages) {
           const rowId = id('subscription', sale.sourceId);
           const old = byId.get(rowId);
@@ -759,20 +816,18 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
               packages.get(sale.packageSourceId)!,
             ),
           };
-          const {
-            id: _id,
-            gymId: _gymId,
-            memberId: _memberId,
-            createdAt: _createdAt,
-            ...fields
-          } = row;
+          const { id: _id, gymId: _gymId, memberId: _memberId, ...fields } = row;
           const changes = old ? sourceChanges(old, fields) : {};
+          applyKeep('subscription', changes);
           if (old && !Object.keys(changes).length) {
             counts.soldPackages.skipped++;
             continue;
           }
-          if (old) counts.soldPackages.updated++;
-          else counts.soldPackages.created++;
+          if (old) {
+            counts.soldPackages.updated++;
+            for (const key of Object.keys(changes))
+              fieldChanges[`subscription.${key}`] = (fieldChanges[`subscription.${key}`] ?? 0) + 1;
+          } else counts.soldPackages.created++;
           const operations = perMember.get(memberId) ?? [];
           operations.push({ row, changes, exists: !!old });
           perMember.set(memberId, operations);
@@ -794,6 +849,12 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
                           gymId,
                           id: { equals: row.id, startsWith: prefix },
                           provider: 'smartcrm-import',
+                          ...(removedToExpire.has(row.id)
+                            ? {
+                                memberId: { equals: row.memberId, startsWith: `${prefix}client_` },
+                                status: { in: ['ACTIVE', 'FROZEN', 'TRIAL', 'PAST_DUE'] },
+                              }
+                            : {}),
                         },
                         data: changes,
                       })
@@ -879,11 +940,29 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         });
         warn('soldPackages', 'PAYMENT_DATE_APPROXIMATED_FROM_SALE_DATE', p.sourceId);
       }
-      await bulk('soldPackages', orders, db.order.findMany(scoped), (r) =>
-        db.order.createMany({ data: r }),
+      await bulk(
+        'soldPackages',
+        orders,
+        db.order.findMany({ where: { gymId } }),
+        (r) => db.order.createMany({ data: r }),
+        (r, changes) =>
+          db.order.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
+        ['createdAt'],
       );
-      await bulk('soldPackages', payments, db.payment.findMany(scoped), (r) =>
-        db.payment.createMany({ data: r }),
+      await bulk(
+        'soldPackages',
+        payments,
+        db.payment.findMany({ where: { gymId } }),
+        (r) => db.payment.createMany({ data: r }),
+        (r, changes) =>
+          db.payment.updateMany({
+            where: { gymId, id: { equals: r.id, startsWith: prefix } },
+            data: changes,
+          }),
+        ['createdAt'],
       );
     }
     if (selected.has('visits')) {
@@ -1233,19 +1312,72 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         where: { gymId, id: { startsWith: `${prefix}${kind}Payment_` } },
         select: { id: true, amount: true, createdAt: true, status: true },
       });
-      revenueByMonth[section] = monthlyPayments(payments, existingPayments, data.gym.timezone);
-      await bulk(section, orders, db.order.findMany(scoped), (rows) =>
-        db.order.createMany({ data: rows }),
+      const correctTimes = section === 'cardSales';
+      const correctedDates = new Map(payments.map((row) => [row.id, row.createdAt]));
+      const projectedPayments =
+        sync && correctTimes && !keep.has('cardPayment.createdAt')
+          ? existingPayments.map((row) => ({
+              ...row,
+              createdAt: correctedDates.get(row.id) ?? row.createdAt,
+            }))
+          : existingPayments;
+      revenueByMonth[section] = monthlyPayments(payments, projectedPayments, data.gym.timezone);
+      await bulk(
+        section,
+        orders,
+        db.order.findMany({ where: { gymId } }),
+        (rows) => db.order.createMany({ data: rows }),
+        correctTimes
+          ? (r, changes) =>
+              db.order.updateMany({
+                where: { gymId, id: { equals: r.id, startsWith: prefix } },
+                data: changes,
+              })
+          : undefined,
+        ['createdAt'],
       );
-      const childrenScope = { where: { order: { gymId } }, select: { id: true } } as const;
-      await bulk(section, items, db.orderItem.findMany(childrenScope), (rows) =>
-        db.orderItem.createMany({ data: rows }),
+      const childrenScope = { where: { order: { gymId } } } as const;
+      await bulk(
+        section,
+        items,
+        db.orderItem.findMany(childrenScope),
+        (rows) => db.orderItem.createMany({ data: rows }),
+        correctTimes
+          ? (r, changes) =>
+              db.orderItem.updateMany({
+                where: { order: { gymId }, id: { equals: r.id, startsWith: prefix } },
+                data: changes,
+              })
+          : undefined,
+        ['createdAt'],
       );
-      await bulk(section, events, db.orderStatusEvent.findMany(childrenScope), (rows) =>
-        db.orderStatusEvent.createMany({ data: rows }),
+      await bulk(
+        section,
+        events,
+        db.orderStatusEvent.findMany(childrenScope),
+        (rows) => db.orderStatusEvent.createMany({ data: rows }),
+        correctTimes
+          ? (r, changes) =>
+              db.orderStatusEvent.updateMany({
+                where: { order: { gymId }, id: { equals: r.id, startsWith: prefix } },
+                data: changes,
+              })
+          : undefined,
+        ['at'],
       );
-      await bulk(section, payments, Promise.resolve(existingPayments), (rows) =>
-        db.payment.createMany({ data: rows }),
+      await bulk(
+        section,
+        payments,
+        Promise.resolve(existingPayments),
+        (rows) => db.payment.createMany({ data: rows }),
+        correctTimes
+          ? (r, changes) =>
+              db.payment.updateMany({
+                where: { gymId, id: { equals: r.id, startsWith: prefix } },
+                data: changes,
+              })
+          : undefined,
+        ['createdAt'],
       );
     }
     for (const section of ['discounts', 'paymentTypes', 'services'] as const) {
@@ -1259,6 +1391,8 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
         ? {
             sync,
             stockChanges,
+            expireRemovedSales,
+            expiredRemovedSales,
             fieldChanges,
             keptChanges,
             removedIdFormat:
@@ -1275,7 +1409,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
       warnings: aggregateWarnings(warnings),
       blockers,
       policy: sync
-        ? 'sync source columns of scoped imported rows; preserve removed rows and claimed clients'
+        ? 'sync source columns of scoped imported rows; preserve claimed clients; removed subscriptions expire only with --expire-removed-sales'
         : 'insert-only; existing imported rows are never overwritten',
       countUnit: sync
         ? 'database rows (new users excluded; changed users included)'

@@ -51,7 +51,7 @@ pnpm fit gym import-smartcrm --data /home/ubuntu/synergy-import/data/synergy.jso
 ## Open questions / acceptance
 
 1. Gym bootstrap, 2. staff, 3. clients, 4. catalogue, 5. live/history sales, 6. check-ins, 7. schedule, 8. products, 9. discount/payment mapping: **not done (running-app verification unavailable; not built; tests not run)**. Partial implementations above must not be represented as verified.
-2. Multiple live source sales are resolved by latest endDate, then latest soldAt; an exact tie uses sourceId deterministically. Existing DB live subscriptions are never overwritten: an incompatible existing live row still requires manual review.
+2. Multiple live source sales prefer a package currently in force, then latest endDate, latest soldAt and sourceId. With --sync, displaced imported subscriptions are demoted in the same member transaction before the selected subscription is promoted; native live subscriptions remain protected.
 3. Schedule mapping now uses the final export. Review class pricing, the aggregate reservations without member identities, and enabling recurring templates after checking the exported horizon. New member bookings still require native subscription/class credits, which are now mapped to approximate subscriptions, subject to the live-subscription conflict blocker.
 4. Are invalid/duplicate contact emails, unsupported staff roles, historical payment-date approximations and stock import acceptable after local review? No private source data has been copied into this repository.
 
@@ -64,7 +64,7 @@ Invented mapping specs now cover per-day recurrence times, Tbilisi weekday bound
 ## Subscription revision and lifecycle audit
 
 - `warnings` is aggregated by code: total count, up to five source IDs and the affected sections. No personal data is emitted.
-- `packages/db/prisma/migrations/20260704020100_subscription_trial_live_index/migration.sql:12–14` enforces one ACTIVE/PAST_DUE/FROZEN/TRIAL Subscription per `(gymId, memberId)`. The final source contains five members with two live sales each. The importer selects one live sale by latest endDate, then latest soldAt. The five remaining live sales are note-only, with aggregated SECOND_LIVE_PACKAGE_NOTE_ONLY warnings; their payment history is unchanged. A conflict with a pre-existing live subscription still reports MULTIPLE_LIVE_SUBSCRIPTIONS_DB_UNIQUE_CONSTRAINT and stops all writes; dry-run reports that conflict with exit code 1.
+- `packages/db/prisma/migrations/20260704020100_subscription_trial_live_index/migration.sql:12–14` enforces one ACTIVE/PAST_DUE/FROZEN/TRIAL Subscription per `(gymId, memberId)`. The final source contains five members with two live sales each. The importer selects a currently in-force sale first, then latest endDate and latest soldAt. The five remaining live sales are note-only, with aggregated SECOND_LIVE_PACKAGE_NOTE_ONLY warnings; their payment history is unchanged. A conflict with a pre-existing live subscription still reports MULTIPLE_LIVE_SUBSCRIPTIONS_DB_UNIQUE_CONSTRAINT and stops all writes; dry-run reports that conflict with exit code 1.
 - `packages/db/prisma/subscription-billing.ts:138` prioritizes cancelAtPeriodEnd over charges. FROZEN subscriptions skip billing at lines 122–127. Therefore these unchanged imported rows do not reach the renewal invoice/payment path.
 - **Side effect found:** `apps/api/src/subscriptions/subscription-billing.service.ts:254–257` dispatches `membership_cancelled` after scheduled cancellation; `:469–473` calls `automation.dispatchForGym`. There is no smartcrm-import provider exemption. A newly imported gym has no AutomationRule and this importer creates none. A single summary warning reminds the owner that adding rules later enables these subsequent effects. No product code has been changed to suppress this.
 - `apps/api/src/subscriptions/subscription-freeze.service.ts:316–363` manual unfreeze only updates the subscription, clearing freeze dates and extending currentPeriodEnd by paused days (`:345–358`); it does not create Invoice/Payment or dispatch notifications. **An automatic unfreeze runner was not found** in this checkout despite comments referring to auto-resume. Automatic resume cannot be promised.
@@ -72,3 +72,53 @@ Invented mapping specs now cover per-day recurrence times, Tbilisi weekday bound
 - Insert-only remains unchanged: an already imported Subscription is skipped, so consumed/edited state is not reset. Plan features and status changes to existing imported rows require a separately reviewed repair.
 
 Verification remains `not built`; no tests or DB connection were run. Pure specs were extended for date-end timezone handling, readable package restrictions, paidAmount mapping, ACTIVE/FROZEN/EXPIRED precedence, and warning aggregation.
+
+## Sync repairs (2026-11-25)
+
+`--sync` plans all updates before writing; `--dry-run` reports the same plan without
+executing it. Without `--sync`, existing rows remain insert-only. Correct source
+UTC timestamps must carry `Z` or an explicit offset; the importer does not guess
+whether a timestamp labelled as local time was actually UTC.
+
+1. Sale/card timestamp correction uses the existing diff and `--keep` machinery.
+   For imported package sales it corrects `Order.createdAt`, `Payment.createdAt`,
+   `Subscription.createdAt`, `Subscription.currentPeriodStart` (activationDate,
+   falling back to soldAt), and sale `MemberNote.createdAt`. Package sales do not
+   create OrderItems or OrderStatusEvents. For cards it corrects `Order.createdAt`,
+   `Payment.createdAt`, `OrderItem.createdAt`, and `OrderStatusEvent.at` from
+   recordedAt. No shop-sale timestamps change. Ledger amounts, statuses and other
+   columns remain insert-only. Existing subscription source-field syncing and
+   sale-note text syncing remain in effect (including `frozenAt`'s soldAt fallback).
+   `fieldChanges` counts changed rows per kind/column, e.g. `order.createdAt`,
+   `payment.createdAt`, `cardOrder.createdAt`, `cardPayment.createdAt`,
+   `cardOrderItem.createdAt`, `cardOrderEvent.at`, `subscription.createdAt`,
+   `subscription.currentPeriodStart`, `saleNote.createdAt`. Use these same keys with
+   `--keep`. Card monthly revenue projects the corrected dates while retaining
+   stored payment amounts/statuses. A second unchanged sync plans no further repairs.
+2. A non-expired package with start <= now <= inclusive Tbilisi endDate wins over
+   a future renewal, including a paused current package. Ties prefer latest endDate,
+   then soldAt, then sourceId. Future-only packages retain the previous selection
+   policy. Deferred renewals emit `FUTURE_PACKAGE_DEFERRED_UNTIL_CURRENT_ENDS`;
+   other duplicates still emit `SECOND_LIVE_PACKAGE_NOTE_ONLY`. Existing displaced
+   imported subscriptions are demoted before promotions in the same per-member
+   transaction. A later sync selects the renewal once the current period ends.
+3. `--sync --expire-removed-sales` opts into expiring removed live subscriptions.
+   Only `smartcrm-import` subscriptions with this gym's imported subscription AND
+   client ID prefixes qualify; ACTIVE/FROZEN/TRIAL/PAST_DUE become EXPIRED.
+   As in `apps/api/src/subscriptions/subscription-billing.service.ts`'s `expire`,
+   only status is changed: no canceledAt/endedAt or freeze date rewrite, and no
+   order/payment change or deletion. `--keep subscription.status` takes precedence.
+   The summary reports `expiredRemovedSales`, `subscription.status` field changes,
+   and `SYNC_REMOVED_SALE_EXPIRED` with a count and up to five imported subscription
+   IDs. Other removed sales retain `SYNC_REMOVED_SALES_PRESERVED`. Without the flag,
+   all removed rows stay untouched. Using the flag without `--sync` is rejected.
+
+Owner verification: run mapping specs and CLI type-check, then on scratch Postgres
+restored from production compare `--sync --dry-run`, `--sync` and a second dry-run.
+Verify corrected package/card timestamps, unchanged ledger amounts/counts and shop
+payments, the current membership winning over its future renewal, and exactly the
+expected removed subscriptions expiring only with the opt-in flag. Also check
+native subscriptions/members, claimed identities, `--keep`, `--previous`, and that
+a second unchanged run reports zero updates. These three requirements are **not
+done for acceptance: not built, tests not run, not verified in the running app**.
+Only `git diff --check` was run in the worker checkout; all fixtures are invented.
