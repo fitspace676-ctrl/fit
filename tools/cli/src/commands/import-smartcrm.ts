@@ -44,6 +44,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
   if (expireRemovedSales && !sync)
     throw new CommandError('--expire-removed-sales requires --sync', { code: 'BAD_ARGUMENT' });
   let expiredRemovedSales = 0;
+  let voidedRemovedPayments = 0;
   const refreshText = sync || boolFlag(args.flags, 'refresh-text');
   const stockChanges: Array<{ sourceId: string; before: number; after: number }> = [];
   if (!slug || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug) || !name || !path) {
@@ -215,6 +216,68 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
     for (let offset = 0; offset < rows.length; offset += 100) {
       const chunk = rows.slice(offset, offset + 100);
       writes.push({ section, run: () => db.$transaction(chunk.map(update)) });
+    }
+  }
+  /**
+   * With --sync --expire-removed-sales: a sale deleted in the source never happened there,
+   * so its imported ledger rows stop counting as revenue (order CANCELLED, payment FAILED).
+   * Rows are kept; native rows and other kinds are out of reach of the id prefix.
+   */
+  async function voidRemovedLedger(section: Section, kind: string, sourceIds: string[]) {
+    if (!sync || !expireRemovedSales) return;
+    const orderKind = kind ? `${kind}Order` : 'order';
+    const paymentKind = kind ? `${kind}Payment` : 'payment';
+    const currentOrders = new Set(sourceIds.map((source) => id(orderKind, source)));
+    const currentPayments = new Set(sourceIds.map((source) => id(paymentKind, source)));
+    const [paidOrders, capturedPayments] = await Promise.all([
+      db.order.findMany({
+        where: { gymId, status: 'PAID', id: { startsWith: `${prefix}${orderKind}_` } },
+        select: { id: true },
+      }),
+      db.payment.findMany({
+        where: {
+          gymId,
+          status: 'CAPTURED',
+          provider: 'smartcrm-import',
+          id: { startsWith: `${prefix}${paymentKind}_` },
+        },
+        select: { id: true },
+      }),
+    ]);
+    const orderIds = paidOrders.map((row) => row.id).filter((row) => !currentOrders.has(row));
+    const paymentIds = capturedPayments
+      .map((row) => row.id)
+      .filter((row) => !currentPayments.has(row));
+    if (orderIds.length) {
+      fieldChanges[`${orderKind}.status`] = orderIds.length;
+      counts[section].updated += orderIds.length;
+      writes.push({
+        section,
+        run: () =>
+          db.order.updateMany({
+            where: { gymId, status: 'PAID', id: { in: orderIds } },
+            data: { status: 'CANCELLED' },
+          }),
+      });
+    }
+    if (paymentIds.length) {
+      fieldChanges[`${paymentKind}.status`] = paymentIds.length;
+      counts[section].updated += paymentIds.length;
+      voidedRemovedPayments += paymentIds.length;
+      for (const row of paymentIds) warn(section, 'SYNC_REMOVED_SALE_PAYMENT_VOIDED', row);
+      writes.push({
+        section,
+        run: () =>
+          db.payment.updateMany({
+            where: {
+              gymId,
+              status: 'CAPTURED',
+              provider: 'smartcrm-import',
+              id: { in: paymentIds },
+            },
+            data: { status: 'FAILED' },
+          }),
+      });
     }
   }
   try {
@@ -964,6 +1027,11 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
           }),
         ['createdAt'],
       );
+      await voidRemovedLedger(
+        'soldPackages',
+        '',
+        data.soldPackages.map((sale) => sale.sourceId),
+      );
     }
     if (selected.has('visits')) {
       const ids = visitIds(slug, data.visits);
@@ -1235,6 +1303,13 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
               })),
             )
           : (data.shopSales ?? []).map((sale) => ({ ...sale, memberId: null }));
+      // An older file without shop sales says nothing about them: never void on absence.
+      if (section === 'cardSales' || data.shopSales)
+        await voidRemovedLedger(
+          section,
+          kind,
+          sales.map((sale) => sale.sourceId),
+        );
       for (const sale of sales) {
         const amount = minorUnits(sale.total);
         const method = paymentMethod(methods.get(sale.paymentTypeSourceId ?? '') ?? '');
@@ -1393,6 +1468,7 @@ export async function runImportSmartCrm(args: ParsedArgs): Promise<CommandResult
             stockChanges,
             expireRemovedSales,
             expiredRemovedSales,
+            voidedRemovedPayments,
             fieldChanges,
             keptChanges,
             removedIdFormat:

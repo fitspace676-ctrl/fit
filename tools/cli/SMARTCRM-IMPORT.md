@@ -107,7 +107,11 @@ whether a timestamp labelled as local time was actually UTC.
    client ID prefixes qualify; ACTIVE/FROZEN/TRIAL/PAST_DUE become EXPIRED.
    As in `apps/api/src/subscriptions/subscription-billing.service.ts`'s `expire`,
    only status is changed: no canceledAt/endedAt or freeze date rewrite, and no
-   order/payment change or deletion. `--keep subscription.status` takes precedence.
+   deletion. The same flag also stops a removed sale counting as revenue: the
+   imported PAID order of a package, card or shop sale that is absent from the
+   file becomes CANCELLED and its CAPTURED `smartcrm-import` payment becomes
+   FAILED (`voidedRemovedPayments`, `SYNC_REMOVED_SALE_PAYMENT_VOIDED`). Shop
+   sales are only compared when the file carries `shopSales`. `--keep subscription.status` takes precedence.
    The summary reports `expiredRemovedSales`, `subscription.status` field changes,
    and `SYNC_REMOVED_SALE_EXPIRED` with a count and up to five imported subscription
    IDs. Other removed sales retain `SYNC_REMOVED_SALES_PRESERVED`. Without the flag,
