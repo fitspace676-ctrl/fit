@@ -17,6 +17,7 @@ import {
   appleAuthSchema,
   forgotPasswordSchema,
   googleAuthSchema,
+  loginRequestSchema,
   loginSchema,
   refreshSchema,
   memberSignupSchema,
@@ -203,7 +204,8 @@ export class AuthController {
   }
 
   /**
-   * `POST /auth/login` — authenticate an email/password pair and issue a session.
+   * `POST /auth/login` — authenticate an email (or phone number) and password, and
+   * issue a session.
    *
    * The gym whose password is checked is the body's `gymSlug`, else the tenant
    * host the call names (read the same way as on `POST /auth/refresh`). With
@@ -214,7 +216,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
-    const input = parse(loginSchema, body);
+    const input = parse(loginRequestSchema, body);
     return this.auth.login(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 

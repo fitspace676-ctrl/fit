@@ -5220,6 +5220,8 @@
       "namePlaceholder": "Jane Doe",
       "email": "Email",
       "emailPlaceholder": "you@example.com",
+      "emailOrPhone": "Email or phone number",
+      "emailOrPhonePlaceholder": "you@example.com or 5XX XX XX XX",
       "password": "Password",
       "passwordPlaceholder": "••••••••",
       "passwordHint": "At least 8 characters."
@@ -5265,6 +5267,8 @@
         "invalidCredentials": "The email or password is incorrect. Check them and try again.",
         "emailRequired": "Enter your email.",
         "emailInvalid": "Enter a valid email address.",
+        "identifierRequired": "Enter your email or phone number.",
+        "identifierInvalid": "Enter a valid email address or phone number.",
         "passwordRequired": "Enter your password."
       },
       "chooseGym": {

@@ -65,7 +65,7 @@ const styles = stylex.create({
 });
 
 /**
- * Email + password sign-in form. On success the API issues a session (persisted
+ * Sign-in form: an email address or a phone number, and a password. On success the API issues a session (persisted
  * as httpOnly cookies by {@link loginWithCredentials}) and we send the user to
  * the `from` path the middleware stashed when it bounced them here, falling back
  * to the locale home. Errors surface the API's message inline.
@@ -155,11 +155,13 @@ export function CredentialsLoginForm() {
       {resetDone && !error ? <Banner tone="success">{t('reset.done')}</Banner> : null}
 
       <Field
-        label={t('fields.email')}
-        type="email"
+        label={t('fields.emailOrPhone')}
+        type="text"
         name="email"
-        autoComplete="email"
-        placeholder={t('fields.emailPlaceholder')}
+        autoComplete="username"
+        autoCapitalize="none"
+        spellCheck={false}
+        placeholder={t('fields.emailOrPhonePlaceholder')}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         disabled={pending}

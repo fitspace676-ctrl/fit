@@ -5,7 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Banner, Button, Field, Form, spacing } from '@fit/ui-kit';
-import type { TokenPair } from '@fit/types';
+import { loginIdentifier, type TokenPair } from '@fit/types';
 import { browserTenantHeaders } from '@/lib/tenant-host';
 import { loginGymSlug } from './login-gym-slug';
 
@@ -77,7 +77,7 @@ export function StaffLoginForm() {
             headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
             body: JSON.stringify({
               audience: 'staff',
-              email,
+              ...loginIdentifier(email),
               password,
               ...(gymSlug ? { gymSlug } : {}),
             }),
@@ -122,11 +122,13 @@ export function StaffLoginForm() {
       {activated && !error ? <Banner tone="success">{tActivate('signedInPrompt')}</Banner> : null}
 
       <Field
-        label={t('fields.email')}
-        type="email"
+        label={t('fields.emailOrPhone')}
+        type="text"
         name="email"
-        autoComplete="email"
-        placeholder={t('fields.emailPlaceholder')}
+        autoComplete="username"
+        autoCapitalize="none"
+        spellCheck={false}
+        placeholder={t('fields.emailOrPhonePlaceholder')}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         disabled={pending}
