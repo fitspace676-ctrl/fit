@@ -946,6 +946,23 @@
       "clearSearch": "ძებნის გასუფთავება"
     },
     "billingPlans": {
+      "period": {
+        "kind": {
+          "ONE_TIME": "ერთჯერადი",
+          "DAY": "დღეები",
+          "WEEK": "კვირები",
+          "MONTH": "თვეები",
+          "YEAR": "1 წელი"
+        },
+        "kindLabel": "ხანგრძლივობა",
+        "countLabel": {
+          "ONE_TIME": "მოქმედების ვადა (დღე)",
+          "DAY": "დღეების რაოდენობა",
+          "WEEK": "კვირების რაოდენობა",
+          "MONTH": "თვეების რაოდენობა"
+        },
+        "oneTimeHint": "იყიდება ერთხელ. ვადის გასვლისას მთავრდება და არ გრძელდება."
+      },
       "meta": {
         "title": "ანგარიშსწორება · პაკეტები",
         "description": "თქვენი დარბაზის პერიოდული სააბონენტო პაკეტები: ფასები, განახლების პერიოდულობა, პრივილეგიები და აქტიური გამომწერების რაოდენობა, აქტიური და დაარქივებული პაკეტებითა და MRR შეჯამებით.",
@@ -5655,6 +5672,21 @@
     }
   },
   "common": {
+    "planPeriod": {
+      "per": {
+        "DAY": "{count, plural, one {/ დღე} other {/ # დღე}}",
+        "WEEK": "{count, plural, one {/ კვირა} other {/ # კვირა}}",
+        "MONTH": "{count, plural, one {/ თვე} other {/ # თვე}}",
+        "YEAR": "{count, plural, one {/ წელი} other {/ # წელი}}"
+      },
+      "length": {
+        "DAY": "{count, plural, one {1 დღე} other {# დღე}}",
+        "WEEK": "{count, plural, one {1 კვირა} other {# კვირა}}",
+        "MONTH": "{count, plural, one {1 თვე} other {# თვე}}",
+        "YEAR": "{count, plural, one {1 წელი} other {# წელი}}"
+      },
+      "oneTime": "ერთჯერადი"
+    },
     "appName": "FormaCore",
     "nav": {
       "home": "მთავარი",

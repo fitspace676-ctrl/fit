@@ -73,6 +73,8 @@ export {
   addInterval,
   initialBillingPeriod,
   trialBillingPeriod,
+  approximatePeriodDays,
+  monthlyEquivalent,
 } from './prisma/subscription-period';
 
 // Recurring-billing decision rule (T5.4 / T5.5). The pure classification of a due

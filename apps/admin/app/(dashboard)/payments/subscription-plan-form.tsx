@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import {
+  MAX_INTERVAL_COUNT,
   MAX_SUBSCRIPTION_ALLOWANCE,
   type SubscriptionInterval,
   type SubscriptionPlanStatus,
@@ -15,11 +16,15 @@ import { Icon } from '@/components/ui';
 import { useGymCurrency } from '@/components/gym-currency';
 import { useBranchExclusivity } from '@/hooks/use-branch-exclusivity';
 import {
-  SUBSCRIPTION_INTERVALS,
+  PLAN_PERIOD_KINDS,
+  asPeriodT,
   formatPrice,
   inputToMinor,
-  intervalSuffix,
   minorToInput,
+  periodKindOf,
+  periodSuffix,
+  unitOfKind,
+  type PlanPeriodKind,
 } from './format';
 import {
   createSubscriptionPlanAction,
@@ -68,6 +73,8 @@ type Initial = {
   priceAmount: number;
   currency: string;
   interval: SubscriptionInterval;
+  intervalCount: number;
+  oneTime: boolean;
   features: string[];
   popular: boolean;
   freezeDaysPerPeriod: number;
@@ -158,6 +165,8 @@ export function SubscriptionPlanForm(props: Props) {
         priceAmount: 0,
         currency: gymCurrency,
         interval: 'MONTH',
+        intervalCount: 1,
+        oneTime: false,
         features: [],
         popular: false,
         freezeDaysPerPeriod: 30,
@@ -172,7 +181,14 @@ export function SubscriptionPlanForm(props: Props) {
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [price, setPrice] = useState(initial.priceAmount ? minorToInput(initial.priceAmount) : '');
-  const [interval, setInterval] = useState<SubscriptionInterval>(initial.interval);
+  const tPeriod = asPeriodT(useTranslations('common.planPeriod'));
+  // The duration: a kind (one-time, days, weeks, months, a year) and how many.
+  const [periodKind, setPeriodKind] = useState<PlanPeriodKind>(periodKindOf(initial));
+  const [periodCount, setPeriodCount] = useState(String(initial.intervalCount));
+  const interval = unitOfKind(periodKind);
+  const maxCount = MAX_INTERVAL_COUNT[interval];
+  const intervalCount = Math.min(maxCount, Math.max(1, Number.parseInt(periodCount, 10) || 1));
+  const oneTime = periodKind === 'ONE_TIME';
   const [popular, setPopular] = useState(initial.popular);
   const [freezeDays, setFreezeDays] = useState(String(initial.freezeDaysPerPeriod));
   const [status, setStatus] = useState<SubscriptionPlanStatus>('ACTIVE');
@@ -206,6 +222,8 @@ export function SubscriptionPlanForm(props: Props) {
       description,
       priceAmount: inputToMinor(price),
       interval,
+      intervalCount,
+      oneTime,
       // Perks, the credit allowance and the trial were dropped from the form. The
       // columns still exist, so an edit round-trips whatever the plan already holds
       // rather than blanking it; a new plan takes the schema defaults.
@@ -382,22 +400,66 @@ export function SubscriptionPlanForm(props: Props) {
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="plan-interval" className={LABEL_CLASS}>
-                  {t('form.billingLabel')}
+                  {t('period.kindLabel')}
                 </label>
                 <select
                   id="plan-interval"
                   name="interval"
-                  value={interval}
-                  onChange={(event) => setInterval(event.target.value as SubscriptionInterval)}
+                  value={periodKind}
+                  onChange={(event) => {
+                    setPeriodKind(event.target.value as PlanPeriodKind);
+                    setPeriodCount('1');
+                  }}
                   className={FIELD_CLASS}
                 >
-                  {SUBSCRIPTION_INTERVALS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {t(option.labelKey)}
+                  {PLAN_PERIOD_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {t(`period.kind.${kind}`)}
                     </option>
                   ))}
                 </select>
               </div>
+              {periodKind === 'YEAR' ? null : (
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="plan-interval-count" className={LABEL_CLASS}>
+                    {t(`period.countLabel.${periodKind}`)}
+                  </label>
+                  {periodKind === 'MONTH' ? (
+                    <select
+                      id="plan-interval-count"
+                      name="intervalCount"
+                      value={String(intervalCount)}
+                      onChange={(event) => setPeriodCount(event.target.value)}
+                      className={FIELD_CLASS}
+                    >
+                      {Array.from({ length: maxCount }, (_, index) => index + 1).map((count) => (
+                        <option key={count} value={count}>
+                          {tPeriod('length.MONTH', { count })}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id="plan-interval-count"
+                      name="intervalCount"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={maxCount}
+                      step={1}
+                      value={periodCount}
+                      onChange={(event) => setPeriodCount(event.target.value)}
+                      onBlur={() => setPeriodCount(String(intervalCount))}
+                      className={`${FIELD_CLASS} font-mono tabular-nums`}
+                    />
+                  )}
+                </div>
+              )}
+              {oneTime ? (
+                <p className="text-xs text-ink-500 dark:text-ink-400 sm:col-span-2">
+                  {t('period.oneTimeHint')}
+                </p>
+              ) : null}
             </div>
           </div>
         </Card>
@@ -584,7 +646,7 @@ export function SubscriptionPlanForm(props: Props) {
               {formatPrice(inputToMinor(price), currency, locale)}
             </span>
             <span className="mb-1.5 text-sm font-semibold text-ink-500 dark:text-ink-400">
-              {intervalSuffix(interval, t)}
+              {periodSuffix({ interval, intervalCount, oneTime }, tPeriod)}
             </span>
           </div>
 

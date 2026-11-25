@@ -29,6 +29,7 @@ function sub(overrides: Partial<MeSubscription> = {}): MeSubscription {
     priceAmount: 5000,
     currency: 'GEL',
     interval: 'MONTH',
+    intervalCount: 1,
     currentPeriodStart: '2026-08-01T00:00:00.000Z',
     currentPeriodEnd: '2026-08-31T00:00:00.000Z',
     cancelAtPeriodEnd: false,

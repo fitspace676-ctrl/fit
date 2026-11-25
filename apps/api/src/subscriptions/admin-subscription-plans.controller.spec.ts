@@ -17,6 +17,8 @@ const detail = (
   priceAmount: 5000,
   currency: 'USD',
   interval: 'MONTH',
+  intervalCount: 1,
+  oneTime: false,
   featureCount: 0,
   freezeDaysPerPeriod: 30,
   includedCredits: 0,

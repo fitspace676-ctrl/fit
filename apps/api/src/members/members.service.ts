@@ -24,8 +24,8 @@ import {
   PaymentStatus,
   Prisma,
   Role,
-  SubscriptionInterval,
   SubscriptionPlanStatus,
+  addInterval,
   SubscriptionStatus,
 } from '@fit/db';
 import type {
@@ -117,6 +117,7 @@ const LIVE_SUBSCRIPTION_SELECT = {
   priceAmount: true,
   currency: true,
   interval: true,
+  intervalCount: true,
   currentPeriodStart: true,
   currentPeriodEnd: true,
   frozenUntil: true,
@@ -453,7 +454,15 @@ export class MembersService {
       if (planId) {
         const plan = await tx.subscriptionPlan.findFirst({
           where: { id: planId },
-          select: { id: true, priceAmount: true, currency: true, interval: true, status: true },
+          select: {
+            id: true,
+            priceAmount: true,
+            currency: true,
+            interval: true,
+            intervalCount: true,
+            oneTime: true,
+            status: true,
+          },
         });
         if (!plan) {
           throw new BadRequestException({
@@ -477,8 +486,10 @@ export class MembersService {
             priceAmount: plan.priceAmount,
             currency: plan.currency,
             interval: plan.interval,
+            intervalCount: plan.intervalCount,
+            cancelAtPeriodEnd: plan.oneTime,
             currentPeriodStart: start,
-            currentPeriodEnd: this.addInterval(start, plan.interval),
+            currentPeriodEnd: addInterval(start, plan.interval, plan.intervalCount),
           },
         });
       }
@@ -535,20 +546,6 @@ export class MembersService {
     // Re-read through the full detail path so a brand-new member's response
     // carries every "formacore" field (empty history, zero KPIs) consistently.
     return this.getMember(created.id);
-  }
-
-  /**
-   * Advance a date by one billing period — a year for `YEAR` plans, else a month.
-   * Used to seed a new enrolment's `currentPeriodEnd` from its start.
-   */
-  private addInterval(from: Date, interval: SubscriptionInterval): Date {
-    const end = new Date(from);
-    if (interval === SubscriptionInterval.YEAR) {
-      end.setFullYear(end.getFullYear() + 1);
-    } else {
-      end.setMonth(end.getMonth() + 1);
-    }
-    return end;
   }
 
   /**
@@ -1246,6 +1243,7 @@ export class MembersService {
       planId: sub.planId,
       name: sub.plan?.name ?? 'No plan',
       interval: sub.interval,
+      intervalCount: sub.intervalCount,
       priceAmount: sub.priceAmount,
       currency: sub.currency,
       detail: this.planDetail(sub),
@@ -1265,7 +1263,9 @@ export class MembersService {
     if (sub.status === SubscriptionStatus.PAST_DUE) {
       return 'overdue';
     }
-    return sub.interval === 'YEAR' ? 'annual' : 'monthly';
+    if (sub.intervalCount === 1 && sub.interval === 'YEAR') return 'annual';
+    if (sub.intervalCount === 1 && sub.interval === 'MONTH') return 'monthly';
+    return `${sub.intervalCount} ${sub.interval.toLowerCase()}`;
   }
 
   /**
@@ -1539,6 +1539,7 @@ export class MembersService {
       name: sub.plan?.name ?? 'No plan',
       status: sub.status,
       interval: sub.interval,
+      intervalCount: sub.intervalCount,
       priceAmount: sub.priceAmount,
       currency: sub.currency,
       currentPeriodStart: sub.currentPeriodStart.toISOString(),

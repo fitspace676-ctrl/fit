@@ -45,6 +45,7 @@ interface MemberRecord {
     priceAmount: number;
     currency: string;
     interval: 'MONTH' | 'YEAR';
+    intervalCount: number;
     currentPeriodStart: Date;
     currentPeriodEnd: Date;
     plan: { name: string } | null;
@@ -93,6 +94,7 @@ function setup(overrides?: {
     priceAmount: number;
     currency: string;
     interval: 'MONTH' | 'YEAR';
+    intervalCount: number;
     status: string;
   } | null;
   checkIns?: unknown[];
@@ -431,6 +433,7 @@ describe('MembersService', () => {
                 priceAmount: 4500,
                 currency: 'GEL',
                 interval: 'MONTH',
+                intervalCount: 1,
                 currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
                 currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
                 plan: { name: 'Premium' },
@@ -449,6 +452,7 @@ describe('MembersService', () => {
         planId: 'plan-1',
         name: 'Premium',
         interval: 'MONTH',
+        intervalCount: 1,
         priceAmount: 4500,
         currency: 'GEL',
         detail: 'monthly',
@@ -471,6 +475,7 @@ describe('MembersService', () => {
                 priceAmount: 4500,
                 currency: 'GEL',
                 interval: 'MONTH',
+                intervalCount: 1,
                 currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
                 currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
                 plan: { name: 'Standard' },
@@ -1274,6 +1279,7 @@ describe('MembersService', () => {
           priceAmount: 4500,
           currency: 'GEL',
           interval: 'MONTH',
+          intervalCount: 1,
           status: 'ACTIVE',
         },
       });
@@ -1288,6 +1294,7 @@ describe('MembersService', () => {
         priceAmount: 4500,
         currency: 'GEL',
         interval: 'MONTH',
+        intervalCount: 1,
       });
       // Month plan → period end one month after the start.
       expect((data.data.currentPeriodEnd as Date).toISOString()).toBe('2026-08-01T00:00:00.000Z');
@@ -1303,6 +1310,7 @@ describe('MembersService', () => {
           priceAmount: 1,
           currency: 'GEL',
           interval: 'MONTH',
+          intervalCount: 1,
           status: 'ARCHIVED',
         },
       });
@@ -1390,6 +1398,7 @@ describe('MembersService.sendMemberEmail', () => {
           priceAmount: 7500,
           currency: 'GEL',
           interval: 'MONTH',
+          intervalCount: 1,
           currentPeriodStart: new Date('2026-07-05T00:00:00.000Z'),
           currentPeriodEnd: new Date('2026-08-05T00:00:00.000Z'),
           plan: { name: 'Standard' },
@@ -1512,6 +1521,7 @@ const liveSub = () => ({
   priceAmount: 4500,
   currency: 'GEL',
   interval: 'MONTH' as const,
+  intervalCount: 1,
   currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
   currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
   plan: { name: 'Premium' },

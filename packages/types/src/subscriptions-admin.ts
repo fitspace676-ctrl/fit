@@ -15,7 +15,8 @@
 // `Intl.NumberFormat` against `currency` (ISO 4217). The features list mirrors the
 // package plan's (a flat list edited as a whole on the form). Unlike a package
 // plan there is no `sessionCount` (a recurring membership is open-ended) and the
-// `interval` is `MONTH`/`YEAR` only — a recurring charge has no `ONE_TIME`.
+// period is `intervalCount` × `interval` (a day, a week, ten days, three months,
+// a year); a plan marked `oneTime` is sold once and does not renew.
 
 import { z } from 'zod';
 import { sortDirSchema } from './members';
@@ -33,15 +34,56 @@ export const subscriptionPlanStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
 export type SubscriptionPlanStatus = z.infer<typeof subscriptionPlanStatusSchema>;
 
 /**
- * How a subscription plan renews, mirroring the Prisma `SubscriptionInterval`
- * enum. `MONTH`/`YEAR` are the only cadences — a *recurring* membership has no
- * `ONE_TIME` (deliberately distinct from {@link PackageBillingInterval}). The form
- * offers these and the detail/roster surface a per-interval price suffix.
+ * The unit a plan's period is counted in, mirroring the Prisma
+ * `SubscriptionInterval` enum. A period is `intervalCount` of these — see
+ * {@link MAX_INTERVAL_COUNT} for how many of each a plan may ask for.
  */
-export const subscriptionIntervalSchema = z.enum(['MONTH', 'YEAR']);
+export const subscriptionIntervalSchema = z.enum(['DAY', 'WEEK', 'MONTH', 'YEAR']);
 
-/** A subscription plan's renewal cadence — {@link subscriptionIntervalSchema}. */
+/** The unit of a plan's period — {@link subscriptionIntervalSchema}. */
 export type SubscriptionInterval = z.infer<typeof subscriptionIntervalSchema>;
+
+/**
+ * The longest period a plan may have, per unit: up to a year of days or weeks,
+ * one to twelve months, and exactly one year.
+ */
+export const MAX_INTERVAL_COUNT: Record<SubscriptionInterval, number> = {
+  DAY: 365,
+  WEEK: 52,
+  MONTH: 12,
+  YEAR: 1,
+};
+
+/** Whether `count` `interval`s is a period a plan may have. */
+export function isValidPlanPeriod(interval: SubscriptionInterval, count: number): boolean {
+  return Number.isInteger(count) && count >= 1 && count <= MAX_INTERVAL_COUNT[interval];
+}
+
+/**
+ * Roughly how many days `count` `interval`s last (a month as 30, a year as 365) —
+ * for comparing plans of different lengths, never for a period's real dates.
+ */
+export function approximatePlanPeriodDays(interval: SubscriptionInterval, count = 1): number {
+  const steps = Math.max(1, Math.trunc(count));
+  const days = { DAY: 1, WEEK: 7, MONTH: 30, YEAR: 365 } as const;
+  return steps * days[interval];
+}
+
+/**
+ * A price charged every `count` `interval`s as its monthly equivalent, in the same
+ * minor units, not rounded: exact for months and years, a 30-day month for days
+ * and weeks.
+ */
+export function planMonthlyEquivalent(
+  priceAmount: number,
+  interval: SubscriptionInterval,
+  count = 1,
+): number {
+  const steps = Math.max(1, Math.trunc(count));
+  if (interval === 'MONTH') return priceAmount / steps;
+  if (interval === 'YEAR') return priceAmount / (steps * 12);
+  return (priceAmount * 30) / approximatePlanPeriodDays(interval, steps);
+}
 
 /** Sortable columns for the subscription-plan roster. Mirrors the `orderBy` keys the service maps. */
 export const subscriptionPlanSortSchema = z.enum(['name', 'price', 'status', 'createdAt']);
@@ -89,7 +131,8 @@ export type ListAdminSubscriptionPlansQuery = z.infer<typeof listAdminSubscripti
 /**
  * One subscription plan as the roster / billing-plans cards render it.
  * `priceAmount` is the per-interval price in `currency`'s minor units the UI
- * formats. `interval` drives the price suffix. `featureCount` is the size of the
+ * formats. `interval` and `intervalCount` are the period that price buys and
+ * drive the price suffix; `oneTime` is a plan that does not renew. `featureCount` is the size of the
  * features list so the roster can show "3 features" without shipping the whole
  * list, and `features` is the ordered perk list itself (the billing-plans cards
  * show the first few as a checklist). `freezeDaysPerPeriod` is the plan's freeze
@@ -108,6 +151,10 @@ export interface AdminSubscriptionPlanRow {
   priceAmount: number;
   currency: string;
   interval: SubscriptionInterval;
+  /** How many `interval`s one period lasts. */
+  intervalCount: number;
+  /** Sold once: the subscription ends with its period instead of renewing. */
+  oneTime: boolean;
   featureCount: number;
   features: string[];
   freezeDaysPerPeriod: number;
@@ -187,6 +234,18 @@ const subscriptionPlanProfileFields = {
     .nonnegative('Price cannot be negative')
     .default(0),
   interval: subscriptionIntervalSchema.default('MONTH'),
+  /**
+   * How many `interval`s one period lasts. The bound here is the widest any unit
+   * allows; the API holds each unit to its own ({@link isValidPlanPeriod}).
+   */
+  intervalCount: z.coerce
+    .number()
+    .int('The period must be a whole number')
+    .min(1, 'The period must be at least 1')
+    .max(MAX_INTERVAL_COUNT.DAY, `The period cannot exceed ${MAX_INTERVAL_COUNT.DAY}`)
+    .default(1),
+  /** Sold once and not renewed. A real boolean: the form posts JSON. */
+  oneTime: z.boolean().default(false),
   features: z
     .array(z.string().trim().min(1, 'A feature cannot be empty').max(120))
     .max(MAX_SUBSCRIPTION_FEATURES, `A plan can have at most ${MAX_SUBSCRIPTION_FEATURES} features`)

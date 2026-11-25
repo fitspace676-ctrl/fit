@@ -6,7 +6,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { SubscriptionInterval } from '../generated/client';
-import { addInterval, initialBillingPeriod, trialBillingPeriod } from './subscription-period';
+import {
+  addInterval,
+  initialBillingPeriod,
+  monthlyEquivalent,
+  trialBillingPeriod,
+} from './subscription-period';
 
 /** ISO helper — build a UTC instant from a `YYYY-MM-DDT...Z` literal. */
 const at = (iso: string): Date => new Date(iso);
@@ -94,5 +99,47 @@ describe('trialBillingPeriod', () => {
     const start = at('2026-06-01T00:00:00.000Z');
     trialBillingPeriod(start, 7);
     expect(start.toISOString()).toBe('2026-06-01T00:00:00.000Z');
+  });
+});
+
+describe('a period of several intervals', () => {
+  it('counts days and weeks as whole days', () => {
+    expect(addInterval(at('2026-01-30T10:00:00.000Z'), 'DAY', 1)).toEqual(
+      at('2026-01-31T10:00:00.000Z'),
+    );
+    expect(addInterval(at('2026-01-30T10:00:00.000Z'), 'DAY', 10)).toEqual(
+      at('2026-02-09T10:00:00.000Z'),
+    );
+    expect(addInterval(at('2026-01-30T10:00:00.000Z'), 'WEEK', 2)).toEqual(
+      at('2026-02-13T10:00:00.000Z'),
+    );
+  });
+
+  it('moves the calendar by several months, clamping to a shorter month', () => {
+    expect(addInterval(at('2026-01-15T10:00:00.000Z'), 'MONTH', 3)).toEqual(
+      at('2026-04-15T10:00:00.000Z'),
+    );
+    expect(addInterval(at('2025-11-30T10:00:00.000Z'), 'MONTH', 3)).toEqual(
+      at('2026-02-28T10:00:00.000Z'),
+    );
+    expect(addInterval(at('2026-03-10T10:00:00.000Z'), 'MONTH', 12)).toEqual(
+      at('2027-03-10T10:00:00.000Z'),
+    );
+  });
+
+  it('is one interval when no count is given', () => {
+    expect(addInterval(at('2026-01-15T10:00:00.000Z'), 'MONTH')).toEqual(
+      at('2026-02-15T10:00:00.000Z'),
+    );
+    expect(
+      initialBillingPeriod(at('2026-01-15T10:00:00.000Z'), 'WEEK', 1).currentPeriodEnd,
+    ).toEqual(at('2026-01-22T10:00:00.000Z'));
+  });
+
+  it('normalises a price to a month', () => {
+    expect(monthlyEquivalent(12_000, 'YEAR')).toBe(1_000);
+    expect(monthlyEquivalent(9_000, 'MONTH', 3)).toBe(3_000);
+    expect(monthlyEquivalent(1_000, 'DAY', 10)).toBe(3_000);
+    expect(monthlyEquivalent(700, 'WEEK', 1)).toBe(3_000);
   });
 });

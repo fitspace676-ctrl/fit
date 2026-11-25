@@ -106,6 +106,7 @@ import { resolveGymSlug, signUpMember } from '../../lib/auth/session';
 import type { MessageKey } from '../../lib/i18n/keys';
 import { queryKeys } from '../../lib/query-keys';
 import { HOME_ROUTE } from '../../lib/route-policy';
+import { planPeriodSuffix } from '../../lib/plan-period';
 import { useI18n } from '../../providers/I18nProvider';
 
 /** The tabs the product step offers, in the order they are drawn. */
@@ -869,6 +870,7 @@ export default function JoinCheckoutScreen() {
   }
 
   function suffixFor(row: JoinProduct): string | undefined {
+    if (row.period !== null) return planPeriodSuffix(row.period, t);
     if (row.interval === 'month') return t('checkout.packages.perMonth');
     if (row.interval === 'year') return t('checkout.packages.perYear');
     return undefined;

@@ -189,6 +189,49 @@ describe('startSubscription', () => {
     });
   });
 
+  it('gives the period its length: ten days, three months, and one interval by default', async () => {
+    const period = async (over: Partial<Parameters<typeof startSubscription>[2]>) => {
+      const { tx, create } = client();
+      await startSubscription(tx, invoices().service, { ...input, ...over });
+      return create.mock.calls[0]![0].data;
+    };
+
+    expect(await period({ interval: SubscriptionInterval.DAY, intervalCount: 10 })).toMatchObject({
+      interval: SubscriptionInterval.DAY,
+      intervalCount: 10,
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: new Date('2026-06-11T00:00:00.000Z'),
+    });
+    expect(await period({ interval: SubscriptionInterval.MONTH, intervalCount: 3 })).toMatchObject({
+      intervalCount: 3,
+      currentPeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    expect(await period({ interval: SubscriptionInterval.WEEK })).toMatchObject({
+      intervalCount: 1,
+      currentPeriodEnd: new Date('2026-06-08T00:00:00.000Z'),
+    });
+  });
+
+  it('starts a one-time plan already set to end with its period', async () => {
+    const { tx, create } = client();
+    const { issue, service } = invoices();
+
+    await startSubscription(tx, service, {
+      ...input,
+      interval: SubscriptionInterval.DAY,
+      intervalCount: 1,
+      oneTime: true,
+    });
+
+    expect(create.mock.calls[0]![0].data).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: new Date('2026-06-02T00:00:00.000Z'),
+    });
+    // It is still paid for: the first (and only) invoice is minted.
+    expect(issue).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses a member who already holds a live subscription, and maps the race backstop', async () => {
     const { issue, service } = invoices();
     await expect(
@@ -215,8 +258,11 @@ describe('parseFulfilment — subscription kinds', () => {
       currency: 'GEL',
       interval: 'MONTH',
     };
-    expect(parseFulfilment(start)).toEqual(start);
-    expect(parseFulfilment({ ...start, interval: 'WEEK' })).toBeNull();
+    // An order opened before periods had a length reads as one interval, renewing.
+    expect(parseFulfilment(start)).toEqual({ ...start, intervalCount: 1, oneTime: false });
+    const tenDays = { ...start, interval: 'DAY', intervalCount: 10, oneTime: true };
+    expect(parseFulfilment(tenDays)).toEqual(tenDays);
+    expect(parseFulfilment({ ...start, interval: 'FORTNIGHT' })).toBeNull();
     const renewal = {
       kind: 'subscription_renewal',
       subscriptionId: 'sub-1',

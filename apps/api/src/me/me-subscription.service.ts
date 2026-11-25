@@ -123,6 +123,7 @@ export class MeSubscriptionService {
         priceAmount: subscription.priceAmount,
         currency: subscription.currency,
         interval: subscription.interval,
+        intervalCount: subscription.intervalCount,
         currentPeriodStart: subscription.currentPeriodStart.toISOString(),
         currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
@@ -168,6 +169,7 @@ export class MeSubscriptionService {
         priceAmount: true,
         currency: true,
         interval: true,
+        intervalCount: true,
         plan: { select: { name: true } },
       },
     });
@@ -219,7 +221,12 @@ export class MeSubscriptionService {
       select: { locationId: true },
     });
     const locationId = member?.locationId ?? null;
-    const label = subscriptionInvoiceDescription(sub.plan?.name ?? null, sub.interval, 'renewal');
+    const label = subscriptionInvoiceDescription(
+      sub.plan?.name ?? null,
+      sub.interval,
+      'renewal',
+      sub.intervalCount,
+    );
     try {
       const { payment } = await payments.begin(
         {

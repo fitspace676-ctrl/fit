@@ -2,6 +2,7 @@
 
 import {
   Permission,
+  approximatePlanPeriodDays,
   recordPosSaleSchema,
   roleHasPermission,
   sendReceiptSchema,
@@ -295,7 +296,6 @@ export interface PosMembershipRow {
 const MEMBERSHIP_RESULT_LIMIT = 50;
 
 /** Days per renewal cadence, for the card's duration badge. */
-const INTERVAL_DAYS: Record<string, number> = { MONTH: 30, YEAR: 365 };
 
 /**
  * The gym's sellable memberships for the POS catalogue — its **active** subscription
@@ -322,7 +322,7 @@ export async function fetchPosMembershipsAction(): Promise<ActionResult<PosMembe
         name: plan.name,
         priceAmount: plan.priceAmount,
         currency: plan.currency,
-        durationLabel: `${INTERVAL_DAYS[plan.interval] ?? 30} days`,
+        durationLabel: `${approximatePlanPeriodDays(plan.interval, plan.intervalCount)} days`,
       })),
     };
   } catch (error) {

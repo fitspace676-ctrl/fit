@@ -186,6 +186,7 @@ function subscription(overrides: Partial<MeSubscription> = {}): MeSubscription {
     priceAmount: 5000,
     currency: 'GEL',
     interval: 'MONTH',
+    intervalCount: 1,
     // A ten-day period, four days in ⇒ six left, 40%.
     currentPeriodStart: new Date(now - 4 * DAY).toISOString(),
     currentPeriodEnd: new Date(now + 6 * DAY).toISOString(),

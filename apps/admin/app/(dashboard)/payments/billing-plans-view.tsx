@@ -20,22 +20,19 @@
 import { useMemo, useState, useTransition } from 'react';
 import { ButtonLink } from '@/components/ui/button-link';
 import * as stylex from '@stylexjs/stylex';
-import { DEFAULT_CURRENCY } from '@fit/types';
+import { DEFAULT_CURRENCY, planMonthlyEquivalent } from '@fit/types';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import type { AdminSubscriptionPlanRow } from '@fit/types';
 import { Badge, Card, Switch, type BadgeTone } from '@fit/ui-kit';
 import { Icon, useToast, type IconName } from '@/components/ui';
 import { setSubscriptionPlanActiveAction } from './actions';
-import { formatPrice, intervalSuffix } from './format';
+import { asPeriodT, formatPrice, periodSuffix } from './format';
 import { NewPlanDrawer } from './new-plan-drawer';
 import type { PlanClassTypeOption } from './subscription-plan-form';
 import { createNumberFormat } from '@fit/i18n';
 
 type Segment = 'active' | 'archived';
-
-/** Months in a year — normalises a yearly price to a monthly-recurring figure. */
-const MONTHS_PER_YEAR = 12;
 
 /** An archived plan reads as receded — the one rule this file needs in StyleX. */
 const cardStyles = stylex.create({
@@ -63,7 +60,7 @@ const KPI_ICON_CLASS = 'text-ink-400 dark:text-ink-500';
 
 /** The monthly-normalised price of a plan in the currency's minor units. */
 function monthlyMinor(plan: AdminSubscriptionPlanRow): number {
-  return plan.interval === 'YEAR' ? plan.priceAmount / MONTHS_PER_YEAR : plan.priceAmount;
+  return planMonthlyEquivalent(plan.priceAmount, plan.interval, plan.intervalCount);
 }
 
 /** A plan's monthly-recurring contribution: its normalised price × live subscribers. */
@@ -266,6 +263,7 @@ function PlanCard({
   const tone = toneFor(isActive);
   const features = plan.features;
   const nf = createNumberFormat(locale);
+  const tPeriod = asPeriodT(useTranslations('common.planPeriod'));
 
   return (
     <Card padding="lg" xstyle={isActive ? undefined : cardStyles.archived}>
@@ -300,7 +298,7 @@ function PlanCard({
           {formatPrice(plan.priceAmount, plan.currency, locale)}
         </span>
         <span className="mb-1 text-sm font-semibold text-ink-500 dark:text-ink-400">
-          {intervalSuffix(plan.interval, t)}
+          {periodSuffix(plan, tPeriod)}
         </span>
       </div>
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { periodSuffix } from '@/src/components/checkout/product-cards';
 import { useOnlinePayment, paymentErrorKey } from '@/src/components/checkout/online-payments';
 
 import { useEffect, useId, useState, useTransition } from 'react';
@@ -319,8 +320,10 @@ export function ChangePlanModal({
   const locations = catalogue?.locations ?? [];
   const picked = plans.find((plan) => plan.id === pickedId) ?? null;
 
-  const cadence = (plan: SubscriptionPlanSummary) =>
-    plan.interval === 'YEAR' ? t('plan.perYear') : t('plan.perMonth');
+  const tPeriod = useTranslations('common.planPeriod') as unknown as Parameters<
+    typeof periodSuffix
+  >[1];
+  const cadence = (plan: SubscriptionPlanSummary) => periodSuffix(plan, tPeriod);
 
   function submit(): void {
     if (!picked || !online.enabled || online.redirecting) return;

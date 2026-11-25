@@ -6,8 +6,10 @@ import {
   InvoiceStatus,
   PaymentStatus,
   Role,
-  SubscriptionInterval,
+  type SubscriptionInterval,
   SubscriptionStatus,
+  addInterval,
+  monthlyEquivalent,
   OrderStatus,
   PackageBillingInterval,
   PaymentMethod,
@@ -1724,6 +1726,7 @@ export class ReportsService {
           memberId: true,
           priceAmount: true,
           interval: true,
+          intervalCount: true,
           status: true,
           createdAt: true,
           canceledAt: true,
@@ -1754,7 +1757,7 @@ export class ReportsService {
         if (!wasLiveAt(sub, at)) {
           continue;
         }
-        const monthly = monthlyValue(sub.interval, sub.priceAmount);
+        const monthly = monthlyValue(sub.interval, sub.priceAmount, sub.intervalCount);
         if (monthly === 0) {
           continue;
         }
@@ -1959,6 +1962,7 @@ export class ReportsService {
         status: true,
         priceAmount: true,
         interval: true,
+        intervalCount: true,
         currentPeriodEnd: true,
         cancelAtPeriodEnd: true,
         plan: { select: { name: true } },
@@ -1980,7 +1984,7 @@ export class ReportsService {
         let charge = sub.currentPeriodEnd;
         while (charge < forward.end) {
           expected += sub.priceAmount;
-          charge = addInterval(charge, sub.interval);
+          charge = addInterval(charge, sub.interval, sub.intervalCount);
         }
       }
       const status: MembershipStatusKey =
@@ -1999,8 +2003,11 @@ export class ReportsService {
             : s.values.unknownMember,
           plan: sub.plan?.name ?? s.values.noPlan,
           recurring: sub.priceAmount,
-          interval: s.values.intervals[sub.interval] ?? sub.interval,
-          monthly: monthlyValue(sub.interval, sub.priceAmount),
+          interval:
+            sub.intervalCount === 1
+              ? (s.values.intervals[sub.interval] ?? sub.interval)
+              : `${sub.intervalCount} × ${s.values.intervalUnits[sub.interval] ?? sub.interval}`,
+          monthly: monthlyValue(sub.interval, sub.priceAmount, sub.intervalCount),
           nextCharge: renews ? isoDate(sub.currentPeriodEnd, win.zone) : null,
           expected,
           status: s.values.membershipStatuses[status] ?? status,
@@ -4162,33 +4169,26 @@ interface PtSaleLine {
   location: string;
 }
 
-/** Months in a year, for normalising a yearly subscription price to MRR. */
-const MONTHS_PER_YEAR = 12;
-
 /**
- * One subscription's contribution to MRR, normalised to a month.
+ * One subscription's contribution to MRR: its price as a monthly equivalent, in
+ * whole minor units (a yearly plan is a twelfth, three months a third, a ten-day
+ * plan three times its price).
  *
- * A `TRIAL` interval contributes NOTHING. A trial is not recurring revenue however
- * much the row looks like a subscription, and counting it would inflate MRR by
- * exactly the members least likely to pay.
+ * An interval that is not a billing unit contributes NOTHING, as before: a row
+ * that only looks like a subscription must not inflate MRR.
  */
-/** The instant one billing interval after `at`, stepping the calendar month or year. */
-function addInterval(at: Date, interval: SubscriptionInterval): Date {
-  const next = new Date(at.getTime());
-  if (interval === SubscriptionInterval.YEAR) next.setUTCFullYear(next.getUTCFullYear() + 1);
-  else next.setUTCMonth(next.getUTCMonth() + 1);
-  return next;
+function monthlyValue(
+  interval: SubscriptionInterval,
+  priceAmount: number,
+  intervalCount: number,
+): number {
+  if (!BILLING_UNITS.has(interval)) {
+    return 0;
+  }
+  return Math.round(monthlyEquivalent(priceAmount, interval, intervalCount));
 }
 
-function monthlyValue(interval: SubscriptionInterval, priceAmount: number): number {
-  if (interval === SubscriptionInterval.MONTH) {
-    return priceAmount;
-  }
-  if (interval === SubscriptionInterval.YEAR) {
-    return Math.round(priceAmount / MONTHS_PER_YEAR);
-  }
-  return 0;
-}
+const BILLING_UNITS: ReadonlySet<string> = new Set(['DAY', 'WEEK', 'MONTH', 'YEAR']);
 
 /** Whether a subscription was live at `at` — created by then and not yet churned. */
 function wasLiveAt(

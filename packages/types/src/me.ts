@@ -59,7 +59,9 @@ export const meSubscriptionSchema = z.object({
   planName: z.string().nullable(),
   priceAmount: z.number().int().nonnegative(),
   currency: z.string(),
-  interval: z.enum(['MONTH', 'YEAR']),
+  interval: z.enum(['DAY', 'WEEK', 'MONTH', 'YEAR']),
+  /** How many `interval`s one period lasts; absent from an older API. */
+  intervalCount: z.number().int().positive().default(1),
   currentPeriodStart: z.string(),
   currentPeriodEnd: z.string(),
   cancelAtPeriodEnd: z.boolean(),

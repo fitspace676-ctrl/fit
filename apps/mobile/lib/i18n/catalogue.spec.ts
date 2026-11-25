@@ -138,8 +138,10 @@ describe('the member slice', () => {
     // (`member.payment.result.*`, 15 keys): → 1220.
     // Sign-in takes an email or a phone number (`auth.fields.emailOrPhone*`,
     // `auth.login.errors.identifier*`, 4 keys): → 1224.
-    expect(enKeys).toHaveLength(1224);
-    expect(kaKeys).toHaveLength(1224);
+    // A plan's period is any number of days, weeks or months, or one-time
+    // (`common.planPeriod.per.*` / `.length.*` / `.oneTime`, 9 keys): → 1233.
+    expect(enKeys).toHaveLength(1233);
+    expect(kaKeys).toHaveLength(1233);
   });
 });
 
