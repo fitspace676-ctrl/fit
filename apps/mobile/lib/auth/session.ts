@@ -405,7 +405,9 @@ export interface SignInResult {
 }
 
 /**
- * Sign in with an email and password.
+ * Sign in with a password and the account's email address or phone number
+ * (one of the two; the sign-in screen sorts what was typed with
+ * `loginIdentifier`).
  *
  * `gymSlug` is a required property of the argument — pass
  * `resolveGymSlug({ deepLinkSlug })`, or `undefined` deliberately. Making it
@@ -414,13 +416,16 @@ export interface SignInResult {
  * wrong branch.
  */
 export async function signIn(
-  input: { email: string; password: string; gymSlug: string | undefined },
+  input: ({ email: string } | { phone: string }) & {
+    password: string;
+    gymSlug: string | undefined;
+  },
   options?: AuthCallOptions,
 ): Promise<SignInResult> {
   const gymSlug = normaliseSlug(input.gymSlug);
   const tokens = await deps.authApi.login(
     {
-      email: input.email,
+      ...('phone' in input ? { phone: input.phone } : { email: input.email }),
       password: input.password,
       // Omitted rather than sent as `undefined`: `loginSchema` marks it
       // `.optional()`, and `JSON.stringify` drops an undefined value anyway —

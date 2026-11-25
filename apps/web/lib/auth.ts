@@ -12,6 +12,7 @@ import {
   MEMBERSHIP_NOT_ACTIVE_CODE,
   NOT_A_MEMBER_CODE,
   gymSelectionOptions,
+  loginIdentifier,
   type GymSelectionOption,
   type ResetPasswordResponse,
 } from '@fit/types';
@@ -214,7 +215,7 @@ export async function registerWithCredentials(input: {
 }
 
 /**
- * Sign in with an email + password pair. POSTs to `POST /auth/login`; the API
+ * Sign in with an email address or phone number, and a password. POSTs to `POST /auth/login`; the API
  * verifies the credentials and issues a {@link TokenPair}, which we persist
  * before returning (the caller walks away signed in). Throws with the API's
  * error message on a non-2xx response.
@@ -224,7 +225,7 @@ export async function registerWithCredentials(input: {
  * `409 GYM_SELECTION_REQUIRED` ({@link isGymSelectionRequired}).
  */
 export async function loginWithCredentials(
-  email: string,
+  identifier: string,
   password: string,
   chosenGymSlug?: string,
 ): Promise<TokenPair> {
@@ -234,7 +235,7 @@ export async function loginWithCredentials(
     headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
       audience: 'member',
-      email,
+      ...loginIdentifier(identifier),
       password,
       ...(gymSlug ? { gymSlug } : {}),
     }),

@@ -41,7 +41,7 @@ describe('staff account doors', () => {
       'href',
       '/admin/forgot-password',
     );
-    fireEvent.change(screen.getByLabelText(en.auth.fields.email), {
+    fireEvent.change(screen.getByLabelText(en.auth.fields.emailOrPhone), {
       target: { value: 'same@example.com' },
     });
     submit(en.auth.fields.password, 'staff-password');

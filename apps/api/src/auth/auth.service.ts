@@ -22,6 +22,7 @@ import {
   gymPublicTimezone,
   gymSettingsStoredSchema,
   missingSignupIntakeFields,
+  phoneLoginKey,
 } from '@fit/types';
 import { DEFAULT_EMAIL_LOCALE, resolveEmailLocale, type EmailLocale } from '../mail/email-locale';
 import type {
@@ -142,17 +143,23 @@ interface StoredCredential {
   gymId: string;
   passwordHash: string | null;
   emailVerifiedAt: Date | null;
+  phone: string | null;
   gym: { slug: string; name: string; status: GymStatus };
 }
 
 /**
- * One account with the signing-in address, as the password paths project it.
- * Every realm's row for the address is read in one query; which of them a sign-in
- * may use is decided in memory from `realm` (see `./account-realm`).
+ * One account with the signing-in address (or phone number), as the password
+ * paths project it. Every realm's row for it is read in one query; which of them
+ * a sign-in may use is decided in memory from `realm` (see `./account-realm`).
+ *
+ * An address names at most one account in a realm. A phone number is free text
+ * nobody has verified and nothing keeps unique, so it can name several (a family
+ * on one number); the password then picks, oldest account first.
  */
 interface SignInAccount {
   id: string;
   realm: string;
+  phone: string | null;
   passwordHash: string | null;
   emailVerifiedAt: Date | null;
   isSuperAdmin: boolean;
@@ -163,6 +170,7 @@ interface SignInAccount {
 const SIGN_IN_ACCOUNT_SELECT = {
   id: true,
   realm: true,
+  phone: true,
   passwordHash: true,
   emailVerifiedAt: true,
   isSuperAdmin: true,
@@ -171,10 +179,18 @@ const SIGN_IN_ACCOUNT_SELECT = {
       gymId: true,
       passwordHash: true,
       emailVerifiedAt: true,
+      phone: true,
       gym: { select: { slug: true, name: true, status: true } },
     },
   },
 } satisfies Prisma.UserSelect;
+
+/**
+ * The most accounts one phone number is tried against at a sign-in. Bounds the
+ * KDF work a single request can ask for; a number shared by more accounts than
+ * this signs in the oldest ones only (the others still have their e-mail).
+ */
+const MAX_PHONE_SIGN_IN_ACCOUNTS = 8;
 
 /** The account a password unlocked, and the gym its session binds to (none for a platform one). */
 interface AccountMatch {
@@ -1264,10 +1280,14 @@ export class AuthService {
    */
   async login(input: LoginInput, tenantSlug?: string | null): Promise<TokenPair> {
     const gymSlug = input.gymSlug ?? tenantSlug ?? undefined;
-    const accounts = await this.prisma.client.user.findMany({
-      where: { email: input.email },
-      select: SIGN_IN_ACCOUNT_SELECT,
-    });
+    const accounts = input.phone
+      ? await this.findAccountsByPhone(input.phone)
+      : input.email
+        ? await this.prisma.client.user.findMany({
+            where: { email: input.email },
+            select: SIGN_IN_ACCOUNT_SELECT,
+          })
+        : [];
 
     const match = gymSlug
       ? await this.matchGymAccount(accounts, gymSlug, input.audience, input.password)
@@ -1290,7 +1310,8 @@ export class AuthService {
     // Never from a member sign-in: staff invitations are accepted through the
     // admin console (audience 'staff', or a client from before the split), so a
     // member portal / mobile sign-in can never create or touch a staff account.
-    if (input.inviteToken && input.audience !== 'member') {
+    // An invitation is addressed to an e-mail, so only an e-mail sign-in redeems one.
+    if (input.inviteToken && input.email && input.audience !== 'member') {
       await this.redeemStaffInvite(input.email, input.inviteToken, {
         passwordHash: await argon2.hash(input.password, { type: argon2.argon2id }),
       });
@@ -1305,6 +1326,46 @@ export class AuthService {
         gymCredential: Boolean(match.gymSlug),
       }),
     );
+  }
+
+  /**
+   * The accounts that carry `phone`, oldest first, capped at
+   * {@link MAX_PHONE_SIGN_IN_ACCOUNTS}.
+   *
+   * Numbers are stored as typed, so both sides are reduced to
+   * {@link phoneLoginKey} — in SQL for the lookup (the expression the
+   * `*_phone_login_key_idx` indexes are built on; keep the three in step) and
+   * again in memory, where an account counts only by its own number: the one on
+   * the account, or the one on the credential of the gym its realm names.
+   */
+  private async findAccountsByPhone(phone: string): Promise<SignInAccount[]> {
+    const key = phoneLoginKey(phone);
+    if (!key) {
+      return [];
+    }
+    const rows = await this.prisma.client.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM "users"
+       WHERE right(regexp_replace("phone", '\\D', '', 'g'), 9) = ${key}
+      UNION
+      SELECT "userId" AS id FROM "gym_credentials"
+       WHERE right(regexp_replace("phone", '\\D', '', 'g'), 9) = ${key}
+      LIMIT 200
+    `);
+    if (rows.length === 0) {
+      return [];
+    }
+    const accounts = await this.prisma.client.user.findMany({
+      where: { id: { in: rows.map((row) => row.id) } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: SIGN_IN_ACCOUNT_SELECT,
+    });
+    return accounts
+      .filter(
+        (account) =>
+          phoneLoginKey(account.phone) === key ||
+          phoneLoginKey(ownCredential(account)?.phone) === key,
+      )
+      .slice(0, MAX_PHONE_SIGN_IN_ACCOUNTS);
   }
 
   /**
@@ -1345,24 +1406,33 @@ export class AuthService {
     const realms = gym ? signInRealms(gym.id, audience) : [];
     const slots = audience ? 1 : 2;
     const attempts: { hash: string | null; match: AccountMatch | null }[] = [];
+    // One attempt per account in the slot, and one dummy for an empty slot. An
+    // address has at most one account per slot; a phone number may have several.
+    const NO_ACCOUNT = [undefined];
     for (let index = 0; index < slots; index += 1) {
       const realm = realms[index];
-      const account = realm ? accounts.find((a) => a.realm === realm) : undefined;
-      const credential = account ? ownCredential(account) : null;
-      attempts.push({
-        hash: credential?.passwordHash ?? null,
-        match:
-          account && credential
-            ? { userId: account.id, gymSlug, emailVerifiedAt: credential.emailVerifiedAt }
-            : null,
-      });
+      const inRealm = realm ? accounts.filter((a) => a.realm === realm) : [];
+      for (const account of inRealm.length > 0 ? inRealm : NO_ACCOUNT) {
+        const credential = account ? ownCredential(account) : null;
+        attempts.push({
+          hash: credential?.passwordHash ?? null,
+          match:
+            account && credential
+              ? { userId: account.id, gymSlug, emailVerifiedAt: credential.emailVerifiedAt }
+              : null,
+        });
+      }
     }
     if (audience !== 'member') {
-      const platform = accounts.find((a) => a.realm === PLATFORM_REALM && a.isSuperAdmin);
-      attempts.push({
-        hash: platform?.passwordHash ?? null,
-        match: platform ? { userId: platform.id, emailVerifiedAt: platform.emailVerifiedAt } : null,
-      });
+      const superAdmins = accounts.filter((a) => a.realm === PLATFORM_REALM && a.isSuperAdmin);
+      for (const platform of superAdmins.length > 0 ? superAdmins : NO_ACCOUNT) {
+        attempts.push({
+          hash: platform?.passwordHash ?? null,
+          match: platform
+            ? { userId: platform.id, emailVerifiedAt: platform.emailVerifiedAt }
+            : null,
+        });
+      }
     }
 
     const results = await Promise.all(attempts.map((attempt) => verify(attempt.hash)));
@@ -1381,7 +1451,8 @@ export class AuthService {
     password: string,
   ): Promise<AccountMatch | null> {
     const verify = this.verifier(password);
-    const platform = accounts.find((a) => a.realm === PLATFORM_REALM) ?? null;
+    // One for an address; possibly several for a phone number.
+    const platforms = accounts.filter((a) => a.realm === PLATFORM_REALM);
     const platformMatch = (account: SignInAccount): AccountMatch => ({
       userId: account.id,
       emailVerifiedAt: account.emailVerifiedAt,
@@ -1409,11 +1480,14 @@ export class AuthService {
       // answers 403 GYM_SUSPENDED (the caller's gate on the matched gym) rather
       // than looking like a wrong password. One is enough: it ends in that 403.
       const suspended = withPassword;
-      const [platformOk, ...results] = await Promise.all([
-        verify(platform?.passwordHash ?? null),
-        ...suspended.map((c) => verify(c.credential.passwordHash)),
+      const [platformResults, results] = await Promise.all([
+        Promise.all(
+          (platforms.length > 0 ? platforms : [null]).map((p) => verify(p?.passwordHash ?? null)),
+        ),
+        Promise.all(suspended.map((c) => verify(c.credential.passwordHash))),
       ]);
-      if (platform && platformOk) {
+      const platform = platforms.find((_, index) => platformResults[index]);
+      if (platform) {
         return platformMatch(platform);
       }
       const hit = suspended.find((_, index) => results[index]);
@@ -1426,12 +1500,13 @@ export class AuthService {
         : null;
     }
 
-    const superAdmin = audience !== 'member' && platform?.isSuperAdmin ? platform : null;
-    const [superAdminOk, ...results] = await Promise.all([
-      superAdmin ? verify(superAdmin.passwordHash) : Promise.resolve(false),
-      ...candidates.map((c) => verify(c.credential.passwordHash)),
+    const superAdmins = audience !== 'member' ? platforms.filter((p) => p.isSuperAdmin) : [];
+    const [superAdminResults, results] = await Promise.all([
+      Promise.all(superAdmins.map((p) => verify(p.passwordHash))),
+      Promise.all(candidates.map((c) => verify(c.credential.passwordHash))),
     ]);
-    if (superAdmin && superAdminOk) {
+    const superAdmin = superAdmins.find((_, index) => superAdminResults[index]);
+    if (superAdmin) {
       return platformMatch(superAdmin);
     }
 

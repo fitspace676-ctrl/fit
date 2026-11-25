@@ -1,4 +1,4 @@
-// Sign in — email + password.
+// Sign in — email or phone number + password.
 //
 // ## This screen does not navigate
 //
@@ -28,7 +28,7 @@
 // `Alert` is aliased: `react-native` exports one too, and the two are utterly
 // different things. The alias makes a future `import { Alert } from 'react-native'`
 // impossible to add by accident.
-import type { GymSelectionOption } from '@fit/types';
+import { loginIdentifier, type GymSelectionOption } from '@fit/types';
 import { Alert as Advisory, Button, Text, spacing } from '@fit/ui-mobile';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -62,10 +62,10 @@ function loginFieldErrors(email: string, password: string): FieldErrors {
   return {
     email:
       address === ''
-        ? 'auth.login.errors.emailRequired'
-        : EMAIL_SHAPE.test(address)
+        ? 'auth.login.errors.identifierRequired'
+        : EMAIL_SHAPE.test(address) || 'phone' in loginIdentifier(address)
           ? null
-          : 'auth.login.errors.emailInvalid',
+          : 'auth.login.errors.identifierInvalid',
     password: password === '' ? 'auth.login.errors.passwordRequired' : null,
   };
 }
@@ -102,7 +102,7 @@ export default function LoginScreen() {
     // parameter is one a screen forgets, and a forgotten slug is a member
     // silently signed into the wrong branch. `resolveGymSlug()` answers from the
     // deep link, then the build's pinned slug, then the last successful login.
-    signIn({ email, password, gymSlug })
+    signIn({ ...loginIdentifier(email), password, gymSlug })
       .then(() => {
         // Deliberately NOT `setPending(false)`. The guard is about to replace
         // this route; re-enabling the button in the gap would let a double-press
@@ -189,8 +189,8 @@ export default function LoginScreen() {
 
       <AuthField
         testID="login-email"
-        label={t('auth.fields.email')}
-        placeholder={t('auth.fields.emailPlaceholder')}
+        label={t('auth.fields.emailOrPhone')}
+        placeholder={t('auth.fields.emailOrPhonePlaceholder')}
         value={email}
         onChangeText={(text: string) => {
           setEmail(text);
@@ -205,8 +205,8 @@ export default function LoginScreen() {
         autoCorrect={false}
         // Android's autofill service and iOS's QuickType strip are different
         // APIs for the same thing; neither is a superset, so both are set.
-        autoComplete="email"
-        textContentType="emailAddress"
+        autoComplete="username"
+        textContentType="username"
         // The chain. `submitBehavior="submit"` keeps the keyboard up across the
         // hop — the default blurs first, which collapses and re-opens the
         // keyboard between two adjacent fields.
