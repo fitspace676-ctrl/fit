@@ -93,6 +93,10 @@ export interface StartSubscriptionInput {
   priceAmount: number;
   currency: string;
   interval: SubscriptionInterval;
+  /** How many `interval`s one period lasts; `1` when absent. */
+  intervalCount?: number;
+  /** A plan sold once: the subscription ends with its period instead of renewing. */
+  oneTime?: boolean;
   /** `> 0` starts a free TRIAL (no invoice); `0` starts a paid ACTIVE period. */
   trialDays: number;
   /** `Subscription.provider` — `stub` (instant path) or {@link MANUAL_PAY_PROVIDER}. */
@@ -129,7 +133,7 @@ export async function startSubscription(
   const isTrial = input.trialDays > 0;
   const { currentPeriodStart, currentPeriodEnd } = isTrial
     ? trialBillingPeriod(input.now, input.trialDays)
-    : initialBillingPeriod(input.now, input.interval);
+    : initialBillingPeriod(input.now, input.interval, input.intervalCount ?? 1);
 
   let subscriptionId: string;
   try {
@@ -142,6 +146,8 @@ export async function startSubscription(
         priceAmount: input.priceAmount,
         currency: input.currency,
         interval: input.interval,
+        intervalCount: input.intervalCount ?? 1,
+        cancelAtPeriodEnd: input.oneTime ?? false,
         currentPeriodStart,
         currentPeriodEnd,
         provider: input.provider,
@@ -168,7 +174,12 @@ export async function startSubscription(
         amount: input.priceAmount,
         currency: input.currency,
         type: InvoiceType.MEMBERSHIP,
-        description: subscriptionInvoiceDescription(input.planName, input.interval, 'enrolment'),
+        description: subscriptionInvoiceDescription(
+          input.planName,
+          input.interval,
+          'enrolment',
+          input.intervalCount ?? 1,
+        ),
         issuedAt: currentPeriodStart,
       });
 
@@ -195,6 +206,7 @@ export interface RenewableSubscription {
   priceAmount: number;
   currency: string;
   interval: SubscriptionInterval;
+  intervalCount?: number;
   planName: string | null;
 }
 
@@ -247,7 +259,12 @@ export async function applyRenewal(
     amount: sub.priceAmount,
     currency: sub.currency,
     type: InvoiceType.MEMBERSHIP,
-    description: subscriptionInvoiceDescription(sub.planName, sub.interval, 'renewal'),
+    description: subscriptionInvoiceDescription(
+      sub.planName,
+      sub.interval,
+      'renewal',
+      sub.intervalCount ?? 1,
+    ),
     issuedAt: input.nextPeriodStart,
   });
 }
@@ -256,8 +273,12 @@ export async function applyRenewal(
 export function nextManualPeriod(
   periodEnd: Date,
   interval: SubscriptionInterval,
+  intervalCount = 1,
 ): { nextPeriodStart: Date; nextPeriodEnd: Date } {
-  return { nextPeriodStart: periodEnd, nextPeriodEnd: addInterval(periodEnd, interval) };
+  return {
+    nextPeriodStart: periodEnd,
+    nextPeriodEnd: addInterval(periodEnd, interval, intervalCount),
+  };
 }
 
 /**

@@ -99,6 +99,8 @@ export default async function EditSubscriptionPlanPage({
           priceAmount: plan.priceAmount,
           currency: plan.currency,
           interval: plan.interval,
+          intervalCount: plan.intervalCount,
+          oneTime: plan.oneTime,
           features: plan.features,
           popular: plan.popular,
           freezeDaysPerPeriod: plan.freezeDaysPerPeriod,

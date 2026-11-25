@@ -1167,12 +1167,10 @@ function CurrentPlanCard({
     ),
   );
   const pct = Math.max(0, Math.min(100, (plan.daysRemaining / periodDays) * 100));
-  const intervalKey =
-    plan.interval === 'YEAR'
-      ? 'intervalYear'
-      : plan.interval === 'MONTH'
-        ? 'intervalMonth'
-        : 'intervalPeriod';
+  const tPeriod = useTranslations('common.planPeriod');
+  const perPeriod = plan.interval
+    ? tPeriod(`per.${plan.interval}`, { count: plan.intervalCount })
+    : t('detail.perInterval', { interval: t('detail.intervalPeriod') });
 
   return (
     <Card padding="none" xstyle={styles.card}>
@@ -1194,9 +1192,7 @@ function CurrentPlanCard({
             plan.priceAmount / 100,
           )}
         </span>
-        <span {...stylex.props(styles.priceInterval)}>
-          {t('detail.perInterval', { interval: t(`detail.${intervalKey}`) })}
-        </span>
+        <span {...stylex.props(styles.priceInterval)}>{perPeriod}</span>
       </div>
 
       <div {...stylex.props(styles.periodBlock)}>

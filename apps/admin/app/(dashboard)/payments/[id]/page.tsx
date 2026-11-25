@@ -8,7 +8,7 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
 import { Badge, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
-import { creditsLabel, formatPrice, intervalLabel, intervalSuffix } from '../format';
+import { asPeriodT, creditsLabel, formatPrice, periodLabel, periodSuffix } from '../format';
 import { PlanActions } from './plan-actions';
 import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 
@@ -62,6 +62,7 @@ export default async function SubscriptionPlanDetailPage({
   const timeZone = await getGymTimeZone();
   const { id } = await params;
   const [t, locale] = await Promise.all([getTranslations('admin.billingPlans'), getLocale()]);
+  const tPeriod = asPeriodT(await getTranslations('common.planPeriod'));
   const nf = createNumberFormat(locale);
 
   let plan;
@@ -122,9 +123,7 @@ export default async function SubscriptionPlanDetailPage({
           </div>
           <p className="font-mono text-lg font-semibold tabular-nums text-ink-800 dark:text-ink-100">
             {formatPrice(plan.priceAmount, plan.currency, locale)}{' '}
-            <span className="text-sm font-normal text-ink-400">
-              {intervalSuffix(plan.interval, t)}
-            </span>
+            <span className="text-sm font-normal text-ink-400">{periodSuffix(plan, tPeriod)}</span>
           </p>
         </div>
         {canWrite ? <PlanActions planId={plan.id} status={plan.status} /> : null}
@@ -135,7 +134,7 @@ export default async function SubscriptionPlanDetailPage({
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
             {t('detail.billing')}
           </span>
-          <span className="text-ink-800 dark:text-ink-100">{intervalLabel(plan.interval, t)}</span>
+          <span className="text-ink-800 dark:text-ink-100">{periodLabel(plan, tPeriod)}</span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">

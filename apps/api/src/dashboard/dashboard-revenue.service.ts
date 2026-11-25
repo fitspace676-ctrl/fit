@@ -4,8 +4,9 @@ import {
   InvoiceStatus,
   LocationStatus,
   PaymentStatus,
-  SubscriptionInterval,
+  type SubscriptionInterval,
   SubscriptionStatus,
+  monthlyEquivalent,
 } from '@fit/db';
 import {
   PROJECTION_WINDOW_DAYS,
@@ -32,6 +33,7 @@ const NO_LOCATION_LABEL = 'No location';
 interface RevenueSubscriptionRow extends SubscriptionTimelineRow {
   priceAmount: number;
   interval: SubscriptionInterval;
+  intervalCount: number;
   cancelAtPeriodEnd: boolean;
 }
 
@@ -261,6 +263,7 @@ export class DashboardRevenueService {
           updatedAt: true,
           priceAmount: true,
           interval: true,
+          intervalCount: true,
           currentPeriodStart: true,
           currentPeriodEnd: true,
           cancelAtPeriodEnd: true,
@@ -433,9 +436,7 @@ function sum(values: number[]): number {
 
 /** One subscription's price normalised to a month, in MINOR units. */
 function monthlyValue(sub: RevenueSubscriptionRow): number {
-  return sub.interval === SubscriptionInterval.YEAR
-    ? Math.round(sub.priceAmount / 12)
-    : sub.priceAmount;
+  return Math.round(monthlyEquivalent(sub.priceAmount, sub.interval, sub.intervalCount));
 }
 
 /**

@@ -59,6 +59,8 @@ function renderEdit(): void {
         priceAmount: 9000,
         currency: 'GEL',
         interval: 'MONTH',
+        intervalCount: 1,
+        oneTime: false,
         features: [],
         popular: false,
         freezeDaysPerPeriod: 30,

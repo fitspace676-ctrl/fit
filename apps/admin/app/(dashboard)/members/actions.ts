@@ -61,7 +61,8 @@ export interface PlanOption {
   name: string;
   priceAmount: number;
   currency: string;
-  interval: 'MONTH' | 'YEAR';
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+  intervalCount: number;
 }
 
 /** Discriminated result returned to the client component — never throws across the boundary. */
@@ -332,6 +333,7 @@ export async function listActivePlanOptionsAction(): Promise<PlanOption[]> {
       priceAmount: plan.priceAmount,
       currency: plan.currency,
       interval: plan.interval,
+      intervalCount: plan.intervalCount,
     }));
   } catch {
     return [];

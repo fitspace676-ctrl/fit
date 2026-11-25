@@ -38,6 +38,10 @@ export type OrderFulfilment =
       priceAmount: number;
       currency: string;
       interval: SubscriptionInterval;
+      /** Absent on an order opened before periods had a length: one interval. */
+      intervalCount?: number;
+      /** A plan sold once — the subscription does not renew. */
+      oneTime?: boolean;
     }
   | { kind: 'subscription_renewal'; subscriptionId: string; periodEnd: string };
 
@@ -135,8 +139,7 @@ export function parseFulfilment(value: unknown): OrderFulfilment | null {
         Number.isInteger(record.priceAmount) &&
         record.priceAmount >= 0 &&
         typeof record.currency === 'string' &&
-        (record.interval === SubscriptionInterval.MONTH ||
-          record.interval === SubscriptionInterval.YEAR)
+        Object.values(SubscriptionInterval).includes(record.interval as SubscriptionInterval)
       ) {
         return {
           kind: 'subscription_start',
@@ -144,7 +147,14 @@ export function parseFulfilment(value: unknown): OrderFulfilment | null {
           planName: record.planName,
           priceAmount: record.priceAmount,
           currency: record.currency,
-          interval: record.interval,
+          interval: record.interval as SubscriptionInterval,
+          intervalCount:
+            typeof record.intervalCount === 'number' &&
+            Number.isInteger(record.intervalCount) &&
+            record.intervalCount >= 1
+              ? record.intervalCount
+              : 1,
+          oneTime: record.oneTime === true,
         };
       }
       return null;

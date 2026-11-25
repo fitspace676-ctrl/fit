@@ -209,6 +209,16 @@ export interface JoinProduct {
   readonly currency: string;
   /** `'month'` / `'year'` billing cadence, or `null` for a one-off. */
   readonly interval: 'month' | 'year' | null;
+  /**
+   * A membership plan's real period — `intervalCount` × `interval`, not renewing
+   * when `oneTime` — which the two-value `interval` above cannot say. `null` for
+   * a package or a credit pack.
+   */
+  readonly period: {
+    readonly interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+    readonly intervalCount: number;
+    readonly oneTime: boolean;
+  } | null;
   /** Sessions included, when the row counts them. */
   readonly sessionCount: number | null;
   readonly features: readonly string[];
@@ -242,6 +252,12 @@ export function productsOfType(
         // The plan enum is `MONTH` / `YEAR`; the package enum is lower case.
         // Normalised here so the price suffix is chosen once.
         interval: plan.interval === 'YEAR' ? 'year' : 'month',
+        // `?? 1` / `?? false`: an API from before periods had a length sends neither.
+        period: {
+          interval: plan.interval,
+          intervalCount: plan.intervalCount ?? 1,
+          oneTime: plan.oneTime ?? false,
+        },
         sessionCount: null,
         features: plan.features,
         popular: plan.popular,
@@ -255,6 +271,7 @@ export function productsOfType(
         priceAmount: pack.priceAmount,
         currency: pack.currency,
         interval: pack.interval === 'one_time' ? null : pack.interval,
+        period: null,
         sessionCount: pack.sessionCount,
         features: pack.features,
         popular: pack.popular,
@@ -268,6 +285,7 @@ export function productsOfType(
         priceAmount: pack.priceAmount,
         currency: pack.currency,
         interval: null,
+        period: null,
         sessionCount: pack.sessionCount,
         features: [],
         popular: false,

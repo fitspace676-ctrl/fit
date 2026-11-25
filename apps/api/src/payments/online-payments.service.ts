@@ -943,6 +943,8 @@ export class OnlinePaymentsService {
         priceAmount: fulfilment.priceAmount,
         currency: fulfilment.currency,
         interval: fulfilment.interval,
+        intervalCount: fulfilment.intervalCount ?? 1,
+        oneTime: fulfilment.oneTime ?? false,
         trialDays: 0,
         provider: MANUAL_PAY_PROVIDER,
         orderId: target.orderId,
@@ -979,6 +981,7 @@ export class OnlinePaymentsService {
         priceAmount: true,
         currency: true,
         interval: true,
+        intervalCount: true,
         plan: { select: { name: true } },
       },
     });
@@ -991,7 +994,11 @@ export class OnlinePaymentsService {
     if (!RENEWABLE_STATUSES.includes(sub.status)) {
       throw new FulfilmentConflictError('subscription_not_payable');
     }
-    const { nextPeriodStart, nextPeriodEnd } = nextManualPeriod(sub.currentPeriodEnd, sub.interval);
+    const { nextPeriodStart, nextPeriodEnd } = nextManualPeriod(
+      sub.currentPeriodEnd,
+      sub.interval,
+      sub.intervalCount,
+    );
     const invoice = await applyRenewal(tx, this.invoices, {
       sub: {
         id: sub.id,
@@ -1002,6 +1009,7 @@ export class OnlinePaymentsService {
         priceAmount: sub.priceAmount,
         currency: sub.currency,
         interval: sub.interval,
+        intervalCount: sub.intervalCount,
         planName: sub.plan?.name ?? null,
       },
       nextPeriodStart,

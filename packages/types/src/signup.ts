@@ -43,8 +43,12 @@ export const subscriptionPlanSummarySchema = z.object({
   description: z.string(),
   priceAmount: z.number().int().nonnegative(),
   currency: z.string().length(3),
-  /** Billing cadence — mirrors the Prisma `SubscriptionInterval` enum. */
-  interval: z.enum(['MONTH', 'YEAR']),
+  /** The unit of the plan's period — mirrors the Prisma `SubscriptionInterval` enum. */
+  interval: z.enum(['DAY', 'WEEK', 'MONTH', 'YEAR']),
+  /** How many `interval`s one period lasts. */
+  intervalCount: z.number().int().positive().default(1),
+  /** Sold once and not renewed. */
+  oneTime: z.boolean().default(false),
   features: z.array(z.string()),
   popular: z.boolean(),
   /** Free-trial length in whole days; `0` when the plan charges immediately. */

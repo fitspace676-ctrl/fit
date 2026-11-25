@@ -7,7 +7,8 @@
 // the same interval on each successful renewal — so the two share exactly one
 // definition of "one period later" and can never drift.
 //
-// Calendar-correct, not a fixed day count: a `MONTH` advances to the same
+// A period is `count` intervals: days and weeks are a fixed number of days;
+// months and years are calendar-correct, not a fixed day count: a `MONTH` advances to the same
 // day-of-month next month and a `YEAR` to the same date next year, so a member who
 // enrols on the 15th always renews on the 15th. When the target month is shorter
 // than the start day (Jan 31 → February, or Feb 29 → a non-leap year) the result is
@@ -20,21 +21,30 @@ import { addDays } from './subscription-freeze-policy';
 import { SubscriptionInterval } from '../generated/client';
 
 /**
- * `date` advanced by one billing `interval` (a `MONTH` or a `YEAR`), without
- * mutating the input. Computed in UTC so the result is timezone-independent and
+ * `date` advanced by `count` billing `interval`s (one by default), without
+ * mutating the input. `DAY` and `WEEK` add whole days ({@link addDays}); `MONTH`
+ * and `YEAR` move the calendar. Computed in UTC so the result is timezone-independent and
  * matches how Prisma stores `DateTime`. The day-of-month is preserved, clamping to
  * the target month's last day when it has fewer days (e.g. Jan 31 + 1 month → Feb
  * 28/29; Feb 29 + 1 year → Feb 28), so the renewal date never rolls into the next
  * month.
  */
-export function addInterval(date: Date, interval: SubscriptionInterval): Date {
+export function addInterval(date: Date, interval: SubscriptionInterval, count = 1): Date {
+  const steps = Math.max(1, Math.trunc(count));
+  if (interval === SubscriptionInterval.DAY) {
+    return addDays(date, steps);
+  }
+  if (interval === SubscriptionInterval.WEEK) {
+    return addDays(date, steps * 7);
+  }
+
   const next = new Date(date.getTime());
   const day = next.getUTCDate();
 
   if (interval === SubscriptionInterval.YEAR) {
-    next.setUTCFullYear(next.getUTCFullYear() + 1);
+    next.setUTCFullYear(next.getUTCFullYear() + steps);
   } else {
-    next.setUTCMonth(next.getUTCMonth() + 1);
+    next.setUTCMonth(next.getUTCMonth() + steps);
   }
 
   // A shorter target month overflows into the following one (e.g. setting the
@@ -50,17 +60,58 @@ export function addInterval(date: Date, interval: SubscriptionInterval): Date {
 /**
  * The `{ currentPeriodStart, currentPeriodEnd }` of a subscription's first paid
  * period: it starts at `start` (enrolment is proration-free — the member pays for a
- * whole period from now) and ends one `interval` later per {@link addInterval}. The
- * same shape the enrolment write persists.
+ * whole period from now) and ends `count` `interval`s later per {@link addInterval}.
+ * The same shape the enrolment write persists.
  */
 export function initialBillingPeriod(
   start: Date,
   interval: SubscriptionInterval,
+  count = 1,
 ): { currentPeriodStart: Date; currentPeriodEnd: Date } {
   return {
     currentPeriodStart: start,
-    currentPeriodEnd: addInterval(start, interval),
+    currentPeriodEnd: addInterval(start, interval, count),
   };
+}
+
+/**
+ * Roughly how many days one period of `count` `interval`s lasts (a month as 30,
+ * a year as 365). For figures that compare plans of different lengths — a
+ * monthly-equivalent price, a "30 days" label — never for a period's real dates.
+ */
+export function approximatePeriodDays(interval: SubscriptionInterval, count = 1): number {
+  const steps = Math.max(1, Math.trunc(count));
+  switch (interval) {
+    case SubscriptionInterval.DAY:
+      return steps;
+    case SubscriptionInterval.WEEK:
+      return steps * 7;
+    case SubscriptionInterval.YEAR:
+      return steps * 365;
+    default:
+      return steps * 30;
+  }
+}
+
+/**
+ * A price charged every `count` `interval`s as its monthly equivalent, in the same
+ * minor units (not rounded). Whole months and years divide exactly (a yearly
+ * price is a twelfth per month, as before); day and week plans go by a 30-day month.
+ */
+export function monthlyEquivalent(
+  priceAmount: number,
+  interval: SubscriptionInterval,
+  count = 1,
+): number {
+  const steps = Math.max(1, Math.trunc(count));
+  switch (interval) {
+    case SubscriptionInterval.MONTH:
+      return priceAmount / steps;
+    case SubscriptionInterval.YEAR:
+      return priceAmount / (steps * 12);
+    default:
+      return (priceAmount * 30) / approximatePeriodDays(interval, steps);
+  }
 }
 
 /**

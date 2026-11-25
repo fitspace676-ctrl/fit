@@ -20,6 +20,7 @@ import { useCreateCheckout } from '../../hooks/mutations/useCheckoutMutations';
 import { useCatalogue } from '../../hooks/queries/useShop';
 import { formatMoney } from '../services/money';
 import { planErrorKey } from './plan-errors';
+import { planPeriodSuffix } from '../../lib/plan-period';
 import { useI18n } from '../../providers/I18nProvider';
 
 export interface PlanSheetProps {
@@ -141,11 +142,14 @@ export function PlanSheet({
 
         {plans.map((plan) => {
           const isCurrent = currentPlanName !== null && plan.name === currentPlanName;
-          const price = `${formatMoney(plan.priceAmount, plan.currency, locale)}${
-            plan.interval === 'YEAR'
-              ? t('member.membership.plan.perYear')
-              : t('member.membership.plan.perMonth')
-          }`;
+          const price = `${formatMoney(plan.priceAmount, plan.currency, locale)} ${planPeriodSuffix(
+            {
+              interval: plan.interval,
+              intervalCount: plan.intervalCount ?? 1,
+              oneTime: plan.oneTime ?? false,
+            },
+            t,
+          )}`;
           return (
             <ListRow
               key={plan.id}

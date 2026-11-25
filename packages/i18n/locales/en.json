@@ -946,6 +946,23 @@
       "clearSearch": "Clear search"
     },
     "billingPlans": {
+      "period": {
+        "kind": {
+          "ONE_TIME": "One-time",
+          "DAY": "Days",
+          "WEEK": "Weeks",
+          "MONTH": "Months",
+          "YEAR": "1 year"
+        },
+        "kindLabel": "Duration",
+        "countLabel": {
+          "ONE_TIME": "Valid for (days)",
+          "DAY": "Number of days",
+          "WEEK": "Number of weeks",
+          "MONTH": "Number of months"
+        },
+        "oneTimeHint": "Sold once. It ends when the period is over and does not renew."
+      },
       "meta": {
         "title": "Billing · Plans",
         "description": "The gym’s recurring membership plans: pricing, renewal cadence, perks and live subscriber counts, with active/archived plans and a live MRR summary.",
@@ -5655,6 +5672,21 @@
     }
   },
   "common": {
+    "planPeriod": {
+      "per": {
+        "DAY": "{count, plural, one {/ day} other {/ # days}}",
+        "WEEK": "{count, plural, one {/ wk} other {/ # wks}}",
+        "MONTH": "{count, plural, one {/ mo} other {/ # mo}}",
+        "YEAR": "{count, plural, one {/ yr} other {/ # yrs}}"
+      },
+      "length": {
+        "DAY": "{count, plural, one {1 day} other {# days}}",
+        "WEEK": "{count, plural, one {1 week} other {# weeks}}",
+        "MONTH": "{count, plural, one {1 month} other {# months}}",
+        "YEAR": "{count, plural, one {1 year} other {# years}}"
+      },
+      "oneTime": "One-time"
+    },
     "appName": "FormaCore",
     "nav": {
       "home": "Home",

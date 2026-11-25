@@ -40,6 +40,8 @@ const ENROLLABLE_PLAN_SELECT = {
   priceAmount: true,
   currency: true,
   interval: true,
+  intervalCount: true,
+  oneTime: true,
   trialDays: true,
 } satisfies Prisma.SubscriptionPlanSelect;
 
@@ -49,6 +51,8 @@ interface EnrollablePlan {
   priceAmount: number;
   currency: string;
   interval: SubscriptionInterval;
+  intervalCount: number;
+  oneTime: boolean;
   trialDays: number;
 }
 
@@ -78,6 +82,7 @@ const ENROLLED_SUBSCRIPTION_SELECT = {
   priceAmount: true,
   currency: true,
   interval: true,
+  intervalCount: true,
   currentPeriodStart: true,
   currentPeriodEnd: true,
   cancelAtPeriodEnd: true,
@@ -259,6 +264,8 @@ export class SubscriptionEnrollmentService {
             priceAmount: plan.priceAmount,
             currency: plan.currency,
             interval: plan.interval,
+            intervalCount: plan.intervalCount,
+            oneTime: plan.oneTime,
           },
           description: plan.name,
           returnTo,
@@ -343,6 +350,8 @@ export class SubscriptionEnrollmentService {
           priceAmount: plan.priceAmount,
           currency: plan.currency,
           interval: plan.interval,
+          intervalCount: plan.intervalCount,
+          oneTime: plan.oneTime,
           trialDays: plan.trialDays,
           provider,
           now: new Date(),
@@ -452,6 +461,7 @@ export class SubscriptionEnrollmentService {
       priceAmount: row.priceAmount,
       currency: row.currency,
       interval: row.interval,
+      intervalCount: row.intervalCount,
       currentPeriodStart: row.currentPeriodStart.toISOString(),
       currentPeriodEnd: row.currentPeriodEnd.toISOString(),
       cancelAtPeriodEnd: row.cancelAtPeriodEnd,

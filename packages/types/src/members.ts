@@ -143,8 +143,10 @@ export interface MemberPlan {
   planId: string | null;
   /** Plan name (`"No plan"` when the subscription's plan was deleted). */
   name: string;
-  /** Billing interval — `"MONTH"` / `"YEAR"`, or `null` when unknown. */
-  interval: 'MONTH' | 'YEAR' | null;
+  /** The unit of the billing period, or `null` when unknown. */
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' | null;
+  /** How many `interval`s one period lasts. */
+  intervalCount: number;
   /** Price in minor currency units (tetri) snapshotted on the subscription. */
   priceAmount: number;
   /** ISO-4217 currency code of {@link priceAmount}. */
@@ -378,8 +380,10 @@ export interface MemberCurrentPlan {
   planId: string | null;
   name: string;
   status: string;
-  /** Billing interval — `"MONTH"` / `"YEAR"`, or `null` when unknown. */
-  interval: 'MONTH' | 'YEAR' | null;
+  /** The unit of the billing period, or `null` when unknown. */
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' | null;
+  /** How many `interval`s one period lasts. */
+  intervalCount: number;
   /** Price in minor currency units (tetri). */
   priceAmount: number;
   currency: string;

@@ -18,10 +18,29 @@
  */
 export function subscriptionInvoiceDescription(
   planName: string | null | undefined,
-  interval: 'MONTH' | 'YEAR',
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR',
   kind: 'enrolment' | 'renewal',
+  intervalCount = 1,
 ): string {
   const label = planName?.trim() ? planName.trim() : 'აბონემენტი';
-  const cadence = interval === 'YEAR' ? 'წლიური' : 'ყოველთვიური';
+  const cadence = subscriptionCadenceAdjective(interval, intervalCount);
   return `${label} - ${cadence} ${kind === 'renewal' ? 'განახლება' : 'აბონემენტი'}`;
+}
+
+/** The period as a Georgian adjective: `ყოველთვიური`, `3-თვიანი`, `10-დღიანი`, `წლიური`. */
+function subscriptionCadenceAdjective(
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR',
+  intervalCount: number,
+): string {
+  const count = Math.max(1, Math.trunc(intervalCount));
+  switch (interval) {
+    case 'DAY':
+      return `${count}-დღიანი`;
+    case 'WEEK':
+      return `${count}-კვირიანი`;
+    case 'YEAR':
+      return count === 1 ? 'წლიური' : `${count}-წლიანი`;
+    default:
+      return count === 1 ? 'ყოველთვიური' : `${count}-თვიანი`;
+  }
 }
