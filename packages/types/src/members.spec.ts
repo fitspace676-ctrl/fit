@@ -163,6 +163,37 @@ describe('resolveMemberKind', () => {
     ).toBe('GUEST');
   });
 
+  it('calls a frozen membership with nothing in force frozen, its own standing', () => {
+    expect(
+      resolveMemberKind({
+        ...base,
+        hasLiveSubscription: false,
+        hasFrozenMembership: true,
+        hasEverSubscribed: true,
+      }),
+    ).toBe('FROZEN');
+    // An in-force membership wins: the person is active, not frozen.
+    expect(
+      resolveMemberKind({
+        ...base,
+        hasLiveSubscription: true,
+        hasFrozenMembership: true,
+        hasEverSubscribed: true,
+      }),
+    ).toBe('MEMBER');
+  });
+
+  it('does not call an invited account active, matching the dashboard rule', () => {
+    expect(
+      resolveMemberKind({
+        kindOverride: null,
+        status: 'INVITED',
+        hasLiveSubscription: true,
+        hasEverSubscribed: true,
+      }),
+    ).toBe('INACTIVE');
+  });
+
   it('returns to the derivation once the override is cleared', () => {
     expect(
       resolveMemberKind({

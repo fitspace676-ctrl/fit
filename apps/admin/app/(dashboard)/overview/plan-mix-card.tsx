@@ -96,7 +96,16 @@ export function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHeadBaseline)}>
         <h2 {...stylex.props(styles.sectionLabel)}>{t('planMix.title')}</h2>
-        <span {...stylex.props(styles.metaText)}>{t('planMix.count', { total })}</span>
+        <span {...stylex.props(styles.metaText)}>
+          {/* Paying = active + frozen; the active part is the overview's KPI. */}
+          {data.planMix.active === undefined || data.planMix.frozen === undefined
+            ? t('planMix.count', { total })
+            : t('planMix.split', {
+                total,
+                active: data.planMix.active,
+                frozen: data.planMix.frozen,
+              })}
+        </span>
       </div>
 
       {plans.length === 0 || total === 0 ? (

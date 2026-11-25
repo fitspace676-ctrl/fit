@@ -27,12 +27,17 @@ function member(over: { joinedAt?: Date; deletedAt?: Date | null } = {}) {
   return { joinedAt: over.joinedAt ?? daysAgo(10), deletedAt: over.deletedAt ?? null };
 }
 
+/** A subscription row as the tab selects it. By default a membership in force
+ * (its period started 200 days ago and runs 30 more) on an ACTIVE account. */
 function subscription(over: {
   status?: SubscriptionStatus;
   createdAt?: Date;
   canceledAt?: Date | null;
   updatedAt?: Date;
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
   memberId?: string;
+  memberStatus?: 'ACTIVE' | 'INVITED' | 'SUSPENDED';
 }) {
   return {
     memberId: over.memberId ?? 'mem-1',
@@ -40,6 +45,9 @@ function subscription(over: {
     createdAt: over.createdAt ?? daysAgo(200),
     canceledAt: over.canceledAt ?? null,
     updatedAt: over.updatedAt ?? daysAgo(200),
+    currentPeriodStart: over.currentPeriodStart ?? daysAgo(200),
+    currentPeriodEnd: over.currentPeriodEnd ?? daysAgo(-30),
+    member: { status: over.memberStatus ?? 'ACTIVE' },
   };
 }
 
@@ -126,26 +134,64 @@ describe('DashboardMembersService.get — trash', () => {
 describe('DashboardMembersService.get — active members', () => {
   afterEach(() => vi.clearAllMocks());
 
-  // FROZEN is in LIVE_SUBSCRIPTION_STATUSES: a paused membership still occupies
-  // the slot and still resumes. CANCELED is terminal.
-  it('counts a frozen subscription as active and a canceled one as not', async () => {
+  // The overview's rule (#441): in force on an ACTIVE account. FROZEN is its own
+  // figure, CANCELED is terminal, an ACTIVE status whose period ended is not in
+  // force, a scheduled period is not yet, and a suspended account never is.
+  it('counts only memberships in force, and frozen separately', async () => {
     const { service } = setup({
       subscriptions: [
-        subscription({ status: SubscriptionStatus.FROZEN, memberId: 'a' }),
+        subscription({ status: SubscriptionStatus.FROZEN, memberId: 'a', updatedAt: daysAgo(20) }),
         subscription({ status: SubscriptionStatus.ACTIVE, memberId: 'b' }),
+        subscription({ status: SubscriptionStatus.PAST_DUE, memberId: 'b2' }),
         subscription({
           status: SubscriptionStatus.CANCELED,
           memberId: 'c',
           canceledAt: daysAgo(100),
           updatedAt: daysAgo(100),
         }),
+        subscription({ memberId: 'd', currentPeriodEnd: daysAgo(40) }),
+        subscription({ memberId: 'e', createdAt: daysAgo(1), currentPeriodStart: daysAgo(-5) }),
+        subscription({ memberId: 'f', memberStatus: 'SUSPENDED' }),
       ],
     });
 
     const result = await service.get(QUERY);
 
     expect(result.kpis.activeMembers).toBe(2);
+    expect(result.kpis.frozenMembers).toBe(1);
     expect(result.activeOverTime[result.activeOverTime.length - 1]?.value).toBe(2);
+  });
+
+  // The members-by-status rows are people and must add up; `active` is the KPI.
+  it('splits every person into exactly one standing', async () => {
+    const { service } = setup({
+      subscriptions: [
+        subscription({ status: SubscriptionStatus.FROZEN, memberId: 'a', updatedAt: daysAgo(20) }),
+        subscription({ memberId: 'b' }),
+        // Two rows, one person: an old expired membership and a current one.
+        subscription({
+          memberId: 'b',
+          status: SubscriptionStatus.EXPIRED,
+          currentPeriodEnd: daysAgo(300),
+        }),
+        subscription({ memberId: 'd', currentPeriodEnd: daysAgo(40) }),
+        subscription({ memberId: 'e', createdAt: daysAgo(1), currentPeriodStart: daysAgo(-5) }),
+        subscription({ memberId: 'f', memberStatus: 'SUSPENDED' }),
+      ],
+    });
+
+    const result = await service.get(QUERY);
+
+    expect(result.byStatus).toEqual([
+      { status: 'active', count: 1 },
+      { status: 'frozen', count: 1 },
+      { status: 'expired', count: 1 },
+      { status: 'suspended', count: 1 },
+      { status: 'upcoming', count: 1 },
+    ]);
+    expect(result.byStatus.find((slice) => slice.status === 'active')?.count).toBe(
+      result.kpis.activeMembers,
+    );
   });
 
   it('emits a dense series across the window', async () => {
@@ -266,21 +312,32 @@ describe('DashboardMembersService.get — LTV', () => {
 describe('DashboardMembersService.get — status breakdown', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('maps every subscription state onto its wire form, in lifecycle order', async () => {
+  // An in-force trial or past-due membership is an active member; the status
+  // column of rows that ended long ago does not make extra rows.
+  it('counts people, not subscription rows', async () => {
     const { service } = setup({
       subscriptions: [
-        subscription({ status: SubscriptionStatus.EXPIRED, memberId: 'a', updatedAt: daysAgo(1) }),
+        subscription({
+          status: SubscriptionStatus.EXPIRED,
+          memberId: 'a',
+          currentPeriodEnd: daysAgo(90),
+          updatedAt: daysAgo(1),
+        }),
+        subscription({
+          status: SubscriptionStatus.EXPIRED,
+          memberId: 'a',
+          currentPeriodEnd: daysAgo(60),
+          updatedAt: daysAgo(1),
+        }),
         subscription({ status: SubscriptionStatus.TRIAL, memberId: 'b' }),
         subscription({ status: SubscriptionStatus.PAST_DUE, memberId: 'c' }),
-        subscription({ status: SubscriptionStatus.PAST_DUE, memberId: 'd' }),
       ],
     });
 
     const result = await service.get(QUERY);
 
     expect(result.byStatus).toEqual([
-      { status: 'trial', count: 1 },
-      { status: 'past-due', count: 2 },
+      { status: 'active', count: 2 },
       { status: 'expired', count: 1 },
     ]);
   });
@@ -296,7 +353,7 @@ describe('DashboardMembersService.get — status breakdown', () => {
 describe('DashboardMembersService.get — signups and churn', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('buckets a join by joinedAt and a cancellation by its terminal instant', async () => {
+  it('buckets a join by joinedAt and a churned person by their last end', async () => {
     const joined = daysAgo(3);
     const canceled = daysAgo(1);
     const { service } = setup({
@@ -321,10 +378,63 @@ describe('DashboardMembersService.get — signups and churn', () => {
     expect(result.kpis.churned).toBe(1);
   });
 
+  // Churn counts PEOPLE for the window: an import that stamped every historic
+  // expiry with today's `updatedAt` must not put them all in this window, two
+  // rows of one person count once, and someone who renewed has not churned.
+  it('counts people whose last membership ended in the window, once each', async () => {
+    const { service } = setup({
+      subscriptions: [
+        // Ended 100 days ago, outside the 30-day window, though touched today.
+        subscription({
+          memberId: 'old',
+          status: SubscriptionStatus.EXPIRED,
+          currentPeriodEnd: daysAgo(100),
+          updatedAt: daysAgo(0),
+        }),
+        // Two rows, last one ended 5 days ago: one churned person.
+        subscription({
+          memberId: 'left',
+          status: SubscriptionStatus.EXPIRED,
+          currentPeriodEnd: daysAgo(60),
+          updatedAt: daysAgo(0),
+        }),
+        subscription({
+          memberId: 'left',
+          status: SubscriptionStatus.EXPIRED,
+          currentPeriodEnd: daysAgo(5),
+          updatedAt: daysAgo(0),
+        }),
+        // Status still ACTIVE, period over 3 days ago: churned too.
+        subscription({ memberId: 'lapsed', currentPeriodEnd: daysAgo(3) }),
+        // Ended 10 days ago but holds a membership in force now: not churned.
+        subscription({
+          memberId: 'renewed',
+          status: SubscriptionStatus.EXPIRED,
+          currentPeriodEnd: daysAgo(10),
+        }),
+        subscription({ memberId: 'renewed' }),
+        // Frozen now: not churned.
+        subscription({ memberId: 'paused', status: SubscriptionStatus.FROZEN }),
+      ],
+    });
+
+    const result = await service.get(QUERY);
+
+    expect(result.kpis.churned).toBe(2);
+    const charted = result.signupsVsChurn.reduce((sum, point) => sum + point.churned, 0);
+    expect(charted).toBe(2);
+  });
+
   it('reports zeroes for an empty window without throwing', async () => {
     const { service } = setup();
     const result = await service.get(QUERY);
-    expect(result.kpis).toEqual({ activeMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 });
+    expect(result.kpis).toEqual({
+      activeMembers: 0,
+      frozenMembers: 0,
+      newSignups: 0,
+      churned: 0,
+      avgLtv: 0,
+    });
     expect(result.byStatus).toEqual([]);
   });
 });
@@ -402,7 +512,9 @@ describe('DashboardMembersService.get — the branch filter', () => {
         expect(where).not.toHaveProperty('locationId');
       }
     }
-    expect(wheres(subscriptionFindMany)[0]).toEqual({ member: { deletedAt: null } });
+    expect(wheres(subscriptionFindMany)[0]).toEqual({
+      member: { role: Role.MEMBER, deletedAt: null },
+    });
   });
 
   // `avgLtv`'s numerator could equally be narrowed through the ORDER's own branch.

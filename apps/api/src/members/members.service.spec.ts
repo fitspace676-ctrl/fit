@@ -527,18 +527,28 @@ describe('MembersService', () => {
 
       await service.listMembers(query({ planId: 'plan-1' }));
 
-      expect(findMany.mock.calls[0]?.[0]?.where?.subscriptions).toMatchObject({
-        some: { planId: 'plan-1' },
-      });
+      expect(findMany.mock.calls[0]?.[0]?.where?.AND).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            subscriptions: {
+              some: { planId: 'plan-1', status: { in: ['TRIAL', 'ACTIVE', 'PAST_DUE', 'FROZEN'] } },
+            },
+          }),
+        ]),
+      );
     });
 
-    it('narrows to members with a FROZEN subscription for the Frozen tab', async () => {
+    it('narrows the Frozen tab to frozen members with nothing in force', async () => {
       const { service, findMany } = setup();
 
       await service.listMembers(query({ frozen: true }));
 
-      expect(findMany.mock.calls[0]?.[0]?.where?.subscriptions).toMatchObject({
-        some: { status: 'FROZEN' },
+      const where = findMany.mock.calls[0]?.[0]?.where as { AND?: unknown[] };
+      expect(where.AND?.[0]).toMatchObject({
+        kindOverride: null,
+        status: { not: 'SUSPENDED' },
+        subscriptions: { some: { status: 'FROZEN' } },
+        NOT: { status: 'ACTIVE' },
       });
     });
 
@@ -553,8 +563,8 @@ describe('MembersService', () => {
       };
       expect(where.subscriptions).toBeUndefined();
       expect(where.AND).toHaveLength(2);
-      expect(where.AND?.[0]).toMatchObject({ subscriptions: { some: { planId: 'plan-1' } } });
-      expect(where.AND?.[1]).toEqual({ subscriptions: { some: { status: 'FROZEN' } } });
+      expect(where.AND?.[0]).toMatchObject({ subscriptions: { some: { status: 'FROZEN' } } });
+      expect(where.AND?.[1]).toMatchObject({ subscriptions: { some: { planId: 'plan-1' } } });
     });
 
     it('builds a case-insensitive name/email search', async () => {
@@ -944,7 +954,15 @@ describe('MembersService', () => {
           { email: { contains: 'nino', mode: 'insensitive' } },
         ],
       });
-      expect(where?.subscriptions).toMatchObject({ some: { planId: 'plan-1' } });
+      expect(where?.AND).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            subscriptions: {
+              some: { planId: 'plan-1', status: { in: ['TRIAL', 'ACTIVE', 'PAST_DUE', 'FROZEN'] } },
+            },
+          }),
+        ]),
+      );
     });
 
     it('excludes trashed members from the default (active) view', async () => {
@@ -1498,8 +1516,28 @@ const liveSub = () => ({
   plan: { name: 'Premium' },
 });
 
-describe('MembersService — member / guest / inactive', () => {
-  it('reads a member with a live subscription as MEMBER', async () => {
+/** A subscription whose current period contains the real clock's now. */
+const inForceSub = (status = 'ACTIVE') => ({
+  ...liveSub(),
+  status,
+  currentPeriodStart: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+  currentPeriodEnd: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+});
+
+describe('MembersService — member / frozen / guest / inactive', () => {
+  it('reads a member with a membership in force as MEMBER', async () => {
+    const { service } = setup({
+      findMany: [row({ subscriptions: [inForceSub()], _count: { subscriptions: 1, checkIns: 0 } })],
+      count: 1,
+    });
+
+    const result = await service.listMembers(query());
+
+    expect(result.data[0]).toMatchObject({ kind: 'MEMBER', kindOverride: null });
+  });
+
+  it('reads an ACTIVE subscription whose period is over as INACTIVE, not MEMBER', async () => {
+    // The status column was never moved to EXPIRED; the period end decides.
     const { service } = setup({
       findMany: [row({ subscriptions: [liveSub()], _count: { subscriptions: 1, checkIns: 0 } })],
       count: 1,
@@ -1507,7 +1545,55 @@ describe('MembersService — member / guest / inactive', () => {
 
     const result = await service.listMembers(query());
 
-    expect(result.data[0]).toMatchObject({ kind: 'MEMBER', kindOverride: null });
+    expect(result.data[0]?.kind).toBe('INACTIVE');
+  });
+
+  it('reads a frozen membership with nothing in force as FROZEN', async () => {
+    const { service } = setup({
+      findMany: [
+        row({
+          subscriptions: [inForceSub('FROZEN')],
+          _count: { subscriptions: 1, checkIns: 0 },
+        }),
+      ],
+      count: 1,
+    });
+
+    const result = await service.listMembers(query());
+
+    expect(result.data[0]?.kind).toBe('FROZEN');
+  });
+
+  it('counts the four segments with clauses that partition every account', async () => {
+    const { service, count } = setup();
+
+    await service.listMembers(query());
+
+    const wheres = count.mock.calls.map((call: unknown[]) => (call[0] as { where: unknown }).where);
+    // Frozen: not pinned, not suspended, a frozen membership, nothing in force.
+    expect(wheres).toContainEqual(
+      expect.objectContaining({
+        kindOverride: null,
+        status: { not: 'SUSPENDED' },
+        subscriptions: { some: { status: 'FROZEN' } },
+        NOT: expect.objectContaining({ status: 'ACTIVE' }) as unknown,
+      }),
+    );
+    // Inactive excludes both the in-force and the frozen, so nobody is counted twice.
+    expect(wheres).toContainEqual(
+      expect.objectContaining({
+        OR: expect.arrayContaining([
+          expect.objectContaining({
+            kindOverride: null,
+            subscriptions: { some: {} },
+            AND: [
+              { NOT: expect.objectContaining({ status: 'ACTIVE' }) as unknown },
+              { NOT: { subscriptions: { some: { status: 'FROZEN' } } } },
+            ],
+          }),
+        ]) as unknown,
+      }),
+    );
   });
 
   it('reads someone who never subscribed as GUEST', async () => {
@@ -1559,8 +1645,8 @@ describe('MembersService — member / guest / inactive', () => {
     // The clause has to mirror `resolveMemberKind`, or a tab would show a count
     // its own list cannot reproduce: pinned to GUEST, or unpinned with no
     // subscriptions and not suspended.
-    const where = findMany.mock.calls[0]![0].where;
-    expect(where?.OR).toEqual([
+    const where = findMany.mock.calls[0]![0].where as { AND?: Array<{ OR?: unknown }> };
+    expect(where.AND?.[0]?.OR).toEqual([
       { kindOverride: 'GUEST' },
       expect.objectContaining({ kindOverride: null, subscriptions: { none: {} } }),
     ]);

@@ -5,7 +5,7 @@ import { usePosCart, cartItemKey } from '@/stores/pos-cart-store';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import { formatPrice } from '@/app/(dashboard)/shop/format-price';
-import { UNCATEGORISED_FILTER, type MemberKind } from '@fit/types';
+import { UNCATEGORISED_FILTER, type MemberStanding } from '@fit/types';
 import {
   fetchPosCategoriesAction,
   fetchPosMembersAction,
@@ -373,8 +373,9 @@ type Catalogue = 'memberships' | 'products' | 'services' | 'members';
  * two screens never disagree about what green means: green for a paying member,
  * slate for a guest, amber for someone lapsed.
  */
-const KIND_TONES: Record<MemberKind, BadgeTone> = {
+const KIND_TONES: Record<MemberStanding, BadgeTone> = {
   MEMBER: 'positive',
+  FROZEN: 'neutral',
   GUEST: 'neutral',
   INACTIVE: 'pending',
 };

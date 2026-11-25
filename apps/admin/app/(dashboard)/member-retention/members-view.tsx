@@ -48,6 +48,7 @@ import {
   type DashboardMembersResponse,
   type MembersGranularity,
   type RetentionWindow,
+  type DashboardResolvedPeriod,
 } from '@fit/types';
 import { useActiveLocation } from '@/components/active-location';
 import { loadMembersAction } from './actions';
@@ -56,6 +57,7 @@ import { ActiveMembersCard } from './active-members-card';
 import { SignupsVsChurnCard } from './signups-vs-churn-card';
 import { RetentionCard } from './retention-card';
 import { StatusBreakdownCard } from './status-breakdown-card';
+import { periodKey, periodQuery, usePeriodWindowLabel } from '../segments/period-window';
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
@@ -162,7 +164,7 @@ const motion = stylex.create({
   }),
 });
 
-export function MembersView() {
+export function MembersView({ period }: { period?: DashboardResolvedPeriod } = {}) {
   const t = useTranslations('admin.dashboard.members');
   const locale = useLocale();
 
@@ -183,7 +185,7 @@ export function MembersView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${retentionWindow}:${expiringWindow}:${locationId ?? ''}`;
+  const key = `${granularity}:${retentionWindow}:${expiringWindow}:${locationId ?? ''}:${periodKey(period)}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -197,7 +199,13 @@ export function MembersView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadMembersAction({ granularity, retentionWindow, expiringWindow, locationId })
+    void loadMembersAction({
+      granularity,
+      retentionWindow,
+      expiringWindow,
+      locationId,
+      ...periodQuery(period),
+    })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -222,7 +230,7 @@ export function MembersView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, retentionWindow, expiringWindow, locationId, attempt, t]);
+  }, [key, granularity, retentionWindow, expiringWindow, locationId, period, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new
@@ -231,6 +239,8 @@ export function MembersView() {
   // object it handed back last time, so an identity check would see no change.
   const shownKey =
     data === null ? '' : `${data.granularity}:${data.retentionWindow}:${data.expiringWindow}`;
+  // The window ON SCREEN, named for the captions (the overview's own days).
+  const windowLabel = usePeriodWindowLabel(data?.period);
 
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -296,7 +306,12 @@ export function MembersView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <MembersKpiStrip data={data} granularity={data.granularity} money={money} />
+        <MembersKpiStrip
+          data={data}
+          granularity={data.granularity}
+          windowLabel={windowLabel}
+          money={money}
+        />
       </div>
 
       <div {...stylex.props(styles.workArea)}>
@@ -305,6 +320,7 @@ export function MembersView() {
             <ActiveMembersCard
               points={data.activeOverTime}
               granularity={granularity}
+              windowLabel={windowLabel}
               current={data.kpis.activeMembers}
               onSelectGranularity={setGranularity}
               disabled={pending}

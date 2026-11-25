@@ -46,6 +46,7 @@ import {
   type DashboardSalesResponse,
   type SalesGranularity,
   type SalesProductType,
+  type DashboardResolvedPeriod,
 } from '@fit/types';
 import { useActiveLocation } from '@/components/active-location';
 import { loadSalesAction } from './actions';
@@ -54,6 +55,7 @@ import { SalesTrendCard } from './sales-trend-card';
 import { SalesVsRefundsCard } from './sales-vs-refunds-card';
 import { PaymentMethodCard } from './payment-method-card';
 import { TopSellersCard } from './top-sellers-card';
+import { periodKey, periodQuery, usePeriodWindowLabel } from '../segments/period-window';
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
@@ -160,7 +162,7 @@ const motion = stylex.create({
   }),
 });
 
-export function SalesView() {
+export function SalesView({ period }: { period?: DashboardResolvedPeriod } = {}) {
   const t = useTranslations('admin.dashboard.sales');
   const locale = useLocale();
 
@@ -192,7 +194,7 @@ export function SalesView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${productType}:${locationId ?? ''}`;
+  const key = `${granularity}:${productType}:${locationId ?? ''}:${periodKey(period)}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -206,7 +208,7 @@ export function SalesView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadSalesAction({ granularity, productType, locationId })
+    void loadSalesAction({ granularity, productType, locationId, ...periodQuery(period) })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -231,7 +233,7 @@ export function SalesView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache
     // bypass itself comes from `retry` deleting this key first.
-  }, [key, granularity, productType, locationId, attempt, t]);
+  }, [key, granularity, productType, locationId, period, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new
@@ -239,6 +241,8 @@ export function SalesView() {
   // what makes a cached combination animate too — the cache hands back the same
   // object it handed back last time, so an identity check would see no change.
   const shownKey = data === null ? '' : `${data.granularity}:${data.productType}`;
+  // The window ON SCREEN, named for the captions (the overview's own days).
+  const windowLabel = usePeriodWindowLabel(data?.period);
 
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -309,6 +313,7 @@ export function SalesView() {
         <SalesKpiStrip
           kpis={data.kpis}
           granularity={data.granularity}
+          windowLabel={windowLabel}
           productType={data.productType}
           money={money}
         />
@@ -320,6 +325,7 @@ export function SalesView() {
             <SalesTrendCard
               points={data.revenueOverTime}
               granularity={granularity}
+              windowLabel={windowLabel}
               productType={productType}
               total={netTotal}
               money={money}

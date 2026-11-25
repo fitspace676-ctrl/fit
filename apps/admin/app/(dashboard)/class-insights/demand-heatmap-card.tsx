@@ -7,9 +7,9 @@
 // `/reports/attendance` already draws exactly that. Two surfaces showing the same
 // picture under different titles is worse than one.
 //
-// The grid is UTC, and the caption says so. Every bucket in this dashboard is,
-// because `report-window.util` is; a gym-local grid is a timezone change across
-// all of Reports rather than a fix belonging to this card.
+// The grid is in the GYM'S time zone: the API reads each class start's weekday
+// and hour in the zone from the gym's settings (`zonedParts`), the same calendar
+// the rest of the console shows times in. The caption no longer says "(UTC)".
 //
 // Weekday names come from i18n here rather than from the API, so the contract
 // stays locale-free — the Reports drill-down puts English labels on the wire and

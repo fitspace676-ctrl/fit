@@ -8,12 +8,11 @@
 // tab, leaving those tabs untitled and their `?range=` unreachable even though it
 // was still deciding what their widgets fetched.
 //
-// It shows the period filter on OVERVIEW and nothing anywhere else.
-//
-// That asymmetry is deliberate. Overview is server-rendered from `?period=`, so
-// its filter belongs in the chrome. Every other tab is a hand-built view owning a
-// `granularity` control that picks its window and its bucket together, next to the
-// chart it redraws — a second time filter up here would be a dead one.
+// It shows the period filter on EVERY tab. The period decides the window of the
+// whole dashboard: the overview is server-rendered from `?period=`, and each
+// segment tab (Sales, Members, Revenue, Classes, Staff) is asked for the same
+// resolved window, so "this month" is the same days — and the same takings — on
+// every tab. A tab's own `granularity` control now picks only its chart bucket.
 //
 // This file used to carry a `?range=` control for the configurable widget tabs.
 // Those tabs are gone. `?range=` itself is NOT: the Overview's `RevenueCard` still
@@ -72,9 +71,9 @@ const styles = stylex.create({
 });
 
 export function DashboardHeader({
-  active,
   period,
 }: {
+  /** The tab on screen. The filter is the same on every tab; kept for callers. */
   active: DashboardSegment;
   period: DashboardResolvedPeriod;
 }) {
@@ -124,31 +123,27 @@ export function DashboardHeader({
         <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
       </div>
       <div {...stylex.props(styles.controls)}>
-        {active === 'overview' ? (
-          <>
-            <SegmentedControl
-              value={period.period}
-              onChange={(next) => selectPeriod(next as DashboardPeriod)}
-              label={t('period.aria')}
-              size="sm"
-              isDisabled={isPending}
-            >
-              {PERIOD_VALUES.map((value) => (
-                <SegmentedControlItem key={value} value={value} label={t(`period.${value}`)} />
-              ))}
-            </SegmentedControl>
-            <DateRangeInput
-              label={t('period.rangeLabel')}
-              isLabelHidden
-              value={periodRange}
-              onChange={selectCustomRange}
-              hasClear={false}
-              size="sm"
-              numberOfMonths={1}
-              isDisabled={isPending}
-            />
-          </>
-        ) : null}
+        <SegmentedControl
+          value={period.period}
+          onChange={(next) => selectPeriod(next as DashboardPeriod)}
+          label={t('period.aria')}
+          size="sm"
+          isDisabled={isPending}
+        >
+          {PERIOD_VALUES.map((value) => (
+            <SegmentedControlItem key={value} value={value} label={t(`period.${value}`)} />
+          ))}
+        </SegmentedControl>
+        <DateRangeInput
+          label={t('period.rangeLabel')}
+          isLabelHidden
+          value={periodRange}
+          onChange={selectCustomRange}
+          hasClear={false}
+          size="sm"
+          numberOfMonths={1}
+          isDisabled={isPending}
+        />
       </div>
     </header>
   );

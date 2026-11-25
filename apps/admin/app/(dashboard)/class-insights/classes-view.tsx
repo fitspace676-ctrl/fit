@@ -43,6 +43,7 @@ import {
   DEFAULT_CLASSES_GRANULARITY,
   type ClassesGranularity,
   type DashboardClassesResponse,
+  type DashboardResolvedPeriod,
 } from '@fit/types';
 import { useActiveLocation } from '@/components/active-location';
 import { loadClassesAction } from './actions';
@@ -53,6 +54,7 @@ import { UtilizationCard } from './utilization-card';
 import { DemandHeatmapCard } from './demand-heatmap-card';
 import { TopClassTypesCard } from './top-class-types-card';
 import { PtSessionsCard } from './pt-sessions-card';
+import { periodKey, periodQuery, usePeriodWindowLabel } from '../segments/period-window';
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
@@ -159,7 +161,7 @@ const motion = stylex.create({
   }),
 });
 
-export function ClassesView() {
+export function ClassesView({ period }: { period?: DashboardResolvedPeriod } = {}) {
   const t = useTranslations('admin.dashboard.classes');
 
   // Passed in rather than read inside the action — see `sales/sales-view.tsx`
@@ -175,7 +177,7 @@ export function ClassesView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${locationId ?? ''}`;
+  const key = `${granularity}:${locationId ?? ''}:${periodKey(period)}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -189,7 +191,7 @@ export function ClassesView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadClassesAction({ granularity, locationId })
+    void loadClassesAction({ granularity, locationId, ...periodQuery(period) })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -214,7 +216,7 @@ export function ClassesView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, locationId, attempt, t]);
+  }, [key, granularity, locationId, period, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new
@@ -222,6 +224,8 @@ export function ClassesView() {
   // what makes a cached combination animate too — the cache hands back the same
   // object it handed back last time, so an identity check would see no change.
   const shownKey = data === null ? '' : data.granularity;
+  // The window ON SCREEN, named for the captions (the overview's own days).
+  const windowLabel = usePeriodWindowLabel(data?.period);
 
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -276,7 +280,7 @@ export function ClassesView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <ClassesKpiStrip data={data} granularity={data.granularity} />
+        <ClassesKpiStrip data={data} granularity={data.granularity} windowLabel={windowLabel} />
       </div>
 
       <div {...stylex.props(styles.workArea)}>

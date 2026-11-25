@@ -105,9 +105,12 @@ function tileSeries(key: keyof ClassesKpis, data: DashboardClassesResponse) {
 export function ClassesKpiStrip({
   data,
   granularity,
+  windowLabel,
 }: {
   data: DashboardClassesResponse;
   granularity: ClassesGranularity;
+  /** The window the response covers, named by the view; falls back to the rolling label. */
+  windowLabel?: string;
 }) {
   const kpis = data.kpis;
   const t = useTranslations('admin.dashboard.classes');
@@ -135,7 +138,7 @@ export function ClassesKpiStrip({
         </div>
       </div>
       <p {...stylex.props(styles.caption)}>
-        {t('kpiCaption', { window: t(`window.${granularity}`) })}
+        {t('kpiCaption', { window: windowLabel ?? t(`window.${granularity}`) })}
       </p>
     </div>
   );
