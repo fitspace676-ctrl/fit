@@ -58,6 +58,7 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
+  hint: { fontSize: '0.75rem', color: 'var(--color-text-secondary)' },
   caption: {
     margin: 0,
     paddingInline: '0.25rem',
@@ -86,9 +87,12 @@ const TILES = [
  */
 function tileSeries(key: (typeof TILES)[number], data: DashboardRevenueResponse) {
   switch (key) {
-    // The tile IS this series' sum over the window, stream split re-joined.
+    // The tile IS this series' sum over the window: the captured-payment stream
+    // when the API splits it out (see `RevenueKpiStrip`), else both streams.
     case 'totalRevenue':
-      return data.revenueOverTime.map((p) => p.recurring + p.oneOff);
+      return data.kpis.takings === undefined
+        ? data.revenueOverTime.map((p) => p.recurring + p.oneOff)
+        : data.revenueOverTime.map((p) => p.oneOff);
     // The tile IS this series' last point.
     case 'mrr':
       return data.mrrOverTime.map((p) => p.value);
@@ -100,10 +104,13 @@ function tileSeries(key: (typeof TILES)[number], data: DashboardRevenueResponse)
 export function RevenueKpiStrip({
   data,
   granularity,
+  windowLabel,
   money,
 }: {
   data: DashboardRevenueResponse;
   granularity: RevenueGranularity;
+  /** The window the response covers, named by the view; falls back to the rolling label. */
+  windowLabel?: string;
   money: NumberFormatter;
 }) {
   const kpis = data.kpis;
@@ -115,11 +122,25 @@ export function RevenueKpiStrip({
         <div {...stylex.props(styles.grid)}>
           {TILES.map((key) => {
             const series = tileSeries(key, data);
+            // The headline is the overview's and the Sales tab's money — captured
+            // payments, net of refunds — so the three agree for the same window.
+            // Invoices settled with no payment are named beside it, not mixed in.
+            const takings = key === 'totalRevenue' ? kpis.takings : undefined;
+            const invoiced = kpis.invoicedWithoutPayment ?? 0;
             return (
               <div key={key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
-                <span {...stylex.props(styles.label)}>{t(`kpi.${key}`)}</span>
+                <span {...stylex.props(styles.label)}>
+                  {takings === undefined ? t(`kpi.${key}`) : t('kpi.takings')}
+                </span>
                 {/* Money is carried in MINOR units; the strip shows major units. */}
-                <span {...stylex.props(styles.value)}>{money.format(kpis[key] / 100)}</span>
+                <span {...stylex.props(styles.value)}>
+                  {money.format((takings ?? kpis[key]) / 100)}
+                </span>
+                {takings !== undefined && invoiced > 0 ? (
+                  <span {...stylex.props(styles.hint)}>
+                    {t('kpi.invoicedHint', { amount: money.format(invoiced / 100) })}
+                  </span>
+                ) : null}
                 {series && <Sparkline values={series} />}
               </div>
             );
@@ -127,7 +148,7 @@ export function RevenueKpiStrip({
         </div>
       </div>
       <p {...stylex.props(styles.caption)}>
-        {t('kpiCaption', { window: t(`window.${granularity}`) })}
+        {t('kpiCaption', { window: windowLabel ?? t(`window.${granularity}`) })}
       </p>
     </div>
   );

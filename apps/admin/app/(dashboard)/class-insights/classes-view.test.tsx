@@ -70,7 +70,7 @@ const messages = {
         },
         heatmap: {
           title: 'When demand lands',
-          caption: 'Seats booked by weekday and hour (UTC)',
+          caption: 'Seats booked by weekday and hour',
           chartAria: 'Seats booked by weekday and hour',
           weekday: {
             mon: 'Mon',

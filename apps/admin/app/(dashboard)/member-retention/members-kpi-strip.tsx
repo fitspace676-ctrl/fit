@@ -34,7 +34,8 @@ const styles = stylex.create({
     backgroundColor: 'var(--color-border)',
     gridTemplateColumns: {
       default: 'repeat(2, minmax(0, 1fr))',
-      '@media (min-width: 768px)': 'repeat(4, minmax(0, 1fr))',
+      '@media (min-width: 768px)': 'repeat(3, minmax(0, 1fr))',
+      '@media (min-width: 1280px)': 'repeat(5, minmax(0, 1fr))',
     },
   },
   cell: {
@@ -72,8 +73,11 @@ const styles = stylex.create({
 });
 
 /** The tiles, in reading order. `money` marks the one carried in MINOR units. */
+// Active and frozen side by side: active is the overview's figure, and active +
+// frozen is the plan mix's "paying members".
 const TILES = [
   { key: 'activeMembers', money: false },
+  { key: 'frozenMembers', money: false },
   { key: 'newSignups', money: false },
   { key: 'churned', money: false },
   { key: 'avgLtv', money: true },
@@ -103,10 +107,13 @@ function tileSeries(key: keyof MembersKpis, data: DashboardMembersResponse) {
 export function MembersKpiStrip({
   data,
   granularity,
+  windowLabel,
   money,
 }: {
   data: DashboardMembersResponse;
   granularity: MembersGranularity;
+  /** The window the response covers, named by the view; falls back to the rolling label. */
+  windowLabel?: string;
   money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.members');
@@ -136,7 +143,7 @@ export function MembersKpiStrip({
         </div>
       </div>
       <p {...stylex.props(styles.caption)}>
-        {t('kpiCaption', { window: t(`window.${granularity}`) })}
+        {t('kpiCaption', { window: windowLabel ?? t(`window.${granularity}`) })}
       </p>
     </div>
   );

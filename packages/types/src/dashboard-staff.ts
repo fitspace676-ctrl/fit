@@ -11,6 +11,7 @@
 // zero would report every unconfigured trainer as idle.
 
 import { z } from 'zod';
+import { dashboardSegmentPeriodQueryShape, dashboardSegmentPeriodSchema } from './dashboard';
 import { salesGranularitySchema } from './dashboard-sales';
 
 /* -------------------------------------------------------------------------- */
@@ -33,6 +34,7 @@ export const DEFAULT_STAFF_GRANULARITY: StaffGranularity = 'daily';
 export const dashboardStaffQuerySchema = z.object({
   granularity: staffGranularitySchema.catch(DEFAULT_STAFF_GRANULARITY),
   locationId: z.string().min(1).optional().catch(undefined),
+  ...dashboardSegmentPeriodQueryShape,
 });
 export type DashboardStaffQuery = z.infer<typeof dashboardStaffQuerySchema>;
 
@@ -117,6 +119,8 @@ export type StaffKpis = z.infer<typeof staffKpisSchema>;
  * its neighbour.
  */
 export const dashboardStaffResponseSchema = z.object({
+  /** The header period this response covers; see `dashboardSegmentPeriodSchema`. */
+  period: dashboardSegmentPeriodSchema,
   granularity: staffGranularitySchema,
   kpis: staffKpisSchema,
   /** Sessions delivered per bucket, classes against PT — dense. */

@@ -6,7 +6,7 @@ import {
   roleHasPermission,
   sendReceiptSchema,
   type PosProductRow,
-  type MemberKind,
+  type MemberStanding,
   type MemberRow,
   type MemberStatus,
   type RecordPosSaleInput,
@@ -63,7 +63,7 @@ export interface PosMemberRow {
    * from their subscriptions. The till's badge reads off this: whether someone is
    * a paying member, a guest, or lapsed decides what happens next at the counter.
    */
-  kind: MemberKind;
+  kind: MemberStanding;
   /**
    * The account's own state. Carried alongside {@link kind} because the two can
    * disagree: a suspended account may still hold a live subscription, and a green

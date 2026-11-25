@@ -1,4 +1,8 @@
-import { activeMemberWhere, membershipPlanMix } from '../common/live-membership.util';
+import {
+  activeMemberWhere,
+  liveSubscriptionWhere,
+  membershipPlanMix,
+} from '../common/live-membership.util';
 import {
   BadRequestException,
   ConflictException,
@@ -39,6 +43,7 @@ import type {
   MemberAttendanceWeek,
   MemberBillingState,
   MemberKind,
+  MemberStanding,
   MemberCurrentPlan,
   MemberDetail,
   MemberNoteEntry,
@@ -235,19 +240,30 @@ type LiveSubscription = MemberRecord['subscriptions'][number];
  * same precedence the function uses — the override first, then suspension, then
  * whether a subscription is live, then whether one ever was.
  */
-function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
-  const live = { some: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } } };
+function memberKindWhere(kind: MemberStanding, now = new Date()): Prisma.GymMemberWhereInput {
+  // "In force" is the dashboard's active rule (`activeMemberWhere`): an ACTIVE
+  // account with a TRIAL / ACTIVE / PAST_DUE membership whose period contains now.
+  const inForce: Prisma.GymMemberWhereInput = {
+    status: GymMemberStatus.ACTIVE,
+    subscriptions: { some: liveSubscriptionWhere(now) },
+  };
+  const holdsFrozen: Prisma.GymMemberWhereInput = {
+    subscriptions: { some: { status: SubscriptionStatus.FROZEN } },
+  };
 
   if (kind === 'MEMBER') {
     return {
-      OR: [
-        { kindOverride: MemberKindEnum.MEMBER },
-        {
-          kindOverride: null,
-          status: { not: GymMemberStatus.SUSPENDED },
-          subscriptions: live,
-        },
-      ],
+      OR: [{ kindOverride: MemberKindEnum.MEMBER }, { kindOverride: null, ...inForce }],
+    };
+  }
+
+  // Derived only: a frozen membership, nothing in force, not suspended, not pinned.
+  if (kind === 'FROZEN') {
+    return {
+      kindOverride: null,
+      status: { not: GymMemberStatus.SUSPENDED },
+      ...holdsFrozen,
+      NOT: inForce,
     };
   }
 
@@ -264,7 +280,8 @@ function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
     };
   }
 
-  // Lapsed: suspended outright, or holding subscriptions of which none is live.
+  // Lapsed: suspended outright, or holding subscriptions of which none is in force
+  // and none is frozen.
   return {
     OR: [
       { kindOverride: MemberKindEnum.INACTIVE },
@@ -272,7 +289,7 @@ function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
       {
         kindOverride: null,
         subscriptions: { some: {} },
-        NOT: { subscriptions: live },
+        AND: [{ NOT: inForce }, { NOT: holdsFrozen }],
       },
     ],
   };
@@ -998,7 +1015,10 @@ export class MembersService {
 
   /** Account totals and roster segments, excluding trash. The header's `active`
    * is a current membership count, identical to the dashboard KPI; `all` keeps
-   * every non-deleted account, including suspended/invited accounts. */
+   * every non-deleted account, including suspended/invited accounts, and the four
+   * segments `member + frozen + guest + inactive` add up to it (each person in
+   * exactly one, by {@link memberKindWhere}). `member` equals `active` unless staff
+   * pinned someone MEMBER by hand. */
   private async tabCounts(locationId?: string): Promise<MemberTabCounts> {
     const db = this.prisma.client;
     // Every count carries the branch the roster is showing. A tab badge that
@@ -1007,9 +1027,10 @@ export class MembersService {
     const branch = atLocation(locationId);
     // The status segments and the frozen/plan aggregates describe the live roster,
     // so they exclude trashed members; `trash` counts the soft-deleted ones.
-    const kindCount = (kind: MemberKind): Promise<number> =>
+    const now = new Date();
+    const kindCount = (kind: MemberStanding): Promise<number> =>
       db.gymMember.count({
-        where: { role: Role.MEMBER, deletedAt: null, ...branch, ...memberKindWhere(kind) },
+        where: { role: Role.MEMBER, deletedAt: null, ...branch, ...memberKindWhere(kind, now) },
       });
 
     const [byStatus, frozen, trash, member, guest, inactive, active] = await Promise.all([
@@ -1018,19 +1039,14 @@ export class MembersService {
         where: { role: Role.MEMBER, deletedAt: null, ...branch },
         _count: { _all: true },
       }),
-      db.gymMember.count({
-        where: {
-          role: Role.MEMBER,
-          deletedAt: null,
-          ...branch,
-          subscriptions: { some: { status: SubscriptionStatus.FROZEN } },
-        },
-      }),
+      // Its own segment: frozen and nothing in force, so the four segments
+      // (member + frozen + guest + inactive) partition `all`.
+      kindCount('FROZEN'),
       db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: { not: null }, ...branch } }),
       kindCount('MEMBER'),
       kindCount('GUEST'),
       kindCount('INACTIVE'),
-      db.gymMember.count({ where: activeMemberWhere(new Date(), locationId) }),
+      db.gymMember.count({ where: activeMemberWhere(now, locationId) }),
     ]);
 
     const countOf = (status: GymMemberStatus): number =>
@@ -1072,8 +1088,13 @@ export class MembersService {
 
     // The roster's primary segment. Derived, so it is expressed as the subscription
     // + override conditions `memberKindWhere` mirrors from `resolveMemberKind`.
+    const and: Prisma.GymMemberWhereInput[] = [];
     if (query.kind) {
-      Object.assign(where, memberKindWhere(query.kind));
+      and.push(memberKindWhere(query.kind));
+    }
+    // The Frozen tab's flag: the same rows as `kind=FROZEN`.
+    if (query.frozen) {
+      and.push(memberKindWhere('FROZEN'));
     }
 
     if (query.status && !isTrash) {
@@ -1096,21 +1117,17 @@ export class MembersService {
       };
     }
 
-    // Subscription-derived narrows, each a distinct `some` predicate: the plan
-    // filter (a live subscription on the given plan) and the Frozen tab (any
-    // `FROZEN` subscription). Combined via `AND` so both hold independently — a
-    // single `where.subscriptions` would let the later one clobber the earlier.
-    const subFilters: Prisma.SubscriptionWhereInput[] = [];
+    // The plan filter (a live subscription on the given plan). Every narrow that
+    // touches `subscriptions` or `OR` goes through `AND`, so none clobbers another.
     if (query.planId) {
-      subFilters.push({ planId: query.planId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } });
+      and.push({
+        subscriptions: {
+          some: { planId: query.planId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+        },
+      });
     }
-    if (query.frozen) {
-      subFilters.push({ status: SubscriptionStatus.FROZEN });
-    }
-    if (subFilters.length === 1) {
-      where.subscriptions = { some: subFilters[0] };
-    } else if (subFilters.length > 1) {
-      where.AND = subFilters.map((some) => ({ subscriptions: { some } }));
+    if (and.length > 0) {
+      where.AND = and;
     }
 
     return where;
@@ -1187,7 +1204,10 @@ export class MembersService {
       kind: resolveMemberKind({
         kindOverride: row.kindOverride,
         status: row.status,
-        hasLiveSubscription: sub !== null,
+        // In force now, by the same rule as `memberKindWhere` (the roster loads
+        // the member's one live-status subscription).
+        hasLiveSubscription: sub !== null && isInForce(sub, new Date()),
+        hasFrozenMembership: sub?.status === SubscriptionStatus.FROZEN,
         // A live subscription is itself proof they have ever held one, so the
         // count only decides the lapsed-vs-guest split.
         hasEverSubscribed: row._count.subscriptions > 0 || sub !== null,
@@ -1612,4 +1632,19 @@ export class MembersService {
     const symbol = currency === 'GEL' ? '₾' : currency === 'USD' ? '$' : `${currency} `;
     return `${symbol}${(amount / 100).toFixed(2)}`;
   }
+}
+
+/** Whether a loaded subscription is a membership in force at `now` — the row-side
+ * twin of `liveSubscriptionWhere`. */
+function isInForce(
+  sub: { status: SubscriptionStatus; currentPeriodStart: Date; currentPeriodEnd: Date },
+  now: Date,
+): boolean {
+  return (
+    (sub.status === SubscriptionStatus.TRIAL ||
+      sub.status === SubscriptionStatus.ACTIVE ||
+      sub.status === SubscriptionStatus.PAST_DUE) &&
+    sub.currentPeriodStart <= now &&
+    sub.currentPeriodEnd >= now
+  );
 }

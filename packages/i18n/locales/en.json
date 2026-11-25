@@ -422,6 +422,12 @@
         "rangeLabel": "Custom date range",
         "rangeAria": "Widget range"
       },
+      "periodWindow": {
+        "today": "Today · {from}",
+        "week": "This week · {from} to {to}",
+        "month": "This month · {from} to {to}",
+        "custom": "{from} to {to}"
+      },
       "segments": {
         "aria": "Dashboard segments",
         "overview": "Overview",
@@ -456,7 +462,7 @@
           "refunded": "Refunded",
           "avgSale": "Avg sale"
         },
-        "kpiCaption": "{window} · {productType} · captured payments only. Subscription renewals bill separately.",
+        "kpiCaption": "{window} · {productType} · captured payments net of refunds, the same money as the overview. Invoices settled with no payment are on the Revenue tab.",
         "refundedHint": "Against sales in this window",
         "trend": {
           "title": "Revenue over time",
@@ -510,11 +516,12 @@
         },
         "kpi": {
           "activeMembers": "Active members",
+          "frozenMembers": "Frozen",
           "newSignups": "New signups",
           "churned": "Churned",
           "avgLtv": "Avg LTV"
         },
-        "kpiCaption": "{window} · LTV is lifetime value to date, not a forecast",
+        "kpiCaption": "{window} · active: a membership in force · churned: people whose last membership ended in the window · LTV is lifetime value to date, not a forecast",
         "active": {
           "title": "Total active members",
           "caption": "{window} · {total} now",
@@ -522,12 +529,12 @@
           "empty": "No members in this window."
         },
         "signupsVsChurn": {
-          "title": "Signups vs cancellations",
-          "caption": "Joins against memberships that ended",
-          "chartAria": "Signups against cancellations per period",
+          "title": "Signups vs churned members",
+          "caption": "New members against people whose last membership ended",
+          "chartAria": "Signups against churned members per period",
           "signups": "Signups",
-          "churned": "Cancellations",
-          "empty": "No joins or cancellations in this window."
+          "churned": "Churned",
+          "empty": "No new or churned members in this window."
         },
         "retention": {
           "title": "Retention rate",
@@ -544,13 +551,16 @@
         },
         "status": {
           "title": "Members by status",
+          "caption": "One row per person, as of now · {total} who have held a membership",
           "name": {
             "trial": "Trial",
             "active": "Active",
             "past-due": "Past due",
             "frozen": "Frozen",
             "canceled": "Cancelled",
-            "expired": "Expired"
+            "expired": "Expired",
+            "suspended": "Account not active",
+            "upcoming": "Not started yet"
           },
           "empty": "No memberships on record."
         },
@@ -571,17 +581,19 @@
         },
         "kpi": {
           "totalRevenue": "Total revenue",
+          "takings": "Revenue",
+          "invoicedHint": "+ {amount} in invoices paid with no payment",
           "mrr": "Recurring / mo",
           "revenuePerMember": "Per member",
           "outstandingTotal": "Outstanding"
         },
-        "kpiCaption": "{window} · recurring and outstanding are current, not windowed",
+        "kpiCaption": "{window} · revenue is captured payments, as on the overview and Sales · recurring and outstanding are current, not windowed",
         "trend": {
           "title": "Revenue over time",
-          "caption": "Memberships against sales & POS",
-          "chartAria": "Revenue per period, memberships against sales",
-          "recurring": "Memberships",
-          "oneOff": "Sales & POS",
+          "caption": "Captured payments against invoices settled with no payment",
+          "chartAria": "Revenue per period, captured payments against invoices settled with no payment",
+          "recurring": "Invoices, no payment",
+          "oneOff": "Captured payments",
           "empty": "No revenue in this window."
         },
         "mrr": {
@@ -675,7 +687,7 @@
         },
         "heatmap": {
           "title": "When demand lands",
-          "caption": "Seats booked by weekday and hour (UTC)",
+          "caption": "Seats booked by weekday and hour",
           "chartAria": "Seats booked by weekday and hour",
           "weekday": {
             "mon": "Mon",
@@ -817,6 +829,7 @@
       "planMix": {
         "title": "Plan mix",
         "count": "{total} paid members",
+        "split": "{total} paying · {active} active + {frozen} frozen",
         "empty": "No active subscribers yet."
       },
       "schedule": {
@@ -1572,6 +1585,7 @@
         "addMember": "Add member",
         "planMix": "Plan mix",
         "paid": "paid",
+        "payingSplit": "{total} paying · {active} active + {frozen} frozen",
         "planMixEmpty": "No paid subscriptions yet.",
         "tablistLabel": "Filter by member state",
         "exportStarting": "Starting export…",
@@ -1880,6 +1894,7 @@
       },
       "kind": {
         "MEMBER": "Member",
+        "FROZEN": "Frozen",
         "GUEST": "Guest",
         "INACTIVE": "Inactive"
       }

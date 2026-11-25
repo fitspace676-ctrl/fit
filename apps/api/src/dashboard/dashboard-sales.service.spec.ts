@@ -405,3 +405,39 @@ describe('DashboardSalesService.get — the branch filter', () => {
     expect(whereOf(refundFindMany)).not.toHaveProperty('order');
   });
 });
+
+describe('DashboardSalesService.get — header period', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  // The tab answers for the overview's own window, so the month's net sales and
+  // the overview's month revenue read the same payments.
+  it('reads the selected month in the gym zone and echoes the window', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-25T06:00:00.000Z'));
+    const { service, paymentFindMany, refundFindMany } = setup(
+      {},
+      stubLocale('GEL', 'Asia/Tbilisi'),
+    );
+
+    const result = await service.get({ ...ALL, period: 'month' });
+
+    const where = (paymentFindMany.mock.calls[0]?.[0] as { where: { createdAt: unknown } }).where;
+    expect(where.createdAt).toEqual({
+      gte: new Date('2026-10-31T20:00:00.000Z'),
+      lt: new Date('2026-11-25T06:00:00.000Z'),
+    });
+    expect(refundFindMany).toHaveBeenCalled();
+    expect(result.period).toEqual({ period: 'month', from: '2026-11-01', to: '2026-11-30' });
+  });
+
+  it('echoes no period when the query carries none', async () => {
+    const { service } = setup();
+
+    const result = await service.get(ALL);
+
+    expect(result.period).toBeNull();
+  });
+});

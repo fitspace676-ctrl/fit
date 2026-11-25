@@ -80,11 +80,14 @@ const TILES = [
 export function SalesKpiStrip({
   kpis,
   granularity,
+  windowLabel,
   productType,
   money,
 }: {
   kpis: SalesKpis;
   granularity: SalesGranularity;
+  /** The window the response covers, named by the view; falls back to the rolling label. */
+  windowLabel?: string;
   productType: SalesProductType;
   money: NumberFormatter;
 }) {
@@ -106,7 +109,7 @@ export function SalesKpiStrip({
       </div>
       <p {...stylex.props(styles.caption)}>
         {t('kpiCaption', {
-          window: t(`window.${granularity}`),
+          window: windowLabel ?? t(`window.${granularity}`),
           productType: t(`productType.${productType}`),
         })}
       </p>

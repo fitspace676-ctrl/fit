@@ -77,6 +77,7 @@ const styles = stylex.create({
 export function SalesTrendCard({
   points,
   granularity,
+  windowLabel,
   productType,
   total,
   money,
@@ -86,6 +87,8 @@ export function SalesTrendCard({
 }: {
   points: ReportSeriesPoint[];
   granularity: SalesGranularity;
+  /** The window the response covers, named by the view; falls back to the rolling label. */
+  windowLabel?: string;
   productType: SalesProductType;
   /** Net revenue across the window, MINOR units. */
   total: number;
@@ -113,7 +116,7 @@ export function SalesTrendCard({
           <h2 {...stylex.props(styles.title)}>{t('trend.title')}</h2>
           <p {...stylex.props(styles.caption)}>
             {t('trend.caption', {
-              window: t(`window.${granularity}`),
+              window: windowLabel ?? t(`window.${granularity}`),
               productType: t(`productType.${productType}`),
               total: money.format(total / 100),
             })}

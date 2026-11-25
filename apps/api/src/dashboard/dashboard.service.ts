@@ -403,7 +403,7 @@ export class DashboardService {
    * delta vs. the immediately preceding equal-length window:
    *   • todaysRevenue — SUM captured `Payment.amount` in the window.
    *   • checkInsToday — COUNT check-ins in the window.
-   *   • newMembers7d  — COUNT `MEMBER` joined in the window.
+   *   • newMembers7d  — COUNT non-deleted `MEMBER`s joined in the window.
    * (The field names keep their original spelling for wire-compatibility; the
    * client labels them by the resolved period.)
    *
@@ -465,6 +465,8 @@ export class DashboardService {
         db.gymMember.count({
           where: {
             role: Role.MEMBER,
+            // Trashed accounts are not members; the joiners table excludes them too.
+            deletedAt: null,
             joinedAt: { gte: win.start, lt: win.end },
             ...atLocation(locationId),
           },
@@ -472,6 +474,8 @@ export class DashboardService {
         db.gymMember.count({
           where: {
             role: Role.MEMBER,
+            // Trashed accounts are not members; the joiners table excludes them too.
+            deletedAt: null,
             joinedAt: { gte: win.prevStart, lt: win.prevEnd },
             ...atLocation(locationId),
           },
@@ -881,7 +885,7 @@ export class DashboardService {
    */
   private async recentMembers(locationId?: string): Promise<DashboardRecentMember[]> {
     const rows = await this.prisma.client.gymMember.findMany({
-      where: { role: Role.MEMBER, ...atLocation(locationId) },
+      where: { role: Role.MEMBER, deletedAt: null, ...atLocation(locationId) },
       orderBy: { joinedAt: 'desc' },
       take: 6,
       select: {

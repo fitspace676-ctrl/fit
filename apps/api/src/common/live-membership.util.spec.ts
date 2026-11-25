@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   activeMemberWhere,
+  frozenMemberWhere,
   liveSubscriptionWhere,
   membershipPlanMix,
 } from './live-membership.util';
@@ -49,26 +50,45 @@ describe('live membership query contract', () => {
   });
 });
 
+describe('frozen member query contract', () => {
+  it('is a frozen membership on an account not suspended, with nothing in force', () => {
+    expect(frozenMemberWhere(now, 'branch-1')).toEqual({
+      role: 'MEMBER',
+      deletedAt: null,
+      locationId: 'branch-1',
+      status: { not: 'SUSPENDED' },
+      subscriptions: { some: { status: 'FROZEN' } },
+      // Never overlaps the active population: active + frozen = paying.
+      NOT: { status: 'ACTIVE', subscriptions: { some: liveSubscriptionWhere(now) } },
+    });
+  });
+});
+
 describe('shared paying-member mix', () => {
-  it('includes frozen, filters deleted/non-member owners, and counts each person once', async () => {
+  it('counts active then frozen people once each, so the slices sum to active + frozen', async () => {
     const findMany = vi.fn().mockResolvedValue([
-      { memberId: 'a', planId: 'p1', plan: { name: 'Monthly' } },
-      { memberId: 'a', planId: 'p2', plan: { name: 'Trial' } },
-      { memberId: 'b', planId: 'p1', plan: { name: 'Monthly' } },
-      { memberId: 'c', planId: null, plan: null },
+      { memberId: 'a', planId: 'p1', status: 'ACTIVE', plan: { name: 'Monthly' } },
+      // `a` also holds a frozen membership: still counted once, as active.
+      { memberId: 'a', planId: 'p2', status: 'FROZEN', plan: { name: 'Annual' } },
+      { memberId: 'b', planId: 'p1', status: 'PAST_DUE', plan: { name: 'Monthly' } },
+      { memberId: 'c', planId: null, status: 'FROZEN', plan: null },
     ]);
     const db = { subscription: { findMany } } as unknown as TenantPrismaService['client'];
     const result = await membershipPlanMix(db, 'branch-1', now);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          OR: [liveSubscriptionWhere(now), { status: 'FROZEN' }],
           member: { role: 'MEMBER', deletedAt: null, locationId: 'branch-1' },
+          OR: [
+            { ...liveSubscriptionWhere(now), member: { status: 'ACTIVE' } },
+            { status: 'FROZEN', member: { status: { not: 'SUSPENDED' } } },
+          ],
         },
         orderBy: [{ currentPeriodEnd: 'desc' }, { id: 'asc' }],
       }),
     );
-    expect(result.total).toBe(3);
+    expect(result).toMatchObject({ total: 3, active: 2, frozen: 1 });
+    expect(result.total).toBe(result.active + result.frozen);
     expect(result.plans).toEqual([
       { planId: 'p1', name: 'Monthly', count: 2, color: '#7C3AED' },
       { planId: null, name: 'No plan', count: 1, color: '#EC4899' },
@@ -79,6 +99,11 @@ describe('shared paying-member mix', () => {
     const db = {
       subscription: { findMany: vi.fn().mockResolvedValue([]) },
     } as unknown as TenantPrismaService['client'];
-    expect(await membershipPlanMix(db, undefined, now)).toEqual({ total: 0, plans: [] });
+    expect(await membershipPlanMix(db, undefined, now)).toEqual({
+      total: 0,
+      plans: [],
+      active: 0,
+      frozen: 0,
+    });
   });
 });

@@ -506,13 +506,19 @@ export function selectSubscriptionSales<
   T extends Pick<
     SmartCrmData['soldPackages'][number],
     'sourceId' | 'clientSourceId' | 'expired' | 'endDate' | 'soldAt'
-  >,
->(sales: T[]): { selected: T[]; noteOnly: T[] } {
+  > & { activationDate?: string | null },
+>(sales: T[], now = new Date()): { selected: T[]; noteOnly: T[]; deferred: T[] } {
   const live = new Map<string, T>();
+  const inForce = (sale: T) =>
+    !sale.expired &&
+    instant(sale.activationDate ?? sale.soldAt) <= now &&
+    !!sale.endDate &&
+    tbilisiEndOfDay(sale.endDate) >= now;
   const rank = (a: T, b: T) => {
     if (!a.endDate || !b.endDate)
       throw new CommandError('Live sale requires an expiry date', { code: 'BAD_IMPORT' });
     return (
+      Number(inForce(a)) - Number(inForce(b)) ||
       tbilisiEndOfDay(a.endDate).getTime() - tbilisiEndOfDay(b.endDate).getTime() ||
       instant(a.soldAt).getTime() - instant(b.soldAt).getTime() ||
       a.sourceId.localeCompare(b.sourceId, 'en')
@@ -532,6 +538,15 @@ export function selectSubscriptionSales<
     selected: sales.filter(
       (sale) => sale.expired || live.get(sale.clientSourceId)?.sourceId === sale.sourceId,
     ),
+    deferred: sales.filter((sale) => {
+      const chosen = live.get(sale.clientSourceId);
+      return (
+        !sale.expired &&
+        !!chosen &&
+        inForce(chosen) &&
+        instant(sale.activationDate ?? sale.soldAt) > now
+      );
+    }),
     noteOnly: sales.filter(
       (sale) => !sale.expired && live.get(sale.clientSourceId)?.sourceId !== sale.sourceId,
     ),
@@ -601,6 +616,21 @@ export function sourceChanges<T extends object>(existing: object, desired: T): P
 
 export function isLiveSubscription(status: string): boolean {
   return ['ACTIVE', 'FROZEN', 'PAST_DUE', 'TRIAL'].includes(status);
+}
+
+/** Only source-owned live subscriptions and source-owned members may be expired. */
+export function isRemovedImportedSubscription(
+  row: { id: string; memberId: string; provider: string; status: string },
+  prefix: string,
+  currentIds: ReadonlySet<string>,
+): boolean {
+  return (
+    row.id.startsWith(`${prefix}subscription_`) &&
+    row.memberId.startsWith(`${prefix}client_`) &&
+    row.provider === 'smartcrm-import' &&
+    !currentIds.has(row.id) &&
+    isLiveSubscription(row.status)
+  );
 }
 
 /** A displaced imported sale stays as history; a native live entitlement wins. */

@@ -54,18 +54,13 @@ describe('DashboardHeader', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Widget range' })).not.toBeInTheDocument();
   });
 
-  // Every tab but Overview is a hand-built view owning its own granularity
-  // control, next to the chart it redraws. A second time filter up here would be
-  // a dead one — and one that still fires a navigation, so it would read as
-  // broken rather than absent.
+  // The period decides every tab's window, so every tab offers it: Sales,
+  // Members, Revenue, Classes and Staff all read the overview's resolved window.
   it.each(['sales', 'members', 'revenue', 'classes', 'staff'] as const)(
-    'offers no filter at all on the %s tab',
+    'offers the same period filter on the %s tab',
     (segment) => {
       renderHeader(segment);
-      expect(
-        screen.queryByRole('radiogroup', { name: 'Dashboard period' }),
-      ).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Custom date range/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('radiogroup', { name: 'Dashboard period' })).toBeInTheDocument();
     },
   );
 

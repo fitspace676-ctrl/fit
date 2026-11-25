@@ -510,6 +510,22 @@ describe('DashboardService.getOverview — the branch filter', () => {
     }
   });
 
+  // A trashed account is not a member: the new-member KPI (both windows of its
+  // delta), the active count and the joiners table all exclude soft-deleted rows,
+  // so "new members in November" drops by the accounts moved to trash.
+  it('excludes soft-deleted members from every member read', async () => {
+    const { service, memberReads } = setupOverview();
+
+    await service.getOverview(BASE_QUERY);
+
+    for (const read of memberReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        expect(where.deletedAt).toBeNull();
+      }
+    }
+  });
+
   // A `Subscription` has no `locationId` of its own and reaches one only through
   // its member — which, since Stage 2, has one. Attribution is the member's HOME
   // branch, the same fragment the Revenue tab's MRR and the Members tab's cohorts

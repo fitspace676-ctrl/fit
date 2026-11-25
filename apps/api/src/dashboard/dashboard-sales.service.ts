@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentMethod, PaymentStatus } from '@fit/db';
 import {
-  SALES_GRANULARITY_RANGE,
   SALES_TOP_SELLERS_LIMIT,
   type DashboardSalesQuery,
   type DashboardSalesResponse,
@@ -12,7 +11,8 @@ import {
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
-import { bucketKey, emptyBuckets, resolveWindow } from '../reports/report-window.util';
+import { bucketKey, emptyBuckets } from '../reports/report-window.util';
+import { resolveSegmentWindow } from './segment-window.util';
 import { atLocation } from '../common/location-filter.util';
 
 /** `Payment.provider` for a till sale; anything else settled through a gateway. */
@@ -96,7 +96,9 @@ export class DashboardSalesService {
     // is before it can say which days the chart covers.
     const locale = await this.locales.get();
     const zone = locale.timezone;
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
+    // The header period when the console sends one (the overview's own window, cut
+    // at now), else the rolling granularity window — see `segment-window.util.ts`.
+    const { win, period } = resolveSegmentWindow(query, zone);
     const atBranch = atLocation(query.locationId);
 
     const [payments, refunds] = await Promise.all([
@@ -186,6 +188,7 @@ export class DashboardSalesService {
 
     return {
       granularity: query.granularity,
+      period,
       productType: query.productType,
       currency: locale.currency,
       kpis: {

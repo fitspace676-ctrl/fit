@@ -131,11 +131,16 @@ export function SegmentedDashboard({
         {branchScope ? <BranchScopeNote scope={branchScope} /> : null}
 
         {active === 'overview' ? <OverviewView data={overview} /> : null}
-        {active === 'sales' ? <SalesView /> : null}
-        {active === 'members' ? <MembersView /> : null}
-        {active === 'revenue' ? <RevenueView /> : null}
-        {active === 'classes' ? <ClassesView /> : null}
-        {active === 'staff' ? <StaffView /> : null}
+        {/*
+          Every tab covers the overview's resolved window: the header period is
+          the dashboard's one time filter, so "this month" is the same days, and
+          the same takings, on every tab.
+        */}
+        {active === 'sales' ? <SalesView period={overview.period} /> : null}
+        {active === 'members' ? <MembersView period={overview.period} /> : null}
+        {active === 'revenue' ? <RevenueView period={overview.period} /> : null}
+        {active === 'classes' ? <ClassesView period={overview.period} /> : null}
+        {active === 'staff' ? <StaffView period={overview.period} /> : null}
       </div>
     </div>
   );

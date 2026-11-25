@@ -11,7 +11,7 @@ import type {
   MemberPlanMix,
   MemberRow,
   MemberSort,
-  MemberKind,
+  MemberStanding,
   MemberTabCounts,
   SortDir,
 } from '@fit/types';
@@ -45,12 +45,14 @@ type T = ReturnType<typeof useTranslations>;
  * roster to answer "who is this person to us?", and the account's own state
  * (invited / suspended) and the billing state are the finer detail behind it.
  */
-const KIND_TONES: Record<MemberKind, BadgeTone> = {
+const KIND_TONES: Record<MemberStanding, BadgeTone> = {
   // Three standings onto the direction's three signals: an active member is the
   // lime, a guest and a lapsed member are both ink. `warning` used to give
   // INACTIVE an amber of its own; the direction has no amber, and "lapsed" is a
   // state to notice rather than an error to fix.
   MEMBER: 'positive',
+  // Paid for and paused: not walking in, not lapsed either.
+  FROZEN: 'neutral',
   GUEST: 'neutral',
   INACTIVE: 'pending',
 };
@@ -375,7 +377,7 @@ const styles = stylex.create({
 });
 
 /** The standing pill mirroring the roster styling. */
-function StatusPill({ kind }: { kind: MemberKind }) {
+function StatusPill({ kind }: { kind: MemberStanding }) {
   const t = useTranslations('admin.members');
   return <Badge tone={KIND_TONES[kind]} label={t(`kind.${kind}`)} />;
 }
@@ -512,7 +514,15 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
       <div {...stylex.props(styles.planHead)}>
         <h2 {...stylex.props(styles.planLabel)}>{t('list.planMix')}</h2>
         <span {...stylex.props(styles.planMeta)}>
-          {total} {t('list.paid')}
+          {/* Paying = active + frozen, both shown so the header's active figure
+              can be read straight off this card. */}
+          {planMix.active === undefined || planMix.frozen === undefined
+            ? `${total} ${t('list.paid')}`
+            : t('list.payingSplit', {
+                total,
+                active: planMix.active,
+                frozen: planMix.frozen,
+              })}
         </span>
       </div>
 

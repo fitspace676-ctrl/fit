@@ -47,9 +47,10 @@ describe('dashboardMembersQuerySchema', () => {
 });
 
 describe('MEMBERSHIP_STATUSES', () => {
-  // The spec shows all six, not the four the request named: PAST_DUE is a
-  // problem staff must react to, and CANCELED is not the same as EXPIRED.
-  it('carries all six subscription states, in lifecycle order', () => {
+  // The six subscription states, then the two person standings the members-by-
+  // status card needs since it counts people: in force on an account that is not
+  // active, and a membership that has not started yet. Appended, never reordered.
+  it('carries the subscription states and the person standings, in order', () => {
     expect(MEMBERSHIP_STATUSES).toEqual([
       'trial',
       'active',
@@ -57,6 +58,8 @@ describe('MEMBERSHIP_STATUSES', () => {
       'frozen',
       'canceled',
       'expired',
+      'suspended',
+      'upcoming',
     ]);
   });
 });
@@ -68,7 +71,7 @@ describe('dashboardMembersResponseSchema', () => {
       retentionWindow: '30',
       expiringWindow: '7',
       currency: 'GEL',
-      kpis: { activeMembers: 42, newSignups: 5, churned: 2, avgLtv: 18_000 },
+      kpis: { activeMembers: 42, frozenMembers: 3, newSignups: 5, churned: 2, avgLtv: 18_000 },
       activeOverTime: [{ label: '2026-08-01', value: 42 }],
       signupsVsChurn: [{ label: '2026-08-01', signups: 5, churned: 2 }],
       retention: [{ label: '2026-08-01', value: 91.5 }],
@@ -86,7 +89,7 @@ describe('dashboardMembersResponseSchema', () => {
       retentionWindow: '30',
       expiringWindow: '7',
       currency: 'GEL',
-      kpis: { activeMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
+      kpis: { activeMembers: 0, frozenMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
       activeOverTime: [],
       signupsVsChurn: [],
       retention: [{ label: '2026-08-01', value: null }],
@@ -101,7 +104,7 @@ describe('dashboardMembersResponseSchema', () => {
       retentionWindow: '30',
       expiringWindow: '7',
       currency: 'GEL',
-      kpis: { activeMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
+      kpis: { activeMembers: 0, frozenMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
       activeOverTime: [],
       signupsVsChurn: [],
       retention: [],

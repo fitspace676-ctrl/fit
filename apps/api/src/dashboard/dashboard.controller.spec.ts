@@ -30,7 +30,7 @@ const EMPTY_MEMBERS: DashboardMembersResponse = {
   retentionWindow: '30',
   expiringWindow: '7',
   currency: 'GEL',
-  kpis: { activeMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
+  kpis: { activeMembers: 0, frozenMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
   activeOverTime: [],
   signupsVsChurn: [],
   retention: [],

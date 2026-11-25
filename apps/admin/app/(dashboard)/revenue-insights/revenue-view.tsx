@@ -47,6 +47,7 @@ import {
   type DashboardRevenueResponse,
   type ProjectionWindow,
   type RevenueGranularity,
+  type DashboardResolvedPeriod,
 } from '@fit/types';
 import { useActiveLocation } from '@/components/active-location';
 import { loadRevenueAction } from './actions';
@@ -56,6 +57,7 @@ import { RecurringRevenueCard } from './recurring-revenue-card';
 import { ProjectedRevenueCard } from './projected-revenue-card';
 import { OutstandingInvoicesCard } from './outstanding-invoices-card';
 import { RevenueByLocationCard } from './revenue-by-location-card';
+import { periodKey, periodQuery, usePeriodWindowLabel } from '../segments/period-window';
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
@@ -162,7 +164,7 @@ const motion = stylex.create({
   }),
 });
 
-export function RevenueView() {
+export function RevenueView({ period }: { period?: DashboardResolvedPeriod } = {}) {
   const t = useTranslations('admin.dashboard.revenue');
   const locale = useLocale();
 
@@ -181,7 +183,7 @@ export function RevenueView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${projectionWindow}:${locationId ?? ''}`;
+  const key = `${granularity}:${projectionWindow}:${locationId ?? ''}:${periodKey(period)}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -195,7 +197,7 @@ export function RevenueView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadRevenueAction({ granularity, projectionWindow, locationId })
+    void loadRevenueAction({ granularity, projectionWindow, locationId, ...periodQuery(period) })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -220,7 +222,7 @@ export function RevenueView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, projectionWindow, locationId, attempt, t]);
+  }, [key, granularity, projectionWindow, locationId, period, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new
@@ -228,6 +230,8 @@ export function RevenueView() {
   // what makes a cached combination animate too — the cache hands back the same
   // object it handed back last time, so an identity check would see no change.
   const shownKey = data === null ? '' : `${data.granularity}:${data.projectionWindow}`;
+  // The window ON SCREEN, named for the captions (the overview's own days).
+  const windowLabel = usePeriodWindowLabel(data?.period);
 
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -293,7 +297,12 @@ export function RevenueView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <RevenueKpiStrip data={data} granularity={data.granularity} money={money} />
+        <RevenueKpiStrip
+          data={data}
+          granularity={data.granularity}
+          windowLabel={windowLabel}
+          money={money}
+        />
       </div>
 
       <div {...stylex.props(styles.workArea)}>

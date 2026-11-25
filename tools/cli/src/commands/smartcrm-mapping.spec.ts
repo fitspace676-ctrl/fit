@@ -5,6 +5,7 @@ import {
   shopItemQuantity,
   sourceChanges,
   isLiveSubscription,
+  isRemovedImportedSubscription,
   syncSaleDisposition,
   selectSubscriptionSales,
   packageSubscriptionDetails,
@@ -314,14 +315,95 @@ describe('Smart CRM pure mapping', () => {
       { ...base, sourceId: '5', expired: true },
       { ...base, sourceId: '6', clientSourceId: '2' },
     ];
-    const result = selectSubscriptionSales(sales);
+    const result = selectSubscriptionSales(sales, new Date('2025-06-01T12:00Z'));
     expect(result.selected.map((s) => s.sourceId)).toEqual(['3', '4', '5', '6']);
     expect(result.noteOnly.map((s) => s.sourceId)).toEqual(['1', '2']);
     expect(
-      selectSubscriptionSales([...sales].reverse())
+      selectSubscriptionSales([...sales].reverse(), new Date('2025-06-01T12:00Z'))
         .selected.map((s) => s.sourceId)
         .sort(),
     ).toEqual(['3', '4', '5', '6']);
+  });
+});
+
+describe('Smart CRM current subscription selection', () => {
+  const now = new Date('2026-11-25T12:00:00Z');
+  const current = {
+    sourceId: 'current',
+    clientSourceId: 'example-member',
+    expired: false,
+    soldAt: '2026-08-08T10:00:00Z',
+    activationDate: '2026-08-08',
+    endDate: '2026-12-12',
+  };
+  const future = {
+    ...current,
+    sourceId: 'renewal',
+    activationDate: '2026-12-13',
+    endDate: '2027-01-13',
+  };
+
+  it('keeps current access and defers the pre-sold renewal, independent of input order', () => {
+    for (const sales of [
+      [current, future],
+      [future, current],
+    ]) {
+      const result = selectSubscriptionSales(sales, now);
+      expect(result.selected).toEqual([current]);
+      expect(result.noteOnly).toEqual([future]);
+      expect(result.deferred).toEqual([future]);
+    }
+    expect(
+      selectSubscriptionSales([current, future], new Date('2026-12-13T12:00Z')).selected,
+    ).toEqual([future]);
+  });
+
+  it('selects latest end date among two packages already in force', () => {
+    const longer = { ...current, sourceId: 'longer', endDate: '2026-12-31' };
+    expect(selectSubscriptionSales([longer, current], now).selected).toEqual([longer]);
+  });
+
+  it('retains a future package when no current package exists', () => {
+    const result = selectSubscriptionSales([future], now);
+    expect(result.selected).toEqual([future]);
+    expect(result.deferred).toEqual([]);
+  });
+
+  it('keeps a paused current package ahead of a future renewal', () => {
+    const paused = { ...current, pauseStatus: true };
+    const result = selectSubscriptionSales([future, paused], now);
+    expect(result.selected).toEqual([paused]);
+    expect(result.deferred).toEqual([future]);
+  });
+
+  it('honours explicit offsets for corrected sale instants and is idempotent', () => {
+    const corrected = instant('2026-11-24T17:35:05Z');
+    expect(corrected).toEqual(instant('2026-11-24T21:35:05+04:00'));
+    const old = { createdAt: instant('2026-11-24T17:35:05+04:00') };
+    const changes = sourceChanges(old, { createdAt: corrected });
+    expect(changes).toEqual({ createdAt: corrected });
+    expect(sourceChanges({ ...old, ...changes }, { createdAt: corrected })).toEqual({});
+  });
+
+  it('expires only missing live import subscriptions belonging to imported members', () => {
+    const prefix = 'scrm_example_';
+    const row = {
+      id: `${prefix}subscription_one`,
+      memberId: `${prefix}client_one`,
+      provider: 'smartcrm-import',
+      status: 'ACTIVE',
+    };
+    for (const status of ['ACTIVE', 'FROZEN', 'TRIAL', 'PAST_DUE'])
+      expect(isRemovedImportedSubscription({ ...row, status }, prefix, new Set())).toBe(true);
+    for (const patch of [
+      { id: 'native' },
+      { memberId: 'native' },
+      { provider: 'native' },
+      { status: 'EXPIRED' },
+      { status: 'CANCELED' },
+    ])
+      expect(isRemovedImportedSubscription({ ...row, ...patch }, prefix, new Set())).toBe(false);
+    expect(isRemovedImportedSubscription(row, prefix, new Set([row.id]))).toBe(false);
   });
 });
 

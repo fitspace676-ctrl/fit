@@ -4,15 +4,15 @@ import {
   HEATMAP_COLS,
   HEATMAP_ROWS,
   TOP_CLASS_TYPES,
-  SALES_GRANULARITY_RANGE,
   type ClassTypeSlice,
   type DashboardClassesQuery,
   type DashboardClassesResponse,
 } from '@fit/types';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
-import { bucketKey, emptyBuckets, rate, resolveWindow } from '../reports/report-window.util';
+import { bucketKey, emptyBuckets, rate } from '../reports/report-window.util';
 import { zonedParts } from '../reports/zoned-time.util';
+import { resolveSegmentWindow } from './segment-window.util';
 import { atLocation } from '../common/location-filter.util';
 
 /** How many class types the ranking shows. The card's caption states it. */
@@ -90,7 +90,9 @@ export class DashboardClassesService {
     // is before it can say which days the chart covers.
     const locale = await this.locales.get();
     const zone = locale.timezone;
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
+    // The header period when the console sends one (the overview's own window, cut
+    // at now), else the rolling granularity window — see `segment-window.util.ts`.
+    const { win, period } = resolveSegmentWindow(query, zone);
     const now = new Date();
     const atBranch = atLocation(query.locationId);
 
@@ -229,6 +231,7 @@ export class DashboardClassesService {
 
     return {
       granularity: query.granularity,
+      period,
       kpis: {
         classesHeld,
         seatsBooked,

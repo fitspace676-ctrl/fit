@@ -2121,6 +2121,20 @@ export async function fetchDashboardOverview(params?: {
 }
 
 /**
+ * The header period on a dashboard segment request, when the console sends one.
+ * With it the tab covers the overview's own window; without it the API keeps the
+ * tab's rolling granularity window.
+ */
+function setSegmentPeriod(
+  qs: URLSearchParams,
+  query: { period?: string; from?: string; to?: string },
+): void {
+  if (query.period) qs.set('period', query.period);
+  if (query.from) qs.set('from', query.from);
+  if (query.to) qs.set('to', query.to);
+}
+
+/**
  * `GET /dashboard/sales` — the hand-built Sales tab in one payload. Both params
  * scope the whole response, so the tab never shows two cards describing different
  * windows; the API `.catch`es unknown values to its own defaults.
@@ -2133,6 +2147,7 @@ export async function fetchDashboardSales(
     productType: query.productType,
   });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/sales?${qs.toString()}`, {
     headers: await authHeaders(),
     // Sales figures reflect live tenant state — never serve a stale snapshot.
@@ -2155,6 +2170,7 @@ export async function fetchDashboardMembers(
     expiringWindow: query.expiringWindow,
   });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/members?${qs.toString()}`, {
     headers: await authHeaders(),
     // Membership figures reflect live tenant state — never serve a stale snapshot.
@@ -2176,6 +2192,7 @@ export async function fetchDashboardRevenue(
     projectionWindow: query.projectionWindow,
   });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/revenue?${qs.toString()}`, {
     headers: await authHeaders(),
     // Revenue reflects live tenant state — never serve a stale snapshot.
@@ -2194,6 +2211,7 @@ export async function fetchDashboardClasses(
 ): Promise<DashboardClassesResponse> {
   const qs = new URLSearchParams({ granularity: query.granularity });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/classes?${qs.toString()}`, {
     headers: await authHeaders(),
     // Class figures reflect live tenant state — never serve a stale snapshot.
@@ -2212,6 +2230,7 @@ export async function fetchDashboardStaff(
 ): Promise<DashboardStaffResponse> {
   const qs = new URLSearchParams({ granularity: query.granularity });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/staff?${qs.toString()}`, {
     headers: await authHeaders(),
     // Staffing figures reflect live tenant state — never serve a stale snapshot.

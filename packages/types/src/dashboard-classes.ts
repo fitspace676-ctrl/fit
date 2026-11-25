@@ -15,6 +15,7 @@
 // copy that.
 
 import { z } from 'zod';
+import { dashboardSegmentPeriodQueryShape, dashboardSegmentPeriodSchema } from './dashboard';
 import { salesGranularitySchema } from './dashboard-sales';
 import { reportSeriesPointSchema } from './reports-drilldown';
 
@@ -42,6 +43,7 @@ export const DEFAULT_CLASSES_GRANULARITY: ClassesGranularity = 'daily';
 export const dashboardClassesQuerySchema = z.object({
   granularity: classesGranularitySchema.catch(DEFAULT_CLASSES_GRANULARITY),
   locationId: z.string().min(1).optional().catch(undefined),
+  ...dashboardSegmentPeriodQueryShape,
 });
 export type DashboardClassesQuery = z.infer<typeof dashboardClassesQuerySchema>;
 
@@ -49,7 +51,7 @@ export type DashboardClassesQuery = z.infer<typeof dashboardClassesQuerySchema>;
 /*  Response pieces                                                             */
 /* -------------------------------------------------------------------------- */
 
-/** Demand heatmap dimensions: Monday–Sunday by hour 0–23, UTC. */
+/** Demand heatmap dimensions: Monday–Sunday by hour 0–23, in the gym's time zone. */
 /**
  * How many class types the ranking shows. In the shared contract, not the
  * service, because the CARD'S CAPTION states the number — and a cap that lives
@@ -103,6 +105,8 @@ export type ClassesKpis = z.infer<typeof classesKpisSchema>;
  * its neighbour.
  */
 export const dashboardClassesResponseSchema = z.object({
+  /** The header period this response covers; see `dashboardSegmentPeriodSchema`. */
+  period: dashboardSegmentPeriodSchema,
   granularity: classesGranularitySchema,
   kpis: classesKpisSchema,
   /** Seats booked per bucket, keyed by the occurrence's start — dense. */
@@ -115,7 +119,7 @@ export const dashboardClassesResponseSchema = z.object({
   ptSessionsOverTime: z.array(reportSeriesPointSchema),
   /** Ranked by seats booked, capped at eight rows. */
   topClassTypes: z.array(classTypeSliceSchema),
-  /** {@link HEATMAP_ROWS} x {@link HEATMAP_COLS} seat counts, Mon–Sun x hour, UTC. */
+  /** {@link HEATMAP_ROWS} x {@link HEATMAP_COLS} seat counts, Mon–Sun x hour, in the gym's time zone. */
   demandByHour: z.array(z.array(z.number())),
   /**
    * Share of FINISHED, uncancelled bookings carrying an attendance outcome.

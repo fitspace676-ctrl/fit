@@ -93,8 +93,10 @@ function subscription(over: Record<string, unknown> = {}) {
     updatedAt: day(-90),
     priceAmount: 60_00,
     interval: SubscriptionInterval.MONTH,
+    currentPeriodStart: day(-27),
     currentPeriodEnd: day(3),
     cancelAtPeriodEnd: false,
+    member: { status: 'ACTIVE' },
     ...over,
   };
 }
@@ -133,6 +135,10 @@ describe('DashboardRevenueService', () => {
     const bucket = result.revenueOverTime.find((point) => point.label === '2026-08-06');
     expect(bucket).toEqual({ label: '2026-08-06', recurring: 50_00, oneOff: 80_00 });
     expect(result.kpis.totalRevenue).toBe(130_00);
+    // The headline the console shows is the overview's and Sales' money; the
+    // invoices settled with no payment row are reported beside it.
+    expect(result.kpis.takings).toBe(80_00);
+    expect(result.kpis.invoicedWithoutPayment).toBe(50_00);
   });
 
   // 31, not 30: `resolveWindow('30d')` opens 30x24h before a mid-day "now", and
@@ -199,6 +205,21 @@ describe('DashboardRevenueService', () => {
     });
     const result = await service.get(QUERY);
     expect(result.kpis.revenuePerMember).toBe(50_00);
+  });
+
+  // The denominator is the dashboard's active figure: a period that is over or a
+  // suspended account does not count, whatever the status column says.
+  it('divides only by members with a membership in force on an active account', async () => {
+    const { service } = setup({
+      payments: [payment({ amount: 100_00 })],
+      subscriptions: [
+        subscription(),
+        subscription({ memberId: 'm2', currentPeriodEnd: day(-3) }),
+        subscription({ memberId: 'm3', member: { status: 'SUSPENDED' } }),
+      ],
+    });
+    const result = await service.get(QUERY);
+    expect(result.kpis.revenuePerMember).toBe(100_00);
   });
 
   it('reports zero rather than dividing by no members', async () => {

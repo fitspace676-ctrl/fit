@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  GymMemberStatus,
   InvoiceStatus,
   LocationStatus,
   PaymentStatus,
@@ -8,7 +9,6 @@ import {
 } from '@fit/db';
 import {
   PROJECTION_WINDOW_DAYS,
-  SALES_GRANULARITY_RANGE,
   type DashboardRevenueQuery,
   type DashboardRevenueResponse,
   type RevenueLocationSlice,
@@ -16,13 +16,8 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { GymLocaleService } from '../gyms/gym-locale.service';
 import { zonedDayStart } from '../reports/zoned-time.util';
-import {
-  bucketKey,
-  DAY_MS,
-  emptyBuckets,
-  isoDate,
-  resolveWindow,
-} from '../reports/report-window.util';
+import { bucketKey, DAY_MS, emptyBuckets, isoDate } from '../reports/report-window.util';
+import { resolveSegmentWindow } from './segment-window.util';
 import { atLocation, memberAtLocation } from '../common/location-filter.util';
 import {
   liveMembersAt,
@@ -37,7 +32,6 @@ const NO_LOCATION_LABEL = 'No location';
 interface RevenueSubscriptionRow extends SubscriptionTimelineRow {
   priceAmount: number;
   interval: SubscriptionInterval;
-  currentPeriodEnd: Date;
   cancelAtPeriodEnd: boolean;
 }
 
@@ -54,6 +48,16 @@ interface RevenueSubscriptionRow extends SubscriptionTimelineRow {
  * mints a `Payment` and possibly an `Invoice` carrying that `orderId`. Summing
  * `Payment{CAPTURED}` with `Invoice{PAID, orderId: null}` therefore sees every
  * money movement exactly once, and `orderId: null` is the whole guard.
+ *
+ * **What `totalRevenue` includes, and why the console heads the tab with `takings`.**
+ * `totalRevenue = takings + invoicedWithoutPayment`. `takings` (captured payments,
+ * net of refunds, by `Payment.createdAt`) is exactly the Sales tab's net sales and,
+ * with no refunds in the window, the overview's revenue. `invoicedWithoutPayment`
+ * (PAID invoices with no order, by `issuedAt`) is membership charges settled with
+ * no payment row — e.g. a plan assigned in the console and marked paid — which
+ * neither the overview nor Sales counts. That stream was the whole gap between
+ * "net sales" and "total revenue" for the same window, so the console shows
+ * `takings` as the headline and names the invoice stream beside it.
  *
  * **Trashed members are filtered from the head-count reads, not from the money.**
  * A soft-deleted member is not billing, so their subscriptions leave MRR, the
@@ -149,9 +153,11 @@ export class DashboardRevenueService {
     // is before it can say which days the chart covers.
     const locale = await this.locales.get();
     const zone = locale.timezone;
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
-    const days = PROJECTION_WINDOW_DAYS[query.projectionWindow];
+    // The header period when the console sends one (the overview's own window, cut
+    // at now), else the rolling granularity window — see `segment-window.util.ts`.
     const now = new Date();
+    const { win, period } = resolveSegmentWindow(query, zone, now);
+    const days = PROJECTION_WINDOW_DAYS[query.projectionWindow];
     // Calendar day, not instant: a charge due later today belongs in today's
     // bucket, and an invoice due today is not yet late.
     const todayStart = zonedDayStart(isoDate(now, zone), zone);
@@ -255,8 +261,10 @@ export class DashboardRevenueService {
           updatedAt: true,
           priceAmount: true,
           interval: true,
+          currentPeriodStart: true,
           currentPeriodEnd: true,
           cancelAtPeriodEnd: true,
+          member: { select: { status: true } },
         },
       }),
       this.prisma.client.location.count({ where: { status: LocationStatus.ACTIVE } }),
@@ -302,7 +310,16 @@ export class DashboardRevenueService {
 
     /* -- Snapshots -------------------------------------------------------- */
 
-    const activeMembers = liveMembersAt(subscriptions, win.end).size;
+    // The per-member denominator is the dashboard's active figure: memberships in
+    // force on ACTIVE accounts, at the end of the window (now, when it reaches today).
+    const activeMembers = liveMembersAt(
+      subscriptions.map((sub) => ({
+        ...sub,
+        accountActive: sub.member.status === GymMemberStatus.ACTIVE,
+      })),
+      win.end >= now ? now : new Date(win.end.getTime() - 1),
+      now,
+    ).size;
     const windowRevenue = totalRecurring + totalOneOff;
 
     let count = 0;
@@ -358,6 +375,7 @@ export class DashboardRevenueService {
 
     return {
       granularity: query.granularity,
+      period,
       projectionWindow: query.projectionWindow,
       currency: locale.currency,
       kpis: {
@@ -366,6 +384,12 @@ export class DashboardRevenueService {
         // the class note. Both halves partition the gym, so the branches sum back
         // to the gym-wide figure exactly once.
         totalRevenue: windowRevenue,
+        // The two parts of `totalRevenue`. `takings` is the overview's and the
+        // Sales tab's money (captured payments, net of refunds), which the console
+        // heads this tab with; `invoicedWithoutPayment` is PAID invoices raised with
+        // no order — membership charges settled with no payment row — shown beside it.
+        takings: totalOneOff,
+        invoicedWithoutPayment: totalRecurring,
         mrr: mrrAt(subscriptions, win.end),
         // Divided by the live members homed at this branch, not the gym's. The
         // numerator's one-off half is attributed by till rather than by buyer, so

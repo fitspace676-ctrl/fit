@@ -62,12 +62,15 @@ const styles = stylex.create({
 export function ActiveMembersCard({
   points,
   granularity,
+  windowLabel,
   current,
   onSelectGranularity,
   disabled,
 }: {
   points: ReportSeriesPoint[];
   granularity: MembersGranularity;
+  /** The window the response covers, named by the view; falls back to the rolling label. */
+  windowLabel?: string;
   /** The live member count right now, for the caption. */
   current: number;
   onSelectGranularity: (next: MembersGranularity) => void;
@@ -88,7 +91,7 @@ export function ActiveMembersCard({
           <h2 {...stylex.props(styles.title)}>{t('active.title')}</h2>
           <p {...stylex.props(styles.caption)}>
             {t('active.caption', {
-              window: t(`window.${granularity}`),
+              window: windowLabel ?? t(`window.${granularity}`),
               total: createNumberFormat(locale).format(current),
             })}
           </p>

@@ -17,6 +17,7 @@
 // trend.
 
 import { z } from 'zod';
+import { dashboardSegmentPeriodQueryShape, dashboardSegmentPeriodSchema } from './dashboard';
 import { reportSeriesPointSchema } from './reports-drilldown';
 
 /* -------------------------------------------------------------------------- */
@@ -77,6 +78,7 @@ export const dashboardSalesQuerySchema = z.object({
   granularity: salesGranularitySchema.catch(DEFAULT_SALES_GRANULARITY),
   productType: salesProductTypeSchema.catch(DEFAULT_SALES_PRODUCT_TYPE),
   locationId: z.string().min(1).optional().catch(undefined),
+  ...dashboardSegmentPeriodQueryShape,
 });
 export type DashboardSalesQuery = z.infer<typeof dashboardSalesQuerySchema>;
 
@@ -155,6 +157,8 @@ export type SalesKpis = z.infer<typeof salesKpisSchema>;
  * Echoes the resolved query so the client can confirm what it is looking at.
  */
 export const dashboardSalesResponseSchema = z.object({
+  /** The header period this response covers; see `dashboardSegmentPeriodSchema`. */
+  period: dashboardSegmentPeriodSchema,
   granularity: salesGranularitySchema,
   productType: salesProductTypeSchema,
   /** ISO-4217 currency the money figures are denominated in. */
