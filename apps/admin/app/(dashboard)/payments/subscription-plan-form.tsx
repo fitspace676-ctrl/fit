@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ComponentProps } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -62,6 +62,33 @@ const FIELD_CLASS =
 
 /** Shared label styling. */
 const LABEL_CLASS = 'text-sm font-medium text-ink-700 dark:text-ink-200';
+
+/**
+ * A `<select>` drawn like the other fields. Safari keeps its own small control
+ * unless the native appearance is switched off, so the chevron is ours.
+ * `className` sizes the wrapper.
+ */
+function SelectField({ className, children, ...props }: ComponentProps<'select'>) {
+  return (
+    <div className={`relative ${className ?? ''}`}>
+      <select {...props} className={`${FIELD_CLASS} cursor-pointer appearance-none pr-10`}>
+        {children}
+      </select>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400"
+      >
+        <path d="m6 8 4 4 4-4" />
+      </svg>
+    </div>
+  );
+}
 
 /** Small uppercase section heading, matching the design's card headers. */
 const CARD_HEADING_CLASS =
@@ -373,7 +400,13 @@ export function SubscriptionPlanForm(props: Props) {
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
+            <div
+              className={`grid grid-cols-1 gap-4 ${
+                periodKind === 'YEAR'
+                  ? 'sm:grid-cols-[minmax(0,1fr)_12rem]'
+                  : 'sm:grid-cols-[minmax(0,1fr)_10rem_12rem]'
+              }`}
+            >
               <div className="flex flex-col gap-1">
                 <label htmlFor="plan-price" className={LABEL_CLASS}>
                   {t('form.priceLabel')}
@@ -402,7 +435,7 @@ export function SubscriptionPlanForm(props: Props) {
                 <label htmlFor="plan-interval" className={LABEL_CLASS}>
                   {t('period.kindLabel')}
                 </label>
-                <select
+                <SelectField
                   id="plan-interval"
                   name="interval"
                   value={periodKind}
@@ -410,14 +443,13 @@ export function SubscriptionPlanForm(props: Props) {
                     setPeriodKind(event.target.value as PlanPeriodKind);
                     setPeriodCount('1');
                   }}
-                  className={FIELD_CLASS}
                 >
                   {PLAN_PERIOD_KINDS.map((kind) => (
                     <option key={kind} value={kind}>
                       {t(`period.kind.${kind}`)}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               {periodKind === 'YEAR' ? null : (
                 <div className="flex flex-col gap-1">
@@ -425,19 +457,18 @@ export function SubscriptionPlanForm(props: Props) {
                     {t(`period.countLabel.${periodKind}`)}
                   </label>
                   {periodKind === 'MONTH' ? (
-                    <select
+                    <SelectField
                       id="plan-interval-count"
                       name="intervalCount"
                       value={String(intervalCount)}
                       onChange={(event) => setPeriodCount(event.target.value)}
-                      className={FIELD_CLASS}
                     >
                       {Array.from({ length: maxCount }, (_, index) => index + 1).map((count) => (
                         <option key={count} value={count}>
                           {tPeriod('length.MONTH', { count })}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   ) : (
                     <input
                       id="plan-interval-count"
@@ -456,7 +487,7 @@ export function SubscriptionPlanForm(props: Props) {
                 </div>
               )}
               {oneTime ? (
-                <p className="text-xs text-ink-500 dark:text-ink-400 sm:col-span-2">
+                <p className="text-xs text-ink-500 dark:text-ink-400 sm:col-span-full">
                   {t('period.oneTimeHint')}
                 </p>
               ) : null}
@@ -558,12 +589,12 @@ export function SubscriptionPlanForm(props: Props) {
               <label htmlFor="plan-branch" className={LABEL_CLASS}>
                 {tCommon('branchExclusive')}
               </label>
-              <select
+              <SelectField
                 id="plan-branch"
                 name="locationId"
                 value={branch.value}
                 onChange={(event) => branch.setValue(event.target.value)}
-                className={`${FIELD_CLASS} sm:max-w-xs`}
+                className="sm:max-w-xs"
               >
                 <option value="">{tCommon('allBranchesOption')}</option>
                 {branch.unlistedId ? (
@@ -574,7 +605,7 @@ export function SubscriptionPlanForm(props: Props) {
                     {location.name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
               <p className="text-xs text-ink-400">{tCommon('branchExclusiveHint')}</p>
             </div>
           ) : null}
@@ -584,19 +615,19 @@ export function SubscriptionPlanForm(props: Props) {
               <label htmlFor="plan-status" className={LABEL_CLASS}>
                 {t('form.statusLabel')}
               </label>
-              <select
+              <SelectField
                 id="plan-status"
                 name="status"
                 value={status}
                 onChange={(event) => setStatus(event.target.value as SubscriptionPlanStatus)}
-                className={`${FIELD_CLASS} sm:max-w-xs`}
+                className="sm:max-w-xs"
               >
                 {CREATE_STATUSES.map((option) => (
                   <option key={option.value} value={option.value}>
                     {t(option.labelKey)}
                   </option>
                 ))}
-              </select>
+              </SelectField>
               <p className="text-xs text-ink-400">{t('form.statusHint')}</p>
             </div>
           ) : null}
