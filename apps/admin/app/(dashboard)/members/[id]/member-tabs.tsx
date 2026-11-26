@@ -1621,7 +1621,11 @@ function AccessLogPanel({ member, t, locale }: { member: MemberDetail; t: T; loc
               <p {...stylex.props(styles.rowTitle)}>{t('detail.checkIn')}</p>
               <p {...stylex.props(styles.rowSub)}>{formatDateTime(entry.at, locale, timeZone)}</p>
             </div>
-            <span {...stylex.props(styles.rowStatus)}>{entry.method}</span>
+            <span {...stylex.props(styles.rowStatus)}>
+              {['QR', 'MANUAL', 'TURNSTILE'].includes(entry.method)
+                ? t(`detail.checkInMethods.${entry.method}`)
+                : entry.method}
+            </span>
           </li>
         ))}
       </ul>

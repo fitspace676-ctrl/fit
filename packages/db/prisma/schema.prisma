@@ -80,6 +80,8 @@ enum MemberTaskStatus {
 enum CheckInMethod {
   QR
   MANUAL
+  /// A passage imported from the gym's ZKTeco turnstile/door controller.
+  TURNSTILE
 }
 
 /// Platform-level lifecycle of a whole gym (tenant). A `SUSPENDED` gym is gated
@@ -411,6 +413,9 @@ enum ServiceSessionStatus {
 /// as a plain scalar to avoid a second User↔Gym relation alongside GymMember.
 model Gym {
   integrations           GymIntegration[]
+  zktecoMembers          ZktecoMember[]
+  zktecoSyncState        ZktecoSyncState?
+  zktecoEvents           ZktecoEvent[]
   paymentAttempts        PaymentAttempt[]
   paymentReversals       PaymentReversal[]
   onboarding             GymOnboarding?
@@ -769,6 +774,12 @@ model GymMember {
   /// rule belongs to the signup contract, not to the table.
   personalId String?
 
+  /// The member's access card (RFID/EM) number, pushed to the gym's ZKTeco
+  /// turnstiles when the integration's `syncCard` setting is on. Digits only and
+  /// at most a uint32 so a standalone device can store it too. Unique per gym:
+  /// one card opens the gate for one person.
+  accessCardNumber String?
+
   /// The day the membership is meant to BEGIN, as the member or the front desk
   /// chose it — a recorded fact about the enrolment, shown on the member profile.
   ///
@@ -939,8 +950,11 @@ model GymMember {
   trainerProfile          Trainer?
 
   bookingBlocks BookingBlock[]
+  /// This member's identity on the gym's ZKTeco turnstiles, once pushed.
+  zktecoIdentity ZktecoMember?
 
   @@unique([userId, gymId])
+  @@unique([gymId, accessCardNumber])
   // The admin roster lists a gym's MEMBER-role memberships filtered by `status`,
   // sorted by `joinedAt`, and paginated, plus per-status tab counts (T9.9). At
   // ~10k members these composites let Postgres serve the filter+sort+page and the
@@ -4363,12 +4377,101 @@ model GymIntegration {
   secretHint       String?
   verifiedAt       DateTime?
   lastError        String?
+  /// Provider-specific, non-secret configuration. For `zkteco`:
+  /// `{ connection: { connectionType, baseUrl | host, port, deviceNumber, recordSize },
+  ///    options: ZktecoSettings }` (see `packages/types/src/zkteco.ts`). Null for
+  /// Flitt and Sender. Secrets never go here: they live in `secretCiphertext`.
+  settings         Json?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   gym              Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
   @@unique([gymId, provider])
   @@map("gym_integrations")
+}
+
+/// One gym member's identity on the gym's ZKTeco server/device, and where its
+/// sync stands. The PIN is allocated once per gym and never reused, so passages
+/// imported later always resolve to the same person.
+///
+/// `gymMemberId` is `SetNull` rather than cascade: when a member row is purged the
+/// identity survives with no member, and the reconcile job deletes the person from
+/// the turnstile before deleting this row. A cascade would lose the PIN and leave
+/// the person able to walk in.
+model ZktecoMember {
+  id          String     @id @default(cuid())
+  gymId       String
+  gymMemberId String?    @unique
+  /// Numeric string. Standalone devices also use it as the user id.
+  pin         String
+  /// Standalone device user slot (1..65535); equals the PIN's number. Null on zkbio.
+  deviceUid   Int?
+  /// What the turnstile was last told: `active` | `remove_access` | `disable` |
+  /// `delete` | `none` (never pushed).
+  state       String     @default("none")
+  /// Set when the member's membership may have changed; the sync job clears it.
+  dirty       Boolean    @default(true)
+  /// The photo URL last pushed, so an unchanged photo is not uploaded again.
+  photoRef    String?
+  syncedAt    DateTime?
+  /// Short reason code of the last failed push, never provider text.
+  lastError   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  gym         Gym        @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  member      GymMember? @relation(fields: [gymMemberId], references: [id], onDelete: SetNull)
+
+  @@unique([gymId, pin])
+  @@unique([gymId, deviceUid])
+  @@index([gymId, dirty])
+  @@map("zkteco_members")
+}
+
+/// Per-gym ZKTeco job state: the event cursor and the counters the card shows.
+model ZktecoSyncState {
+  id               String    @id @default(cuid())
+  gymId            String    @unique
+  /// zkbio: ISO instant of the newest passage seen; device: device-local wall
+  /// clock (`2026-11-20T09:15:00`) of the newest attendance record seen.
+  eventCursor      String?
+  lastImportAt     DateTime?
+  lastEventAt      DateTime?
+  /// Membership changes are picked up by `Subscription.updatedAt` since this instant.
+  lastChangeScanAt DateTime?
+  lastSyncAt       DateTime?
+  lastReconcileAt  DateTime?
+  /// Running totals for the card, moved only by `{ increment }`.
+  /// @counter
+  eventsImported   Int       @default(0)
+  /// @counter
+  eventsIgnored    Int       @default(0)
+  lastError        String?
+  lastErrorAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  gym              Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@map("zkteco_sync_states")
+}
+
+/// One imported passage. The unique `(gymId, eventKey)` makes the import
+/// idempotent: an overlapping poll, a second API instance or a replayed page
+/// can never record the same passage twice.
+model ZktecoEvent {
+  id         String   @id @default(cuid())
+  gymId      String
+  /// `<source>:<device>:<event id or time>:<pin>`.
+  eventKey   String
+  pin        String
+  /// The check-in this passage became; null while it is being recorded.
+  checkInId  String?
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+  gym        Gym      @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@unique([gymId, eventKey])
+  @@index([gymId, occurredAt])
+  @@map("zkteco_events")
 }
 
 /// Lifecycle of one hosted-checkout attempt (see `docs/adr/payment-provider.md`,

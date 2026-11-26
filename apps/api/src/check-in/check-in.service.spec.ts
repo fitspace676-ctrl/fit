@@ -135,6 +135,35 @@ describe('CheckInService.recordCheckIn', () => {
     expect(activityStream.publish.mock.calls[0]![1]).toMatchObject({ detail: 'QR scan' });
   });
 
+  it('records a turnstile passage at the gate time, labelled "Turnstile"', async () => {
+    const { service, checkIn, activityStream } = setup();
+    checkIn.create.mockResolvedValueOnce(createdCheckIn(CheckInMethod.TURNSTILE));
+    const at = new Date('2026-07-04T09:59:30.000Z');
+
+    const result = await service.recordCheckIn(
+      { gymMemberId: 'gm-1', method: 'MANUAL', locationId: 'loc-vake' },
+      { turnstile: true, checkedInAt: at },
+    );
+
+    expect(checkIn.create.mock.calls[0]![0].data).toMatchObject({
+      method: CheckInMethod.TURNSTILE,
+      checkedInAt: at,
+      locationId: 'loc-vake',
+    });
+    expect(result.checkIn.method).toBe('TURNSTILE');
+    expect(activityStream.publish.mock.calls[0]![1]).toMatchObject({ detail: 'Turnstile' });
+  });
+
+  it('never lets the desk body choose TURNSTILE or the arrival time', async () => {
+    const { service, checkIn } = setup();
+
+    await service.recordCheckIn({ gymMemberId: 'gm-1', method: 'QR' });
+
+    const data = checkIn.create.mock.calls[0]![0].data as Record<string, unknown>;
+    expect(data.method).toBe(CheckInMethod.QR);
+    expect(data).not.toHaveProperty('checkedInAt');
+  });
+
   it('still resolves the check-in when the live publish rejects', async () => {
     const { service, activityStream } = setup();
     activityStream.publish.mockRejectedValueOnce(new Error('redis down'));

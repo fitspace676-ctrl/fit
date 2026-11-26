@@ -18,6 +18,7 @@ const row: GymIntegration = {
   secretHint: 'st',
   verifiedAt: new Date(),
   lastError: null,
+  settings: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

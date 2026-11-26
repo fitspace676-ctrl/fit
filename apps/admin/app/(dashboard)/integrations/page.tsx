@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { ApiError, fetchIntegrations } from '@/lib/api';
 import { getServerSession } from '@/lib/session';
+import { ZktecoCard } from './zkteco-card';
 import { IntegrationsForm } from './integrations-form';
 
 export const dynamic = 'force-dynamic';
@@ -33,5 +34,9 @@ export default async function IntegrationsPage() {
     lastError: null,
     testMode: false,
   };
-  return <IntegrationsForm initial={flitt} sender={sender} />;
+  return (
+    <IntegrationsForm initial={flitt} sender={sender}>
+      <ZktecoCard />
+    </IntegrationsForm>
+  );
 }

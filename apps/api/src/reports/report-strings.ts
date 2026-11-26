@@ -219,7 +219,7 @@ const EN: ReportStrings = {
       reactivated: 'Reactivated',
       noVisit: 'No visit for {days} days',
     },
-    checkInMethods: { QR: 'QR code', MANUAL: 'Manual' },
+    checkInMethods: { QR: 'QR code', MANUAL: 'Manual', TURNSTILE: 'Turnstile' },
     cardPos: 'Card / POS',
     invoiceStatuses: {
       paid: 'Paid',
@@ -1114,7 +1114,7 @@ const KA: ReportStrings = {
       reactivated: 'დაბრუნდა',
       noVisit: 'ვიზიტი არ ყოფილა {days} დღე',
     },
-    checkInMethods: { QR: 'QR კოდი', MANUAL: 'ხელით' },
+    checkInMethods: { QR: 'QR კოდი', MANUAL: 'ხელით', TURNSTILE: 'ტურნიკეტი' },
     cardPos: 'ბარათი / სალარო',
     invoiceStatuses: {
       paid: 'გადახდილი',
