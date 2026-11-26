@@ -1405,7 +1405,7 @@ export class AuthService {
 
     const realms = gym ? signInRealms(gym.id, audience) : [];
     const slots = audience ? 1 : 2;
-    const attempts: { hash: string | null; match: AccountMatch | null }[] = [];
+    const attempts: { hash: string | null; match: AccountMatch | null; slot: number }[] = [];
     // One attempt per account in the slot, and one dummy for an empty slot. An
     // address has at most one account per slot; a phone number may have several.
     const NO_ACCOUNT = [undefined];
@@ -1415,6 +1415,7 @@ export class AuthService {
       for (const account of inRealm.length > 0 ? inRealm : NO_ACCOUNT) {
         const credential = account ? ownCredential(account) : null;
         attempts.push({
+          slot: index,
           hash: credential?.passwordHash ?? null,
           match:
             account && credential
@@ -1427,6 +1428,7 @@ export class AuthService {
       const superAdmins = accounts.filter((a) => a.realm === PLATFORM_REALM && a.isSuperAdmin);
       for (const platform of superAdmins.length > 0 ? superAdmins : NO_ACCOUNT) {
         attempts.push({
+          slot: slots,
           hash: platform?.passwordHash ?? null,
           match: platform
             ? { userId: platform.id, emailVerifiedAt: platform.emailVerifiedAt }
@@ -1436,7 +1438,18 @@ export class AuthService {
     }
 
     const results = await Promise.all(attempts.map((attempt) => verify(attempt.hash)));
-    return attempts.find((attempt, index) => results[index] && attempt.match)?.match ?? null;
+    const unlocked = attempts.filter((attempt, index) => results[index] && attempt.match);
+    const first = unlocked[0];
+    if (!first) {
+      return null;
+    }
+    // A phone number can sit on several accounts of one realm (a member who
+    // registered twice), and one password can open more than one of them. An
+    // unverified one must not shadow the one that can actually sign in.
+    const verified = unlocked.find(
+      (attempt) => attempt.slot === first.slot && attempt.match?.emailVerifiedAt,
+    );
+    return (verified ?? first).match;
   }
 
   /**
@@ -1512,7 +1525,18 @@ export class AuthService {
 
     const byGym = new Map<string, (typeof candidates)[number]>();
     candidates.forEach((candidate, index) => {
-      if (results[index] && !byGym.has(candidate.credential.gymId)) {
+      if (!results[index]) {
+        return;
+      }
+      const held = byGym.get(candidate.credential.gymId);
+      // Within a gym and an audience, a verified account beats an unverified one
+      // the same password opens (see `matchGymAccount`).
+      const better =
+        held !== undefined &&
+        held.audience === candidate.audience &&
+        !held.credential.emailVerifiedAt &&
+        candidate.credential.emailVerifiedAt;
+      if (!held || better) {
         byGym.set(candidate.credential.gymId, candidate);
       }
     });

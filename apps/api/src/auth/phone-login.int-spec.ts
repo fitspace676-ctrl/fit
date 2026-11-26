@@ -163,6 +163,42 @@ describe('sign-in by phone number (integration)', () => {
     expect(claimsOf(asChild.accessToken).sub).toBe(child);
   });
 
+  it('signs into the verified account when an older unverified one shares the number and the password', async () => {
+    // A member who registered twice: the first registration was never verified.
+    await account(downtownId, 'member', {
+      email: 'first-try@example.com',
+      password: 'same-secret-1',
+      userPhone: '557409798',
+      verified: false,
+    });
+    const verified = await account(downtownId, 'member', {
+      email: 'second-try@example.com',
+      password: 'same-secret-1',
+      phone: '557409798',
+    });
+
+    const onGym = await auth.login(
+      { phone: '557409798', password: 'same-secret-1', audience: 'member' },
+      'downtown',
+    );
+    const gymless = await auth.login({ phone: '557409798', password: 'same-secret-1' });
+    expect(claimsOf(onGym.accessToken).sub).toBe(verified);
+    expect(claimsOf(gymless.accessToken).sub).toBe(verified);
+  });
+
+  it('still answers EMAIL_NOT_VERIFIED when the only account the password opens is unverified', async () => {
+    await account(downtownId, 'member', {
+      email: 'first-try@example.com',
+      password: 'same-secret-1',
+      phone: '557409798',
+      verified: false,
+    });
+
+    await expect(
+      auth.login({ phone: '557409798', password: 'same-secret-1' }, 'downtown'),
+    ).rejects.toMatchObject({ response: { code: 'EMAIL_NOT_VERIFIED' } });
+  });
+
   it('keeps the audiences apart: a staff number opens the console, not the member app', async () => {
     const staff = await account(downtownId, 'staff', {
       email: 'desk@example.com',
