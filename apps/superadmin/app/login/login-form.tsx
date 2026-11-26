@@ -3,8 +3,7 @@
 import { type FormEvent, useCallback, useState } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { useSearchParams } from 'next/navigation';
-import { Button } from '@fit/ui-kit';
-import { TextInput } from '@astryxdesign/core/TextInput';
+import { Button, Field } from '@fit/ui-kit';
 import type { TokenPair } from '@fit/types';
 
 /** Base URL of the @fit/api backend (inlined at build via NEXT_PUBLIC_*). */
@@ -109,28 +108,29 @@ export function OperatorLoginForm() {
         </p>
       ) : null}
 
-      <TextInput
+      <Field
         type="email"
         label="Email"
-        htmlName="email"
-        size="lg"
+        name="email"
+        autoComplete="email"
         placeholder="you@example.com"
         value={email}
-        onChange={(value) => setEmail(value)}
-        isRequired
-        isDisabled={pending}
+        onChange={(event) => setEmail(event.target.value)}
+        required
+        disabled={pending}
       />
 
-      <TextInput
+      <Field
         type="password"
         label="Password"
-        htmlName="password"
-        size="lg"
+        name="password"
+        autoComplete="current-password"
         placeholder="••••••••"
         value={password}
-        onChange={(value) => setPassword(value)}
-        isRequired
-        isDisabled={pending}
+        onChange={(event) => setPassword(event.target.value)}
+        required
+        disabled={pending}
+        revealLabels={{ show: 'Show password', hide: 'Hide password' }}
       />
 
       <Button

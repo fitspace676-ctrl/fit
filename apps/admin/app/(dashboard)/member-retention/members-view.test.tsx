@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NextIntlClientProvider } from 'next-intl';
-import type { DashboardMembersResponse } from '@fit/types';
+import type { DashboardMembersResponse, DashboardResolvedPeriod } from '@fit/types';
 
 const loadMembersAction = vi.fn();
 vi.mock('./actions', () => ({
@@ -14,12 +14,19 @@ const { MembersView } = await import('./members-view');
 const messages = {
   admin: {
     dashboard: {
+      periodWindow: {
+        today: 'Today · {from}',
+        week: 'This week · {from} – {to}',
+        month: 'This month · {from} – {to}',
+        custom: '{from} – {to}',
+      },
       members: {
         granularityLabel: 'Granularity',
         granularity: { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' },
         window: { daily: 'Last 30 days', weekly: 'Last 12 weeks', monthly: 'Last 12 months' },
         kpi: {
           activeMembers: 'Active members',
+          frozenMembers: 'Frozen members',
           newSignups: 'New signups',
           churned: 'Churned',
           avgLtv: 'Avg LTV',
@@ -50,6 +57,7 @@ const messages = {
         },
         status: {
           title: 'Members by status',
+          caption: 'One row per person · {total} in all',
           name: {
             trial: 'Trial',
             active: 'Active',
@@ -57,6 +65,8 @@ const messages = {
             frozen: 'Frozen',
             canceled: 'Cancelled',
             expired: 'Expired',
+            suspended: 'Account not active',
+            upcoming: 'Not started yet',
           },
           empty: 'No memberships on record.',
         },
@@ -73,7 +83,7 @@ function response(over: Partial<DashboardMembersResponse> = {}): DashboardMember
     retentionWindow: '30',
     expiringWindow: '7',
     currency: 'GEL',
-    kpis: { activeMembers: 42, newSignups: 5, churned: 2, avgLtv: 18_000 },
+    kpis: { activeMembers: 42, frozenMembers: 12, newSignups: 5, churned: 2, avgLtv: 18_000 },
     activeOverTime: [
       { label: '2026-08-01', value: 40 },
       { label: '2026-08-02', value: 42 },
@@ -94,10 +104,10 @@ function response(over: Partial<DashboardMembersResponse> = {}): DashboardMember
   };
 }
 
-function renderView() {
+function renderView(period?: DashboardResolvedPeriod) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <MembersView />
+      <MembersView period={period} />
     </NextIntlClientProvider>,
   );
 }
@@ -231,11 +241,39 @@ describe('MembersView', () => {
     ).toBeInTheDocument();
   });
 
+  // The header period is the dashboard's one time filter: the tab asks for the
+  // overview's window and names it, instead of a rolling "Last 30 days".
+  it('asks for the header period and names its window', async () => {
+    const month: DashboardResolvedPeriod = {
+      period: 'month',
+      from: '2026-11-01',
+      to: '2026-11-30',
+    };
+    loadMembersAction.mockResolvedValue({ ok: true, data: response({ period: month }) });
+    renderView(month);
+
+    await screen.findByText('Total active members');
+    expect(loadMembersAction).toHaveBeenCalledWith(
+      expect.objectContaining({ period: 'month', from: '2026-11-01', to: '2026-11-30' }),
+    );
+    expect(screen.getByText('This month · Nov 1 – Nov 30')).toBeInTheDocument();
+  });
+
+  // Active and frozen are separate figures, and the status rows are people that
+  // add up to the caption's total.
+  it('shows frozen beside active and totals the status rows', async () => {
+    renderView();
+    await screen.findByText('Total active members');
+
+    expect(screen.getByText('Frozen members')).toBeInTheDocument();
+    expect(screen.getByText('One row per person · 42 in all')).toBeInTheDocument();
+  });
+
   it('shows each card its own empty state', async () => {
     loadMembersAction.mockResolvedValue({
       ok: true,
       data: response({
-        kpis: { activeMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
+        kpis: { activeMembers: 0, frozenMembers: 0, newSignups: 0, churned: 0, avgLtv: 0 },
         activeOverTime: [{ label: '2026-08-01', value: 0 }],
         signupsVsChurn: [{ label: '2026-08-01', signups: 0, churned: 0 }],
         retention: [{ label: '2026-08-01', value: null }],

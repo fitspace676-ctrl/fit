@@ -43,6 +43,8 @@ export interface BillableSubscription {
   currentPeriodEnd: Date;
   /** Renewal cadence, snapshotted at enrolment; drives the next period's length. */
   interval: SubscriptionInterval;
+  /** How many `interval`s a period lasts; `1` when absent. */
+  intervalCount?: number;
   /** A member-requested cancellation that should take effect at period end. */
   cancelAtPeriodEnd: boolean;
   /**
@@ -160,6 +162,6 @@ export function classifyDueSubscription(
   // A renewal charge is owed. The next period is contiguous with the elapsed one so
   // the cadence never drifts, regardless of when the job runs.
   const nextPeriodStart = sub.currentPeriodEnd;
-  const nextPeriodEnd = addInterval(sub.currentPeriodEnd, sub.interval);
+  const nextPeriodEnd = addInterval(sub.currentPeriodEnd, sub.interval, sub.intervalCount ?? 1);
   return { action: 'charge', nextPeriodStart, nextPeriodEnd };
 }

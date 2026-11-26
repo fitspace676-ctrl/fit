@@ -20,6 +20,7 @@ import { TopBar } from './top-bar';
 // `vi.mock` above the imports, and the factory runs while `./top-bar` is being
 // imported — before any plain `const` in this file has been initialised.
 const mocks = vi.hoisted(() => ({
+  user: null as { role: string } | null,
   setActive: vi.fn(),
   active: { current: 'all' },
   /** Whether this operator's role works gym-wide — see the branch-scope specs below. */
@@ -31,7 +32,7 @@ vi.mock('next/navigation', () => navigationMock.factory());
 // The bar's session menu fetches `/api/session` on mount; there is no session
 // route under vitest and the menu is not what this spec is about.
 vi.mock('@/hooks/use-session', () => ({
-  useSession: () => ({ user: null, isLoading: false }),
+  useSession: () => ({ user: mocks.user, isLoading: false }),
 }));
 
 vi.mock('./active-location', () => ({
@@ -66,12 +67,12 @@ const LOCATIONS = [
   { id: 'loc-harbour', name: 'Harbour' },
 ];
 
-function renderBar(locations = LOCATIONS) {
+function renderBar(locations = LOCATIONS, displayName?: string) {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <ThemeProvider initial="dark">
         <ToastProvider>
-          <TopBar locations={locations} />
+          <TopBar locations={locations} displayName={displayName} />
         </ToastProvider>
       </ThemeProvider>
     </NextIntlClientProvider>,
@@ -80,10 +81,18 @@ function renderBar(locations = LOCATIONS) {
 
 describe('TopBar branch switcher', () => {
   beforeEach(() => {
+    mocks.user = null;
     navigationMock.reset();
     mocks.setActive.mockReset();
     mocks.active.current = 'all';
     mocks.canSelectAll.current = true;
+  });
+
+  it('shows the invited name in the profile menu', async () => {
+    mocks.user = { role: 'RECEPTIONIST' };
+    renderBar(LOCATIONS, 'Nino Beridze');
+    await userEvent.click(screen.getByRole('button', { name: 'Profile' }));
+    expect(screen.getByText('Nino Beridze')).toBeVisible();
   });
 
   it('renders no switcher for a gym with no locations', () => {
@@ -146,6 +155,7 @@ describe('TopBar branch switcher, for a branch-scoped role', () => {
   // roster it does list has already been narrowed by the console layout, so every
   // option here is one they hold.
   beforeEach(() => {
+    mocks.user = null;
     navigationMock.reset();
     mocks.setActive.mockReset();
     mocks.canSelectAll.current = false;

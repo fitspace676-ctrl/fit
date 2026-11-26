@@ -1,11 +1,12 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { StaffMember, UpdateStaffProfileInput } from '@fit/types';
-import { Badge, Dot, Drawer } from '@fit/ui-kit';
+import { Badge, ConfirmDialog, Dot, Drawer } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { useActiveLocation } from '@/components/active-location';
 import { ROLE_TONES, STAFF_ROLES, STATUS_DOT, STATUS_TONES, initialsOf } from './role-meta';
@@ -19,7 +20,12 @@ import {
   type StaffFormValue,
 } from './staff-form-fields';
 import { loadStaffScheduleAction } from './depth-actions';
-import { updateStaffProfileAction, updateStaffRoleAction } from './actions';
+import {
+  removeStaffAction,
+  staffDeleteImpactAction,
+  updateStaffProfileAction,
+  updateStaffRoleAction,
+} from './actions';
 import { createDateTimeFormat, defaultLocale } from '@fit/i18n';
 
 const FORM_ID = 'staff-profile-form';
@@ -181,6 +187,18 @@ const styles = stylex.create({
       ':active': 'brightness(0.95)',
     },
   },
+  // Destructive, and set apart from Cancel / Save at the footer's start.
+  btnDanger: {
+    flexShrink: 0,
+    width: '2.75rem',
+    marginInlineEnd: 'auto',
+    paddingInline: 0,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover': 'var(--color-error-muted)',
+    },
+    color: 'var(--color-error)',
+  },
   btnIcon: {
     width: '1rem',
     height: '1rem',
@@ -217,9 +235,12 @@ export function StaffProfileDrawer({
   canEdit,
   canAssignRole,
   canAssignOwner,
+  currentUserId = null,
 }: {
   member: StaffMember | null;
   onClose: () => void;
+  /** The signed-in user — their own row can't be removed. */
+  currentUserId?: string | null;
   locations: { id: string; name: string }[];
   /** `StaffManage` — the Edit button. */
   canEdit: boolean;
@@ -228,6 +249,7 @@ export function StaffProfileDrawer({
   /** Owners only: may pick Owner, or edit an existing owner's role. */
   canAssignOwner: boolean;
 }) {
+  const timeZone = useGymTimeZone();
   const t = useTranslations('admin.staff');
   // Only ever a fallback for a NEWLY switched-on day — `hoursFromShifts` carries
   // each existing shift's own branch through the grid, so an edit made under one
@@ -288,7 +310,9 @@ export function StaffProfileDrawer({
     const input: UpdateStaffProfileInput = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
-      status: form.status,
+      // A pending invitee stays INVITED until they accept; only an explicit
+      // suspension changes that from here.
+      status: member.status === 'INVITED' && form.status === 'ACTIVE' ? undefined : form.status,
       email: form.email.trim() || undefined,
       phone: form.phone.trim(),
       // Unchanged on the wire and still correct: Stage 6 re-pointed
@@ -315,6 +339,38 @@ export function StaffProfileDrawer({
     });
   }
 
+  // Removal, the same flow as the table's row menu: load what the person is
+  // still attached to, confirm, then remove (sessions are revoked at once).
+  const [removeImpact, setRemoveImpact] = useState<{ classes: number; ptSessions: number } | null>(
+    null,
+  );
+  const [removing, startRemoving] = useTransition();
+  const canRemove =
+    canEdit &&
+    member !== null &&
+    !(currentUserId !== null && member.userId === currentUserId) &&
+    !(member.role === 'OWNER' && !canAssignOwner);
+
+  function askRemove(): void {
+    if (!member) return;
+    setError(null);
+    startRemoving(async () => {
+      const result = await staffDeleteImpactAction(member.id);
+      if (result.ok) setRemoveImpact(result.data);
+      else setError(result.error);
+    });
+  }
+
+  function confirmRemove(): void {
+    if (!member) return;
+    startRemoving(async () => {
+      const result = await removeStaffAction(member.id);
+      setRemoveImpact(null);
+      if (result.ok) onClose();
+      else setError(result.error);
+    });
+  }
+
   const detail = (label: string, value: string, empty: boolean, last = false) => (
     <div {...stylex.props(styles.detailRow, last && styles.detailRowLast)}>
       <span {...stylex.props(styles.detailLabel)}>{label}</span>
@@ -325,132 +381,165 @@ export function StaffProfileDrawer({
   const editing = mode === 'edit' && form !== null;
 
   return (
-    <Drawer
-      open={member !== null}
-      onClose={close}
-      label={editing ? t('profileDrawer.editTitle') : t('profileDrawer.title')}
-      dismissible={!pending}
-      footer={
-        editing ? (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('view');
-                setError(null);
-              }}
-              disabled={pending}
-              {...stylex.props(styles.btn, styles.btnCancel)}
-            >
-              {t('profileDrawer.cancel')}
-            </button>
-            <button
-              type="submit"
-              form={FORM_ID}
-              disabled={pending}
-              {...stylex.props(styles.btn, styles.btnPrimary)}
-            >
-              <Icon name="check" {...stylex.props(styles.btnIcon)} sw={2.5} />
-              {pending ? t('profileDrawer.saving') : t('profileDrawer.save')}
-            </button>
-          </>
-        ) : (
-          <>
-            <button type="button" onClick={close} {...stylex.props(styles.btn, styles.btnCancel)}>
-              {t('profileDrawer.close')}
-            </button>
-            {canEdit ? (
+    <>
+      <Drawer
+        open={member !== null}
+        onClose={close}
+        label={editing ? t('profileDrawer.editTitle') : t('profileDrawer.title')}
+        dismissible={!pending && !removing}
+        footer={
+          editing ? (
+            <>
+              {canRemove ? (
+                <button
+                  type="button"
+                  onClick={askRemove}
+                  aria-label={t('rowMenu.remove')}
+                  title={t('rowMenu.remove')}
+                  disabled={pending || removing}
+                  {...stylex.props(styles.btn, styles.btnDanger)}
+                >
+                  <Icon name="trash" {...stylex.props(styles.btnIcon)} sw={2} />
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={enterEdit}
-                disabled={preparing}
+                onClick={() => {
+                  setMode('view');
+                  setError(null);
+                }}
+                disabled={pending}
+                {...stylex.props(styles.btn, styles.btnCancel)}
+              >
+                {t('profileDrawer.cancel')}
+              </button>
+              <button
+                type="submit"
+                form={FORM_ID}
+                disabled={pending}
                 {...stylex.props(styles.btn, styles.btnPrimary)}
               >
-                <Icon name="settings" {...stylex.props(styles.btnIcon)} sw={2} />
-                {preparing ? t('profileDrawer.loading') : t('profileDrawer.edit')}
+                <Icon name="check" {...stylex.props(styles.btnIcon)} sw={2.5} />
+                {pending ? t('profileDrawer.saving') : t('profileDrawer.save')}
               </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={close} {...stylex.props(styles.btn, styles.btnCancel)}>
+                {t('profileDrawer.close')}
+              </button>
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={enterEdit}
+                  disabled={preparing}
+                  {...stylex.props(styles.btn, styles.btnPrimary)}
+                >
+                  <Icon name="settings" {...stylex.props(styles.btnIcon)} sw={2} />
+                  {preparing ? t('profileDrawer.loading') : t('profileDrawer.edit')}
+                </button>
+              ) : null}
+            </>
+          )
+        }
+      >
+        {editing ? (
+          <form
+            id={FORM_ID}
+            onSubmit={(e) => {
+              e.preventDefault();
+              save();
+            }}
+            {...stylex.props(styles.form)}
+          >
+            <StaffFormFields
+              value={form}
+              onChange={patch}
+              locations={locations}
+              pending={pending}
+              roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
+              roleLocked={!canAssignRole || (member.role === 'OWNER' && !canAssignOwner)}
+              hoursLocked={form.role === 'TRAINER'}
+              lockedHours={storedHours}
+            />
+            {error ? (
+              <p role="alert" {...stylex.props(styles.error)}>
+                {error}
+              </p>
             ) : null}
-          </>
-        )
-      }
-    >
-      {editing ? (
-        <form
-          id={FORM_ID}
-          onSubmit={(e) => {
-            e.preventDefault();
-            save();
-          }}
-          {...stylex.props(styles.form)}
-        >
-          <StaffFormFields
-            value={form}
-            onChange={patch}
-            locations={locations}
-            pending={pending}
-            roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
-            roleLocked={!canAssignRole || (member.role === 'OWNER' && !canAssignOwner)}
-            hoursLocked={form.role === 'TRAINER'}
-            lockedHours={storedHours}
-          />
-          {error ? (
-            <p role="alert" {...stylex.props(styles.error)}>
-              {error}
-            </p>
-          ) : null}
-        </form>
-      ) : (
-        <div {...stylex.props(styles.body)}>
-          <div {...stylex.props(styles.identity)}>
-            <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
-            <div {...stylex.props(styles.identityText)}>
-              <h3 {...stylex.props(styles.name)}>{member.name}</h3>
-              <div {...stylex.props(styles.badges)}>
-                <Badge tone={ROLE_TONES[member.role]} label={t(`roles.${member.role}`)} />
-                <Badge
-                  tone={STATUS_TONES[member.status]}
-                  label={
-                    <>
-                      <Dot tone={STATUS_DOT[member.status]} /> {t(`status.${member.status}`)}
-                    </>
-                  }
-                />
-              </div>
-              {/* The coach profile this person teaches under — the same human on
+          </form>
+        ) : (
+          <div {...stylex.props(styles.body)}>
+            <div {...stylex.props(styles.identity)}>
+              <span {...stylex.props(styles.avatar)}>{initialsOf(member.name)}</span>
+              <div {...stylex.props(styles.identityText)}>
+                <h3 {...stylex.props(styles.name)}>{member.name}</h3>
+                <div {...stylex.props(styles.badges)}>
+                  <Badge tone={ROLE_TONES[member.role]} label={t(`roles.${member.role}`)} />
+                  <Badge
+                    tone={STATUS_TONES[member.status]}
+                    label={
+                      <>
+                        <Dot tone={STATUS_DOT[member.status]} /> {t(`status.${member.status}`)}
+                      </>
+                    }
+                  />
+                </div>
+                {/* The coach profile this person teaches under — the same human on
                   the Trainers screen, where their bio, specialties, availability
                   and the classes assigned to them live. */}
-              {member.trainerId ? (
-                <Link href={`/trainers/${member.trainerId}`} {...stylex.props(styles.coachLink)}>
-                  <Icon name="dumbbell" {...stylex.props(styles.coachIcon)} sw={2} />
-                  {t('profileDrawer.coachProfile')}
-                </Link>
-              ) : null}
+                {member.trainerId ? (
+                  <Link href={`/trainers/${member.trainerId}`} {...stylex.props(styles.coachLink)}>
+                    <Icon name="dumbbell" {...stylex.props(styles.coachIcon)} sw={2} />
+                    {t('profileDrawer.coachProfile')}
+                  </Link>
+                ) : null}
+              </div>
             </div>
-          </div>
 
-          <div {...stylex.props(styles.details)}>
-            {detail(t('addStaffDrawer.email'), member.email || '-', !member.email)}
-            {detail(t('addStaffDrawer.phone'), member.phone || '-', !member.phone)}
-            {detail(
-              t('addStaffDrawer.locations'),
-              member.locations.length > 0 ? member.locations.join(', ') : '-',
-              member.locations.length === 0,
-            )}
-            {detail(
-              t('profileDrawer.joined'),
-              createDateTimeFormat(defaultLocale, {}).format(new Date(member.joinedAt)),
-              false,
-              true,
-            )}
-          </div>
+            <div {...stylex.props(styles.details)}>
+              {detail(t('addStaffDrawer.email'), member.email || '-', !member.email)}
+              {detail(t('addStaffDrawer.phone'), member.phone || '-', !member.phone)}
+              {detail(
+                t('addStaffDrawer.locations'),
+                member.locations.length > 0 ? member.locations.join(', ') : '-',
+                member.locations.length === 0,
+              )}
+              {detail(
+                t('profileDrawer.joined'),
+                createDateTimeFormat(defaultLocale, { timeZone, dateStyle: 'medium' }).format(
+                  new Date(member.joinedAt),
+                ),
+                false,
+                true,
+              )}
+            </div>
 
-          {error ? (
-            <p role="alert" {...stylex.props(styles.error)}>
-              {error}
-            </p>
-          ) : null}
-        </div>
-      )}
-    </Drawer>
+            {error ? (
+              <p role="alert" {...stylex.props(styles.error)}>
+                {error}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </Drawer>
+
+      {/* Remove confirmation — removal revokes their sessions immediately. */}
+      <ConfirmDialog
+        open={removeImpact !== null}
+        onClose={() => setRemoveImpact(null)}
+        onConfirm={confirmRemove}
+        loading={removing}
+        confirmVariant="destructive"
+        confirmLabel={t('confirm.removeConfirm')}
+        cancelLabel={t('confirm.cancel')}
+        title={member ? t('confirm.removeTitle', { name: member.name }) : ''}
+        description={
+          t('confirm.removeBody') +
+          ' ' +
+          t('confirm.removeImpact', removeImpact ?? { classes: 0, ptSessions: 0 })
+        }
+      />
+    </>
   );
 }

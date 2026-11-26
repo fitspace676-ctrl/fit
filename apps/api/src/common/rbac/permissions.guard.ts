@@ -12,7 +12,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { ALLOW_CROSS_TENANT_KEY } from '../decorators/allow-cross-tenant.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
+import { ANY_PERMISSIONS_KEY, PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { TenantContext, type TenantState } from '../tenant/tenant.context';
 import {
@@ -43,6 +43,8 @@ const SELF_SERVICE = new Set<Permission>(SELF_SERVICE_PERMISSIONS);
  *   `Gym.settings.permissions` (see {@link RequestAccessResolver}); `SUPER_ADMIN`
  *   and `OWNER` hold every permission unconditionally. Any missing permission — or
  *   any failure to resolve the set at all — is a `403`.
+ * - `@RequireAnyPermissions(...)` — the same runtime grant resolution and branch
+ *   scope, requiring at least one capability. Resource ownership stays in the service.
  * - `@Roles(...)` — authorization is delegated to {@link RolesGuard}; this guard
  *   only confirms an authenticated session is present and lets the route through.
  * - `@AllowCrossTenant()` — a platform/SuperAdmin route whose authorization is
@@ -110,7 +112,10 @@ export class PermissionsGuard implements CanActivate {
     );
     if (requiredPermissions && requiredPermissions.length > 0) {
       const access = await this.resolveAccess(state);
-      const hasAll = requiredPermissions.every((permission) => access.grants.includes(permission));
+      const any = this.reflector.getAllAndOverride<boolean>(ANY_PERMISSIONS_KEY, targets);
+      const hasAll = any
+        ? requiredPermissions.some((permission) => access.grants.includes(permission))
+        : requiredPermissions.every((permission) => access.grants.includes(permission));
       if (!hasAll) {
         throw new ForbiddenException({
           message: 'You do not have permission to perform this action',

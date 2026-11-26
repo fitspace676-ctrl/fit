@@ -33,6 +33,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
 import { placeholderEmail, splitDisplayName } from '../common/directory-identity';
+import { staffRealm } from '../auth/account-realm';
 import { staffAtLocation } from '../common/location-filter.util';
 import { MediaCleanupService } from '../storage/media-cleanup.service';
 import { assertOwnedMedia } from '../storage/media-ownership';
@@ -171,7 +172,7 @@ export class AdminTrainersService {
    */
   async getTrainer(id: string): Promise<GetAdminTrainerResponse> {
     const row = await this.prisma.client.trainer.findFirst({
-      where: { id },
+      where: { id, archivedAt: null },
       select: TRAINER_SELECT,
     });
     if (!row) {
@@ -217,7 +218,7 @@ export class AdminTrainersService {
 
     const id = await this.prisma.client.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { email: placeholderEmail(), name: input.name },
+        data: { email: placeholderEmail(), realm: staffRealm(gymId), name: input.name },
         select: { id: true },
       });
       const staff = await tx.gymMember.create({
@@ -282,7 +283,7 @@ export class AdminTrainersService {
 
     await this.prisma.client.$transaction(async (tx) => {
       await tx.trainer.update({
-        where: { id },
+        where: { id, archivedAt: null },
         data: {
           name: input.name,
           headline: input.headline,
@@ -339,7 +340,7 @@ export class AdminTrainersService {
    */
   async getAvailability(id: string): Promise<GetTrainerAvailabilityResponse> {
     const row = await this.prisma.client.trainer.findFirst({
-      where: { id },
+      where: { id, archivedAt: null },
       select: { availability: true },
     });
     if (!row) {
@@ -362,7 +363,7 @@ export class AdminTrainersService {
     const trainer = await this.requireTrainer(id);
     await this.prisma.client.$transaction(async (tx) => {
       await tx.trainer.update({
-        where: { id },
+        where: { id, archivedAt: null },
         data: { availability: input.availability as unknown as Prisma.InputJsonValue },
       });
       // A coach with no staff record has nothing to hang shifts on, and a
@@ -381,7 +382,7 @@ export class AdminTrainersService {
   /** Set a trainer's lifecycle `status`, 404-ing an unknown / cross-tenant id. */
   private async setStatus(id: string, status: TrainerStatus): Promise<SetTrainerStatusResponse> {
     await this.requireTrainer(id);
-    await this.prisma.client.trainer.update({ where: { id }, data: { status } });
+    await this.prisma.client.trainer.update({ where: { id, archivedAt: null }, data: { status } });
     return this.getTrainer(id);
   }
 
@@ -479,7 +480,7 @@ export class AdminTrainersService {
     id: string,
   ): Promise<{ id: string; staffId: string | null; photoUrl: string | null }> {
     const trainer = await this.prisma.client.trainer.findFirst({
-      where: { id },
+      where: { id, archivedAt: null },
       select: { id: true, staffId: true, photoUrl: true },
     });
     if (!trainer) {
@@ -509,7 +510,10 @@ export class AdminTrainersService {
     // (`staffId` null after the person left the directory) from every branch, so a
     // filtered roster can be shorter than the gym-wide one by more than the split
     // explains.
-    const where: Prisma.TrainerWhereInput = { ...staffAtLocation(query.locationId) };
+    const where: Prisma.TrainerWhereInput = {
+      archivedAt: null,
+      ...staffAtLocation(query.locationId),
+    };
 
     if (query.status) {
       where.status = query.status;

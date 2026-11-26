@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -113,6 +114,7 @@ export function PromoCodesView({
   canManage: boolean;
 }) {
   const t = useTranslations('admin.marketing');
+  const timeZone = useGymTimeZone();
   const locale = useLocale();
   const router = useRouter();
   const { toast } = useToast();
@@ -199,7 +201,7 @@ export function PromoCodesView({
         const expired = isExpired(p, now);
         return (
           <span {...stylex.props(styles.dateMono, expired && styles.expired)}>
-            {formatDate(p.expiryDate, locale)}
+            {formatDate(p.expiryDate, locale, timeZone)}
           </span>
         );
       },

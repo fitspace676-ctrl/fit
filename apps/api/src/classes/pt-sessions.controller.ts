@@ -19,7 +19,10 @@ import {
   type CreatePtSessionResponse,
   type PtSessionStatusResponse,
 } from '@fit/types';
-import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { PtSessionsService } from './pt-sessions.service';
@@ -58,13 +61,15 @@ export class AdminPtSessionsController {
   /**
    * `POST /admin/pt-sessions` — schedule one session: `{ trainerId, classTypeId,
    * startsAt, durationMinutes, notes? }`. `endsAt` is derived server-side. Requires
-   * {@link Permission.PtSessionManage}. Returns `201` with the created session. Failure
-   * modes: `400` (invalid body), `404 TRAINER_NOT_FOUND` / `CLASS_TYPE_NOT_FOUND`
-   * (unknown / cross-tenant).
+   * {@link Permission.PtSessionManage}, or {@link Permission.PtSessionManageOwn} for a
+   * session on the caller's own coach profile (checked in the service). Returns `201`
+   * with the created session. Failure modes: `400` (invalid body), `403
+   * NOT_YOUR_PT_SESSION` (own-only caller, someone else's trainer), `404
+   * TRAINER_NOT_FOUND` / `CLASS_TYPE_NOT_FOUND` (unknown / cross-tenant).
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermissions(Permission.PtSessionManage)
+  @RequireAnyPermissions(Permission.PtSessionManage, Permission.PtSessionManageOwn)
   async create(@Body() body: unknown): Promise<CreatePtSessionResponse> {
     return this.ptSessions.createPtSession(parse(createPtSessionSchema, body));
   }

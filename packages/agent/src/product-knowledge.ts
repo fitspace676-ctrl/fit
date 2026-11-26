@@ -150,7 +150,7 @@ export const CONSOLE_PAGES: ConsolePage[] = [
     '/trainers/:id',
     'Trainer',
     'მწვრთნელი',
-    'Review schedule, clients and availability.',
+    'Review schedule, clients and availability. Delete archives the trainer and removes linked staff; future classes are unassigned and future PT sessions canceled, preserving history.',
     'trainers',
   ),
   page(

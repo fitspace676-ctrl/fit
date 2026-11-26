@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useEffect, useState, useTransition, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
@@ -35,20 +36,23 @@ import {
   STATUS_TONES,
   initialsOf,
 } from './role-meta';
-import { removeStaffAction, updateStaffRoleAction } from './actions';
+import { staffDeleteImpactAction, removeStaffAction, updateStaffRoleAction } from './actions';
 
 /** An ISO instant as a short local date, or the raw value if it won't parse. */
-function formatJoined(iso: string, locale: string): string {
+function formatJoined(iso: string, locale: string, timeZone: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? iso
-    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** The row menu's width, in px — mirrors `styles.menu`'s `12rem`, for right-aligning. */
-const MENU_WIDTH = 192;
+const MENU_WIDTH = 256;
 /**
  * Roughly how tall the menu gets (label + four roles + divider + remove). Only
  * used to decide whether it opens downward or flips above the trigger, so an
@@ -229,7 +233,7 @@ const styles = stylex.create({
     // was sliced down to the few pixels that fit inside the row.
     position: 'fixed',
     zIndex: 40,
-    width: '12rem',
+    width: '16rem',
     borderRadius: 'var(--radius-container)',
     borderWidth: '1px',
     borderStyle: 'solid',
@@ -250,7 +254,9 @@ const styles = stylex.create({
   },
   menuItem: {
     display: 'flex',
-    height: '2.25rem',
+    // Grows with a wrapped label (Georgian runs long) instead of overprinting the next row.
+    minHeight: '2.25rem',
+    paddingBlock: '0.375rem',
     width: '100%',
     alignItems: 'center',
     gap: '0.625rem',
@@ -385,6 +391,7 @@ export function StaffTable({
   display: GymStaffDirectorySettings;
 }) {
   const t = useTranslations('admin.staff');
+  const timeZone = useGymTimeZone();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -410,6 +417,7 @@ export function StaffTable({
     };
   }, [menuFor]);
   const [confirmChange, setConfirmChange] = useState<PendingChange | null>(null);
+  const [deleteImpact, setDeleteImpact] = useState({ classes: 0, ptSessions: 0 });
   const [confirmRemove, setConfirmRemove] = useState<StaffMember | null>(null);
 
   function applyRole(member: StaffMember, nextRole: StaffRole): void {
@@ -535,7 +543,9 @@ export function StaffTable({
       key: 'joined',
       header: t('columns.joined'),
       cell: (member) => (
-        <span {...stylex.props(styles.muted)}>{formatJoined(member.joinedAt, locale)}</span>
+        <span {...stylex.props(styles.muted)}>
+          {formatJoined(member.joinedAt, locale, timeZone)}
+        </span>
       ),
     },
   };
@@ -662,7 +672,13 @@ export function StaffTable({
                         onClick={() => {
                           setMenuFor(null);
                           setMenuPos(null);
-                          setConfirmRemove(member);
+                          startTransition(async () => {
+                            const result = await staffDeleteImpactAction(member.id);
+                            if (result.ok) {
+                              setDeleteImpact(result.data);
+                              setConfirmRemove(member);
+                            } else setError(result.error);
+                          });
                         }}
                         {...stylex.props(styles.menuItem, styles.menuDanger)}
                       >
@@ -779,7 +795,7 @@ export function StaffTable({
         confirmLabel={t('confirm.removeConfirm')}
         cancelLabel={t('confirm.cancel')}
         title={confirmRemove ? t('confirm.removeTitle', { name: confirmRemove.name }) : ''}
-        description={t('confirm.removeBody')}
+        description={t('confirm.removeBody') + ' ' + t('confirm.removeImpact', deleteImpact)}
       />
     </div>
   );

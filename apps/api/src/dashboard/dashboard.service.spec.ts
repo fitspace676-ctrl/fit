@@ -1,6 +1,6 @@
+import { activeMemberWhere } from '../common/live-membership.util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  GymMemberStatus,
   LocationStatus,
   ProductStatus,
   Role,
@@ -98,17 +98,15 @@ describe('DashboardService', () => {
       });
     });
 
-    it('counts only MEMBER-role memberships, active filtered by status', async () => {
+    it('counts only members with a membership in force, excluding deleted accounts', async () => {
       const { service, gymMember } = setup();
 
       await service.getStats();
 
       // First call: the active figure — MEMBER role + ACTIVE status, live only.
-      expect(gymMember.mock.calls[0]?.[0]?.where).toEqual({
-        role: Role.MEMBER,
-        status: GymMemberStatus.ACTIVE,
-        deletedAt: null,
-      });
+      expect(gymMember.mock.calls[0]?.[0]?.where).toEqual(
+        activeMemberWhere(expect.any(Date) as Date),
+      );
       // Second call: the total — MEMBER role, all statuses, trashed excluded.
       expect(gymMember.mock.calls[1]?.[0]?.where).toEqual({ role: Role.MEMBER, deletedAt: null });
     });
@@ -118,7 +116,10 @@ describe('DashboardService', () => {
 
       await service.getStats();
 
-      expect(trainer.mock.calls[0]?.[0]?.where).toEqual({ status: TrainerStatus.ACTIVE });
+      expect(trainer.mock.calls[0]?.[0]?.where).toEqual({
+        archivedAt: null,
+        status: TrainerStatus.ACTIVE,
+      });
       expect(location.mock.calls[0]?.[0]?.where).toEqual({ status: LocationStatus.ACTIVE });
       expect(product.mock.calls[0]?.[0]?.where).toEqual({ status: ProductStatus.ACTIVE });
     });
@@ -128,7 +129,7 @@ describe('DashboardService', () => {
 
       await service.getStats();
 
-      expect(trainer.mock.calls[1]?.[0]).toBeUndefined();
+      expect(trainer.mock.calls[1]?.[0]).toEqual({ where: { archivedAt: null } });
       expect(location.mock.calls[1]?.[0]).toBeUndefined();
       expect(product.mock.calls[1]?.[0]).toBeUndefined();
     });
@@ -394,7 +395,7 @@ function setupOverview() {
   const gymMemberCount = vi.fn().mockResolvedValue(0);
   const gymMemberFindMany = vi.fn().mockResolvedValue([]);
   const subscriptionCount = vi.fn().mockResolvedValue(0);
-  const subscriptionGroupBy = vi.fn().mockResolvedValue([]);
+  const subscriptionFindMany = vi.fn().mockResolvedValue([]);
   const locationFindMany = vi.fn().mockResolvedValue([]);
 
   const client = {
@@ -416,7 +417,7 @@ function setupOverview() {
       findFirst: paymentFindFirst,
     },
     classInstance: { count: classInstanceCount, findMany: classInstanceFindMany },
-    subscription: { count: subscriptionCount, groupBy: subscriptionGroupBy },
+    subscription: { count: subscriptionCount, findMany: subscriptionFindMany },
   };
 
   const prisma = { client } as unknown as TenantPrismaService;
@@ -431,7 +432,7 @@ function setupOverview() {
     /** Every read that carries the member's HOME branch on its own column. */
     memberReads: [gymMemberCount, gymMemberFindMany],
     /** Every read that reaches the home branch through `member` (Stage 2). */
-    memberHopReads: [subscriptionCount, subscriptionGroupBy],
+    memberHopReads: [subscriptionCount, subscriptionFindMany],
     /** Every read that carries the branch WALKED INTO on its own column (Stage 3). */
     checkInReads: [checkInCount, checkInFindMany],
     /**
@@ -509,6 +510,22 @@ describe('DashboardService.getOverview — the branch filter', () => {
     }
   });
 
+  // A trashed account is not a member: the new-member KPI (both windows of its
+  // delta), the active count and the joiners table all exclude soft-deleted rows,
+  // so "new members in November" drops by the accounts moved to trash.
+  it('excludes soft-deleted members from every member read', async () => {
+    const { service, memberReads } = setupOverview();
+
+    await service.getOverview(BASE_QUERY);
+
+    for (const read of memberReads) {
+      expect(read).toHaveBeenCalled();
+      for (const where of wheres(read)) {
+        expect(where.deletedAt).toBeNull();
+      }
+    }
+  });
+
   // A `Subscription` has no `locationId` of its own and reaches one only through
   // its member — which, since Stage 2, has one. Attribution is the member's HOME
   // branch, the same fragment the Revenue tab's MRR and the Members tab's cohorts
@@ -522,7 +539,7 @@ describe('DashboardService.getOverview — the branch filter', () => {
       expect(read).toHaveBeenCalled();
       for (const where of wheres(read)) {
         expect(where).not.toHaveProperty('locationId');
-        expect(where.member).toEqual({ locationId: 'loc_1' });
+        expect(where.member).toMatchObject({ locationId: 'loc_1' });
       }
     }
   });
@@ -596,10 +613,10 @@ describe('DashboardService.getOverview — the branch filter', () => {
         expect(where).not.toHaveProperty('id');
       }
     }
-    // The member hop leaves no empty `member` key behind either.
+    // The paid mix keeps its roster filter, but no read adds a home-branch constraint.
     for (const read of memberHopReads) {
       for (const where of wheres(read)) {
-        expect(where).not.toHaveProperty('member');
+        expect(where.member ?? {}).not.toHaveProperty('locationId');
       }
     }
   });

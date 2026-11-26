@@ -54,11 +54,12 @@ export const CHANNEL_SUBJECT_LIMITS: Record<MarketingChannel, number> = {
 };
 
 /** Format an ISO timestamp as a short, locale-aware date (blank when null). */
-export function formatDate(iso: string | null, locale: string): string {
+export function formatDate(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) {
     return '';
   }
   return createDateTimeFormat(locale, {
+    timeZone,
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -66,11 +67,12 @@ export function formatDate(iso: string | null, locale: string): string {
 }
 
 /** Format an ISO timestamp as a short, locale-aware date + time (blank when null). */
-export function formatDateTime(iso: string | null, locale: string): string {
+export function formatDateTime(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) {
     return '';
   }
   return createDateTimeFormat(locale, {
+    timeZone,
     year: 'numeric',
     month: 'short',
     day: 'numeric',

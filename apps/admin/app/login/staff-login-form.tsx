@@ -5,7 +5,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Banner, Button, Field, Form, spacing } from '@fit/ui-kit';
-import type { TokenPair } from '@fit/types';
+import { loginIdentifier, type TokenPair } from '@fit/types';
 import { browserTenantHeaders } from '@/lib/tenant-host';
 import { loginGymSlug } from './login-gym-slug';
 
@@ -16,9 +16,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').rep
 const BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '/admin';
 
 const styles = stylex.create({
-  // The "forgot?" mini-action on the password label row, exactly as the member
-  // door draws it. An absolute path: recovery is the member site's reset flow
-  // (one identity system), which lives outside this app's basePath.
+  // Password recovery stays inside the console.
   forgot: {
     fontSize: '0.6875rem',
     fontWeight: 600,
@@ -33,17 +31,8 @@ const styles = stylex.create({
  * The console's own credentials sign-in, on the shared kit's door controls -
  * the same `Field`, `Banner` and 56px submit the member door renders.
  *
- * Authenticates against the same `POST /auth/login` the member site uses - there
- * is one identity system, and this is only a second door into it - then hands
- * the issued pair to the console's `POST /api/session`, which stores it as
- * httpOnly cookies. The tokens are never written anywhere client JS can read
- * them back.
- *
- * **The gym is taken from the subdomain**, not typed: `<slug>.<root>/admin`
- * means "sign me into this gym", so the slug is forwarded as `gymSlug` and the
- * session binds to that tenant rather than to whichever gym the operator joined
- * first. An operator who is not a member of the named gym falls back to their
- * primary one, exactly as the member site behaves.
+ * Authenticates with audience `staff` and the host's gym, then stores the
+ * issued tokens in the console's own httpOnly cookies through `/api/session`.
  *
  * After signing in the operator lands on the console path the middleware stashed
  * in `?from` (already basePath-prefixed when it bounced them), or the dashboard
@@ -62,6 +51,7 @@ export function StaffLoginForm() {
   const tActivate = useTranslations('admin.activate');
   const searchParams = useSearchParams();
   const from = searchParams.get('from');
+  const resetDone = searchParams.get('reset') === 'done';
   const activated = searchParams.get('activated') === '1';
 
   const [email, setEmail] = useState(() => searchParams.get('email') ?? '');
@@ -85,7 +75,12 @@ export function StaffLoginForm() {
           const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: { ...browserTenantHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, ...(gymSlug ? { gymSlug } : {}) }),
+            body: JSON.stringify({
+              audience: 'staff',
+              ...loginIdentifier(email),
+              password,
+              ...(gymSlug ? { gymSlug } : {}),
+            }),
           });
           if (!response.ok) {
             const detail = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -123,14 +118,17 @@ export function StaffLoginForm() {
       {error ? <Banner tone="error">{error}</Banner> : null}
       {/* The activation confirmation stands down as soon as anything goes wrong -
           two banners over one form is a page arguing with itself. */}
+      {resetDone && !error ? <Banner tone="success">{t('reset.done')}</Banner> : null}
       {activated && !error ? <Banner tone="success">{tActivate('signedInPrompt')}</Banner> : null}
 
       <Field
-        label={t('fields.email')}
-        type="email"
+        label={t('fields.emailOrPhone')}
+        type="text"
         name="email"
-        autoComplete="email"
-        placeholder={t('fields.emailPlaceholder')}
+        autoComplete="username"
+        autoCapitalize="none"
+        spellCheck={false}
+        placeholder={t('fields.emailOrPhonePlaceholder')}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         disabled={pending}
@@ -149,7 +147,7 @@ export function StaffLoginForm() {
         invalid={error !== null}
         revealLabels={{ show: t('showPassword'), hide: t('hidePassword') }}
         action={
-          <a href="/member/forgot-password" {...stylex.props(styles.forgot)}>
+          <a href={`${BASE_PATH}/forgot-password`} {...stylex.props(styles.forgot)}>
             {t('login.forgotPassword')}
           </a>
         }

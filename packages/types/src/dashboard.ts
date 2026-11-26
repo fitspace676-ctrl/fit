@@ -120,6 +120,27 @@ export const dashboardResolvedPeriodSchema = z.object({
 export type DashboardResolvedPeriod = z.infer<typeof dashboardResolvedPeriodSchema>;
 
 /**
+ * The header period as the segment tabs (sales, members, revenue, classes, staff)
+ * carry it. Spread into each segment's query schema so every tab can be asked for
+ * the SAME window the overview shows. Optional: a query without `period` keeps the
+ * tab's older rolling window (`granularity` picks it), which is what the AI tools
+ * and any older client still send. With `period`, `granularity` picks only the
+ * chart bucket. Each field degrades to "absent" on a bad value, never a 400.
+ */
+export const dashboardSegmentPeriodQueryShape = {
+  period: dashboardPeriodSchema.optional().catch(undefined),
+  from: dashboardDateSchema.optional().catch(undefined),
+  to: dashboardDateSchema.optional().catch(undefined),
+};
+
+/**
+ * The window a segment response was computed over, echoed so the console can name
+ * it. `null` (or absent, from an older API) when the query carried no `period` and
+ * the tab used its rolling granularity window instead.
+ */
+export const dashboardSegmentPeriodSchema = dashboardResolvedPeriodSchema.nullable().optional();
+
+/**
  * The signed-in staff member the console chrome greets by name — resolved from the
  * caller's own `GymMember` + `User`, so it is always real. `name` falls back to the
  * email's local part when the account has no display name.
@@ -191,7 +212,7 @@ export type DashboardKpis = z.infer<typeof dashboardKpisSchema>;
  * descriptive hint rather than a fabricated trend).
  */
 export const dashboardSecondaryKpisSchema = z.object({
-  /** Active `MEMBER`-role members (status ACTIVE). */
+  /** Non-deleted ACTIVE member accounts with a membership in force; excludes frozen. */
   activeMembers: z.number().int().nonnegative(),
   /** Captured revenue this calendar month (MINOR units), delta vs. last month. */
   revenueThisMonth: dashboardKpiSchema,
@@ -251,10 +272,16 @@ export type DashboardPlanSlice = z.infer<typeof dashboardPlanSliceSchema>;
 
 /** The plan-mix card: a paid-members total + one slice per live plan. */
 export const dashboardPlanMixSchema = z.object({
-  /** Total live (paid) subscriptions across all plans. */
+  /**
+   * Paying members: `active + frozen`, one person each. The slices sum to it.
+   */
   total: z.number().int().nonnegative(),
   /** One slice per plan, richest first. */
   plans: z.array(dashboardPlanSliceSchema),
+  /** Of `total`, members with a membership in force — the dashboard's active KPI. */
+  active: z.number().int().nonnegative().optional(),
+  /** Of `total`, members whose membership is frozen and who have none in force. */
+  frozen: z.number().int().nonnegative().optional(),
 });
 export type DashboardPlanMix = z.infer<typeof dashboardPlanMixSchema>;
 

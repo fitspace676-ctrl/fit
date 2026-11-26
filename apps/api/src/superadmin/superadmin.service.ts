@@ -194,7 +194,7 @@ export class SuperAdminService {
     }
 
     const staffMemberships = await this.prisma.client.gymMember.findMany({
-      where: { gymId: gym.id, role: { not: Role.MEMBER }, deletedAt: null },
+      where: { gymId: gym.id, role: { not: Role.MEMBER }, deletedAt: null, archivedAt: null },
       orderBy: { joinedAt: 'asc' },
       select: { userId: true, role: true, status: true, joinedAt: true },
     });
@@ -276,11 +276,17 @@ export class SuperAdminService {
     return this.requestRow(id, db);
   }
 
-  private async requestConflicts(db: Prisma.TransactionClient, slug: string, email: string) {
+  /**
+   * `409 SUBDOMAIN_TAKEN` when the requested gym address is in use. The owner's
+   * address is not checked against existing users: approval provisions the owner
+   * as a NEW staff account of the new gym (see `AuthService.provisionGym`), so an
+   * address that already holds accounts at other gyms, or a platform account,
+   * collides with nothing. A competing open request for the same address is
+   * still refused by the caller.
+   */
+  private async requestConflicts(db: Prisma.TransactionClient, slug: string) {
     if (await db.gym.findUnique({ where: { slug }, select: { id: true } }))
       throw this.conflict('SUBDOMAIN_TAKEN');
-    if (await db.user.findUnique({ where: { email }, select: { id: true } }))
-      throw this.conflict('EMAIL_TAKEN');
   }
 
   private uniqueConflict(error: unknown): never {
@@ -313,7 +319,7 @@ export class SuperAdminService {
         ].sort()) {
           await db.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`;
         }
-        await this.requestConflicts(db, input.subdomainSlug, input.ownerEmail);
+        await this.requestConflicts(db, input.subdomainSlug);
         const matches = await db.gymOnboarding.findMany({
           where: { OR: [{ subdomainSlug: input.subdomainSlug }, { ownerEmail: input.ownerEmail }] },
           orderBy: { id: 'asc' },
@@ -396,7 +402,7 @@ export class SuperAdminService {
             message: 'Request must be submitted first',
             code: 'ONBOARDING_NOT_SUBMITTED',
           });
-        await this.requestConflicts(db, row.subdomainSlug, row.ownerEmail);
+        await this.requestConflicts(db, row.subdomainSlug);
         if (!row.passwordHash)
           throw new BadRequestException({
             message: 'Owner password required',

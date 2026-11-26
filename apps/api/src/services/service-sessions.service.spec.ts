@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { Permission } from '@fit/types';
 import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { InvoiceService } from '../billing/invoice.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+import type { RequestAccessResolver } from '../common/rbac/request-access';
 import type { PrismaService } from '../prisma/prisma.service';
 import { ServiceSessionsService } from './service-sessions.service';
 
@@ -54,6 +56,10 @@ function setup(
     locationExists?: boolean;
     /** Whether the member a staff booking names belongs to this gym. */
     memberExists?: boolean;
+    /** The caller's live grants; defaults to full `PtSessionManage`. */
+    grants?: Permission[];
+    /** The `User.id` behind the service's staff member. */
+    serviceOwner?: string;
   } = {},
 ) {
   const sessionCreate = vi.fn((args: Args) => Promise.resolve({ id: 'ss-1', ...args }));
@@ -72,6 +78,11 @@ function setup(
     if (Object.keys(select).length === 1 && 'id' in select) {
       return Promise.resolve(over.clash ? { id: 'ss-0' } : null);
     }
+    if (Object.keys(select).length === 1 && 'staff' in select) {
+      return Promise.resolve(
+        over.slot === null ? null : { staff: { userId: over.serviceOwner ?? 'u-coach' } },
+      );
+    }
     if ('status' in select && !('service' in select) && Object.keys(select).length === 1) {
       return Promise.resolve({ status: 'OPEN' });
     }
@@ -87,9 +98,28 @@ function setup(
   const locationStaffFindMany = vi.fn(() =>
     Promise.resolve((over.assignments ?? []).map((locationId) => ({ locationId }))),
   );
+  const serviceFindMany = vi.fn((_args: Args) =>
+    Promise.resolve([
+      {
+        id: 's-1',
+        name: 'Personal session - Nino Beridze',
+        durationMinutes: 60,
+        category: null,
+        staff: { firstName: 'Nino', lastName: 'Beridze', user: { name: 'Nino B.' } },
+      },
+    ]),
+  );
   const client = {
     service: {
-      findFirst: vi.fn(() => Promise.resolve({ id: 's-1', staffId: 'gm-1', durationMinutes: 60 })),
+      findFirst: vi.fn(() =>
+        Promise.resolve({
+          id: 's-1',
+          staffId: 'gm-1',
+          durationMinutes: 60,
+          staff: { userId: over.serviceOwner ?? 'u-coach' },
+        }),
+      ),
+      findMany: serviceFindMany,
     },
     serviceSession: {
       findFirst,
@@ -106,10 +136,23 @@ function setup(
   };
   const prisma = { client } as unknown as TenantPrismaService;
   const base = { client } as unknown as PrismaService;
+  const userId = over.userId === undefined ? 'u-1' : over.userId;
   const tenant = {
     gymId: 'gym-1',
-    userId: over.userId === undefined ? 'u-1' : over.userId,
+    userId,
+    current: { gymId: 'gym-1', userId, role: 'MANAGER' },
   } as unknown as TenantContext;
+  const access: RequestAccessResolver = {
+    resolve: () =>
+      Promise.resolve({
+        role: 'MANAGER',
+        grants: over.grants ?? [Permission.PtSessionManage],
+        branchScope: 'all',
+        allowedLocationIds: null,
+        defaultLocationId: null,
+      }),
+    invalidateGym: () => undefined,
+  };
   const invoices = { issue } as unknown as InvoiceService;
   // Booking / cancelling fires automation triggers (T12.5) best-effort.
   const automation = {
@@ -122,8 +165,10 @@ function setup(
       tenant,
       invoices,
       automation as unknown as AutomationExecutorService,
+      access,
     ),
     automation,
+    serviceFindMany,
     sessionCreate,
     sessionUpdateMany,
     sessionUpdate,
@@ -136,6 +181,26 @@ function setup(
 
 describe('ServiceSessionsService.create', () => {
   afterEach(() => vi.clearAllMocks());
+
+  it('lets an own-only coach open a slot on their own service', async () => {
+    const { svc, sessionCreate } = setup({
+      grants: [Permission.PtSessionManageOwn],
+      serviceOwner: 'u-1',
+    });
+    await svc.create({ serviceId: 's-1', startsAt: '2026-09-01T14:00:00.000Z', notes: '' });
+    expect(sessionCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("403s an own-only coach opening a slot on someone else's service", async () => {
+    const { svc, sessionCreate } = setup({
+      grants: [Permission.PtSessionManageOwn],
+      serviceOwner: 'u-other',
+    });
+    await expect(
+      svc.create({ serviceId: 's-1', startsAt: '2026-09-01T14:00:00.000Z', notes: '' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(sessionCreate).not.toHaveBeenCalled();
+  });
 
   it('opens a slot with endsAt from the service duration and the staff snapshotted', async () => {
     const { svc, sessionCreate } = setup();
@@ -385,5 +450,55 @@ describe('ServiceSessionsService.listOpenSlots', () => {
 
     expect(sessionFindMany.mock.calls[0]?.[0]?.where).not.toHaveProperty('locationId');
     expect(result.slots).toHaveLength(1);
+  });
+});
+
+describe('ServiceSessionsService.listOwnServices', () => {
+  it("lists only the caller's own active services", async () => {
+    const { svc, serviceFindMany } = setup({ userId: 'u-1' });
+    const result = await svc.listOwnServices();
+    expect(serviceFindMany.mock.calls[0]?.[0]).toMatchObject({
+      where: { status: 'ACTIVE', staff: { userId: 'u-1' } },
+    });
+    expect(result.services).toEqual([
+      {
+        id: 's-1',
+        name: 'Personal session - Nino Beridze',
+        staffName: 'Nino Beridze',
+        category: null,
+        durationMinutes: 60,
+      },
+    ]);
+  });
+
+  it('returns nothing without a signed-in user', async () => {
+    const { svc, serviceFindMany } = setup({ userId: null });
+    expect(await svc.listOwnServices()).toEqual({ services: [] });
+    expect(serviceFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('ServiceSessionsService own-slot management', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('lets an own-only coach book a member onto their own slot', async () => {
+    const { svc, sessionUpdateMany } = setup({
+      grants: [Permission.PtSessionManageOwn],
+      serviceOwner: 'u-1',
+      slot: { startsAt: new Date(Date.now() + 86_400_000) },
+    });
+    await expect(svc.bookFor('ss-1', 'gm-9')).resolves.toBeDefined();
+    expect(sessionUpdateMany).toHaveBeenCalled();
+  });
+
+  it("403s an own-only coach booking, cancelling or completing someone else's slot", async () => {
+    const { svc, sessionUpdateMany } = setup({
+      grants: [Permission.PtSessionManageOwn],
+      serviceOwner: 'u-other',
+    });
+    await expect(svc.bookFor('ss-1', 'gm-9')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.cancel('ss-1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.complete('ss-1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(sessionUpdateMany).not.toHaveBeenCalled();
   });
 });

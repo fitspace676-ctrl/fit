@@ -62,14 +62,6 @@ export async function syncTrainerProfile(
     return;
   }
 
-  if (existing) {
-    await db.trainer.update({
-      where: { id: existing.id },
-      data: { status: TrainerStatus.ACTIVE },
-    });
-    return;
-  }
-
   const member = await db.gymMember.findFirst({
     where: { id: memberId },
     select: { firstName: true, lastName: true, user: { select: { name: true } } },
@@ -85,6 +77,13 @@ export async function syncTrainerProfile(
     member.user.name?.trim() ||
     'Trainer';
 
+  if (existing) {
+    await db.trainer.update({
+      where: { id: existing.id },
+      data: { name, status: TrainerStatus.ACTIVE, archivedAt: null },
+    });
+    return;
+  }
   await db.trainer.create({
     data: { gymId, name, staffId: memberId },
     select: { id: true },

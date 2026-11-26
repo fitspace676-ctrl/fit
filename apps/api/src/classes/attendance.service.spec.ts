@@ -1,11 +1,14 @@
 import type { BookingRulesService } from './booking-rules.service';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { BookingStatus, InstanceStatus } from '@fit/db';
 import { AttendanceService } from './attendance.service';
 import type { AutomationExecutorService } from '../automation/automation-executor.service';
 import type { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import type { TenantContext } from '../common/tenant/tenant.context';
+
+import { Permission } from '@fit/types';
+import type { RequestAccessResolver } from '../common/rbac/request-access';
 
 const INSTANCE_ID = 'ci-1';
 
@@ -17,7 +20,9 @@ interface InstanceRecord {
   endsAt: Date;
   bookedCount: number;
   capacityOverride: number | null;
-  template: { capacity: number };
+  trainerId?: string | null;
+  trainer?: { staff: { userId: string } | null } | null;
+  template: { capacity: number; trainer?: { staff: { userId: string } | null } | null };
 }
 
 /** An hour in the past — the class has started, so attendance is recordable. */
@@ -52,7 +57,10 @@ interface QueryArgs {
 /** Let the fire-and-forget first_class_attended lookup settle. */
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function setup(opts?: { transaction?: (cb: (tx: unknown) => unknown) => unknown }) {
+function setup(opts?: {
+  grants?: Permission[];
+  transaction?: (cb: (tx: unknown) => unknown) => unknown;
+}) {
   const booking = {
     findFirst: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
     findMany: vi.fn<(args: QueryArgs) => Promise<unknown>>(),
@@ -68,7 +76,10 @@ function setup(opts?: { transaction?: (cb: (tx: unknown) => unknown) => unknown 
   $transaction.mockImplementation(opts?.transaction ?? ((cb) => cb(client)));
 
   const prisma = { client } as unknown as TenantPrismaService;
-  const tenant = { gymId: 'gym-1' } as unknown as TenantContext;
+  const tenant = {
+    gymId: 'gym-1',
+    current: { gymId: 'gym-1', userId: 'u-1', role: 'TRAINER', allowCrossTenant: false },
+  } as unknown as TenantContext;
   // `attendance_marked` (T12.5) fires best-effort after the batch commits.
   const automation = {
     dispatchForGym: vi.fn<(...args: unknown[]) => Promise<number>>(() => Promise.resolve(0)),
@@ -85,6 +96,11 @@ function setup(opts?: { transaction?: (cb: (tx: unknown) => unknown) => unknown 
       tenant,
       automation as unknown as AutomationExecutorService,
       rules as unknown as BookingRulesService,
+      {
+        resolve: vi
+          .fn()
+          .mockResolvedValue({ grants: opts?.grants ?? [Permission.ClassAttendance] }),
+      } as unknown as RequestAccessResolver,
     ),
     automation,
     booking,
@@ -365,7 +381,7 @@ describe('AttendanceService', () => {
       expect(ctx.booking.update).not.toHaveBeenCalled();
     });
 
-    it('409s an occurrence that has not started yet (CLASS_NOT_ENDED)', async () => {
+    it('409s an occurrence that has not started yet (CLASS_NOT_STARTED)', async () => {
       const ctx = setup();
       const future = new Date(Date.now() + 60 * 60 * 1000);
       const futureEnd = new Date(Date.now() + 2 * 60 * 60 * 1000);
@@ -379,25 +395,87 @@ describe('AttendanceService', () => {
 
       expect(error).toBeInstanceOf(ConflictException);
       expect((error as ConflictException).getResponse()).toMatchObject({
-        code: 'CLASS_NOT_ENDED',
+        code: 'CLASS_NOT_STARTED',
       });
       expect(ctx.booking.update).not.toHaveBeenCalled();
     });
 
-    it('409s an occurrence that is still running (CLASS_NOT_ENDED)', async () => {
+    it('allows a running class and keeps its status SCHEDULED until end', async () => {
       const ctx = setup();
-      const laterToday = new Date(Date.now() + 30 * 60 * 1000);
-      ctx.classInstance.findFirst.mockResolvedValueOnce(instance({ endsAt: laterToday }));
-
-      const error = await ctx.service
-        .markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-1', status: 'ATTENDED' }]))
-        .catch((e: unknown) => e);
-
-      expect(error).toBeInstanceOf(ConflictException);
-      expect((error as ConflictException).getResponse()).toMatchObject({
-        code: 'CLASS_NOT_ENDED',
+      ctx.classInstance.findFirst.mockResolvedValueOnce(
+        instance({ endsAt: new Date(Date.now() + 1800000) }),
+      );
+      ctx.booking.findFirst.mockResolvedValue({
+        id: 'bk-1',
+        status: BookingStatus.BOOKED,
+        memberId: 'gm-1',
       });
-      expect(ctx.booking.update).not.toHaveBeenCalled();
+      ctx.booking.findMany.mockResolvedValue([]);
+      const result = await ctx.service.markAttendance(
+        INSTANCE_ID,
+        mark([{ bookingId: 'bk-1', status: 'ATTENDED' }]),
+      );
+      expect(result.status).toBe('SCHEDULED');
+      expect(ctx.booking.update).toHaveBeenCalled();
+      expect(ctx.classInstance.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['own instance', { trainerId: 'tr-1', trainer: { staff: { userId: 'u-1' } } }, true],
+      ['other instance', { trainerId: 'tr-2', trainer: { staff: { userId: 'u-2' } } }, false],
+      ['no profile', { trainerId: null, template: { capacity: 10 } }, false],
+      [
+        'template fallback',
+        { trainerId: null, template: { capacity: 10, trainer: { staff: { userId: 'u-1' } } } },
+        true,
+      ],
+      [
+        'override beats template',
+        {
+          trainerId: 'tr-2',
+          trainer: { staff: { userId: 'u-2' } },
+          template: { capacity: 10, trainer: { staff: { userId: 'u-1' } } },
+        },
+        false,
+      ],
+    ] as const)('enforces own-class permission: %s', async (_label, assignment, allowed) => {
+      const ctx = setup({ grants: [Permission.ClassManageOwn] });
+      ctx.classInstance.findFirst.mockResolvedValue(instance(assignment));
+      ctx.booking.findFirst.mockResolvedValue({
+        id: 'bk-1',
+        status: BookingStatus.BOOKED,
+        memberId: 'gm-1',
+      });
+      ctx.booking.findMany.mockResolvedValue([]);
+      const result = ctx.service.markAttendance(
+        INSTANCE_ID,
+        mark([{ bookingId: 'bk-1', status: 'ATTENDED' }]),
+      );
+      if (allowed) await expect(result).resolves.toMatchObject({ classInstanceId: INSTANCE_ID });
+      else {
+        const error = await result.catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as ForbiddenException).getResponse()).toMatchObject({
+          code: 'NOT_YOUR_CLASS',
+        });
+        expect(ctx.booking.update).not.toHaveBeenCalled();
+      }
+    });
+
+    it('ClassAttendance permits another coach class without an own profile', async () => {
+      const ctx = setup();
+      ctx.classInstance.findFirst.mockResolvedValue(
+        instance({ trainerId: 'tr-2', trainer: { staff: { userId: 'u-2' } } }),
+      );
+      ctx.booking.findFirst.mockResolvedValue({
+        id: 'bk-1',
+        status: BookingStatus.BOOKED,
+        memberId: 'gm-1',
+      });
+      ctx.booking.findMany.mockResolvedValue([]);
+      await expect(
+        ctx.service.markAttendance(INSTANCE_ID, mark([{ bookingId: 'bk-1', status: 'ATTENDED' }])),
+      ).resolves.toMatchObject({ classInstanceId: INSTANCE_ID });
     });
 
     it('404s when a referenced booking is unknown / not on this occurrence (BOOKING_NOT_FOUND)', async () => {

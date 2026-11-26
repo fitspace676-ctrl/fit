@@ -97,7 +97,7 @@ export class CreditPacksService {
           validityDays: plan.creditValidityDays,
         },
         description: plan.name,
-        returnTo: data.returnTo ?? 'web',
+        returnTo: data.returnTo,
         order: {
           packageId: plan.id,
           total,

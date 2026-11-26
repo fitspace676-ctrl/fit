@@ -47,6 +47,7 @@ import {
   DEFAULT_STAFF_GRANULARITY,
   type DashboardStaffResponse,
   type StaffGranularity,
+  type DashboardResolvedPeriod,
 } from '@fit/types';
 import { useActiveLocation } from '@/components/active-location';
 import { loadStaffAction } from './actions';
@@ -56,6 +57,7 @@ import { TrainerUtilizationCard } from './trainer-utilization-card';
 import { ShiftCoverageCard } from './shift-coverage-card';
 import { SessionsPerTrainerCard } from './sessions-per-trainer-card';
 import { StaffGapsCard } from './staff-gaps-card';
+import { periodKey, periodQuery, usePeriodWindowLabel } from '../segments/period-window';
 
 const styles = stylex.create({
   page: { display: 'flex', flexDirection: 'column', gap: '1.5rem' },
@@ -162,7 +164,7 @@ const motion = stylex.create({
   }),
 });
 
-export function StaffView() {
+export function StaffView({ period }: { period?: DashboardResolvedPeriod } = {}) {
   const t = useTranslations('admin.dashboard.staff');
 
   // Passed in rather than read inside the action — see `sales/sales-view.tsx`
@@ -178,7 +180,7 @@ export function StaffView() {
   const [pending, setPending] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  const key = `${granularity}:${locationId ?? ''}`;
+  const key = `${granularity}:${locationId ?? ''}:${periodKey(period)}`;
 
   useEffect(() => {
     const cached = cache.current.get(key);
@@ -192,7 +194,7 @@ export function StaffView() {
     let cancelled = false;
     setError(null);
     setPending(true);
-    void loadStaffAction({ granularity, locationId })
+    void loadStaffAction({ granularity, locationId, ...periodQuery(period) })
       .then((result) => {
         if (cancelled) return;
         if (result.ok) {
@@ -217,7 +219,7 @@ export function StaffView() {
     };
     // `attempt` is in the deps purely to force a re-run on retry; the cache bypass
     // itself comes from `retry` deleting this key first.
-  }, [key, granularity, locationId, attempt, t]);
+  }, [key, granularity, locationId, period, attempt, t]);
 
   // What is CURRENTLY on screen, which is not always what the controls say: a
   // fetch in flight leaves the previous response rendered (dimmed) until the new
@@ -225,6 +227,8 @@ export function StaffView() {
   // what makes a cached combination animate too — the cache hands back the same
   // object it handed back last time, so an identity check would see no change.
   const shownKey = data === null ? '' : data.granularity;
+  // The window ON SCREEN, named for the captions (the overview's own days).
+  const windowLabel = usePeriodWindowLabel(data?.period);
 
   const [settled, setSettled] = useState(false);
   useEffect(() => {
@@ -279,7 +283,7 @@ export function StaffView() {
       ) : null}
 
       <div {...stylex.props(step(0))}>
-        <StaffKpiStrip data={data} granularity={data.granularity} />
+        <StaffKpiStrip data={data} granularity={data.granularity} windowLabel={windowLabel} />
       </div>
 
       <div {...stylex.props(styles.workArea)}>

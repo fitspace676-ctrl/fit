@@ -10,6 +10,7 @@ import {
 import * as argon2 from 'argon2';
 import { GymMemberStatus, GymStatus, LocationStatus, Prisma, Role } from '@fit/db';
 import {
+  activateAccountSchema,
   ALREADY_MEMBER_CODE,
   EMAIL_TAKEN_CODE,
   GYM_SELECTION_REQUIRED_CODE,
@@ -21,13 +22,13 @@ import {
   gymPublicTimezone,
   gymSettingsStoredSchema,
   missingSignupIntakeFields,
+  phoneLoginKey,
 } from '@fit/types';
 import { DEFAULT_EMAIL_LOCALE, resolveEmailLocale, type EmailLocale } from '../mail/email-locale';
 import type {
   ActivateAccountInput,
   ActivateAccountResponse,
   AppleAuthInput,
-  AppleProfile,
   ForgotPasswordInput,
   ForgotPasswordResponse,
   GoogleAuthInput,
@@ -51,8 +52,23 @@ import { RedisService } from '../redis/redis.service';
 import { AppleOAuthService } from './apple-oauth.service';
 import { EmailService } from './email.service';
 import { GoogleOAuthService } from './google-oauth.service';
-import { TokenService, invalidRefreshToken, type SessionClaims } from './token.service';
+import {
+  TokenService,
+  hashRefreshToken,
+  invalidRefreshToken,
+  type SessionClaims,
+} from './token.service';
 import { syncTrainerProfile, type TrainerSyncClient } from '../staff/trainer-profile-sync';
+import {
+  PLATFORM_REALM,
+  audienceAllows,
+  audienceOfRole,
+  memberRealm,
+  parseRealm,
+  signInRealms,
+  staffRealm,
+  type AccountAudience,
+} from './account-realm';
 
 /** Redis key namespace for one-time email-verification tokens. */
 const VERIFY_KEY_PREFIX = 'email-verify:';
@@ -127,7 +143,69 @@ interface StoredCredential {
   gymId: string;
   passwordHash: string | null;
   emailVerifiedAt: Date | null;
+  phone: string | null;
   gym: { slug: string; name: string; status: GymStatus };
+}
+
+/**
+ * One account with the signing-in address (or phone number), as the password
+ * paths project it. Every realm's row for it is read in one query; which of them
+ * a sign-in may use is decided in memory from `realm` (see `./account-realm`).
+ *
+ * An address names at most one account in a realm. A phone number is free text
+ * nobody has verified and nothing keeps unique, so it can name several (a family
+ * on one number); the password then picks, oldest account first.
+ */
+interface SignInAccount {
+  id: string;
+  realm: string;
+  phone: string | null;
+  passwordHash: string | null;
+  emailVerifiedAt: Date | null;
+  isSuperAdmin: boolean;
+  credentials: StoredCredential[];
+}
+
+/** The projection that fills a {@link SignInAccount}. */
+const SIGN_IN_ACCOUNT_SELECT = {
+  id: true,
+  realm: true,
+  phone: true,
+  passwordHash: true,
+  emailVerifiedAt: true,
+  isSuperAdmin: true,
+  credentials: {
+    select: {
+      gymId: true,
+      passwordHash: true,
+      emailVerifiedAt: true,
+      phone: true,
+      gym: { select: { slug: true, name: true, status: true } },
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+/**
+ * The most accounts one phone number is tried against at a sign-in. Bounds the
+ * KDF work a single request can ask for; a number shared by more accounts than
+ * this signs in the oldest ones only (the others still have their e-mail).
+ */
+const MAX_PHONE_SIGN_IN_ACCOUNTS = 8;
+
+/** The account a password unlocked, and the gym its session binds to (none for a platform one). */
+interface AccountMatch {
+  userId: string;
+  gymSlug?: string;
+  emailVerifiedAt: Date | null;
+}
+
+/** A gym account's own credential: the one for the gym its realm names. */
+function ownCredential(account: SignInAccount): StoredCredential | null {
+  const realm = parseRealm(account.realm);
+  if (realm?.kind !== 'gym') {
+    return null;
+  }
+  return account.credentials.find((c) => c.gymId === realm.gymId) ?? null;
 }
 
 /** The single `401` every password failure collapses to. */
@@ -206,6 +284,17 @@ function bySlug(gymSlug: string): (membership: ScopeMembership) => boolean {
  * account and remain the **platform credential**: what a super-admin, or a bare
  * `/auth/register` account with no gym, signs in with. Nothing gym-scoped reads
  * them any more.
+ *
+ * ## Accounts are per realm
+ *
+ * Since the account split every {@link User} row belongs to one realm (see
+ * `./account-realm`): the platform, one gym's staff, or one gym's members. Every
+ * flow here that finds a user by address names the realm. The admin console
+ * sends `audience: 'staff'`, the member portal and the mobile app send
+ * `'member'`, and a client that sends nothing is matched against the member
+ * account first and the staff account second. Registration and social sign-in
+ * only ever create member or platform accounts; staff accounts come from gym
+ * provisioning and staff invitations.
  */
 @Injectable()
 export class AuthService {
@@ -221,21 +310,21 @@ export class AuthService {
   ) {}
 
   /**
-   * Register a new user. Hashes the password, persists the user, mints a
+   * Register a new account. Hashes the password, persists the account, mints a
    * single-use verification token in Redis, and sends the verification email.
-   * With a gym, creates that gym’s membership and credential, or sets the first
-   * password for a staff-added member. `409 EMAIL_TAKEN` only describes a password
-   * already set in that gym. Without a gym the platform registration is unchanged.
    *
-   * A staff invitation (T4.7) also allows registration for an address
-   * that already has an account: the invitee is choosing the password for the
-   * *inviting* gym, which is a new credential rather than a second account, so
-   * the invite is redeemed onto the existing user — with the password just typed
-   * — and the request answers exactly as a brand-new registration does. No
-   * verification mail goes out for that case: the invite was delivered to the
-   * address and is single-use, which is the same proof of inbox control the
-   * verification link would establish. A `register` with a stale or mismatched
-   * invite falls back to the normal gym or platform registration rules.
+   * With a gym (`gymSlug`) this is always a **member account** of that gym (see
+   * {@link registerGymMember}): a staff account is never created by registration.
+   * Without one it is a platform account, refused with `409 EMAIL_TAKEN` when the
+   * address already holds any account, as before the split.
+   *
+   * A staff invitation (T4.7) is redeemed first: the invitee is choosing the
+   * password of the *inviting gym's staff account*, which redemption finds or
+   * creates (see {@link redeemStaffInvite}), and the request answers exactly as a
+   * brand-new registration does. No verification mail goes out for that case: the
+   * invite was delivered to the address and is single-use, which is the same proof
+   * of inbox control the verification link would establish. A `register` with a
+   * stale or mismatched invite falls back to the normal gym or platform rules.
    */
   async register(
     input: RegisterInput,
@@ -243,59 +332,52 @@ export class AuthService {
   ): Promise<RegisterResponse> {
     const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
 
-    if (input.gymSlug && !input.inviteToken) {
-      return this.registerGymMember(input, passwordHash, locale);
-    }
-
-    const existing = await this.prisma.client.user.findUnique({
-      where: { email: input.email },
-      select: { id: true },
-    });
-    if (existing) {
-      const redeemed = await this.redeemStaffInvite(existing.id, input.email, input.inviteToken, {
+    if (input.inviteToken) {
+      const redeemed = await this.redeemStaffInvite(input.email, input.inviteToken, {
         passwordHash,
         name: input.name,
       });
       if (redeemed) {
         return { message: 'verification email sent' };
       }
-      if (input.gymSlug) {
-        return this.registerGymMember(input, passwordHash, locale);
-      }
-      // The address is unavoidably revealed as taken here, but no further detail
-      // (e.g. whether it's verified) leaks. Unlike {@link signupMember} there is
-      // no gym in the request to qualify this with, so it stays the plain
-      // "address taken" answer — a bare registration joins nothing.
-      throw new ConflictException({
+    }
+
+    if (input.gymSlug) {
+      return this.registerGymMember(input, passwordHash, locale);
+    }
+
+    // A bare registration joins nothing. It still refuses an address that holds
+    // any account at all, the answer it gave before accounts were split: the
+    // address is unavoidably revealed as taken, but not where.
+    const existing = await this.prisma.client.user.findFirst({
+      where: { email: input.email },
+      select: { id: true },
+    });
+    const taken = () =>
+      new ConflictException({
         message: 'Email is already registered',
         code: EMAIL_TAKEN_CODE,
       });
+    if (existing) {
+      throw taken();
     }
 
-    const user = await this.prisma.client.user.create({
-      data: { email: input.email, name: input.name, passwordHash },
-      select: { id: true },
-    });
-
-    // If this sign-up came from a staff invitation (T4.7), redeem it now so the
-    // new account is added to the inviting gym with the invited role — and its
-    // credential there carries the password just chosen. Best-effort and
-    // self-contained: a bad / mismatched token simply leaves registration
-    // unaffected (a normal account is still created). Redeemed first so the
-    // verification link below can name the gym it lands on.
-    const redeemed = await this.redeemStaffInvite(user.id, input.email, input.inviteToken, {
-      passwordHash,
-      name: input.name,
-    });
-
-    if (input.gymSlug && !redeemed) {
-      return this.registerGymMember(input, passwordHash, locale);
-    }
+    const user = await this.prisma.client.user
+      .create({
+        data: { email: input.email, realm: PLATFORM_REALM, name: input.name, passwordHash },
+        select: { id: true },
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw taken();
+        }
+        throw error;
+      });
 
     const token = generateVerificationToken();
     await this.redis.client.set(
       verifyKey(token),
-      encodeTokenSubject({ userId: user.id, gymId: redeemed?.gymId ?? null }),
+      encodeTokenSubject({ userId: user.id, gymId: null }),
       'EX',
       env.EMAIL_VERIFICATION_TTL,
     );
@@ -309,8 +391,8 @@ export class AuthService {
         token,
         input.name,
         locale ?? DEFAULT_EMAIL_LOCALE,
-        redeemed?.gymSlug,
-        redeemed?.gymName,
+        undefined,
+        undefined,
       );
     } catch (error) {
       this.logger.error(
@@ -323,7 +405,11 @@ export class AuthService {
     return { message: 'verification email sent' };
   }
 
-  /** Register a password and membership on one active gym without exposing other gyms. */
+  /**
+   * Register the member account of one active gym (its own row in the gym's
+   * member realm) without exposing other gyms or the gym's staff accounts. A
+   * member staff added without a password gets the password now.
+   */
   private async registerGymMember(
     input: RegisterInput,
     passwordHash: string,
@@ -345,10 +431,11 @@ export class AuthService {
 
     const register = () =>
       this.prisma.client.$transaction(async (tx) => {
-        // An empty update preserves the shared identity and every other gym's password.
+        // The gym's member account: an empty update keeps an existing one as it is.
+        const realm = memberRealm(gym.id);
         const user = await tx.user.upsert({
-          where: { email: input.email },
-          create: { email: input.email, name: input.name, passwordHash },
+          where: { email_realm: { email: input.email, realm } },
+          create: { email: input.email, realm, name: input.name, passwordHash },
           update: {},
           select: { id: true },
         });
@@ -380,9 +467,9 @@ export class AuthService {
       });
     const userId = await register().catch(async (error: unknown) => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        // Prisma can emulate an empty-update User upsert with a read + insert.
-        // Another gym winning that identity race is not a duplicate here: retry
-        // the rolled-back transaction and attach to the identity it just created.
+        // Prisma can emulate an empty-update User upsert with a read + insert. A
+        // concurrent registration winning that race created this very account:
+        // retry the rolled-back transaction, which then finds its credential.
         const target = error.meta?.target;
         if (Array.isArray(target) && target.includes('email')) return register();
         throw taken();
@@ -480,17 +567,19 @@ export class AuthService {
 
     const locationId = await this.signupHomeBranch(gym.id, input.locationId);
 
+    // Only this gym's member account counts. An address known from another gym,
+    // from this gym's staff, or as a platform account is a normal signup: it gets
+    // a member account of its own below, and the response is the same as for a
+    // brand-new address, so the join form cannot be used to learn which addresses
+    // exist elsewhere.
+    const realm = memberRealm(gym.id);
     const existing = await this.prisma.client.user.findUnique({
-      where: { email: input.email },
+      where: { email_realm: { email: input.email, realm } },
       select: { id: true },
     });
     if (existing) {
-      // Someone who already belongs to *this* gym has nothing to join and should
-      // just sign in. An address known from another gym (or a plain platform
-      // account) is a normal signup: it gets this gym's own membership and its
-      // own credential — its own password — below, and the response is the same
-      // as for a brand-new address, so the join form cannot be used to learn
-      // which addresses exist elsewhere.
+      // A member of *this* gym has nothing to join and should just sign in. A
+      // member account whose membership was purged joins again on the same row.
       const alreadyMember = await this.prisma.client.gymMember.findUnique({
         where: { userId_gymId: { userId: existing.id, gymId: gym.id } },
         select: { id: true },
@@ -517,6 +606,7 @@ export class AuthService {
         (await tx.user.create({
           data: {
             email: input.email,
+            realm,
             name: input.name,
             // Every profile field below is optional in the contract now: a gym that
             // asks for none of them gets a member with none of them on file.
@@ -545,14 +635,17 @@ export class AuthService {
         },
       });
 
-      await tx.gymCredential.create({
-        data: {
-          userId: user.id,
-          gymId: gym.id,
-          passwordHash,
-          name: input.name,
-          phone: input.phone ?? null,
-        },
+      // An upsert: a member account rejoining after a purge may still hold the
+      // credential of its earlier membership, which the new password replaces.
+      const credential = {
+        passwordHash,
+        name: input.name,
+        phone: input.phone ?? null,
+      };
+      await tx.gymCredential.upsert({
+        where: { userId_gymId: { userId: user.id, gymId: gym.id } },
+        create: { userId: user.id, gymId: gym.id, ...credential },
+        update: { ...credential, emailVerifiedAt: null },
       });
 
       return user.id;
@@ -616,38 +709,46 @@ export class AuthService {
     return branch.id;
   }
 
-  /** Shared transactional tenant provisioning; callers own the transaction and email delivery. */
+  /**
+   * Shared transactional tenant provisioning; callers own the transaction and
+   * email delivery. The owner is always a NEW staff account of the new gym (its
+   * realm names a gym that did not exist a moment ago), whatever accounts the
+   * address holds elsewhere: those stay exactly as they are.
+   */
   async provisionGym(
     tx: Prisma.TransactionClient,
     input: RegisterGymInput,
     options: {
-      existingOwner?: { id: string } | null;
       passwordHash: string | null;
       createdBy?: string;
       emailVerifiedAt?: Date;
       settings?: Prisma.InputJsonValue;
     },
   ): Promise<{ gymId: string; ownerId: string }> {
-    const owner =
-      options.existingOwner ??
-      (await tx.user.create({
-        data: {
-          email: input.ownerEmail,
-          name: input.ownerName ?? null,
-          passwordHash: options.passwordHash,
-          ...(options.emailVerifiedAt ? { emailVerifiedAt: options.emailVerifiedAt } : {}),
-        },
-        select: { id: true },
-      }));
-
-    const gym = await tx.gym.create({
+    // The gym first: the owner's realm is built from its id.
+    const created = await tx.gym.create({
       data: {
         name: input.gymName,
         slug: input.subdomainSlug,
-        ownerId: owner.id,
-        createdByUserId: options.createdBy ?? owner.id,
         ...(options.settings ? { settings: options.settings } : {}),
       },
+      select: { id: true },
+    });
+
+    const owner = await tx.user.create({
+      data: {
+        email: input.ownerEmail,
+        realm: staffRealm(created.id),
+        name: input.ownerName ?? null,
+        passwordHash: options.passwordHash,
+        ...(options.emailVerifiedAt ? { emailVerifiedAt: options.emailVerifiedAt } : {}),
+      },
+      select: { id: true },
+    });
+
+    const gym = await tx.gym.update({
+      where: { id: created.id },
+      data: { ownerId: owner.id, createdByUserId: options.createdBy ?? owner.id },
       select: { id: true },
     });
 
@@ -679,11 +780,11 @@ export class AuthService {
    *
    * The gym (the tenant root), the owner {@link User}, the OWNER {@link GymMember}
    * and the owner's credential for the new gym are created together in a
-   * transaction so a half-provisioned tenant can never exist. An `ownerEmail`
-   * that already has an account is *reused* rather than refused: the new gym gets
-   * its own credential (with the supplied password, or none until activation) and
-   * the existing gyms are untouched — so the same person can own or belong to
-   * several gyms, each with its own password. The onboarding link is what binds
+   * transaction so a half-provisioned tenant can never exist. The owner is always
+   * a new staff account of the new gym (with the supplied password, or none until
+   * activation): an `ownerEmail` that already holds accounts elsewhere keeps them
+   * untouched, so the same person can own or belong to several gyms, each with
+   * its own account and password. The onboarding link is what binds
    * the address to the gym; until it is followed the credential has no verified
    * stamp, so an address provisioned without its holder's knowledge can sign in
    * nowhere. A subdomain already in use is rejected with `409 SUBDOMAIN_TAKEN`;
@@ -713,16 +814,10 @@ export class AuthService {
     locale: EmailLocale | null = null,
     options: { skipOnboardingEmail?: boolean } = {},
   ): Promise<RegisterGymResponse> {
-    const [existingGym, existingOwner] = await Promise.all([
-      this.prisma.client.gym.findUnique({
-        where: { slug: input.subdomainSlug },
-        select: { id: true },
-      }),
-      this.prisma.client.user.findUnique({
-        where: { email: input.ownerEmail },
-        select: { id: true },
-      }),
-    ]);
+    const existingGym = await this.prisma.client.gym.findUnique({
+      where: { slug: input.subdomainSlug },
+      select: { id: true },
+    });
     if (existingGym) {
       throw new ConflictException({
         message: 'Subdomain is already taken',
@@ -739,7 +834,7 @@ export class AuthService {
     let provisioned: { gymId: string; ownerId: string };
     try {
       provisioned = await this.prisma.client.$transaction(async (tx) => {
-        return this.provisionGym(tx, input, { existingOwner, passwordHash, createdBy });
+        return this.provisionGym(tx, input, { passwordHash, createdBy });
       });
     } catch (error) {
       // Lost a unique-constraint race against a concurrent provision — surface
@@ -973,17 +1068,20 @@ export class AuthService {
    * registration's is — the token already exists, so a transient mail failure is
    * logged rather than surfaced (which would itself leak that the email exists).
    *
-   * The reset is for **one gym's credential**: the gym the body names
-   * (`gymSlug`, the mobile app's remembered gym) or, failing that, the gym whose
-   * site the request arrived on (`tenantSlug`). The token is minted only when the
-   * account holds a credential there, and the link lands on that gym's site — the
-   * gym is a caller-chosen selector, and without the check anyone could have a
-   * stranger's single-use token mailed for a gym of their own choosing. With no
-   * gym named at all (`app.<root>`), an account with exactly one credential gets
-   * that one; an account with none (a platform account) or several gets a
-   * whole-identity token that resets every password it has, mailed to the
-   * platform-wide reset page — the pre-per-gym behaviour, kept only where there
-   * is no gym to narrow to.
+   * Every token resets **one account** (the token names its user). Which one:
+   *
+   *   • With a gym (the body's `gymSlug`, the mobile app's remembered gym, else
+   *     the host's `tenantSlug`): that gym's account in the requested `audience`,
+   *     or, with no audience, its member account and failing that its staff
+   *     account. No account there, no mail: the gym is a caller-chosen selector,
+   *     and without the check anyone could have a stranger's token mailed for a
+   *     gym of their choosing.
+   *   • With no gym (`app.<root>`, the mobile app): one mail per gym account in
+   *     the audience (no audience: the member accounts, or the staff accounts
+   *     when there is no member one), each linked to its own gym's site. A
+   *     super-admin's platform account is added when the audience is not
+   *     `member`; an address with no gym account at all gets its platform
+   *     account's reset, mailed to the platform-wide reset page.
    */
   async requestPasswordReset(
     input: ForgotPasswordInput,
@@ -991,23 +1089,36 @@ export class AuthService {
     tenantSlug: string | null = null,
   ): Promise<ForgotPasswordResponse> {
     const gymSlug = input.gymSlug ?? tenantSlug;
-    const user = await this.prisma.client.user.findUnique({
+    const accounts = await this.prisma.client.user.findMany({
       where: { email: input.email },
       select: {
         id: true,
+        realm: true,
         name: true,
+        isSuperAdmin: true,
         credentials: {
           select: { gymId: true, name: true, gym: { select: { slug: true, name: true } } },
         },
       },
     });
+    const gym = gymSlug
+      ? await this.prisma.client.gym.findUnique({
+          where: { slug: gymSlug },
+          select: { id: true, slug: true, name: true },
+        })
+      : null;
 
-    const target = user ? resetTarget(user.credentials, gymSlug) : null;
-    if (user && target) {
+    const targets = gymSlug
+      ? gym
+        ? gymResetTargets(accounts, gym, input.audience)
+        : []
+      : tenantlessResetTargets(accounts, input.audience);
+
+    for (const target of targets) {
       const token = generateVerificationToken();
       await this.redis.client.set(
         resetKey(token),
-        encodeTokenSubject({ userId: user.id, gymId: target.gymId }),
+        encodeTokenSubject({ userId: target.userId, gymId: target.gymId }),
         'EX',
         env.PASSWORD_RESET_TTL,
       );
@@ -1016,10 +1127,11 @@ export class AuthService {
         await this.email.sendPasswordResetEmail(
           input.email,
           token,
-          target.name ?? user.name ?? undefined,
+          target.name ?? undefined,
           locale ?? DEFAULT_EMAIL_LOCALE,
           target.gymSlug,
           target.gymName,
+          target.audience,
         );
       } catch (error) {
         this.logger.error(
@@ -1045,10 +1157,10 @@ export class AuthService {
    * cuts any session an attacker may hold — the whole point of resetting a
    * possibly-compromised password.
    *
-   * The password written is the one the token was minted for: **that gym's
-   * credential** alone, so a reset on Downtown leaves Riverside's password — and
-   * Riverside's sessions — untouched. A whole-identity token (see
-   * {@link requestPasswordReset}) rewrites every password the account has.
+   * The password written is the one the token was minted for: **one account's**
+   * credential alone, so a reset of a Downtown member leaves Downtown's staff
+   * account and every Riverside account (and their sessions) untouched. A staff
+   * account gets no session here (see below); it signs in to the console.
    *
    * The session is scoped by `tenantSlug`, the host the reset was completed on.
    * On a gym host it binds to *that* gym, and only when it is the token's own gym
@@ -1086,6 +1198,18 @@ export class AuthService {
     // (including an attacker's) there but the caller — who just proved inbox
     // control — walks away signed in.
     await this.tokens.revokeAllForUser(userId, gymId);
+
+    // A staff account's reset completes on the member site's reset page (the
+    // console has none), which refuses a staff session: the password is set and
+    // the person signs in to the console with it.
+    const account = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: { realm: true },
+    });
+    const realm = account?.realm ? parseRealm(account.realm) : null;
+    if (realm?.kind === 'gym' && realm.audience === 'staff') {
+      return { ok: true, sessionIssued: false };
+    }
 
     const tokenGymSlug = gymId ? await this.gymSlugById(gymId) : undefined;
     if (gymId && (!tokenGymSlug || (tenantSlug && tenantSlug !== tokenGymSlug))) {
@@ -1135,139 +1259,288 @@ export class AuthService {
    * gym — to a single `401 INVALID_CREDENTIALS` so the endpoint reveals nothing.
    * A correct but unverified credential is rejected with `403 EMAIL_NOT_VERIFIED`.
    *
-   * Which password is checked is the gym's (T1.25):
+   * Which account's password is checked (accounts are per realm, see
+   * `./account-realm`):
    *
-   *   • On a gym host — `gymSlug` from the body, else `tenantSlug` from the host
-   *     — **that gym's credential** and nothing else. A member of Downtown typing
-   *     their Downtown password on Riverside's site is a `401`, not a Riverside
-   *     session; there is no password to check there, and answering otherwise
-   *     would say which gyms an address belongs to.
-   *   • A super-admin with an active membership may use the named gym credential
-   *     for a member session; otherwise the platform credential stays tenant-less.
-   *   • With no gym named at all (the mobile app, `app.<root>`), the password is
-   *     checked against every credential in a live gym: one match signs in there;
-   *     several — the same password at several gyms, which every account had the
-   *     day credentials became per-gym — answer `409 GYM_SELECTION_REQUIRED`
-   *     listing *only the gyms the password unlocked*, so the client can ask
-   *     which one and sign in again naming it. An account with no gym credential
-   *     at all (a bare registration) falls back to the platform credential.
+   *   • On a gym host (`gymSlug` from the body, else `tenantSlug` from the host):
+   *     that gym's account in the requested `audience`, or, with no audience (a
+   *     client from before the split), its member account first and its staff
+   *     account second. Nothing else: a Downtown password typed on Riverside's
+   *     site is a `401`, and so is a staff password typed with `audience:
+   *     'member'`. A super-admin may still use the platform password on a gym
+   *     host (any audience but `member`) and gets the tenant-less session.
+   *   • With no gym named at all (the mobile app, `app.<root>`): the password is
+   *     checked against every account in the audience (no audience: member and
+   *     staff, member preferred within a gym) in a live gym. One gym matched
+   *     signs in there; several answer `409 GYM_SELECTION_REQUIRED` listing
+   *     *only the gyms the password unlocked*, so the client can ask which one
+   *     and sign in again naming it. A super-admin's platform password wins when
+   *     the audience is not `member`; an address with no gym account to check
+   *     falls back to its platform account.
    */
   async login(input: LoginInput, tenantSlug?: string | null): Promise<TokenPair> {
     const gymSlug = input.gymSlug ?? tenantSlug ?? undefined;
-    const user = await this.prisma.client.user.findUnique({
-      where: { email: input.email },
-      select: {
-        id: true,
-        passwordHash: true,
-        emailVerifiedAt: true,
-        isSuperAdmin: true,
-        credentials: {
-          select: {
-            gymId: true,
-            passwordHash: true,
-            emailVerifiedAt: true,
-            gym: { select: { slug: true, name: true, status: true } },
-          },
-        },
-      },
-    });
+    const accounts = input.phone
+      ? await this.findAccountsByPhone(input.phone)
+      : input.email
+        ? await this.prisma.client.user.findMany({
+            where: { email: input.email },
+            select: SIGN_IN_ACCOUNT_SELECT,
+          })
+        : [];
 
-    const credential = await this.matchCredential(user, gymSlug, input.password);
-    if (!user || !credential) {
+    const match = gymSlug
+      ? await this.matchGymAccount(accounts, gymSlug, input.audience, input.password)
+      : await this.matchTenantlessAccount(accounts, input.audience, input.password);
+    if (!match) {
       throw invalidCredentials();
     }
 
-    if (!credential.emailVerifiedAt) {
+    if (!match.emailVerifiedAt) {
       throw new ForbiddenException({
         message: 'Email address has not been verified',
         code: 'EMAIL_NOT_VERIFIED',
       });
     }
 
-    // Redeem a staff invitation (T4.7) before scope resolution, so an existing
-    // user signing in via the invite link picks up the new staff membership in
-    // this same session. Best-effort: a bad / mismatched token leaves login
-    // unchanged.
-    await this.redeemStaffInvite(user.id, input.email, input.inviteToken);
+    // Redeem a staff invitation (T4.7) onto the inviting gym's staff account. The
+    // password just proven for this address becomes that account's password when
+    // it has none yet. Best-effort: a bad / mismatched token leaves login
+    // unchanged, and the session below is still the account that signed in.
+    // Never from a member sign-in: staff invitations are accepted through the
+    // admin console (audience 'staff', or a client from before the split), so a
+    // member portal / mobile sign-in can never create or touch a staff account.
+    // An invitation is addressed to an e-mail, so only an e-mail sign-in redeems one.
+    if (input.inviteToken && input.email && input.audience !== 'member') {
+      await this.redeemStaffInvite(input.email, input.inviteToken, {
+        passwordHash: await argon2.hash(input.password, { type: argon2.argon2id }),
+      });
+    }
 
-    // The gym the session binds to: the one asked for, else the one whose
-    // password matched (a platform credential names none).
-    const sessionSlug = user.isSuperAdmin ? credential.gymSlug : (gymSlug ?? credential.gymSlug);
-    await this.assertGymAccessNotSuspended(user.id, sessionSlug);
+    await this.assertGymAccessNotSuspended(match.userId, match.gymSlug);
 
     return this.tokens.issueTokenPair(
-      user.id,
-      await this.resolveSessionScope(user.id, sessionSlug, {
+      match.userId,
+      await this.resolveSessionScope(match.userId, match.gymSlug, {
         signIn: true,
-        gymCredential: Boolean(credential.gymSlug),
+        gymCredential: Boolean(match.gymSlug),
       }),
     );
   }
 
   /**
-   * The credential `password` unlocks for this sign-in, or `null` when none does.
+   * The accounts that carry `phone`, oldest first, capped at
+   * {@link MAX_PHONE_SIGN_IN_ACCOUNTS}.
    *
-   * Always verifies against *some* hash — the matching credential's, or the dummy
-   * when there is no user, no credential in the named gym, or no password on it —
-   * so an unknown address, an unknown gym and an OAuth-only account all cost the
-   * same KDF work as a real sign-in. `verify` returns false on mismatch and throws
-   * on a malformed digest; both are a miss. The tenant-less case verifies every
-   * live-gym credential in parallel and, when the password opens more than one,
-   * answers `409 GYM_SELECTION_REQUIRED` with those gyms — after the password has
-   * checked out, so the list is only ever handed to its owner.
+   * Numbers are stored as typed, so both sides are reduced to
+   * {@link phoneLoginKey} — in SQL for the lookup (the expression the
+   * `*_phone_login_key_idx` indexes are built on; keep the three in step) and
+   * again in memory, where an account counts only by its own number: the one on
+   * the account, or the one on the credential of the gym its realm names.
    */
-  private async matchCredential(
-    user: {
-      id: string;
-      passwordHash: string | null;
-      emailVerifiedAt: Date | null;
-      isSuperAdmin: boolean;
-      credentials: StoredCredential[];
-    } | null,
-    gymSlug: string | undefined,
-    password: string,
-  ): Promise<{ gymSlug?: string; emailVerifiedAt: Date | null } | null> {
-    const verify = (hash: string | null): Promise<boolean> =>
+  private async findAccountsByPhone(phone: string): Promise<SignInAccount[]> {
+    const key = phoneLoginKey(phone);
+    if (!key) {
+      return [];
+    }
+    const rows = await this.prisma.client.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM "users"
+       WHERE right(regexp_replace("phone", '\\D', '', 'g'), 9) = ${key}
+      UNION
+      SELECT "userId" AS id FROM "gym_credentials"
+       WHERE right(regexp_replace("phone", '\\D', '', 'g'), 9) = ${key}
+      LIMIT 200
+    `);
+    if (rows.length === 0) {
+      return [];
+    }
+    const accounts = await this.prisma.client.user.findMany({
+      where: { id: { in: rows.map((row) => row.id) } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: SIGN_IN_ACCOUNT_SELECT,
+    });
+    return accounts
+      .filter(
+        (account) =>
+          phoneLoginKey(account.phone) === key ||
+          phoneLoginKey(ownCredential(account)?.phone) === key,
+      )
+      .slice(0, MAX_PHONE_SIGN_IN_ACCOUNTS);
+  }
+
+  /**
+   * A password verifier that always spends one KDF: against `hash`, or against the
+   * dummy when there is none, so a missing account costs what a real one does.
+   * `verify` returns false on mismatch and throws on a malformed digest; both are
+   * a miss.
+   */
+  private verifier(password: string): (hash: string | null) => Promise<boolean> {
+    return (hash) =>
       argon2.verify(hash ?? DUMMY_PASSWORD_HASH, password).then(
         (ok) => ok && hash !== null,
         () => false,
       );
+  }
 
-    if (!user) {
-      await verify(null);
+  /**
+   * The account `password` unlocks on the gym `gymSlug`, or `null`.
+   *
+   * Always runs the same number of verifications for a given audience (one per
+   * realm tried, plus the super-admin slot), real or dummy, so the answer's timing
+   * says nothing about which accounts exist on the gym. An unknown gym is the same
+   * work and a miss. The gym's status is not checked here: a suspended gym's
+   * correct password goes on to `403 GYM_SUSPENDED`, as before.
+   */
+  private async matchGymAccount(
+    accounts: SignInAccount[],
+    gymSlug: string,
+    audience: AccountAudience | undefined,
+    password: string,
+  ): Promise<AccountMatch | null> {
+    const verify = this.verifier(password);
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { slug: gymSlug },
+      select: { id: true },
+    });
+
+    const realms = gym ? signInRealms(gym.id, audience) : [];
+    const slots = audience ? 1 : 2;
+    const attempts: { hash: string | null; match: AccountMatch | null; slot: number }[] = [];
+    // One attempt per account in the slot, and one dummy for an empty slot. An
+    // address has at most one account per slot; a phone number may have several.
+    const NO_ACCOUNT = [undefined];
+    for (let index = 0; index < slots; index += 1) {
+      const realm = realms[index];
+      const inRealm = realm ? accounts.filter((a) => a.realm === realm) : [];
+      for (const account of inRealm.length > 0 ? inRealm : NO_ACCOUNT) {
+        const credential = account ? ownCredential(account) : null;
+        attempts.push({
+          slot: index,
+          hash: credential?.passwordHash ?? null,
+          match:
+            account && credential
+              ? { userId: account.id, gymSlug, emailVerifiedAt: credential.emailVerifiedAt }
+              : null,
+        });
+      }
+    }
+    if (audience !== 'member') {
+      const superAdmins = accounts.filter((a) => a.realm === PLATFORM_REALM && a.isSuperAdmin);
+      for (const platform of superAdmins.length > 0 ? superAdmins : NO_ACCOUNT) {
+        attempts.push({
+          slot: slots,
+          hash: platform?.passwordHash ?? null,
+          match: platform
+            ? { userId: platform.id, emailVerifiedAt: platform.emailVerifiedAt }
+            : null,
+        });
+      }
+    }
+
+    const results = await Promise.all(attempts.map((attempt) => verify(attempt.hash)));
+    const unlocked = attempts.filter((attempt, index) => results[index] && attempt.match);
+    const first = unlocked[0];
+    if (!first) {
       return null;
     }
+    // A phone number can sit on several accounts of one realm (a member who
+    // registered twice), and one password can open more than one of them. An
+    // unverified one must not shadow the one that can actually sign in.
+    const verified = unlocked.find(
+      (attempt) => attempt.slot === first.slot && attempt.match?.emailVerifiedAt,
+    );
+    return (verified ?? first).match;
+  }
 
-    if (user.isSuperAdmin) {
-      const credential = user.credentials.find((c) => c.gym.slug === gymSlug);
-      if (credential?.passwordHash) {
-        const membership = await this.prisma.client.gymMember.findFirst({
-          where: { userId: user.id, gymId: credential.gymId, status: GymMemberStatus.ACTIVE },
-          select: { id: true },
-        });
-        if (membership && (await verify(credential.passwordHash))) {
-          return { gymSlug, emailVerifiedAt: credential.emailVerifiedAt };
+  /**
+   * The account `password` unlocks with no gym named, or `null`; `409
+   * GYM_SELECTION_REQUIRED` when it unlocks accounts at several gyms. The list is
+   * built only after the password has checked out, so it is only ever handed to
+   * its owner.
+   */
+  private async matchTenantlessAccount(
+    accounts: SignInAccount[],
+    audience: AccountAudience | undefined,
+    password: string,
+  ): Promise<AccountMatch | null> {
+    const verify = this.verifier(password);
+    // One for an address; possibly several for a phone number.
+    const platforms = accounts.filter((a) => a.realm === PLATFORM_REALM);
+    const platformMatch = (account: SignInAccount): AccountMatch => ({
+      userId: account.id,
+      emailVerifiedAt: account.emailVerifiedAt,
+    });
+
+    const withPassword = accounts
+      .flatMap((account) => {
+        const realm = parseRealm(account.realm);
+        if (!audienceAllows(realm, audience)) {
+          return [];
         }
-      }
-      return (await verify(user.passwordHash)) ? { emailVerifiedAt: user.emailVerifiedAt } : null;
-    }
+        const credential = ownCredential(account);
+        if (!credential?.passwordHash) {
+          return [];
+        }
+        return [{ account, credential, audience: realm.audience }];
+      })
+      // Member accounts first, so a gym where both match lands on the member one.
+      .sort((a, b) => Number(a.audience === 'staff') - Number(b.audience === 'staff'));
+    const candidates = withPassword.filter((c) => c.credential.gym.status === GymStatus.ACTIVE);
 
-    if (gymSlug) {
-      const credential = user.credentials.find((c) => c.gym.slug === gymSlug) ?? null;
-      return (await verify(credential?.passwordHash ?? null)) && credential
-        ? { gymSlug, emailVerifiedAt: credential.emailVerifiedAt }
+    if (candidates.length === 0) {
+      // No account in a live gym. The platform account is checked as before; so
+      // are accounts of suspended gyms, so that their correct password still
+      // answers 403 GYM_SUSPENDED (the caller's gate on the matched gym) rather
+      // than looking like a wrong password. One is enough: it ends in that 403.
+      const suspended = withPassword;
+      const [platformResults, results] = await Promise.all([
+        Promise.all(
+          (platforms.length > 0 ? platforms : [null]).map((p) => verify(p?.passwordHash ?? null)),
+        ),
+        Promise.all(suspended.map((c) => verify(c.credential.passwordHash))),
+      ]);
+      const platform = platforms.find((_, index) => platformResults[index]);
+      if (platform) {
+        return platformMatch(platform);
+      }
+      const hit = suspended.find((_, index) => results[index]);
+      return hit
+        ? {
+            userId: hit.account.id,
+            gymSlug: hit.credential.gym.slug,
+            emailVerifiedAt: hit.credential.emailVerifiedAt,
+          }
         : null;
     }
 
-    const candidates = user.credentials.filter(
-      (c) => c.passwordHash !== null && c.gym.status === GymStatus.ACTIVE,
-    );
-    if (candidates.length === 0) {
-      return (await verify(user.passwordHash)) ? { emailVerifiedAt: user.emailVerifiedAt } : null;
+    const superAdmins = audience !== 'member' ? platforms.filter((p) => p.isSuperAdmin) : [];
+    const [superAdminResults, results] = await Promise.all([
+      Promise.all(superAdmins.map((p) => verify(p.passwordHash))),
+      Promise.all(candidates.map((c) => verify(c.credential.passwordHash))),
+    ]);
+    const superAdmin = superAdmins.find((_, index) => superAdminResults[index]);
+    if (superAdmin) {
+      return platformMatch(superAdmin);
     }
 
-    const results = await Promise.all(candidates.map((c) => verify(c.passwordHash)));
-    const matched = candidates.filter((_, index) => results[index]);
+    const byGym = new Map<string, (typeof candidates)[number]>();
+    candidates.forEach((candidate, index) => {
+      if (!results[index]) {
+        return;
+      }
+      const held = byGym.get(candidate.credential.gymId);
+      // Within a gym and an audience, a verified account beats an unverified one
+      // the same password opens (see `matchGymAccount`).
+      const better =
+        held !== undefined &&
+        held.audience === candidate.audience &&
+        !held.credential.emailVerifiedAt &&
+        candidate.credential.emailVerifiedAt;
+      if (!held || better) {
+        byGym.set(candidate.credential.gymId, candidate);
+      }
+    });
+    const matched = [...byGym.values()];
     if (matched.length === 0) {
       return null;
     }
@@ -1275,11 +1548,17 @@ export class AuthService {
       throw new ConflictException({
         message: 'This password signs you in to more than one gym — choose one',
         code: GYM_SELECTION_REQUIRED_CODE,
-        data: { gyms: matched.map((c) => ({ slug: c.gym.slug, name: c.gym.name })) },
+        data: {
+          gyms: matched.map((c) => ({ slug: c.credential.gym.slug, name: c.credential.gym.name })),
+        },
       });
     }
     const [only] = matched;
-    return { gymSlug: only!.gym.slug, emailVerifiedAt: only!.emailVerifiedAt };
+    return {
+      userId: only!.account.id,
+      gymSlug: only!.credential.gym.slug,
+      emailVerifiedAt: only!.credential.emailVerifiedAt,
+    };
   }
 
   /**
@@ -1305,7 +1584,11 @@ export class AuthService {
       });
     }
 
-    const userId = await this.resolveGoogleUser(profile, input.gymSlug);
+    const userId = await this.resolveSocialUser(
+      { provider: 'google', subject: profile.googleId, email: profile.email, name: profile.name },
+      input.gymSlug,
+      input.audience,
+    );
     // Gate suspended tenants here too — otherwise a suspended gym's members
     // could keep getting fresh sessions via social login while email/password
     // login and refresh are blocked.
@@ -1354,69 +1637,13 @@ export class AuthService {
   }
 
   /**
-   * Resolve a verified {@link GoogleProfile} to a local user id, in precedence
-   * order: an account already linked by `googleId`; else an existing account
-   * with the same (Google-verified) email, which we link the `googleId` onto —
-   * stamping `emailVerifiedAt` if it was never verified locally; else a brand-new
-   * OAuth-only account (no password hash).
-   *
-   * A brand-new identity belongs to no gym, so on a gym's host (`gymSlug` given)
-   * the sign-in could only end in `403 NOT_A_MEMBER` — it is refused before the
-   * user row is written rather than leaving an orphaned account behind.
-   */
-  private async resolveGoogleUser(
-    profile: { googleId: string; email: string; name?: string },
-    gymSlug: string | null | undefined,
-  ): Promise<string> {
-    const byGoogleId = await this.prisma.client.user.findUnique({
-      where: { googleId: profile.googleId },
-      select: { id: true },
-    });
-    if (byGoogleId) {
-      return byGoogleId.id;
-    }
-
-    const byEmail = await this.prisma.client.user.findUnique({
-      where: { email: profile.email },
-      select: { id: true, emailVerifiedAt: true },
-    });
-    if (byEmail) {
-      // Link Google onto the existing account. The email is Google-verified, so
-      // a previously-unverified local account becomes verified by this sign-in.
-      await this.prisma.client.user.update({
-        where: { id: byEmail.id },
-        data: {
-          googleId: profile.googleId,
-          emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
-        },
-      });
-      return byEmail.id;
-    }
-
-    if (gymSlug) {
-      throw notAMember();
-    }
-
-    const created = await this.prisma.client.user.create({
-      data: {
-        email: profile.email,
-        name: profile.name ?? null,
-        googleId: profile.googleId,
-        emailVerifiedAt: new Date(),
-      },
-      select: { id: true },
-    });
-    return created.id;
-  }
-
-  /**
    * Authenticate a "Sign in with Apple" flow and issue a session. The client
    * (web or mobile) supplies the Apple-issued ID token; {@link AppleOAuthService}
    * verifies its signature, issuer, audience, and expiry before we trust any
    * claim. The verified Apple identity is then resolved to a local user and a
    * {@link TokenPair} is issued.
    *
-   * Apple's flow differs from Google's in two ways {@link resolveAppleUser}
+   * Apple's flow differs from Google's in two ways {@link resolveSocialUser}
    * handles: the ID token omits the user's name (so the client forwards it in
    * `input.name`, used only when creating an account), and a returning sign-in
    * may carry no `email` (so a known user is matched by `appleId` alone — the
@@ -1424,7 +1651,26 @@ export class AuthService {
    */
   async loginWithApple(input: AppleAuthInput): Promise<TokenPair> {
     const profile = await this.apple.verifyIdToken(input.idToken);
-    const userId = await this.resolveAppleUser(profile, input.gymSlug, input.name);
+    const userId = await this.resolveSocialUser(
+      {
+        provider: 'apple',
+        subject: profile.appleId,
+        // Only an Apple-verified address may establish or link an account.
+        email: profile.email && profile.emailVerified ? profile.email : null,
+        name: input.name,
+        missingEmail: () =>
+          new ForbiddenException(
+            profile.email
+              ? { message: 'Apple account email is not verified', code: 'APPLE_EMAIL_NOT_VERIFIED' }
+              : {
+                  message: 'Apple did not provide an email to establish an account',
+                  code: 'APPLE_EMAIL_UNAVAILABLE',
+                },
+          ),
+      },
+      input.gymSlug,
+      input.audience,
+    );
     // Gate suspended tenants here too (see loginWithGoogle) so social login can't
     // sidestep a suspension that blocks email/password login and refresh.
     await this.assertGymAccessNotSuspended(userId, input.gymSlug);
@@ -1434,78 +1680,138 @@ export class AuthService {
   }
 
   /**
-   * Resolve a verified {@link AppleProfile} to a local user id, in precedence
-   * order: an account already linked by `appleId`; else — needing the
-   * (Apple-verified) email to establish identity — an existing same-email account
-   * the `appleId` is linked onto (stamping `emailVerifiedAt` if never verified
-   * locally); else a brand-new OAuth-only account (no password hash).
+   * Resolve a verified Google / Apple identity to the local account it signs in
+   * to, linking the provider's subject id onto an account found by its (provider-
+   * verified) address and stamping it verified.
    *
-   * A returning user is matched by `appleId` before email is even consulted, so
-   * the email Apple omits on later sign-ins is never needed. When no `appleId`
-   * matches we *do* need the email: an Apple account that withholds it (or whose
-   * address Apple reports unverified) can't be linked or created, so it is
-   * rejected rather than allowed to silently claim a local identity. As with
-   * {@link resolveGoogleUser}, a brand-new identity on a gym's host is refused
-   * with `403 NOT_A_MEMBER` before any user row is written.
+   * Accounts are per realm, and so is the link: the subject id is unique per
+   * realm, so one Google identity may be linked to a member account and a staff
+   * account. Which account:
+   *
+   *   • On a gym host (`gymSlug`): that gym's account in the `audience`, or, with
+   *     none, its member account and failing that its staff account; matched by
+   *     subject id first, then by address. A super-admin's platform account
+   *     answers when there is none and the audience is not `member` (it gets the
+   *     tenant-less session, as before). No account at all is `403 NOT_A_MEMBER`,
+   *     refused before anything is written: social sign-in never creates a gym
+   *     account, and never a staff account anywhere.
+   *   • With no gym (the mobile app): a super-admin's platform account when the
+   *     audience is not `member`; else the earliest-joined gym account in the
+   *     audience (no audience: member accounts, then staff ones), preferring live
+   *     gyms; else the platform account; else a brand-new platform account (a
+   *     member of no gym, exactly what a tenant-less social sign-up made before).
+   *
+   * Apple omits the address on later sign-ins, so a returning account is matched
+   * by subject id alone; the address is needed only to link or create one, and
+   * `missingEmail` says why it is unusable when it is.
    */
-  private async resolveAppleUser(
-    profile: AppleProfile,
+  private async resolveSocialUser(
+    identity: {
+      provider: 'google' | 'apple';
+      subject: string;
+      /** The provider-verified address, or `null` when there is none usable. */
+      email: string | null;
+      name?: string;
+      missingEmail?: () => Error;
+    },
     gymSlug: string | null | undefined,
-    fallbackName?: string,
+    audience: AccountAudience | undefined,
   ): Promise<string> {
-    const byAppleId = await this.prisma.client.user.findUnique({
-      where: { appleId: profile.appleId },
-      select: { id: true },
+    const { provider, subject, email } = identity;
+    const subjectWhere: Prisma.UserWhereInput =
+      provider === 'google' ? { googleId: subject } : { appleId: subject };
+    const accounts = await this.prisma.client.user.findMany({
+      where: email ? { OR: [subjectWhere, { email }] } : subjectWhere,
+      select: {
+        id: true,
+        realm: true,
+        isSuperAdmin: true,
+        emailVerifiedAt: true,
+        googleId: true,
+        appleId: true,
+        memberships: { select: { joinedAt: true, gym: { select: { status: true } } } },
+      },
     });
-    if (byAppleId) {
-      return byAppleId.id;
+    type SocialAccount = (typeof accounts)[number];
+    const linked = (account: SocialAccount) =>
+      (provider === 'google' ? account.googleId : account.appleId) === subject;
+    // One account per realm: the linked one over an address match.
+    const inRealm = (realm: string): SocialAccount | undefined =>
+      accounts
+        .filter((a) => a.realm === realm)
+        .sort((a, b) => Number(linked(b)) - Number(linked(a)))[0];
+    const platform = inRealm(PLATFORM_REALM);
+    const superAdmin = audience !== 'member' && platform?.isSuperAdmin ? platform : undefined;
+    const unusable = () => (!email && identity.missingEmail ? identity.missingEmail() : null);
+
+    let chosen: SocialAccount | undefined;
+    if (gymSlug) {
+      const gym = await this.prisma.client.gym.findUnique({
+        where: { slug: gymSlug },
+        select: { id: true },
+      });
+      for (const realm of gym ? signInRealms(gym.id, audience) : []) {
+        chosen = inRealm(realm);
+        if (chosen) break;
+      }
+      chosen ??= superAdmin;
+      if (!chosen) {
+        throw unusable() ?? notAMember();
+      }
+    } else if (superAdmin) {
+      chosen = superAdmin;
+    } else {
+      const ofAudience = (wanted: AccountAudience) =>
+        accounts
+          .filter((a) => {
+            const realm = parseRealm(a.realm);
+            return realm?.kind === 'gym' && realm.audience === wanted && a.memberships.length > 0;
+          })
+          .map((a) => inRealm(a.realm)!)
+          .filter((a, index, all) => all.indexOf(a) === index);
+      const wanted: AccountAudience[] = audience ? [audience] : ['member', 'staff'];
+      const joined = (a: SocialAccount) =>
+        Math.min(...a.memberships.map((m) => m.joinedAt.getTime()));
+      for (const set of wanted) {
+        const pool = ofAudience(set);
+        const live = pool.filter((a) =>
+          a.memberships.some((m) => m.gym.status === GymStatus.ACTIVE),
+        );
+        chosen = (live.length > 0 ? live : pool).sort((a, b) => joined(a) - joined(b))[0];
+        if (chosen) break;
+      }
+      chosen ??= platform;
     }
 
-    // No linked account yet — we need a verified email to link or create one.
-    if (!profile.email) {
-      throw new ForbiddenException({
-        message: 'Apple did not provide an email to establish an account',
-        code: 'APPLE_EMAIL_UNAVAILABLE',
-      });
-    }
-    if (!profile.emailVerified) {
-      throw new ForbiddenException({
-        message: 'Apple account email is not verified',
-        code: 'APPLE_EMAIL_NOT_VERIFIED',
-      });
-    }
-
-    const byEmail = await this.prisma.client.user.findUnique({
-      where: { email: profile.email },
-      select: { id: true, emailVerifiedAt: true },
-    });
-    if (byEmail) {
-      // Link Apple onto the existing account. The email is Apple-verified, so a
-      // previously-unverified local account becomes verified by this sign-in.
-      await this.prisma.client.user.update({
-        where: { id: byEmail.id },
+    if (!chosen) {
+      if (!email) {
+        throw unusable() ?? notAMember();
+      }
+      const created = await this.prisma.client.user.create({
         data: {
-          appleId: profile.appleId,
-          emailVerifiedAt: byEmail.emailVerifiedAt ?? new Date(),
+          email,
+          realm: PLATFORM_REALM,
+          name: identity.name ?? null,
+          ...(provider === 'google' ? { googleId: subject } : { appleId: subject }),
+          emailVerifiedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      return created.id;
+    }
+
+    if (!linked(chosen)) {
+      // Matched by its address, which the provider has verified: link the subject
+      // id onto it, and a never-verified account becomes verified.
+      await this.prisma.client.user.update({
+        where: { id: chosen.id },
+        data: {
+          ...(provider === 'google' ? { googleId: subject } : { appleId: subject }),
+          emailVerifiedAt: chosen.emailVerifiedAt ?? new Date(),
         },
       });
-      return byEmail.id;
     }
-
-    if (gymSlug) {
-      throw notAMember();
-    }
-
-    const created = await this.prisma.client.user.create({
-      data: {
-        email: profile.email,
-        name: fallbackName ?? null,
-        appleId: profile.appleId,
-        emailVerifiedAt: new Date(),
-      },
-      select: { id: true },
-    });
-    return created.id;
+    return chosen.id;
   }
 
   /**
@@ -1612,7 +1918,7 @@ export class AuthService {
         select: { tokenVersion: true, isSuperAdmin: true },
       }),
       this.prisma.client.gymMember.findMany({
-        where: { userId, status: GymMemberStatus.ACTIVE },
+        where: { userId, status: GymMemberStatus.ACTIVE, archivedAt: null },
         select: {
           gymId: true,
           role: true,
@@ -1684,14 +1990,14 @@ export class AuthService {
   ): Promise<void> {
     const membership = await this.prisma.client.gymMember.findFirst({
       where: { userId, gym: { slug: gymSlug } },
-      select: { status: true },
+      select: { status: true, archivedAt: true },
     });
 
     if (!membership && signIn) {
       throw notAMember();
     }
 
-    if (membership && membership.status !== GymMemberStatus.ACTIVE) {
+    if (membership && (membership.archivedAt || membership.status !== GymMemberStatus.ACTIVE)) {
       throw new ForbiddenException({
         message: 'Your membership in this gym is not active yet',
         code: MEMBERSHIP_NOT_ACTIVE_CODE,
@@ -1722,16 +2028,7 @@ export class AuthService {
    */
   private async assertGymAccessNotSuspended(userId: string, gymSlug?: string): Promise<void> {
     if (gymSlug) {
-      const gym = await this.prisma.client.gym.findUnique({
-        where: { slug: gymSlug },
-        select: { status: true },
-      });
-      if (gym && gym.status !== GymStatus.ACTIVE) {
-        throw new ForbiddenException({
-          message: 'This gym has been suspended',
-          code: 'GYM_SUSPENDED',
-        });
-      }
+      await this.assertGymNotSuspended(gymSlug);
     }
 
     const [anyMembership, activeMembership] = await Promise.all([
@@ -1743,6 +2040,20 @@ export class AuthService {
     ]);
 
     if (anyMembership && !activeMembership) {
+      throw new ForbiddenException({
+        message: 'This gym has been suspended',
+        code: 'GYM_SUSPENDED',
+      });
+    }
+  }
+
+  /** `403 GYM_SUSPENDED` when the gym `gymSlug` names exists and is not active. */
+  private async assertGymNotSuspended(gymSlug: string): Promise<void> {
+    const gym = await this.prisma.client.gym.findUnique({
+      where: { slug: gymSlug },
+      select: { status: true },
+    });
+    if (gym && gym.status !== GymStatus.ACTIVE) {
       throw new ForbiddenException({
         message: 'This gym has been suspended',
         code: 'GYM_SUSPENDED',
@@ -1774,6 +2085,64 @@ export class AuthService {
     };
   }
 
+  /** Keep the current refresh family, revoke every other device across gyms.
+   * Access tokens on those devices expire normally; do not bump tokenVersion,
+   * which would also invalidate the caller's current access token.
+   */
+  async changePassword(
+    userId: string,
+    gymId: string,
+    input: {
+      currentPassword: string;
+      password: string;
+      refreshToken: string;
+    },
+  ): Promise<{ success: true }> {
+    if (!activateAccountSchema.shape.password.safeParse(input.password).success) {
+      throw new BadRequestException({ code: 'PASSWORD_INVALID', message: 'Invalid password' });
+    }
+    const session = await this.tokens.sessionForRefreshToken(input.refreshToken);
+    if (!session || session.userId !== userId || session.gymId !== gymId)
+      throw invalidRefreshToken();
+    const credential = await this.prisma.client.gymCredential.findUnique({
+      where: { userId_gymId: { userId, gymId } },
+      select: { passwordHash: true },
+    });
+    if (
+      !credential?.passwordHash ||
+      !(await argon2.verify(credential.passwordHash, input.currentPassword))
+    ) {
+      throw invalidCredentials();
+    }
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+    await this.prisma.client.$transaction(async (tx) => {
+      const current = await tx.refreshToken.findUnique({
+        where: { tokenHash: hashRefreshToken(input.refreshToken) },
+      });
+      if (
+        !current ||
+        current.userId !== userId ||
+        current.gymId !== gymId ||
+        current.expiresAt <= new Date()
+      )
+        throw invalidRefreshToken();
+      const live = await tx.refreshToken.findFirst({
+        where: { familyId: current.familyId, revokedAt: null, expiresAt: { gt: new Date() } },
+      });
+      if (!live) throw invalidRefreshToken();
+      const updated = await tx.gymCredential.updateMany({
+        where: { userId, gymId, passwordHash: credential.passwordHash },
+        data: { passwordHash },
+      });
+      if (!updated.count) throw invalidCredentials();
+      await tx.refreshToken.updateMany({
+        where: { userId, familyId: { not: current.familyId }, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+    return { success: true };
+  }
+
   /** A gym credential without a password is still waiting for setup. */
   async inspectStaffInvite(token: string, tenantSlug?: string | null) {
     const invite = await this.prisma.client.staffInvite.findUnique({
@@ -1786,42 +2155,60 @@ export class AuthService {
     if (tenantSlug && tenantSlug !== invite.gym.slug) {
       throw new BadRequestException({ code: 'TENANT_MISMATCH', message: 'Wrong gym' });
     }
+    // The inviting gym's STAFF account: a member account of the same address in
+    // the same gym is a different account and plays no part in the invitation.
     const credential = await this.prisma.client.gymCredential.findFirst({
-      where: { gymId: invite.gymId, user: { email: invite.email } },
+      where: {
+        gymId: invite.gymId,
+        user: { email: normalizeEmail(invite.email), realm: staffRealm(invite.gymId) },
+      },
       select: { passwordHash: true },
     });
-    return { invite, needsPassword: !credential?.passwordHash };
+    return {
+      invite,
+      needsPassword: !credential?.passwordHash,
+      passwordHash: credential?.passwordHash,
+    };
   }
 
-  /** Inbox possession confirms an existing credential; setup never overwrites it. */
+  /** Existing gym credentials require proof of the current password before redemption. */
   async completeStaffInvite(
-    input: { token: string; password?: string },
+    input: { token: string; password?: string; currentPassword?: string },
     tenantSlug?: string | null,
   ): Promise<TokenPair> {
-    const { invite, needsPassword } = await this.inspectStaffInvite(input.token, tenantSlug);
+    const { invite, needsPassword, passwordHash } = await this.inspectStaffInvite(
+      input.token,
+      tenantSlug,
+    );
     if (needsPassword && !input.password) {
       throw new BadRequestException({ code: 'PASSWORD_REQUIRED', message: 'Choose a password' });
     }
-    let user = await this.prisma.client.user.findUnique({
-      where: { email: invite.email },
-      select: { id: true },
-    });
-    if (!user) {
-      user = await this.prisma.client.user.create({
-        data: { email: invite.email },
-        select: { id: true },
-      });
+    if (needsPassword && !activateAccountSchema.shape.password.safeParse(input.password).success) {
+      throw new BadRequestException({ code: 'PASSWORD_INVALID', message: 'Invalid password' });
     }
-    await this.assertGymAccessNotSuspended(user.id, invite.gym.slug);
+    if (
+      !needsPassword &&
+      (!input.currentPassword || !(await argon2.verify(passwordHash!, input.currentPassword)))
+    ) {
+      throw invalidCredentials();
+    }
+    // The staff account is found or created by the redemption itself, in its
+    // transaction; a suspended gym is refused before anything is written.
+    await this.assertGymNotSuspended(invite.gym.slug);
     const credential =
       needsPassword && input.password
         ? { passwordHash: await argon2.hash(input.password, { type: argon2.argon2id }) }
         : undefined;
-    const redeemed = await this.redeemStaffInvite(user.id, invite.email, input.token, credential);
+    const redeemed = await this.redeemStaffInvite(
+      invite.email,
+      input.token,
+      credential,
+      passwordHash ?? null,
+    );
     if (!redeemed) throw tokenInvalid('Activation');
     return this.tokens.issueTokenPair(
-      user.id,
-      await this.resolveSessionScope(user.id, invite.gym.slug, {
+      redeemed.userId,
+      await this.resolveSessionScope(redeemed.userId, invite.gym.slug, {
         pinned: true,
         gymCredential: true,
       }),
@@ -1829,40 +2216,40 @@ export class AuthService {
   }
 
   /**
-   * Redeem a staff invitation (T4.7) for a user who has just registered or logged
-   * in with the invite token. Creates (or, for a returning person, upserts) the
-   * gym-staff {@link GymMember} with the invited role and marks the invite used.
+   * Redeem a staff invitation (T4.7) onto the inviting gym's **staff account** for
+   * the invited address: found in the gym's staff realm, or created there. A
+   * member account of the same address in the same gym is a different account and
+   * is never touched. Upserts the staff {@link GymMember} with the invited role and
+   * marks the invite used.
    *
    * Defensive by design and never throws into the auth flow it's called from:
    *   • A missing / expired / already-used token is a silent no-op — a normal
    *     sign-up or sign-in must not fail because an invite went stale.
-   *   • The invite's `email` must match the account's, so a token can only ever
-   *     add the *invited* address to a gym (a logged-in attacker can't redeem
-   *     someone else's invite onto their own account).
+   *   • The invite's `email` must match the caller's, so a token can only ever
+   *     add the *invited* address to a gym.
    *   • The "mark used" update is guarded on `usedAt: null`, so two concurrent
    *     redemptions can't both succeed — the invite is strictly single-use.
+   *   • An invite whose role is not a staff role redeems nothing.
    *
-   * The inviting gym's credential (T1.25) is written alongside the membership.
-   * From a registration, `credential` carries the password the invitee just
-   * chose, which becomes this gym's password — set only when the gym has none
-   * for them yet, so an existing member being promoted keeps the password they
-   * already sign in with. From a sign-in there is no new password; the row is
-   * created without one if it is missing (a reset then sets it). Either way the
-   * credential is stamped verified: the invite was delivered to that address
-   * and is single-use, which is the same proof the verification link gives.
+   * The staff account's credential (T1.25) is written alongside the membership.
+   * `credential` carries a password the caller just proved or chose, which becomes
+   * the account's password only when it has none yet, so a returning staff member
+   * keeps the password they already sign in with. Either way the credential is
+   * stamped verified: the invite was delivered to that address and is single-use,
+   * which is the same proof the verification link gives.
    *
-   * Returns the gym redeemed onto, or `null` when nothing was redeemed.
+   * Returns the staff account and gym redeemed onto, or `null` when nothing was.
    *
    * Runs on the **unscoped** {@link PrismaService}: redemption happens during auth,
    * before any tenant context exists, and the target gym comes from the invite
    * itself rather than the request.
    */
   private async redeemStaffInvite(
-    userId: string,
     email: string,
     token?: string,
     credential?: { passwordHash: string; name?: string },
-  ): Promise<{ gymId: string; gymSlug: string; gymName: string } | null> {
+    expectedPasswordHash?: string | null,
+  ): Promise<{ userId: string; gymId: string; gymSlug: string; gymName: string } | null> {
     if (!token) {
       return null;
     }
@@ -1874,51 +2261,108 @@ export class AuthService {
       if (!invite || invite.usedAt || invite.expiresAt.getTime() <= Date.now()) {
         return null;
       }
-      if (invite.email.toLowerCase() !== email.toLowerCase()) {
+      if (normalizeEmail(invite.email) !== normalizeEmail(email)) {
+        return null;
+      }
+      if (invite.role === Role.SUPER_ADMIN || audienceOfRole(invite.role) !== 'staff') {
         return null;
       }
 
-      const redeemed = await this.prisma.client.$transaction(async (tx) => {
+      const userId = await this.prisma.client.$transaction(async (tx) => {
+        const invitedName = [invite.firstName, invite.lastName].filter(Boolean).join(' ');
+        const locationIds = [...new Set(invite.locationIds ?? [])];
+        if (locationIds.length) {
+          const validLocations = await tx.location.count({
+            where: { gymId: invite.gymId, id: { in: locationIds } },
+          });
+          if (validLocations !== locationIds.length)
+            throw new BadRequestException('LOCATION_INVALID');
+        }
         // Single-use guard: the loser of a race sees zero rows updated and stops.
         const claimed = await tx.staffInvite.updateMany({
           where: { id: invite.id, usedAt: null, expiresAt: { gt: new Date() } },
           data: { usedAt: new Date() },
         });
         if (claimed.count === 0) {
-          return false;
+          return null;
         }
+        const invitedProfile = {
+          ...(invite.firstName != null ? { firstName: invite.firstName } : {}),
+          ...(invite.lastName != null ? { lastName: invite.lastName } : {}),
+          ...(locationIds.length ? { assignedLocationIds: locationIds } : {}),
+        };
+        const realm = staffRealm(invite.gymId);
+        const address = normalizeEmail(invite.email);
+        const account =
+          (await tx.user.findUnique({
+            where: { email_realm: { email: address, realm } },
+            select: { id: true },
+          })) ??
+          (await tx.user.create({
+            data: {
+              email: address,
+              realm,
+              name: invitedName || credential?.name || null,
+              passwordHash: credential?.passwordHash ?? null,
+            },
+            select: { id: true },
+          }));
+        const accountId = account.id;
         const member = await tx.gymMember.upsert({
-          where: { userId_gymId: { userId, gymId: invite.gymId } },
+          where: { userId_gymId: { userId: accountId, gymId: invite.gymId } },
           create: {
-            userId,
+            userId: accountId,
             gymId: invite.gymId,
             role: invite.role,
+            ...invitedProfile,
             status: GymMemberStatus.ACTIVE,
           },
-          update: { role: invite.role, status: GymMemberStatus.ACTIVE },
+          update: {
+            role: invite.role,
+            status: GymMemberStatus.ACTIVE,
+            archivedAt: null,
+            ...invitedProfile,
+          },
           select: { id: true },
         });
 
+        if (locationIds.length) {
+          await tx.locationStaff.deleteMany({ where: { gymId: invite.gymId, staffId: member.id } });
+          await tx.locationStaff.createMany({
+            data: locationIds.map((locationId) => ({
+              gymId: invite.gymId,
+              staffId: member.id,
+              locationId,
+            })),
+          });
+        }
         const existing = await tx.gymCredential.findUnique({
-          where: { userId_gymId: { userId, gymId: invite.gymId } },
+          where: { userId_gymId: { userId: accountId, gymId: invite.gymId } },
           select: { passwordHash: true, emailVerifiedAt: true, name: true },
         });
+        // A concurrent password reset/setup must not turn stale proof into a session.
+        if (
+          expectedPasswordHash !== undefined &&
+          (existing?.passwordHash ?? null) !== expectedPasswordHash
+        ) {
+          throw invalidCredentials();
+        }
         if (!existing) {
           await tx.gymCredential.create({
             data: {
-              userId,
+              userId: accountId,
               gymId: invite.gymId,
               passwordHash: credential?.passwordHash ?? null,
-              name: credential?.name ?? null,
+              name: invitedName || credential?.name || null,
               emailVerifiedAt: new Date(),
             },
           });
         } else {
           await tx.gymCredential.update({
-            where: { userId_gymId: { userId, gymId: invite.gymId } },
+            where: { userId_gymId: { userId: accountId, gymId: invite.gymId } },
             data: {
               passwordHash: existing.passwordHash ?? credential?.passwordHash ?? null,
-              name: existing.name ?? credential?.name ?? null,
+              name: invitedName || existing.name || credential?.name || null,
               emailVerifiedAt: existing.emailVerifiedAt ?? new Date(),
             },
           });
@@ -1933,14 +2377,14 @@ export class AuthService {
           memberId: member.id,
           role: invite.role,
         });
-        return true;
+        return accountId;
       });
 
-      if (!redeemed) {
+      if (!userId) {
         return null;
       }
       this.logger.debug(`Redeemed staff invite ${invite.id} for user ${userId}`);
-      return { gymId: invite.gymId, gymSlug: invite.gym.slug, gymName: invite.gym.name };
+      return { userId, gymId: invite.gymId, gymSlug: invite.gym.slug, gymName: invite.gym.name };
     } catch (error) {
       this.logger.error(
         `Failed to redeem staff invite for ${email}: ${
@@ -1952,37 +2396,99 @@ export class AuthService {
   }
 }
 
-/**
- * Which credential a password reset is for — see
- * {@link AuthService.requestPasswordReset}. `null` means "mint nothing": a gym
- * was named and the account has no credential there. A `gymId: null` target is
- * the whole identity, linked at the platform-wide reset page.
- */
-function resetTarget(
-  credentials: { gymId: string; name: string | null; gym: { slug: string; name: string } }[],
-  gymSlug: string | null | undefined,
-): {
+/** One account a password reset mails a token for — see {@link AuthService.requestPasswordReset}. */
+interface ResetTarget {
+  userId: string;
+  /** The gym whose credential the token resets; `null` for a platform account. */
   gymId: string | null;
   gymSlug: string | null;
   gymName: string | null;
   name: string | null;
-} | null {
-  if (gymSlug) {
-    const match = credentials.find((c) => c.gym.slug === gymSlug);
-    return match
-      ? { gymId: match.gymId, gymSlug, gymName: match.gym.name, name: match.name }
-      : null;
+  /** Which page the link opens: the admin console's for a staff account. */
+  audience: AccountAudience;
+}
+
+/** An account as the reset paths read it. */
+interface ResetAccount {
+  id: string;
+  realm: string;
+  name: string | null;
+  isSuperAdmin: boolean;
+  credentials: { gymId: string; name: string | null; gym: { slug: string; name: string } }[];
+}
+
+/** No more reset mails than this go out for one request, however many accounts match. */
+const MAX_RESET_TARGETS = 10;
+
+/** The reset target of one gym account, named by its own gym. */
+function gymResetTarget(
+  account: ResetAccount,
+  gym: { id: string; slug: string; name: string },
+): ResetTarget {
+  const credential = account.credentials.find((c) => c.gymId === gym.id);
+  const realm = parseRealm(account.realm);
+  return {
+    userId: account.id,
+    gymId: gym.id,
+    gymSlug: gym.slug,
+    gymName: gym.name,
+    name: credential?.name ?? account.name,
+    audience: realm?.kind === 'gym' ? realm.audience : 'member',
+  };
+}
+
+/** The one account a reset on a named gym is for: the audience's, member before staff. */
+function gymResetTargets(
+  accounts: ResetAccount[],
+  gym: { id: string; slug: string; name: string },
+  audience: AccountAudience | undefined,
+): ResetTarget[] {
+  for (const realm of signInRealms(gym.id, audience)) {
+    const account = accounts.find((a) => a.realm === realm);
+    if (account) {
+      return [gymResetTarget(account, gym)];
+    }
   }
-  if (credentials.length === 1) {
-    const [only] = credentials;
-    return {
-      gymId: only!.gymId,
-      gymSlug: only!.gym.slug,
-      gymName: only!.gym.name,
-      name: only!.name,
-    };
+  return [];
+}
+
+/** Every account a tenant-less reset mails, one token each. */
+function tenantlessResetTargets(
+  accounts: ResetAccount[],
+  audience: AccountAudience | undefined,
+): ResetTarget[] {
+  const gymAccounts = (wanted: AccountAudience) =>
+    accounts.flatMap((account) => {
+      const realm = parseRealm(account.realm);
+      if (realm?.kind !== 'gym' || realm.audience !== wanted) {
+        return [];
+      }
+      const credential = account.credentials.find((c) => c.gymId === realm.gymId);
+      return credential ? [gymResetTarget(account, { id: realm.gymId, ...credential.gym })] : [];
+    });
+  const members = audience === 'staff' ? [] : gymAccounts('member');
+  const staff =
+    audience === 'member' || (!audience && members.length > 0) ? [] : gymAccounts('staff');
+  const targets = [...members, ...staff];
+
+  const platform = accounts.find((a) => a.realm === PLATFORM_REALM);
+  const platformTarget: ResetTarget | null = platform
+    ? {
+        userId: platform.id,
+        gymId: null,
+        gymSlug: null,
+        gymName: null,
+        name: platform.name,
+        audience: 'member',
+      }
+    : null;
+  if (
+    platformTarget &&
+    (targets.length === 0 || (platform!.isSuperAdmin && audience !== 'member'))
+  ) {
+    targets.unshift(platformTarget);
   }
-  return { gymId: null, gymSlug: null, gymName: null, name: null };
+  return targets.slice(0, MAX_RESET_TARGETS);
 }
 
 /** Staff invitations always land in the public console acceptance flow. */
@@ -2013,6 +2519,11 @@ function conflictFromUniqueTarget(error: Prisma.PrismaClientKnownRequestError): 
     return new ConflictException({ message: 'Email is already registered', code: 'EMAIL_TAKEN' });
   }
   return new ConflictException({ message: 'Subdomain is already taken', code: 'SUBDOMAIN_TAKEN' });
+}
+
+/** An address as the sign-in contracts normalise it (trimmed, lower-cased). */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
 /**

@@ -69,6 +69,7 @@ const SUBSCRIPTION = {
     priceAmount: 8900,
     currency: 'GEL',
     interval: 'MONTH',
+    intervalCount: 1,
     currentPeriodStart: '2026-08-31T00:00:00.000Z',
     currentPeriodEnd: '2026-09-30T00:00:00.000Z',
     cancelAtPeriodEnd: false,

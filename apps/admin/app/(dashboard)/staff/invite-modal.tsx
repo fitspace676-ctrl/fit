@@ -3,7 +3,8 @@
 import { type FormEvent, useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { StaffRole } from '@fit/types';
+import { inviteStaffSchema, type StaffRole } from '@fit/types';
+import { StaffNameFields, StaffLocationFields, emptyStaffForm } from './staff-form-fields';
 import { Button, Dialog } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
 import { INVITE_ROLES } from './role-meta';
@@ -163,13 +164,16 @@ export function InviteModal({
   open,
   onClose,
   canAssignOwner,
+  locations,
 }: {
+  locations: { id: string; name: string }[];
   open: boolean;
   onClose: () => void;
   /** Owners only: the Owner role is offered in the picker. */
   canAssignOwner: boolean;
 }) {
   const t = useTranslations('admin.staff');
+  const [profile, setProfile] = useState(emptyStaffForm);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<StaffRole>('MANAGER');
   const [pending, startTransition] = useTransition();
@@ -187,11 +191,23 @@ export function InviteModal({
     event.preventDefault();
     setError(null);
     setNote(null);
+    const input = {
+      email,
+      role,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      locationIds: profile.locationIds,
+    };
+    if (!inviteStaffSchema.safeParse(input).success) {
+      setError(t('inviteModal.requiredDetails'));
+      return;
+    }
     startTransition(async () => {
-      const result = await inviteStaffAction({ email, role });
+      const result = await inviteStaffAction(input);
       if (result.ok) {
         setNote(t('inviteModal.success', { email }));
         setEmail('');
+        setProfile(emptyStaffForm());
       } else {
         setError(result.error);
       }
@@ -227,6 +243,18 @@ export function InviteModal({
       }
     >
       <form id={FORM_ID} onSubmit={onSubmit} {...stylex.props(styles.form)}>
+        <StaffNameFields
+          value={profile}
+          onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
+          pending={pending}
+        />
+        <StaffLocationFields
+          value={profile}
+          onChange={(patch) => setProfile((current) => ({ ...current, ...patch }))}
+          locations={locations}
+          pending={pending}
+        />
+        <p {...stylex.props(styles.calloutText)}>{t('inviteModal.branchHint')}</p>
         <label {...stylex.props(styles.fieldLabel)}>
           <span {...stylex.props(styles.labelText)}>{t('inviteModal.emailLabel')}</span>
           <input

@@ -208,3 +208,14 @@ describe('admin session isolation', () => {
     expect(res.headers.get('location')).toBeNull();
   });
 });
+
+describe('staff password recovery', () => {
+  it.each(['/forgot-password', '/reset-password?token=reset-token'])(
+    'allows %s without either surface session',
+    async (path) => {
+      const res = await middleware(request(path, ''));
+      expect(res.headers.get('location')).toBeNull();
+      expect(res.status).toBe(200);
+    },
+  );
+});

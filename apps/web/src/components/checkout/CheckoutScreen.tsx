@@ -14,7 +14,6 @@ import {
   type CheckoutProductType,
   type Gender,
   type GymStartDatePolicy,
-  type PackageSummary,
   type SignupCatalogueResponse,
 } from '@fit/types';
 import { useRouter } from '@/src/i18n/navigation';
@@ -23,7 +22,7 @@ import { useSession } from '@/hooks/use-session';
 import { Icon } from '@/src/components/ui';
 import { Link } from '@/src/i18n/navigation';
 import { Banner, DateField, Field } from '@/src/components/ui/kit';
-import { PRODUCT_TABS, toCards } from './product-cards';
+import { PRODUCT_TABS, periodSuffix, toCards, type CheckoutCard } from './product-cards';
 import { startDateHintKey } from './start-date';
 
 // FormaCore redesign — the purchase flow as ONE page.
@@ -836,12 +835,17 @@ export function CheckoutScreen({ gymId, locale, timezone }: CheckoutScreenProps)
     [locale],
   );
 
-  const cadenceOf = (card: PackageSummary): string | null =>
-    card.interval === 'month'
-      ? t('packages.perMonth')
-      : card.interval === 'year'
-        ? t('packages.perYear')
-        : null;
+  const tPeriod = useTranslations('common.planPeriod') as unknown as Parameters<
+    typeof periodSuffix
+  >[1];
+  const cadenceOf = (card: CheckoutCard): string | null =>
+    card.period
+      ? periodSuffix(card.period, tPeriod)
+      : card.interval === 'month'
+        ? t('packages.perMonth')
+        : card.interval === 'year'
+          ? t('packages.perYear')
+          : null;
 
   const name = `${firstName.trim()} ${lastName.trim()}`.trim();
 

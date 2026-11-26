@@ -28,6 +28,12 @@ const styles = stylex.create({
     letterSpacing: '-0.005em',
     color: 'var(--color-text-primary)',
   },
+  caption: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.75rem',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 export function StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[] }) {
@@ -37,6 +43,7 @@ export function StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[
   const count = createNumberFormat(useLocale());
   const t = useTranslations('admin.dashboard.members');
 
+  const total = slices.reduce((sum, slice) => sum + slice.count, 0);
   const data: BarDatum[] = slices.map((slice) => ({
     label: t(`status.name.${slice.status}`),
     value: slice.count,
@@ -44,7 +51,16 @@ export function StatusBreakdownCard({ slices }: { slices: MembershipStatusSlice[
 
   return (
     <Card padding="none" xstyle={styles.card}>
-      <h2 {...stylex.props(styles.title)}>{t('status.title')}</h2>
+      <div>
+        <h2 {...stylex.props(styles.title)}>{t('status.title')}</h2>
+        {/* People, not subscription rows: the bars add up to this, and "active"
+            is the strip's active figure. */}
+        {total > 0 ? (
+          <p {...stylex.props(styles.caption)}>
+            {t('status.caption', { total: count.format(total) })}
+          </p>
+        ) : null}
+      </div>
       <BarChart
         data={data}
         formatValue={(value) => count.format(value)}

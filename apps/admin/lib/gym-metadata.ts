@@ -1,4 +1,3 @@
-import { consoleBrandAssets } from './brand-skins';
 import type { Metadata, Viewport } from 'next';
 import type { ActiveGymBrand } from './active-gym';
 import { adminPath } from './base-path';
@@ -8,9 +7,10 @@ export const PLATFORM_NAME = 'FormaCore';
 
 /**
  * The staff console's document metadata for one tenant: `<slug>.<root>/admin` is
- * titled `Downtown Strength — Staff console`, iconed with the gym's mark, and
- * every page title is suffixed with the gym's name through the template — so a
- * page only ever sets its own short title (`Members`).
+ * titled with the gym's name and every page title is suffixed with it through
+ * the template, so a page only ever sets its own short title (`Members`). The
+ * icon is always FormaCore's: the console is FormaCore's product, so a gym's
+ * logo never becomes its favicon.
  *
  * `null` is plain FormaCore, for "no tenant" and "lookup failed" alike.
  */
@@ -20,8 +20,7 @@ export function gymMetadata(brand: ActiveGymBrand | null): Metadata {
   const description = `${name} staff console.`;
   // `public/icon.png`. A metadata URL is not given the basePath by Next, unlike
   // the file-based `app/icon.png` it replaces, so it is prefixed here.
-  const icon =
-    brand?.logoUrl ?? consoleBrandAssets(brand?.skinSlug)?.icon ?? adminPath('/icon.png?v=2');
+  const icon = adminPath('/icon.png?v=2');
 
   return {
     title: { default: title, template: `%s · ${name}` },

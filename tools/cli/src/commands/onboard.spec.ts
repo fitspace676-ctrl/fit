@@ -23,6 +23,7 @@ const db = vi.hoisted(() => {
     classTemplate: model(),
     classInstance: model(),
     subscription: model(),
+    gymCredential: model(),
     disconnect: vi.fn<() => Promise<void>>(() => Promise.resolve()),
     generateClassInstances: vi.fn<(p: unknown) => Promise<unknown>>(() =>
       Promise.resolve({ instancesCreated: 12 }),
@@ -40,8 +41,10 @@ vi.mock('@fit/db', () => ({
     classTemplate: db.classTemplate,
     classInstance: db.classInstance,
     subscription: db.subscription,
+    gymCredential: db.gymCredential,
     $disconnect: db.disconnect,
   })),
+  gymRealm: (gymId: string, audience: string) => `${gymId}:${audience}`,
   Role: {
     OWNER: 'OWNER',
     MANAGER: 'MANAGER',
@@ -85,6 +88,23 @@ import {
 
 function args(...argv: string[]) {
   return parseArgs(argv);
+}
+
+/**
+ * The owner signed up through the normal flow (some account holds the address),
+ * and the gym's own staff account for them is what the first `user.upsert` makes.
+ */
+function signedUpOwner(): void {
+  db.user.findFirst.mockResolvedValueOnce({
+    name: 'Owner',
+    passwordHash: 'owner-hash',
+    emailVerifiedAt: null,
+  });
+  db.user.upsert.mockResolvedValueOnce({
+    id: 'owner-1',
+    name: 'Owner',
+    passwordHash: 'owner-hash',
+  });
 }
 
 const OWNER = [
@@ -199,7 +219,7 @@ describe('runOnboard', () => {
   });
 
   it('errors OWNER_NOT_FOUND when the owner account does not exist, and disconnects', async () => {
-    db.user.findUnique.mockResolvedValueOnce(null);
+    // No account at all with the address (findFirst defaults to null).
     const err = await runOnboard(args(...OWNER)).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(CommandError);
     expect((err as CommandError).payload.code).toBe('OWNER_NOT_FOUND');
@@ -208,15 +228,22 @@ describe('runOnboard', () => {
   });
 
   it('errors OWNER_MISMATCH when the gym is already owned by another account', async () => {
-    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'O' });
+    db.user.findFirst.mockResolvedValueOnce({
+      name: 'O',
+      passwordHash: null,
+      emailVerifiedAt: null,
+    });
     db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: 'someone-else' });
+    db.user.findUnique.mockResolvedValueOnce({ email: 'other@iron.ge', realm: 'gym-1:staff' });
     const err = await runOnboard(args(...OWNER)).catch((e: unknown) => e);
     expect((err as CommandError).payload.code).toBe('OWNER_MISMATCH');
+    // Refused before the gym's staff account for the owner is written.
+    expect(db.user.upsert).not.toHaveBeenCalled();
     expect(db.disconnect).toHaveBeenCalledOnce();
   });
 
   it('provisions owner, staff, plans, schedule and members, then reports counts', async () => {
-    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    signedUpOwner();
     db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
     db.gymMember.count.mockResolvedValueOnce(10);
     db.classInstance.count.mockResolvedValueOnce(36);
@@ -247,7 +274,7 @@ describe('runOnboard', () => {
   });
 
   it('creates a default "Main" branch for a gym with none and schedules classes there', async () => {
-    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    signedUpOwner();
     db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
     db.location.create.mockResolvedValueOnce({ id: 'loc-main' });
 
@@ -268,7 +295,7 @@ describe('runOnboard', () => {
   });
 
   it("reuses the gym's existing default branch without creating one", async () => {
-    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    signedUpOwner();
     db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
     db.location.findFirst.mockResolvedValueOnce({ id: 'loc-default' });
 
@@ -286,7 +313,7 @@ describe('runOnboard', () => {
   });
 
   it('elects the oldest ACTIVE branch as default when the gym has branches but no default', async () => {
-    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    signedUpOwner();
     db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
     db.location.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'loc-old' });
 
@@ -308,7 +335,7 @@ describe('runOnboard', () => {
     vi.mocked(readFileSync).mockReturnValueOnce(
       '[{"name":"Nino","email":"nino@iron.ge","plan":"Premium"},{"name":"Luka","email":"luka@iron.ge"}]',
     );
-    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    signedUpOwner();
     db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
 
     const result = (await runOnboard(args(...OWNER, '--roster', 'roster.json'))) as {
@@ -321,7 +348,7 @@ describe('runOnboard', () => {
   });
 
   it('does not stack a second subscription when a live one already exists', async () => {
-    db.user.findUnique.mockResolvedValueOnce({ id: 'owner-1', name: 'Owner' });
+    signedUpOwner();
     db.gym.upsert.mockResolvedValueOnce({ id: 'gym-1', ownerId: null });
     // Plan lookups return null (created); the member's live-subscription probe returns a row.
     db.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });

@@ -164,6 +164,7 @@ export function RegisterGymForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         disabled={pending}
+        revealLabels={{ show: t('form.showPassword'), hide: t('form.hidePassword') }}
       />
       <SubmitButton pending={pending} pendingLabel={t('form.submitting')}>
         {t('form.submit')}

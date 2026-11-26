@@ -1,11 +1,28 @@
 import { BookingRulesService } from './booking-rules.service';
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { contactEmail } from '../common/directory-identity';
 import { AutomationTriggerType, BookingStatus, InstanceStatus, Prisma } from '@fit/db';
-import type { AttendanceRoster, AttendanceRosterEntry, MarkAttendanceData } from '@fit/types';
+import {
+  Permission,
+  type AttendanceRoster,
+  type AttendanceRosterEntry,
+  type MarkAttendanceData,
+} from '@fit/types';
 import { AutomationExecutorService } from '../automation/automation-executor.service';
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { TenantContext } from '../common/tenant/tenant.context';
+import {
+  REQUEST_ACCESS_RESOLVER,
+  sharedRequestAccessResolver,
+  type RequestAccessResolver,
+} from '../common/rbac/request-access';
 
 /** The held-seat booking statuses that make up an attendance roster. A
  * `WAITLIST` / `CANCELED` booking never held a seat, so it is excluded — only
@@ -24,7 +41,11 @@ const INSTANCE_SELECT = {
   endsAt: true,
   bookedCount: true,
   capacityOverride: true,
-  template: { select: { capacity: true } },
+  trainerId: true,
+  trainer: { select: { staff: { select: { userId: true } } } },
+  template: {
+    select: { capacity: true, trainer: { select: { staff: { select: { userId: true } } } } },
+  },
   classType: { select: { capacity: true } },
 } satisfies Prisma.ClassInstanceSelect;
 
@@ -57,11 +78,11 @@ type RosterBookingRecord = Prisma.BookingGetPayload<{ select: typeof ROSTER_BOOK
  *   be marked — an attempt to mark one is a `409 BOOKING_NOT_ATTENDABLE`. Already
  *   `ATTENDED` / `NO_SHOW` rows *can* be re-marked, so a mistyped roster is
  *   correctable.
- * - **Attendance is recorded once the class has run.** Marking before the
- *   occurrence has ended is premature, so it is gated on `endsAt <= now`
- *   (`409 CLASS_NOT_ENDED`); a `CANCELED` occurrence can never be attended
- *   (`409 ATTENDANCE_NOT_AVAILABLE`). Recording attendance transitions the
- *   occurrence to `COMPLETED`.
+ * - **Attendance is recorded from class start.** Marking before the
+ *   occurrence has started is premature, so it is gated on `startsAt <= now`
+ *   (`409 CLASS_NOT_STARTED`); a `CANCELED` occurrence can never be attended
+ *   (`409 ATTENDANCE_NOT_AVAILABLE`). Recording attendance transitions an ended
+ *   occurrence to `COMPLETED`; a running class stays scheduled.
  */
 @Injectable()
 export class AttendanceService {
@@ -70,6 +91,9 @@ export class AttendanceService {
     private readonly tenant: TenantContext,
     private readonly automation: AutomationExecutorService,
     private readonly rules: BookingRulesService,
+    @Optional()
+    @Inject(REQUEST_ACCESS_RESOLVER)
+    private readonly access: RequestAccessResolver = sharedRequestAccessResolver(),
   ) {}
 
   /**
@@ -108,7 +132,7 @@ export class AttendanceService {
    *
    * Failure modes: `404 CLASS_INSTANCE_NOT_FOUND` (unknown / cross-tenant
    * occurrence), `409 ATTENDANCE_NOT_AVAILABLE` (canceled occurrence), `409
-   * CLASS_NOT_ENDED` (occurrence has not ended yet), `404 BOOKING_NOT_FOUND`
+   * CLASS_NOT_STARTED` (occurrence has not started yet), `404 BOOKING_NOT_FOUND`
    * (a referenced booking is unknown / not on this occurrence), and `409
    * BOOKING_NOT_ATTENDABLE` (the booking holds no seat — waitlisted or canceled).
    */
@@ -133,16 +157,17 @@ export class AttendanceService {
       if (!instance) {
         throw this.instanceNotFound();
       }
+      await this.assertCanMark(instance);
       if (instance.status === InstanceStatus.CANCELED) {
         throw new ConflictException({
           message: 'Attendance cannot be tracked for a canceled class',
           code: 'ATTENDANCE_NOT_AVAILABLE',
         });
       }
-      if (instance.endsAt.getTime() > Date.now()) {
+      if (instance.startsAt.getTime() > Date.now()) {
         throw new ConflictException({
-          message: 'Attendance can only be recorded once the class has ended',
-          code: 'CLASS_NOT_ENDED',
+          message: 'Attendance can only be recorded once the class has started',
+          code: 'CLASS_NOT_STARTED',
         });
       }
 
@@ -198,7 +223,8 @@ export class AttendanceService {
 
       // Recording attendance completes the past occurrence. Idempotent — a
       // re-mark for corrections leaves it COMPLETED.
-      if (instance.status !== InstanceStatus.COMPLETED) {
+      const completed = instance.endsAt.getTime() <= Date.now();
+      if (completed && instance.status !== InstanceStatus.COMPLETED) {
         await tx.classInstance.update({
           where: { id: classInstanceId },
           data: { status: InstanceStatus.COMPLETED },
@@ -213,7 +239,7 @@ export class AttendanceService {
 
       return this.toRoster(
         classInstanceId,
-        { ...instance, status: InstanceStatus.COMPLETED },
+        { ...instance, status: completed ? InstanceStatus.COMPLETED : instance.status },
         bookings,
       );
     });
@@ -295,6 +321,28 @@ export class AttendanceService {
       noShowCount: entries.filter((e) => e.status === BookingStatus.NO_SHOW).length,
       entries,
     };
+  }
+
+  /** Resolve live gym grants, then match the effective coach through GymMember. */
+  private async assertCanMark(
+    instance: Prisma.ClassInstanceGetPayload<{ select: typeof INSTANCE_SELECT }>,
+  ): Promise<void> {
+    const state = this.tenant.current;
+    if (!state?.userId) throw new ForbiddenException({ code: 'NOT_YOUR_CLASS' });
+    let grants: readonly Permission[];
+    try {
+      grants = (await this.access.resolve(state)).grants;
+    } catch {
+      throw new ForbiddenException({ code: 'PERMISSION_RESOLUTION_FAILED' });
+    }
+    if (grants.includes(Permission.ClassAttendance)) return;
+    const trainer = instance.trainerId ? instance.trainer : instance.template?.trainer;
+    if (grants.includes(Permission.ClassManageOwn) && trainer?.staff?.userId === state.userId)
+      return;
+    throw new ForbiddenException({
+      message: 'You can only mark attendance for your own classes',
+      code: 'NOT_YOUR_CLASS',
+    });
   }
 
   /** `404` for an unknown / cross-tenant occurrence id. */

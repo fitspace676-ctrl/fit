@@ -17,6 +17,7 @@ import {
   appleAuthSchema,
   forgotPasswordSchema,
   googleAuthSchema,
+  loginRequestSchema,
   loginSchema,
   refreshSchema,
   memberSignupSchema,
@@ -31,6 +32,7 @@ import {
   type ResetPasswordResponse,
   type TokenPair,
 } from '@fit/types';
+import { buildConsoleUrl } from '../common/console-url';
 import { Public } from '../common/decorators/public.decorator';
 import {
   resolveTenantSlug,
@@ -175,7 +177,14 @@ export class AuthController {
       token,
       resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN),
     );
-    return { email: invite.email, gymName: invite.gym.name, needsPassword };
+    return {
+      email: invite.email,
+      gymName: invite.gym.name,
+      needsPassword,
+      // The invite is for a STAFF account, so recovery is the admin console's own
+      // forgot-password page on the gym's host, not the member site's.
+      forgotPasswordUrl: staffForgotPasswordUrl(invite.email, invite.gym.slug),
+    };
   }
 
   @Post('accept-invite')
@@ -184,6 +193,7 @@ export class AuthController {
     const input = parse(
       acceptInviteSchema.extend({
         password: activateAccountSchema.shape.password.optional(),
+        currentPassword: loginSchema.shape.password.optional(),
       }),
       body,
     );
@@ -194,7 +204,8 @@ export class AuthController {
   }
 
   /**
-   * `POST /auth/login` — authenticate an email/password pair and issue a session.
+   * `POST /auth/login` — authenticate an email (or phone number) and password, and
+   * issue a session.
    *
    * The gym whose password is checked is the body's `gymSlug`, else the tenant
    * host the call names (read the same way as on `POST /auth/refresh`). With
@@ -205,7 +216,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() body: unknown, @Headers() headers: TenantHeaders = {}): Promise<TokenPair> {
-    const input = parse(loginSchema, body);
+    const input = parse(loginRequestSchema, body);
     return this.auth.login(input, resolveTenantSlug(headers, env.PLATFORM_ROOT_DOMAIN));
   }
 
@@ -311,4 +322,10 @@ function parse<TSchema extends z.ZodTypeAny>(schema: TSchema, data: unknown): z.
     throw new BadRequestException(details);
   }
   return result.data as z.infer<TSchema>;
+}
+
+/** The admin console's forgot-password page for a staff account of `gymSlug`. */
+function staffForgotPasswordUrl(email: string, gymSlug: string): string {
+  const path = `forgot-password?email=${encodeURIComponent(email)}&gymSlug=${encodeURIComponent(gymSlug)}`;
+  return buildConsoleUrl(path, gymSlug) ?? `${env.ADMIN_BASE_PATH}/${path}`;
 }

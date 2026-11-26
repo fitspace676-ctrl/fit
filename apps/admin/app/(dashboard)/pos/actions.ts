@@ -2,11 +2,12 @@
 
 import {
   Permission,
+  approximatePlanPeriodDays,
   recordPosSaleSchema,
   roleHasPermission,
   sendReceiptSchema,
   type PosProductRow,
-  type MemberKind,
+  type MemberStanding,
   type MemberRow,
   type MemberStatus,
   type RecordPosSaleInput,
@@ -63,7 +64,7 @@ export interface PosMemberRow {
    * from their subscriptions. The till's badge reads off this: whether someone is
    * a paying member, a guest, or lapsed decides what happens next at the counter.
    */
-  kind: MemberKind;
+  kind: MemberStanding;
   /**
    * The account's own state. Carried alongside {@link kind} because the two can
    * disagree: a suspended account may still hold a live subscription, and a green
@@ -295,7 +296,6 @@ export interface PosMembershipRow {
 const MEMBERSHIP_RESULT_LIMIT = 50;
 
 /** Days per renewal cadence, for the card's duration badge. */
-const INTERVAL_DAYS: Record<string, number> = { MONTH: 30, YEAR: 365 };
 
 /**
  * The gym's sellable memberships for the POS catalogue — its **active** subscription
@@ -322,7 +322,7 @@ export async function fetchPosMembershipsAction(): Promise<ActionResult<PosMembe
         name: plan.name,
         priceAmount: plan.priceAmount,
         currency: plan.currency,
-        durationLabel: `${INTERVAL_DAYS[plan.interval] ?? 30} days`,
+        durationLabel: `${approximatePlanPeriodDays(plan.interval, plan.intervalCount)} days`,
       })),
     };
   } catch (error) {

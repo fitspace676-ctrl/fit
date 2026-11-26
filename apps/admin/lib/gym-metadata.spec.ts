@@ -8,24 +8,21 @@ const downtown = {
 };
 
 describe('gymMetadata', () => {
-  it('uses the skin icon unless the gym uploaded a logo', () => {
-    expect(gymMetadata({ ...downtown, skinSlug: 'synergy', logoUrl: null }).icons).toEqual({
-      icon: '/brands/synergy/icon.png',
-      apple: '/brands/synergy/icon.png',
-    });
-    expect(gymMetadata({ ...downtown, skinSlug: 'synergy' }).icons).toEqual({
-      icon: downtown.logoUrl,
-      apple: downtown.logoUrl,
-    });
+  it('always carries the FormaCore icon, never a gym logo or skin', () => {
+    const formaCore = { icon: '/icon.png?v=2', apple: '/icon.png?v=2' };
+    expect(gymMetadata({ ...downtown, skinSlug: 'synergy', logoUrl: null }).icons).toEqual(
+      formaCore,
+    );
+    expect(gymMetadata({ ...downtown, skinSlug: 'synergy' }).icons).toEqual(formaCore);
   });
 
-  it('titles and icons the console as the gym it manages', () => {
+  it('titles the console as the gym it manages', () => {
     const metadata = gymMetadata(downtown);
     expect(metadata.title).toEqual({
       default: 'Downtown Strength | Staff console',
       template: '%s · Downtown Strength',
     });
-    expect(metadata.icons).toEqual({ icon: downtown.logoUrl, apple: downtown.logoUrl });
+    expect(metadata.icons).toEqual({ icon: '/icon.png?v=2', apple: '/icon.png?v=2' });
     expect(metadata.openGraph).toMatchObject({ siteName: 'Downtown Strength' });
   });
 

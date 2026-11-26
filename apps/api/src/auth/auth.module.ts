@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppleOAuthService } from './apple-oauth.service';
+import { PasswordController } from './password.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { EmailService } from './email.service';
@@ -17,7 +18,7 @@ import { TokenService } from './token.service';
  * (OAuth ID-token verification) it composes.
  */
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, PasswordController],
   providers: [AuthService, TokenService, EmailService, GoogleOAuthService, AppleOAuthService],
   exports: [AuthService, TokenService, EmailService],
 })

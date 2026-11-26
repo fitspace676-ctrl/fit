@@ -11,7 +11,7 @@ import type {
   MemberPlanMix,
   MemberRow,
   MemberSort,
-  MemberKind,
+  MemberStanding,
   MemberTabCounts,
   SortDir,
 } from '@fit/types';
@@ -33,6 +33,7 @@ import { useActiveLocation } from '@/components/active-location';
 import { MEMBER_TRASH_RETENTION_DAYS } from '@fit/types';
 import { MembersFilters } from './members-filters';
 import { bulkExportMembersAction, setMemberTrashedAction } from './actions';
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { createDateTimeFormat } from '@fit/i18n';
 
 /** Translator for the `admin.members` namespace (from `useTranslations`). */
@@ -44,12 +45,14 @@ type T = ReturnType<typeof useTranslations>;
  * roster to answer "who is this person to us?", and the account's own state
  * (invited / suspended) and the billing state are the finer detail behind it.
  */
-const KIND_TONES: Record<MemberKind, BadgeTone> = {
+const KIND_TONES: Record<MemberStanding, BadgeTone> = {
   // Three standings onto the direction's three signals: an active member is the
   // lime, a guest and a lapsed member are both ink. `warning` used to give
   // INACTIVE an amber of its own; the direction has no amber, and "lapsed" is a
   // state to notice rather than an error to fix.
   MEMBER: 'positive',
+  // Paid for and paused: not walking in, not lapsed either.
+  FROZEN: 'neutral',
   GUEST: 'neutral',
   INACTIVE: 'pending',
 };
@@ -374,7 +377,7 @@ const styles = stylex.create({
 });
 
 /** The standing pill mirroring the roster styling. */
-function StatusPill({ kind }: { kind: MemberKind }) {
+function StatusPill({ kind }: { kind: MemberStanding }) {
   const t = useTranslations('admin.members');
   return <Badge tone={KIND_TONES[kind]} label={t(`kind.${kind}`)} />;
 }
@@ -387,21 +390,24 @@ function initialsOf(name: string): string {
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null, locale: string): string {
+function formatDate(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /**
  * A friendly relative "last visit" — "2h ago" / "Today" / "6 days" / a date —
- * from an ISO instant, local to the staff member. `null` renders "Never".
+ * from an ISO instant, on the gym calendar. `null` renders "Never".
  */
-function formatLastVisit(iso: string | null, t: T, locale: string): string {
+function formatLastVisit(iso: string | null, t: T, locale: string, timeZone: string): string {
   if (!iso) return t('lastVisit.never');
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '-';
@@ -409,12 +415,23 @@ function formatLastVisit(iso: string | null, t: T, locale: string): string {
   const hours = Math.floor(diffMs / 3_600_000);
   if (hours < 1) return t('lastVisit.justNow');
   if (hours < 6) return t('lastVisit.hoursAgo', { hours });
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const startOfDay = (d: Date) => {
+    const parts = dayFormatter.formatToParts(d);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      Number(parts.find((entry) => entry.type === type)?.value);
+    return Date.UTC(part('year'), part('month') - 1, part('day'));
+  };
   const dayDiff = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000);
   if (dayDiff === 0) return t('lastVisit.today');
   if (dayDiff === 1) return t('lastVisit.yesterday');
   if (dayDiff < 14) return t('lastVisit.days', { count: dayDiff });
-  return formatDate(iso, locale);
+  return formatDate(iso, locale, timeZone);
 }
 
 /**
@@ -431,6 +448,7 @@ function NextBillingCell({
   t: T;
   locale: string;
 }) {
+  const timeZone = useGymTimeZone();
   switch (row.billingState) {
     case 'overdue':
       return (
@@ -443,7 +461,9 @@ function NextBillingCell({
       return <span {...stylex.props(styles.muted)}>{t('billing.paused')}</span>;
     case 'due':
       return (
-        <span {...stylex.props(styles.billingMono)}>{formatDate(row.nextBillingAt, locale)}</span>
+        <span {...stylex.props(styles.billingMono)}>
+          {formatDate(row.nextBillingAt, locale, timeZone)}
+        </span>
       );
     case 'none':
     default:
@@ -494,7 +514,15 @@ function PlanMixCard({ planMix }: { planMix: MemberPlanMix }) {
       <div {...stylex.props(styles.planHead)}>
         <h2 {...stylex.props(styles.planLabel)}>{t('list.planMix')}</h2>
         <span {...stylex.props(styles.planMeta)}>
-          {total} {t('list.paid')}
+          {/* Paying = active + frozen, both shown so the header's active figure
+              can be read straight off this card. */}
+          {planMix.active === undefined || planMix.frozen === undefined
+            ? `${total} ${t('list.paid')}`
+            : t('list.payingSplit', {
+                total,
+                active: planMix.active,
+                frozen: planMix.frozen,
+              })}
         </span>
       </div>
 
@@ -575,6 +603,7 @@ export function MembersTable({
   planId: string;
   canWrite: boolean;
 }) {
+  const timeZone = useGymTimeZone();
   const t = useTranslations('admin.members');
   const tCommon = useTranslations('admin.common');
   const { toast } = useToast();
@@ -764,7 +793,7 @@ export function MembersTable({
       sortKey: 'lastVisitAt',
       cell: (member) => (
         <span {...stylex.props(styles.lastVisit)}>
-          {formatLastVisit(member.lastVisitAt, t, locale)}
+          {formatLastVisit(member.lastVisitAt, t, locale, timeZone)}
         </span>
       ),
     },

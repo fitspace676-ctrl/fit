@@ -1,4 +1,9 @@
 import {
+  activeMemberWhere,
+  liveSubscriptionWhere,
+  membershipPlanMix,
+} from '../common/live-membership.util';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -19,8 +24,8 @@ import {
   PaymentStatus,
   Prisma,
   Role,
-  SubscriptionInterval,
   SubscriptionPlanStatus,
+  addInterval,
   SubscriptionStatus,
 } from '@fit/db';
 import type {
@@ -38,6 +43,7 @@ import type {
   MemberAttendanceWeek,
   MemberBillingState,
   MemberKind,
+  MemberStanding,
   MemberCurrentPlan,
   MemberDetail,
   MemberNoteEntry,
@@ -71,6 +77,7 @@ import { LoyaltyPointsService } from '../loyalty/loyalty-points.service';
 import { env } from '../config/env';
 import { RedisService } from '../redis/redis.service';
 import { buildPasswordResetUrl } from '../auth/email.service';
+import { memberRealm } from '../auth/account-realm';
 import { buildMemberWelcomeEmail } from '../mail/member-welcome';
 import { emailFrom, MailerService } from '../mail/mailer.service';
 import { renderBrandedEmail, escapeHtml, renderEmailParagraphs } from '../mail/branded-email';
@@ -110,6 +117,7 @@ const LIVE_SUBSCRIPTION_SELECT = {
   priceAmount: true,
   currency: true,
   interval: true,
+  intervalCount: true,
   currentPeriodStart: true,
   currentPeriodEnd: true,
   frozenUntil: true,
@@ -206,8 +214,9 @@ type LiveSubscription = MemberRecord['subscriptions'][number];
  * Prisma tenant extension, so a staff member can only ever read or mutate their
  * own gym's members — there is no `gymId` to pass or to forget. The roster is the
  * gym's `MEMBER`-role memberships (staff are managed separately in T4.7),
- * paginated server-side. `User` is cross-tenant, so create links an existing
- * person by email rather than duplicating them.
+ * paginated server-side. A member is the gym's member ACCOUNT (a `User` in the
+ * gym's member realm, see `auth/account-realm`), so create finds that account by
+ * email or makes one; staff of the gym and other gyms' accounts are never linked.
  *
  * Every "formacore" figure is a REAL tenant-scoped query: each row's `plan` +
  * `nextBilling` come from the member's live `Subscription`, `lastVisitAt` from the
@@ -232,19 +241,30 @@ type LiveSubscription = MemberRecord['subscriptions'][number];
  * same precedence the function uses — the override first, then suspension, then
  * whether a subscription is live, then whether one ever was.
  */
-function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
-  const live = { some: { status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } } };
+function memberKindWhere(kind: MemberStanding, now = new Date()): Prisma.GymMemberWhereInput {
+  // "In force" is the dashboard's active rule (`activeMemberWhere`): an ACTIVE
+  // account with a TRIAL / ACTIVE / PAST_DUE membership whose period contains now.
+  const inForce: Prisma.GymMemberWhereInput = {
+    status: GymMemberStatus.ACTIVE,
+    subscriptions: { some: liveSubscriptionWhere(now) },
+  };
+  const holdsFrozen: Prisma.GymMemberWhereInput = {
+    subscriptions: { some: { status: SubscriptionStatus.FROZEN } },
+  };
 
   if (kind === 'MEMBER') {
     return {
-      OR: [
-        { kindOverride: MemberKindEnum.MEMBER },
-        {
-          kindOverride: null,
-          status: { not: GymMemberStatus.SUSPENDED },
-          subscriptions: live,
-        },
-      ],
+      OR: [{ kindOverride: MemberKindEnum.MEMBER }, { kindOverride: null, ...inForce }],
+    };
+  }
+
+  // Derived only: a frozen membership, nothing in force, not suspended, not pinned.
+  if (kind === 'FROZEN') {
+    return {
+      kindOverride: null,
+      status: { not: GymMemberStatus.SUSPENDED },
+      ...holdsFrozen,
+      NOT: inForce,
     };
   }
 
@@ -261,7 +281,8 @@ function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
     };
   }
 
-  // Lapsed: suspended outright, or holding subscriptions of which none is live.
+  // Lapsed: suspended outright, or holding subscriptions of which none is in force
+  // and none is frozen.
   return {
     OR: [
       { kindOverride: MemberKindEnum.INACTIVE },
@@ -269,7 +290,7 @@ function memberKindWhere(kind: MemberKind): Prisma.GymMemberWhereInput {
       {
         kindOverride: null,
         subscriptions: { some: {} },
-        NOT: { subscriptions: live },
+        AND: [{ NOT: inForce }, { NOT: holdsFrozen }],
       },
     ],
   };
@@ -342,18 +363,19 @@ export class MembersService {
   }
 
   /**
-   * Create a member (T4.3). The email is the cross-gym {@link Role.MEMBER User}
-   * identity: a person who already exists (a member of another gym, or one who
-   * was removed and is returning) is **linked** rather than duplicated — only a
-   * brand-new email mints a `User`. A duplicate within the caller's own gym is a
-   * `409 MEMBER_EXISTS`. Wrapped in a transaction so a failed membership insert
+   * Create a member (T4.3). The member is the gym's own member account for the
+   * email (a `User` in the gym's member realm): a member account whose membership
+   * was purged is reused, anything else mints a new account. An address that is
+   * on this gym's staff, or known at another gym, gets a separate member account
+   * and those accounts stay untouched. A duplicate within the caller's own gym is
+   * a `409 MEMBER_EXISTS`. Wrapped in a transaction so a failed membership insert
    * never leaves an orphan user behind. Returns the new member's detail (`201`).
    *
    * The whole flow runs on the tenant-scoped client: `gymMember` reads/writes are
    * auto-constrained to (and stamped with) the caller's gym, so there is no
    * `gymId` to pass — the duplicate check and the insert are both this-gym-only by
-   * construction. An existing user's `name`/`phone` is left untouched (it is their
-   * cross-gym identity); edit it afterwards via {@link updateMember} if needed.
+   * construction. A reused account's `name`/`phone` is left untouched; edit it
+   * afterwards via {@link updateMember} if needed.
    */
   async createMember(input: CreateMemberInput): Promise<CreateMemberResponse> {
     const { name, email, phone, status, planId, startDate, locationId } = input;
@@ -365,7 +387,11 @@ export class MembersService {
     const homeLocationId = await this.resolveHomeBranch(locationId);
 
     const created = await this.prisma.client.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({ where: { email }, select: { id: true } });
+      const realm = memberRealm(this.tenant.gymId);
+      const existing = await tx.user.findUnique({
+        where: { email_realm: { email, realm } },
+        select: { id: true },
+      });
 
       if (existing) {
         const already = await tx.gymMember.findFirst({
@@ -392,7 +418,7 @@ export class MembersService {
 
       const userId =
         existing?.id ??
-        (await tx.user.create({ data: { name, email, phone }, select: { id: true } })).id;
+        (await tx.user.create({ data: { name, email, phone, realm }, select: { id: true } })).id;
 
       // `gymId` is read from the request's tenant context. The tenant extension
       // also stamps it on create, so this is belt-and-braces — and it satisfies
@@ -428,7 +454,15 @@ export class MembersService {
       if (planId) {
         const plan = await tx.subscriptionPlan.findFirst({
           where: { id: planId },
-          select: { id: true, priceAmount: true, currency: true, interval: true, status: true },
+          select: {
+            id: true,
+            priceAmount: true,
+            currency: true,
+            interval: true,
+            intervalCount: true,
+            oneTime: true,
+            status: true,
+          },
         });
         if (!plan) {
           throw new BadRequestException({
@@ -452,8 +486,10 @@ export class MembersService {
             priceAmount: plan.priceAmount,
             currency: plan.currency,
             interval: plan.interval,
+            intervalCount: plan.intervalCount,
+            cancelAtPeriodEnd: plan.oneTime,
             currentPeriodStart: start,
-            currentPeriodEnd: this.addInterval(start, plan.interval),
+            currentPeriodEnd: addInterval(start, plan.interval, plan.intervalCount),
           },
         });
       }
@@ -510,20 +546,6 @@ export class MembersService {
     // Re-read through the full detail path so a brand-new member's response
     // carries every "formacore" field (empty history, zero KPIs) consistently.
     return this.getMember(created.id);
-  }
-
-  /**
-   * Advance a date by one billing period — a year for `YEAR` plans, else a month.
-   * Used to seed a new enrolment's `currentPeriodEnd` from its start.
-   */
-  private addInterval(from: Date, interval: SubscriptionInterval): Date {
-    const end = new Date(from);
-    if (interval === SubscriptionInterval.YEAR) {
-      end.setFullYear(end.getFullYear() + 1);
-    } else {
-      end.setMonth(end.getMonth() + 1);
-    }
-    return end;
   }
 
   /**
@@ -981,64 +1003,19 @@ export class MembersService {
   /*  Roster aggregates                                                      */
   /* ---------------------------------------------------------------------- */
 
-  /**
-   * The gym-wide live plan mix — live subscriptions (ACTIVE / PAST_DUE / FROZEN)
-   * grouped by their catalogue plan, labelled with each plan's name, richest
-   * first. A subscription whose plan was deleted rolls up under `"No plan"`.
-   * `total` is the paid-members count across all plans. Mirrors the dashboard's
-   * plan mix. Independent of the page's filters (it describes the whole gym).
-   */
+  /** Current paying members by plan, using the dashboard's exact definition.
+   * Frozen is included; one person contributes to one slice. Search/status page
+   * filters do not change the mix; the selected home branch does. */
   private async planMix(locationId?: string): Promise<MemberPlanMix> {
-    const db = this.prisma.client;
-    const grouped = await db.subscription.groupBy({
-      by: ['planId'],
-      // Exclude subscriptions owned by trashed members — the mix describes the live
-      // roster. `Subscription` has no branch of its own; it inherits the one on the
-      // member who holds it, which is the same attribution rule the roster above
-      // uses, so the bar always describes exactly the members listed beneath it.
-      where: {
-        status: { in: [...LIVE_SUBSCRIPTION_STATUSES] },
-        member: { deletedAt: null, ...atLocation(locationId) },
-      },
-      _count: { _all: true },
-    });
-    if (grouped.length === 0) {
-      return { total: 0, plans: [] };
-    }
-
-    const planIds = grouped.map((g) => g.planId).filter((id): id is string => id !== null);
-    const plans =
-      planIds.length === 0
-        ? []
-        : await db.subscriptionPlan.findMany({
-            where: { id: { in: planIds } },
-            select: { id: true, name: true },
-          });
-    const nameById = new Map(plans.map((p) => [p.id, p.name]));
-
-    let total = 0;
-    const slices = grouped
-      .map((g) => {
-        const count = g._count._all;
-        total += count;
-        return {
-          planId: g.planId,
-          name: g.planId === null ? 'No plan' : (nameById.get(g.planId) ?? 'Deleted plan'),
-          count,
-        };
-      })
-      .sort((a, b) => b.count - a.count)
-      .map((slice, i) => ({ ...slice, color: PLAN_COLORS[i % PLAN_COLORS.length] ?? null }));
-
-    return { total, plans: slices };
+    return membershipPlanMix(this.prisma.client, locationId);
   }
 
-  /**
-   * The gym-wide member counts per segment for the roster's tabs. `all` / `active`
-   * / `trial` (INVITED) / `expired` (SUSPENDED) group the `MEMBER`-role
-   * memberships by `GymMemberStatus`; `frozen` counts members holding a live
-   * `FROZEN` subscription. Independent of the page's filters.
-   */
+  /** Account totals and roster segments, excluding trash. The header's `active`
+   * is a current membership count, identical to the dashboard KPI; `all` keeps
+   * every non-deleted account, including suspended/invited accounts, and the four
+   * segments `member + frozen + guest + inactive` add up to it (each person in
+   * exactly one, by {@link memberKindWhere}). `member` equals `active` unless staff
+   * pinned someone MEMBER by hand. */
   private async tabCounts(locationId?: string): Promise<MemberTabCounts> {
     const db = this.prisma.client;
     // Every count carries the branch the roster is showing. A tab badge that
@@ -1047,40 +1024,37 @@ export class MembersService {
     const branch = atLocation(locationId);
     // The status segments and the frozen/plan aggregates describe the live roster,
     // so they exclude trashed members; `trash` counts the soft-deleted ones.
-    const kindCount = (kind: MemberKind): Promise<number> =>
+    const now = new Date();
+    const kindCount = (kind: MemberStanding): Promise<number> =>
       db.gymMember.count({
-        where: { role: Role.MEMBER, deletedAt: null, ...branch, ...memberKindWhere(kind) },
+        where: { role: Role.MEMBER, deletedAt: null, ...branch, ...memberKindWhere(kind, now) },
       });
 
-    const [byStatus, frozen, trash, member, guest, inactive] = await Promise.all([
+    const [byStatus, frozen, trash, member, guest, inactive, active] = await Promise.all([
       db.gymMember.groupBy({
         by: ['status'],
         where: { role: Role.MEMBER, deletedAt: null, ...branch },
         _count: { _all: true },
       }),
-      db.gymMember.count({
-        where: {
-          role: Role.MEMBER,
-          deletedAt: null,
-          ...branch,
-          subscriptions: { some: { status: SubscriptionStatus.FROZEN } },
-        },
-      }),
+      // Its own segment: frozen and nothing in force, so the four segments
+      // (member + frozen + guest + inactive) partition `all`.
+      kindCount('FROZEN'),
       db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: { not: null }, ...branch } }),
       kindCount('MEMBER'),
       kindCount('GUEST'),
       kindCount('INACTIVE'),
+      db.gymMember.count({ where: activeMemberWhere(now, locationId) }),
     ]);
 
     const countOf = (status: GymMemberStatus): number =>
       byStatus.find((g) => g.status === status)?._count._all ?? 0;
 
-    const active = countOf(GymMemberStatus.ACTIVE);
+    const activeAccounts = countOf(GymMemberStatus.ACTIVE);
     const trial = countOf(GymMemberStatus.INVITED);
     const expired = countOf(GymMemberStatus.SUSPENDED);
 
     return {
-      all: active + trial + expired,
+      all: activeAccounts + trial + expired,
       member,
       guest,
       inactive,
@@ -1111,8 +1085,13 @@ export class MembersService {
 
     // The roster's primary segment. Derived, so it is expressed as the subscription
     // + override conditions `memberKindWhere` mirrors from `resolveMemberKind`.
+    const and: Prisma.GymMemberWhereInput[] = [];
     if (query.kind) {
-      Object.assign(where, memberKindWhere(query.kind));
+      and.push(memberKindWhere(query.kind));
+    }
+    // The Frozen tab's flag: the same rows as `kind=FROZEN`.
+    if (query.frozen) {
+      and.push(memberKindWhere('FROZEN'));
     }
 
     if (query.status && !isTrash) {
@@ -1135,21 +1114,17 @@ export class MembersService {
       };
     }
 
-    // Subscription-derived narrows, each a distinct `some` predicate: the plan
-    // filter (a live subscription on the given plan) and the Frozen tab (any
-    // `FROZEN` subscription). Combined via `AND` so both hold independently — a
-    // single `where.subscriptions` would let the later one clobber the earlier.
-    const subFilters: Prisma.SubscriptionWhereInput[] = [];
+    // The plan filter (a live subscription on the given plan). Every narrow that
+    // touches `subscriptions` or `OR` goes through `AND`, so none clobbers another.
     if (query.planId) {
-      subFilters.push({ planId: query.planId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } });
+      and.push({
+        subscriptions: {
+          some: { planId: query.planId, status: { in: [...LIVE_SUBSCRIPTION_STATUSES] } },
+        },
+      });
     }
-    if (query.frozen) {
-      subFilters.push({ status: SubscriptionStatus.FROZEN });
-    }
-    if (subFilters.length === 1) {
-      where.subscriptions = { some: subFilters[0] };
-    } else if (subFilters.length > 1) {
-      where.AND = subFilters.map((some) => ({ subscriptions: { some } }));
+    if (and.length > 0) {
+      where.AND = and;
     }
 
     return where;
@@ -1226,7 +1201,10 @@ export class MembersService {
       kind: resolveMemberKind({
         kindOverride: row.kindOverride,
         status: row.status,
-        hasLiveSubscription: sub !== null,
+        // In force now, by the same rule as `memberKindWhere` (the roster loads
+        // the member's one live-status subscription).
+        hasLiveSubscription: sub !== null && isInForce(sub, new Date()),
+        hasFrozenMembership: sub?.status === SubscriptionStatus.FROZEN,
         // A live subscription is itself proof they have ever held one, so the
         // count only decides the lapsed-vs-guest split.
         hasEverSubscribed: row._count.subscriptions > 0 || sub !== null,
@@ -1265,6 +1243,7 @@ export class MembersService {
       planId: sub.planId,
       name: sub.plan?.name ?? 'No plan',
       interval: sub.interval,
+      intervalCount: sub.intervalCount,
       priceAmount: sub.priceAmount,
       currency: sub.currency,
       detail: this.planDetail(sub),
@@ -1284,7 +1263,9 @@ export class MembersService {
     if (sub.status === SubscriptionStatus.PAST_DUE) {
       return 'overdue';
     }
-    return sub.interval === 'YEAR' ? 'annual' : 'monthly';
+    if (sub.intervalCount === 1 && sub.interval === 'YEAR') return 'annual';
+    if (sub.intervalCount === 1 && sub.interval === 'MONTH') return 'monthly';
+    return `${sub.intervalCount} ${sub.interval.toLowerCase()}`;
   }
 
   /**
@@ -1558,6 +1539,7 @@ export class MembersService {
       name: sub.plan?.name ?? 'No plan',
       status: sub.status,
       interval: sub.interval,
+      intervalCount: sub.intervalCount,
       priceAmount: sub.priceAmount,
       currency: sub.currency,
       currentPeriodStart: sub.currentPeriodStart.toISOString(),
@@ -1651,4 +1633,19 @@ export class MembersService {
     const symbol = currency === 'GEL' ? '₾' : currency === 'USD' ? '$' : `${currency} `;
     return `${symbol}${(amount / 100).toFixed(2)}`;
   }
+}
+
+/** Whether a loaded subscription is a membership in force at `now` — the row-side
+ * twin of `liveSubscriptionWhere`. */
+function isInForce(
+  sub: { status: SubscriptionStatus; currentPeriodStart: Date; currentPeriodEnd: Date },
+  now: Date,
+): boolean {
+  return (
+    (sub.status === SubscriptionStatus.TRIAL ||
+      sub.status === SubscriptionStatus.ACTIVE ||
+      sub.status === SubscriptionStatus.PAST_DUE) &&
+    sub.currentPeriodStart <= now &&
+    sub.currentPeriodEnd >= now
+  );
 }

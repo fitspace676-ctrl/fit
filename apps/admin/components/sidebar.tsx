@@ -286,8 +286,6 @@ const styles = stylex.create({
 });
 
 export interface SidebarProps {
-  /** The gym slug being managed, or `null` off a tenant host. */
-  gymSlug: string | null;
   /** Live system signal — the SYSTEM widget + Check-in badge source. */
   system: ShellSystemState;
   /** Collapsed state seeded from the cookie on the server (no first-paint jump). */
@@ -300,7 +298,7 @@ export interface SidebarProps {
   initialSession?: Session | null;
 }
 
-export function Sidebar({ gymSlug, system, defaultCollapsed = false }: SidebarProps) {
+export function Sidebar({ system, defaultCollapsed = false }: SidebarProps) {
   const permissions = useConsolePermissions();
   const pathname = usePathname();
   const t = useTranslations('admin');
@@ -400,13 +398,11 @@ export function Sidebar({ gymSlug, system, defaultCollapsed = false }: SidebarPr
                 public asset directly under BASE_PATH. */}
             <ConsoleLogo
               mode="dark"
-              slug={gymSlug}
               alt={t('common.brand')}
               className="admin-logo admin-logo-dark"
             />
             <ConsoleLogo
               mode="light"
-              slug={gymSlug}
               alt={t('common.brand')}
               className="admin-logo admin-logo-light"
             />

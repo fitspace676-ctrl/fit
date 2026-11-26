@@ -1,5 +1,6 @@
 'use client';
 
+import { useGymTimeZone } from '@/components/gym-timezone';
 import { useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -29,12 +30,13 @@ function StatusPill({ status }: { status: PackagePlanStatus }) {
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null): string {
+function formatDate(iso: string | null, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
     : createDateTimeFormat(defaultLocale, {
+        timeZone,
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -63,6 +65,7 @@ export function PackagePlansTable({
   sort: PackagePlanSort;
   dir: SortDir;
 }) {
+  const timeZone = useGymTimeZone();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -156,7 +159,7 @@ export function PackagePlansTable({
                   <StatusPill status={plan.status} />
                 </td>
                 <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
-                  {formatDate(plan.createdAt)}
+                  {formatDate(plan.createdAt, timeZone)}
                 </td>
                 <td className="px-4 py-3 text-ink-700 dark:text-ink-200">
                   {sessionLabel(plan.sessionCount)}

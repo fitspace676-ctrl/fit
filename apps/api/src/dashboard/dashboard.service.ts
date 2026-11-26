@@ -1,8 +1,8 @@
+import { activeMemberWhere, membershipPlanMix } from '../common/live-membership.util';
 import { Injectable } from '@nestjs/common';
 import { contactEmail } from '../common/directory-identity';
 import {
   BookingStatus,
-  GymMemberStatus,
   LocationStatus,
   PaymentStatus,
   ProductStatus,
@@ -22,7 +22,6 @@ import {
   type DashboardOverviewResponse,
   type DashboardPeriod,
   type DashboardPlanMix,
-  type DashboardPlanSlice,
   type DashboardRange,
   type DashboardRecentMember,
   type DashboardRevenue,
@@ -90,11 +89,11 @@ export class DashboardService {
       productsTotal,
     ] = await Promise.all([
       db.gymMember.count({
-        where: { role: Role.MEMBER, status: GymMemberStatus.ACTIVE, deletedAt: null },
+        where: activeMemberWhere(new Date()),
       }),
       db.gymMember.count({ where: { role: Role.MEMBER, deletedAt: null } }),
-      db.trainer.count({ where: { status: TrainerStatus.ACTIVE } }),
-      db.trainer.count(),
+      db.trainer.count({ where: { archivedAt: null, status: TrainerStatus.ACTIVE } }),
+      db.trainer.count({ where: { archivedAt: null } }),
       db.location.count({ where: { status: LocationStatus.ACTIVE } }),
       db.location.count(),
       db.product.count({ where: { status: ProductStatus.ACTIVE } }),
@@ -404,7 +403,7 @@ export class DashboardService {
    * delta vs. the immediately preceding equal-length window:
    *   • todaysRevenue — SUM captured `Payment.amount` in the window.
    *   • checkInsToday — COUNT check-ins in the window.
-   *   • newMembers7d  — COUNT `MEMBER` joined in the window.
+   *   • newMembers7d  — COUNT non-deleted `MEMBER`s joined in the window.
    * (The field names keep their original spelling for wire-compatibility; the
    * client labels them by the resolved period.)
    *
@@ -466,6 +465,8 @@ export class DashboardService {
         db.gymMember.count({
           where: {
             role: Role.MEMBER,
+            // Trashed accounts are not members; the joiners table excludes them too.
+            deletedAt: null,
             joinedAt: { gte: win.start, lt: win.end },
             ...atLocation(locationId),
           },
@@ -473,6 +474,8 @@ export class DashboardService {
         db.gymMember.count({
           where: {
             role: Role.MEMBER,
+            // Trashed accounts are not members; the joiners table excludes them too.
+            deletedAt: null,
             joinedAt: { gte: win.prevStart, lt: win.prevEnd },
             ...atLocation(locationId),
           },
@@ -501,7 +504,7 @@ export class DashboardService {
   /**
    * The six secondary "stat card" KPIs the gym-admin reference surfaces. All real,
    * tenant-scoped, issued concurrently:
-   *   • activeMembers    — COUNT `MEMBER` with status ACTIVE.
+   *   • activeMembers    — non-deleted ACTIVE accounts with a membership in force.
    *   • revenueThisMonth — SUM captured `Payment.amount` this calendar month, delta
    *                        vs. last month.
    *   • overduePayments  — COUNT subscriptions in PAST_DUE (the dunning backlog).
@@ -547,14 +550,9 @@ export class DashboardService {
       expiringSoon,
       renewalsDue,
     ] = await Promise.all([
-      // The member's HOME branch — `@@index([gymId, locationId, status])` is
-      // exactly this count's shape.
+      // Current memberships owned by accounts at the member's HOME branch.
       db.gymMember.count({
-        where: {
-          role: Role.MEMBER,
-          status: GymMemberStatus.ACTIVE,
-          ...atLocation(locationId),
-        },
+        where: activeMemberWhere(now, locationId),
       }),
       db.payment.aggregate({
         where: { status: PaymentStatus.CAPTURED, createdAt: { gte: monthStart }, ...atBranch },
@@ -662,63 +660,11 @@ export class DashboardService {
   /*  Plan mix                                                               */
   /* ---------------------------------------------------------------------- */
 
-  /**
-   * The live plan mix — subscriptions in a live state (TRIAL / ACTIVE / PAST_DUE /
-   * FROZEN) grouped by their catalogue plan, labelled with each plan's name. A
-   * subscription whose plan was deleted rolls up under `"No plan"`. `total` is the
-   * live-members count across all plans. Mirrors {@link AnalyticsService.planMix}.
-   *
-   * `locationId` narrows it to the plans held by the members homed at that branch.
-   * A `Subscription` reaches a branch only through its `GymMember`, and since
-   * Stage 2 that member has one — the same hop the roster's own plan-mix card uses
-   * (`members.service.ts`), so the two cannot disagree about what this branch sells.
-   */
+  /** Current paying members by plan, shared with the roster. Includes frozen
+   * memberships; excludes deleted/non-member owners and deduplicates people.
+   * Home-branch attribution is identical on both pages. */
   private async planMix(locationId?: string): Promise<DashboardPlanMix> {
-    const db = this.prisma.client;
-    const grouped = await db.subscription.groupBy({
-      by: ['planId'],
-      where: {
-        status: {
-          in: [
-            SubscriptionStatus.TRIAL,
-            SubscriptionStatus.ACTIVE,
-            SubscriptionStatus.PAST_DUE,
-            SubscriptionStatus.FROZEN,
-          ],
-        },
-        ...memberAtLocation(locationId),
-      },
-      _count: { _all: true },
-    });
-    if (grouped.length === 0) {
-      return { total: 0, plans: [] };
-    }
-
-    const planIds = grouped.map((g) => g.planId).filter((id): id is string => id !== null);
-    const plans =
-      planIds.length === 0
-        ? []
-        : await db.subscriptionPlan.findMany({
-            where: { id: { in: planIds } },
-            select: { id: true, name: true },
-          });
-    const nameById = new Map(plans.map((p) => [p.id, p.name]));
-
-    let total = 0;
-    const slices: DashboardPlanSlice[] = grouped
-      .map((g, i) => {
-        const count = g._count._all;
-        total += count;
-        return {
-          planId: g.planId,
-          name: g.planId === null ? 'No plan' : (nameById.get(g.planId) ?? 'Deleted plan'),
-          count,
-          color: PLAN_COLORS[i % PLAN_COLORS.length] ?? null,
-        };
-      })
-      .sort((a, b) => b.count - a.count);
-
-    return { total, plans: slices };
+    return membershipPlanMix(this.prisma.client, locationId);
   }
 
   /* ---------------------------------------------------------------------- */
@@ -939,7 +885,7 @@ export class DashboardService {
    */
   private async recentMembers(locationId?: string): Promise<DashboardRecentMember[]> {
     const rows = await this.prisma.client.gymMember.findMany({
-      where: { role: Role.MEMBER, ...atLocation(locationId) },
+      where: { role: Role.MEMBER, deletedAt: null, ...atLocation(locationId) },
       orderBy: { joinedAt: 'desc' },
       take: 6,
       select: {
@@ -967,13 +913,6 @@ export class DashboardService {
     }));
   }
 }
-
-/* -------------------------------------------------------------------------- */
-/*  Constants                                                                  */
-/* -------------------------------------------------------------------------- */
-
-/** Fixed accent palette for the plan-mix stacked bar, brand-first. */
-const PLAN_COLORS = ['#7C3AED', '#EC4899', '#2563EB', '#0EA5E9', '#10B981', '#F59E0B'];
 
 /*
  * `resolveWindow` / `bucketKey` / `emptyBuckets` used to be duplicated HERE, in

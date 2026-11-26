@@ -5,7 +5,12 @@ import { Badge, Button, Card } from '@fit/ui-kit';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
-import type { AdminTrainerDetail, TrainerClientRow, WeeklyAvailability } from '@fit/types';
+import type {
+  AdminTrainerDetail,
+  StaffMember,
+  TrainerClientRow,
+  WeeklyAvailability,
+} from '@fit/types';
 import { Icon } from '@/components/ui';
 import { useTheme } from '@/components/theme/theme-provider';
 import { formatClassDateTime } from '../format';
@@ -99,6 +104,44 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.5rem',
+  },
+  contactHead: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '0.75rem',
+  },
+  contactEdit: {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    color: {
+      default: 'var(--color-text-accent)',
+      ':hover': 'var(--color-text-primary)',
+    },
+  },
+  contactList: {
+    display: 'grid',
+    gap: '0.5rem',
+    margin: 0,
+  },
+  contactRow: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(6rem, 9rem) minmax(0, 1fr)',
+    gap: '0.75rem',
+    fontSize: '0.875rem',
+  },
+  contactLabel: {
+    color: 'var(--color-text-secondary)',
+  },
+  contactValue: {
+    margin: 0,
+    color: 'var(--color-text-primary)',
+    overflowWrap: 'anywhere',
+  },
+  contactMissing: {
+    margin: 0,
+    color: 'var(--color-text-secondary)',
   },
   sectionLabel: {
     margin: 0,
@@ -359,6 +402,18 @@ const styles = stylex.create({
   },
 });
 
+/** One contact detail, with a muted placeholder when it isn't on file. */
+function ContactRow({ label, value, t }: { label: string; value: string | null; t: T }) {
+  return (
+    <div {...stylex.props(styles.contactRow)}>
+      <dt {...stylex.props(styles.contactLabel)}>{label}</dt>
+      <dd {...stylex.props(value ? styles.contactValue : styles.contactMissing)}>
+        {value || t('tabs.contactMissing')}
+      </dd>
+    </div>
+  );
+}
+
 /** One "This week" row in the Overview side card. */
 function WeekRow({ label, value }: { label: string; value: number }) {
   return (
@@ -378,6 +433,7 @@ function WeekRow({ label, value }: { label: string; value: number }) {
  */
 export function TrainerTabs({
   trainer,
+  contact,
   availability,
   clients,
   canEditAvailability,
@@ -385,6 +441,8 @@ export function TrainerTabs({
   timeZone,
 }: {
   trainer: AdminTrainerDetail;
+  /** The coach's staff record (email, phone, branches), or `null` when not visible. */
+  contact: StaffMember | null;
   availability: WeeklyAvailability;
   /** The coach's PT clients, folded from their service sessions. */
   clients: TrainerClientRow[];
@@ -424,7 +482,7 @@ export function TrainerTabs({
       </div>
 
       <div role="tabpanel">
-        {active === 'Overview' && <OverviewPanel trainer={trainer} t={t} />}
+        {active === 'Overview' && <OverviewPanel trainer={trainer} contact={contact} t={t} />}
         {active === 'Schedule' && (
           <SchedulePanel trainer={trainer} t={t} locale={locale} timeZone={timeZone} />
         )}
@@ -459,10 +517,38 @@ export function TrainerTabs({
  * invented. Specialties are listed once, above, which is the whole of what is
  * actually recorded.
  */
-function OverviewPanel({ trainer, t }: { trainer: AdminTrainerDetail; t: T }) {
+function OverviewPanel({
+  trainer,
+  contact,
+  t,
+}: {
+  trainer: AdminTrainerDetail;
+  contact: StaffMember | null;
+  t: T;
+}) {
   return (
     <div {...stylex.props(styles.overviewGrid)}>
       <Card padding="none" xstyle={styles.aboutCard}>
+        {contact ? (
+          <div {...stylex.props(styles.block)}>
+            <div {...stylex.props(styles.contactHead)}>
+              <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.contact')}</h3>
+              <Link href="/staff" {...stylex.props(styles.contactEdit)}>
+                {t('tabs.contactEdit')}
+              </Link>
+            </div>
+            <dl {...stylex.props(styles.contactList)}>
+              <ContactRow label={t('tabs.contactEmail')} value={contact.email} t={t} />
+              <ContactRow label={t('tabs.contactPhone')} value={contact.phone} t={t} />
+              <ContactRow
+                label={t('tabs.contactLocations')}
+                value={contact.locations.join(', ')}
+                t={t}
+              />
+            </dl>
+          </div>
+        ) : null}
+
         <div {...stylex.props(styles.block)}>
           <h3 {...stylex.props(styles.sectionLabel)}>{t('tabs.about')}</h3>
           {trainer.bio ? (
@@ -746,7 +832,7 @@ export function ReviewQueue({ trainerId }: { trainerId: string }) {
               {review.reports?.map((report, index) => (
                 <li key={index}>
                   {t(`reasons.${report.reason}`)}
-                  {report.note ? ` — ${report.note}` : ''}
+                  {report.note ? `: ${report.note}` : ''}
                 </li>
               ))}
             </ul>

@@ -16,7 +16,10 @@ import {
   type GetAttendanceRosterResponse,
   type MarkAttendanceResponse,
 } from '@fit/types';
-import { RequirePermissions } from '../common/decorators/require-permissions.decorator';
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from '../common/decorators/require-permissions.decorator';
 import { PermissionsGuard } from '../common/rbac/permissions.guard';
 import { TenantGuard } from '../common/tenant/tenant.guard';
 import { AttendanceService } from './attendance.service';
@@ -33,8 +36,8 @@ import { AttendanceService } from './attendance.service';
  * {@link TenantGuard} pins the request to one gym and the global
  * {@link PermissionsGuard} enforces the capability. Reading the roster requires
  * {@link Permission.ClassRead}; recording attendance requires
- * {@link Permission.ClassAttendance} — the front-desk / trainer capability, narrower than
- * management. The service runs on the tenant-scoped Prisma client, so no handler
+ * either {@link Permission.ClassAttendance} or {@link Permission.ClassManageOwn}.
+ * The latter is constrained to the session's linked coach by the service. The service runs on the tenant-scoped Prisma client, so no handler
  * ever passes a `gymId`.
  */
 @Controller('admin/class-instances')
@@ -60,15 +63,15 @@ export class AttendanceController {
    * `POST /admin/class-instances/:id/attendance` — record attendance for one or
    * more held seats in a single call. The body (`{ entries: [{ bookingId, status
    * }] }`) is validated up front: at least one entry, each `bookingId` at most
-   * once, `status` either `ATTENDED` or `NO_SHOW`. Recording transitions the
-   * occurrence to `COMPLETED` and returns the refreshed roster. Failure modes:
+   * once, `status` either `ATTENDED` or `NO_SHOW`. Recording completes ended occurrences and returns the refreshed roster;
+   * a running occurrence remains `SCHEDULED`. Failure modes:
    * `404 CLASS_INSTANCE_NOT_FOUND`, `409 ATTENDANCE_NOT_AVAILABLE` (canceled
-   * occurrence), `409 CLASS_NOT_ENDED`, `404 BOOKING_NOT_FOUND`, and `409
+   * occurrence), `409 CLASS_NOT_STARTED`, `404 BOOKING_NOT_FOUND`, and `409
    * BOOKING_NOT_ATTENDABLE` (a referenced booking held no seat).
    */
   @Post(':id/attendance')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions(Permission.ClassAttendance)
+  @RequireAnyPermissions(Permission.ClassAttendance, Permission.ClassManageOwn)
   async mark(@Param('id') id: string, @Body() body: unknown): Promise<MarkAttendanceResponse> {
     return this.attendance.markAttendance(id, parse(markAttendanceSchema, body));
   }

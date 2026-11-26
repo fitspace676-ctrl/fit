@@ -28,7 +28,7 @@ import {
 } from '@/lib/api';
 import { Badge, Banner, Card, type BadgeTone } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
-import { gymCalendarContext } from '@/lib/gym-time';
+import { getGymTimeZone } from '@/lib/gym-locale';
 import { formatBookingBlockDate } from '@/lib/booking-block-format';
 import { BookingBlockAction } from './booking-block-action';
 import { MemberActions } from './member-actions';
@@ -311,23 +311,26 @@ function formatAmount(minorUnits: number, currency: string): string {
 }
 
 /** "March 2025" from an ISO instant, or an em dash when absent/invalid. */
-function formatMonthYear(iso: string | null, locale: string): string {
+function formatMonthYear(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(date);
+    : createDateTimeFormat(locale, { timeZone, month: 'long', year: 'numeric' }).format(date);
 }
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null, locale: string): string {
+function formatDate(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : createDateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(
-        date,
-      );
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** Render a member's initials for the avatar placeholder. */
@@ -338,14 +341,14 @@ function initialsOf(name: string): string {
 }
 
 /** The NEXT-BILLING KPI value — a date, "Paused", "Overdue", or an em dash. */
-function nextBillingKpi(member: MemberDetail, t: T, locale: string): string {
+function nextBillingKpi(member: MemberDetail, t: T, locale: string, timeZone: string): string {
   switch (member.billingState) {
     case 'paused':
       return t('detail.nextBillingPaused');
     case 'overdue':
       return t('detail.nextBillingOverdue');
     case 'due':
-      return formatDate(member.nextBillingAt, locale);
+      return formatDate(member.nextBillingAt, locale, timeZone);
     case 'none':
     default:
       return '-';
@@ -357,14 +360,14 @@ function nextBillingKpi(member: MemberDetail, t: T, locale: string): string {
  * member-derived tokens the client can resolve; `{{business_name}}` (and any other
  * unfilled token) is left for the server's send-time pass, which has the gym name.
  */
-function emailMergeValues(member: MemberDetail, locale: string): MergeValues {
+function emailMergeValues(member: MemberDetail, locale: string, timeZone: string): MergeValues {
   const fullName = member.name.trim();
   const [firstName, ...rest] = fullName.length > 0 ? fullName.split(/\s+/) : [''];
   const lastName = rest.join(' ');
   const first = firstName ?? '';
   const phone = member.phone ?? '';
   const planName = member.plan?.name ?? '';
-  const expiry = member.nextBillingAt ? formatDate(member.nextBillingAt, locale) : '';
+  const expiry = member.nextBillingAt ? formatDate(member.nextBillingAt, locale, timeZone) : '';
   return {
     // Marketing tokens (`{{first_name}}`) and the automation tokens
     // (`{{member_first_name}}`) share these values so either template kind personalizes.
@@ -422,7 +425,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   const t = await getTranslations('admin.members');
   const locale = await getLocale();
   const blocksT = await getTranslations('admin.bookingBlocks');
-  const { timeZone } = await gymCalendarContext();
+  const timeZone = await getGymTimeZone();
 
   let member: MemberDetail;
   try {
@@ -529,7 +532,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
             memberId={member.id}
             memberName={member.name}
             memberEmail={member.email}
-            mergeValues={emailMergeValues(member, locale)}
+            mergeValues={emailMergeValues(member, locale, timeZone)}
           />
         ) : null}
       </div>
@@ -624,13 +627,13 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         />
         <DetailKpi
           label={t('detail.memberSince')}
-          value={formatMonthYear(member.joinedAt, locale)}
-          context={t('detail.joined', { date: formatDate(member.joinedAt, locale) })}
+          value={formatMonthYear(member.joinedAt, locale, timeZone)}
+          context={t('detail.joined', { date: formatDate(member.joinedAt, locale, timeZone) })}
           icon="calendar"
         />
         <DetailKpi
           label={t('detail.nextBilling')}
-          value={nextBillingKpi(member, t, locale)}
+          value={nextBillingKpi(member, t, locale, timeZone)}
           context={member.plan ? member.plan.name : t('detail.noLivePlan')}
           icon="clock"
         />

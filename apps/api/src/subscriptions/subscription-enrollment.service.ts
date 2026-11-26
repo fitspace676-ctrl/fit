@@ -40,6 +40,8 @@ const ENROLLABLE_PLAN_SELECT = {
   priceAmount: true,
   currency: true,
   interval: true,
+  intervalCount: true,
+  oneTime: true,
   trialDays: true,
 } satisfies Prisma.SubscriptionPlanSelect;
 
@@ -49,6 +51,8 @@ interface EnrollablePlan {
   priceAmount: number;
   currency: string;
   interval: SubscriptionInterval;
+  intervalCount: number;
+  oneTime: boolean;
   trialDays: number;
 }
 
@@ -78,6 +82,7 @@ const ENROLLED_SUBSCRIPTION_SELECT = {
   priceAmount: true,
   currency: true,
   interval: true,
+  intervalCount: true,
   currentPeriodStart: true,
   currentPeriodEnd: true,
   cancelAtPeriodEnd: true,
@@ -163,7 +168,7 @@ export class SubscriptionEnrollmentService {
    */
   async enrollSelf(
     planId: string,
-    returnTo: PaymentReturnTarget = 'web',
+    returnTo?: PaymentReturnTarget,
   ): Promise<SelfEnrollSubscriptionResponse> {
     const result = await this.purchase(planId, returnTo);
     if (result.kind === 'enrolled') return result.response;
@@ -174,7 +179,10 @@ export class SubscriptionEnrollmentService {
    * The member's own purchase of a plan (`POST /checkout`, productType
    * `subscription`) — see {@link purchase}.
    */
-  async purchaseSelf(planId: string, returnTo: PaymentReturnTarget): Promise<SelfPurchaseResult> {
+  async purchaseSelf(
+    planId: string,
+    returnTo: PaymentReturnTarget | undefined,
+  ): Promise<SelfPurchaseResult> {
     const result = await this.purchase(planId, returnTo);
     if (result.kind === 'enrolled') {
       return { subscriptionId: result.response.subscription.id, orderId: null };
@@ -198,7 +206,7 @@ export class SubscriptionEnrollmentService {
    */
   private async purchase(
     planId: string,
-    returnTo: PaymentReturnTarget,
+    returnTo: PaymentReturnTarget | undefined,
   ): Promise<
     | { kind: 'enrolled'; response: EnrollSubscriptionResponse }
     | { kind: 'payment'; orderId: string; payment: PaymentAction }
@@ -256,6 +264,8 @@ export class SubscriptionEnrollmentService {
             priceAmount: plan.priceAmount,
             currency: plan.currency,
             interval: plan.interval,
+            intervalCount: plan.intervalCount,
+            oneTime: plan.oneTime,
           },
           description: plan.name,
           returnTo,
@@ -340,6 +350,8 @@ export class SubscriptionEnrollmentService {
           priceAmount: plan.priceAmount,
           currency: plan.currency,
           interval: plan.interval,
+          intervalCount: plan.intervalCount,
+          oneTime: plan.oneTime,
           trialDays: plan.trialDays,
           provider,
           now: new Date(),
@@ -449,6 +461,7 @@ export class SubscriptionEnrollmentService {
       priceAmount: row.priceAmount,
       currency: row.currency,
       interval: row.interval,
+      intervalCount: row.intervalCount,
       currentPeriodStart: row.currentPeriodStart.toISOString(),
       currentPeriodEnd: row.currentPeriodEnd.toISOString(),
       cancelAtPeriodEnd: row.cancelAtPeriodEnd,

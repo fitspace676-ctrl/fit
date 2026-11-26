@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { LIVE_SUBSCRIPTION_STATUSES, SubscriptionPlanStatus, Prisma } from '@fit/db';
 import {
+  MAX_INTERVAL_COUNT,
+  isValidPlanPeriod,
+  type SubscriptionInterval,
   type AdminSubscriptionPlanDetail,
   type AdminSubscriptionPlanRow,
   type CreateSubscriptionPlanData,
@@ -29,6 +32,8 @@ const SUBSCRIPTION_PLAN_SELECT = {
   priceAmount: true,
   currency: true,
   interval: true,
+  intervalCount: true,
+  oneTime: true,
   features: true,
   freezeDaysPerPeriod: true,
   includedCredits: true,
@@ -169,6 +174,8 @@ export class AdminSubscriptionPlansService {
         // a client-supplied one — a gym sells in exactly one currency.
         currency: (await this.locale.get()).currency,
         interval: input.interval,
+        intervalCount: planPeriodCount(input),
+        oneTime: input.oneTime,
         features: input.features,
         popular: input.popular,
         freezeDaysPerPeriod: input.freezeDaysPerPeriod,
@@ -208,6 +215,8 @@ export class AdminSubscriptionPlansService {
         // `currency` is untouched on edit: an existing plan keeps the currency its
         // members were signed up in.
         interval: input.interval,
+        intervalCount: planPeriodCount(input),
+        oneTime: input.oneTime,
         features: input.features,
         popular: input.popular,
         freezeDaysPerPeriod: input.freezeDaysPerPeriod,
@@ -326,6 +335,8 @@ export class AdminSubscriptionPlansService {
       priceAmount: row.priceAmount,
       currency: row.currency,
       interval: row.interval,
+      intervalCount: row.intervalCount,
+      oneTime: row.oneTime,
       featureCount: row.features.length,
       features: row.features,
       freezeDaysPerPeriod: row.freezeDaysPerPeriod,
@@ -351,4 +362,19 @@ export class AdminSubscriptionPlansService {
       updatedAt: row.updatedAt.toISOString(),
     };
   }
+}
+
+/**
+ * The plan's period length, refused with `400 INVALID_PLAN_PERIOD` when the unit
+ * does not allow it (a year is one year; months stop at twelve — see
+ * `MAX_INTERVAL_COUNT`).
+ */
+function planPeriodCount(input: { interval: SubscriptionInterval; intervalCount: number }): number {
+  if (!isValidPlanPeriod(input.interval, input.intervalCount)) {
+    throw new BadRequestException({
+      message: `A plan's period can be 1 to ${MAX_INTERVAL_COUNT[input.interval]} of ${input.interval}`,
+      code: 'INVALID_PLAN_PERIOD',
+    });
+  }
+  return input.intervalCount;
 }

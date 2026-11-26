@@ -13,6 +13,30 @@ import type { CheckoutProductType, PackageSummary, SignupCatalogueResponse } fro
  */
 export const PRODUCT_TABS: readonly CheckoutProductType[] = ['subscription', 'package'];
 
+/** A membership plan's period: `intervalCount` × `interval`, renewing unless `oneTime`. */
+export interface CardPeriod {
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+  intervalCount: number;
+  oneTime: boolean;
+}
+
+/** A product card: a {@link PackageSummary}, plus the period when it is a membership plan. */
+export type CheckoutCard = PackageSummary & { period?: CardPeriod };
+
+/**
+ * A period as a price suffix (`/ mo`, `/ 3 mo`, `/ 10 days`); a one-time plan
+ * reads `· One-time · 1 day`. `t` is the `common.planPeriod` translator.
+ */
+export function periodSuffix(
+  period: CardPeriod,
+  t: (key: string, values?: Record<string, number>) => string,
+): string {
+  const count = period.intervalCount;
+  return period.oneTime
+    ? `· ${t('oneTime')} · ${t(`length.${period.interval}`, { count })}`
+    : t(`per.${period.interval}`, { count });
+}
+
 /**
  * Flatten one catalogue into the card view model.
  *
@@ -32,7 +56,7 @@ export const PRODUCT_TABS: readonly CheckoutProductType[] = ['subscription', 'pa
 export function toCards(
   catalogue: SignupCatalogueResponse,
   tab: CheckoutProductType,
-): readonly PackageSummary[] {
+): readonly CheckoutCard[] {
   switch (tab) {
     case 'package':
       return catalogue.packages;
@@ -44,6 +68,13 @@ export function toCards(
         priceAmount: plan.priceAmount,
         currency: plan.currency,
         interval: plan.interval === 'YEAR' ? 'year' : 'month',
+        // What the price buys, which the two-value `interval` above cannot say
+        // (ten days, three months, a one-time pass). The price suffix reads this.
+        period: {
+          interval: plan.interval,
+          intervalCount: plan.intervalCount,
+          oneTime: plan.oneTime,
+        },
         // A recurring membership entitles the member to every class rather than a
         // countable number of them, which is exactly what the card's `null` means.
         sessionCount: null,

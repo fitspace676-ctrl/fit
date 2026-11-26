@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -178,12 +179,13 @@ const STATUS_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
 };
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null): string {
+function formatDate(iso: string | null, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
     : createDateTimeFormat(defaultLocale, {
+        timeZone,
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -198,6 +200,7 @@ function formatDate(iso: string | null): string {
  * becomes Next's `notFound()`; any other failure surfaces inline.
  */
 export default async function LocationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const timeZone = await getGymTimeZone();
   const { id } = await params;
 
   let location;
@@ -304,7 +307,7 @@ export default async function LocationDetailPage({ params }: { params: Promise<{
         </dl>
       </section>
 
-      <p {...stylex.props(styles.footnote)}>Added {formatDate(location.createdAt)}.</p>
+      <p {...stylex.props(styles.footnote)}>Added {formatDate(location.createdAt, timeZone)}.</p>
     </div>
   );
 }

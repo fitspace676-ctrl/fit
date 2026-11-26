@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InstanceStatus, Role, TimeOffStatus, TrainerStatus } from '@fit/db';
 import {
-  SALES_GRANULARITY_RANGE,
   TOP_TRAINERS,
   weeklyAvailabilitySchema,
   type DashboardStaffQuery,
@@ -12,6 +11,7 @@ import {
 import { TenantPrismaService } from '../common/prisma/tenant-prisma.service';
 import { assignedAtLocation, atLocation, staffAtLocation } from '../common/location-filter.util';
 import { GymLocaleService } from '../gyms/gym-locale.service';
+import { resolveSegmentWindow } from './segment-window.util';
 import { addZonedDays, zonedDayStart, zonedParts } from '../reports/zoned-time.util';
 import {
   bucketKey,
@@ -19,7 +19,6 @@ import {
   emptyBuckets,
   isoDate,
   rate,
-  resolveWindow,
   type ReportWindow,
 } from '../reports/report-window.util';
 
@@ -125,7 +124,9 @@ export class DashboardStaffService {
     // is before it can say which days the chart covers.
     const locale = await this.locales.get();
     const zone = locale.timezone;
-    const win = resolveWindow(SALES_GRANULARITY_RANGE[query.granularity], zone);
+    // The header period when the console sends one (the overview's own window, cut
+    // at now), else the rolling granularity window — see `segment-window.util.ts`.
+    const { win, period } = resolveSegmentWindow(query, zone);
 
     // The branch every read below is scoped to, or `undefined` for the whole gym.
     const atBranch = atLocation(query.locationId);
@@ -154,7 +155,11 @@ export class DashboardStaffService {
       // AVAILABILITY, so the roster hop rather than a column: "which coaches can
       // this branch call on". Overlapping — a two-branch coach is on both lists.
       this.prisma.client.trainer.findMany({
-        where: { status: TrainerStatus.ACTIVE, ...staffAtLocation(query.locationId) },
+        where: {
+          archivedAt: null,
+          status: TrainerStatus.ACTIVE,
+          ...staffAtLocation(query.locationId),
+        },
         select: { id: true, name: true, availability: true },
       }),
       // NOT window-scoped: a recurring weekly rota carries no dates. It IS branch
@@ -194,6 +199,7 @@ export class DashboardStaffService {
       this.prisma.client.gymMember.count({
         where: {
           role: { not: Role.MEMBER },
+          archivedAt: null,
           deletedAt: null,
           ...assignedAtLocation(query.locationId),
         },
@@ -304,6 +310,7 @@ export class DashboardStaffService {
 
     return {
       granularity: query.granularity,
+      period,
       kpis: {
         trainersDelivering: [...perTrainer.values()].filter((agg) => agg.classes + agg.pt > 0)
           .length,

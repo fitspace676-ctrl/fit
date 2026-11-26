@@ -99,6 +99,8 @@ export interface ReportStrings {
     invoiceTypes: Record<string, string>;
     /** Billing intervals, by `SubscriptionInterval`. */
     intervals: Record<string, string>;
+    /** The same units as nouns, for a period of several: `3 × month`. */
+    intervalUnits: Record<string, string>;
     /** Stock position states - see the stock & inventory report. */
     stockStatuses: Record<string, string>;
     /** What a stock movement was, in the desk's words - see the movement history. */
@@ -234,7 +236,8 @@ const EN: ReportStrings = {
       SERVICE: 'Service',
       OTHER: 'Other',
     },
-    intervals: { MONTH: 'Monthly', YEAR: 'Yearly' },
+    intervals: { DAY: 'Daily', WEEK: 'Weekly', MONTH: 'Monthly', YEAR: 'Yearly' },
+    intervalUnits: { DAY: 'day', WEEK: 'week', MONTH: 'month', YEAR: 'year' },
     stockStatuses: {
       inStock: 'In stock',
       lowStock: 'Low stock',
@@ -1128,7 +1131,8 @@ const KA: ReportStrings = {
       SERVICE: 'სერვისი',
       OTHER: 'სხვა',
     },
-    intervals: { MONTH: 'თვიური', YEAR: 'წლიური' },
+    intervals: { DAY: 'დღიური', WEEK: 'კვირეული', MONTH: 'თვიური', YEAR: 'წლიური' },
+    intervalUnits: { DAY: 'დღე', WEEK: 'კვირა', MONTH: 'თვე', YEAR: 'წელი' },
     stockStatuses: {
       inStock: 'მარაგშია',
       lowStock: 'მცირე მარაგი',

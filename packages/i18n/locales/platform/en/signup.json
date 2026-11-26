@@ -21,6 +21,8 @@
     "password": "Password",
     "passwordPlaceholder": "At least 8 characters",
     "passwordHint": "Optional: leave blank to set it later from the verification email.",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "submit": "Create your gym",
     "submitting": "Creating your gym…"
   },

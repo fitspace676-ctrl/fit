@@ -35,6 +35,9 @@ import {
   SubscriptionInterval,
   SubscriptionStatus,
   TrainerStatus,
+  PLATFORM_REALM,
+  gymRealm,
+  realmForRole,
 } from '../index';
 // The invoice *reference* rule, imported rather than re-stated.
 //
@@ -98,17 +101,23 @@ async function main() {
   const downtownSecondBranch = downtownLocationIds[1] ?? downtownMainBranch;
   const riversideMainBranch = riversideLocationIds[0] ?? null;
 
-  // One shared user who belongs to both gyms with different roles.
-  const alex = await prisma.user.upsert({
-    where: { email: 'alex@example.com' },
-    update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
-    create: {
-      email: 'alex@example.com',
-      name: 'Alex Owner',
-      passwordHash: DEV_PASSWORD_HASH,
-      emailVerifiedAt: new Date(),
-    },
-  });
+  // One address with a staff account at both gyms, in different roles. Accounts
+  // are per realm (see `account-realm.ts`): Downtown's staff account and
+  // Riverside's staff account are two rows with the same e-mail.
+  const alexFixture = (realm: string) =>
+    prisma.user.upsert({
+      where: { email_realm: { email: 'alex@example.com', realm } },
+      update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+      create: {
+        email: 'alex@example.com',
+        realm,
+        name: 'Alex Owner',
+        passwordHash: DEV_PASSWORD_HASH,
+        emailVerifiedAt: new Date(),
+      },
+    });
+  const alex = await alexFixture(gymRealm(downtown.id, 'staff'));
+  const alexAtRiverside = await alexFixture(gymRealm(riverside.id, 'staff'));
 
   // OWNER at Downtown, TRAINER at Riverside — proves per-gym roles.
   const alexDowntown = await prisma.gymMember.upsert({
@@ -125,10 +134,10 @@ async function main() {
   });
 
   const alexRiverside = await prisma.gymMember.upsert({
-    where: { userId_gymId: { userId: alex.id, gymId: riverside.id } },
+    where: { userId_gymId: { userId: alexAtRiverside.id, gymId: riverside.id } },
     update: { role: Role.TRAINER, status: GymMemberStatus.ACTIVE, locationId: riversideMainBranch },
     create: {
-      userId: alex.id,
+      userId: alexAtRiverside.id,
       gymId: riverside.id,
       role: Role.TRAINER,
       status: GymMemberStatus.ACTIVE,
@@ -154,17 +163,22 @@ async function main() {
   // Mark each gym's owner now that the owning user exists.
   await prisma.gym.update({ where: { id: downtown.id }, data: { ownerId: alex.id } });
 
-  // A second user, invited as a member of one gym only.
-  const sam = await prisma.user.upsert({
-    where: { email: 'sam@example.com' },
-    update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
-    create: {
-      email: 'sam@example.com',
-      name: 'Sam Member',
-      passwordHash: DEV_PASSWORD_HASH,
-      emailVerifiedAt: new Date(),
-    },
-  });
+  // A second address: an active member account at Downtown and an invited member
+  // account at Riverside (two rows, one per gym's member realm).
+  const samFixture = (realm: string) =>
+    prisma.user.upsert({
+      where: { email_realm: { email: 'sam@example.com', realm } },
+      update: { passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
+      create: {
+        email: 'sam@example.com',
+        realm,
+        name: 'Sam Member',
+        passwordHash: DEV_PASSWORD_HASH,
+        emailVerifiedAt: new Date(),
+      },
+    });
+  const sam = await samFixture(gymRealm(downtown.id, 'member'));
+  const samAtRiverside = await samFixture(gymRealm(riverside.id, 'member'));
 
   // ACTIVE MEMBER at Downtown — the member-portal login fixture (log in as
   // sam@example.com to exercise the member app against the `downtown` tenant).
@@ -185,10 +199,10 @@ async function main() {
   });
 
   await prisma.gymMember.upsert({
-    where: { userId_gymId: { userId: sam.id, gymId: riverside.id } },
+    where: { userId_gymId: { userId: samAtRiverside.id, gymId: riverside.id } },
     update: { role: Role.MEMBER, status: GymMemberStatus.INVITED, locationId: riversideMainBranch },
     create: {
-      userId: sam.id,
+      userId: samAtRiverside.id,
       gymId: riverside.id,
       role: Role.MEMBER,
       status: GymMemberStatus.INVITED,
@@ -258,10 +272,11 @@ async function main() {
   // password form. `fit token` still works for scripted/API use.
   if (process.env.NODE_ENV !== 'production') {
     await prisma.user.upsert({
-      where: { email: 'superadmin@fit.local' },
+      where: { email_realm: { email: 'superadmin@fit.local', realm: PLATFORM_REALM } },
       update: { isSuperAdmin: true, passwordHash: DEV_PASSWORD_HASH },
       create: {
         email: 'superadmin@fit.local',
+        realm: PLATFORM_REALM,
         name: 'Platform Admin',
         isSuperAdmin: true,
         passwordHash: DEV_PASSWORD_HASH,
@@ -545,7 +560,7 @@ async function main() {
   }
 
   const memberships = await prisma.gymMember.findMany({
-    where: { userId: alex.id },
+    where: { user: { email: 'alex@example.com' } },
     select: { gymId: true, role: true },
   });
 
@@ -1577,7 +1592,11 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
     }
     const [firstName, ...rest] = name.split(' ');
     const user = await prisma.user.create({
-      data: { name, email: `staff-${randomUUID()}@no-login.fit.local` },
+      data: {
+        name,
+        email: `staff-${randomUUID()}@no-login.fit.local`,
+        realm: gymRealm(gymId, 'staff'),
+      },
       select: { id: true },
     });
     const staff = await prisma.gymMember.create({
@@ -1618,10 +1637,11 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
     const spec = DEMO_MEMBERS[i]!;
     const email = `${spec.name.toLowerCase().replace(/[^a-z]+/g, '.')}@downtown.demo`;
 
+    const realm = gymRealm(gymId, 'member');
     const user = await prisma.user.upsert({
-      where: { email },
+      where: { email_realm: { email, realm } },
       update: { name: spec.name },
-      create: { name: spec.name, email, emailVerifiedAt: new Date() },
+      create: { name: spec.name, email, realm, emailVerifiedAt: new Date() },
       select: { id: true },
     });
 
@@ -1818,12 +1838,14 @@ async function enrichDowntown(gymId: string, locationIds: readonly string[]): Pr
     // `staff.branches`, written to `LocationStaff` below; a manager who covers both
     // sites is still based at one.
     const homeLocationId = locationIds[staff.base] ?? locationIds[0] ?? null;
+    const staffRealm = realmForRole(gymId, staff.role);
     const user = await prisma.user.upsert({
-      where: { email: staff.email },
+      where: { email_realm: { email: staff.email, realm: staffRealm } },
       update: { name: staff.name, passwordHash: DEV_PASSWORD_HASH, emailVerifiedAt: new Date() },
       create: {
         name: staff.name,
         email: staff.email,
+        realm: staffRealm,
         passwordHash: DEV_PASSWORD_HASH,
         emailVerifiedAt: new Date(),
       },

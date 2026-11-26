@@ -65,30 +65,52 @@ export function inputToMinor(value: string): number {
   return Math.round(major * MINOR_PER_MAJOR);
 }
 
-/** The selectable renewal cadences and their translation keys, in display order. */
-export const SUBSCRIPTION_INTERVALS: ReadonlyArray<{
-  value: SubscriptionInterval;
-  labelKey: `interval.${SubscriptionInterval}`;
-}> = [
-  { value: 'MONTH', labelKey: 'interval.MONTH' },
-  { value: 'YEAR', labelKey: 'interval.YEAR' },
-];
-
-/** The short price suffix per cadence (`/ mo`, `/ yr`). */
-export function intervalSuffix(interval: SubscriptionInterval, t: T): string {
-  switch (interval) {
-    case 'YEAR':
-      return t('intervalSuffix.YEAR');
-    case 'MONTH':
-    default:
-      return t('intervalSuffix.MONTH');
-  }
+/** What a plan's price buys: `intervalCount` × `interval`, renewing unless `oneTime`. */
+export interface PlanPeriod {
+  interval: SubscriptionInterval;
+  intervalCount: number;
+  oneTime?: boolean;
 }
 
-/** The human label for a cadence, e.g. `Monthly`. */
-export function intervalLabel(interval: SubscriptionInterval, t: T): string {
-  const entry = SUBSCRIPTION_INTERVALS.find((item) => item.value === interval);
-  return entry ? t(entry.labelKey) : interval;
+/**
+ * Translator for the shared `common.planPeriod` namespace — `per.<UNIT>`,
+ * `length.<UNIT>` (both plural on `count`) and `oneTime`.
+ */
+type PeriodT = (key: string, values?: Record<string, number>) => string;
+
+/** Hand `useTranslations('common.planPeriod')` to the helpers below. */
+export function asPeriodT(t: unknown): PeriodT {
+  return t as PeriodT;
+}
+
+/** The period spelled out: `1 month`, `10 days`; a one-time plan says so. */
+export function periodLabel(period: PlanPeriod, t: PeriodT): string {
+  const length = t(`length.${period.interval}`, { count: period.intervalCount });
+  return period.oneTime ? `${t('oneTime')} · ${length}` : length;
+}
+
+/** The short price suffix: `/ mo`, `/ 3 mo`, `/ 10 days`; a one-time plan reads `· One-time · 1 day`. */
+export function periodSuffix(period: PlanPeriod, t: PeriodT): string {
+  return period.oneTime
+    ? `· ${periodLabel(period, t)}`
+    : t(`per.${period.interval}`, { count: period.intervalCount });
+}
+
+/**
+ * The duration choices the plan form offers. `ONE_TIME` is not a unit: it is a
+ * plan counted in days that does not renew.
+ */
+export const PLAN_PERIOD_KINDS = ['ONE_TIME', 'DAY', 'WEEK', 'MONTH', 'YEAR'] as const;
+export type PlanPeriodKind = (typeof PLAN_PERIOD_KINDS)[number];
+
+/** The form's duration choice for a stored plan. */
+export function periodKindOf(period: PlanPeriod): PlanPeriodKind {
+  return period.oneTime ? 'ONE_TIME' : period.interval;
+}
+
+/** The unit a duration choice is stored as. */
+export function unitOfKind(kind: PlanPeriodKind): SubscriptionInterval {
+  return kind === 'ONE_TIME' ? 'DAY' : kind;
 }
 
 /**

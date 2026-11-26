@@ -15,6 +15,7 @@
 // express: see its own comment.
 
 import { z } from 'zod';
+import { dashboardSegmentPeriodQueryShape, dashboardSegmentPeriodSchema } from './dashboard';
 import { salesGranularitySchema } from './dashboard-sales';
 import { reportSeriesPointSchema } from './reports-drilldown';
 
@@ -61,6 +62,7 @@ export const dashboardRevenueQuerySchema = z.object({
   granularity: revenueGranularitySchema.catch(DEFAULT_REVENUE_GRANULARITY),
   projectionWindow: projectionWindowSchema.catch(DEFAULT_PROJECTION_WINDOW),
   locationId: z.string().min(1).optional().catch(undefined),
+  ...dashboardSegmentPeriodQueryShape,
 });
 export type DashboardRevenueQuery = z.infer<typeof dashboardRevenueQuerySchema>;
 
@@ -95,7 +97,19 @@ export type RevenueStreamPoint = z.infer<typeof revenueStreamPointSchema>;
  * does not stop being owed because the chart is showing last week.
  */
 export const revenueKpisSchema = z.object({
+  /** `takings + invoicedWithoutPayment`. */
   totalRevenue: z.number(),
+  /**
+   * Captured payments in the window, net of refunds — the same money the overview
+   * and the Sales tab count, and what the console heads this tab with. Optional
+   * only for older APIs.
+   */
+  takings: z.number().optional(),
+  /**
+   * PAID invoices with no order (membership charges settled with no payment row)
+   * issued in the window. Not in the overview's or the Sales tab's figure.
+   */
+  invoicedWithoutPayment: z.number().optional(),
   mrr: z.number(),
   revenuePerMember: z.number(),
   outstandingTotal: z.number(),
@@ -151,6 +165,8 @@ export type RevenueLocationSlice = z.infer<typeof revenueLocationSliceSchema>;
  * Echoes the resolved query so the client can confirm what it is looking at.
  */
 export const dashboardRevenueResponseSchema = z.object({
+  /** The header period this response covers; see `dashboardSegmentPeriodSchema`. */
+  period: dashboardSegmentPeriodSchema,
   granularity: revenueGranularitySchema,
   projectionWindow: projectionWindowSchema,
   /** ISO-4217 currency every money figure here is denominated in. */

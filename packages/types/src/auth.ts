@@ -72,23 +72,98 @@ export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
 export const sessionGymSlugSchema = z.string().trim().toLowerCase().min(1).max(63).optional();
 
 /**
- * Body for `POST /auth/login`. Email is normalised the same way registration
- * normalises it so the lookup matches the stored row. The password is only
- * required to be non-empty here — the registration policy (length bounds) is
- * irrelevant to verifying an already-stored credential, and re-asserting it
+ * Which of a gym's two separate sets of accounts a call is about.
+ *
+ * A gym has **staff accounts** (the people who run it: owner, managers,
+ * receptionists, trainers — they sign in to the admin console) and **member
+ * accounts** (its customers — the member portal and the mobile app). The two sets
+ * are independent: the same e-mail address may hold one of each in the same gym,
+ * with its own password, name and sessions, and neither can open the other's
+ * app. Accounts are also separate per gym: the same address at two gyms is two
+ * unrelated accounts.
+ *
+ * The admin console sends `staff`; the member portal and the mobile app send
+ * `member`. A client that sends nothing (a build from before the split) is
+ * matched against the gym's member account first and its staff account second.
+ */
+export const accountAudienceSchema = z.enum(['staff', 'member']);
+
+export type AccountAudience = z.infer<typeof accountAudienceSchema>;
+
+/**
+ * The key two phone numbers are compared by at sign-in: the last nine digits,
+ * or `null` when there are fewer than nine. Numbers are stored as the gym typed
+ * them (`599 12 34 56`, `+995599123456`, `0599-123456`), so the country prefix,
+ * the trunk `0` and the punctuation all have to drop out before two spellings
+ * of one number agree. Nine is the length of a national number here.
+ *
+ * The API's lookup computes the same key in SQL (see the
+ * `phone_login_key` indexes), so the two must change together.
+ */
+export function phoneLoginKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 9 ? digits.slice(-9) : null;
+}
+
+/** A phone number as a sign-in identifier: digits and the usual punctuation only. */
+const loginPhoneSchema = z
+  .string()
+  .trim()
+  .max(32)
+  .regex(/^\+?[\d\s().-]+$/, 'A valid phone number is required')
+  .refine((value) => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length >= 9 && digits.length <= 15;
+  }, 'A valid phone number is required');
+
+/**
+ * Body for `POST /auth/login`: a password, and the account's e-mail address
+ * **or** its phone number — exactly one of the two (see
+ * {@link loginRequestSchema}, which enforces that; this object stays a plain
+ * one so its fields can be reused).
+ *
+ * Email is normalised the same way registration normalises it so the lookup
+ * matches the stored row. A phone is matched by {@link phoneLoginKey} against
+ * the number on the account, in whatever spelling it was saved. The password is
+ * only required to be non-empty here — the registration policy (length bounds)
+ * is irrelevant to verifying an already-stored credential, and re-asserting it
  * would needlessly leak the policy to an attacker probing the endpoint.
  *
  * `gymSlug` is the subdomain the sign-in happened on — see
  * {@link sessionGymSlugSchema}.
  */
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  email: z.string().trim().toLowerCase().email().optional(),
+  phone: loginPhoneSchema.optional(),
   password: z.string().min(1),
   gymSlug: sessionGymSlugSchema,
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
   inviteToken: inviteTokenSchema,
 });
 
+/** {@link loginSchema} with its one rule across fields: an e-mail or a phone, not both. */
+export const loginRequestSchema = loginSchema.refine(
+  (value) => (value.email === undefined) !== (value.phone === undefined),
+  { message: 'Provide an email address or a phone number', path: ['email'] },
+);
+
 export type LoginInput = z.infer<typeof loginSchema>;
+
+/**
+ * What a visitor typed in a sign-in form's single "email or phone" field, as the
+ * body field it belongs in: anything with an `@` is an address, anything else
+ * that reads as a phone number is one, and the rest is sent as an address so the
+ * API's own validation answers for it.
+ */
+export function loginIdentifier(raw: string): { email: string } | { phone: string } {
+  const value = raw.trim();
+  if (!value.includes('@') && loginPhoneSchema.safeParse(value).success) {
+    return { phone: value };
+  }
+  return { email: value };
+}
 
 /**
  * Body for `POST /auth/refresh` and `POST /auth/logout`. Carries the opaque
@@ -195,6 +270,8 @@ export const TENANT_REQUIRED_CODE = 'TENANT_REQUIRED';
  */
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
   /**
    * The gym whose password is being reset — see {@link sessionGymSlugSchema}.
    * A client on a gym's own site can leave it out (the host names the gym); the
@@ -259,6 +336,8 @@ export interface ActivateAccountResponse {
 export const googleAuthSchema = z.object({
   idToken: z.string().trim().min(1),
   gymSlug: sessionGymSlugSchema,
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
 });
 
 export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
@@ -296,6 +375,8 @@ export const appleAuthSchema = z.object({
   idToken: z.string().trim().min(1),
   name: z.string().trim().min(1).max(100).optional(),
   gymSlug: sessionGymSlugSchema,
+  /** Which set of the gym's accounts — see {@link accountAudienceSchema}. */
+  audience: accountAudienceSchema.optional(),
 });
 
 export type AppleAuthInput = z.infer<typeof appleAuthSchema>;

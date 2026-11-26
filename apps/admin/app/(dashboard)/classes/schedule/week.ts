@@ -74,13 +74,8 @@ export function zonedMinutesOfDay(instant: Date, timeZone: string): number {
  * `HH:MM` on the **gym's** clock — the only correct way to print a class time on
  * this calendar.
  *
- * `createDateTimeFormat` from `@fit/i18n` cannot do this: it reads every field in
- * UTC by design (the reporting layer depends on that) and says so in its own
- * docs. The schedule handed it the gym's zone anyway, so every block on the grid
- * printed a UTC clock while being *positioned* by the gym clock — a Tbilisi gym's
- * 12:00 class sat correctly on the 12:00 row with "08:00" written on it. Times
- * here go through `Intl` directly, the same call `zonedMinutesOfDay` uses, so the
- * label and the row can no longer disagree.
+ * Shares numeric fields with grid positioning; intentionally uses a fixed
+ * 24-hour clock regardless of the presentation locale.
  */
 export function zonedClock(instant: Date, timeZone: string): string {
   const minutes = zonedMinutesOfDay(instant, timeZone);

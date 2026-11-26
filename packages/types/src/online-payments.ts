@@ -19,8 +19,10 @@ export const paymentReturnTargetSchema = z.enum(['web', 'app']);
 export type PaymentReturnTarget = z.infer<typeof paymentReturnTargetSchema>;
 
 /**
- * The optional fields every online purchase body accepts. `returnTo` defaults to
- * `web` server-side when omitted.
+ * The optional fields every online purchase body accepts. `returnTo` is only
+ * optional where nothing has to be paid online (the stub path, a free order):
+ * a purchase that opens a provider checkout without it is refused with
+ * `409 PAYMENT_CLIENT_OUTDATED`.
  */
 export const onlinePurchaseOptionsSchema = z.object({
   returnTo: paymentReturnTargetSchema.optional(),
@@ -109,6 +111,13 @@ export const ONLINE_PAYMENTS_UNAVAILABLE_CODE = 'ONLINE_PAYMENTS_UNAVAILABLE';
 export const PAYMENT_PROVIDER_UNAVAILABLE_CODE = 'PAYMENT_PROVIDER_UNAVAILABLE';
 /** `409` — retry/cancel on an order that is no longer awaiting payment. */
 export const ORDER_NOT_PAYABLE_CODE = 'ORDER_NOT_PAYABLE';
+/**
+ * `409` — the purchase must be paid on the provider's page, but the client did
+ * not say where to send the buyer back (`returnTo`). Every current client sends
+ * it; one that does not predates online payments and would show the unpaid order
+ * as bought, so it is refused before anything is created. Update the app.
+ */
+export const PAYMENT_CLIENT_OUTDATED_CODE = 'PAYMENT_CLIENT_OUTDATED';
 /** `409` — cancel refused while a provider checkout may still be paid. */
 export const PAYMENT_IN_PROGRESS_CODE = 'PAYMENT_IN_PROGRESS';
 /** `502` — the provider refused a refund (reversal); no refund was recorded. */

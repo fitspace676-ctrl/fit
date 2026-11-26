@@ -20,8 +20,12 @@ import { env } from '../config/env';
 /** Largest number of keys one `DeleteObjects` request accepts (an S3 API limit). */
 const DELETE_BATCH_SIZE = 1000;
 
-/** Tenant id segment: lowercase alphanumerics + dashes (matches a gym slug/id). */
-const GYM_ID_PATTERN = /^[a-z0-9-]+$/;
+/**
+ * Tenant id segment: lowercase alphanumerics, dashes and underscores. Imported gyms
+ * carry ids like `scrm_<slug>_gym_<hash>`; without the underscore every upload of
+ * such a gym was refused. Still no dot or slash, so the key cannot leave its prefix.
+ */
+const GYM_ID_PATTERN = /^[a-z0-9_-]+$/;
 /** Entity segment: lowercase letters only (e.g. `avatars`, `products`, `logos`). */
 const ENTITY_PATTERN = /^[a-z]+$/;
 

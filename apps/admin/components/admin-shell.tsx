@@ -21,7 +21,10 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { SkipLink, ToastProvider } from '@/components/ui';
+import { Permission } from '@fit/types';
 import { AgentChat } from './agent/agent-chat';
+import { useConsolePermissions } from './console-permissions';
+import { consoleCan } from '@/lib/console-permissions';
 import { Sidebar } from './sidebar';
 import type { Session } from '@/lib/auth-session';
 import { TopBar } from './top-bar';
@@ -89,19 +92,19 @@ const styles = stylex.create({
 });
 
 export function AdminShell({
-  gymSlug,
   system,
   locations,
   sidebarCollapsed = false,
   session = null,
+  displayName = null,
   banner = null,
   children,
 }: {
-  gymSlug: string | null;
   system: ShellSystemState;
   locations: ShellLocation[];
   /** The server-verified session, seeding the sidebar's first paint. */
   session?: Session | null;
+  displayName?: string | null;
   /** Sidebar collapse choice, seeded from its cookie by the console layout. */
   sidebarCollapsed?: boolean;
   /**
@@ -118,6 +121,7 @@ export function AdminShell({
   banner?: ReactNode;
   children: ReactNode;
 }) {
+  const canUseAgent = consoleCan(useConsolePermissions(), Permission.AiAgentUse);
   const t = useTranslations('admin.common');
 
   return (
@@ -128,23 +132,18 @@ export function AdminShell({
         contentPadding={0}
         banner={banner}
         sideNav={
-          <Sidebar
-            gymSlug={gymSlug}
-            system={system}
-            defaultCollapsed={sidebarCollapsed}
-            initialSession={session}
-          />
+          <Sidebar system={system} defaultCollapsed={sidebarCollapsed} initialSession={session} />
         }
         mobileNav={{ hasToggle: false, breakpoint: 'md' }}
       >
         <div id="main-content" {...stylex.props(styles.content)}>
           <div {...stylex.props(styles.topBar)}>
-            <TopBar locations={locations} />
+            <TopBar locations={locations} displayName={displayName} />
           </div>
           <div {...stylex.props(styles.page)}>{children}</div>
         </div>
-        {/* Right-edge AI copilot — floats above every console page. */}
-        <AgentChat />
+        {/* Right-edge AI copilot, for roles the gym lets use it (`AiAgentUse`). */}
+        {canUseAgent ? <AgentChat /> : null}
         {/* Palette playground — docked bottom-centre on every console screen so a
             colour can be judged against real pages rather than a swatch sheet. */}
       </AppShell>

@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { DEFAULT_CURRENCY, Permission } from '@fit/types';
+import { Permission } from '@fit/types';
 import { AdminShell, type ShellLocation, type ShellSystemState } from '@/components/admin-shell';
 import { ActiveLocationProvider } from '@/components/active-location';
 import { ConsolePermissionsProvider } from '@/components/console-permissions';
 import { ConsoleRouteGate } from '@/components/route-gate';
+import { GymTimeZoneProvider } from '@/components/gym-timezone';
+import { getGymLocale } from '@/lib/gym-locale';
 import { GymCurrencyProvider } from '@/components/gym-currency';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { IMPERSONATION_META_COOKIE, parseImpersonationMeta } from '@/lib/impersonation';
@@ -24,7 +26,7 @@ import { fetchActiveLocations } from '@/lib/active-location-server';
 import { getActiveGymSlug, getGymConsoleColor } from '@/lib/active-gym';
 import { consoleThemeCss } from '@/lib/console-theme';
 import { hasRoleAtLeast, ROLES, type Role } from '@/lib/auth-session';
-import { fetchCheckInStats, fetchGymSettings } from '@/lib/api';
+import { fetchCheckInStats, fetchMyProfile } from '@/lib/api';
 
 /**
  * Authenticated console layout. Every page under this route group renders inside
@@ -138,11 +140,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // (local dev) only: on a gym's own host the root layout has already written it
   // from the host's slug, and asking again would only duplicate the rule. The
   // session's slug lets every role see the owner's choice there too.
-  const [currency, consoleColor] = await Promise.all([
-    fetchGymSettings().then(
-      (settings) => settings.locale.currency,
-      () => DEFAULT_CURRENCY,
-    ),
+  const [{ currency, timeZone }, consoleColor] = await Promise.all([
+    getGymLocale(),
     gymSlug ? Promise.resolve(null) : getGymConsoleColor(session?.gymSlug ?? null),
   ]);
   const themeCss = gymSlug ? null : consoleThemeCss(consoleColor, session?.gymSlug);
@@ -174,32 +173,36 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     access,
   );
 
+  const profile = await fetchMyProfile().catch(() => null);
+
   return (
     <ConsolePermissionsProvider permissions={permissions}>
       {/* The gym's colour over the theme default; see `lib/console-theme.ts`. */}
       {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
-      <GymCurrencyProvider currency={currency}>
-        <ActiveLocationProvider initial={activeLocation} locations={locations} access={access}>
-          <AdminShell
-            gymSlug={gymSlug ?? session?.gymSlug ?? null}
-            system={system}
-            locations={locations}
-            sidebarCollapsed={sidebarCollapsed}
-            // The verified session — the same one `getConsolePermissions` resolved.
-            session={session}
-            // Into the shell's own banner slot, not above it: the shell is exactly
-            // one viewport tall, so a bar stacked on top of it is a bar's worth of
-            // document scroll. See the `banner` prop's note in `admin-shell.tsx`.
-            banner={impersonation ? <ImpersonationBanner meta={impersonation} /> : null}
-          >
-            {/* The gate's client half. This layout's own check above covers every
-                fresh request; a SHARED layout is not re-rendered on a client-side
-                navigation between two routes below it, so without this a denied
-                route would still open on a click. See `components/route-gate.tsx`. */}
-            <ConsoleRouteGate>{children}</ConsoleRouteGate>
-          </AdminShell>
-        </ActiveLocationProvider>
-      </GymCurrencyProvider>
+      <GymTimeZoneProvider timeZone={timeZone}>
+        <GymCurrencyProvider currency={currency}>
+          <ActiveLocationProvider initial={activeLocation} locations={locations} access={access}>
+            <AdminShell
+              system={system}
+              locations={locations}
+              sidebarCollapsed={sidebarCollapsed}
+              // The verified session — the same one `getConsolePermissions` resolved.
+              session={session}
+              displayName={profile?.profile.name ?? null}
+              // Into the shell's own banner slot, not above it: the shell is exactly
+              // one viewport tall, so a bar stacked on top of it is a bar's worth of
+              // document scroll. See the `banner` prop's note in `admin-shell.tsx`.
+              banner={impersonation ? <ImpersonationBanner meta={impersonation} /> : null}
+            >
+              {/* The gate's client half. This layout's own check above covers every
+                  fresh request; a SHARED layout is not re-rendered on a client-side
+                  navigation between two routes below it, so without this a denied
+                  route would still open on a click. See `components/route-gate.tsx`. */}
+              <ConsoleRouteGate>{children}</ConsoleRouteGate>
+            </AdminShell>
+          </ActiveLocationProvider>
+        </GymCurrencyProvider>
+      </GymTimeZoneProvider>
     </ConsolePermissionsProvider>
   );
 }

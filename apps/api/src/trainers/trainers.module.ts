@@ -1,3 +1,4 @@
+import { StaffModule } from '../staff/staff.module';
 import { Module } from '@nestjs/common';
 import { PortalBranchModule } from '../common/portal-branch.module';
 import { AdminTrainersController } from './admin-trainers.controller';
@@ -19,7 +20,7 @@ import { TrainersService } from './trainers.service';
  *    `TenantModule` / `RbacModule`.
  */
 @Module({
-  imports: [PortalBranchModule],
+  imports: [PortalBranchModule, StaffModule],
   controllers: [TrainersController, AdminTrainersController],
   providers: [TrainersService, AdminTrainersService],
 })

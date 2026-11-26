@@ -33,6 +33,7 @@ import { StaffConsole } from './staff-console';
 const mocks = vi.hoisted(() => ({ locationId: { current: undefined as string | undefined } }));
 
 vi.mock('next/navigation', () => navigationMock.factory());
+vi.mock('@/components/gym-timezone', () => ({ useGymTimeZone: () => 'Asia/Tbilisi' }));
 
 // The console's drawers pull in server actions, which reach `next/headers`
 // through the session helper and are not this spec's subject.
@@ -141,6 +142,12 @@ describe('StaffConsole branch filter', () => {
   beforeEach(() => {
     mocks.locationId.current = undefined;
     navigationMock.reset();
+  });
+
+  it('renders the joined date on the gym calendar across UTC midnight', () => {
+    renderConsole({ staff: [staffMember({ joinedAt: '2026-01-31T22:30:00.000Z' })] });
+    expect(screen.getByText('Feb 1, 2026')).toBeTruthy();
+    expect(screen.queryByText('Jan 31, 2026')).toBeNull();
   });
 
   describe('the roster - "who can work here"', () => {

@@ -159,6 +159,8 @@ function catalogue(overrides: Partial<SignupCatalogueResponse> = {}): SignupCata
         priceAmount: 8900,
         currency: 'GEL',
         interval: 'MONTH',
+        intervalCount: 1,
+        oneTime: false,
         features: ['All classes'],
         popular: true,
         trialDays: 0,

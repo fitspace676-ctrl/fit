@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import * as stylex from '@stylexjs/stylex';
 import type { CreateStaffInput } from '@fit/types';
 import { Drawer } from '@fit/ui-kit';
-import { Icon } from '@/components/ui';
+import { Icon, useToast } from '@/components/ui';
 import { useActiveLocation } from '@/components/active-location';
 import {
   StaffFormFields,
@@ -129,6 +129,7 @@ export function AddStaffDrawer({
   canAssignOwner: boolean;
 }) {
   const t = useTranslations('admin.staff');
+  const { toast } = useToast();
   const router = useRouter();
   // A new staff member starts rostered at the branch the console is scoped to, and
   // their week's shifts start staffing it — the roadmap's "create forms inherit the
@@ -196,6 +197,16 @@ export function AddStaffDrawer({
     startTransition(async () => {
       const result = await createStaffAction(input);
       if (result.ok) {
+        // Say whether the sign-in invitation went out — the one thing the roster
+        // row itself can't show.
+        if (result.data.inviteSent === true) {
+          toast(t('addStaffDrawer.inviteSent', { email: input.email ?? '' }), {
+            tone: 'success',
+            icon: 'check',
+          });
+        } else if (result.data.inviteSent === false) {
+          toast(t('addStaffDrawer.inviteFailed'), { tone: 'danger', icon: 'info' });
+        }
         reset();
         onClose();
       } else {
@@ -242,6 +253,7 @@ export function AddStaffDrawer({
           locations={locations}
           pending={pending}
           roleOptions={STAFF_ROLES.filter((role) => role !== 'OWNER' || canAssignOwner)}
+          showStatus={false}
         />
 
         {error ? (

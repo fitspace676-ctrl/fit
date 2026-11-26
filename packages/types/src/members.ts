@@ -39,6 +39,17 @@ export const memberKindSchema = z.enum(['MEMBER', 'GUEST', 'INACTIVE']);
 export type MemberKind = z.infer<typeof memberKindSchema>;
 
 /**
+ * What the roster DERIVES a person to be: the three {@link MemberKind}s staff can
+ * pin, plus `FROZEN` — a member whose membership is frozen and who has none in
+ * force. Frozen is derived only (it cannot be pinned), and it is its own standing
+ * so the roster's tabs partition "All": members + frozen + guests + inactive.
+ */
+export const memberStandingSchema = z.enum(['MEMBER', 'FROZEN', 'GUEST', 'INACTIVE']);
+
+/** A derived roster standing — {@link memberStandingSchema}. */
+export type MemberStanding = z.infer<typeof memberStandingSchema>;
+
+/**
  * How long a soft-deleted (trashed) member is retained before the purge cron
  * permanently deletes it. Staff can restore any time within this window; after it
  * the member and its cascade-owned history are gone. The UI computes the
@@ -92,7 +103,7 @@ export const listMembersQuerySchema = z.object({
    * from subscriptions (or a staff override), so it is its own filter rather than
    * a value of `status`, which describes the account instead.
    */
-  kind: memberKindSchema.optional(),
+  kind: memberStandingSchema.optional(),
   planId: z.string().min(1).optional(),
   /**
    * Narrow the roster to one branch — the member's HOME branch
@@ -102,9 +113,8 @@ export const listMembersQuerySchema = z.object({
   locationId: z.string().min(1).optional(),
   sort: memberSortSchema.default('name'),
   dir: sortDirSchema.default('asc'),
-  // The "Frozen" tab: narrow to live members holding a `FROZEN` subscription. It is
-  // subscription-derived (no `GymMemberStatus`), so it rides its own flag rather than
-  // `status` — orthogonal to the status segments, like `view`. Arrives as the string
+  // The "Frozen" tab: the same rows as `kind=FROZEN` (frozen, nothing in force),
+  // kept as its own flag for links that already carry it. Arrives as the string
   // `"true"`; absent → `false` (no frozen filter).
   frozen: z
     .enum(['true', 'false'])
@@ -133,8 +143,10 @@ export interface MemberPlan {
   planId: string | null;
   /** Plan name (`"No plan"` when the subscription's plan was deleted). */
   name: string;
-  /** Billing interval — `"MONTH"` / `"YEAR"`, or `null` when unknown. */
-  interval: 'MONTH' | 'YEAR' | null;
+  /** The unit of the billing period, or `null` when unknown. */
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' | null;
+  /** How many `interval`s one period lasts. */
+  intervalCount: number;
   /** Price in minor currency units (tetri) snapshotted on the subscription. */
   priceAmount: number;
   /** ISO-4217 currency code of {@link priceAmount}. */
@@ -172,7 +184,7 @@ export interface MemberRow {
    * subscriptions unless staff pinned it; see {@link resolveMemberKind}. This is
    * what the roster's status pill and its tabs show.
    */
-  kind: MemberKind;
+  kind: MemberStanding;
   /** Staff's pinned standing, or `null` when the derivation is in charge. */
   kindOverride: MemberKind | null;
   /** The live plan's name (or `null`), kept for backwards compatibility. */
@@ -224,10 +236,14 @@ export interface MemberPlanSlice {
  * figure is a real tenant-scoped aggregate over live subscriptions.
  */
 export interface MemberPlanMix {
-  /** Total live (paid) subscriptions across all plans. */
+  /** Paying members: `active + frozen`, one person each. The slices sum to it. */
   total: number;
   /** One slice per plan, richest first. */
   plans: MemberPlanSlice[];
+  /** Of `total`, members with a membership in force (same as `counts.active`). */
+  active?: number;
+  /** Of `total`, members whose membership is frozen and who have none in force. */
+  frozen?: number;
 }
 
 /**
@@ -235,20 +251,24 @@ export interface MemberPlanMix {
  * so the tabs render "All 128 / Active 96 / Frozen 4 / Trial 2 / Expired 26"
  * without a per-tab request. `frozen` counts members with a live `FROZEN`
  * subscription; `trial` / `expired` mirror the `INVITED` / `SUSPENDED` roster
- * states (the reference's segment labels); `all` / `active` mirror the roster.
+ * states (the reference's segment labels); `all` counts accounts and `active`
+ * counts accounts with a membership currently in force.
  */
 export interface MemberTabCounts {
   /** Every `MEMBER`-role membership. */
   all: number;
-  /** Holding a live subscription — the roster's "Member" segment. */
+  /**
+   * The "Members" segment: a membership in force on an ACTIVE account (or pinned
+   * MEMBER). `member + frozen + guest + inactive === all`.
+   */
   member: number;
   /** Never held a subscription — drop-ins, free sessions, till walk-ins. */
   guest: number;
-  /** Suspended, or every subscription lapsed — the "Inactive" segment. */
+  /** Suspended, or nothing in force and nothing frozen — the "Inactive" segment. */
   inactive: number;
-  /** `ACTIVE` memberships. */
+  /** Non-deleted ACTIVE accounts with a membership currently in force; excludes frozen. */
   active: number;
-  /** Members whose live subscription is `FROZEN`. */
+  /** The "Frozen" segment: a frozen membership and none in force (not pinned, not suspended). */
   frozen: number;
   /** `INVITED` memberships (the reference's "Trial" segment). */
   trial: number;
@@ -360,8 +380,10 @@ export interface MemberCurrentPlan {
   planId: string | null;
   name: string;
   status: string;
-  /** Billing interval — `"MONTH"` / `"YEAR"`, or `null` when unknown. */
-  interval: 'MONTH' | 'YEAR' | null;
+  /** The unit of the billing period, or `null` when unknown. */
+  interval: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' | null;
+  /** How many `interval`s one period lasts. */
+  intervalCount: number;
   /** Price in minor currency units (tetri). */
   priceAmount: number;
   currency: string;
@@ -786,8 +808,14 @@ export interface MemberKindInput {
   kindOverride?: MemberKind | null;
   /** The account's own state — a suspended account is not an active member. */
   status?: MemberStatus;
-  /** Whether a subscription is currently live (TRIAL / ACTIVE / PAST_DUE / FROZEN). */
+  /**
+   * Whether a membership is in force now: TRIAL / ACTIVE / PAST_DUE with
+   * `currentPeriodStart <= now <= currentPeriodEnd`. A period that is over is not
+   * in force whatever the status column says.
+   */
   hasLiveSubscription: boolean;
+  /** Whether a FROZEN membership is held (only matters when nothing is in force). */
+  hasFrozenMembership?: boolean;
   /** Whether this person has ever held one — what separates a lapsed member from a guest. */
   hasEverSubscribed: boolean;
 }
@@ -798,23 +826,30 @@ export interface MemberKindInput {
  * The order matters. A staff override wins outright: it exists precisely for the
  * cases the rules get wrong, so nothing may quietly overrule it. A suspended
  * account reads `inactive` regardless of billing — whatever is still being
- * charged, that person is not walking in today. Otherwise a live subscription
- * makes someone a member, and the difference between the two remaining states is
- * whether they ever had one: never → a guest, once → lapsed.
+ * charged, that person is not walking in today. Otherwise a membership in force
+ * makes someone a member, a frozen one (with none in force) makes them frozen, and
+ * the difference between the two remaining states is whether they ever had one:
+ * never → a guest, once → lapsed. The members-page tabs and the dashboard's
+ * active / frozen figures use these same rules.
  *
  * `PAST_DUE` deliberately counts as live. A failed card is a billing problem, not
  * a change in who the person is, and the dunning ladder is what decides when it
  * becomes one.
  */
-export function resolveMemberKind(input: MemberKindInput): MemberKind {
+export function resolveMemberKind(input: MemberKindInput): MemberStanding {
   if (input.kindOverride) {
     return input.kindOverride;
   }
   if (input.status === 'SUSPENDED') {
     return 'INACTIVE';
   }
-  if (input.hasLiveSubscription) {
+  // The dashboard's "active member" rule: an ACTIVE account with a membership in
+  // force. An invited account is not counted active even while one is.
+  if (input.hasLiveSubscription && (input.status ?? 'ACTIVE') === 'ACTIVE') {
     return 'MEMBER';
   }
-  return input.hasEverSubscribed ? 'INACTIVE' : 'GUEST';
+  if (input.hasFrozenMembership) {
+    return 'FROZEN';
+  }
+  return input.hasEverSubscribed || input.hasLiveSubscription ? 'INACTIVE' : 'GUEST';
 }

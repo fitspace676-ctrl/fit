@@ -146,6 +146,12 @@ describe('StorageService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('accepts an imported gym id with underscores', async () => {
+      const result = await service.createSignedUpload({ ...VALID, gymId: 'scrm_demo_gym_0a1b2c' });
+
+      expect(result.key).toMatch(/^scrm_demo_gym_0a1b2c\/avatars\/[0-9a-f-]{36}\.png$/);
+    });
+
     it('rejects a gymId that is not a safe slug (no namespace escape)', async () => {
       await expect(
         service.createSignedUpload({ ...VALID, gymId: '../etc' }),

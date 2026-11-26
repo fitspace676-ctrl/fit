@@ -108,6 +108,7 @@ describe('review reporting', () => {
     const result = await service.listForMember('trainer', { page: 2, limit: 5 });
     const where = {
       trainerId: 'trainer',
+      trainer: { archivedAt: null },
       status: 'VISIBLE',
       reports: { none: { memberId: 'member' } },
     };

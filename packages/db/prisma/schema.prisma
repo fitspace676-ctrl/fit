@@ -319,13 +319,15 @@ enum SubscriptionPlanStatus {
   INACTIVE
 }
 
-/// Renewal cadence of a recurring membership {@link SubscriptionPlan} (T8.1).
-/// `MONTH`/`YEAR` are the periods a {@link Subscription}'s `currentPeriodEnd`
-/// advances by on each successful charge. Deliberately distinct from
-/// {@link PackageBillingInterval}, which additionally carries `ONE_TIME` — a one-off
-/// charge has no place on a *recurring* subscription, so the two enums are kept
-/// separate rather than sharing one with a member that is invalid here.
+/// The unit a membership {@link SubscriptionPlan}'s period is counted in (T8.1).
+/// A period is `intervalCount` of these — 1 `DAY`, 2 `WEEK`s, 3 `MONTH`s, 1 `YEAR`
+/// — and is what a {@link Subscription}'s `currentPeriodEnd` advances by on each
+/// successful charge. Deliberately distinct from {@link PackageBillingInterval}:
+/// a plan that is sold once and does not renew is `SubscriptionPlan.oneTime`, not
+/// a unit.
 enum SubscriptionInterval {
+  DAY
+  WEEK
   MONTH
   YEAR
 }
@@ -508,12 +510,22 @@ model Gym {
   @@map("gyms")
 }
 
-/// An application user. Holds the auth identity (password hash + OAuth subject
-/// ids). Gym-scoped roles live on GymMember, not here, so a user can belong to
-/// N gyms with a different role in each.
+/// An application user: one account in one REALM (see `prisma/account-realm.ts`).
+///
+/// `realm` is `platform` (a super-admin, or a bare account with no gym),
+/// `<gymId>:staff` (one gym's staff account, for its admin console) or
+/// `<gymId>:member` (one gym's member account, for its portal and the mobile app).
+/// An address is unique only inside a realm, so the same e-mail may hold a staff
+/// account and a member account in one gym, with separate passwords, names and
+/// sessions, and unrelated accounts at other gyms. A gym-realm user holds exactly
+/// one `GymMember` row, in its own gym, with role `MEMBER` exactly when the realm
+/// is a member realm; a platform user holds none.
 model User {
   id              String    @id @default(cuid())
-  email           String    @unique
+  email           String
+  /// `platform` | `<gymId>:staff` | `<gymId>:member`. Built and read only through
+  /// `prisma/account-realm.ts`.
+  realm           String    @default("platform")
   name            String?
   /// Optional contact phone, captured/edited from the staff console member
   /// management (T4.3). A user attribute (alongside name/email) rather than a
@@ -521,8 +533,10 @@ model User {
   phone           String?
   passwordHash    String?
   emailVerifiedAt DateTime?
-  googleId        String?   @unique
-  appleId         String?   @unique
+  /// Unique per realm: a Google identity links to one account in each realm.
+  googleId        String?
+  /// Unique per realm, like `googleId`.
+  appleId         String?
   /// Platform-wide SUPER_ADMIN flag. SUPER_ADMIN is *not* a gym-scoped role, so
   /// it lives on the user rather than as a GymMember row: a flagged user's
   /// session resolves to `role = SUPER_ADMIN` with no gym (`gymId = null`).
@@ -553,10 +567,17 @@ model User {
 
   liftedBookingBlocks BookingBlock[]
 
+  @@unique([email, realm])
+  @@unique([googleId, realm])
+  @@unique([appleId, realm])
   @@map("users")
 }
 
 /// What one person uses to sign in to ONE gym (T1.25, per-gym credentials).
+///
+/// Since the account split each gym account (a `User` in a gym realm) holds
+/// exactly one credential, for its own gym; the text below predates that and
+/// still describes the row itself correctly.
 ///
 /// `User` is the cross-gym identity — the email, the OAuth subject ids, the push
 /// tokens. Everything a member proves at a gym's door lives here instead, one row
@@ -717,6 +738,7 @@ model GymMember {
   gymId    String
   role     Role            @default(MEMBER)
   status   GymMemberStatus @default(ACTIVE)
+  archivedAt DateTime?
   joinedAt DateTime        @default(now())
 
   /// Staff override for the derived {@link MemberKind}. `null` — the default, and
@@ -1118,6 +1140,7 @@ model Trainer {
   /// the schema fills to a fully-unavailable seven-day week until staff set hours.
   availability Json          @default("{}")
   status       TrainerStatus @default(ACTIVE)
+  archivedAt   DateTime?
   /// Denormalised aggregate of the trainer's `VISIBLE` reviews (T5.12), kept in
   /// step by {@link Review} writes: `rating` is the average star rating (0 when
   /// the trainer has no visible reviews) and `reviewCount` the number of them. The
@@ -1133,7 +1156,7 @@ model Trainer {
   /// `Cascade` on purpose, because class templates, occurrences, PT sessions and
   /// reviews all point at this row, and deleting someone from the staff directory
   /// must never take the gym's teaching history with it. The staff service
-  /// deactivates the orphaned profile instead.
+  /// archives the profile instead.
   staffId      String?       @unique
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -1184,6 +1207,7 @@ model Trainer {
   /// probed, so a tighter driving index matters more now than it did before the
   /// hop existed.
   @@index([gymId, status, name])
+  @@index([gymId, archivedAt])
   @@map("trainers")
 }
 
@@ -2369,6 +2393,9 @@ model RefreshToken {
 /// the address regardless of the casing it was typed in. Distinct from a
 /// {@link GymMember}, which is the membership the redemption actually creates.
 model StaffInvite {
+  firstName String?
+  lastName String?
+  locationIds String[] @default([])
   id        String    @id @default(cuid())
   gymId     String
   email     String
@@ -2805,6 +2832,12 @@ model SubscriptionPlan {
   priceAmount         Int                    @default(0)
   currency            String                 @default("USD")
   interval            SubscriptionInterval   @default(MONTH)
+  /// How many `interval`s one period lasts: 10 with `DAY` is a ten-day pass, 3 with
+  /// `MONTH` a quarter. `1` for every plan from before periods had a length.
+  intervalCount       Int                    @default(1)
+  /// A plan that is bought once and does not renew (a single visit, a guest pass):
+  /// its subscription starts with `cancelAtPeriodEnd` set, so the period simply ends.
+  oneTime             Boolean                @default(false)
   features            String[]               @default([])
   popular             Boolean                @default(false)
   status              SubscriptionPlanStatus @default(ACTIVE)
@@ -2907,6 +2940,8 @@ model Subscription {
   priceAmount        Int                  @default(0)
   currency           String               @default("USD")
   interval           SubscriptionInterval @default(MONTH)
+  /// Snapshot of the plan's `intervalCount` at enrolment, like `interval`.
+  intervalCount      Int                  @default(1)
   currentPeriodStart DateTime             @default(now())
   currentPeriodEnd   DateTime
   cancelAtPeriodEnd  Boolean              @default(false)

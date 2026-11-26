@@ -65,7 +65,7 @@ const styles = stylex.create({
 });
 
 /**
- * Email + password sign-in form. On success the API issues a session (persisted
+ * Sign-in form: an email address or a phone number, and a password. On success the API issues a session (persisted
  * as httpOnly cookies by {@link loginWithCredentials}) and we send the user to
  * the `from` path the middleware stashed when it bounced them here, falling back
  * to the locale home. Errors surface the API's message inline.
@@ -76,10 +76,6 @@ export function CredentialsLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Carried from a staff invite link (T4.7): `/member/login?inviteToken=…` when the
-  // invited address already has an account. Forwarded to the API so signing in
-  // redeems the invite onto it. `inviteError` flags an invalid / expired link.
-  const inviteToken = searchParams.get('inviteToken') ?? undefined;
   const inviteError = searchParams.get('inviteError');
   // Set by the reset form when the new password was saved but no session could be
   // issued on this gym (`sessionIssued: false`).
@@ -98,7 +94,7 @@ export function CredentialsLoginForm() {
   const signIn = (gymSlug?: string): void => {
     setPending(true);
     setError(null);
-    loginWithCredentials(email, password, inviteToken, gymSlug)
+    loginWithCredentials(email, password, gymSlug)
       .then(async () => {
         const destination = await postLoginPath(safeFrom(searchParams.get('from')), locale);
         router.replace(destination);
@@ -159,11 +155,13 @@ export function CredentialsLoginForm() {
       {resetDone && !error ? <Banner tone="success">{t('reset.done')}</Banner> : null}
 
       <Field
-        label={t('fields.email')}
-        type="email"
+        label={t('fields.emailOrPhone')}
+        type="text"
         name="email"
-        autoComplete="email"
-        placeholder={t('fields.emailPlaceholder')}
+        autoComplete="username"
+        autoCapitalize="none"
+        spellCheck={false}
+        placeholder={t('fields.emailOrPhonePlaceholder')}
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         disabled={pending}

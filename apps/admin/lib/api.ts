@@ -8,10 +8,12 @@
 // Never import this from a Client Component — the cookie is httpOnly and the
 // token must never reach the browser bundle.
 
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { getLocale } from 'next-intl/server';
 import type {
   AdminBookingBlock,
+  GetMeProfileResponse,
   MobileAppSettings,
   UpdateMobileAppSettingsInput,
   UploadMobileAppLoginImageInput,
@@ -207,6 +209,8 @@ import type {
   PtSessionStatusResponse,
   AdminServiceSession,
   AdminServiceSessionsResponse,
+  ListAdminOwnServicesResponse,
+  CreateStaffResponse,
   CreateServiceSessionData,
   ListAdminServiceSessionsQuery,
   MarkAttendanceData,
@@ -982,6 +986,19 @@ export async function fetchAdminServiceSessions(
   return unwrap<AdminServiceSessionsResponse>(res);
 }
 
+/**
+ * `GET /admin/service-sessions/own-services` — the signed-in coach's own ACTIVE
+ * services: the "Open a slot" picker for an own-only writer (`PtSessionManageOwn`),
+ * who cannot read the whole catalogue.
+ */
+export async function fetchOwnServices(): Promise<ListAdminOwnServicesResponse> {
+  const res = await fetch(`${apiBaseUrl()}/admin/service-sessions/own-services`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<ListAdminOwnServicesResponse>(res);
+}
+
 /** `POST /admin/service-sessions` — open one slot of a service. Gated `ClassWrite`. */
 export async function createServiceSession(
   input: CreateServiceSessionData,
@@ -1603,15 +1620,18 @@ export async function fetchStaff(): Promise<ListStaffResponse> {
   return unwrap<ListStaffResponse>(res);
 }
 
-/** `POST /staff` — add a login-less staff member straight to the directory. */
-export async function createStaff(input: CreateStaffInput): Promise<StaffMember> {
+/**
+ * `POST /staff` — add a staff member straight to the directory. With an email
+ * (and active) the API also sends a sign-in invitation; `inviteSent` says how it went.
+ */
+export async function createStaff(input: CreateStaffInput): Promise<CreateStaffResponse> {
   const res = await fetch(`${apiBaseUrl()}/staff`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify(input),
     cache: 'no-store',
   });
-  return unwrap<StaffMember>(res);
+  return unwrap<CreateStaffResponse>(res);
 }
 
 /** `POST /staff/invite` — invite someone to the gym's staff; returns the invite id. */
@@ -2101,6 +2121,20 @@ export async function fetchDashboardOverview(params?: {
 }
 
 /**
+ * The header period on a dashboard segment request, when the console sends one.
+ * With it the tab covers the overview's own window; without it the API keeps the
+ * tab's rolling granularity window.
+ */
+function setSegmentPeriod(
+  qs: URLSearchParams,
+  query: { period?: string; from?: string; to?: string },
+): void {
+  if (query.period) qs.set('period', query.period);
+  if (query.from) qs.set('from', query.from);
+  if (query.to) qs.set('to', query.to);
+}
+
+/**
  * `GET /dashboard/sales` — the hand-built Sales tab in one payload. Both params
  * scope the whole response, so the tab never shows two cards describing different
  * windows; the API `.catch`es unknown values to its own defaults.
@@ -2113,6 +2147,7 @@ export async function fetchDashboardSales(
     productType: query.productType,
   });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/sales?${qs.toString()}`, {
     headers: await authHeaders(),
     // Sales figures reflect live tenant state — never serve a stale snapshot.
@@ -2135,6 +2170,7 @@ export async function fetchDashboardMembers(
     expiringWindow: query.expiringWindow,
   });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/members?${qs.toString()}`, {
     headers: await authHeaders(),
     // Membership figures reflect live tenant state — never serve a stale snapshot.
@@ -2156,6 +2192,7 @@ export async function fetchDashboardRevenue(
     projectionWindow: query.projectionWindow,
   });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/revenue?${qs.toString()}`, {
     headers: await authHeaders(),
     // Revenue reflects live tenant state — never serve a stale snapshot.
@@ -2174,6 +2211,7 @@ export async function fetchDashboardClasses(
 ): Promise<DashboardClassesResponse> {
   const qs = new URLSearchParams({ granularity: query.granularity });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/classes?${qs.toString()}`, {
     headers: await authHeaders(),
     // Class figures reflect live tenant state — never serve a stale snapshot.
@@ -2192,6 +2230,7 @@ export async function fetchDashboardStaff(
 ): Promise<DashboardStaffResponse> {
   const qs = new URLSearchParams({ granularity: query.granularity });
   if (query.locationId) qs.set('locationId', query.locationId);
+  setSegmentPeriod(qs, query);
   const res = await fetch(`${apiBaseUrl()}/dashboard/staff?${qs.toString()}`, {
     headers: await authHeaders(),
     // Staffing figures reflect live tenant state — never serve a stale snapshot.
@@ -2202,9 +2241,10 @@ export async function fetchDashboardStaff(
 
 // ── Reception / check-in (T4.12) ──────────────────────────────────────────────
 
-/** `GET /admin/check-ins/stats` — the reception KPI snapshot (today's figures). */
-export async function fetchCheckInStats(): Promise<CheckInStatsResponse> {
-  const res = await fetch(`${apiBaseUrl()}/admin/check-ins/stats`, {
+/** `GET /admin/check-ins/stats?locationId=` — the reception KPI snapshot (today's figures), optionally one branch. */
+export async function fetchCheckInStats(locationId?: string): Promise<CheckInStatsResponse> {
+  const qs = locationId ? `?locationId=${encodeURIComponent(locationId)}` : '';
+  const res = await fetch(`${apiBaseUrl()}/admin/check-ins/stats${qs}`, {
     headers: await authHeaders(),
     // Reception reflects live tenant state — never serve a stale snapshot.
     cache: 'no-store',
@@ -2212,9 +2252,10 @@ export async function fetchCheckInStats(): Promise<CheckInStatsResponse> {
   return unwrap<CheckInStatsResponse>(res);
 }
 
-/** `GET /admin/check-ins/today` — today's arrivals, most recent first (live feed). */
-export async function fetchTodayCheckIns(): Promise<TodayCheckInsResponse> {
-  const res = await fetch(`${apiBaseUrl()}/admin/check-ins/today`, {
+/** `GET /admin/check-ins/today?locationId=` — today's arrivals, most recent first, optionally one branch. */
+export async function fetchTodayCheckIns(locationId?: string): Promise<TodayCheckInsResponse> {
+  const qs = locationId ? `?locationId=${encodeURIComponent(locationId)}` : '';
+  const res = await fetch(`${apiBaseUrl()}/admin/check-ins/today${qs}`, {
     headers: await authHeaders(),
     cache: 'no-store',
   });
@@ -3641,4 +3682,70 @@ export async function requestZkteco<T>(
       cache: 'no-store',
     }),
   );
+}
+
+export async function getTrainerDeleteImpact(
+  id: string,
+): Promise<{ classes: number; ptSessions: number }> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}/delete-impact`, {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    }),
+  );
+}
+
+export async function deleteTrainer(id: string): Promise<void> {
+  const res = await fetch(`${apiBaseUrl()}/admin/trainers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  if (!res.ok) await unwrap(res);
+}
+
+export async function getStaffDeleteImpact(
+  id: string,
+): Promise<{ classes: number; ptSessions: number }> {
+  return unwrap(
+    await fetch(`${apiBaseUrl()}/staff/${encodeURIComponent(id)}/delete-impact`, {
+      headers: await authHeaders(),
+      cache: 'no-store',
+    }),
+  );
+}
+
+/** The current gym's profile, shared by the shell and profile page per request. */
+export const fetchMyProfile = cache(async (): Promise<GetMeProfileResponse> => {
+  const res = await fetch(`${apiBaseUrl()}/me/profile`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<GetMeProfileResponse>(res);
+});
+
+/** Password updates keep this browser's refresh family and revoke other devices. */
+export async function changeMyPassword(input: {
+  currentPassword: string;
+  password: string;
+}): Promise<void> {
+  const jar = await cookies();
+  const refreshToken = jar.get('adminRefreshToken')?.value;
+  await unwrap(
+    await fetch(`${apiBaseUrl()}/me/password`, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...input, refreshToken }),
+      cache: 'no-store',
+    }),
+  );
+}
+
+/** The session's linked coach profile, without paging through the trainer directory. */
+export async function fetchMyScheduleTrainer(): Promise<{ trainerId: string | null }> {
+  const res = await fetch(`${apiBaseUrl()}/admin/schedule/my-trainer`, {
+    headers: await authHeaders(),
+    cache: 'no-store',
+  });
+  return unwrap<{ trainerId: string | null }>(res);
 }

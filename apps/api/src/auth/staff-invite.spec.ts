@@ -20,6 +20,7 @@ vi.mock('argon2', () => ({
   argon2id: 2,
 }));
 
+import * as argon2 from 'argon2';
 import { Role } from '@fit/db';
 import { AuthService } from './auth.service';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -30,6 +31,9 @@ import type { GoogleOAuthService } from './google-oauth.service';
 import type { AppleOAuthService } from './apple-oauth.service';
 
 interface Invite {
+  firstName?: string | null;
+  lastName?: string | null;
+  locationIds?: string[];
   id: string;
   email: string;
   role: Role;
@@ -55,8 +59,8 @@ function setup(opts?: {
   // coach name, and writes the profile.
   const gymMemberFindFirst = vi.fn((_args: unknown) =>
     Promise.resolve({
-      firstName: null,
-      lastName: null,
+      firstName: opts?.invite?.firstName ?? null,
+      lastName: opts?.invite?.lastName ?? null,
       user: { name: 'Invitee', email: 'invitee@example.com' },
     }),
   );
@@ -64,10 +68,15 @@ function setup(opts?: {
   const trainerCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 't-1' }));
   const trainerUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 't-1' }));
 
-  const userFindUnique = vi.fn(() =>
+  // The inviting gym's STAFF account for the address (accounts are per realm).
+  const userFindUnique = vi.fn((_args: unknown) =>
     Promise.resolve(opts?.userExists ? { id: 'u-existing' } : null),
   );
-  const userCreate = vi.fn(() => Promise.resolve({ id: 'u-new' }));
+  // "Any account at all with this address?" — the bare registration's check.
+  const userFindFirst = vi.fn((_args: unknown) =>
+    Promise.resolve(opts?.userExists ? { id: 'u-existing' } : null),
+  );
+  const userCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'u-new' }));
   const userUpdateMany = vi.fn(() => Promise.resolve({ count: 1 }));
   // The inviting gym's credential (T1.25). `credentialExists` models an address
   // that already signs in to THIS gym; `userExists` alone is an account known
@@ -92,8 +101,19 @@ function setup(opts?: {
   const credentialCreate = vi.fn((_args: unknown) => Promise.resolve({ id: 'cred-1' }));
   const credentialUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'cred-1' }));
 
+  const locationStaffDeleteMany = vi.fn(() => Promise.resolve({ count: 1 }));
+  const locationStaffCreateMany = vi.fn((_args: unknown) => Promise.resolve({ count: 1 }));
+  const userUpdate = vi.fn((_args: unknown) => Promise.resolve({ id: 'u-new' }));
   const client = {
-    user: { findUnique: userFindUnique, create: userCreate, updateMany: userUpdateMany },
+    location: { count: vi.fn(() => Promise.resolve(opts?.invite?.locationIds?.length ?? 0)) },
+    locationStaff: { deleteMany: locationStaffDeleteMany, createMany: locationStaffCreateMany },
+    user: {
+      findUnique: userFindUnique,
+      findFirst: userFindFirst,
+      create: userCreate,
+      updateMany: userUpdateMany,
+      update: userUpdate,
+    },
     staffInvite: { findUnique: staffInviteFindUnique, updateMany: staffInviteUpdateMany },
     gymMember: { upsert: gymMemberUpsert, findFirst: gymMemberFindFirst },
     gymCredential: {
@@ -124,6 +144,9 @@ function setup(opts?: {
   const apple = {} as unknown as AppleOAuthService;
 
   return {
+    locationStaffDeleteMany,
+    locationStaffCreateMany,
+    userUpdate,
     service: new AuthService(prisma, redis, tokens, email, google, apple),
     staffInviteFindUnique,
     staffInviteUpdateMany,
@@ -132,7 +155,9 @@ function setup(opts?: {
     trainerCreate,
     trainerUpdate,
     userCreate,
+    userFindUnique,
     credentialFindFirst,
+    credentialFindUnique,
     credentialCreate,
     credentialUpdate,
     sendVerificationEmail,
@@ -170,9 +195,10 @@ describe('AuthService — staff invites (T4.7)', () => {
       const { url } = await service.acceptInvite('tok-123');
       expect(url).toBe('https://app.example.com/admin/accept-invite?token=tok-123');
       await service.inspectStaffInvite('tok-123');
-      // "Has an account" is asked of the INVITING gym's credential, not of the address.
+      // "Has an account" is asked of the INVITING gym's STAFF account, not of the
+      // address (a member account of the same gym is someone else's account).
       expect(credentialFindFirst).toHaveBeenCalledWith({
-        where: { gymId: 'gym-1', user: { email: 'invitee@example.com' } },
+        where: { gymId: 'gym-1', user: { email: 'invitee@example.com', realm: 'gym-1:staff' } },
         select: { passwordHash: true },
       });
     });
@@ -248,9 +274,66 @@ describe('AuthService — staff invites (T4.7)', () => {
       );
     });
 
-    it('only asks for confirmation when this gym already has a password', async () => {
+    it('reports the existing-password mode when this gym already has a password', async () => {
       const { service } = setup({ invite: liveInvite(), credentialExists: true });
       expect((await service.inspectStaffInvite('tok-123')).needsPassword).toBe(false);
+    });
+
+    it('rejects missing and incorrect current passwords without consuming the invite', async () => {
+      const { service, staffInviteUpdateMany, userCreate } = setup({
+        invite: liveInvite(),
+        credentialExists: true,
+      });
+      await expect(service.completeStaffInvite({ token: 'tok-123' })).rejects.toThrow(
+        'Email or password is incorrect',
+      );
+      vi.mocked(argon2.verify).mockResolvedValueOnce(false);
+      await expect(
+        service.completeStaffInvite({ token: 'tok-123', currentPassword: 'wrongpass' }),
+      ).rejects.toThrow('Email or password is incorrect');
+      expect(staffInviteUpdateMany).not.toHaveBeenCalled();
+      expect(userCreate).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])('redeems after password proof (existing: %s)', async (existing) => {
+      const { service, staffInviteUpdateMany, credentialUpdate } = setup({
+        invite: liveInvite(),
+        userExists: existing,
+        credentialExists: existing,
+      });
+      vi.spyOn(service as never, 'assertGymNotSuspended' as never).mockResolvedValue(undefined);
+      vi.spyOn(service as never, 'resolveSessionScope' as never).mockResolvedValue({});
+      await expect(
+        service.completeStaffInvite({
+          token: 'tok-123',
+          ...(existing ? { currentPassword: 'oldpassword' } : { password: 'newpassword' }),
+        }),
+      ).resolves.toEqual({ accessToken: 'a', refreshToken: 'r' });
+      expect(staffInviteUpdateMany).toHaveBeenCalledOnce();
+      if (existing)
+        expect(credentialUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ passwordHash: 'old-hash' }) as object,
+          }),
+        );
+    });
+
+    it('rejects stale password proof if the credential changes during redemption', async () => {
+      const { service, credentialFindUnique, credentialUpdate } = setup({
+        invite: liveInvite(),
+        userExists: true,
+        credentialExists: true,
+      });
+      vi.spyOn(service as never, 'assertGymNotSuspended' as never).mockResolvedValue(undefined);
+      credentialFindUnique.mockResolvedValueOnce({
+        passwordHash: 'reset-hash',
+        emailVerifiedAt: new Date(),
+        name: 'QA',
+      });
+      await expect(
+        service.completeStaffInvite({ token: 'tok-123', currentPassword: 'oldpassword' }),
+      ).rejects.toThrow();
+      expect(credentialUpdate).not.toHaveBeenCalled();
     });
 
     it('rejects a token on another gym before it can be spent', async () => {
@@ -300,8 +383,8 @@ describe('AuthService — staff invites (T4.7)', () => {
       });
     });
 
-    it("writes the inviting gym's credential with the password just chosen, already verified", async () => {
-      const { service, credentialCreate, set, sendVerificationEmail } = setup({
+    it("creates the gym's staff account with the password just chosen, already verified", async () => {
+      const { service, credentialCreate, userCreate, set, sendVerificationEmail } = setup({
         invite: liveInvite({ email: 'invitee@example.com', role: Role.RECEPTIONIST }),
       });
 
@@ -322,19 +405,64 @@ describe('AuthService — staff invites (T4.7)', () => {
         name: 'Invitee',
       });
       expect(created.data.emailVerifiedAt).toBeInstanceOf(Date);
-      // The verification link names the gym it lands on.
-      expect(set.mock.calls[0]?.[1]).toBe(JSON.stringify({ userId: 'u-new', gymId: 'gym-1' }));
-      expect(sendVerificationEmail).toHaveBeenCalledWith(
-        'invitee@example.com',
-        expect.any(String),
-        'Invitee',
-        'en',
-        'downtown',
-        'Downtown Strength',
-      );
+      // A staff account of the inviting gym, never a platform or member one.
+      expect(userCreate).toHaveBeenCalledWith({
+        data: {
+          email: 'invitee@example.com',
+          realm: 'gym-1:staff',
+          name: 'Invitee',
+          passwordHash: 'argon2-hash',
+        },
+        select: { id: true },
+      });
+      // The invite proved inbox control: no verification token, no mail.
+      expect(set).not.toHaveBeenCalled();
+      expect(sendVerificationEmail).not.toHaveBeenCalled();
     });
 
-    it('redeems onto an EXISTING address as a new password for this gym, with no 409 and no mail', async () => {
+    it('gives an address that is a MEMBER of the gym a separate staff account', async () => {
+      // The member account lives in 'gym-1:member'; the staff realm has no row.
+      const { service, userFindUnique, userCreate, userUpdate, gymMemberUpsert } = setup({
+        invite: liveInvite({ email: 'invitee@example.com', role: Role.MANAGER }),
+      });
+
+      await service.register({
+        name: 'Invitee',
+        email: 'invitee@example.com',
+        password: 'password123',
+        inviteToken: 'tok-123',
+      });
+
+      expect(userFindUnique).toHaveBeenCalledWith({
+        where: { email_realm: { email: 'invitee@example.com', realm: 'gym-1:staff' } },
+        select: { id: true },
+      });
+      expect(userCreate.mock.calls[0]?.[0]).toMatchObject({ data: { realm: 'gym-1:staff' } });
+      expect(gymMemberUpsert.mock.calls[0]?.[0]).toMatchObject({
+        where: { userId_gymId: { userId: 'u-new', gymId: 'gym-1' } },
+        create: { role: Role.MANAGER },
+      });
+      // Nothing was written to any other account.
+      expect(userUpdate).not.toHaveBeenCalled();
+    });
+
+    it('redeems nothing for an invite whose role is MEMBER', async () => {
+      const { service, gymMemberUpsert, staffInviteUpdateMany } = setup({
+        invite: liveInvite({ email: 'invitee@example.com', role: Role.MEMBER }),
+      });
+
+      await service.register({
+        name: 'Invitee',
+        email: 'invitee@example.com',
+        password: 'password123',
+        inviteToken: 'tok-123',
+      });
+
+      expect(staffInviteUpdateMany).not.toHaveBeenCalled();
+      expect(gymMemberUpsert).not.toHaveBeenCalled();
+    });
+
+    it("redeems onto the gym's EXISTING staff account (added without a password), with no 409 and no mail", async () => {
       const { service, userCreate, credentialCreate, gymMemberUpsert, sendVerificationEmail } =
         setup({
           invite: liveInvite({ email: 'invitee@example.com', role: Role.MANAGER }),
@@ -362,7 +490,7 @@ describe('AuthService — staff invites (T4.7)', () => {
       expect(sendVerificationEmail).not.toHaveBeenCalled();
     });
 
-    it('keeps the password an existing member of this gym already has when the invite promotes them', async () => {
+    it('keeps the password an existing staff account of this gym already has', async () => {
       const { service, credentialCreate, credentialUpdate } = setup({
         invite: liveInvite({ email: 'invitee@example.com', role: Role.MANAGER }),
         userExists: true,
@@ -459,5 +587,73 @@ describe('AuthService — staff invites (T4.7)', () => {
 
       expect(staffInviteFindUnique).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('invited identity and branch assignments', () => {
+  it('restores membership and replaces assignments, naming the trainer from the invitation', async () => {
+    const {
+      service,
+      gymMemberUpsert,
+      locationStaffDeleteMany,
+      locationStaffCreateMany,
+      credentialUpdate,
+      trainerCreate,
+      userUpdate,
+    } = setup({
+      invite: liveInvite({
+        role: Role.TRAINER,
+        firstName: 'Nino',
+        lastName: 'Beridze',
+        locationIds: ['loc-1', 'loc-2'],
+      }),
+      userExists: true,
+      credentialExists: true,
+    });
+    await service.register({
+      email: 'invitee@example.com',
+      name: 'Account name',
+      password: 'password123',
+      inviteToken: 'tok-123',
+    });
+    expect(gymMemberUpsert.mock.calls[0]?.[0]).toMatchObject({
+      update: {
+        firstName: 'Nino',
+        lastName: 'Beridze',
+        archivedAt: null,
+        status: 'ACTIVE',
+        assignedLocationIds: ['loc-1', 'loc-2'],
+      },
+    });
+    expect(locationStaffDeleteMany).toHaveBeenCalledWith({
+      where: { gymId: 'gym-1', staffId: 'gm-1' },
+    });
+    expect(locationStaffCreateMany).toHaveBeenCalledWith({
+      data: [
+        { gymId: 'gym-1', staffId: 'gm-1', locationId: 'loc-1' },
+        { gymId: 'gym-1', staffId: 'gm-1', locationId: 'loc-2' },
+      ],
+    });
+    expect(trainerCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { gymId: 'gym-1', staffId: 'gm-1', name: 'Nino Beridze' } }),
+    );
+    expect(credentialUpdate.mock.calls[0]?.[0]).toMatchObject({
+      data: { name: 'Nino Beridze', passwordHash: 'old-hash' },
+    });
+    expect(userUpdate).not.toHaveBeenCalled();
+  });
+  it('names a newly registered account from its invitation', async () => {
+    const { service, userUpdate, userCreate, credentialCreate } = setup({
+      invite: liveInvite({ firstName: 'Nino', lastName: 'Beridze', locationIds: ['loc-1'] }),
+    });
+    await service.register({
+      email: 'invitee@example.com',
+      name: 'Typed name',
+      password: 'password123',
+      inviteToken: 'tok-123',
+    });
+    expect(userCreate.mock.calls[0]?.[0]).toMatchObject({ data: { name: 'Nino Beridze' } });
+    expect(userUpdate).not.toHaveBeenCalled();
+    expect(credentialCreate.mock.calls[0]?.[0]).toMatchObject({ data: { name: 'Nino Beridze' } });
   });
 });

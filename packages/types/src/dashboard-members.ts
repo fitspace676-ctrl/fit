@@ -15,6 +15,7 @@
 // rate, and 0% is a different and alarming claim.
 
 import { z } from 'zod';
+import { dashboardSegmentPeriodQueryShape, dashboardSegmentPeriodSchema } from './dashboard';
 import { salesGranularitySchema } from './dashboard-sales';
 import { reportSeriesPointSchema } from './reports-drilldown';
 
@@ -69,6 +70,7 @@ export const dashboardMembersQuerySchema = z.object({
   retentionWindow: retentionWindowSchema.catch(DEFAULT_RETENTION_WINDOW),
   expiringWindow: expiringWindowSchema.catch(DEFAULT_EXPIRING_WINDOW),
   locationId: z.string().min(1).optional().catch(undefined),
+  ...dashboardSegmentPeriodQueryShape,
 });
 export type DashboardMembersQuery = z.infer<typeof dashboardMembersQuerySchema>;
 
@@ -97,6 +99,8 @@ export const MEMBERSHIP_STATUSES = [
   'frozen',
   'canceled',
   'expired',
+  'suspended',
+  'upcoming',
 ] as const;
 export const membershipStatusSchema = z.enum(MEMBERSHIP_STATUSES);
 export type MembershipStatus = z.infer<typeof membershipStatusSchema>;
@@ -120,7 +124,15 @@ export const retentionPointSchema = z.object({
 });
 export type RetentionPoint = z.infer<typeof retentionPointSchema>;
 
-/** One bar of the members-by-status breakdown. */
+/**
+ * One bar of the members-by-status breakdown. Since the console's figures were
+ * aligned, the bars count PEOPLE by where they stand now, one bar each:
+ * `active` (a membership in force on an ACTIVE account — the dashboard's active
+ * figure), `frozen`, `suspended` (in force, account not active), `upcoming` (not
+ * started yet) and `expired` (everything they held has ended). They add up to the
+ * members who have ever held a membership. `trial` / `past-due` / `canceled` are
+ * no longer emitted: an in-force trial or past-due membership is `active`.
+ */
 export const membershipStatusSliceSchema = z.object({
   status: membershipStatusSchema,
   count: z.number(),
@@ -129,8 +141,13 @@ export type MembershipStatusSlice = z.infer<typeof membershipStatusSliceSchema>;
 
 /** The tab's four headline figures. `avgLtv` is MINOR units; the rest are counts. */
 export const membersKpisSchema = z.object({
+  /** Members with a membership in force at the end of the window (at now when it reaches today). */
   activeMembers: z.number(),
+  /** Members whose membership is frozen and who have none in force, now. */
+  frozenMembers: z.number(),
+  /** Non-deleted members who joined inside the window — the overview's new-member figure. */
   newSignups: z.number(),
+  /** People whose last membership ended inside the window and who hold none now. */
   churned: z.number(),
   avgLtv: z.number(),
 });
@@ -146,6 +163,8 @@ export type MembersKpis = z.infer<typeof membersKpisSchema>;
  * Echoes the resolved query so the client can confirm what it is looking at.
  */
 export const dashboardMembersResponseSchema = z.object({
+  /** The header period this response covers; see `dashboardSegmentPeriodSchema`. */
+  period: dashboardSegmentPeriodSchema,
   granularity: membersGranularitySchema,
   retentionWindow: retentionWindowSchema,
   expiringWindow: expiringWindowSchema,

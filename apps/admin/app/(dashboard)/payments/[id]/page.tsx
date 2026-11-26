@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -7,7 +8,7 @@ import { getServerSession } from '@/lib/session';
 import { ApiError, fetchSubscriptionPlan } from '@/lib/api';
 import { Badge, type BadgeTone } from '@fit/ui-kit';
 import { Icon } from '@/components/ui';
-import { creditsLabel, formatPrice, intervalLabel, intervalSuffix } from '../format';
+import { asPeriodT, creditsLabel, formatPrice, periodLabel, periodSuffix } from '../format';
 import { PlanActions } from './plan-actions';
 import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 
@@ -32,12 +33,13 @@ const STATUS_STYLES: Record<
 };
 
 /** Render an ISO instant as a short local date, or a dash when absent. */
-function formatDate(iso: string | null, locale: string): string {
+function formatDate(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
     : createDateTimeFormat(locale, {
+        timeZone,
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -57,8 +59,10 @@ export default async function SubscriptionPlanDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const timeZone = await getGymTimeZone();
   const { id } = await params;
   const [t, locale] = await Promise.all([getTranslations('admin.billingPlans'), getLocale()]);
+  const tPeriod = asPeriodT(await getTranslations('common.planPeriod'));
   const nf = createNumberFormat(locale);
 
   let plan;
@@ -119,9 +123,7 @@ export default async function SubscriptionPlanDetailPage({
           </div>
           <p className="font-mono text-lg font-semibold tabular-nums text-ink-800 dark:text-ink-100">
             {formatPrice(plan.priceAmount, plan.currency, locale)}{' '}
-            <span className="text-sm font-normal text-ink-400">
-              {intervalSuffix(plan.interval, t)}
-            </span>
+            <span className="text-sm font-normal text-ink-400">{periodSuffix(plan, tPeriod)}</span>
           </p>
         </div>
         {canWrite ? <PlanActions planId={plan.id} status={plan.status} /> : null}
@@ -132,7 +134,7 @@ export default async function SubscriptionPlanDetailPage({
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
             {t('detail.billing')}
           </span>
-          <span className="text-ink-800 dark:text-ink-100">{intervalLabel(plan.interval, t)}</span>
+          <span className="text-ink-800 dark:text-ink-100">{periodLabel(plan, tPeriod)}</span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="text-xs uppercase tracking-wide text-ink-500 dark:text-ink-400">
@@ -191,7 +193,7 @@ export default async function SubscriptionPlanDetailPage({
       </section>
 
       <p className="text-xs text-ink-400">
-        {t('detail.addedAt', { date: formatDate(plan.createdAt, locale) })}
+        {t('detail.addedAt', { date: formatDate(plan.createdAt, locale, timeZone) })}
       </p>
     </div>
   );

@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -205,12 +206,13 @@ const styles = stylex.create({
 });
 
 /** Render an ISO instant as a short local date, or `-` when absent. */
-function formatDate(iso: string | null, locale: string): string {
+function formatDate(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
     : createDateTimeFormat(locale, {
+        timeZone,
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -243,6 +245,7 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const timeZone = await getGymTimeZone();
   const { id } = await params;
   const [locationId, locations, t, tErrors, locale] = await Promise.all([
     getActiveLocationId(searchParams),
@@ -392,7 +395,7 @@ export default async function ProductDetailPage({
       </section>
 
       <p {...stylex.props(styles.footnote)}>
-        {t('addedOn', { date: formatDate(product.createdAt, locale) })}
+        {t('addedOn', { date: formatDate(product.createdAt, locale, timeZone) })}
       </p>
     </div>
   );

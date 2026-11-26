@@ -17,6 +17,8 @@ import { getServerSession } from '@/lib/session';
 import { getActiveLocationId } from '@/lib/active-location-server';
 import { ApiError, fetchDashboardOverview } from '@/lib/api';
 import { SegmentedDashboard } from '../segments/segmented-dashboard';
+import { TrainerHome } from './trainer-home';
+import { ReceptionHome } from './reception-home';
 
 const styles = stylex.create({
   stack: {
@@ -83,6 +85,10 @@ export default async function DashboardPage({
   const canViewReports = session !== null && roleHasPermission(session.role, Permission.ReportView);
 
   if (!canViewReports) {
+    // Trainers and the front desk get their own working day instead of the bare welcome.
+    if (session?.role === 'TRAINER') return <TrainerHome />;
+    if (session?.role === 'RECEPTIONIST')
+      return <ReceptionHome searchParams={await searchParams} />;
     return <Welcome />;
   }
 

@@ -8,6 +8,7 @@ const { findUnique, update, findMany, disconnect } = vi.hoisted(() => ({
 }));
 
 vi.mock('@fit/db', () => ({
+  PLATFORM_REALM: 'platform',
   PrismaClient: vi.fn(() => ({
     user: { findUnique, update, findMany },
     $disconnect: disconnect,
@@ -36,7 +37,9 @@ describe('fit admin', () => {
     const result = await run(args('grant', '--email', '  Owner@Example.com '));
 
     expect(findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { email: 'owner@example.com' } }),
+      expect.objectContaining({
+        where: { email_realm: { email: 'owner@example.com', realm: 'platform' } },
+      }),
     );
     expect(update).toHaveBeenCalledWith({
       where: { id: 'user-1' },

@@ -9,11 +9,19 @@ import {
   roleHasPermission,
   weeklyAvailabilitySchema,
   type AdminTrainerDetail,
+  type StaffMember,
 } from '@fit/types';
 import { getServerSession } from '@/lib/session';
 import { getActiveGymBrand } from '@/lib/active-gym';
-import { ApiError, fetchTrainer, fetchTrainerAvailability, fetchTrainerClients } from '@/lib/api';
-import { gymCalendarContext } from '@/lib/gym-time';
+import {
+  ApiError,
+  fetchStaff,
+  fetchTrainer,
+  fetchTrainerAvailability,
+  fetchTrainerClients,
+} from '@/lib/api';
+import { getGymTimeZone } from '@/lib/gym-locale';
+import { createDateTimeFormat } from '@fit/i18n';
 import { Button, Card } from '@fit/ui-kit';
 import { Icon, type IconName } from '@/components/ui';
 import { TrainerActions } from './trainer-actions';
@@ -272,12 +280,17 @@ const styles = stylex.create({
 });
 
 /** Render an ISO instant as a short local date, or an em dash when absent. */
-function formatDate(iso: string | null, locale: string): string {
+function formatDate(iso: string | null, locale: string, timeZone: string): string {
   if (!iso) return '-';
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
-    : date.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+    : createDateTimeFormat(locale, {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
 }
 
 /** "Hired March 2025" from an ISO instant, or an em dash when absent/invalid. */
@@ -285,12 +298,15 @@ function formatHired(
   iso: string,
   t: Awaited<ReturnType<typeof getTranslations>>,
   locale: string,
+  timeZone: string,
 ): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? '-'
     : t('detail.hired', {
-        date: date.toLocaleDateString(locale, { month: 'long', year: 'numeric' }),
+        date: createDateTimeFormat(locale, { timeZone, month: 'long', year: 'numeric' }).format(
+          date,
+        ),
       });
 }
 
@@ -393,9 +409,19 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
     .then((res) => res.clients)
     .catch(() => []);
 
+  // The coach's contact details live on their staff record (email, phone,
+  // branches). Read through the Staff API so they show only to someone who may
+  // see them there (`StaffRead`); fail-soft, like the other secondary reads.
+  const contact: StaffMember | null =
+    trainer.staffId && session !== null && roleHasPermission(session.role, Permission.StaffRead)
+      ? await fetchStaff()
+          .then((res) => res.staff.find((member) => member.id === trainer.staffId) ?? null)
+          .catch(() => null)
+      : null;
+
   // The gym's zone, for the next-class label — read on the gym clock, like the
   // schedule board (falls back to the platform default inside the helper).
-  const { timeZone } = await gymCalendarContext();
+  const timeZone = await getGymTimeZone();
 
   return (
     <div {...stylex.props(styles.page)}>
@@ -451,11 +477,17 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
                 {t('reviews', { count: trainer.reviewCount })}
               </span>
               <span aria-hidden>·</span>
-              <span>{formatHired(trainer.hiredAt, t, locale)}</span>
+              <span>{formatHired(trainer.hiredAt, t, locale, timeZone)}</span>
             </div>
           </div>
         </div>
-        {canWrite ? <TrainerActions trainerId={trainer.id} status={trainer.status} /> : null}
+        {canWrite ? (
+          <TrainerActions
+            trainerId={trainer.id}
+            status={trainer.status}
+            canDelete={session !== null && roleHasPermission(session.role, Permission.StaffManage)}
+          />
+        ) : null}
       </Card>
 
       {/* Four live KPI cards. */}
@@ -488,6 +520,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
 
       <TrainerTabs
         trainer={trainer}
+        contact={contact}
         availability={availability}
         clients={clients}
         canEditAvailability={canEditAvailability}
@@ -498,7 +531,7 @@ export default async function TrainerDetailPage({ params }: { params: Promise<{ 
       />
 
       <p {...stylex.props(styles.addedNote)}>
-        {t('detail.profileAdded', { date: formatDate(trainer.createdAt, locale) })}
+        {t('detail.profileAdded', { date: formatDate(trainer.createdAt, locale, timeZone) })}
       </p>
     </div>
   );

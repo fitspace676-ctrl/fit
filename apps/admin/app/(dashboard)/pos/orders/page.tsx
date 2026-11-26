@@ -1,3 +1,4 @@
+import { getGymTimeZone } from '@/lib/gym-locale';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import * as stylex from '@stylexjs/stylex';
@@ -210,6 +211,7 @@ export default async function OrdersLogPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const timeZone = await getGymTimeZone();
   const raw = await searchParams;
   /** One search param as a non-empty string, or `undefined` — repeated params are ignored. */
   const str = (key: string): string | undefined => {
@@ -363,7 +365,12 @@ export default async function OrdersLogPage({
             </thead>
             <tbody>
               {data.map((order) => (
-                <OrderRow key={order.id} order={order} showBranch={showBranch} />
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  showBranch={showBranch}
+                  timeZone={timeZone}
+                />
               ))}
             </tbody>
           </table>
@@ -403,12 +410,21 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function OrderRow({ order, showBranch }: { order: AdminOrderRow; showBranch: boolean }) {
+function OrderRow({
+  order,
+  showBranch,
+  timeZone,
+}: {
+  order: AdminOrderRow;
+  showBranch: boolean;
+  timeZone: string;
+}) {
   const when = new Date(order.createdAt);
   return (
     <tr>
       <td {...stylex.props(styles.td, styles.muted)}>
         {createDateTimeFormat(defaultLocale, {
+          timeZone,
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',

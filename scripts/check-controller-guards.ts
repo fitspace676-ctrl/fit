@@ -18,7 +18,13 @@ import ts from 'typescript';
 
 const ROOT = process.cwd();
 const HTTP_METHODS = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete', 'All']);
-const AUTH_DECORATORS = new Set(['Public', 'RequirePermissions', 'Roles', 'AllowCrossTenant']);
+const AUTH_DECORATORS = new Set([
+  'Public',
+  'RequirePermissions',
+  'RequireAnyPermissions',
+  'Roles',
+  'AllowCrossTenant',
+]);
 
 /** Recursively collect `*.controller.ts` files under a directory (skips specs). */
 function findControllers(dir: string, out: string[] = []): string[] {

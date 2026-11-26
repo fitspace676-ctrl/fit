@@ -366,7 +366,7 @@ export class AdminServicesService {
   /** Staff the form can assign: every non-MEMBER, non-deleted person in the gym. */
   async listStaffOptions(): Promise<ListServiceStaffResponse> {
     const rows = await this.prisma.client.gymMember.findMany({
-      where: { role: { not: 'MEMBER' }, deletedAt: null },
+      where: { role: { not: 'MEMBER' }, archivedAt: null, deletedAt: null },
       select: STAFF_SELECT,
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     });
@@ -382,7 +382,8 @@ export class AdminServicesService {
   }
 
   private async setStatus(id: string, status: ServiceStatus): Promise<ServiceResponse> {
-    await this.requireService(id);
+    const existing = await this.requireService(id);
+    if (status === ServiceStatus.ACTIVE) await this.requireStaff(existing.staff.id, existing.type);
     const row = await this.prisma.client.service.update({
       where: { id },
       data: { status },
@@ -411,7 +412,7 @@ export class AdminServicesService {
     type: ServiceType | 'PERSONAL_TRAINING' | 'CUSTOM',
   ): Promise<StaffRecord> {
     const staff = await this.prisma.client.gymMember.findFirst({
-      where: { id: staffId, role: { not: 'MEMBER' }, deletedAt: null },
+      where: { id: staffId, archivedAt: null, role: { not: 'MEMBER' }, deletedAt: null },
       select: STAFF_SELECT,
     });
     if (!staff) {

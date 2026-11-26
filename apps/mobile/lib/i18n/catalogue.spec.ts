@@ -136,8 +136,12 @@ describe('the member slice', () => {
     // membership (`payOnline`): → 1205.
     // Same day, the app's payment result screen names each state
     // (`member.payment.result.*`, 15 keys): → 1220.
-    expect(enKeys).toHaveLength(1220);
-    expect(kaKeys).toHaveLength(1220);
+    // Sign-in takes an email or a phone number (`auth.fields.emailOrPhone*`,
+    // `auth.login.errors.identifier*`, 4 keys): → 1224.
+    // A plan's period is any number of days, weeks or months, or one-time
+    // (`common.planPeriod.per.*` / `.length.*` / `.oneTime`, 9 keys): → 1233.
+    expect(enKeys).toHaveLength(1233);
+    expect(kaKeys).toHaveLength(1233);
   });
 });
 
