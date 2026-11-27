@@ -13,6 +13,8 @@ import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import type { ClassesGranularity, ClassesKpis, DashboardClassesResponse } from '@fit/types';
 import { Sparkline } from '../charts';
+import { KpiTile } from '../kpi-tile';
+import type { IconName } from '@/components/ui';
 import type { T } from '../overview/format';
 
 const styles = stylex.create({
@@ -70,11 +72,15 @@ const styles = stylex.create({
 
 /** The tiles, in reading order. `rate` marks the two carried as percentages. */
 const TILES = [
-  { key: 'classesHeld', rate: false },
-  { key: 'seatsBooked', rate: false },
-  { key: 'noShowRate', rate: true },
-  { key: 'utilizationRate', rate: true },
-] as const satisfies readonly { key: keyof ClassesKpis; rate: boolean }[];
+  { key: 'classesHeld', rate: false, icon: 'calendar' },
+  { key: 'seatsBooked', rate: false, icon: 'ticket' },
+  { key: 'noShowRate', rate: true, icon: 'x' },
+  { key: 'utilizationRate', rate: true, icon: 'target' },
+] as const satisfies readonly {
+  key: keyof ClassesKpis;
+  rate: boolean;
+  icon: IconName;
+}[];
 
 /** A nullable percentage as text: the figure, or the em-dash placeholder. */
 function formatRate(t: T, value: number | null): string {
@@ -123,16 +129,19 @@ export function ClassesKpiStrip({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((tile) => {
+          {TILES.map((tile, i) => {
             const series = tileSeries(tile.key, data);
             return (
-              <div key={tile.key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
-                <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
-                <span {...stylex.props(styles.value)}>
-                  {tile.rate ? formatRate(t, kpis[tile.key]) : count.format(kpis[tile.key] ?? 0)}
-                </span>
-                {series && <Sparkline values={series} />}
-              </div>
+              <KpiTile
+                key={tile.key}
+                hero={i === 0}
+                icon={tile.icon}
+                label={t(`kpi.${tile.key}`)}
+                value={
+                  tile.rate ? formatRate(t, kpis[tile.key]) : count.format(kpis[tile.key] ?? 0)
+                }
+                sparkline={series && <Sparkline values={series} />}
+              />
             );
           })}
         </div>

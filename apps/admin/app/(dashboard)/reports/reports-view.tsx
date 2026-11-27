@@ -65,6 +65,7 @@ import { chrome } from './report-chrome';
 import { BranchScopeNote } from './branch-scope-note';
 import { GYM_WIDE_REPORTS } from './branch-scope';
 import { ReportRangeControl } from './report-range-control';
+import { ReportCharts } from './report-charts';
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -890,6 +891,16 @@ function ReportPreview({
     [preview.currency, locale],
   );
   const number = useMemo(() => createNumberFormat(locale), [locale]);
+  // The charts read whole currency units; cents would only crowd an axis.
+  const chartMoney = useMemo(
+    () =>
+      createNumberFormat(locale, {
+        style: 'currency',
+        currency: preview.currency,
+        maximumFractionDigits: 0,
+      }),
+    [preview.currency, locale],
+  );
 
   // Renders as a plain anchor so the browser downloads the file, so the basePath is
   // not applied for us.
@@ -938,6 +949,8 @@ function ReportPreview({
           </div>
         ) : null}
       </div>
+
+      <ReportCharts preview={preview} money={chartMoney} number={number} />
 
       {preview.rows.length === 0 ? (
         <p {...stylex.props(styles.emptyRows)}>{t('emptyRows')}</p>

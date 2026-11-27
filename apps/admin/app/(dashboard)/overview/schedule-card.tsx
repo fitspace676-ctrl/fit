@@ -6,23 +6,13 @@ import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { EmptyState, formatTime } from './format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   cardWide: {
     display: 'flex',
     flexDirection: 'column',
     padding: '1.25rem',
-  },
-  sectionLabel: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
-  labelSpaced: {
-    marginBottom: '1rem',
   },
   list: {
     listStyle: 'none',
@@ -33,6 +23,8 @@ const styles = stylex.create({
     gap: '0.5rem',
   },
   fillOk: { color: 'var(--color-text-accent)' },
+  // Nobody booked yet is not news; it should not wear the accent.
+  fillNone: { color: 'var(--color-text-secondary)' },
   fillWarn: { color: 'var(--color-warning)' },
   fillFull: { color: 'var(--color-error)' },
   scheduleRow: {
@@ -92,6 +84,23 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: 'var(--color-text-primary)',
   },
+  // How full the class is, as a bar the eye can compare down the list.
+  fillTrack: {
+    display: 'block',
+    width: '4.5rem',
+    height: '0.25rem',
+    marginTop: '0.375rem',
+    marginInlineStart: 'auto',
+    overflow: 'hidden',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+  },
+  fillBar: {
+    display: 'block',
+    height: '100%',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'currentColor',
+  },
   scheduleFill: {
     display: 'block',
     fontFamily: 'var(--font-family-code)',
@@ -112,7 +121,9 @@ export function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
 
   return (
     <Card padding="none" xstyle={styles.cardWide}>
-      <h2 {...stylex.props(styles.sectionLabel, styles.labelSpaced)}>{t('schedule.title')}</h2>
+      <CardTitle icon="calendar" spaced>
+        {t('schedule.title')}
+      </CardTitle>
       {rows.length === 0 ? (
         <EmptyState>{t('schedule.empty')}</EmptyState>
       ) : (
@@ -120,7 +131,13 @@ export function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
           {rows.map((row, i) => {
             const fill = row.capacity > 0 ? Math.round((row.booked / row.capacity) * 100) : 0;
             const fillTone =
-              fill > 85 ? styles.fillFull : fill > 60 ? styles.fillWarn : styles.fillOk;
+              fill > 85
+                ? styles.fillFull
+                : fill > 60
+                  ? styles.fillWarn
+                  : fill === 0
+                    ? styles.fillNone
+                    : styles.fillOk;
             return (
               <li key={`${row.startsAt}-${i}`} {...stylex.props(styles.scheduleRow)}>
                 <span
@@ -139,6 +156,13 @@ export function ScheduleCard({ data }: { data: DashboardOverviewResponse }) {
                 <span {...stylex.props(styles.scheduleRight)}>
                   <span {...stylex.props(styles.scheduleCount)}>
                     {row.booked}/{row.capacity}
+                  </span>
+                  <span {...stylex.props(styles.fillTrack, fillTone)} aria-hidden>
+                    <span
+                      {...stylex.props(styles.fillBar)}
+                      data-grow="x"
+                      style={{ width: `${fill}%` }}
+                    />
                   </span>
                   <span {...stylex.props(styles.scheduleFill, fillTone)}>
                     {t('schedule.full', { fill })}

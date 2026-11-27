@@ -12,6 +12,7 @@ import {
   type CheckInCandidate,
   type CheckInOutcome,
 } from './reception-actions';
+import { CardTitle } from '../card-title';
 
 /** Wait this long after the last keystroke before searching. */
 const SEARCH_DEBOUNCE_MS = 250;
@@ -22,13 +23,6 @@ const styles = stylex.create({
     flexDirection: 'column',
     gap: '1rem',
     padding: '1.25rem',
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.875rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
   },
   searchWrap: {
     position: 'relative',
@@ -158,7 +152,7 @@ export function QuickCheckIn({ locationId }: { locationId: string | null }) {
 
   return (
     <Card padding="none" xstyle={styles.card}>
-      <h2 {...stylex.props(styles.title)}>{t('checkIn.title')}</h2>
+      <CardTitle icon="qr">{t('checkIn.title')}</CardTitle>
       <div {...stylex.props(styles.searchWrap)}>
         <Icon name="search" {...stylex.props(styles.searchIcon)} />
         <input

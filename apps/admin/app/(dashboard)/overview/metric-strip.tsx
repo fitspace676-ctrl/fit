@@ -16,6 +16,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useLocale, useTranslations } from 'next-intl';
 import { createNumberFormat } from '@fit/i18n';
 import type { DashboardKpi, DashboardOverviewResponse } from '@fit/types';
+import { Icon, type IconName } from '@/components/ui';
 
 const styles = stylex.create({
   strip: {
@@ -60,10 +61,72 @@ const styles = stylex.create({
     padding: '0.875rem 1rem',
     backgroundColor: 'var(--color-background-surface)',
   },
+  // Tier one leads with what the number is, as a glyph as well as a word.
+  kpiHead: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  kpiIcon: {
+    flexShrink: 0,
+    display: 'grid',
+    placeItems: 'center',
+    width: '2rem',
+    height: '2rem',
+    borderRadius: 'var(--radius-inner)',
+  },
+  kpiGlyph: {
+    width: '1rem',
+    height: '1rem',
+  },
+  // The brand's one voice: blue ink on its own tint. The glyph tells the four
+  // apart; colour would be a second, louder way of saying the same thing.
+  kpiIconBrand: { color: 'var(--brand-ink)', backgroundColor: 'var(--brand-tint)' },
+  // The lead tile: today's takings, on the console's accent fill. Everything on
+  // it wears the accent's own ink, so it holds in both themes.
+  hero: {
+    backgroundColor: 'var(--color-accent)',
+    backgroundImage:
+      'radial-gradient(120% 140% at 100% 0%, rgb(255 255 255 / 0.22), transparent 60%)',
+    color: 'var(--color-on-accent)',
+  },
+  heroIcon: {
+    color: 'var(--color-on-accent)',
+    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 14%, transparent)',
+  },
+  heroInk: {
+    color: 'var(--color-on-accent)',
+  },
+  heroMuted: {
+    color: 'color-mix(in srgb, var(--color-on-accent) 72%, transparent)',
+  },
+  heroDelta: {
+    color: 'var(--color-on-accent)',
+    backgroundColor: 'color-mix(in srgb, var(--color-on-accent) 14%, transparent)',
+  },
+  // A standing count that needs someone's attention when it is above zero.
+  valueAlert: {
+    color: 'var(--alert-ink)',
+  },
+  // Due soon, not overdue: the brand ink marks it without raising the alarm.
+  valueWarn: {
+    color: 'var(--brand-ink)',
+  },
+  cellLarge: {
+    gap: '0.5rem',
+    paddingBlock: '1.125rem',
+    paddingInline: '1.25rem',
+  },
   label: {
     fontSize: '0.75rem',
     fontWeight: 500,
+    lineHeight: 1.35,
     color: 'var(--color-text-secondary)',
+  },
+  // Tier-two labels run long in Georgian; reserving two lines keeps every
+  // count on the same baseline whether its label wraps or not.
+  labelTwoLines: {
+    minHeight: '2.7em',
   },
   // A delta is a footnote to the numeral above it. `alignSelf: start` is what
   // keeps it that size in a stretch-aligned grid cell.
@@ -81,12 +144,12 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
   },
   deltaUp: {
-    color: 'var(--color-text-green)',
-    backgroundColor: 'var(--color-background-green)',
+    color: 'var(--brand-ink)',
+    backgroundColor: 'var(--brand-tint)',
   },
   deltaDown: {
-    color: 'var(--color-text-red)',
-    backgroundColor: 'var(--color-background-red)',
+    color: 'var(--alert-ink)',
+    backgroundColor: 'var(--alert-tint)',
   },
   // The unit rides at two thirds of the numeral and in secondary ink, so `GEL`
   // stops competing with the figure it qualifies.
@@ -97,7 +160,8 @@ const styles = stylex.create({
   },
   valueLarge: {
     fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
+    fontSize: '2rem',
+    lineHeight: 1.15,
     fontWeight: 800,
     letterSpacing: '-0.02em',
     fontVariantNumeric: 'tabular-nums',
@@ -172,21 +236,26 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
     <div role="group" aria-label={t('metrics.aria')} {...stylex.props(styles.strip)}>
       <div {...stylex.props(styles.tier, styles.tierOne)}>
         <KpiCell
+          hero
+          icon="card"
           label={t('kpi.revenue')}
           value={money.parts(data.kpis.todaysRevenue.value / 100)}
           kpi={data.kpis.todaysRevenue}
         />
         <KpiCell
+          icon="qr"
           label={t('kpi.checkIns')}
           value={count.parts(data.kpis.checkInsToday.value)}
           kpi={data.kpis.checkInsToday}
         />
         <KpiCell
+          icon="users"
           label={t('kpi.newMembers')}
           value={count.parts(data.kpis.newMembers7d.value)}
           kpi={data.kpis.newMembers7d}
         />
         <KpiCell
+          icon="chart"
           label={t('secondaryKpi.revenueThisMonth')}
           value={money.parts(data.secondaryKpis.revenueThisMonth.value / 100)}
           kpi={data.secondaryKpis.revenueThisMonth}
@@ -196,16 +265,31 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
       <div {...stylex.props(styles.tier, styles.tierTwo)}>
         {[
           { key: 'activeMembers', value: data.secondaryKpis.activeMembers },
-          { key: 'overduePayments', value: data.secondaryKpis.overduePayments },
+          {
+            key: 'overduePayments',
+            value: data.secondaryKpis.overduePayments,
+            tone: 'valueAlert' as const,
+          },
           { key: 'classes', value: data.secondaryKpis.classesToday },
-          { key: 'expiringSoon', value: data.secondaryKpis.expiringSoon, hint: true },
-          { key: 'renewalsDue', value: data.secondaryKpis.renewalsDue, hint: true },
+          {
+            key: 'expiringSoon',
+            value: data.secondaryKpis.expiringSoon,
+            hint: true,
+            tone: 'valueWarn' as const,
+          },
+          {
+            key: 'renewalsDue',
+            value: data.secondaryKpis.renewalsDue,
+            hint: true,
+            tone: 'valueWarn' as const,
+          },
         ].map((tile) => (
           <CountCell
             key={tile.key}
             label={t(`secondaryKpi.${tile.key}`)}
             value={count.format(tile.value)}
             hint={tile.hint ? t(`secondaryKpi.${tile.key}Hint`) : undefined}
+            tone={tile.value > 0 ? tile.tone : undefined}
           />
         ))}
         {Array.from({ length: FILLERS }, (_, i) => (
@@ -222,37 +306,60 @@ export function MetricStrip({ data }: { data: DashboardOverviewResponse }) {
 
 /** A tier-one cell: the larger numeral plus its period-over-period delta. */
 function KpiCell({
+  icon,
+  hero,
   label,
   value,
   kpi,
 }: {
+  icon: IconName;
+  hero?: boolean;
   label: string;
   value: { digits: string; unit: string; unitFirst: boolean };
   kpi: DashboardKpi;
 }) {
   return (
-    <div {...stylex.props(styles.cell)}>
-      <span {...stylex.props(styles.label)}>{label}</span>
-      <span {...stylex.props(styles.valueLarge)}>
+    <div {...stylex.props(styles.cell, styles.cellLarge, hero && styles.hero)}>
+      <span {...stylex.props(styles.kpiHead)}>
+        <span
+          aria-hidden
+          {...stylex.props(styles.kpiIcon, hero ? styles.heroIcon : styles.kpiIconBrand)}
+        >
+          <Icon name={icon} {...stylex.props(styles.kpiGlyph)} />
+        </span>
+        <span {...stylex.props(styles.label, hero && styles.heroMuted)}>{label}</span>
+      </span>
+      <span {...stylex.props(styles.valueLarge, hero && styles.heroInk)}>
         {value.unitFirst && value.unit ? (
-          <span {...stylex.props(styles.unit)}>{value.unit} </span>
+          <span {...stylex.props(styles.unit, hero && styles.heroMuted)}>{value.unit} </span>
         ) : null}
         {value.digits}
         {!value.unitFirst && value.unit ? (
-          <span {...stylex.props(styles.unit)}> {value.unit}</span>
+          <span {...stylex.props(styles.unit, hero && styles.heroMuted)}> {value.unit}</span>
         ) : null}
       </span>
-      <DeltaChip kpi={kpi} />
+      <DeltaChip kpi={kpi} hero={hero} />
     </div>
   );
 }
 
 /** A tier-two cell: a standing count, with an optional descriptive hint. */
-function CountCell({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function CountCell({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  /** Set only while the count is above zero and worth someone's attention. */
+  tone?: 'valueAlert' | 'valueWarn';
+}) {
   return (
     <div {...stylex.props(styles.cell)}>
-      <span {...stylex.props(styles.label)}>{label}</span>
-      <span {...stylex.props(styles.valueSmall)}>{value}</span>
+      <span {...stylex.props(styles.label, styles.labelTwoLines)}>{label}</span>
+      <span {...stylex.props(styles.valueSmall, tone && styles[tone])}>{value}</span>
       {hint ? <span {...stylex.props(styles.foot)}>{hint}</span> : null}
     </div>
   );
@@ -272,14 +379,22 @@ function CountCell({ label, value, hint }: { label: string; value: string; hint?
  * The arrow rides with the colour deliberately: status colour alone is not an
  * encoding a colourblind reader can use.
  */
-function DeltaChip({ kpi }: { kpi: DashboardKpi }) {
+function DeltaChip({ kpi, hero }: { kpi: DashboardKpi; hero?: boolean }) {
   const t = useTranslations('admin.dashboard');
   if (kpi.deltaPct === null) {
-    return <span {...stylex.props(styles.foot)}>{t('kpi.noPriorData')}</span>;
+    return (
+      <span {...stylex.props(styles.foot, hero && styles.heroMuted)}>{t('kpi.noPriorData')}</span>
+    );
   }
   const good = kpi.deltaPct >= 0;
   return (
-    <span {...stylex.props(styles.delta, good ? styles.deltaUp : styles.deltaDown)}>
+    <span
+      {...stylex.props(
+        styles.delta,
+        good ? styles.deltaUp : styles.deltaDown,
+        hero && styles.heroDelta,
+      )}
+    >
       <span aria-hidden="true">{good ? '▲' : '▼'}</span>
       {Math.abs(kpi.deltaPct)}%
     </span>

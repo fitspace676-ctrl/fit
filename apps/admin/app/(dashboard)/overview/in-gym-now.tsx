@@ -9,6 +9,7 @@ import { ProgressBar } from '@astryxdesign/core/ProgressBar';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { Card, CountUp } from '@fit/ui-kit';
 import { AnimatedCircularProgressBar } from '../charts';
+import { CardTitle } from '../card-title';
 
 const pulse = stylex.keyframes({
   '0%': { opacity: 1 },
@@ -96,9 +97,7 @@ export function InGymNow({ data }: { data: DashboardOverviewResponse }) {
     <Card padding="card" xstyle={styles.occupancyCard}>
       <Stack gap={4} height="100%">
         <HStack justify="between" align="center">
-          <Text type="label" color="secondary" weight="bold">
-            {t('inGymNow.title')}
-          </Text>
+          <CardTitle icon="users">{t('inGymNow.title')}</CardTitle>
           <span {...stylex.props(styles.livePill)}>
             <span {...stylex.props(styles.liveDot)} />
             {t('inGymNow.live')}

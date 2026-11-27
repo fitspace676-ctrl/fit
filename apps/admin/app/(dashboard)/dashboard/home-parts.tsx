@@ -1,11 +1,15 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@fit/ui-kit';
 import { createDateTimeFormat, createNumberFormat } from '@fit/i18n';
 import type { getTranslations } from 'next-intl/server';
 import { zonedClock, zonedIsoDate, zonedMinutesOfDay } from '../classes/schedule/week';
 import type { TrainerAgendaItem } from './trainer-home-model';
+import type { IconName } from '@/components/ui';
+import { KpiTile } from '../kpi-tile';
+import { CardTitle } from '../card-title';
+import { Reveal } from '../reveal';
 
 // Building blocks shared by the role homes (trainer, reception): one visual
 // language — the owner overview's hairline metric strip and schedule rows.
@@ -53,32 +57,6 @@ const styles = stylex.create({
       '@media (min-width: 768px)': 'repeat(4, minmax(0, 1fr))',
     },
   },
-  cell: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
-    paddingBlock: '0.875rem',
-    paddingInline: '1rem',
-    backgroundColor: 'var(--color-background-surface)',
-  },
-  cellLabel: {
-    fontSize: '0.75rem',
-    fontWeight: 500,
-    color: 'var(--color-text-secondary)',
-  },
-  cellValue: {
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    letterSpacing: '-0.02em',
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-primary)',
-  },
-  cellFoot: {
-    fontSize: '0.75rem',
-    fontVariantNumeric: 'tabular-nums',
-    color: 'var(--color-text-secondary)',
-  },
   workArea: {
     display: 'grid',
     gap: '1.5rem',
@@ -102,16 +80,9 @@ const styles = stylex.create({
   },
   cardHead: {
     display: 'flex',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: '1rem',
-  },
-  cardTitle: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.875rem',
-    fontWeight: 700,
-    color: 'var(--color-text-primary)',
   },
   cardLink: {
     flexShrink: 0,
@@ -366,15 +337,16 @@ export function greetingLine(
 /** The page title and subtitle both homes open with. */
 export function HomeHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <header {...stylex.props(styles.header)}>
+    <header data-reveal {...stylex.props(styles.header)}>
       <h1 {...stylex.props(styles.title)}>{title}</h1>
       <p {...stylex.props(styles.subtitle)}>{subtitle}</p>
     </header>
   );
 }
 
-/** One metric cell: a label, the figure, and a one-line footnote. */
+/** One metric cell: a glyph, a label, the figure, and a one-line footnote. */
 export interface MetricCell {
+  icon: IconName;
   label: string;
   value: string;
   foot: string;
@@ -383,15 +355,21 @@ export interface MetricCell {
 /** The hairline metric strip both homes open with — four cells on desktop, two on a phone. */
 export function MetricStrip({ cells }: { cells: MetricCell[] }) {
   return (
-    <div {...stylex.props(styles.strip)}>
-      {cells.map((cell) => (
-        <div key={cell.label} {...stylex.props(styles.cell)}>
-          <span {...stylex.props(styles.cellLabel)}>{cell.label}</span>
-          <span {...stylex.props(styles.cellValue)}>{cell.value}</span>
-          <span {...stylex.props(styles.cellFoot)}>{cell.foot}</span>
-        </div>
-      ))}
-    </div>
+    <Reveal delay={40}>
+      <div {...stylex.props(styles.strip)}>
+        {/* The owner dashboard's tile: the first figure leads on the accent fill. */}
+        {cells.map((cell, i) => (
+          <KpiTile
+            key={cell.label}
+            hero={i === 0}
+            icon={cell.icon}
+            label={cell.label}
+            value={cell.value}
+            hint={cell.foot}
+          />
+        ))}
+      </div>
+    </Reveal>
   );
 }
 
@@ -416,7 +394,7 @@ export function Agenda({
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHead)}>
-        <h2 {...stylex.props(styles.cardTitle)}>{title}</h2>
+        <CardTitle icon="calendar">{title}</CardTitle>
         <Link href="/classes/schedule" {...stylex.props(styles.cardLink)}>
           {t('trainer.agenda.seeAll')}
         </Link>
@@ -500,7 +478,7 @@ export function Upcoming({
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHead)}>
-        <h2 {...stylex.props(styles.cardTitle)}>{t('trainer.upcoming.title')}</h2>
+        <CardTitle icon="clock">{t('trainer.upcoming.title')}</CardTitle>
         {items.length > shown.length ? (
           <span {...stylex.props(styles.muted)}>
             {t('trainer.upcoming.more', { count: items.length - shown.length })}
@@ -562,18 +540,34 @@ export function HomePage({ children }: { children: ReactNode }) {
 export function WorkArea({ main, rail }: { main: ReactNode; rail: ReactNode }) {
   return (
     <div {...stylex.props(styles.workArea)}>
-      <div {...stylex.props(styles.column)}>{main}</div>
-      <div {...stylex.props(styles.column)}>{rail}</div>
+      {/* The entrance wave: the main column lands just after the metrics, the
+          rail a beat behind it (see `[data-reveal]` in globals.css). */}
+      <div
+        data-reveal
+        style={{ '--reveal-delay': '130ms' } as CSSProperties}
+        {...stylex.props(styles.column)}
+      >
+        {main}
+      </div>
+      <div
+        data-reveal
+        style={{ '--reveal-delay': '190ms' } as CSSProperties}
+        {...stylex.props(styles.column)}
+      >
+        {rail}
+      </div>
     </div>
   );
 }
 
 /** A titled card, with an optional link or note on the title's right. */
 export function SectionCard({
+  icon,
   title,
   action,
   children,
 }: {
+  icon: IconName;
   title: string;
   action?: ReactNode;
   children: ReactNode;
@@ -581,7 +575,7 @@ export function SectionCard({
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHead)}>
-        <h2 {...stylex.props(styles.cardTitle)}>{title}</h2>
+        <CardTitle icon={icon}>{title}</CardTitle>
         {action}
       </div>
       {children}

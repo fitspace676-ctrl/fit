@@ -16,6 +16,8 @@ import { createNumberFormat } from '@fit/i18n';
 import type { NumberFormatter } from '@fit/i18n';
 import type { DashboardStaffResponse, StaffGranularity, StaffKpis } from '@fit/types';
 import { Sparkline } from '../charts';
+import { KpiTile } from '../kpi-tile';
+import type { IconName } from '@/components/ui';
 import type { T } from '../overview/format';
 
 const styles = stylex.create({
@@ -73,11 +75,15 @@ const styles = stylex.create({
 
 /** The tiles, in reading order, with how each renders. */
 const TILES = [
-  { key: 'trainersDelivering', kind: 'count' },
-  { key: 'sessionsDelivered', kind: 'count' },
-  { key: 'utilizationRate', kind: 'rate' },
-  { key: 'scheduledHoursPerWeek', kind: 'hours' },
-] as const satisfies readonly { key: keyof StaffKpis; kind: 'count' | 'rate' | 'hours' }[];
+  { key: 'trainersDelivering', kind: 'count', icon: 'dumbbell' },
+  { key: 'sessionsDelivered', kind: 'count', icon: 'check' },
+  { key: 'utilizationRate', kind: 'rate', icon: 'target' },
+  { key: 'scheduledHoursPerWeek', kind: 'hours', icon: 'clock' },
+] as const satisfies readonly {
+  key: keyof StaffKpis;
+  kind: 'count' | 'rate' | 'hours';
+  icon: IconName;
+}[];
 
 /**
  * A tile's value as text. `null` is the em-dash, never `0%`.
@@ -129,16 +135,17 @@ export function StaffKpiStrip({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((tile) => {
+          {TILES.map((tile, i) => {
             const series = tileSeries(tile.key, data);
             return (
-              <div key={tile.key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
-                <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
-                <span {...stylex.props(styles.value)}>
-                  {formatTile(t, count, tile.kind, kpis[tile.key])}
-                </span>
-                {series && <Sparkline values={series} />}
-              </div>
+              <KpiTile
+                key={tile.key}
+                hero={i === 0}
+                icon={tile.icon}
+                label={t(`kpi.${tile.key}`)}
+                value={formatTile(t, count, tile.kind, kpis[tile.key])}
+                sparkline={series && <Sparkline values={series} />}
+              />
             );
           })}
         </div>

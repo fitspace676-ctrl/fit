@@ -42,6 +42,8 @@ const messages = {
           title: 'Revenue over time',
           caption: '{window} · {productType} · {total} net',
           chartAria: 'Net revenue per period',
+          net: 'Net',
+          mean: 'Average',
           empty: 'No revenue in this window.',
         },
         vsRefunds: {
@@ -50,14 +52,13 @@ const messages = {
           chartAria: 'Sales against refunds per period',
           sales: 'Sales',
           refunds: 'Refunds',
+          rate: 'Refund rate',
           empty: 'No sales or refunds in this window.',
         },
         method: {
           title: 'Sales by payment method',
-          share: 'POS {pos}% · Online {online}%',
           channel: { pos: 'POS', online: 'Online' },
           name: { cash: 'Cash', card: 'Card', 'member-account': 'Member account' },
-          row: '{channel} · {name}',
           empty: 'No payments in this window.',
         },
         topSellers: {
@@ -138,14 +139,17 @@ describe('SalesView', () => {
     renderView();
     await screen.findByText('Revenue over time');
 
-    // KPI strip: 14_000 / 2_000 / 7_000 minor units.
-    expect(screen.getByText('GEL 20')).toBeInTheDocument();
+    // KPI strip: 14_000 / 2_000 / 7_000 minor units. 20 lands twice: the strip's
+    // refunded figure and the refunds card's window total (0 + 2_000).
+    expect(screen.getAllByText('GEL 20')).toHaveLength(2);
     expect(screen.getByText('GEL 70')).toBeInTheDocument();
-    // Four sites land on 140: the strip's net sales (14_000), the trend
-    // caption's net total (9_000 + 5_000), the payment-method bar and the top
-    // seller (14_000 each). Asserting the count pins all four at once — a card
-    // that stopped dividing would drop out of this set.
-    expect(screen.getAllByText(/GEL 140/)).toHaveLength(4);
+    // The refunds card's sales total: 10_000 + 6_000.
+    expect(screen.getByText('GEL 160')).toBeInTheDocument();
+    // Five sites land on 140: the strip's net sales (14_000), the trend
+    // caption's net total (9_000 + 5_000), the payment-method channel total and
+    // its one method row, and the top seller (14_000 each). Asserting the count
+    // pins all five at once — a card that stopped dividing would drop out.
+    expect(screen.getAllByText(/GEL 140/)).toHaveLength(5);
   });
 
   it('refetches when the granularity changes', async () => {

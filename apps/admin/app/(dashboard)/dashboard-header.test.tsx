@@ -28,10 +28,13 @@ const messages = {
 
 const period: DashboardResolvedPeriod = { period: 'today', from: '2026-08-07', to: '2026-08-07' };
 
-function renderHeader(active: DashboardSegment = 'overview') {
+function renderHeader(
+  active: DashboardSegment = 'overview',
+  resolved: DashboardResolvedPeriod = period,
+) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
-      <DashboardHeader active={active} period={period} />
+      <DashboardHeader active={active} period={resolved} />
     </NextIntlClientProvider>,
   );
 }
@@ -85,9 +88,16 @@ describe('DashboardHeader', () => {
   // above. Astryx's `DateRangeInput` opens a native-Popover-API surface and
   // hands back a range only once two Calendar day cells are clicked; drive it
   // for real rather than reaching around it, per §7.
-  it('writes a custom range and switches the period to custom', async () => {
-    navigationMock.setSearch('segment=sales');
+  it('offers the date picker only for a custom period, and names a preset window', () => {
     renderHeader('overview');
+    expect(screen.queryByRole('button', { name: /Custom date range/ })).toBeNull();
+    // The window the figures cover, in the operator's words (no dash).
+    expect(screen.getByText('August 7')).toBeInTheDocument();
+  });
+
+  it('writes a custom range and switches the period to custom', async () => {
+    navigationMock.setSearch('segment=sales&period=custom');
+    renderHeader('overview', { ...period, period: 'custom' });
 
     await userEvent.click(screen.getByRole('button', { name: /Custom date range/ }));
     // `period.from`/`period.to` are both 2026-08-07, so the calendar opens on

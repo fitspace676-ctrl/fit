@@ -21,7 +21,8 @@
 
 import { useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
+import { createDateTimeFormat } from '@fit/i18n';
 import * as stylex from '@stylexjs/stylex';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { DateRangeInput, type DateRange } from '@astryxdesign/core/DateRangeInput';
@@ -62,11 +63,32 @@ const styles = stylex.create({
     fontSize: '0.875rem',
     color: 'var(--color-text-secondary)',
   },
+  // Which days every figure below covers — the one fact the numbers depend on.
+  periodCaption: {
+    margin: 0,
+    marginTop: '0.25rem',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
   controls: {
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: '0.75rem',
+    minWidth: 0,
+    maxWidth: '100%',
+  },
+  // On a phone the four presets are wider than the screen; they scroll as one
+  // row instead of each label breaking onto two lines.
+  presets: {
+    maxWidth: '100%',
+    overflowX: 'auto',
+    scrollbarWidth: 'none',
+  },
+  presetsInner: {
+    width: 'max-content',
   },
 });
 
@@ -111,6 +133,18 @@ export function DashboardHeader({
     apply(params);
   }
 
+  const locale = useLocale();
+  // The console's formatter reads `YYYY-MM-DD` as a UTC-midnight day.
+  const day = (iso: string, options: Parameters<typeof createDateTimeFormat>[1]) =>
+    createDateTimeFormat(locale, options).format(new Date(`${iso}T00:00:00.000Z`));
+  const periodCaption =
+    period.from === period.to
+      ? day(period.from, { day: 'numeric', month: 'long' })
+      : t('period.rangeText', {
+          from: day(period.from, { day: '2-digit', month: '2-digit' }),
+          to: day(period.to, { day: '2-digit', month: '2-digit' }),
+        });
+
   const periodRange: DateRange = {
     start: period.from as DateRange['start'],
     end: period.to as DateRange['end'],
@@ -118,32 +152,41 @@ export function DashboardHeader({
 
   return (
     <header {...stylex.props(styles.header)}>
-      <div {...stylex.props(styles.headerText)}>
+      <div data-reveal {...stylex.props(styles.headerText)}>
         <h1 {...stylex.props(styles.title)}>{t('title')}</h1>
         <p {...stylex.props(styles.subtitle)}>{t('subtitle')}</p>
+        <p {...stylex.props(styles.periodCaption)}>{periodCaption}</p>
       </div>
       <div {...stylex.props(styles.controls)}>
-        <SegmentedControl
-          value={period.period}
-          onChange={(next) => selectPeriod(next as DashboardPeriod)}
-          label={t('period.aria')}
-          size="sm"
-          isDisabled={isPending}
-        >
-          {PERIOD_VALUES.map((value) => (
-            <SegmentedControlItem key={value} value={value} label={t(`period.${value}`)} />
-          ))}
-        </SegmentedControl>
-        <DateRangeInput
-          label={t('period.rangeLabel')}
-          isLabelHidden
-          value={periodRange}
-          onChange={selectCustomRange}
-          hasClear={false}
-          size="sm"
-          numberOfMonths={1}
-          isDisabled={isPending}
-        />
+        <div {...stylex.props(styles.presets)}>
+          <div {...stylex.props(styles.presetsInner)}>
+            <SegmentedControl
+              value={period.period}
+              onChange={(next) => selectPeriod(next as DashboardPeriod)}
+              label={t('period.aria')}
+              size="sm"
+              isDisabled={isPending}
+            >
+              {PERIOD_VALUES.map((value) => (
+                <SegmentedControlItem key={value} value={value} label={t(`period.${value}`)} />
+              ))}
+            </SegmentedControl>
+          </div>
+        </div>
+        {/* The picker only when the operator asked for their own dates; a preset
+            already says its window in the caption beside the title. */}
+        {period.period === 'custom' ? (
+          <DateRangeInput
+            label={t('period.rangeLabel')}
+            isLabelHidden
+            value={periodRange}
+            onChange={selectCustomRange}
+            hasClear={false}
+            size="sm"
+            numberOfMonths={1}
+            isDisabled={isPending}
+          />
+        ) : null}
       </div>
     </header>
   );

@@ -11,43 +11,21 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import type { SalesComparisonPoint } from '@fit/types';
-import { DualAreaChart, SeriesSwatch, type DualPoint } from '../charts';
+import { StatRow } from '../stat-row';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
 import { EmptyState } from '../overview/format';
 import type { NumberFormatter } from '@fit/i18n';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legend: {
-    display: 'flex',
-    gap: '1rem',
-    marginTop: '0.5rem',
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -63,46 +41,47 @@ export function SalesVsRefundsCard({
   const locale = useLocale();
 
   // Money is carried in MINOR units; the chart plots major units.
-  const data: DualPoint[] = points.map((point) => ({
+  const data: ColumnDatum[] = points.map((point) => ({
     label: point.label,
-    primary: point.sales / 100,
-    secondary: point.refunds / 100,
+    value: point.sales / 100,
+    negative: point.refunds / 100,
   }));
-  const hasData = data.some((point) => point.primary !== 0 || point.secondary !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const hasData = data.some((point) => point.value !== 0 || point.negative !== 0);
+  const salesTotal = points.reduce((sum, point) => sum + point.sales, 0) / 100;
+  const refundsTotal = points.reduce((sum, point) => sum + point.refunds, 0) / 100;
+  const refundRate = salesTotal > 0 ? (refundsTotal / salesTotal) * 100 : 0;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('vsRefunds.title')}</h2>
+        <CardTitle icon="retry">{t('vsRefunds.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>{t('vsRefunds.caption')}</p>
       </div>
 
       {hasData ? (
         <>
-          <DualAreaChart
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('vsRefunds.sales'), value: money.format(salesTotal), swatch: 'up' },
+              {
+                label: t('vsRefunds.refunds'),
+                value: money.format(refundsTotal),
+                swatch: 'down',
+                tone: refundsTotal > 0 ? 'bad' : undefined,
+              },
+              { label: t('vsRefunds.rate'), value: `${refundRate.toFixed(1)}%` },
+            ]}
+          />
+          <ColumnChart
             data={data}
             ariaLabel={t('vsRefunds.chartAria')}
-            formatValue={(value) => money.format(value / 100)}
+            formatValue={(value) => money.format(value)}
             formatLabel={(label) => formatBucket(locale, label)}
-            primaryLabel={t('vsRefunds.sales')}
-            secondaryLabel={t('vsRefunds.refunds')}
+            valueName={t('vsRefunds.sales')}
+            negativeName={t('vsRefunds.refunds')}
+            height={180}
           />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
-          <div {...stylex.props(styles.legend)}>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="primary" />
-              {t('vsRefunds.sales')}
-            </span>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="negative" />
-              {t('vsRefunds.refunds')}
-            </span>
-          </div>
         </>
       ) : (
         <EmptyState>{t('vsRefunds.empty')}</EmptyState>

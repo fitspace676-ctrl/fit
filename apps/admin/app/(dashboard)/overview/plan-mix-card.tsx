@@ -5,6 +5,7 @@ import { Card } from '@fit/ui-kit';
 import * as stylex from '@stylexjs/stylex';
 import type { DashboardOverviewResponse } from '@fit/types';
 import { EmptyState } from './format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: {
@@ -14,17 +15,9 @@ const styles = stylex.create({
   },
   cardHeadBaseline: {
     display: 'flex',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: '1rem',
-  },
-  sectionLabel: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
   },
   metaText: {
     fontFamily: 'var(--font-family-code)',
@@ -95,7 +88,7 @@ export function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHeadBaseline)}>
-        <h2 {...stylex.props(styles.sectionLabel)}>{t('planMix.title')}</h2>
+        <CardTitle icon="ticket">{t('planMix.title')}</CardTitle>
         <span {...stylex.props(styles.metaText)}>
           {/* Paying = active + frozen; the active part is the overview's KPI. */}
           {data.planMix.active === undefined || data.planMix.frozen === undefined
@@ -117,6 +110,7 @@ export function PlanMixCard({ data }: { data: DashboardOverviewResponse }) {
               <span
                 key={plan.planId ?? plan.name}
                 {...stylex.props(styles.planSeg)}
+                data-grow="x"
                 style={{
                   width: `${(plan.count / total) * 100}%`,
                   backgroundColor: plan.color ?? 'var(--color-accent)',

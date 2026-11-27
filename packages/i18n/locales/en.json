@@ -420,6 +420,7 @@
         "custom": "Custom",
         "aria": "Dashboard period",
         "rangeLabel": "Custom date range",
+        "rangeText": "{from} to {to}",
         "rangeAria": "Widget range"
       },
       "periodWindow": {
@@ -437,6 +438,10 @@
         "products": "Products",
         "classes": "Classes",
         "staff": "Staff"
+      },
+      "singleBucket": {
+        "label": "Selected period",
+        "hint": "A single bucket. For a trend, pick a daily or weekly breakdown, or a longer period."
       },
       "sales": {
         "granularityLabel": "Granularity",
@@ -468,6 +473,8 @@
           "title": "Revenue over time",
           "caption": "{window} · {productType} · {total} net",
           "chartAria": "Net revenue per period",
+          "net": "Net",
+          "mean": "Average",
           "empty": "No revenue in this window."
         },
         "vsRefunds": {
@@ -476,11 +483,11 @@
           "chartAria": "Sales against refunds per period",
           "sales": "Sales",
           "refunds": "Refunds",
+          "rate": "Refund rate",
           "empty": "No sales or refunds in this window."
         },
         "method": {
           "title": "Sales by payment method",
-          "share": "POS {pos}% · Online {online}%",
           "channel": {
             "pos": "POS",
             "online": "Online"
@@ -491,7 +498,6 @@
             "bank-transfer": "Bank transfer",
             "member-account": "Member account"
           },
-          "row": "{channel} · {name}",
           "empty": "No payments in this window."
         },
         "topSellers": {
@@ -526,12 +532,17 @@
           "title": "Total active members",
           "caption": "{window} · {total} now",
           "chartAria": "Active members per period",
+          "start": "At the start",
+          "now": "Now",
+          "change": "Change",
+          "point": "Active",
           "empty": "No members in this window."
         },
         "signupsVsChurn": {
           "title": "Signups vs churned members",
           "caption": "New members against people whose last membership ended",
           "chartAria": "Signups against churned members per period",
+          "net": "Net growth",
           "signups": "Signups",
           "churned": "Churned",
           "empty": "No new or churned members in this window."
@@ -546,6 +557,10 @@
           },
           "caption": "Members still here {days} days on",
           "chartAria": "Retention rate per period",
+          "latest": "Latest",
+          "average": "Average",
+          "lowest": "Lowest",
+          "noData": "No members to retain",
           "gapNote": "Gaps are periods with nobody to retain, not 0%.",
           "empty": "Not enough history to measure retention yet."
         },
@@ -592,6 +607,7 @@
           "title": "Revenue over time",
           "caption": "Captured payments against invoices settled with no payment",
           "chartAria": "Revenue per period, captured payments against invoices settled with no payment",
+          "total": "Total",
           "recurring": "Invoices, no payment",
           "oneOff": "Captured payments",
           "empty": "No revenue in this window."
@@ -600,6 +616,10 @@
           "title": "Recurring revenue",
           "caption": "Monthly value of active plans · {total} now",
           "chartAria": "Monthly recurring revenue per period",
+          "start": "At the start",
+          "end": "At the end",
+          "change": "Change",
+          "point": "MRR",
           "note": "Earlier periods are reconstructed from today's plans.",
           "empty": "No active plans to bill yet."
         },
@@ -612,7 +632,8 @@
           },
           "caption": "{total} due in the next {days} days",
           "chartAria": "Scheduled charges per day",
-          "atRisk": "{count} past due · {total} at risk",
+          "expected": "Expected",
+          "overdue": "Overdue ({count})",
           "empty": "No charges scheduled in this window."
         },
         "outstanding": {
@@ -651,6 +672,13 @@
         },
         "kpiCaption": "{window} · cancelled classes are excluded throughout",
         "noValue": "-",
+        "stats": {
+          "total": "Total",
+          "average": "Average",
+          "best": "Peak",
+          "latest": "Latest",
+          "lowest": "Lowest"
+        },
         "bookings": {
           "title": "Bookings over time",
           "caption": "Seats held, by when the class runs",
@@ -683,6 +711,7 @@
           "title": "Most booked classes",
           "caption": "Top {count} by seats booked",
           "row": "{sessions} sessions · {utilization} full",
+          "seats": "{count, plural, one {# seat} other {# seats}}",
           "empty": "No classes booked in this window."
         },
         "heatmap": {
@@ -729,6 +758,7 @@
           "chartAria": "Sessions delivered per period",
           "classes": "Classes",
           "pt": "PT",
+          "total": "Total",
           "empty": "No sessions delivered in this window."
         },
         "utilization": {
@@ -813,10 +843,11 @@
       },
       "revenueCard": {
         "title": "Revenue",
-        "caption": "{range} · total {total}",
         "range7d": "Last 7 days",
         "range30d": "Last 30 days",
         "range12w": "Last 12 weeks",
+        "average": "Average",
+        "peak": "Best",
         "rangeAria": "Revenue range",
         "chartAria": "Revenue over the selected range",
         "empty": "No captured revenue in this window yet."
@@ -911,6 +942,17 @@
       "noPriorData": "no prior data"
     },
     "reports": {
+      "charts": {
+        "time": "{value} by day",
+        "rank": "{value} · {group}",
+        "split": "{group} · {value}",
+        "count": "Count",
+        "total": "Total",
+        "average": "Average",
+        "other": "Other",
+        "none": "Not set",
+        "capped": "Like the table, the charts cover the first 5000 rows."
+      },
       "title": "Reports",
       "noAccess": "Your role does not have access to reports. Ask an owner or manager for the reporting permission.",
       "loadError": "Could not load reports ({status}): {message}",

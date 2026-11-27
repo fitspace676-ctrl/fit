@@ -16,9 +16,11 @@ import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import type { RetentionPoint, RetentionWindow } from '@fit/types';
-import { AreaChart, type AreaPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 /** The windows the control offers, ascending. */
 const WINDOWS = ['30', '60', '90'] as const satisfies readonly RetentionWindow[];
@@ -33,27 +35,11 @@ const styles = stylex.create({
     gap: '0.75rem',
     marginBottom: '1rem',
   },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
   note: {
@@ -79,18 +65,21 @@ export function RetentionCard({
   const locale = useLocale();
 
   // `null` passes straight through — see this file's header.
-  const data: AreaPoint[] = points.map((point) => ({ label: point.label, value: point.value }));
+  const data: ColumnDatum[] = points.map((point) => ({ label: point.label, value: point.value }));
   const measured = points.filter((point) => point.value !== null);
   const hasData = measured.length > 0;
   const hasGap = measured.length !== points.length;
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const rates = measured.map((point) => point.value ?? 0);
+  const latest = rates[rates.length - 1] ?? 0;
+  const average = rates.length > 0 ? rates.reduce((sum, v) => sum + v, 0) / rates.length : 0;
+  const lowest = rates.length > 0 ? Math.min(...rates) : 0;
+  const pct = (value: number) => `${value.toFixed(1)}%`;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <h2 {...stylex.props(styles.title)}>{t('retention.title')}</h2>
+          <CardTitle icon="target">{t('retention.title')}</CardTitle>
           <p {...stylex.props(styles.caption)}>{t('retention.caption', { days: window })}</p>
         </div>
         <SegmentedControl
@@ -112,11 +101,23 @@ export function RetentionCard({
 
       {hasData ? (
         <>
-          <AreaChart data={data} ariaLabel={t('retention.chartAria')} />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('retention.latest'), value: pct(latest), swatch: 'up' },
+              { label: t('retention.average'), value: pct(average) },
+              { label: t('retention.lowest'), value: pct(lowest) },
+            ]}
+          />
+          <ColumnChart
+            data={data}
+            maxValue={100}
+            ariaLabel={t('retention.chartAria')}
+            formatValue={(value) => `${Math.round(value)}%`}
+            formatLabel={(label) => formatBucket(locale, label)}
+            valueName={t('retention.title')}
+            noDataLabel={t('retention.noData')}
+          />
           {hasGap ? <p {...stylex.props(styles.note)}>{t('retention.gapNote')}</p> : null}
         </>
       ) : (

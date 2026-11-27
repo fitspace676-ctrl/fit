@@ -17,6 +17,8 @@ import { createNumberFormat } from '@fit/i18n';
 import type { NumberFormatter } from '@fit/i18n';
 import type { DashboardMembersResponse, MembersGranularity, MembersKpis } from '@fit/types';
 import { Sparkline } from '../charts';
+import { KpiTile } from '../kpi-tile';
+import type { IconName } from '@/components/ui';
 
 const styles = stylex.create({
   wrap: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
@@ -76,12 +78,16 @@ const styles = stylex.create({
 // Active and frozen side by side: active is the overview's figure, and active +
 // frozen is the plan mix's "paying members".
 const TILES = [
-  { key: 'activeMembers', money: false },
-  { key: 'frozenMembers', money: false },
-  { key: 'newSignups', money: false },
-  { key: 'churned', money: false },
-  { key: 'avgLtv', money: true },
-] as const satisfies readonly { key: keyof MembersKpis; money: boolean }[];
+  { key: 'activeMembers', money: false, icon: 'users' },
+  { key: 'frozenMembers', money: false, icon: 'clock' },
+  { key: 'newSignups', money: false, icon: 'user' },
+  { key: 'churned', money: false, icon: 'logout' },
+  { key: 'avgLtv', money: true, icon: 'award' },
+] as const satisfies readonly {
+  key: keyof MembersKpis;
+  money: boolean;
+  icon: IconName;
+}[];
 
 /**
  * The series behind each tile — where one honestly exists.
@@ -125,19 +131,22 @@ export function MembersKpiStrip({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((tile) => {
+          {TILES.map((tile, i) => {
             const series = tileSeries(tile.key, data);
             return (
-              <div key={tile.key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
-                <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
-                <span {...stylex.props(styles.value)}>
-                  {tile.money
+              <KpiTile
+                key={tile.key}
+                hero={i === 0}
+                icon={tile.icon}
+                label={t(`kpi.${tile.key}`)}
+                value={
+                  tile.money
                     ? // Money is carried in MINOR units; the strip shows major units.
                       money.format(kpis[tile.key] / 100)
-                    : count.format(kpis[tile.key])}
-                </span>
-                {series && <Sparkline values={series} />}
-              </div>
+                    : count.format(kpis[tile.key])
+                }
+                sparkline={series && <Sparkline values={series} />}
+              />
             );
           })}
         </div>

@@ -19,10 +19,12 @@ import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { SALES_GRANULARITIES, type RevenueGranularity, type RevenueStreamPoint } from '@fit/types';
-import { DualAreaChart, SeriesSwatch, type DualPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import type { NumberFormatter } from '@fit/i18n';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -34,35 +36,11 @@ const styles = stylex.create({
     gap: '0.75rem',
     marginBottom: '1rem',
   },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legend: {
-    display: 'flex',
-    gap: '1rem',
-    marginTop: '0.5rem',
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -84,20 +62,23 @@ export function RevenueTrendCard({
   const t = useTranslations('admin.dashboard.revenue');
   const locale = useLocale();
 
-  const data: DualPoint[] = points.map((point) => ({
+  // Money is carried in MINOR units; the chart plots major units. The till's
+  // takings are the column's base and the invoices settled without a payment sit
+  // on top, so a column's height is everything that came in that bucket.
+  const data: ColumnDatum[] = points.map((point) => ({
     label: point.label,
-    primary: point.recurring,
-    secondary: point.oneOff,
+    value: point.oneOff / 100,
+    stack: point.recurring / 100,
   }));
-  const hasData = data.some((point) => point.primary !== 0 || point.secondary !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const hasData = data.some((point) => point.value !== 0 || point.stack !== 0);
+  const payments = points.reduce((sum, point) => sum + point.oneOff, 0) / 100;
+  const invoiced = points.reduce((sum, point) => sum + point.recurring, 0) / 100;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <h2 {...stylex.props(styles.title)}>{t('trend.title')}</h2>
+          <CardTitle icon="chart">{t('trend.title')}</CardTitle>
           <p {...stylex.props(styles.caption)}>{t('trend.caption')}</p>
         </div>
         <SegmentedControl
@@ -115,34 +96,23 @@ export function RevenueTrendCard({
 
       {hasData ? (
         <>
-          {/*
-            `neutral`, not the default: both streams are money coming IN. The error
-            tone is reserved for money going back out, and using it here would draw
-            the till's takings as if they were a problem.
-          */}
-          <DualAreaChart
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('trend.oneOff'), value: money.format(payments), swatch: 'up' },
+              { label: t('trend.recurring'), value: money.format(invoiced), swatch: 'stack' },
+              { label: t('trend.total'), value: money.format(payments + invoiced) },
+            ]}
+          />
+          <ColumnChart
             data={data}
             ariaLabel={t('trend.chartAria')}
-            secondaryTone="neutral"
-            formatValue={(value) => money.format(value / 100)}
+            formatValue={(value) => money.format(value)}
             formatLabel={(label) => formatBucket(locale, label)}
-            primaryLabel={t('trend.recurring')}
-            secondaryLabel={t('trend.oneOff')}
+            valueName={t('trend.oneOff')}
+            stackName={t('trend.recurring')}
+            totalName={t('trend.total')}
           />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
-          <div {...stylex.props(styles.legend)}>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="primary" />
-              {t('trend.recurring')}
-            </span>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="neutral" />
-              {t('trend.oneOff')}
-            </span>
-          </div>
         </>
       ) : (
         <EmptyState>{t('trend.empty')}</EmptyState>

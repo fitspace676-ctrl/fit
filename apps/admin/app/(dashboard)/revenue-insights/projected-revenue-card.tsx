@@ -17,9 +17,11 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { PROJECTION_WINDOW_DAYS, type ProjectedRevenue, type ProjectionWindow } from '@fit/types';
-import { AreaChart, type AreaPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -31,36 +33,12 @@ const styles = stylex.create({
     gap: '0.75rem',
     marginBottom: '1rem',
   },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
-  },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
-    color: 'var(--color-text-secondary)',
-  },
-  // The late money, in the error tone so it never reads as part of the total above.
-  atRisk: {
-    margin: 0,
-    marginTop: '0.75rem',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.75rem',
-    color: 'var(--color-error)',
   },
 });
 
@@ -83,19 +61,18 @@ export function ProjectedRevenueCard({
   const t = useTranslations('admin.dashboard.revenue');
   const locale = useLocale();
 
-  const data: AreaPoint[] = projected.points.map((point) => ({
+  // Money is carried in MINOR units; the chart plots major units.
+  const data: ColumnDatum[] = projected.points.map((point) => ({
     label: point.label,
-    value: point.value,
+    value: point.value / 100,
   }));
   const hasData = data.some((point) => point.value !== 0);
-  const first = projected.points[0]?.label;
-  const last = projected.points[projected.points.length - 1]?.label;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <h2 {...stylex.props(styles.title)}>{t('projected.title')}</h2>
+          <CardTitle icon="spark">{t('projected.title')}</CardTitle>
           <p {...stylex.props(styles.caption)}>
             {t('projected.caption', {
               total: money.format(projected.total / 100),
@@ -122,24 +99,37 @@ export function ProjectedRevenueCard({
 
       {hasData ? (
         <>
-          <AreaChart data={data} ariaLabel={t('projected.chartAria')} />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              {
+                label: t('projected.expected'),
+                value: money.format(projected.total / 100),
+                swatch: 'up',
+              },
+              // The late money stays OUTSIDE the total above — see this file's header.
+              ...(projected.atRiskCount > 0
+                ? [
+                    {
+                      label: t('projected.overdue', { count: projected.atRiskCount }),
+                      value: money.format(projected.atRiskTotal / 100),
+                      tone: 'bad' as const,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+          <ColumnChart
+            data={data}
+            ariaLabel={t('projected.chartAria')}
+            formatValue={(value) => money.format(value)}
+            formatLabel={(label) => formatBucket(locale, label)}
+            valueName={t('projected.expected')}
+          />
         </>
       ) : (
         <EmptyState>{t('projected.empty')}</EmptyState>
       )}
-
-      {projected.atRiskCount > 0 ? (
-        <p {...stylex.props(styles.atRisk)}>
-          {t('projected.atRisk', {
-            count: projected.atRiskCount,
-            total: money.format(projected.atRiskTotal / 100),
-          })}
-        </p>
-      ) : null}
     </Card>
   );
 }

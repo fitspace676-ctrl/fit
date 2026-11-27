@@ -18,6 +18,7 @@ import {
   HomeHeader,
   HomePage,
   MetricStrip,
+  type MetricCell,
   PersonList,
   PersonRow,
   SectionCard,
@@ -137,8 +138,9 @@ function Metrics({
   clients: TrainerClientRow[] | null;
 }) {
   const m = model.metrics;
-  const cells = [
+  const cells: MetricCell[] = [
     {
+      icon: 'calendar',
       label: t('trainer.metrics.todayClasses'),
       value: fmt.number(m.todayClasses),
       foot:
@@ -150,16 +152,19 @@ function Metrics({
           : t('trainer.metrics.noClasses'),
     },
     {
+      icon: 'dumbbell',
       label: t('trainer.metrics.todayPt'),
       value: fmt.number(m.todayPt),
       foot: t('trainer.metrics.ptFoot'),
     },
     {
+      icon: 'chart',
       label: t('trainer.metrics.week'),
       value: fmt.number(m.weekSessions),
       foot: t('trainer.metrics.hours', { hours: fmt.number(m.weekMinutes / 60) }),
     },
     {
+      icon: 'users',
       label: t('trainer.metrics.clients'),
       value: clients ? fmt.number(clients.length) : '',
       foot: clients
@@ -186,6 +191,7 @@ function Clients({
   const shown = rows ? sortClients(rows).slice(0, CLIENTS_LIMIT) : [];
   return (
     <SectionCard
+      icon="users"
       title={t('trainer.clients.title')}
       action={
         rows && rows.length > 0 ? (
