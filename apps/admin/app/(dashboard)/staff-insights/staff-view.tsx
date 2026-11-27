@@ -139,7 +139,7 @@ const styles = stylex.create({
 });
 
 /** Per-step delay of the settle cascade, in the order the eye reads the tab. */
-const STAGGER_MS = 45;
+const STAGGER_MS = 55;
 
 const motion = stylex.create({
   // The resting state each card animates FROM. No transition here, so a data
@@ -147,7 +147,7 @@ const motion = stylex.create({
   offset: {
     opacity: 0,
     transform: {
-      default: 'translateY(6px)',
+      default: 'translateY(10px)',
       '@media (prefers-reduced-motion: reduce)': 'none',
     },
   },
@@ -155,7 +155,7 @@ const motion = stylex.create({
     opacity: 1,
     transform: 'translateY(0)',
     transitionProperty: 'opacity, transform',
-    transitionDuration: '0.26s',
+    transitionDuration: '0.4s',
     transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
     transitionDelay: {
       default: `${step * STAGGER_MS}ms`,

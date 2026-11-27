@@ -17,9 +17,12 @@ import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { SALES_GRANULARITIES, type ClassesGranularity, type ReportSeriesPoint } from '@fit/types';
-import { AreaChart, type AreaPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
+import { createNumberFormat } from '@fit/i18n';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -31,27 +34,11 @@ const styles = stylex.create({
     gap: '0.75rem',
     marginBottom: '1rem',
   },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -70,16 +57,21 @@ export function BookingsTrendCard({
   const t = useTranslations('admin.dashboard.classes');
   const locale = useLocale();
 
-  const data: AreaPoint[] = points.map((point) => ({ label: point.label, value: point.value }));
+  const data: ColumnDatum[] = points.map((point) => ({ label: point.label, value: point.value }));
   const hasData = data.some((point) => point.value !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const count = createNumberFormat(locale);
+  const total = points.reduce((sum, point) => sum + point.value, 0);
+  const average = points.length > 0 ? total / points.length : 0;
+  const best = points.reduce((top, point) => (point.value > top.value ? point : top), {
+    label: '',
+    value: 0,
+  });
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <h2 {...stylex.props(styles.title)}>{t('bookings.title')}</h2>
+          <CardTitle icon="chart">{t('bookings.title')}</CardTitle>
           <p {...stylex.props(styles.caption)}>{t('bookings.caption')}</p>
         </div>
         <SegmentedControl
@@ -97,11 +89,26 @@ export function BookingsTrendCard({
 
       {hasData ? (
         <>
-          <AreaChart data={data} ariaLabel={t('bookings.chartAria')} />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('stats.total'), value: count.format(total), swatch: 'up' },
+              { label: t('stats.average'), value: average.toFixed(1) },
+              {
+                label: t('stats.best'),
+                value: `${count.format(best.value)} · ${formatBucket(locale, best.label)}`,
+              },
+            ]}
+          />
+          <ColumnChart
+            data={data}
+            integer
+            ariaLabel={t('bookings.chartAria')}
+            formatValue={(value) => count.format(value)}
+            formatLabel={(label) => formatBucket(locale, label)}
+            valueName={t('bookings.title')}
+            meanLabel={t('stats.average')}
+          />
         </>
       ) : (
         <EmptyState>{t('bookings.empty')}</EmptyState>

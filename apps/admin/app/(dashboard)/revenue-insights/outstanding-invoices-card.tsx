@@ -18,18 +18,11 @@ import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
 import type { OutstandingInvoices } from '@fit/types';
 import { EmptyState } from '../overview/format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
@@ -71,7 +64,7 @@ export function OutstandingInvoicesCard({
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('outstanding.title')}</h2>
+        <CardTitle icon="file">{t('outstanding.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>{t('outstanding.caption')}</p>
       </div>
 

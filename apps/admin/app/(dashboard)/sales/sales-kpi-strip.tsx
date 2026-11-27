@@ -17,6 +17,8 @@ import * as stylex from '@stylexjs/stylex';
 import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
 import type { SalesGranularity, SalesKpis, SalesProductType } from '@fit/types';
+import { KpiTile } from '../kpi-tile';
+import type { IconName } from '@/components/ui';
 
 const styles = stylex.create({
   wrap: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
@@ -72,10 +74,14 @@ const styles = stylex.create({
 
 /** The tiles, in reading order. `hint` marks the one that needs a qualifier. */
 const TILES = [
-  { key: 'netSales', hint: false },
-  { key: 'refunded', hint: true },
-  { key: 'avgSale', hint: false },
-] as const satisfies readonly { key: keyof SalesKpis; hint: boolean }[];
+  { key: 'netSales', hint: false, icon: 'card' },
+  { key: 'refunded', hint: true, icon: 'retry' },
+  { key: 'avgSale', hint: false, icon: 'tag' },
+] as const satisfies readonly {
+  key: keyof SalesKpis;
+  hint: boolean;
+  icon: IconName;
+}[];
 
 export function SalesKpiStrip({
   kpis,
@@ -97,13 +103,16 @@ export function SalesKpiStrip({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((tile) => (
-            <div key={tile.key} {...stylex.props(styles.cell)}>
-              <span {...stylex.props(styles.label)}>{t(`kpi.${tile.key}`)}</span>
-              {/* Money is carried in MINOR units; the strip shows major units. */}
-              <span {...stylex.props(styles.value)}>{money.format(kpis[tile.key] / 100)}</span>
-              {tile.hint ? <span {...stylex.props(styles.hint)}>{t('refundedHint')}</span> : null}
-            </div>
+          {TILES.map((tile, i) => (
+            <KpiTile
+              key={tile.key}
+              hero={i === 0}
+              icon={tile.icon}
+              label={t(`kpi.${tile.key}`)}
+              // Money is carried in MINOR units; the strip shows major units.
+              value={money.format(kpis[tile.key] / 100)}
+              hint={tile.hint ? t('refundedHint') : undefined}
+            />
           ))}
         </div>
       </div>

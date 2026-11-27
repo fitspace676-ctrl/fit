@@ -19,10 +19,12 @@ import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { SALES_GRANULARITIES, type SessionsPoint, type StaffGranularity } from '@fit/types';
-import { DualAreaChart, SeriesSwatch, type DualPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import { createNumberFormat } from '@fit/i18n';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -34,35 +36,11 @@ const styles = stylex.create({
     gap: '0.75rem',
     marginBottom: '1rem',
   },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legend: {
-    display: 'flex',
-    gap: '1rem',
-    marginTop: '0.5rem',
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -82,20 +60,22 @@ export function SessionsTrendCard({
   const locale = useLocale();
   const count = createNumberFormat(locale);
 
-  const data: DualPoint[] = points.map((point) => ({
+  // Group classes are each column's base and PT sits on top, so a column's
+  // height is every session delivered in that bucket.
+  const data: ColumnDatum[] = points.map((point) => ({
     label: point.label,
-    primary: point.classes,
-    secondary: point.pt,
+    value: point.classes,
+    stack: point.pt,
   }));
-  const hasData = data.some((point) => point.primary !== 0 || point.secondary !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const hasData = data.some((point) => point.value !== 0 || point.stack !== 0);
+  const classes = points.reduce((sum, point) => sum + point.classes, 0);
+  const pt = points.reduce((sum, point) => sum + point.pt, 0);
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <h2 {...stylex.props(styles.title)}>{t('sessions.title')}</h2>
+          <CardTitle icon="chart">{t('sessions.title')}</CardTitle>
           <p {...stylex.props(styles.caption)}>{t('sessions.caption')}</p>
         </div>
         <SegmentedControl
@@ -113,34 +93,24 @@ export function SessionsTrendCard({
 
       {hasData ? (
         <>
-          {/*
-            `neutral`, not the default: both streams are money coming IN. The error
-            tone is reserved for money going back out, and using it here would draw
-            the till's takings as if they were a problem.
-          */}
-          <DualAreaChart
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('sessions.classes'), value: count.format(classes), swatch: 'up' },
+              { label: t('sessions.pt'), value: count.format(pt), swatch: 'stack' },
+              { label: t('sessions.total'), value: count.format(classes + pt) },
+            ]}
+          />
+          <ColumnChart
             data={data}
+            integer
             ariaLabel={t('sessions.chartAria')}
-            secondaryTone="neutral"
             formatValue={(value) => count.format(value)}
             formatLabel={(label) => formatBucket(locale, label)}
-            primaryLabel={t('sessions.classes')}
-            secondaryLabel={t('sessions.pt')}
+            valueName={t('sessions.classes')}
+            stackName={t('sessions.pt')}
+            totalName={t('sessions.total')}
           />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
-          <div {...stylex.props(styles.legend)}>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="primary" />
-              {t('sessions.classes')}
-            </span>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="neutral" />
-              {t('sessions.pt')}
-            </span>
-          </div>
         </>
       ) : (
         <EmptyState>{t('sessions.empty')}</EmptyState>

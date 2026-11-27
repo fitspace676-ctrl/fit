@@ -94,16 +94,19 @@ export async function ReceptionHome({ searchParams }: { searchParams: SearchPara
       <MetricStrip
         cells={[
           {
+            icon: 'qr',
             label: t('reception.metrics.checkedIn'),
             value: s ? fmt.number(s.checkedInToday) : '',
             foot: s ? t('reception.metrics.peak', { count: s.peakToday }) : t('trainer.loadError'),
           },
           {
+            icon: 'users',
             label: t('reception.metrics.inGym'),
             value: s ? fmt.number(s.inGymNow) : '',
             foot: t('reception.metrics.inGymFoot'),
           },
           {
+            icon: 'calendar',
             label: t('reception.metrics.classes'),
             value: fmt.number(m.todayClasses),
             foot:
@@ -115,6 +118,7 @@ export async function ReceptionHome({ searchParams }: { searchParams: SearchPara
                 : t('reception.metrics.noClasses'),
           },
           {
+            icon: 'dumbbell',
             label: t('reception.metrics.pt'),
             value: fmt.number(m.todayPt),
             foot: t('reception.metrics.ptFoot', { count: bookedPt }),
@@ -152,6 +156,7 @@ function Arrivals({ t, fmt, rows }: { t: T; fmt: Formatters; rows: CheckInRow[] 
   const shown = rows ? rows.slice(0, ARRIVALS_LIMIT) : [];
   return (
     <SectionCard
+      icon="check"
       title={t('reception.arrivals.title')}
       action={
         rows && rows.length > 0 ? (

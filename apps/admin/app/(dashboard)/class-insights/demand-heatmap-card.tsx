@@ -21,6 +21,7 @@ import { useTranslations } from 'next-intl';
 import { HEATMAP_COLS } from '@fit/types';
 import { Heatmap } from '../charts';
 import { EmptyState } from '../overview/format';
+import { CardTitle } from '../card-title';
 
 /** Row order, Monday first — the same order the API fills its rows in. */
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -28,14 +29,6 @@ const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
@@ -52,7 +45,7 @@ export function DemandHeatmapCard({ cells }: { cells: number[][] }) {
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('heatmap.title')}</h2>
+        <CardTitle icon="flame">{t('heatmap.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>{t('heatmap.caption')}</p>
       </div>
 

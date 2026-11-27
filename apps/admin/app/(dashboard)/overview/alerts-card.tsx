@@ -6,6 +6,7 @@ import * as stylex from '@stylexjs/stylex';
 import type { DashboardAlert, DashboardOverviewResponse } from '@fit/types';
 import { Icon, type IconName } from '@/components/ui';
 import { EmptyState, timeAgo } from './format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: {
@@ -15,17 +16,9 @@ const styles = stylex.create({
   },
   cardHeadBaseline: {
     display: 'flex',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: '1rem',
-  },
-  sectionLabel: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
   },
   metaText: {
     fontFamily: 'var(--font-family-code)',
@@ -115,7 +108,7 @@ export function AlertsCard({ data }: { data: DashboardOverviewResponse }) {
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.cardHeadBaseline)}>
-        <h2 {...stylex.props(styles.sectionLabel)}>{t('alerts.title')}</h2>
+        <CardTitle icon="bell">{t('alerts.title')}</CardTitle>
         <span {...stylex.props(styles.metaText)}>{alerts.length}</span>
       </div>
       {alerts.length === 0 ? (

@@ -29,7 +29,7 @@ const styles = stylex.create({
   },
   tabs: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     // The tab labels take the space; the live pill is pushed to the far end.
     justifyContent: 'space-between',
     gap: '0.25rem',
@@ -46,6 +46,7 @@ const styles = stylex.create({
     gap: '0.25rem',
   },
   tab: {
+    whiteSpace: 'nowrap',
     marginBottom: '-1px',
     borderWidth: 0,
     borderBottomWidth: '2px',

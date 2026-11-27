@@ -13,6 +13,8 @@ import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
 import type { DashboardRevenueResponse, RevenueGranularity, RevenueKpis } from '@fit/types';
 import { Sparkline } from '../charts';
+import { KpiTile } from '../kpi-tile';
+import type { IconName } from '@/components/ui';
 
 const styles = stylex.create({
   wrap: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
@@ -76,6 +78,14 @@ const TILES = [
   'outstandingTotal',
 ] as const satisfies readonly (keyof RevenueKpis)[];
 
+/** Each tile's glyph and hue. */
+const TILE_LOOK: Record<(typeof TILES)[number], { icon: IconName }> = {
+  totalRevenue: { icon: 'card' },
+  mrr: { icon: 'retry' },
+  revenuePerMember: { icon: 'user' },
+  outstandingTotal: { icon: 'file' },
+};
+
 /**
  * The series behind each tile — where one honestly exists.
  *
@@ -120,7 +130,7 @@ export function RevenueKpiStrip({
     <div {...stylex.props(styles.wrap)}>
       <div {...stylex.props(styles.strip)}>
         <div {...stylex.props(styles.grid)}>
-          {TILES.map((key) => {
+          {TILES.map((key, i) => {
             const series = tileSeries(key, data);
             // The headline is the overview's and the Sales tab's money — captured
             // payments, net of refunds — so the three agree for the same window.
@@ -128,21 +138,20 @@ export function RevenueKpiStrip({
             const takings = key === 'totalRevenue' ? kpis.takings : undefined;
             const invoiced = kpis.invoicedWithoutPayment ?? 0;
             return (
-              <div key={key} {...stylex.props(styles.cell, series && styles.cellSparked)}>
-                <span {...stylex.props(styles.label)}>
-                  {takings === undefined ? t(`kpi.${key}`) : t('kpi.takings')}
-                </span>
-                {/* Money is carried in MINOR units; the strip shows major units. */}
-                <span {...stylex.props(styles.value)}>
-                  {money.format((takings ?? kpis[key]) / 100)}
-                </span>
-                {takings !== undefined && invoiced > 0 ? (
-                  <span {...stylex.props(styles.hint)}>
-                    {t('kpi.invoicedHint', { amount: money.format(invoiced / 100) })}
-                  </span>
-                ) : null}
-                {series && <Sparkline values={series} />}
-              </div>
+              <KpiTile
+                key={key}
+                hero={i === 0}
+                icon={TILE_LOOK[key].icon}
+                label={takings === undefined ? t(`kpi.${key}`) : t('kpi.takings')}
+                // Money is carried in MINOR units; the strip shows major units.
+                value={money.format((takings ?? kpis[key]) / 100)}
+                hint={
+                  takings !== undefined && invoiced > 0
+                    ? t('kpi.invoicedHint', { amount: money.format(invoiced / 100) })
+                    : undefined
+                }
+                sparkline={series && <Sparkline values={series} />}
+              />
             );
           })}
         </div>

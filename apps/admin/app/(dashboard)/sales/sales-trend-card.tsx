@@ -23,9 +23,10 @@ import {
   type SalesGranularity,
   type SalesProductType,
 } from '@fit/types';
-import { AreaChart, type AreaPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -49,27 +50,11 @@ const styles = stylex.create({
     // be cut off and unclickable, which is what happened at ordinary laptop
     // widths in Georgian. Letting it shrink is what lets the row wrap instead.
   },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -101,19 +86,17 @@ export function SalesTrendCard({
   const locale = useLocale();
 
   // Money is carried in MINOR units; the chart plots major units.
-  const data: AreaPoint[] = points.map((point) => ({
+  const data: ColumnDatum[] = points.map((point) => ({
     label: point.label,
     value: point.value / 100,
   }));
   const hasData = data.some((point) => point.value !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <h2 {...stylex.props(styles.title)}>{t('trend.title')}</h2>
+          <CardTitle icon="chart">{t('trend.title')}</CardTitle>
           <p {...stylex.props(styles.caption)}>
             {t('trend.caption', {
               window: windowLabel ?? t(`window.${granularity}`),
@@ -149,13 +132,14 @@ export function SalesTrendCard({
       </div>
 
       {hasData ? (
-        <>
-          <AreaChart data={data} ariaLabel={t('trend.chartAria')} />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
-        </>
+        <ColumnChart
+          data={data}
+          ariaLabel={t('trend.chartAria')}
+          formatValue={(value) => money.format(value)}
+          formatLabel={(label) => formatBucket(locale, label)}
+          valueName={t('trend.net')}
+          meanLabel={t('trend.mean')}
+        />
       ) : (
         <EmptyState>{t('trend.empty')}</EmptyState>
       )}

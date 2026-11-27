@@ -12,17 +12,10 @@ import { useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
 import type { SalesTopSeller } from '@fit/types';
 import { EmptyState } from '../overview/format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1.25rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   list: { display: 'flex', flexDirection: 'column', gap: '0.625rem', margin: 0, padding: 0 },
   row: {
     display: 'grid',
@@ -48,6 +41,21 @@ const styles = stylex.create({
     fontSize: '0.6875rem',
     color: 'var(--color-text-secondary)',
   },
+  // Each seller's takings against the best seller's, so the ranking has a shape.
+  track: {
+    display: 'block',
+    marginTop: '0.375rem',
+    height: '0.3125rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    overflow: 'hidden',
+  },
+  fill: {
+    display: 'block',
+    height: '100%',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--chart-series-1)',
+  },
   value: {
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.8125rem',
@@ -64,10 +72,11 @@ export function TopSellersCard({
   money: NumberFormatter;
 }) {
   const t = useTranslations('admin.dashboard.sales');
+  const best = Math.max(1, ...rows.map((row) => row.value));
 
   return (
     <Card padding="none" xstyle={styles.card}>
-      <h2 {...stylex.props(styles.title)}>{t('topSellers.title')}</h2>
+      <CardTitle icon="star">{t('topSellers.title')}</CardTitle>
       {rows.length === 0 ? (
         <EmptyState>{t('topSellers.empty')}</EmptyState>
       ) : (
@@ -81,6 +90,13 @@ export function TopSellersCard({
                 </span>
                 <span {...stylex.props(styles.orders)}>
                   {t('topSellers.orders', { count: row.orders })}
+                </span>
+                <span aria-hidden {...stylex.props(styles.track)}>
+                  <span
+                    {...stylex.props(styles.fill)}
+                    data-grow="x"
+                    style={{ width: `${Math.max(2, (row.value / best) * 100)}%` }}
+                  />
                 </span>
               </span>
               {/* Money is carried in MINOR units; the list shows major units. */}

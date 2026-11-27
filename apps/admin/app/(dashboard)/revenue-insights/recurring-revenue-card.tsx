@@ -19,34 +19,20 @@ import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import type { NumberFormatter } from '@fit/i18n';
 import type { ReportSeriesPoint } from '@fit/types';
-import { AreaChart, type AreaPoint } from '../charts';
+import { LevelChart, type LevelDatum } from '../level-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -64,15 +50,22 @@ export function RecurringRevenueCard({
   const t = useTranslations('admin.dashboard.revenue');
   const locale = useLocale();
 
-  const data: AreaPoint[] = points.map((point) => ({ label: point.label, value: point.value }));
+  // Money is carried in MINOR units; the chart plots major units. MRR is a
+  // level, so it is read against its own range, start to end.
+  const data: LevelDatum[] = points.map((point) => ({
+    label: point.label,
+    value: point.value / 100,
+  }));
   const hasData = data.some((point) => point.value !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const start = data[0]?.value ?? 0;
+  const end = data[data.length - 1]?.value ?? 0;
+  const change = end - start;
+  const changePct = start > 0 ? (change / start) * 100 : null;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('mrr.title')}</h2>
+        <CardTitle icon="retry">{t('mrr.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>
           {t('mrr.caption', { total: money.format(current / 100) })}
         </p>
@@ -80,11 +73,27 @@ export function RecurringRevenueCard({
 
       {hasData ? (
         <>
-          <AreaChart data={data} ariaLabel={t('mrr.chartAria')} />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('mrr.start'), value: money.format(start) },
+              { label: t('mrr.end'), value: money.format(end), swatch: 'up' },
+              {
+                label: t('mrr.change'),
+                value: `${change > 0 ? '+' : ''}${money.format(change)}${
+                  changePct === null ? '' : ` (${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%)`
+                }`,
+                tone: change > 0 ? 'good' : change < 0 ? 'bad' : undefined,
+              },
+            ]}
+          />
+          <LevelChart
+            data={data}
+            ariaLabel={t('mrr.chartAria')}
+            formatValue={(value) => money.format(value)}
+            formatLabel={(label) => formatBucket(locale, label)}
+            valueName={t('mrr.point')}
+          />
           <p {...stylex.props(styles.caption)}>{t('mrr.note')}</p>
         </>
       ) : (

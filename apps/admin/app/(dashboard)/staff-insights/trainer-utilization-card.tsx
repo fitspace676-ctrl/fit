@@ -14,20 +14,12 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import type { TrainerDelivery } from '@fit/types';
-import { BarChart, type BarDatum } from '../charts';
 import { EmptyState } from '../overview/format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
@@ -35,10 +27,63 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
-  rows: { display: 'flex', flexDirection: 'column', gap: '0.375rem', marginTop: '0.75rem' },
-  row: { display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.75rem' },
-  rowName: { color: 'var(--color-text-primary)' },
-  rowMeta: { fontFamily: 'var(--font-family-code)', color: 'var(--color-text-secondary)' },
+  rows: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.875rem',
+  },
+  row: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) auto',
+    columnGap: '0.75rem',
+    rowGap: '0.3125rem',
+    alignItems: 'baseline',
+  },
+  rowName: {
+    overflow: 'hidden',
+    fontSize: '0.8125rem',
+    color: 'var(--color-text-primary)',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  rowValue: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    fontVariantNumeric: 'tabular-nums',
+    color: 'var(--color-text-primary)',
+  },
+  track: {
+    display: 'flex',
+    gap: '2px',
+    gridColumn: '1 / -1',
+    position: 'relative',
+    height: '0.4375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--color-background-muted)',
+    overflow: 'hidden',
+  },
+  fill: {
+    display: 'block',
+    height: '100%',
+  },
+  rate: {
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--chart-series-1)',
+  },
+  // The scale every row shares: a rate is read against 100%, not against the
+  // busiest trainer, or a 27% week would draw as a full bar.
+  scale: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginBottom: '0.75rem',
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.625rem',
+    color: 'var(--color-text-secondary)',
+  },
 });
 
 export function TrainerUtilizationCard({ trainers }: { trainers: TrainerDelivery[] }) {
@@ -49,22 +94,40 @@ export function TrainerUtilizationCard({ trainers }: { trainers: TrainerDelivery
       trainer.utilizationRate !== null,
   );
   const excluded = trainers.length - rated.length;
-  const data: BarDatum[] = rated.map((trainer) => ({
-    label: trainer.name,
-    value: trainer.utilizationRate,
-  }));
-
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('utilization.title')}</h2>
+        <CardTitle icon="target">{t('utilization.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>{t('utilization.caption')}</p>
       </div>
 
       {rated.length === 0 ? (
         <EmptyState>{t('utilization.empty')}</EmptyState>
       ) : (
-        <BarChart data={data} formatValue={(value) => `${value}%`} />
+        <>
+          <div aria-hidden {...stylex.props(styles.scale)}>
+            <span>0%</span>
+            <span>50%</span>
+            <span>100%</span>
+          </div>
+          <ul {...stylex.props(styles.rows)}>
+            {rated.map((trainer) => (
+              <li key={trainer.name} {...stylex.props(styles.row)}>
+                <span {...stylex.props(styles.rowName)} title={trainer.name}>
+                  {trainer.name}
+                </span>
+                <span {...stylex.props(styles.rowValue)}>{trainer.utilizationRate}%</span>
+                <span aria-hidden {...stylex.props(styles.track)}>
+                  <span
+                    {...stylex.props(styles.fill, styles.rate)}
+                    data-grow="x"
+                    style={{ width: `${Math.min(100, Math.max(1, trainer.utilizationRate))}%` }}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {excluded > 0 ? (

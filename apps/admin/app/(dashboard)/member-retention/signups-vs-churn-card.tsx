@@ -14,43 +14,21 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import type { SignupsChurnPoint } from '@fit/types';
-import { DualAreaChart, SeriesSwatch, type DualPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import { createNumberFormat } from '@fit/i18n';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legend: {
-    display: 'flex',
-    gap: '1rem',
-    marginTop: '0.5rem',
-    fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  legendItem: { display: 'flex', alignItems: 'center', gap: '0.375rem' },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -60,46 +38,46 @@ export function SignupsVsChurnCard({ points }: { points: SignupsChurnPoint[] }) 
   const locale = useLocale();
   const count = createNumberFormat(locale);
 
-  const data: DualPoint[] = points.map((point) => ({
+  const data: ColumnDatum[] = points.map((point) => ({
     label: point.label,
-    primary: point.signups,
-    secondary: point.churned,
+    value: point.signups,
+    negative: point.churned,
   }));
-  const hasData = data.some((point) => point.primary !== 0 || point.secondary !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const hasData = data.some((point) => point.value !== 0 || point.negative !== 0);
+  const signups = points.reduce((sum, point) => sum + point.signups, 0);
+  const churned = points.reduce((sum, point) => sum + point.churned, 0);
+  const net = signups - churned;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('signupsVsChurn.title')}</h2>
+        <CardTitle icon="arrowUp">{t('signupsVsChurn.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>{t('signupsVsChurn.caption')}</p>
       </div>
 
       {hasData ? (
         <>
-          <DualAreaChart
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('signupsVsChurn.signups'), value: count.format(signups), swatch: 'up' },
+              { label: t('signupsVsChurn.churned'), value: count.format(churned), swatch: 'down' },
+              {
+                label: t('signupsVsChurn.net'),
+                value: `${net > 0 ? '+' : ''}${count.format(net)}`,
+                tone: net > 0 ? 'good' : net < 0 ? 'bad' : undefined,
+              },
+            ]}
+          />
+          <ColumnChart
             data={data}
+            integer
             ariaLabel={t('signupsVsChurn.chartAria')}
             formatValue={(value) => count.format(value)}
             formatLabel={(label) => formatBucket(locale, label)}
-            primaryLabel={t('signupsVsChurn.signups')}
-            secondaryLabel={t('signupsVsChurn.churned')}
+            valueName={t('signupsVsChurn.signups')}
+            negativeName={t('signupsVsChurn.churned')}
           />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
-          <div {...stylex.props(styles.legend)}>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="primary" />
-              {t('signupsVsChurn.signups')}
-            </span>
-            <span {...stylex.props(styles.legendItem)}>
-              <SeriesSwatch tone="negative" />
-              {t('signupsVsChurn.churned')}
-            </span>
-          </div>
         </>
       ) : (
         <EmptyState>{t('signupsVsChurn.empty')}</EmptyState>

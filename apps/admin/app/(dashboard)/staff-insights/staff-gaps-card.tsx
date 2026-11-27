@@ -16,18 +16,11 @@ import { Card } from '@fit/ui-kit';
 import { useTranslations } from 'next-intl';
 import type { StaffGaps } from '@fit/types';
 import { EmptyState } from '../overview/format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
@@ -35,10 +28,36 @@ const styles = stylex.create({
     fontSize: '0.75rem',
     color: 'var(--color-text-secondary)',
   },
-  rows: { display: 'flex', flexDirection: 'column', gap: '0.375rem', marginTop: '0.75rem' },
-  row: { display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.75rem' },
+  // Each gap is its own item with a warning mark, so a list of them scans as
+  // separate things to fix rather than one paragraph.
+  rows: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '0.625rem',
+    paddingBlock: '0.625rem',
+    paddingInline: '0.75rem',
+    borderRadius: 'var(--radius-inner)',
+    backgroundColor: 'var(--color-background-muted)',
+    fontSize: '0.8125rem',
+    lineHeight: 1.4,
+  },
+  mark: {
+    flexShrink: 0,
+    width: '0.5rem',
+    height: '0.5rem',
+    marginTop: '0.375rem',
+    borderRadius: 'var(--radius-full)',
+    backgroundColor: 'var(--alert-ink)',
+  },
   rowName: { color: 'var(--color-text-primary)' },
-  rowMeta: { fontFamily: 'var(--font-family-code)', color: 'var(--color-text-secondary)' },
 });
 
 /** The counts, in the order they are worth acting on. */
@@ -59,7 +78,7 @@ export function StaffGapsCard({ gaps }: { gaps: StaffGaps }) {
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('gaps.title')}</h2>
+        <CardTitle icon="alert">{t('gaps.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>{t('gaps.caption')}</p>
       </div>
 
@@ -69,6 +88,7 @@ export function StaffGapsCard({ gaps }: { gaps: StaffGaps }) {
         <ul {...stylex.props(styles.rows)}>
           {rows.map((row) => (
             <li key={row.key} {...stylex.props(styles.row)}>
+              <span aria-hidden {...stylex.props(styles.mark)} />
               <span {...stylex.props(styles.rowName)}>
                 {t(`gaps.${row.key}`, { count: row.count })}
               </span>

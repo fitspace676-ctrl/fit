@@ -164,7 +164,10 @@ describe('ClassesView', () => {
     });
     renderView();
     expect(await screen.findByRole('heading', { name: 'Bookings over time' })).toBeInTheDocument();
-    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    // Chart axes print a `0%` tick; they are aria-hidden scale, not a value.
+    expect(
+      screen.queryByText('0%', { ignore: 'script, style, [aria-hidden] *' }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText('\u2014').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('No classes have finished in this window yet')).toBeInTheDocument();
   });

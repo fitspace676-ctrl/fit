@@ -116,6 +116,49 @@ const styles = stylex.create({
     color: 'var(--color-text-secondary)',
     backgroundColor: 'var(--color-background-card)',
   },
+  // A one-bucket window ("today"): no line to draw, so each series is a column.
+  single: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: '2.5rem',
+    paddingBottom: '0.5rem',
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'var(--color-border)',
+  },
+  singleColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '0.375rem',
+    height: '100%',
+    width: '7.5rem',
+  },
+  singleBar: {
+    width: '5rem',
+    minHeight: '3px',
+    borderTopLeftRadius: '0.5rem',
+    borderTopRightRadius: '0.5rem',
+    backgroundColor: 'currentColor',
+  },
+  singleValue: {
+    fontFamily: 'var(--font-family-code)',
+    fontSize: '0.8125rem',
+    fontWeight: 700,
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
+    color: 'var(--color-text-primary)',
+  },
+  singleName: {
+    // Series names run long in Georgian; they wrap under their own column.
+    minHeight: '2.5em',
+    fontSize: '0.75rem',
+    lineHeight: 1.25,
+    textAlign: 'center',
+    color: 'var(--color-text-secondary)',
+  },
   seriesOne: { color: 'var(--chart-series-1)' },
   seriesTwo: { color: 'var(--chart-series-2)' },
   glowOne: { color: 'var(--chart-glow-1)' },
@@ -415,6 +458,44 @@ export interface AreaPoint {
 }
 
 /**
+ * The one-bucket case of the trend charts (a "today" window): a curve through a
+ * single point is a dot on an empty plot, so each series becomes a column, scaled
+ * to the taller of them, with its figure on top and its name below.
+ */
+function SingleBucket({
+  bars,
+  height,
+  ariaLabel,
+  formatValue,
+}: {
+  bars: { value: number; ink: stylex.StyleXStyles; name?: string }[];
+  height: number;
+  ariaLabel: string;
+  formatValue: (value: number) => string;
+}) {
+  const max = Math.max(1, ...bars.map((bar) => bar.value));
+  return (
+    <div
+      role="img"
+      aria-label={ariaLabel}
+      {...stylex.props(styles.plot, styles.single)}
+      style={{ height }}
+    >
+      {bars.map((bar, i) => (
+        <div key={i} {...stylex.props(styles.singleColumn)}>
+          <span {...stylex.props(styles.singleValue)}>{formatValue(bar.value)}</span>
+          <span
+            {...stylex.props(styles.singleBar, bar.ink)}
+            style={{ height: `${Math.max(0, (bar.value / max) * 75)}%` }}
+          />
+          {bar.name ? <span {...stylex.props(styles.singleName)}>{bar.name}</span> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * A compact, dependency-free area/line chart. Renders a gradient-filled area under
  * a glowing series stroke, scaled to the data's own max, inside a responsive
  * `viewBox` so it fills its container. An all-zero (or empty) series draws a flat
@@ -533,6 +614,18 @@ export function AreaChart({
   }
 
   const pct = (x: number) => `${(x / width) * 100}%`;
+
+  const only = data.length === 1 ? data[0] : undefined;
+  if (only && only.value !== null) {
+    return (
+      <SingleBucket
+        bars={[{ value: only.value, ink: styles.accentInk }]}
+        height={height}
+        ariaLabel={ariaLabel}
+        formatValue={formatValue}
+      />
+    );
+  }
 
   return (
     <div {...stylex.props(styles.plot)} onPointerMove={track} onPointerLeave={() => setHover(null)}>
@@ -708,6 +801,21 @@ export function DualAreaChart({
     if (box.width === 0 || n === 0) return;
     const ratio = (event.clientX - box.left) / box.width;
     setHover(Math.min(n - 1, Math.max(0, Math.round(ratio * (n - 1)))));
+  }
+
+  const only = data.length === 1 ? data[0] : undefined;
+  if (only) {
+    return (
+      <SingleBucket
+        bars={[
+          { value: only.primary, ink: TONE_INK.primary, name: primaryLabel },
+          { value: only.secondary, ink: TONE_INK[secondaryTone], name: secondaryLabel },
+        ]}
+        height={height}
+        ariaLabel={ariaLabel}
+        formatValue={formatValue}
+      />
+    );
   }
 
   return (

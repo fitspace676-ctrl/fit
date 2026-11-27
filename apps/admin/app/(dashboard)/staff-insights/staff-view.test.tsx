@@ -187,7 +187,10 @@ describe('StaffView', () => {
     });
     renderView();
     expect(await screen.findByRole('heading', { name: 'Sessions delivered' })).toBeInTheDocument();
-    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    // The utilization card prints a `0%` scale mark; it is aria-hidden, not a value.
+    expect(
+      screen.queryByText('0%', { ignore: 'script, style, [aria-hidden] *' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('\u2014')).toBeInTheDocument();
   });
 

@@ -15,34 +15,20 @@ import * as stylex from '@stylexjs/stylex';
 import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import type { ClassesRatePoint } from '@fit/types';
-import { AreaChart, type AreaPoint } from '../charts';
+import { ColumnChart, type ColumnDatum } from '../column-chart';
+import { StatRow } from '../stat-row';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
+import { CardTitle } from '../card-title';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
   head: { marginBottom: '1rem' },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -51,27 +37,44 @@ export function UtilizationCard({ points }: { points: ClassesRatePoint[] }) {
   const t = useTranslations('admin.dashboard.classes');
   const locale = useLocale();
 
-  const data: AreaPoint[] = points.map((point) => ({ label: point.label, value: point.value }));
+  const data: ColumnDatum[] = points.map((point) => ({ label: point.label, value: point.value }));
   // A series that is null the whole way through has nothing to draw a gap AGAINST.
   const hasData = data.some((point) => point.value !== null);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const rates = points.flatMap((point) => (point.value === null ? [] : [point.value]));
+  const latest = rates[rates.length - 1] ?? 0;
+  const average = rates.length > 0 ? rates.reduce((sum, v) => sum + v, 0) / rates.length : 0;
+  const lowest = rates.length > 0 ? Math.min(...rates) : 0;
+  const pct = (value: number) => `${value.toFixed(1)}%`;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
-        <h2 {...stylex.props(styles.title)}>{t('utilization.title')}</h2>
+        <CardTitle icon="target">{t('utilization.title')}</CardTitle>
         <p {...stylex.props(styles.caption)}>{t('utilization.caption')}</p>
       </div>
 
       {hasData ? (
         <>
-          <AreaChart data={data} ariaLabel={t('utilization.chartAria')} />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
-          <p {...stylex.props(styles.caption)}>{t('utilization.gapNote')}</p>
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('stats.latest'), value: pct(latest), swatch: 'up' },
+              { label: t('stats.average'), value: pct(average) },
+              { label: t('stats.lowest'), value: pct(lowest) },
+            ]}
+          />
+          <ColumnChart
+            data={data}
+            maxValue={100}
+            ariaLabel={t('utilization.chartAria')}
+            formatValue={(value) => `${Math.round(value)}%`}
+            formatLabel={(label) => formatBucket(locale, label)}
+            valueName={t('utilization.title')}
+            noDataLabel={t('noValue')}
+          />
+          {data.length > 1 ? (
+            <p {...stylex.props(styles.caption)}>{t('utilization.gapNote')}</p>
+          ) : null}
         </>
       ) : (
         <EmptyState>{t('utilization.empty')}</EmptyState>

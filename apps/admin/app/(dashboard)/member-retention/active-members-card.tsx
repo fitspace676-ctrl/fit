@@ -10,19 +10,18 @@
 // frozen: a paused membership is still a membership and still resumes. That is a
 // different set from the one the at-risk list uses, and the difference is
 // deliberate — see the service.
-//
-// The x-axis shows the first and last bucket only. Thirty `YYYY-MM-DD` labels in a
-// 640-unit viewBox is an unreadable smear.
 
 import * as stylex from '@stylexjs/stylex';
 import { Card } from '@fit/ui-kit';
 import { useLocale, useTranslations } from 'next-intl';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { SALES_GRANULARITIES, type MembersGranularity, type ReportSeriesPoint } from '@fit/types';
-import { AreaChart, type AreaPoint } from '../charts';
+import { LevelChart, type LevelDatum } from '../level-chart';
 import { EmptyState } from '../overview/format';
 import { formatBucket } from '../format';
 import { createNumberFormat } from '@fit/i18n';
+import { CardTitle } from '../card-title';
+import { StatRow } from '../stat-row';
 
 const styles = stylex.create({
   card: { display: 'flex', flexDirection: 'column', padding: '1.25rem' },
@@ -34,27 +33,11 @@ const styles = stylex.create({
     gap: '0.75rem',
     marginBottom: '1rem',
   },
-  title: {
-    margin: 0,
-    fontFamily: 'var(--font-family-heading)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    letterSpacing: '-0.005em',
-    color: 'var(--color-text-primary)',
-  },
   caption: {
     margin: 0,
     marginTop: '0.125rem',
     fontFamily: 'var(--font-family-code)',
     fontSize: '0.75rem',
-    color: 'var(--color-text-secondary)',
-  },
-  axisRow: {
-    marginTop: '0.25rem',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontFamily: 'var(--font-family-code)',
-    fontSize: '0.625rem',
     color: 'var(--color-text-secondary)',
   },
 });
@@ -79,16 +62,20 @@ export function ActiveMembersCard({
   const t = useTranslations('admin.dashboard.members');
   const locale = useLocale();
 
-  const data: AreaPoint[] = points.map((point) => ({ label: point.label, value: point.value }));
+  const data: LevelDatum[] = points.map((point) => ({ label: point.label, value: point.value }));
   const hasData = data.some((point) => point.value !== 0);
-  const first = points[0]?.label;
-  const last = points[points.length - 1]?.label;
+  const count = createNumberFormat(locale);
+  // A headcount is a level, not a flow: the reader wants where it started, where
+  // it is, and the difference, before the curve between them.
+  const start = points.find((point) => point.value !== null)?.value ?? 0;
+  const change = current - start;
+  const changePct = start > 0 ? (change / start) * 100 : null;
 
   return (
     <Card padding="none" xstyle={styles.card}>
       <div {...stylex.props(styles.head)}>
         <div>
-          <h2 {...stylex.props(styles.title)}>{t('active.title')}</h2>
+          <CardTitle icon="users">{t('active.title')}</CardTitle>
           <p {...stylex.props(styles.caption)}>
             {t('active.caption', {
               window: windowLabel ?? t(`window.${granularity}`),
@@ -111,11 +98,28 @@ export function ActiveMembersCard({
 
       {hasData ? (
         <>
-          <AreaChart data={data} ariaLabel={t('active.chartAria')} />
-          <div {...stylex.props(styles.axisRow)}>
-            <span>{first ? formatBucket(locale, first) : null}</span>
-            <span>{last ? formatBucket(locale, last) : null}</span>
-          </div>
+          <StatRow
+            hidden={data.length <= 1}
+            stats={[
+              { label: t('active.start'), value: count.format(start) },
+              { label: t('active.now'), value: count.format(current), swatch: 'up' },
+              {
+                label: t('active.change'),
+                value: `${change > 0 ? '+' : ''}${count.format(change)}${
+                  changePct === null ? '' : ` (${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%)`
+                }`,
+                tone: change > 0 ? 'good' : change < 0 ? 'bad' : undefined,
+              },
+            ]}
+          />
+          <LevelChart
+            data={data}
+            integer
+            ariaLabel={t('active.chartAria')}
+            formatValue={(value) => count.format(value)}
+            formatLabel={(label) => formatBucket(locale, label)}
+            valueName={t('active.point')}
+          />
         </>
       ) : (
         <EmptyState>{t('active.empty')}</EmptyState>

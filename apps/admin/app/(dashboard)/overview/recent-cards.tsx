@@ -17,19 +17,26 @@ const pulse = stylex.keyframes({
 });
 
 const styles = stylex.create({
+  // Just the pulsing dot: the tab row it sits in is too narrow for the word,
+  // which stays for screen readers and as the hover title.
   livePill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
+    flexShrink: 0,
+    display: 'inline-grid',
+    placeItems: 'center',
+    width: '1.375rem',
+    height: '1.375rem',
+    marginBottom: '0.625rem',
     borderRadius: 'var(--radius-full)',
     backgroundColor: 'var(--color-accent-muted)',
-    paddingInline: '0.5rem',
-    paddingBlock: '0.125rem',
-    fontSize: '0.625rem',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
     color: 'var(--color-text-accent)',
+  },
+  srOnly: {
+    position: 'absolute',
+    width: '1px',
+    height: '1px',
+    overflow: 'hidden',
+    clip: 'rect(0 0 0 0)',
+    whiteSpace: 'nowrap',
   },
   liveDot: {
     display: 'inline-block',
@@ -178,9 +185,9 @@ const styles = stylex.create({
 export function LiveNowPill() {
   const t = useTranslations('admin.dashboard');
   return (
-    <span {...stylex.props(styles.livePill)}>
-      <span {...stylex.props(styles.liveDot)} />
-      {t('inGymNow.live')}
+    <span title={t('inGymNow.live')} {...stylex.props(styles.livePill)}>
+      <span aria-hidden {...stylex.props(styles.liveDot)} />
+      <span {...stylex.props(styles.srOnly)}>{t('inGymNow.live')}</span>
     </span>
   );
 }

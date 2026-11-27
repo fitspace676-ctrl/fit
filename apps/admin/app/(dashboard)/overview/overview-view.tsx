@@ -41,6 +41,7 @@ import { RevenueCard } from './revenue-card';
 import { PlanMixCard } from './plan-mix-card';
 import { ScheduleCard } from './schedule-card';
 import { AlertsCard } from './alerts-card';
+import { Reveal } from '../reveal';
 import { RecentActivityCard } from './recent-activity-card';
 
 const styles = stylex.create({
@@ -124,13 +125,31 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
 
   return (
     <div {...stylex.props(styles.page, isPending && styles.pending)}>
-      <MetricStrip data={data} />
+      {/*
+        The entrance wave, by importance rather than DOM order: the KPI strip
+        leads, the revenue chart and live occupancy follow as one beat, then the
+        rest. Gaps shrink as the wave goes so it reads as one gesture, not a queue.
+      */}
+      <Reveal delay={40}>
+        <MetricStrip data={data} />
+      </Reveal>
 
       <div {...stylex.props(styles.workArea)}>
         <div {...stylex.props(styles.column)}>
-          <RevenueCard data={data} money={money} onSelectRange={selectRange} disabled={isPending} />
-          <ScheduleCard data={data} />
-          <PlanMixCard data={data} />
+          <Reveal delay={130}>
+            <RevenueCard
+              data={data}
+              money={money}
+              onSelectRange={selectRange}
+              disabled={isPending}
+            />
+          </Reveal>
+          <Reveal delay={200}>
+            <ScheduleCard data={data} />
+          </Reveal>
+          <Reveal delay={250}>
+            <PlanMixCard data={data} />
+          </Reveal>
         </div>
 
         {/*
@@ -140,9 +159,15 @@ export function OverviewView({ data }: { data: DashboardOverviewResponse }) {
           count off the page.
         */}
         <div {...stylex.props(styles.rail)}>
-          <InGymNow data={data} />
-          <AlertsCard data={data} />
-          <RecentActivityCard data={data} />
+          <Reveal delay={150}>
+            <InGymNow data={data} />
+          </Reveal>
+          <Reveal delay={210}>
+            <AlertsCard data={data} />
+          </Reveal>
+          <Reveal delay={260}>
+            <RecentActivityCard data={data} />
+          </Reveal>
         </div>
       </div>
     </div>
